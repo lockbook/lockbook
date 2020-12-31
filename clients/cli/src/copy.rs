@@ -86,7 +86,7 @@ fn recursive_copy_folder(
                         }
                     }
                     CreateFileAtPathError::NoAccount => exit_with_no_account(),
-                    CreateFileAtPathError::NoRoot => exit_with("No root folder, have you synced yet?", NO_ROOT),
+                    CreateFileAtPathError::NoRoot => exit_with_no_root(),
                     CreateFileAtPathError::DocumentTreatedAsFolder => println!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
                     CreateFileAtPathError::PathContainsEmptyFile => println!("Input destination {} contains an empty file!", import_dest),
                     CreateFileAtPathError::PathDoesntStartWithRoot => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
@@ -152,9 +152,7 @@ fn copy_file(path: &PathBuf, import_dest: &str, config: &Config, edit: bool, is_
                             }
                         }
                         CreateFileAtPathError::NoAccount => exit_with_no_account(),
-                        CreateFileAtPathError::NoRoot => {
-                            exit_with("No root folder, have you synced yet?", NO_ROOT)
-                        }
+                        CreateFileAtPathError::NoRoot => exit_with_no_root(),
                         CreateFileAtPathError::DocumentTreatedAsFolder => {
                             if is_folder_copy {
                                 return println!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest);
@@ -178,10 +176,7 @@ fn copy_file(path: &PathBuf, import_dest: &str, config: &Config, edit: bool, is_
                                 )
                             }
                         }
-                        CreateFileAtPathError::PathDoesntStartWithRoot => exit_with(
-                            "Import destination doesn't start with your root folder.",
-                            PATH_NO_ROOT,
-                        ),
+                        CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
                     },
                     CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
                 },
@@ -250,4 +245,15 @@ fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
             })
         })
         .collect()
+}
+
+fn exit_with_no_root() -> ! {
+    exit_with("No root folder, have you synced yet?", NO_ROOT)
+}
+
+fn exit_with_path_no_root() -> ! {
+    exit_with(
+        "Import destination doesn't start with your root folder.",
+        PATH_NO_ROOT,
+    )
 }
