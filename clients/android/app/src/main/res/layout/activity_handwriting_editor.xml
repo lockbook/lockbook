@@ -94,29 +94,44 @@
                 android:orientation="vertical">
 
                 <ImageButton
+                    android:id="@+id/drawing_erase"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_margin="10dp"
-                    style="@style/Main.RegularImageButton"
+                    style="@style/Main.DrawingImageButton"
                     android:src="@drawable/ic_eraser"
-                    android:contentDescription="Eraser" />
+                    android:contentDescription="@string/handwriting_editor_eraser_description" />
+
 
                 <ImageButton
+                    android:id="@+id/drawing_pen"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_margin="10dp"
-                    style="@style/Main.RegularImageButton"
+                    style="@style/Main.DrawingImageButton"
                     android:src="@drawable/ic_pencil"
-                    android:contentDescription="Pen" />
+                    android:contentDescription="@string/handwriting_editor_pen_description" />
 
-                <androidx.appcompat.widget.AppCompatSeekBar
-                    android:layout_width="300dp"
+                <TextView
+                    android:id="@+id/handwriting_editor_pen_small"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:max="100"
-                    android:min="0"
-                    android:rotation="270"
                     android:padding="10dp"
-                    />
+                    android:text="@string/handwriting_editor_pen_small_description" />
+
+                <TextView
+                    android:id="@+id/handwriting_editor_pen_medium"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="@string/handwriting_editor_pen_medium_description" />
+
+                <TextView
+                    android:id="@+id/handwriting_editor_pen_large"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp"
+                    android:text="@string/handwriting_editor_pen_large_description" />
 
             </LinearLayout>
 

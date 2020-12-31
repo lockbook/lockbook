@@ -22,6 +22,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private var erasePoints = Pair(PointF(-1f, -1f), PointF(-1f, -1f))
     private var thread = Thread(this)
     private var isThreadRunning = false
+    private var penSizeMultiplier = 7
     var isErasing = false
     var isTouchable = false
 
@@ -37,6 +38,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private var modelFocusPoint = PointF()
     private var driftWhileScalingX = 0f
     private var driftWhileScalingY = 0f
+
+    enum class PenSize {
+        SMALL,
+        MEDIUM,
+        LARGE
+    }
 
     private val scaleGestureDetector =
         ScaleGestureDetector(
@@ -245,7 +252,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    private fun compressPressure(pressure: Float): Float = ((pressure * 7) * 100).roundToInt() / 100f
+    private fun compressPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point.x, point.y)
@@ -353,6 +360,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun distanceBetweenPoints(initialPoint: PointF, endPoint: PointF): Float =
         sqrt((initialPoint.x - endPoint.x).pow(2) + (initialPoint.y - endPoint.y).pow(2))
+
+    fun setPenSize(penSize: PenSize) {
+        when(penSize) {
+            PenSize.SMALL -> penSizeMultiplier = 7
+            PenSize.MEDIUM -> penSizeMultiplier = 20
+            PenSize.LARGE -> penSizeMultiplier = 40
+        }.exhaustive
+    }
 
     private fun lineTo(point: PointF, pressure: Float) {
         activePaint.strokeWidth = pressure

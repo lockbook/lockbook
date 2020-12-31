@@ -12,6 +12,7 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.model.HandwritingEditorViewModel
 import app.lockbook.modelfactory.HandwritingEditorViewModelFactory
+import app.lockbook.ui.HandwritingEditorView
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import com.google.android.material.button.MaterialButton
@@ -145,8 +146,38 @@ class HandwritingEditorActivity : AppCompatActivity() {
             newStylusColorSelected(drawing_color_red, android.R.color.holo_red_light)
         }
 
-        drawing_erase.setOnCheckedChangeListener { _, isChecked ->
-            handwriting_editor.isErasing = isChecked
+        drawing_erase.setOnClickListener {
+            drawing_erase.setBackgroundResource(R.drawable.item_border)
+            drawing_pen.setBackgroundResource(0)
+            handwriting_editor.isErasing = true
+        }
+
+        drawing_pen.setOnClickListener {
+            drawing_pen.setBackgroundResource(R.drawable.item_border)
+            drawing_erase.setBackgroundResource(0)
+            handwriting_editor.isErasing = false
+        }
+
+        handwriting_editor_pen_small.setOnClickListener {
+            handwriting_editor_pen_small.setBackgroundResource(R.drawable.item_border)
+            handwriting_editor_pen_medium.setBackgroundResource(0)
+            handwriting_editor_pen_large.setBackgroundResource(0)
+            handwriting_editor.setPenSize(HandwritingEditorView.PenSize.SMALL)
+
+        }
+
+        handwriting_editor_pen_medium.setOnClickListener {
+            handwriting_editor_pen_medium.setBackgroundResource(R.drawable.item_border)
+            handwriting_editor_pen_small.setBackgroundResource(0)
+            handwriting_editor_pen_large.setBackgroundResource(0)
+            handwriting_editor.setPenSize(HandwritingEditorView.PenSize.MEDIUM)
+        }
+
+        handwriting_editor_pen_large.setOnClickListener {
+            handwriting_editor_pen_large.setBackgroundResource(R.drawable.item_border)
+            handwriting_editor_pen_small.setBackgroundResource(0)
+            handwriting_editor_pen_medium.setBackgroundResource(0)
+            handwriting_editor.setPenSize(HandwritingEditorView.PenSize.LARGE)
         }
     }
 
