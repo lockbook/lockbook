@@ -93,18 +93,30 @@
                 android:gravity="center_horizontal"
                 android:orientation="vertical">
 
-                <TextView
+                <ImageButton
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_margin="10dp"
-                    android:text="Erase"/>
+                    style="@style/Main.RegularImageButton"
+                    android:src="@drawable/ic_eraser"
+                    android:contentDescription="Eraser" />
 
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/drawing_erase"
+                <ImageButton
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="10dp"
-                    android:layout_marginBottom="10dp" />
+                    android:layout_margin="10dp"
+                    style="@style/Main.RegularImageButton"
+                    android:src="@drawable/ic_pencil"
+                    android:contentDescription="Pen" />
+
+                <androidx.appcompat.widget.AppCompatSeekBar
+                    android:layout_width="300dp"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:min="0"
+                    android:rotation="270"
+                    android:padding="10dp"
+                    />
 
             </LinearLayout>
 
