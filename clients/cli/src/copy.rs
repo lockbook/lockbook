@@ -60,10 +60,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
     if path.is_file() {
         match copy_file(&path, import_dest, config, edit) {
             Ok(msg) => println!("{}", msg),
-            Err(err) => {
-                println!("{}", err.msg);
-                return;
-            }
+            Err(err) => println!("{}", err.msg),
         }
     } else {
         let children: Vec<DirEntry> = read_dir_entries_or_exit(&path);
