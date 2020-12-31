@@ -84,7 +84,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                         )
                     });
 
-                let lb_child_path = format!("{}{}", import_dest, child_name);
+                let lb_child_path = format!("{}/{}", import_dest, child_name);
 
                 recursive_copy_folder(&child_path, &lb_child_path, config, edit);
             }
@@ -114,95 +114,89 @@ fn copy_file(
     config: &Config,
     edit: bool,
 ) -> Result<String, LbCliError> {
-    let content_to_import = fs::read_to_string(&path);
-    let absolute_path_maybe = fs::canonicalize(&path);
-
-    match (content_to_import, absolute_path_maybe) {
-        (Ok(content), Ok(absolute_path)) => {
-            let import_dest_with_filename = if import_dest.ends_with('/') {
-                match absolute_path.file_name() {
-                    Some(name) => match name.to_os_string().into_string() {
-                        Ok(string) => format!("{}{}", &import_dest, string),
-                        Err(err) => exit_with(
-                            format!(
-                                "Unexpected error while trying to convert an OsString -> Rust String: {:?}",
-                                err
-                            )
-                                .as_str(),
-                            UNEXPECTED_ERROR,
-                        ),
-                    },
-                    None => exit_with(
-                        "Import target does not contain a file name!",
-                        UNEXPECTED_ERROR,
-                    ),
-                }
-            } else {
-                import_dest.to_string()
-            };
-
-            let file_metadata = match create_file_at_path(config, &import_dest_with_filename) {
-                Ok(file_metadata) => file_metadata,
-                Err(err) => match err {
-                    CoreError::UiError(err) => match err {
-                        CreateFileAtPathError::FileAlreadyExists => {
-                            if edit {
-                                get_file_by_path(config, &import_dest_with_filename).unwrap_or_else(
-                                    |get_err| match get_err {
-                                        CoreError::UiError(
-                                            GetFileByPathError::NoFileAtThatPath,
-                                        )
-                                        | CoreError::Unexpected(_) => exit_with(
-                                            &format!("Unexpected error: {:?}", get_err),
-                                            UNEXPECTED_ERROR,
-                                        ),
-                                    },
-                                )
-                            } else {
-                                return Err(LbCliError::new(FILE_ALREADY_EXISTS, "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!".to_string()));
-                            }
-                        }
-                        CreateFileAtPathError::NoAccount => exit_with_no_account(),
-                        CreateFileAtPathError::NoRoot => exit_with_no_root(),
-                        CreateFileAtPathError::DocumentTreatedAsFolder => {
-                            return Err(LbCliError::new(DOCUMENT_TREATED_AS_FOLDER, format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest)));
-                        }
-                        CreateFileAtPathError::PathContainsEmptyFile => {
-                            return Err(LbCliError::new(
-                                PATH_CONTAINS_EMPTY_FILE,
-                                format!(
-                                    "Input destination {} contains an empty file!",
-                                    import_dest_with_filename
-                                ),
-                            ));
-                        }
-                        CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
-                    },
-                    CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                },
-            };
-
-            match write_document(config, file_metadata.id, content.as_bytes()) {
-                Ok(_) => Ok(format!("imported to {}", import_dest_with_filename)),
-                Err(err) => Err(LbCliError::new(
-                    UNEXPECTED_ERROR,
-                    format!("Unexpected error: {:#?}", err),
-                )),
-            }
-        }
-        (Err(content_err), _) => Err(LbCliError::new(
+    let content = fs::read_to_string(&path).map_err(|err| {
+        LbCliError::new(
             COULD_NOT_READ_OS_FILE,
-            format!(
-                "Failed to read file from {:?}, OS error: {}",
-                path, content_err
-            ),
-        )),
-        (_, Err(path_err)) => Err(LbCliError::new(
+            format!("Failed to read file from {:?}, OS error: {}", path, err),
+        )
+    })?;
+
+    let absolute_path = fs::canonicalize(&path).map_err(|err| {
+        LbCliError::new(
             COULD_NOT_GET_OS_ABSOLUTE_PATH,
             format!(
                 "Failed to get absolute path from {:?}, OS error: {}",
-                path, path_err
+                path, err
             ),
+        )
+    })?;
+
+    let import_dest_with_filename = if import_dest.ends_with('/') {
+        match absolute_path.file_name() {
+            Some(name) => match name.to_os_string().into_string() {
+                Ok(string) => format!("{}{}", &import_dest, string),
+                Err(err) => exit_with(
+                    format!(
+                        "Unexpected error while trying to convert an OsString -> Rust String: {:?}",
+                        err
+                    )
+                    .as_str(),
+                    UNEXPECTED_ERROR,
+                ),
+            },
+            None => exit_with(
+                "Import target does not contain a file name!",
+                UNEXPECTED_ERROR,
+            ),
+        }
+    } else {
+        import_dest.to_string()
+    };
+
+    let file_metadata = match create_file_at_path(config, &import_dest_with_filename) {
+        Ok(file_metadata) => file_metadata,
+        Err(err) => match err {
+            CoreError::UiError(err) => match err {
+                CreateFileAtPathError::FileAlreadyExists => {
+                    if edit {
+                        get_file_by_path(config, &import_dest_with_filename).unwrap_or_else(
+                            |get_err| match get_err {
+                                CoreError::UiError(GetFileByPathError::NoFileAtThatPath)
+                                | CoreError::Unexpected(_) => exit_with(
+                                    &format!("Unexpected error: {:?}", get_err),
+                                    UNEXPECTED_ERROR,
+                                ),
+                            },
+                        )
+                    } else {
+                        return Err(LbCliError::new(FILE_ALREADY_EXISTS, "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!".to_string()));
+                    }
+                }
+                CreateFileAtPathError::NoAccount => exit_with_no_account(),
+                CreateFileAtPathError::NoRoot => exit_with_no_root(),
+                CreateFileAtPathError::DocumentTreatedAsFolder => {
+                    return Err(LbCliError::new(DOCUMENT_TREATED_AS_FOLDER, format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest)));
+                }
+                CreateFileAtPathError::PathContainsEmptyFile => {
+                    return Err(LbCliError::new(
+                        PATH_CONTAINS_EMPTY_FILE,
+                        format!(
+                            "Input destination {} contains an empty file!",
+                            import_dest_with_filename
+                        ),
+                    ));
+                }
+                CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
+            },
+            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        },
+    };
+
+    match write_document(config, file_metadata.id, content.as_bytes()) {
+        Ok(_) => Ok(format!("imported to {}", import_dest_with_filename)),
+        Err(err) => Err(LbCliError::new(
+            UNEXPECTED_ERROR,
+            format!("Unexpected error: {:#?}", err),
         )),
     }
 }
