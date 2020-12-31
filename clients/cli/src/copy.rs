@@ -23,39 +23,30 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     if path.is_file() {
         copy_file(&path, import_dest, &config, edit, false)
     } else {
-        recursive_copy_folder(&path, import_dest, &config, edit, true);
-    }
-}
-
-fn recursive_copy_folder(
-    path: &PathBuf,
-    import_dest: &str,
-    config: &Config,
-    edit: bool,
-    is_top_folder: bool,
-) {
-    if path.is_file() {
-        copy_file(&path, import_dest, config, edit, true);
-    } else {
-        let children: Vec<DirEntry> = read_dir_entries_or_exit(&path);
         let import_dir = match import_dest.ends_with('/') {
             true => import_dest.to_string(),
             false => format!("{}/", import_dest),
         };
-        let possible_parent_dir = if is_top_folder {
-            let parent = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or_else(|| {
-                    exit_with(
-                        &format!("Failed to read parent name, OS path: {:?}", path),
-                        COULD_NOT_READ_OS_CHILDREN,
-                    )
-                });
-            format!("{}/", parent)
-        } else {
-            "".to_string()
-        };
+        let parent = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_else(|| {
+                exit_with(
+                    &format!("Failed to read parent name, OS path: {:?}", path),
+                    COULD_NOT_READ_OS_CHILDREN,
+                )
+            });
+        let import_path = format!("{}{}", import_dir, parent);
+
+        recursive_copy_folder(&path, &import_path, &config, edit);
+    }
+}
+
+fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edit: bool) {
+    if path.is_file() {
+        copy_file(&path, import_dest, config, edit, true);
+    } else {
+        let children: Vec<DirEntry> = read_dir_entries_or_exit(&path);
 
         if !children.is_empty() {
             for child in children {
@@ -73,9 +64,9 @@ fn recursive_copy_folder(
                         )
                     });
 
-                let lb_child_path = format!("{}{}{}", import_dir, possible_parent_dir, child_name);
+                let lb_child_path = format!("{}{}", import_dest, child_name);
 
-                recursive_copy_folder(&child_path, &lb_child_path, config, edit, false);
+                recursive_copy_folder(&child_path, &lb_child_path, config, edit);
             }
         } else if let Err(err) = create_file_at_path(config, &import_dest) {
             match err {
