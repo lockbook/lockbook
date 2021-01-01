@@ -49,6 +49,7 @@ pub enum Filter {
     LeafNodesOnly,
 }
 
+#[derive(Debug)]
 pub enum StringToFilterError {
     UnknownFilter,
 }
