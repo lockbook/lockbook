@@ -49,13 +49,18 @@ pub enum Filter {
     LeafNodesOnly,
 }
 
-pub fn filter_from_str(input: &str) -> Result<Option<Filter>, ()> {
+#[derive(Debug)]
+pub enum StringToFilterError {
+    UnknownFilter,
+}
+
+pub fn filter_from_str(input: &str) -> Result<Option<Filter>, StringToFilterError> {
     match input {
         "DocumentsOnly" => Ok(Some(Filter::DocumentsOnly)),
         "FoldersOnly" => Ok(Some(Filter::FoldersOnly)),
         "LeafNodesOnly" => Ok(Some(Filter::LeafNodesOnly)),
         "Unfiltered" => Ok(None),
-        _ => Err(()),
+        _ => Err(StringToFilterError::UnknownFilter),
     }
 }
 
