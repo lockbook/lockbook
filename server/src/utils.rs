@@ -3,7 +3,7 @@ pub fn username_is_valid(username: &str) -> bool {
         && username
             .to_lowercase()
             .chars()
-            .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+            .all(|c| ('a'..='z').contains(&c) || ('0'..='9').contains(&c))
 }
 
 pub fn version_is_supported(version: &str) -> bool {
