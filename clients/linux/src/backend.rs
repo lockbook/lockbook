@@ -358,6 +358,21 @@ impl LbCore {
         let decrypted = self.read(meta.id)?;
         Ok((meta, String::from_utf8_lossy(&decrypted).to_string()))
     }
+
+    pub fn sync_status(&self) -> LbResult<String> {
+        match self.get_last_synced()? {
+            0 => Ok("✘  Never synced.".to_string()),
+            _ => {
+                let work = self.calculate_work()?;
+                let n_files = work.work_units.len();
+                Ok(match n_files {
+                    0 => "✔  Synced.".to_string(),
+                    1 => "<b>1</b>  file not synced.".to_string(),
+                    _ => format!("<b>{}</b>  files not synced.", n_files),
+                })
+            }
+        }
+    }
 }
 
 const UNAME_REQS: &str = "letters and numbers only";

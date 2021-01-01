@@ -150,7 +150,10 @@ impl LbApp {
                         if let Err(err) = gui.show_account_screen(&c) {
                             m.send_err("showing account screen", err);
                         }
-                        gui.account.sync().set_status(&c);
+                        match c.sync_status() {
+                            Ok(s) => gui.account.sync().set_status(&s),
+                            Err(err) => m.send_err("getting sync status", err),
+                        }
                     }
                     glib::Continue(true)
                 });
@@ -225,7 +228,9 @@ impl LbApp {
     }
 
     fn perform_sync(&self) {
-        let core = self.core.clone();
+        let c = self.core.clone();
+        let m = self.messenger.clone();
+
         let sync_ui = self.gui.account.sync().clone();
         sync_ui.set_syncing(true);
 
@@ -234,7 +239,10 @@ impl LbApp {
                 sync_ui.sync_progress(&msg);
             } else {
                 sync_ui.set_syncing(false);
-                sync_ui.set_status(&core);
+                match c.sync_status() {
+                    Ok(s) => sync_ui.set_status(&s),
+                    Err(err) => m.send_err("getting sync status", err),
+                }
             }
             glib::Continue(true)
         });
@@ -257,7 +265,10 @@ impl LbApp {
         match self.core.create_file_at_path(&path) {
             Ok(file) => match self.gui.account.add_file(&self.core, &file) {
                 Ok(_) => {
-                    self.gui.account.sync().set_status(&self.core);
+                    match self.core.sync_status() {
+                        Ok(status) => self.gui.account.sync().set_status(&status),
+                        Err(err) => self.err("getting sync status", &err),
+                    }
                     self.open_file(Some(file.id));
                 }
                 Err(err) => self.err("adding file to tree", &err),
@@ -318,14 +329,17 @@ impl LbApp {
 
                 let id = f.id;
                 let content = acctscr.text_content();
-                let core = self.core.clone();
+                let c = self.core.clone();
                 let m = self.messenger.clone();
 
                 let ch = util::make_glib_chan(move |result: LbResult<()>| {
                     match result {
                         Ok(_) => {
                             acctscr.set_saving(false);
-                            acctscr.sync().set_status(&core);
+                            match c.sync_status() {
+                                Ok(s) => acctscr.sync().set_status(&s),
+                                Err(err) => m.send_err("getting sync status", err),
+                            }
                         }
                         Err(err) => m.send_err("saving file", err),
                     }
@@ -419,7 +433,11 @@ impl LbApp {
         }
 
         d.close();
-        self.gui.account.sync().set_status(&self.core);
+
+        match self.core.sync_status() {
+            Ok(s) => self.gui.account.sync().set_status(&s),
+            Err(err) => self.messenger.send_err("getting sync status", err),
+        }
     }
 
     fn rename_file(&self) {
@@ -460,11 +478,10 @@ impl LbApp {
         d.add_button("Ok", GtkResponseType::Ok);
         d.set_default_response(GtkResponseType::Ok);
 
-        let (acctscr, core, m) = (
-            self.gui.account.clone(),
-            self.core.clone(),
-            self.messenger.clone(),
-        );
+        let acctscr = self.gui.account.clone();
+        let c = self.core.clone();
+        let m = self.messenger.clone();
+
         d.connect_response(move |d, resp| {
             if resp != GtkResponseType::Ok {
                 d.close();
@@ -472,11 +489,14 @@ impl LbApp {
             }
 
             let (id, name) = (meta.id, entry.get_text());
-            match core.rename(&id, &name) {
+            match c.rename(&id, &name) {
                 Ok(_) => {
                     d.close();
                     acctscr.tree().set_name(&id, &name);
-                    acctscr.sync().set_status(&core);
+                    match c.sync_status() {
+                        Ok(s) => acctscr.sync().set_status(&s),
+                        Err(err) => m.send_err("getting sync status", err),
+                    }
                 }
                 Err(err) => match err {
                     UserErr(err) => {

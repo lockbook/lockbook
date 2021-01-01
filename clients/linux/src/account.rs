@@ -58,7 +58,7 @@ impl AccountScreen {
 
     pub fn fill(&self, core: &LbCore) -> LbResult<()> {
         self.sidebar.fill(&core)?;
-        self.sidebar.sync.set_status(&core);
+        self.sidebar.sync.set_status(&core.sync_status()?);
         Ok(())
     }
 
@@ -295,25 +295,8 @@ impl SyncPanel {
         }
     }
 
-    pub fn set_status(&self, core: &LbCore) {
-        match core.get_last_synced() {
-            Ok(last) => match last {
-                0 => self.status.set_markup("✘  Never synced."),
-                _ => match core.calculate_work() {
-                    Ok(work) => {
-                        let n_files = work.work_units.len();
-                        let txt = match n_files {
-                            0 => "✔  Synced.".to_string(),
-                            1 => "<b>1</b>  file not synced.".to_string(),
-                            _ => format!("<b>{}</b>  files not synced.", n_files),
-                        };
-                        self.status.set_markup(&txt);
-                    }
-                    Err(err) => println!("{}", err.msg()),
-                },
-            },
-            Err(err) => panic!(err),
-        }
+    pub fn set_status(&self, txt: &str) {
+        self.status.set_markup(&txt);
     }
 
     pub fn sync_progress(&self, s: &LbSyncMsg) {
