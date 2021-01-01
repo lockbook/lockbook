@@ -230,9 +230,7 @@ pub fn export_account(config: &Config) -> Result<String, Error<AccountExportErro
                 unexpected!("{:#?}", db_err)
             }
         },
-        ASAccountExportError::AccountStringFailedToSerialize(_) => {
-            unexpected!("{:#?}", e)
-        }
+        ASAccountExportError::AccountStringFailedToSerialize(_) => unexpected!("{:#?}", e),
     })
 }
 
@@ -296,9 +294,7 @@ pub fn create_file_at_path(
             | NewFileError::FailedToWriteFileContent(_)
             | NewFileError::FailedToRecordChange(_)
             | NewFileError::FileNameEmpty
-            | NewFileError::FileNameContainsSlash => {
-                unexpected!("{:#?}", failed_to_create)
-            }
+            | NewFileError::FileNameContainsSlash => unexpected!("{:#?}", failed_to_create),
         },
         NewFileFromPathError::FailedToRecordChange(_) | NewFileFromPathError::DbError(_) => {
             unexpected!("{:#?}", e)
@@ -501,9 +497,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
                     | file_service::DeleteDocumentError::FailedToUpdateMetadata(_)
                     | file_service::DeleteDocumentError::FailedToDeleteDocument(_)
                     | file_service::DeleteDocumentError::FailedToTrackDelete(_)
-                    | file_service::DeleteDocumentError::DbError(_) => {
-                        unexpected!("{:#?}", err)
-                    }
+                    | file_service::DeleteDocumentError::DbError(_) => unexpected!("{:#?}", err),
                 })
             }
             FileType::Folder => {
