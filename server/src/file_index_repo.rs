@@ -433,9 +433,9 @@ pub async fn get_public_key(
     }
 }
 
-fn rows_to_row<'a>(
-    rows: &'a Vec<tokio_postgres::row::Row>,
-) -> Result<&'a tokio_postgres::row::Row, FileError> {
+fn rows_to_row(
+    rows: &Vec<tokio_postgres::row::Row>,
+) -> Result<&tokio_postgres::row::Row, FileError> {
     match rows.as_slice() {
         [] => Err(FileError::DoesNotExist),
         [row] => Ok(row),
