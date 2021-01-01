@@ -238,19 +238,18 @@ impl LbCore {
         let acct_lock = lock!(self.account, read)?;
         let acct = account!(acct_lock)?;
 
-        let mut work: WorkCalculated;
-        while {
-            work = self.calculate_work()?;
-            !work.work_units.is_empty()
-        } {
-            let total = work.work_units.len();
+        loop {
+            let work = self.calculate_work()?;
+            if work.work_units.is_empty() {
+                break;
+            }
 
             for (i, wu) in work.work_units.iter().enumerate() {
                 let data = LbSyncMsg {
                     work: wu.clone(),
                     path: self.full_path_for(&wu.get_metadata()),
                     index: i + 1,
-                    total,
+                    total: work.work_units.len(),
                 };
 
                 ch.send(Some(data)).map_err(LbError::fmt_program_err)?;
