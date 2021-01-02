@@ -362,7 +362,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         sqrt((initialPoint.x - endPoint.x).pow(2) + (initialPoint.y - endPoint.y).pow(2))
 
     fun setPenSize(penSize: PenSize) {
-        when(penSize) {
+        when (penSize) {
             PenSize.SMALL -> penSizeMultiplier = 7
             PenSize.MEDIUM -> penSizeMultiplier = 20
             PenSize.LARGE -> penSizeMultiplier = 40

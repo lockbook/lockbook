@@ -49,17 +49,19 @@ class HandwritingEditorViewModel(
         if (isCorrectMotionEvent && !isAnimatingTools) {
             isAnimatingTools = true
 
-            singleTapTimer.schedule(object : TimerTask() {
-                override fun run() {
-                    if (toolsVisibility == View.VISIBLE) {
-                        _setToolsVisibility.postValue(View.GONE)
-                    } else {
-                        _setToolsVisibility.postValue(View.VISIBLE)
+            singleTapTimer.schedule(
+                object : TimerTask() {
+                    override fun run() {
+                        if (toolsVisibility == View.VISIBLE) {
+                            _setToolsVisibility.postValue(View.GONE)
+                        } else {
+                            _setToolsVisibility.postValue(View.VISIBLE)
+                        }
+                        isAnimatingTools = false
                     }
-                    isAnimatingTools = false
-                }
-
-            }, 200)
+                },
+                200
+            )
         }
     }
 

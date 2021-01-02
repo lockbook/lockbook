@@ -1,10 +1,8 @@
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
-import android.graphics.PointF
 import android.os.Bundle
 import android.os.Handler
-import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceHolder
 import android.view.View
@@ -22,7 +20,6 @@ import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
-import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
@@ -99,7 +96,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
         }
 
         handwritingEditorViewModel.setToolsVisibility.observe(
-                this
+            this
         ) { newVisibility ->
             changeToolsVisibility(newVisibility)
         }
@@ -108,22 +105,22 @@ class HandwritingEditorActivity : AppCompatActivity() {
         setUpHandwritingToolbar()
 
         scaleGestureDetector = ScaleGestureDetector(
-                applicationContext,
-                object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                    override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                        handwritingEditorViewModel.detectedScale()
+            applicationContext,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
+                    handwritingEditorViewModel.detectedScale()
 
-                        return true
-                    }
-
-                    override fun onScale(detector: ScaleGestureDetector): Boolean = true
-
-                    override fun onScaleEnd(detector: ScaleGestureDetector?) {}
+                    return true
                 }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean = true
+
+                override fun onScaleEnd(detector: ScaleGestureDetector?) {}
+            }
         )
 
         handwriting_editor.setOnTouchListener { _, event ->
-            if(event != null) {
+            if (event != null) {
                 handwritingEditorViewModel.handleTouchEvent(event, handwriting_editor_tools_menu_1.visibility)
                 scaleGestureDetector.onTouchEvent(event)
             }
@@ -210,7 +207,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
             handwriting_editor_pen_medium.setBackgroundResource(0)
             handwriting_editor_pen_large.setBackgroundResource(0)
             handwriting_editor.setPenSize(HandwritingEditorView.PenSize.SMALL)
-
         }
 
         handwriting_editor_pen_medium.setOnClickListener {
@@ -250,7 +246,10 @@ class HandwritingEditorActivity : AppCompatActivity() {
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-                        handwritingEditorViewModel.savePath(Drawing(Page(Transformation(
+                        handwritingEditorViewModel.savePath(
+                            Drawing(
+                                Page(
+                                    Transformation(
                                         Point(
                                             handwriting_editor.drawingModel.currentView.transformation.translation.x,
                                             handwriting_editor.drawingModel.currentView.transformation.translation.y
@@ -265,7 +264,9 @@ class HandwritingEditorActivity : AppCompatActivity() {
                                             event.stroke.points.toMutableList()
                                         )
                                     )
-                                }.toMutableList()))
+                                }.toMutableList()
+                            )
+                        )
                     }
                 }
             },
