@@ -7,8 +7,9 @@ use gtk::{
     Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
-    Label as GtkLabel, Paned as GtkPaned, ScrolledWindow as GtkScrolledWindow,
-    Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, WrapMode as GtkWrapMode,
+    Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
+    ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator, Spinner as GtkSpinner,
+    Stack as GtkStack, WrapMode as GtkWrapMode,
 };
 use sourceview::prelude::*;
 use sourceview::Buffer as GtkSourceViewBuffer;
@@ -21,9 +22,9 @@ use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::error::LbResult;
 use crate::filetree::FileTree;
-use crate::messages::{Messenger, Msg};
+use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
-use crate::util;
+use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
 
 pub struct AccountScreen {
     header: Header,
@@ -262,8 +263,22 @@ impl SyncPanel {
         let m = msngr.clone();
         let status_evbox = gtk::EventBox::new();
         status_evbox.add(&status);
-        status_evbox.connect_button_press_event(move |_, _| {
-            m.send(Msg::ShowDialogSyncDetails);
+        status_evbox.connect_button_press_event(move |_, evt| {
+            if evt.get_button() == RIGHT_CLICK {
+                let menu = GtkMenu::new();
+                let item_data: Vec<(&str, MsgFn)> = vec![
+                    ("Refresh", || Msg::RefreshSyncStatus),
+                    ("Details", || Msg::ShowDialogSyncDetails),
+                ];
+                for (name, msg) in item_data {
+                    let m = m.clone();
+                    let mi = GtkMenuItem::with_label(name);
+                    mi.connect_activate(move |_| m.send(msg()));
+                    menu.append(&mi);
+                }
+                menu.show_all();
+                menu.popup_at_pointer(Some(evt));
+            }
             gtk::Inhibit(false)
         });
 
@@ -277,7 +292,7 @@ impl SyncPanel {
         spinner.set_size_request(20, 20);
 
         let cntr = GtkBox::new(Horizontal, 0);
-        util::gui::set_margin(&cntr, 8);
+        gui_util::set_margin(&cntr, 8);
         cntr.pack_start(&status_evbox, false, false, 0);
         cntr.pack_end(&button, false, false, 0);
 
@@ -383,8 +398,8 @@ impl Editor {
             ("Children", n_children.to_string()),
         ];
         for (row, (key, val)) in rows.into_iter().enumerate() {
-            grid.attach(&util::gui::text_right(key), 0, row as i32, 1, 1);
-            grid.attach(&util::gui::text_left(&val), 1, row as i32, 1, 1);
+            grid.attach(&gui_util::text_right(key), 0, row as i32, 1, 1);
+            grid.attach(&gui_util::text_left(&val), 1, row as i32, 1, 1);
         }
 
         self.info.foreach(|w| self.info.remove(w));

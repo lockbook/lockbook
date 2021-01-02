@@ -100,4 +100,6 @@ pub mod gui {
         l.set_margin_start(4);
         l
     }
+
+    pub const RIGHT_CLICK: u32 = 3;
 }
