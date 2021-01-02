@@ -255,11 +255,19 @@ pub struct SyncPanel {
 }
 
 impl SyncPanel {
-    fn new(m: &Messenger) -> Self {
+    fn new(msngr: &Messenger) -> Self {
         let status = GtkLabel::new(None);
         status.set_halign(GtkAlign::Start);
 
-        let m = m.clone();
+        let m = msngr.clone();
+        let status_evbox = gtk::EventBox::new();
+        status_evbox.add(&status);
+        status_evbox.connect_button_press_event(move |_, _| {
+            m.send(Msg::ShowDialogSyncDetails);
+            gtk::Inhibit(false)
+        });
+
+        let m = msngr.clone();
         let button = GtkBtn::with_label("Sync");
         button.connect_clicked(move |_| m.send(Msg::PerformSync));
 
@@ -270,7 +278,7 @@ impl SyncPanel {
 
         let cntr = GtkBox::new(Horizontal, 0);
         util::gui::set_margin(&cntr, 8);
-        cntr.pack_start(&status, false, false, 0);
+        cntr.pack_start(&status_evbox, false, false, 0);
         cntr.pack_end(&button, false, false, 0);
 
         Self {
@@ -304,8 +312,7 @@ impl SyncPanel {
             WorkUnit::LocalChange { metadata: _ } => "Pushing",
             WorkUnit::ServerChange { metadata: _ } => "Pulling",
         };
-        let txt = &format!("{}: {} ({}/{})", prefix, s.path, s.index, s.total);
-        self.status.set_text(txt);
+        self.set_status(&format!("{}: {} ({}/{})", prefix, s.path, s.index, s.total));
     }
 }
 
