@@ -52,21 +52,21 @@ struct FileListView: View {
         return baseView
             .toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
-                    Button(action: { creating = .Folder }) {
-                        Image(systemName: "folder.fill.badge.plus")
-                    }
-                    Button(action: { creating = .Document }) {
-                        Image(systemName: "doc.on.doc.fill")
-                    }
+                    ProgressView()
+                        .opacity(core.syncing ? 1.0 : 0)
+                    Spacer()
                     Spacer()
                     Spacer()
                     Text("\(core.files.count) items")
                         .foregroundColor(.secondary)
                     Spacer()
                     Spacer()
-                    Spacer()
-                    ProgressView()
-                        .opacity(core.syncing ? 1.0 : 0)
+                    Button(action: { creating = .Folder }) {
+                        Image(systemName: "folder.badge.plus")
+                    }
+                    Button(action: { creating = .Document }) {
+                        Image(systemName: "square.and.pencil")
+                    }
                 }
             }
         #else
