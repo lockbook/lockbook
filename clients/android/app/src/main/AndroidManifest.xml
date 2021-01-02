@@ -42,7 +42,7 @@
             android:theme="@style/Main.NoActionBar" />
         <activity
             android:name=".screen.HandwritingEditorActivity"
-            android:theme="@style/Main.NoActionBar" />
+            android:theme="@style/Main.FullScreen" />
         <activity android:name=".screen.ListFilesActivity" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.TextEditorActivity" />

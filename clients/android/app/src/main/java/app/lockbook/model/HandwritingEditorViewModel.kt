@@ -1,6 +1,8 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.view.MotionEvent
+import android.view.View
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -10,6 +12,7 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
+import java.util.*
 
 class HandwritingEditorViewModel(
     application: Application,
@@ -17,11 +20,19 @@ class HandwritingEditorViewModel(
 ) : AndroidViewModel(application) {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
-    var lockBookDrawable: Drawing? = null
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
+    private var singleTapTimer = Timer()
+    private var areToolsVisible = true
+    private var isAnimatingTools = false
+    var lockBookDrawable: Drawing? = null
+
+    private val _setToolsVisibility = MutableLiveData<Int>()
     private val _drawableReady = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
+
+    val setToolsVisibility: LiveData<Int>
+        get() = _setToolsVisibility
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -31,6 +42,32 @@ class HandwritingEditorViewModel(
 
     val drawableReady: LiveData<Unit>
         get() = _drawableReady
+
+    fun handleTouchEvent(event: MotionEvent, toolsVisibility: Int) {
+        val isCorrectMotionEvent = event.action == MotionEvent.ACTION_DOWN && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER
+
+        if (isCorrectMotionEvent && !isAnimatingTools) {
+            isAnimatingTools = true
+
+            singleTapTimer.schedule(object : TimerTask() {
+                override fun run() {
+                    if (toolsVisibility == View.VISIBLE) {
+                        _setToolsVisibility.postValue(View.GONE)
+                    } else {
+                        _setToolsVisibility.postValue(View.VISIBLE)
+                    }
+                    isAnimatingTools = false
+                }
+
+            }, 200)
+        }
+    }
+
+    fun detectedScale() {
+        singleTapTimer.cancel()
+        singleTapTimer = Timer()
+        isAnimatingTools = false
+    }
 
     fun getDrawing(id: String) {
         uiScope.launch {

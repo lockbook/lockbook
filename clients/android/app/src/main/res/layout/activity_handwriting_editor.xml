@@ -45,11 +45,13 @@
         app:layout_constraintTop_toTopOf="parent">
 
             <LinearLayout
+                android:id="@+id/handwriting_editor_tools_menu_1"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="start|center_vertical"
                 android:background="@color/colorPrimaryDark"
                 android:gravity="center_horizontal"
+                android:animateLayoutChanges="true"
                 android:orientation="vertical">
 
                 <com.google.android.material.button.MaterialButton
@@ -86,18 +88,17 @@
 
 
             <LinearLayout
+                android:id="@+id/handwriting_editor_tools_menu_2"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="end|center_vertical"
                 android:background="@color/colorPrimaryDark"
                 android:gravity="center_horizontal"
+                android:animateLayoutChanges="true"
                 android:orientation="vertical">
 
                 <ImageButton
                     android:id="@+id/drawing_erase"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="10dp"
                     style="@style/Main.DrawingImageButton"
                     android:src="@drawable/ic_eraser"
                     android:contentDescription="@string/handwriting_editor_eraser_description" />
@@ -105,9 +106,6 @@
 
                 <ImageButton
                     android:id="@+id/drawing_pen"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="10dp"
                     style="@style/Main.DrawingImageButton"
                     android:src="@drawable/ic_pencil"
                     android:contentDescription="@string/handwriting_editor_pen_description" />
@@ -124,6 +122,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:padding="10dp"
+                    android:layout_marginHorizontal="5dp"
                     android:text="@string/handwriting_editor_pen_medium_description" />
 
                 <TextView
@@ -131,6 +130,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:padding="10dp"
+                    android:layout_marginBottom="10dp"
                     android:text="@string/handwriting_editor_pen_large_description" />
 
             </LinearLayout>

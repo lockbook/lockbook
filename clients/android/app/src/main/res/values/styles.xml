@@ -13,6 +13,11 @@
         <item name="android:actionOverflowButtonStyle">@style/Main.Overflow</item>
     </style>
 
+    <style name="Main.FullScreen" parent="Main">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+
     <style name="Main.Dialog" parent="Theme.AppCompat.DayNight.Dialog">
         <item name="android:background">@color/windowBackground</item>
         <item name="colorPrimary">@color/colorPrimary</item>
@@ -21,8 +26,6 @@
     </style>
 
     <style name="Main.NoActionBar" parent="Main">
-        <item name="windowActionBar">false</item>
-        <item name="windowNoTitle">true</item>
         <item name="background">@color/windowBackground</item>
     </style>
 
@@ -41,6 +44,9 @@
     </style>
 
     <style name="Main.DrawingImageButton" parent="Widget.AppCompat.ImageButton">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_margin">10dp</item>
         <item name="android:background">?android:selectableItemBackground</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
@@ -128,5 +134,7 @@
 
     <style name="Main.Button.Borderless" parent="Widget.AppCompat.Button.Borderless" />
 
-    <style name="Main.Button.Borderless.Colored" parent="Widget.AppCompat.Button.Borderless.Colored" />
+    <style name="Main.Button.Borderless.Colored" parent="Widget.AppCompat.Button.Borderless.Colored">
+        <item name="android:textColor">@color/colorPrimary</item>
+    </style>
 </resources>

@@ -1,7 +1,11 @@
 package app.lockbook.screen
 
+import android.annotation.SuppressLint
+import android.graphics.PointF
 import android.os.Bundle
 import android.os.Handler
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.SurfaceHolder
 import android.view.View
 import androidx.appcompat.app.AlertDialog
@@ -18,6 +22,7 @@ import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
+import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
@@ -39,9 +44,11 @@ class HandwritingEditorActivity : AppCompatActivity() {
         }
     }
 
-    private var timer: Timer = Timer()
+    private var autoSaveTimer = Timer()
     private val handler = Handler()
+    private lateinit var scaleGestureDetector: ScaleGestureDetector
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_handwriting_editor)
@@ -91,8 +98,43 @@ class HandwritingEditorActivity : AppCompatActivity() {
             }
         }
 
+        handwritingEditorViewModel.setToolsVisibility.observe(
+                this
+        ) { newVisibility ->
+            changeToolsVisibility(newVisibility)
+        }
+
         startBackgroundSave()
         setUpHandwritingToolbar()
+
+        scaleGestureDetector = ScaleGestureDetector(
+                applicationContext,
+                object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
+                        handwritingEditorViewModel.detectedScale()
+
+                        return true
+                    }
+
+                    override fun onScale(detector: ScaleGestureDetector): Boolean = true
+
+                    override fun onScaleEnd(detector: ScaleGestureDetector?) {}
+                }
+        )
+
+        handwriting_editor.setOnTouchListener { _, event ->
+            if(event != null) {
+                handwritingEditorViewModel.handleTouchEvent(event, handwriting_editor_tools_menu_1.visibility)
+                scaleGestureDetector.onTouchEvent(event)
+            }
+
+            false
+        }
+    }
+
+    fun changeToolsVisibility(newVisibility: Int) {
+        handwriting_editor_tools_menu_1.visibility = newVisibility
+        handwriting_editor_tools_menu_2.visibility = newVisibility
     }
 
     private fun addDrawingToView() {
@@ -122,6 +164,11 @@ class HandwritingEditorActivity : AppCompatActivity() {
     }
 
     private fun setUpHandwritingToolbar() {
+        drawing_color_white.strokeWidth = 4
+        drawing_color_white.setStrokeColorResource(R.color.blue)
+        drawing_pen.setBackgroundResource(R.drawable.item_border)
+        handwriting_editor_pen_small.setBackgroundResource(R.drawable.item_border)
+
         drawing_color_white.setOnClickListener {
             newStylusColorSelected(drawing_color_white, android.R.color.white)
         }
@@ -194,19 +241,16 @@ class HandwritingEditorActivity : AppCompatActivity() {
         drawing_color_orange.strokeWidth = 0
         drawing_color_purple.strokeWidth = 0
         drawing_color_red.strokeWidth = 0
-        button.strokeWidth = 2
+        button.strokeWidth = 4
         button.setStrokeColorResource(R.color.blue)
     }
 
     private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!
-        timer.schedule(
+        autoSaveTimer.schedule(
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-                        handwritingEditorViewModel.savePath(
-                            Drawing(
-                                Page(
-                                    Transformation(
+                        handwritingEditorViewModel.savePath(Drawing(Page(Transformation(
                                         Point(
                                             handwriting_editor.drawingModel.currentView.transformation.translation.x,
                                             handwriting_editor.drawingModel.currentView.transformation.translation.y
@@ -221,9 +265,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
                                             event.stroke.points.toMutableList()
                                         )
                                     )
-                                }.toMutableList()
-                            )
-                        )
+                                }.toMutableList()))
                     }
                 }
             },
@@ -233,7 +275,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        timer.cancel()
+        autoSaveTimer.cancel()
         handwritingEditorViewModel.lockBookDrawable = handwriting_editor.drawingModel
         handwritingEditorViewModel.savePath(handwriting_editor.drawingModel)
         super.onDestroy()
