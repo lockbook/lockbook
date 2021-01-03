@@ -39,9 +39,25 @@ namespace test {
         }
 
         [TestMethod]
-        public void GetDbState() {
+        public void GetDbStateEmpty() {
             var getDbStateResult = CoreService.GetDbState().WaitResult();
-            CastOrDie(getDbStateResult, out Core.GetDbState.Success _);
+            Assert.AreEqual(DbState.Empty,
+                CastOrDie(getDbStateResult, out Core.GetDbState.Success _).dbState);
+        }
+
+        [TestMethod]
+        public void GetDbStateReady() {
+            var getDbStateResult = CoreService.GetDbState().WaitResult();
+            Assert.AreEqual(DbState.Empty,
+                CastOrDie(getDbStateResult, out Core.GetDbState.Success _).dbState);
+
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getDbStateResult2 = CoreService.GetDbState().WaitResult();
+            Assert.AreEqual(DbState.ReadyToUse,
+                CastOrDie(getDbStateResult2, out Core.GetDbState.Success _).dbState);
         }
 
         [TestMethod]
@@ -466,8 +482,12 @@ namespace test {
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
             var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
 
+            var writeDocResult = CoreService.WriteDocument(fileId, "test content").WaitResult();
+            CastOrDie(writeDocResult, out Core.WriteDocument.Success _);
+
             var readDocResult = CoreService.ReadDocument(fileId).WaitResult();
-            CastOrDie(readDocResult, out Core.ReadDocument.Success _);
+            Assert.AreEqual("test content",
+                CastOrDie(readDocResult, out Core.ReadDocument.Success _).content);
         }
 
         [TestMethod]
