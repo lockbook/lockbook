@@ -1,3 +1,10 @@
+#[macro_export]
+macro_rules! clone {
+    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)?) => {
+        $( $( let $aliases ).* = $( $vars ).+.clone(); )+
+    };
+}
+
 pub const BYTE: u64 = 1;
 pub const KILOBYTE: u64 = BYTE * 1024;
 pub const MEGABYTE: u64 = KILOBYTE * 1024;

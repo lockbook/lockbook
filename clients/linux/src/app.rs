@@ -39,7 +39,7 @@ use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
-use crate::{progerr, tree_iter_value, uerr};
+use crate::{clone, progerr, tree_iter_value, uerr};
 
 #[derive(Clone)]
 pub struct LbApp {
@@ -117,9 +117,7 @@ impl LbApp {
     fn create_account(&self, name: String) -> LbResult<()> {
         self.gui.intro.doing("Creating account...");
 
-        let gui = self.gui.clone();
-        let c = self.core.clone();
-        let m = self.messenger.clone();
+        clone!(self.gui as gui, self.core as c, self.messenger as m);
 
         let ch = util::make_glib_chan(move |result: LbResult<()>| {
             match result {
@@ -136,7 +134,7 @@ impl LbApp {
             glib::Continue(false)
         });
 
-        let c = self.core.clone();
+        clone!(self.core as c);
         thread::spawn(move || ch.send(c.create_account(&name)).unwrap());
         Ok(())
     }
@@ -144,17 +142,13 @@ impl LbApp {
     fn import_account(&self, privkey: String) -> LbResult<()> {
         self.gui.intro.doing("Importing account...");
 
-        let gui = self.gui.clone();
-        let core = self.core.clone();
-        let msngr = self.messenger.clone();
+        clone!(self.gui as gui, self.core as core, self.messenger as msngr);
 
         let import_chan = util::make_glib_chan(move |result: LbResult<()>| {
             if let Err(err) = result {
                 gui.intro.error_import(err.msg());
             } else {
-                let gui = gui.clone();
-                let c = core.clone();
-                let m = msngr.clone();
+                clone!(gui as gui, core as c, msngr as m);
 
                 let sync_chan = util::make_glib_chan(move |msg| {
                     if let Some(msg) = msg {
@@ -171,8 +165,7 @@ impl LbApp {
                     glib::Continue(true)
                 });
 
-                let c = core.clone();
-                let m = msngr.clone();
+                clone!(core as c, msngr as m);
                 thread::spawn(move || {
                     if let Err(err) = c.sync(&sync_chan) {
                         m.send_err("syncing", err);
@@ -182,8 +175,7 @@ impl LbApp {
             glib::Continue(false)
         });
 
-        let c = self.core.clone();
-        let m = self.messenger.clone();
+        clone!(self.core as c, self.messenger as m);
         thread::spawn(move || {
             if let Err(err) = import_chan.send(c.import_account(&privkey)) {
                 m.send_err("sending import result", LbError::fmt_program_err(err));
@@ -224,7 +216,7 @@ impl LbApp {
             Err(err) => self.err("unable to export account", &err),
         }
 
-        let m = self.messenger.clone();
+        clone!(self.messenger as m);
         let ch = util::make_glib_chan(move |res| {
             match res {
                 Ok(path) => {
@@ -237,15 +229,13 @@ impl LbApp {
             glib::Continue(false)
         });
 
-        let core = self.core.clone();
-        thread::spawn(move || ch.send(core.account_qrcode()).unwrap());
+        clone!(self.core as c);
+        thread::spawn(move || ch.send(c.account_qrcode()).unwrap());
         Ok(())
     }
 
     fn perform_sync(&self) -> LbResult<()> {
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-
+        clone!(self.core as c, self.messenger as m);
         let sync_ui = self.gui.account.sync().clone();
         sync_ui.set_syncing(true);
 
@@ -262,9 +252,7 @@ impl LbApp {
             glib::Continue(true)
         });
 
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-
+        clone!(self.core as c, self.messenger as m);
         thread::spawn(move || {
             if let Err(err) = c.sync(&ch) {
                 m.send_err("syncing", err);
@@ -341,8 +329,7 @@ impl LbApp {
 
                 let id = f.id;
                 let content = acctscr.text_content();
-                let c = self.core.clone();
-                let m = self.messenger.clone();
+                clone!(self.core as c, self.messenger as m);
 
                 let ch = util::make_glib_chan(move |result: LbResult<()>| {
                     match result {
@@ -487,10 +474,11 @@ impl LbApp {
         d.add_button("Ok", GtkResponseType::Ok);
         d.set_default_response(GtkResponseType::Ok);
 
-        let acctscr = self.gui.account.clone();
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-
+        clone!(
+            self.core as c,
+            self.messenger as m,
+            self.gui.account as acctscr
+        );
         d.connect_response(move |d, resp| {
             if resp != GtkResponseType::Ok {
                 d.close();
@@ -634,8 +622,7 @@ impl LbApp {
         d.add_button("Refresh", GtkResponseType::Other(RESP_REFRESH));
         d.add_button("Close", GtkResponseType::Close);
 
-        let c = self.core.clone();
-        let m = self.messenger.clone();
+        clone!(self.core as c, self.messenger as m);
         d.connect_response(move |d, r| match r {
             GtkResponseType::Other(RESP_REFRESH) => match sync_details(&c) {
                 Ok(details) => {
