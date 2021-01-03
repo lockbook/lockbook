@@ -29,14 +29,17 @@ use lockbook_core::model::work_unit::WorkUnit;
 use crate::account::AccountScreen;
 use crate::backend::LbCore;
 use crate::editmode::EditMode;
-use crate::error::{LbError, LbError::User as UserErr, LbResult};
+use crate::error::{
+    LbErrKind::{Program as ProgErr, User as UserErr},
+    LbError, LbResult,
+};
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
-use crate::tree_iter_value;
 use crate::util;
+use crate::{progerr, tree_iter_value, uerr};
 
 #[derive(Clone)]
 pub struct LbApp {
@@ -64,7 +67,7 @@ impl LbApp {
 
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
-            match msg {
+            let maybe_err = match msg {
                 Msg::CreateAccount(username) => lb.create_account(username),
                 Msg::ImportAccount(privkey) => lb.import_account(privkey),
                 Msg::ExportAccount => lb.export_account(),
@@ -93,7 +96,13 @@ impl LbApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
-                Msg::Error(title, err) => lb.err(&title, &err),
+                Msg::Error(title, err) => {
+                    lb.err(&title, &err);
+                    Ok(())
+                }
+            };
+            if let Err(err) = maybe_err {
+                lb.err("", &err);
             }
             glib::Continue(true)
         });
@@ -105,23 +114,23 @@ impl LbApp {
         self.gui.show(&self.core)
     }
 
-    fn create_account(&self, name: String) {
+    fn create_account(&self, name: String) -> LbResult<()> {
         self.gui.intro.doing("Creating account...");
 
         let gui = self.gui.clone();
         let c = self.core.clone();
         let m = self.messenger.clone();
 
-        let ch = util::make_glib_chan(move |result| {
+        let ch = util::make_glib_chan(move |result: LbResult<()>| {
             match result {
                 Ok(_) => {
                     if let Err(err) = gui.show_account_screen(&c) {
                         m.send_err("showing account screen", err);
                     }
                 }
-                Err(err) => match err {
-                    UserErr(err) => gui.intro.error_create(&err),
-                    prog_err => m.send_err("creating account", prog_err),
+                Err(err) => match err.kind() {
+                    UserErr => gui.intro.error_create(&err.msg()),
+                    ProgErr => m.send_err("creating account", err),
                 },
             }
             glib::Continue(false)
@@ -129,9 +138,10 @@ impl LbApp {
 
         let c = self.core.clone();
         thread::spawn(move || ch.send(c.create_account(&name)).unwrap());
+        Ok(())
     }
 
-    fn import_account(&self, privkey: String) {
+    fn import_account(&self, privkey: String) -> LbResult<()> {
         self.gui.intro.doing("Importing account...");
 
         let gui = self.gui.clone();
@@ -179,9 +189,10 @@ impl LbApp {
                 m.send_err("sending import result", LbError::fmt_program_err(err));
             }
         });
+        Ok(())
     }
 
-    fn export_account(&self) {
+    fn export_account(&self) -> LbResult<()> {
         let spinner = GtkSpinner::new();
         spinner.set_margin_end(8);
         spinner.show();
@@ -228,9 +239,10 @@ impl LbApp {
 
         let core = self.core.clone();
         thread::spawn(move || ch.send(core.account_qrcode()).unwrap());
+        Ok(())
     }
 
-    fn perform_sync(&self) {
+    fn perform_sync(&self) -> LbResult<()> {
         let c = self.core.clone();
         let m = self.messenger.clone();
 
@@ -258,80 +270,70 @@ impl LbApp {
                 m.send_err("syncing", err);
             }
         });
+        Ok(())
     }
 
-    fn refresh_sync_status(&self) {
-        match self.core.sync_status() {
-            Ok(s) => self.gui.account.sync().set_status(&s),
-            Err(err) => self.err("getting sync status", &err),
-        }
+    fn refresh_sync_status(&self) -> LbResult<()> {
+        let s = self.core.sync_status()?;
+        self.gui.account.sync().set_status(&s);
+        Ok(())
     }
 
-    fn quit(&self) {
+    fn quit(&self) -> LbResult<()> {
         self.gui.win.close();
+        Ok(())
     }
 
-    fn new_file(&self, path: String) {
-        match self.core.create_file_at_path(&path) {
-            Ok(file) => match self.gui.account.add_file(&self.core, &file) {
-                Ok(_) => {
-                    match self.core.sync_status() {
-                        Ok(status) => self.gui.account.sync().set_status(&status),
-                        Err(err) => self.err("getting sync status", &err),
-                    }
-                    self.open_file(Some(file.id));
-                }
-                Err(err) => self.err("adding file to tree", &err),
-            },
-            Err(err) => self.err("creating path", &err),
-        }
+    fn new_file(&self, path: String) -> LbResult<()> {
+        let file = self.core.create_file_at_path(&path)?;
+        self.gui.account.add_file(&self.core, &file)?;
+
+        let status = self.core.sync_status()?;
+        self.gui.account.sync().set_status(&status);
+
+        self.open_file(Some(file.id))
     }
 
-    fn open_file(&self, maybe_id: Option<Uuid>) {
+    fn open_file(&self, maybe_id: Option<Uuid>) -> LbResult<()> {
         let selected = self.gui.account.tree().get_selected_uuid();
 
         if let Some(id) = maybe_id.or(selected) {
-            match self.core.file_by_id(id) {
-                Ok(meta) => {
-                    self.state.borrow_mut().set_opened_file(Some(meta.clone()));
-                    match meta.file_type {
-                        FileType::Document => self.open_document(&meta.id),
-                        FileType::Folder => self.open_folder(&meta),
-                    }
-                }
-                Err(err) => self.err("opening file", &err),
+            let meta = self.core.file_by_id(id)?;
+            self.state.borrow_mut().set_opened_file(Some(meta.clone()));
+            match meta.file_type {
+                FileType::Document => self.open_document(&meta.id),
+                FileType::Folder => self.open_folder(&meta),
             }
+        } else {
+            Ok(())
         }
     }
 
-    fn open_document(&self, id: &Uuid) {
-        match self.core.open(&id) {
-            Ok((meta, content)) => self.edit(&EditMode::PlainText {
-                path: self.core.full_path_for(&meta),
-                meta,
-                content,
-            }),
-            Err(err) => self.err("opening file", &err),
-        }
+    fn open_document(&self, id: &Uuid) -> LbResult<()> {
+        let (meta, content) = self.core.open(&id)?;
+        self.edit(&EditMode::PlainText {
+            path: self.core.full_path_for(&meta),
+            meta,
+            content,
+        })
     }
 
-    fn open_folder(&self, f: &FileMetadata) {
-        match self.core.children(&f) {
-            Ok(children) => self.edit(&EditMode::Folder {
-                path: self.core.full_path_for(&f),
-                meta: f.clone(),
-                n_children: children.len(),
-            }),
-            Err(err) => self.err("getting children", &err),
-        }
+    fn open_folder(&self, f: &FileMetadata) -> LbResult<()> {
+        let children = self.core.children(&f)?;
+        self.edit(&EditMode::Folder {
+            path: self.core.full_path_for(&f),
+            meta: f.clone(),
+            n_children: children.len(),
+        })
     }
 
-    fn edit(&self, mode: &EditMode) {
+    fn edit(&self, mode: &EditMode) -> LbResult<()> {
         self.gui.menubar.set(&mode);
         self.gui.account.show(&mode);
+        Ok(())
     }
 
-    fn save(&self) {
+    fn save(&self) -> LbResult<()> {
         if let Some(f) = &self.state.borrow().get_opened_file() {
             if f.file_type == FileType::Document {
                 let acctscr = self.gui.account.clone();
@@ -360,29 +362,31 @@ impl LbApp {
                 thread::spawn(move || ch.send(c.save(id, content)).unwrap());
             }
         }
+        Ok(())
     }
 
-    fn close_file(&self) {
+    fn close_file(&self) -> LbResult<()> {
         let mut state = self.state.borrow_mut();
         if state.get_opened_file().is_some() {
-            self.edit(&EditMode::None);
+            self.edit(&EditMode::None)?;
             state.set_opened_file(None);
         }
+        Ok(())
     }
 
-    fn delete_files(&self) {
-        let (selected_files, files_model) = self.gui.account.tree().selected_rows();
+    fn delete_files(&self) -> LbResult<()> {
+        let (selected_files, tmodel) = self.gui.account.tree().selected_rows();
         if selected_files.is_empty() {
-            return;
+            return Err(uerr!("No file tree items are selected to delete!"));
         }
 
         let mut file_data: Vec<(String, Uuid, String)> = Vec::new();
         for tpath in selected_files {
-            let iter = files_model.get_iter(&tpath).unwrap();
-            let id = tree_iter_value!(files_model, &iter, 1, String);
+            let iter = tmodel.get_iter(&tpath).unwrap();
+            let id = tree_iter_value!(tmodel, &iter, 1, String);
             let uuid = Uuid::parse_str(&id).unwrap();
 
-            let meta = self.core.file_by_id(uuid).ok().unwrap();
+            let meta = self.core.file_by_id(uuid)?;
             let path = self.core.full_path_for(&meta);
 
             let n_children = if meta.file_type == FileType::Folder {
@@ -435,37 +439,32 @@ impl LbApp {
         if d.run() == GtkResponseType::Yes {
             for f in &file_data {
                 let (_, id, _) = f;
-                match self.core.delete(&id) {
-                    Ok(_) => self.gui.account.tree().remove(&id),
-                    Err(err) => self.err("deleting file", &err),
-                }
+                self.core.delete(&id)?;
+                self.gui.account.tree().remove(&id);
             }
         }
 
         d.close();
 
-        match self.core.sync_status() {
-            Ok(s) => self.gui.account.sync().set_status(&s),
-            Err(err) => self.messenger.send_err("getting sync status", err),
-        }
+        let s = self.core.sync_status()?;
+        self.gui.account.sync().set_status(&s);
+        Ok(())
     }
 
-    fn rename_file(&self) {
+    fn rename_file(&self) -> LbResult<()> {
         // Get the iterator for the selected tree item.
         let (selected_tpaths, tmodel) = self.gui.account.tree().selected_rows();
-        let tpath = selected_tpaths.get(0).unwrap();
-        let iter = tmodel.get_iter(&tpath).unwrap();
+        let tpath = selected_tpaths.get(0).ok_or_else(|| {
+            progerr!("No file tree items selected! At least one file tree item must be selected.")
+        })?;
+        let iter = tmodel
+            .get_iter(&tpath)
+            .ok_or_else(|| progerr!("Unable to get the tree iterator for tree path: {}", tpath))?;
 
         // Get the FileMetadata from the iterator.
         let id = tree_iter_value!(tmodel, &iter, 1, String);
-        let uuid = Uuid::parse_str(&id).unwrap();
-        let meta = match self.core.file_by_id(uuid) {
-            Ok(m) => m,
-            Err(err) => {
-                self.err("getting file by id", &err);
-                return;
-            }
-        };
+        let uuid = Uuid::parse_str(&id).map_err(LbError::fmt_program_err)?;
+        let meta = self.core.file_by_id(uuid)?;
 
         let lbl = util::gui::text_left("Enter the new name:");
         lbl.set_margin_top(12);
@@ -508,29 +507,31 @@ impl LbApp {
                         Err(err) => m.send_err("getting sync status", err),
                     }
                 }
-                Err(err) => match err {
-                    UserErr(err) => {
+                Err(err) => match err.kind() {
+                    UserErr => {
                         util::gui::add(&d.get_content_area(), &errlbl);
-                        errlbl.set_text(&err);
+                        errlbl.set_text(&err.msg());
                         errlbl.show();
                     }
-                    prog_err => {
+                    ProgErr => {
                         d.close();
-                        m.send_err("renaming file", prog_err);
+                        m.send_err("renaming file", err);
                     }
                 },
             }
         });
 
         d.show_all();
+        Ok(())
     }
 
-    fn toggle_tree_col(&self, c: FileTreeCol) {
+    fn toggle_tree_col(&self, c: FileTreeCol) -> LbResult<()> {
         self.gui.account.tree().toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
+        Ok(())
     }
 
-    fn show_dialog_new(&self) {
+    fn show_dialog_new(&self) -> LbResult<()> {
         let entry = GtkEntry::new();
         entry.set_activates_default(true);
 
@@ -545,9 +546,10 @@ impl LbApp {
             self.messenger.send(Msg::NewFile(path));
             d.close();
         }
+        Ok(())
     }
 
-    fn search_field_focus(&self) {
+    fn search_field_focus(&self) -> LbResult<()> {
         let search = SearchComponents::new(&self.core);
 
         let comp = GtkEntryCompletion::new();
@@ -566,16 +568,18 @@ impl LbApp {
 
         self.gui.account.set_search_field_completion(&comp);
         self.state.borrow_mut().set_search_components(search);
+        Ok(())
     }
 
-    fn search_field_update(&self) {
+    fn search_field_update(&self) -> LbResult<()> {
         if let Some(search) = self.state.borrow().search_ref() {
             let input = self.gui.account.get_search_field_text();
             search.update_for(&input);
         }
+        Ok(())
     }
 
-    fn search_field_update_icon(&self) {
+    fn search_field_update_icon(&self) -> LbResult<()> {
         let input = self.gui.account.get_search_field_text();
         let icon_name = if input.ends_with(".md") || input.ends_with(".txt") {
             "text-x-generic-symbolic"
@@ -585,9 +589,10 @@ impl LbApp {
             "edit-find-symbolic"
         };
         self.gui.account.set_search_field_icon(icon_name, None);
+        Ok(())
     }
 
-    fn search_field_blur(&self, escaped: bool) {
+    fn search_field_blur(&self, escaped: bool) -> LbResult<()> {
         let state = self.state.borrow();
         let opened_file = state.get_opened_file();
 
@@ -601,9 +606,10 @@ impl LbApp {
         let txt = opened_file.map_or("".to_string(), |f| self.core.full_path_for(f));
         self.gui.account.deselect_search_field();
         self.gui.account.set_search_field_text(&txt);
+        Ok(())
     }
 
-    fn search_field_exec(&self, explicit: Option<String>) {
+    fn search_field_exec(&self, explicit: Option<String>) -> LbResult<()> {
         let entry_text = self.gui.account.get_search_field_text();
         let best_match = self.state.borrow().get_first_search_match();
         let path = explicit.unwrap_or_else(|| best_match.unwrap_or(entry_text));
@@ -615,18 +621,13 @@ impl LbApp {
                 Some(&format!("The file '{}' does not exist", path)),
             ),
         }
+        Ok(())
     }
 
-    fn show_dialog_sync_details(&self) {
+    fn show_dialog_sync_details(&self) -> LbResult<()> {
         const RESP_REFRESH: u16 = 1;
 
-        let details = match sync_details(&self.core) {
-            Ok(widget) => widget,
-            Err(err) => {
-                self.err("building sync details ui", &err);
-                return;
-            }
-        };
+        let details = sync_details(&self.core)?;
 
         let d = self.gui.new_dialog("Sync Details");
         d.get_content_area().set_center_widget(Some(&details));
@@ -636,28 +637,23 @@ impl LbApp {
         let c = self.core.clone();
         let m = self.messenger.clone();
         d.connect_response(move |d, r| match r {
-            GtkResponseType::Other(RESP_REFRESH) => {
-                let details = match sync_details(&c) {
-                    Ok(widget) => {
-                        m.send(Msg::RefreshSyncStatus);
-                        widget
-                    }
-                    Err(err) => {
-                        m.send_err("building sync details ui", err);
-                        return;
-                    }
-                };
-                d.get_content_area().set_center_widget(Some(&details));
-                d.get_content_area().show_all();
-                d.set_position(GtkWindowPosition::CenterAlways);
-            }
+            GtkResponseType::Other(RESP_REFRESH) => match sync_details(&c) {
+                Ok(details) => {
+                    m.send(Msg::RefreshSyncStatus);
+                    d.get_content_area().set_center_widget(Some(&details));
+                    d.get_content_area().show_all();
+                    d.set_position(GtkWindowPosition::CenterAlways);
+                }
+                Err(err) => m.send_err("building sync details ui", err),
+            },
             _ => d.close(),
         });
 
         d.show_all();
+        Ok(())
     }
 
-    fn show_dialog_preferences(&self) {
+    fn show_dialog_preferences(&self) -> LbResult<()> {
         let tabs = SettingsUi::create(&self.settings, &self.messenger);
 
         let d = self.gui.new_dialog("Lockbook Settings");
@@ -666,9 +662,10 @@ impl LbApp {
         d.add_button("Ok", GtkResponseType::Ok);
         d.connect_response(|d, _| d.close());
         d.show_all();
+        Ok(())
     }
 
-    fn show_dialog_about(&self) {
+    fn show_dialog_about(&self) -> LbResult<()> {
         let d = GtkAboutDialog::new();
         d.set_transient_for(Some(&self.gui.win));
         d.set_logo(Some(&GdkPixbuf::from_inline(LOGO_INTRO, false).unwrap()));
@@ -682,18 +679,16 @@ impl LbApp {
         if d.run() == GtkResponseType::DeleteEvent {
             d.close();
         }
+        Ok(())
     }
 
-    fn show_dialog_usage(&self) {
-        match self.core.usage() {
-            Ok((n_bytes, limit)) => {
-                let usage = usage(n_bytes, limit);
-                let d = self.gui.new_dialog("My Lockbook Usage");
-                d.get_content_area().add(&usage);
-                d.show_all();
-            }
-            Err(err) => self.err("Unable to get usage", &err),
-        }
+    fn show_dialog_usage(&self) -> LbResult<()> {
+        let (n_bytes, limit) = self.core.usage()?;
+        let usage = usage(n_bytes, limit);
+        let d = self.gui.new_dialog("My Lockbook Usage");
+        d.get_content_area().add(&usage);
+        d.show_all();
+        Ok(())
     }
 
     fn err(&self, title: &str, err: &LbError) {
