@@ -7,6 +7,7 @@ use gtk::{
     StackSwitcher as GtkStackSwitcher, WidgetExt as GtkWidgetExt,
 };
 
+use crate::backend::LbSyncMsg;
 use crate::messages::{Messenger, Msg};
 
 pub struct IntroScreen {
@@ -87,8 +88,8 @@ impl IntroScreen {
         self.doing.start(caption);
     }
 
-    pub fn doing_status(&self, path: &str, i: usize, total: usize) {
-        let status = format!("Syncing :: {} ({}/{})", path, i, total);
+    pub fn sync_progress(&self, s: &LbSyncMsg) {
+        let status = format!("Syncing :: {} ({}/{})", s.path, s.index, s.total);
         self.doing.status.set_text(&status);
     }
 

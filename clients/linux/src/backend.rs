@@ -70,10 +70,11 @@ fn api_url() -> String {
     env::var("LOCKBOOK_API_URL").unwrap_or_else(|_| "http://qa.lockbook.app:8000".to_string())
 }
 
-pub enum LbSyncMsg {
-    Doing(WorkUnit, String, usize, usize),
-    Error(LbError),
-    Done,
+pub struct LbSyncMsg {
+    pub work: WorkUnit,
+    pub path: String,
+    pub index: usize,
+    pub total: usize,
 }
 
 pub struct LbCore {
@@ -233,32 +234,32 @@ impl LbCore {
         ))
     }
 
-    pub fn sync(&self, chan: &GlibSender<LbSyncMsg>) -> LbResult<()> {
+    pub fn sync(&self, ch: &GlibSender<Option<LbSyncMsg>>) -> LbResult<()> {
         let acct_lock = lock!(self.account, read)?;
         let acct = account!(acct_lock)?;
 
-        let mut work: WorkCalculated;
-        while {
-            work = self.calculate_work()?;
-            !work.work_units.is_empty()
-        } {
-            let total = work.work_units.len();
+        loop {
+            let work = self.calculate_work()?;
+            if work.work_units.is_empty() {
+                break;
+            }
 
             for (i, wu) in work.work_units.iter().enumerate() {
-                let path = self.full_path_for(&wu.get_metadata());
-                chan.send(LbSyncMsg::Doing(wu.clone(), path, i + 1, total))
-                    .unwrap();
+                let data = LbSyncMsg {
+                    work: wu.clone(),
+                    path: self.full_path_for(&wu.get_metadata()),
+                    index: i + 1,
+                    total: work.work_units.len(),
+                };
 
+                ch.send(Some(data)).map_err(LbError::fmt_program_err)?;
                 self.do_work(&acct, wu)?;
             }
 
-            if let Err(err) = self.set_last_synced(work.most_recent_update_from_server) {
-                chan.send(LbSyncMsg::Error(err)).unwrap();
-            }
+            self.set_last_synced(work.most_recent_update_from_server)?;
         }
 
-        chan.send(LbSyncMsg::Done).unwrap();
-        Ok(())
+        ch.send(None).map_err(LbError::fmt_program_err)
     }
 
     pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
@@ -356,6 +357,21 @@ impl LbCore {
         let meta = self.file_by_id(*id)?;
         let decrypted = self.read(meta.id)?;
         Ok((meta, String::from_utf8_lossy(&decrypted).to_string()))
+    }
+
+    pub fn sync_status(&self) -> LbResult<String> {
+        match self.get_last_synced()? {
+            0 => Ok("✘  Never synced.".to_string()),
+            _ => {
+                let work = self.calculate_work()?;
+                let n_files = work.work_units.len();
+                Ok(match n_files {
+                    0 => "✔  Synced.".to_string(),
+                    1 => "<b>1</b>  file not synced.".to_string(),
+                    _ => format!("<b>{}</b>  files not synced.", n_files),
+                })
+            }
+        }
     }
 }
 

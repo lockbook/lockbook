@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
@@ -5,22 +7,24 @@ use gtk::{
     Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
-    Label as GtkLabel, Paned as GtkPaned, ScrolledWindow as GtkScrolledWindow,
-    Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, WrapMode as GtkWrapMode,
+    Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
+    ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator, Spinner as GtkSpinner,
+    Stack as GtkStack, WrapMode as GtkWrapMode,
 };
 use sourceview::prelude::*;
 use sourceview::Buffer as GtkSourceViewBuffer;
 use sourceview::View as GtkSourceView;
 
 use lockbook_core::model::file_metadata::FileMetadata;
+use lockbook_core::model::work_unit::WorkUnit;
 
-use crate::backend::LbCore;
+use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::error::LbResult;
 use crate::filetree::FileTree;
-use crate::messages::{Messenger, Msg};
+use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
-use crate::util;
+use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
 
 pub struct AccountScreen {
     header: Header,
@@ -55,7 +59,7 @@ impl AccountScreen {
 
     pub fn fill(&self, core: &LbCore) -> LbResult<()> {
         self.sidebar.fill(&core)?;
-        self.sidebar.sync.set_status(&core);
+        self.sidebar.sync.set_status(&core.sync_status()?);
         Ok(())
     }
 
@@ -105,7 +109,7 @@ impl AccountScreen {
         }
     }
 
-    pub fn sync(&self) -> &SyncPanel {
+    pub fn sync(&self) -> &Rc<SyncPanel> {
         &self.sidebar.sync
     }
 
@@ -222,14 +226,14 @@ impl Header {
 
 pub struct Sidebar {
     tree: FileTree,
-    sync: SyncPanel,
+    sync: Rc<SyncPanel>,
     cntr: GtkBox,
 }
 
 impl Sidebar {
     fn new(m: &Messenger, s: &Settings) -> Self {
         let tree = FileTree::new(&m, &s.hidden_tree_cols);
-        let sync = SyncPanel::new(&m);
+        let sync = Rc::new(SyncPanel::new(&m));
 
         let cntr = GtkBox::new(Vertical, 0);
         cntr.pack_start(tree.widget(), true, true, 0);
@@ -252,11 +256,33 @@ pub struct SyncPanel {
 }
 
 impl SyncPanel {
-    fn new(m: &Messenger) -> Self {
+    fn new(msngr: &Messenger) -> Self {
         let status = GtkLabel::new(None);
         status.set_halign(GtkAlign::Start);
 
-        let m = m.clone();
+        let m = msngr.clone();
+        let status_evbox = gtk::EventBox::new();
+        status_evbox.add(&status);
+        status_evbox.connect_button_press_event(move |_, evt| {
+            if evt.get_button() == RIGHT_CLICK {
+                let menu = GtkMenu::new();
+                let item_data: Vec<(&str, MsgFn)> = vec![
+                    ("Refresh", || Msg::RefreshSyncStatus),
+                    ("Details", || Msg::ShowDialogSyncDetails),
+                ];
+                for (name, msg) in item_data {
+                    let m = m.clone();
+                    let mi = GtkMenuItem::with_label(name);
+                    mi.connect_activate(move |_| m.send(msg()));
+                    menu.append(&mi);
+                }
+                menu.show_all();
+                menu.popup_at_pointer(Some(evt));
+            }
+            gtk::Inhibit(false)
+        });
+
+        let m = msngr.clone();
         let button = GtkBtn::with_label("Sync");
         button.connect_clicked(move |_| m.send(Msg::PerformSync));
 
@@ -266,8 +292,8 @@ impl SyncPanel {
         spinner.set_size_request(20, 20);
 
         let cntr = GtkBox::new(Horizontal, 0);
-        util::gui::set_margin(&cntr, 8);
-        cntr.pack_start(&status, false, false, 0);
+        gui_util::set_margin(&cntr, 8);
+        cntr.pack_start(&status_evbox, false, false, 0);
         cntr.pack_end(&button, false, false, 0);
 
         Self {
@@ -292,29 +318,16 @@ impl SyncPanel {
         }
     }
 
-    pub fn set_status(&self, core: &LbCore) {
-        match core.get_last_synced() {
-            Ok(last) => match last {
-                0 => self.status.set_markup("✘  Never synced."),
-                _ => match core.calculate_work() {
-                    Ok(work) => {
-                        let n_files = work.work_units.len();
-                        let txt = match n_files {
-                            0 => "✔  Synced.".to_string(),
-                            1 => "<b>1</b>  file not synced.".to_string(),
-                            _ => format!("<b>{}</b>  files not synced.", n_files),
-                        };
-                        self.status.set_markup(&txt);
-                    }
-                    Err(err) => println!("{}", err.msg()),
-                },
-            },
-            Err(err) => panic!(err),
-        }
+    pub fn set_status(&self, txt: &str) {
+        self.status.set_markup(&txt);
     }
 
-    pub fn doing(&self, work: &str) {
-        self.status.set_text(work);
+    pub fn sync_progress(&self, s: &LbSyncMsg) {
+        let prefix = match s.work {
+            WorkUnit::LocalChange { metadata: _ } => "Pushing",
+            WorkUnit::ServerChange { metadata: _ } => "Pulling",
+        };
+        self.set_status(&format!("{}: {} ({}/{})", prefix, s.path, s.index, s.total));
     }
 }
 
@@ -385,8 +398,8 @@ impl Editor {
             ("Children", n_children.to_string()),
         ];
         for (row, (key, val)) in rows.into_iter().enumerate() {
-            grid.attach(&util::gui::text_right(key), 0, row as i32, 1, 1);
-            grid.attach(&util::gui::text_left(&val), 1, row as i32, 1, 1);
+            grid.attach(&gui_util::text_right(key), 0, row as i32, 1, 1);
+            grid.attach(&gui_util::text_left(&val), 1, row as i32, 1, 1);
         }
 
         self.info.foreach(|w| self.info.remove(w));

@@ -19,4 +19,8 @@ impl LbError {
             Self::Program(_) => true,
         }
     }
+
+    pub fn fmt_program_err<T: std::fmt::Debug>(err: T) -> LbError {
+        LbError::Program(format!("{:?}", err))
+    }
 }
