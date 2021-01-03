@@ -62,28 +62,27 @@ namespace lockbook {
                     rootFrame.Navigate(typeof(Startup), e.Arguments);
                     Window.Current.Activate();
                     var frame = (Startup)((Frame)Window.Current.Content).Content;
-                    await Task.Delay(2000); // todo: remove
-                    for (bool ready = false; !ready;) {
+                    for (bool done = false; !done;) {
                         switch (await CoreService.GetDbState()) {
                             case Core.GetDbState.Success success:
                                 switch (success.dbState) {
                                     case Core.DbState.ReadyToUse:
-                                        frame.Message = "Updating local data for new app version";
-                                        await Task.Delay(2000); // todo: remove
                                         rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
-                                        ready = true;
+                                        done = true;
                                         break;
                                     case Core.DbState.Empty:
                                         rootFrame.Navigate(typeof(SignUp), e.Arguments);
-                                        ready = true;
+                                        done = true;
                                         break;
                                     case Core.DbState.MigrationRequired:
                                         frame.Message = "Updating local data for new app version";
                                         await CoreService.MigrateDb();
                                         break;
                                     case Core.DbState.StateRequiresClearing:
-                                        await new MessageDialog("We're embarrased about this, but your local data is corrupted and you need to reinstall Lockbook.").ShowAsync();
-                                        ready = true;
+                                        frame.Working = false;
+                                        frame.Title = "Error";
+                                        frame.Message = "We're embarrased about this, but your local data is corrupted and you need to reinstall Lockbook.";
+                                        done = true;
                                         break;
                                 }
                                 break;
