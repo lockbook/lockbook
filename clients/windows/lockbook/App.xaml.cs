@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.Core;
@@ -58,18 +59,39 @@ namespace lockbook {
             {
                 if (rootFrame.Content == null)
                 {
-                    // When the navigation stack isn't restored navigate to the first page,
-                    // configuring the new page by passing required information as a navigation
-                    // parameter
-
-                    if (await CoreService.AccountExists()) {
-                        rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
-                    } else {
-                        rootFrame.Navigate(typeof(SignUp), e.Arguments);
+                    rootFrame.Navigate(typeof(Startup), e.Arguments);
+                    Window.Current.Activate();
+                    var frame = (Startup)((Frame)Window.Current.Content).Content;
+                    for (bool done = false; !done;) {
+                        switch (await CoreService.GetDbState()) {
+                            case Core.GetDbState.Success success:
+                                switch (success.dbState) {
+                                    case Core.DbState.ReadyToUse:
+                                        rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
+                                        done = true;
+                                        break;
+                                    case Core.DbState.Empty:
+                                        rootFrame.Navigate(typeof(SignUp), e.Arguments);
+                                        done = true;
+                                        break;
+                                    case Core.DbState.MigrationRequired:
+                                        frame.Message = "Updating local data for new app version";
+                                        await CoreService.MigrateDb();
+                                        break;
+                                    case Core.DbState.StateRequiresClearing:
+                                        frame.Working = false;
+                                        frame.Title = "Error";
+                                        frame.Message = "We're embarrased about this, but your local data is corrupted and you need to reinstall Lockbook.";
+                                        done = true;
+                                        break;
+                                }
+                                break;
+                            case Core.CalculateWork.UnexpectedError uhOh:
+                                await new MessageDialog(uhOh.ErrorMessage, "Unexpected error during get db state: " + uhOh.ErrorMessage).ShowAsync();
+                                break;
+                        }
                     }
                 }
-                // Ensure the current window is active
-                Window.Current.Activate();
                 var coreTitleBar = CoreApplication.GetCurrentView().TitleBar;
                 coreTitleBar.ExtendViewIntoTitleBar = true;
             }

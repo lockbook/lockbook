@@ -243,7 +243,7 @@ namespace lockbook {
         public async Task<Core.ReadDocument.IResult> ReadDocument(string id) {
             return await FFICommon<Core.ReadDocument.IResult, Core.ReadDocument.ExpectedError, Core.ReadDocument.PossibleErrors, Core.ReadDocument.UnexpectedError>(
                 () => read_document(path, id),
-                s => new Core.ReadDocument.Success { content = JsonConvert.DeserializeObject<DecryptedValue>(s) });
+                s => new Core.ReadDocument.Success { content = s });
         }
 
         public async Task<Core.GetFileByPath.IResult> GetFileByPath(string pathWithName) {
