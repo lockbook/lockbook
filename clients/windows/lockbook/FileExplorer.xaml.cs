@@ -386,7 +386,7 @@ namespace lockbook {
 
                 switch (result) {
                     case Core.ReadDocument.Success content:
-                        editor.TextDocument.SetText(TextSetOptions.None, content.content.secret);
+                        editor.TextDocument.SetText(TextSetOptions.None, content.content);
                         editor.TextDocument.ClearUndoRedoHistory();
                         keyStrokeCount[tag] = 0;
                         break;
