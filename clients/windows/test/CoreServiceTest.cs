@@ -478,8 +478,12 @@ namespace test {
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
             var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
 
+            var writeDocResult = CoreService.WriteDocument(fileId, "test content").WaitResult();
+            CastOrDie(writeDocResult, out Core.WriteDocument.Success _);
+
             var readDocResult = CoreService.ReadDocument(fileId).WaitResult();
-            CastOrDie(readDocResult, out Core.ReadDocument.Success _);
+            Assert.AreEqual("test content",
+                CastOrDie(readDocResult, out Core.ReadDocument.Success _).content);
         }
 
         [TestMethod]
