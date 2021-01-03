@@ -96,7 +96,10 @@ impl LbApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
-                Msg::Error(title, err) => Ok(lb.err(&title, &err)),
+                Msg::Error(title, err) => {
+                    lb.err(&title, &err);
+                    Ok(())
+                }
             };
             if let Err(err) = maybe_err {
                 lb.err("", &err);
