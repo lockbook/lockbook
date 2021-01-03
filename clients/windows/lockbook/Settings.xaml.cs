@@ -1,5 +1,6 @@
 ﻿using Core;
 using System;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -96,7 +97,11 @@ namespace lockbook {
         }
 
         private async void CopyAccountStringToClipboard(object sender, RoutedEventArgs e) {
-            await new MessageDialog("Wow!", "Good job!").ShowAsync(); // TODO
+            var dataPackage = new DataPackage {
+                RequestedOperation = DataPackageOperation.Copy
+            };
+            dataPackage.SetText("Hello World!");
+            Clipboard.SetContent(dataPackage);
         }
 
         private async void ShowQRCode(object sender, RoutedEventArgs e) {
