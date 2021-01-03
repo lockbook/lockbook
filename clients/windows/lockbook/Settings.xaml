@@ -29,11 +29,11 @@
                 Margin="0,0,0,5"/>
             <TextBlock
                 Text="Checking..."
-                x:Name="apiTextBlock"
+                x:Name="serverLocationTextBlock"
                 FontSize="11"
                 Margin="0,0,0,10"/>
             <TextBlock
-                Text="Space Utilized"
+                Text="Space Used"
                 Style="{StaticResource SubtitleTextBlockStyle}"
                 Margin="0,0,0,5"/>
             <TextBlock
