@@ -58,9 +58,27 @@ namespace lockbook {
             {
                 if (rootFrame.Content == null)
                 {
-                    // When the navigation stack isn't restored navigate to the first page,
-                    // configuring the new page by passing required information as a navigation
-                    // parameter
+                    //switch (await CoreService.GetDbState()) {
+                    //    case Core.GetDbState.Success success:
+                    //        switch (success.dbState) {
+                    //            case Core.DbState.ReadyToUse:
+                    //                rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
+                    //                break;
+                    //            case Core.DbState.Empty:
+                    //                rootFrame.Navigate(typeof(SignUp), e.Arguments);
+                    //                break;
+                    //            case Core.DbState.MigrationRequired:
+                    //                // todo: spinner for migration
+                    //                break;
+                    //            case Core.DbState.StateRequiresClearing:
+                    //                await new MessageDialog("We tried to prevent this from ever happening, but your database is busted and you need to reinstall.").ShowAsync();
+                    //                break;
+                    //        }
+                    //        break;
+                    //    case Core.CalculateWork.UnexpectedError uhOh:
+                    //        await new MessageDialog(uhOh.ErrorMessage, "Unexpected error during get db state: " + uhOh.ErrorMessage).ShowAsync();
+                    //        break;
+                    //}
 
                     if (await CoreService.AccountExists()) {
                         rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
@@ -68,7 +86,6 @@ namespace lockbook {
                         rootFrame.Navigate(typeof(SignUp), e.Arguments);
                     }
                 }
-                // Ensure the current window is active
                 Window.Current.Activate();
                 var coreTitleBar = CoreApplication.GetCurrentView().TitleBar;
                 coreTitleBar.ExtendViewIntoTitleBar = true;

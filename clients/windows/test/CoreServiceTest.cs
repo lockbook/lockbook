@@ -39,9 +39,21 @@ namespace test {
         }
 
         [TestMethod]
-        public void GetDbState() {
+        public void GetDbStateEmpty() {
             var getDbStateResult = CoreService.GetDbState().WaitResult();
-            CastOrDie(getDbStateResult, out Core.GetDbState.Success _);
+            Assert.AreEqual(DbState.Empty,
+                CastOrDie(getDbStateResult, out Core.GetDbState.Success _).dbState);
+        }
+
+        [TestMethod]
+        public void GetDbStateReady() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getDbStateResult = CoreService.GetDbState().WaitResult();
+            Assert.AreEqual(DbState.ReadyToUse,
+                CastOrDie(getDbStateResult, out Core.GetDbState.Success _).dbState);
         }
 
         [TestMethod]
