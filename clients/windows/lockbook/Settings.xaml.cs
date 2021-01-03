@@ -1,6 +1,7 @@
 ﻿using Core;
 using System;
 using Windows.UI.Popups;
+using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
 namespace lockbook {
@@ -94,5 +95,12 @@ namespace lockbook {
             }
         }
 
+        private async void CopyAccountStringToClipboard(object sender, RoutedEventArgs e) {
+            await new MessageDialog("Wow!", "Good job!").ShowAsync(); // TODO
+        }
+
+        private async void ShowQRCode(object sender, RoutedEventArgs e) {
+            await new MessageDialog("Whoa!", "Great work!").ShowAsync(); // TODO
+        }
     }
 }
