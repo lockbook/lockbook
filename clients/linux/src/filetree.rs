@@ -23,6 +23,7 @@ use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 use crate::backend::LbCore;
 use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
+use crate::util::gui::RIGHT_CLICK;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -407,4 +408,3 @@ impl FileTreePopup {
 }
 
 const DELETE_KEY: u16 = 119;
-const RIGHT_CLICK: u32 = 3;
