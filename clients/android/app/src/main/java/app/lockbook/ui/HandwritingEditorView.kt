@@ -8,6 +8,8 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
+import androidx.core.content.res.ResourcesCompat
+import app.lockbook.App
 import app.lockbook.util.*
 import app.lockbook.util.Point
 import kotlin.math.pow
@@ -396,7 +398,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    fun setColor(color: Int) {
+    fun setColor(colorId: Int) {
+        val color = ResourcesCompat.getColor(
+            App.instance.resources,
+            colorId,
+            App.instance.theme
+        )
         activePaint.color = color
     }
 

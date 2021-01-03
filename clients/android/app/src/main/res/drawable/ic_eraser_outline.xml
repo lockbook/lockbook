@@ -15,10 +15,4 @@
       android:strokeWidth="2"
       android:strokeColor="@color/colorPrimary"
       android:strokeLineCap="round"/>
-  <path
-      android:pathData="M21,19H10"
-      android:strokeLineJoin="round"
-      android:strokeWidth="2"
-      android:strokeColor="@color/colorPrimary"
-      android:strokeLineCap="round"/>
 </vector>

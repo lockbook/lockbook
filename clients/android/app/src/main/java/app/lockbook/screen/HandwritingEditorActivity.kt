@@ -8,18 +8,17 @@ import android.view.SurfaceHolder
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.ViewModelProvider
-import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.model.HandwritingEditorViewModel
 import app.lockbook.modelfactory.HandwritingEditorViewModelFactory
 import app.lockbook.ui.HandwritingEditorView
 import app.lockbook.util.*
+import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
+import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
@@ -95,6 +94,12 @@ class HandwritingEditorActivity : AppCompatActivity() {
             }
         }
 
+        handwritingEditorViewModel.selectNewColor.observe(
+            this
+        ) { colors ->
+            selectNewColor(colors.first, colors.second)
+        }
+
         handwritingEditorViewModel.setToolsVisibility.observe(
             this
         ) { newVisibility ->
@@ -103,6 +108,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
         startBackgroundSave()
         setUpHandwritingToolbar()
+        setUpToolbarDefaults()
 
         scaleGestureDetector = ScaleGestureDetector(
             applicationContext,
@@ -121,7 +127,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
         handwriting_editor.setOnTouchListener { _, event ->
             if (event != null) {
-                handwritingEditorViewModel.handleTouchEvent(event, handwriting_editor_tools_menu_1.visibility)
+                handwritingEditorViewModel.handleTouchEvent(event, handwriting_editor_tools_menu.visibility)
                 scaleGestureDetector.onTouchEvent(event)
             }
 
@@ -129,9 +135,55 @@ class HandwritingEditorActivity : AppCompatActivity() {
         }
     }
 
-    fun changeToolsVisibility(newVisibility: Int) {
-        handwriting_editor_tools_menu_1.visibility = newVisibility
-        handwriting_editor_tools_menu_2.visibility = newVisibility
+    private fun selectNewColor(oldColor: Int, newColor: Int) {
+        val previousButton = when (oldColor) {
+            android.R.color.white -> drawing_color_white
+            android.R.color.holo_blue_light -> drawing_color_blue
+            android.R.color.holo_green_light -> drawing_color_green
+            android.R.color.holo_orange_light -> drawing_color_orange
+            android.R.color.holo_purple -> drawing_color_purple
+            android.R.color.holo_red_light -> drawing_color_red
+            else -> {
+                errorHasOccurred(UNEXPECTED_CLIENT_ERROR)
+                Timber.e("The previously selected color from the toolbar is not handled: $oldColor")
+                return
+            }
+        }.exhaustive
+
+        previousButton.strokeWidth = 0
+
+        val newButton = when (newColor) {
+            android.R.color.white -> drawing_color_white
+            android.R.color.holo_blue_light -> drawing_color_blue
+            android.R.color.holo_green_light -> drawing_color_green
+            android.R.color.holo_orange_light -> drawing_color_orange
+            android.R.color.holo_purple -> drawing_color_purple
+            android.R.color.holo_red_light -> drawing_color_red
+            else -> {
+                errorHasOccurred(UNEXPECTED_CLIENT_ERROR)
+                Timber.e("The newly selected color from the toolbar is not handled: $newColor")
+                return
+            }
+        }.exhaustive
+
+        newButton.strokeWidth = 4
+        handwriting_editor.setColor(newColor)
+    }
+
+    private fun setUpToolbarDefaults() {
+        drawing_pen.setImageResource(R.drawable.ic_pencil_filled)
+        drawing_color_white.strokeWidth = 4
+        drawing_color_white.setStrokeColorResource(R.color.blue)
+        drawing_color_blue.setStrokeColorResource(R.color.blue)
+        drawing_color_green.setStrokeColorResource(R.color.blue)
+        drawing_color_orange.setStrokeColorResource(R.color.blue)
+        drawing_color_purple.setStrokeColorResource(R.color.blue)
+        drawing_color_red.setStrokeColorResource(R.color.blue)
+        handwriting_editor_pen_small.setBackgroundResource(R.drawable.item_border)
+    }
+
+    private fun changeToolsVisibility(newVisibility: Int) {
+        handwriting_editor_tools_menu.visibility = newVisibility
     }
 
     private fun addDrawingToView() {
@@ -161,44 +213,38 @@ class HandwritingEditorActivity : AppCompatActivity() {
     }
 
     private fun setUpHandwritingToolbar() {
-        drawing_color_white.strokeWidth = 4
-        drawing_color_white.setStrokeColorResource(R.color.blue)
-        drawing_pen.setBackgroundResource(R.drawable.item_border)
-        handwriting_editor_pen_small.setBackgroundResource(R.drawable.item_border)
-
         drawing_color_white.setOnClickListener {
-            newStylusColorSelected(drawing_color_white, android.R.color.white)
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.white)
         }
-
         drawing_color_blue.setOnClickListener {
-            newStylusColorSelected(drawing_color_blue, android.R.color.holo_blue_light)
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_blue_light)
         }
 
         drawing_color_green.setOnClickListener {
-            newStylusColorSelected(drawing_color_green, android.R.color.holo_green_light)
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_green_light)
         }
 
         drawing_color_orange.setOnClickListener {
-            newStylusColorSelected(drawing_color_orange, android.R.color.holo_orange_light)
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_orange_light)
         }
 
         drawing_color_purple.setOnClickListener {
-            newStylusColorSelected(drawing_color_purple, android.R.color.holo_purple)
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_purple)
         }
 
         drawing_color_red.setOnClickListener {
-            newStylusColorSelected(drawing_color_red, android.R.color.holo_red_light)
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_red_light)
         }
 
         drawing_erase.setOnClickListener {
-            drawing_erase.setBackgroundResource(R.drawable.item_border)
-            drawing_pen.setBackgroundResource(0)
+            drawing_erase.setImageResource(R.drawable.ic_eraser_filled)
+            drawing_pen.setImageResource(R.drawable.ic_pencil_outline)
             handwriting_editor.isErasing = true
         }
 
         drawing_pen.setOnClickListener {
-            drawing_pen.setBackgroundResource(R.drawable.item_border)
-            drawing_erase.setBackgroundResource(0)
+            drawing_pen.setImageResource(R.drawable.ic_pencil_filled)
+            drawing_erase.setImageResource(R.drawable.ic_eraser_outline)
             handwriting_editor.isErasing = false
         }
 
@@ -222,23 +268,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
             handwriting_editor_pen_medium.setBackgroundResource(0)
             handwriting_editor.setPenSize(HandwritingEditorView.PenSize.LARGE)
         }
-    }
-
-    private fun newStylusColorSelected(button: MaterialButton, colorId: Int) {
-        val color = ResourcesCompat.getColor(
-            App.instance.resources,
-            colorId,
-            App.instance.theme
-        )
-        handwriting_editor.setColor(color)
-        drawing_color_white.strokeWidth = 0
-        drawing_color_blue.strokeWidth = 0
-        drawing_color_green.strokeWidth = 0
-        drawing_color_orange.strokeWidth = 0
-        drawing_color_purple.strokeWidth = 0
-        drawing_color_red.strokeWidth = 0
-        button.strokeWidth = 4
-        button.setStrokeColorResource(R.color.blue)
     }
 
     private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!

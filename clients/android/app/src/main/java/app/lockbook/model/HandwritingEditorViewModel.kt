@@ -22,17 +22,21 @@ class HandwritingEditorViewModel(
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
     private var singleTapTimer = Timer()
-    private var areToolsVisible = true
     private var isAnimatingTools = false
+    private var selectedColor = android.R.color.white
     var lockBookDrawable: Drawing? = null
 
     private val _setToolsVisibility = MutableLiveData<Int>()
+    private val _selectNewColor = MutableLiveData<Pair<Int, Int>>()
     private val _drawableReady = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
 
     val setToolsVisibility: LiveData<Int>
         get() = _setToolsVisibility
+
+    val selectNewColor: LiveData<Pair<Int, Int>>
+        get() = _selectNewColor
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -133,5 +137,10 @@ class HandwritingEditorViewModel(
                 }
             }
         }
+    }
+
+    fun handleNewColorSelected(newColor: Int) {
+        _selectNewColor.postValue(Pair(selectedColor, newColor))
+        selectedColor = newColor
     }
 }

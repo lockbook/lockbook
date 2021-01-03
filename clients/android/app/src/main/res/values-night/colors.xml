@@ -27,7 +27,7 @@
   <color name="drawingToolbarBackground">@color/transparent_black</color>
   <color name="windowBackground">@color/black</color>
   <color name="textColor">@color/light</color>
-  <color name="scannerIconColor">@color/light</color>
+  <color name="iconColor">@color/light</color>
   <color name="documentNameTextColor">@color/light</color>
 
   <bool name="windowLightStatusBar">false</bool>

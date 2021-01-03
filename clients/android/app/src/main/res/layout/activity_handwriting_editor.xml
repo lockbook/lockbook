@@ -45,7 +45,7 @@
         app:layout_constraintTop_toTopOf="parent">
 
             <LinearLayout
-                android:id="@+id/handwriting_editor_tools_menu_1"
+                android:id="@+id/handwriting_editor_tools_menu"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="start|center_vertical"
@@ -53,6 +53,18 @@
                 android:gravity="center_horizontal"
                 android:animateLayoutChanges="true"
                 android:orientation="vertical">
+
+                <ImageButton
+                    android:id="@+id/drawing_erase"
+                    style="@style/Main.DrawingImageButton"
+                    android:src="@drawable/ic_eraser_outline"
+                    android:contentDescription="@string/handwriting_editor_eraser_description" />
+
+                <ImageButton
+                    android:id="@+id/drawing_pen"
+                    style="@style/Main.DrawingImageButton"
+                    android:src="@drawable/ic_pencil_outline"
+                    android:contentDescription="@string/handwriting_editor_pen_description" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_white"
@@ -84,32 +96,6 @@
                     style="@style/Main.DrawingButton"
                     app:backgroundTint="@android:color/holo_purple" />
 
-            </LinearLayout>
-
-
-            <LinearLayout
-                android:id="@+id/handwriting_editor_tools_menu_2"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end|center_vertical"
-                android:background="@color/colorPrimaryDark"
-                android:gravity="center_horizontal"
-                android:animateLayoutChanges="true"
-                android:orientation="vertical">
-
-                <ImageButton
-                    android:id="@+id/drawing_erase"
-                    style="@style/Main.DrawingImageButton"
-                    android:src="@drawable/ic_eraser"
-                    android:contentDescription="@string/handwriting_editor_eraser_description" />
-
-
-                <ImageButton
-                    android:id="@+id/drawing_pen"
-                    style="@style/Main.DrawingImageButton"
-                    android:src="@drawable/ic_pencil"
-                    android:contentDescription="@string/handwriting_editor_pen_description" />
-
                 <TextView
                     android:id="@+id/handwriting_editor_pen_small"
                     android:layout_width="wrap_content"
@@ -132,6 +118,7 @@
                     android:padding="10dp"
                     android:layout_marginBottom="10dp"
                     android:text="@string/handwriting_editor_pen_large_description" />
+
 
             </LinearLayout>
 
