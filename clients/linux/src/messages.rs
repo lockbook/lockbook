@@ -10,6 +10,7 @@ pub enum Msg {
     ImportAccount(String),
     ExportAccount,
     PerformSync,
+    RefreshSyncStatus,
     Quit,
 
     NewFile(String),
@@ -28,6 +29,7 @@ pub enum Msg {
     ToggleTreeCol(FileTreeCol),
 
     ShowDialogNew,
+    ShowDialogSyncDetails,
     ShowDialogPreferences,
     ShowDialogUsage,
     ShowDialogAbout,
