@@ -58,32 +58,32 @@ namespace lockbook {
             {
                 if (rootFrame.Content == null)
                 {
-                    //switch (await CoreService.GetDbState()) {
-                    //    case Core.GetDbState.Success success:
-                    //        switch (success.dbState) {
-                    //            case Core.DbState.ReadyToUse:
-                    //                rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
-                    //                break;
-                    //            case Core.DbState.Empty:
-                    //                rootFrame.Navigate(typeof(SignUp), e.Arguments);
-                    //                break;
-                    //            case Core.DbState.MigrationRequired:
-                    //                // todo: spinner for migration
-                    //                break;
-                    //            case Core.DbState.StateRequiresClearing:
-                    //                await new MessageDialog("We tried to prevent this from ever happening, but your database is busted and you need to reinstall.").ShowAsync();
-                    //                break;
-                    //        }
-                    //        break;
-                    //    case Core.CalculateWork.UnexpectedError uhOh:
-                    //        await new MessageDialog(uhOh.ErrorMessage, "Unexpected error during get db state: " + uhOh.ErrorMessage).ShowAsync();
-                    //        break;
-                    //}
-
-                    if (await CoreService.AccountExists()) {
-                        rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
-                    } else {
-                        rootFrame.Navigate(typeof(SignUp), e.Arguments);
+                    for(bool ready = false; !ready;) {
+                        switch (await CoreService.GetDbState()) {
+                            case Core.GetDbState.Success success:
+                                switch (success.dbState) {
+                                    case Core.DbState.ReadyToUse:
+                                        rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
+                                        ready = true;
+                                        break;
+                                    case Core.DbState.Empty:
+                                        rootFrame.Navigate(typeof(SignUp), e.Arguments);
+                                        ready = true;
+                                        break;
+                                    case Core.DbState.MigrationRequired:
+                                        await CoreService.MigrateDb();
+                                        // todo: spinner for migration
+                                        break;
+                                    case Core.DbState.StateRequiresClearing:
+                                        await new MessageDialog("We're embarrased about this, but your local data is corrupted and you need to reinstall Lockbook.").ShowAsync();
+                                        ready = true;
+                                        break;
+                                }
+                                break;
+                            case Core.CalculateWork.UnexpectedError uhOh:
+                                await new MessageDialog(uhOh.ErrorMessage, "Unexpected error during get db state: " + uhOh.ErrorMessage).ShowAsync();
+                                break;
+                        }
                     }
                 }
                 Window.Current.Activate();
