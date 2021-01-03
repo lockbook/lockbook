@@ -39,11 +39,6 @@ namespace Core {
         public bool deleted;
     }
 
-    public class DecryptedValue {
-        [JsonProperty("secret")]
-        public string secret;
-    }
-
     public class Account {
         [JsonProperty("username")]
         public string username;
@@ -232,7 +227,7 @@ public class RSAPrivateKey {
     namespace ReadDocument {
         public interface IResult { }
         public class Success : IResult {
-            public DecryptedValue content;
+            public string content;
         }
         public enum PossibleErrors {
             TreatedFolderAsDocument,
