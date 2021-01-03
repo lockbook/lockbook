@@ -22,6 +22,7 @@ use lockbook_core::{
 
 use crate::error::{LbError, LbResult};
 use crate::util::KILOBYTE;
+use crate::{progerr, uerr};
 
 macro_rules! match_core_err {
     (
@@ -41,22 +42,14 @@ macro_rules! map_core_err {
     ($enum:ident, $( $variants:ident => $matches:expr ,)+) => {
         |err| match_core_err!(err, $enum,
             $( $variants  => $matches ),+,
-            @Unexpected(msg) => LbError::Program(msg),
+            @Unexpected(msg) => progerr!("{}", msg),
         )
-    };
-}
-
-macro_rules! uerr {
-    ($base:literal $(, $args:tt )*) => {
-        LbError::User(format!($base $(, $args )*))
     };
 }
 
 macro_rules! lock {
     ($lock:expr, $r_or_w:ident) => {
-        $lock
-            .$r_or_w()
-            .map_err(|e| LbError::Program(format!("{:?}", e)))
+        $lock.$r_or_w().map_err(|e| progerr!("{:?}", e))
     };
 }
 
@@ -105,7 +98,7 @@ impl LbCore {
             Ok(acct) => Some(acct),
             Err(err) => match_core_err!(err, GetAccountError,
                 NoAccount => None,
-                @Unexpected(msg) => return Err(LbError::Program(msg)),
+                @Unexpected(msg) => return Err(progerr!("{}", msg)),
             ),
         });
 
