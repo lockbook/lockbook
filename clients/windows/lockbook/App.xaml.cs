@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.Core;
@@ -58,11 +59,17 @@ namespace lockbook {
             {
                 if (rootFrame.Content == null)
                 {
-                    for(bool ready = false; !ready;) {
+                    rootFrame.Navigate(typeof(Startup), e.Arguments);
+                    Window.Current.Activate();
+                    var frame = (Startup)((Frame)Window.Current.Content).Content;
+                    await Task.Delay(2000); // todo: remove
+                    for (bool ready = false; !ready;) {
                         switch (await CoreService.GetDbState()) {
                             case Core.GetDbState.Success success:
                                 switch (success.dbState) {
                                     case Core.DbState.ReadyToUse:
+                                        frame.Message = "Updating local data for new app version";
+                                        await Task.Delay(2000); // todo: remove
                                         rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
                                         ready = true;
                                         break;
@@ -71,8 +78,8 @@ namespace lockbook {
                                         ready = true;
                                         break;
                                     case Core.DbState.MigrationRequired:
+                                        frame.Message = "Updating local data for new app version";
                                         await CoreService.MigrateDb();
-                                        // todo: spinner for migration
                                         break;
                                     case Core.DbState.StateRequiresClearing:
                                         await new MessageDialog("We're embarrased about this, but your local data is corrupted and you need to reinstall Lockbook.").ShowAsync();
@@ -86,7 +93,6 @@ namespace lockbook {
                         }
                     }
                 }
-                Window.Current.Activate();
                 var coreTitleBar = CoreApplication.GetCurrentView().TitleBar;
                 coreTitleBar.ExtendViewIntoTitleBar = true;
             }
