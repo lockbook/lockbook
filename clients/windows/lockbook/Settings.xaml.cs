@@ -1,8 +1,12 @@
-﻿using System;
+﻿using QRCoder;
+using System;
+using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage.Streams;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media.Imaging;
 
 namespace lockbook {
 
@@ -119,7 +123,40 @@ namespace lockbook {
         }
 
         private async void ShowQRCode(object sender, RoutedEventArgs e) {
-            await new MessageDialog("Whoa!", "Great work!").ShowAsync(); // TODO
+            switch (await App.CoreService.ExportAccount()) {
+                case Core.ExportAccount.Success success:
+                    showQRCode.IsEnabled = false;
+                    // https://github.com/codebude/QRCoder/wiki/Advanced-usage---QR-Code-renderers#24-bitmapbyteqrcode-renderer-in-detail
+                    var qrGenerator = new QRCodeGenerator();
+                    var qrCodeData = qrGenerator.CreateQrCode(success.accountString, QRCodeGenerator.ECCLevel.Q);
+                    var qrCode = new BitmapByteQRCode(qrCodeData);
+                    var qrCodeAsBitmapByteArr = await Task.Run(() => qrCode.GetGraphic(20));
+
+                    using (InMemoryRandomAccessStream stream = new InMemoryRandomAccessStream()) {
+                        using (DataWriter writer = new DataWriter(stream.GetOutputStreamAt(0))) {
+                            writer.WriteBytes(qrCodeAsBitmapByteArr);
+                            await writer.StoreAsync();
+                        }
+                        var image = new BitmapImage();
+                        await image.SetSourceAsync(stream);
+
+                        qrCodeImg.Source = image;
+                    }
+                    break;
+
+                case Core.ExportAccount.ExpectedError expectedError:
+                    switch (expectedError.Error) {
+                        case Core.ExportAccount.PossibleErrors.NoAccount:
+                            usernameTextBlock.Text = "No Account!";
+                            apiTextBlock.Text = "No Account!";
+                            break;
+                    }
+                    break;
+
+                case Core.ExportAccount.UnexpectedError ohNo:
+                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+            }
         }
     }
 }

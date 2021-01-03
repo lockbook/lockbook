@@ -28,8 +28,9 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Button Margin="10,0" Content="Copy To Clipboard" FontSize="11" HorizontalAlignment="Stretch" Grid.Column="0" Click="CopyAccountStringToClipboard"></Button>
-                <Button Margin="10,0" Content="Show QR Code" FontSize="11"  HorizontalAlignment="Stretch"  Grid.Column="1" Click="ShowQRCode"></Button>
+                <Button Margin="10,0" Content="Show QR Code" FontSize="11"  HorizontalAlignment="Stretch"  Grid.Column="1" Click="ShowQRCode" x:Name="showQRCode"></Button>
             </Grid>
+            <Image x:Name="qrCodeImg"/>
         </StackPanel>
     </ScrollViewer>
 </ContentDialog>
