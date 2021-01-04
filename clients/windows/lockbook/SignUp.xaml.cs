@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -10,15 +11,81 @@ namespace lockbook {
             InitializeComponent();
         }
 
-        private async void ImportAccount(object sender, RoutedEventArgs e) {
-            createAccount.IsEnabled = false;
-            importAccountButton.IsEnabled = false;
-            importProgressGroup.Visibility = Visibility.Visible;
-            ImportProgressRing.Visibility = Visibility.Visible;
-            ImportProgressRing.IsActive = true;
-            importError.Visibility = Visibility.Collapsed;
+        public string Username {
+            get {
+                return usernameTextBox.Text;
+            }
+            set {
+                usernameTextBox.Text = value;
+            }
+        }
 
-            Core.ImportAccount.IResult importAccountResult = await App.CoreService.ImportAccount(accountStringTextBox.Text);
+        public string AccountString {
+            get {
+                return accountStringTextBox.Text;
+            }
+            set {
+                accountStringTextBox.Text = value;
+            }
+        }
+
+        public string NewAccountError {
+            get {
+                return newAccountErrorTextBlock.Text;
+            }
+            set {
+                newAccountErrorTextBlock.Visibility = string.IsNullOrEmpty(value) ? Visibility.Collapsed : Visibility.Visible;
+                newAccountErrorTextBlock.Text = value;
+            }
+        }
+
+        public string ImportAccountError {
+            get {
+                return importAccountErrorTextBlock.Text;
+            }
+            set {
+                importAccountErrorTextBlock.Visibility = string.IsNullOrEmpty(value) ? Visibility.Collapsed : Visibility.Visible;
+                importAccountErrorTextBlock.Text = value;
+            }
+        }
+
+        public bool ButtonsEnabled {
+            get {
+                return createAccountButton.IsEnabled;
+            }
+            set {
+                createAccountButton.IsEnabled = value;
+                importAccountButton.IsEnabled = value;
+            }
+        }
+
+        public bool NewAccountWorking {
+            get {
+                return newAccountProgressRing.IsActive;
+            }
+            set {
+                newAccountProgressRing.IsActive = value;
+                newAccountProgressRing.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+                newAccountProgressGroup.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        public bool ImportAccountWorking {
+            get {
+                return importAccountProgressRing.IsActive;
+            }
+            set {
+                importAccountProgressRing.IsActive = value;
+                importAccountProgressRing.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+                importAccountProgressGroup.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        private async void ImportAccount(object sender, RoutedEventArgs e) {
+            ButtonsEnabled = false;
+            ImportAccountWorking = true;
+
+            var importAccountResult = await App.CoreService.ImportAccount(AccountString);
 
             switch (importAccountResult) {
                 case Core.ImportAccount.Success:
@@ -29,28 +96,25 @@ namespace lockbook {
                 case Core.ImportAccount.ExpectedError expectedError:
                     switch (expectedError.Error) {
                         case Core.ImportAccount.PossibleErrors.AccountDoesNotExist:
-                            importError.Text = "That account does not exist on this server!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "That account does not exist on this server!";
                             break;
                         case Core.ImportAccount.PossibleErrors.AccountExistsAlready:
-                            importError.Text = "An account exists already, clear your app data to import another account!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "An account exists already, clear your app data to import another account!";
                             break;
                         case Core.ImportAccount.PossibleErrors.AccountStringCorrupted:
-                            importError.Text = "This account string is corrupt!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "This account string is corrupt!";
                             break;
                         case Core.ImportAccount.PossibleErrors.CouldNotReachServer:
-                            importError.Text = "Could not reach the server!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "Could not reach the server!";
                             break;
                         case Core.ImportAccount.PossibleErrors.UsernamePKMismatch:
-                            importError.Text = "This username does not correspond to the public key in this account_string!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "This username does not correspond to the public key in this account_string!";
                             break;
                     };
                     break;
             }
+
+            await Task.Delay(1000);
 
             var syncResult = await App.CoreService.SyncAll();
             switch (syncResult) {
@@ -62,22 +126,15 @@ namespace lockbook {
                     break;
             }
 
-            createAccount.IsEnabled = true;
-            importAccountButton.IsEnabled = true;
-            importProgressGroup.Visibility = Visibility.Collapsed;
-            ImportProgressRing.Visibility = Visibility.Collapsed;
-            ImportProgressRing.IsActive = false;
-            importError.Visibility = Visibility.Visible;
+            ButtonsEnabled = true;
+            ImportAccountWorking = false;
         }
 
         private async void CreateAccount(object sender, RoutedEventArgs e) {
-            createAccount.IsEnabled = false;
-            importAccountButton.IsEnabled = false;
-            progressGroup.Visibility = Visibility.Visible;
-            progressRing.Visibility = Visibility.Visible;
-            progressRing.IsActive = true;
-            newAccountError.Visibility = Visibility.Collapsed;
-            var createAccountResult = await App.CoreService.CreateAccount(username.Text, "http://localhost:8000");
+            ButtonsEnabled = false;
+            NewAccountWorking = true;
+
+            var createAccountResult = await App.CoreService.CreateAccount(Username, "http://localhost:8000");
 
             switch (createAccountResult) {
                 case Core.CreateAccount.Success:
@@ -89,30 +146,25 @@ namespace lockbook {
                 case Core.CreateAccount.ExpectedError expectedError:
                     switch (expectedError.Error) {
                         case Core.CreateAccount.PossibleErrors.InvalidUsername:
-                            newAccountError.Text = "Invalid username!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            NewAccountError = "Invalid username!";
                             break;
                         case Core.CreateAccount.PossibleErrors.UsernameTaken:
-                            newAccountError.Text = "Username taken!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            NewAccountError = "Username taken!";
                             break;
                         case Core.CreateAccount.PossibleErrors.CouldNotReachServer:
-                            newAccountError.Text = "Could not reach server!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            NewAccountError = "Could not reach server!";
                             break;
                         case Core.CreateAccount.PossibleErrors.AccountExistsAlready:
-                            newAccountError.Text = "An account exists already!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            NewAccountError = "An account exists already!";
                             break;
                     }
                     break;
             }
 
-            createAccount.IsEnabled = true;
-            importAccountButton.IsEnabled = true;
-            progressGroup.Visibility = Visibility.Collapsed;
-            progressRing.Visibility = Visibility.Collapsed;
-            progressRing.IsActive = false;
+            await Task.Delay(1000);
+
+            ButtonsEnabled = true;
+            NewAccountWorking = false;
         }
     }
 }
