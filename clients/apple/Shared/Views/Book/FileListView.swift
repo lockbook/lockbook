@@ -25,15 +25,7 @@ struct FileListView: View {
                 }
                 
                 ForEach(computeFileList()) { meta in
-                    if meta.fileType == .Folder {
-                        NavigationLink(destination: FileListView(core: core, currentFolder: meta, account: account)) {
-                            FileCell(meta: meta)
-                        }.isDetailLink(false)
-                    } else {
-                        NavigationLink(destination: EditorView(core: core, meta: meta).equatable()) {
-                            FileCell(meta: meta)
-                        }
-                    }
+                    renderCell(meta: meta)
                 }
             }
             .padding(.leading, 20)
@@ -76,6 +68,46 @@ struct FileListView: View {
             }
         }
         .navigationTitle(currentFolder.name)
+    }
+    
+    func handleDelete(meta: FileMetadata) {
+        switch core.api.deleteFile(id: meta.id) {
+        case .success(_):
+            core.updateFiles()
+        case .failure(let err):
+            core.handleError(err)
+        }
+    }
+    
+    func renderCell(meta: FileMetadata) -> AnyView {
+        if meta.fileType == .Folder {
+            return AnyView (
+                NavigationLink(destination: FileListView(core: core, currentFolder: meta, account: account)) {
+                    FileCell(meta: meta)
+                    
+                }.isDetailLink(false)
+                .contextMenu(menuItems: {
+                    Button(action: {
+                        handleDelete(meta: meta)
+                    }) {
+                        Label("Delete", systemImage: "trash.fill")
+                    }
+                })
+            )
+        } else {
+            return AnyView (NavigationLink(destination: EditorView(core: core, meta: meta).equatable()) {
+                FileCell(meta: meta)
+                    
+            }.contextMenu(menuItems: {
+                Button(action: {
+                    handleDelete(meta: meta)
+                }) {
+                    Label("Delete", systemImage: "trash.fill")
+                }
+            })
+            )
+        }
+        
     }
     
     func handleCreate(meta: FileMetadata, type: FileType) {

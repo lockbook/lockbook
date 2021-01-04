@@ -26,6 +26,7 @@ struct FileCell: View {
                     .foregroundColor(.secondary)
             }
         }
+        .background(Color(UIColor.systemBackground))
     }
 }
 
@@ -37,7 +38,7 @@ struct SyntheticFileCell: View {
     
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 5) {
                 TextField(params.1 == .Folder ? "folder name" : "document name", text: $nameField,
                           onCommit: onCreate)
                     .autocapitalization(.none)
@@ -47,13 +48,13 @@ struct SyntheticFileCell: View {
                         .foregroundColor(params.1 == .Folder ? .blue : .secondary)
                     Text("New \(params.1.rawValue) in \(params.0.name)")
                         .foregroundColor(.gray)
-                    
                 }.font(.footnote)
-            }
+            }.padding(.vertical, 5)
+            
             Button(action: onCancel) {
                 Image(systemName: "xmark")
                     .foregroundColor(.red)
-            }
+            }.padding(.trailing, 10)
         }
         
     }
