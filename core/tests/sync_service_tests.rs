@@ -28,17 +28,24 @@ mod sync_tests {
         };
     }
 
+    macro_rules! make_account {
+        ($db:expr) => {{
+            let generated_account = generate_account();
+            let account = DefaultAccountService::create_account(
+                &$db,
+                &generated_account.username,
+                &generated_account.api_url,
+            )
+            .unwrap();
+            account
+        }};
+    }
+
     #[test]
     fn test_create_files_and_folders_sync() {
-        let generated_account = generate_account();
         let sled = &test_db();
         let db = &to_backend(sled);
-        let account = DefaultAccountService::create_account(
-            &db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db);
 
         assert_n_work_units!(db, 0);
 
@@ -67,15 +74,9 @@ mod sync_tests {
 
     #[test]
     fn test_edit_document_sync() {
-        let generated_account = generate_account();
         let sled = &test_db();
         let db = &to_backend(sled);
-        let account = DefaultAccountService::create_account(
-            &db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db);
 
         assert_n_work_units!(db, 0);
         println!("1st calculate work");
@@ -161,14 +162,7 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
-
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
             &db1,
@@ -223,14 +217,7 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
-
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
             &db1,
@@ -282,14 +269,7 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
-
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
             &db1,
@@ -337,14 +317,7 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
-
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
             &db1,
@@ -392,14 +365,7 @@ mod sync_tests {
     fn move_then_edit() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
 
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
@@ -422,14 +388,8 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
+        let account = make_account!(db1);
 
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
         let file1 =
             DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
                 .unwrap();
@@ -484,14 +444,8 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
+        let account = make_account!(db1);
 
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
         let file1 =
             DefaultFileService::create_at_path(&db1, &format!("{}/a/test.txt", account.username))
                 .unwrap();
@@ -556,14 +510,8 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
+        let account = make_account!(db1);
 
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/test.bin", account.username))
                 .unwrap();
@@ -614,14 +562,8 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
+        let account = make_account!(db1);
 
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
         let file = DefaultFileService::create_at_path(
             &db1,
             &format!("{}/mergable_file.md", account.username),
@@ -668,14 +610,8 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
+        let account = make_account!(db1);
 
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
         let file = DefaultFileService::create_at_path(
             &db1,
             &format!("{}/mergable_file.md", account.username),
@@ -726,14 +662,8 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
+        let account = make_account!(db1);
 
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
         let file = DefaultFileService::create_at_path(
             &db1,
             &format!("{}/mergable_file.md", account.username),
@@ -784,14 +714,8 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
+        let account = make_account!(db1);
 
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
         let file = DefaultFileService::create_at_path(
             &db1,
             &format!("{}/mergable_file.md", account.username),
@@ -840,13 +764,7 @@ mod sync_tests {
     fn test_not_really_editing_should_not_cause_work() {
         let sled = &test_db();
         let db = &to_backend(sled);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db);
 
         let file =
             DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
@@ -864,13 +782,7 @@ mod sync_tests {
     fn test_not_really_renaming_should_not_cause_work() {
         let sled = &test_db();
         let db = &to_backend(sled);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db);
 
         let file =
             DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
@@ -887,13 +799,7 @@ mod sync_tests {
     fn test_not_really_moving_should_not_cause_work() {
         let sled = &test_db();
         let db = &to_backend(sled);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db);
 
         let file =
             DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
@@ -912,13 +818,7 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
 
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
@@ -952,13 +852,7 @@ mod sync_tests {
     fn delete_new_document_never_synced() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
 
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
@@ -983,13 +877,7 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
 
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
@@ -1046,13 +934,7 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
         let file1_delete =
@@ -1194,13 +1076,7 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
         let file1_delete =
@@ -1338,13 +1214,7 @@ mod sync_tests {
         let db1 = &to_backend(sled1);
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
         let file1_delete = DefaultFileService::create_at_path(&db1, &path("old/file1.md")).unwrap();
@@ -1427,13 +1297,7 @@ mod sync_tests {
     fn create_document_sync_delete_document_sync() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
         let file1 = DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
@@ -1448,13 +1312,7 @@ mod sync_tests {
     fn deleted_path_is_released() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
         let file1 = DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
