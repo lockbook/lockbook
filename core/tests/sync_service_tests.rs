@@ -16,6 +16,18 @@ mod sync_tests {
         DefaultLocalChangesRepo, DefaultSyncService,
     };
 
+    macro_rules! assert_n_work_units {
+        ($db:expr, $n:literal) => {
+            assert_eq!(
+                DefaultSyncService::calculate_work(&$db)
+                    .unwrap()
+                    .work_units
+                    .len(),
+                $n
+            );
+        };
+    }
+
     #[test]
     fn test_create_files_and_folders_sync() {
         let generated_account = generate_account();
@@ -28,29 +40,13 @@ mod sync_tests {
         )
         .unwrap();
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
+        assert_n_work_units!(db, 0);
 
-        DefaultFileService::create_at_path(
-            &db,
-            format!("{}/a/b/c/test", account.username).as_str(),
-        )
-        .unwrap();
+        DefaultFileService::create_at_path(&db, &format!("{}/a/b/c/test", account.username))
+            .unwrap();
+        assert_n_work_units!(db, 4);
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db)
-                .unwrap()
-                .work_units
-                .len(),
-            4
-        );
-
-        assert!(DefaultSyncService::sync(&db).is_ok());
+        DefaultSyncService::sync(&db).unwrap();
 
         let sled2 = &test_db();
         let db2 = &to_backend(sled2);
@@ -59,28 +55,14 @@ mod sync_tests {
             &DefaultAccountService::export_account(&db).unwrap(),
         )
         .unwrap();
-
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db2)
-                .unwrap()
-                .work_units
-                .len(),
-            5
-        );
+        assert_n_work_units!(db2, 5);
 
         DefaultSyncService::sync(&db2).unwrap();
         assert_eq!(
             DefaultFileMetadataRepo::get_all(&db).unwrap(),
             DefaultFileMetadataRepo::get_all(&db2).unwrap()
         );
-
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db2)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
+        assert_n_work_units!(db2, 0);
     }
 
     #[test]
@@ -95,22 +77,14 @@ mod sync_tests {
         )
         .unwrap();
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
+        assert_n_work_units!(db, 0);
         println!("1st calculate work");
 
-        let file = DefaultFileService::create_at_path(
-            &db,
-            format!("{}/a/b/c/test", account.username).as_str(),
-        )
-        .unwrap();
+        let file =
+            DefaultFileService::create_at_path(&db, &format!("{}/a/b/c/test", account.username))
+                .unwrap();
 
-        assert!(DefaultSyncService::sync(&db).is_ok());
+        DefaultSyncService::sync(&db).unwrap();
         println!("1st sync done");
 
         let sled2 = &test_db();
@@ -126,13 +100,7 @@ mod sync_tests {
 
         DefaultFileService::write_document(&db, file.id, "meaningful messages".as_bytes()).unwrap();
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db)
-                .unwrap()
-                .work_units
-                .len(),
-            1
-        );
+        assert_n_work_units!(db, 1);
         println!("2nd calculate work, db1, 1 dirty file");
 
         match DefaultSyncService::calculate_work(&db)
@@ -152,22 +120,10 @@ mod sync_tests {
         DefaultSyncService::sync(&db).unwrap();
         println!("3rd sync done, db1, dirty file pushed");
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
+        assert_n_work_units!(db, 0);
         println!("4th calculate work, db1, dirty file pushed");
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db2)
-                .unwrap()
-                .work_units
-                .len(),
-            1
-        );
+        assert_n_work_units!(db2, 1);
         println!("5th calculate work, db2, dirty file needs to be pulled");
 
         let edited_file = DefaultFileMetadataRepo::get(&db, file.id).unwrap();
@@ -188,13 +144,8 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db2).unwrap();
         println!("4th sync done, db2, dirty file pulled");
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db2)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
+
+        assert_n_work_units!(db2, 0);
         println!("7th calculate work ");
 
         assert_eq!(
@@ -244,38 +195,15 @@ mod sync_tests {
                 .unwrap();
 
         DefaultFileService::move_file(&db1, file.id, new_folder.id).unwrap();
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db1)
-                .unwrap()
-                .work_units
-                .len(),
-            2
-        );
+        assert_n_work_units!(db1, 2);
 
         DefaultSyncService::sync(&db1).unwrap();
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db1)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
+        assert_n_work_units!(db1, 0);
+        assert_n_work_units!(db2, 2);
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db2)
-                .unwrap()
-                .work_units
-                .len(),
-            2
-        );
         DefaultSyncService::sync(&db2).unwrap();
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db2)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
+        assert_n_work_units!(db2, 0);
+
         assert_eq!(
             DefaultFileMetadataRepo::get_all(&db1).unwrap(),
             DefaultFileMetadataRepo::get_all(&db2).unwrap()
@@ -537,13 +465,7 @@ mod sync_tests {
             .unwrap()
             .is_empty());
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db1)
-                .unwrap()
-                .work_units
-                .len(),
-            1
-        );
+        assert_n_work_units!(db1, 1);
 
         DefaultSyncService::sync(&db1).unwrap();
         DefaultSyncService::sync(&db2).unwrap();
@@ -614,21 +536,8 @@ mod sync_tests {
             .unwrap()
             .is_empty());
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db1)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
-
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db2)
-                .unwrap()
-                .work_units
-                .len(),
-            1
-        );
+        assert_n_work_units!(db1, 0);
+        assert_n_work_units!(db2, 1);
 
         DefaultSyncService::sync(&db2).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
@@ -944,23 +853,11 @@ mod sync_tests {
                 .unwrap();
 
         DefaultFileService::write_document(&db, file.id, "original".as_bytes()).unwrap();
-
         DefaultSyncService::sync(&db).unwrap();
-
-        assert!(DefaultSyncService::calculate_work(&db)
-            .unwrap()
-            .work_units
-            .is_empty());
+        assert_n_work_units!(db, 0);
 
         DefaultFileService::write_document(&db, file.id, "original".as_bytes()).unwrap();
-
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
+        assert_n_work_units!(db, 0);
     }
 
     #[test]
@@ -980,18 +877,10 @@ mod sync_tests {
                 .unwrap();
 
         DefaultSyncService::sync(&db).unwrap();
-
-        assert!(DefaultSyncService::calculate_work(&db)
-            .unwrap()
-            .work_units
-            .is_empty());
+        assert_n_work_units!(db, 0);
 
         assert!(DefaultFileService::rename_file(&db, file.id, "file.md").is_err());
-
-        assert!(DefaultSyncService::calculate_work(&db)
-            .unwrap()
-            .work_units
-            .is_empty());
+        assert_n_work_units!(db, 0);
     }
 
     #[test]
@@ -1011,11 +900,7 @@ mod sync_tests {
                 .unwrap();
 
         DefaultSyncService::sync(&db).unwrap();
-
-        assert!(DefaultSyncService::calculate_work(&db)
-            .unwrap()
-            .work_units
-            .is_empty());
+        assert_n_work_units!(db, 0);
 
         assert!(DefaultFileService::move_file(&db, file.id, file.parent).is_err());
     }
@@ -1080,13 +965,8 @@ mod sync_tests {
                 .unwrap();
 
         DefaultFileService::delete_document(&db1, file.id).unwrap();
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db1)
-                .unwrap()
-                .work_units
-                .len(),
-            0
-        );
+        assert_n_work_units!(db1, 0);
+
         assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
             .unwrap()
             .is_none());
@@ -1245,13 +1125,7 @@ mod sync_tests {
         );
 
         // Only the folder should show up as the sync instruction
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db2)
-                .unwrap()
-                .work_units
-                .len(),
-            1
-        );
+        assert_n_work_units!(db2, 1);
         DefaultSyncService::sync(&db2).unwrap();
 
         assert!(
@@ -1260,13 +1134,7 @@ mod sync_tests {
                 .is_none()
         );
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db1)
-                .unwrap()
-                .work_units
-                .len(),
-            4
-        );
+        assert_n_work_units!(db1, 4);
         DefaultSyncService::sync(&db1).unwrap();
 
         assert!(
@@ -1409,13 +1277,7 @@ mod sync_tests {
         );
 
         // Only the folder should show up as the sync instruction
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db2)
-                .unwrap()
-                .work_units
-                .len(),
-            2
-        );
+        assert_n_work_units!(db2, 2);
         DefaultSyncService::sync(&db2).unwrap();
 
         assert!(
@@ -1424,13 +1286,7 @@ mod sync_tests {
                 .is_none()
         );
 
-        assert_eq!(
-            DefaultSyncService::calculate_work(&db1)
-                .unwrap()
-                .work_units
-                .len(),
-            4
-        );
+        assert_n_work_units!(db1, 4);
         DefaultSyncService::sync(&db1).unwrap();
 
         assert!(
@@ -1585,10 +1441,7 @@ mod sync_tests {
         DefaultSyncService::sync(&db1).unwrap();
         DefaultFileService::delete_document(&db1, file1.id).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
-        assert!(DefaultSyncService::calculate_work(&db1)
-            .unwrap()
-            .work_units
-            .is_empty());
+        assert_n_work_units!(db1, 0);
     }
 
     #[test]
