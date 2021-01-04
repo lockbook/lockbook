@@ -47,6 +47,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         LARGE
     }
 
+    enum class Tool {
+        PEN,
+        ERASER
+    }
+
     private val scaleGestureDetector =
         ScaleGestureDetector(
             context,

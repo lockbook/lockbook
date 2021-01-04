@@ -1,11 +1,11 @@
 package app.lockbook.model
 
 import android.app.Application
-import android.view.MotionEvent
 import android.view.View
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import app.lockbook.ui.HandwritingEditorView
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
@@ -21,13 +21,16 @@ class HandwritingEditorViewModel(
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
-    private var singleTapTimer = Timer()
-    private var isAnimatingTools = false
-    private var selectedColor = android.R.color.white
     var lockBookDrawable: Drawing? = null
 
+    private var selectedColor = android.R.color.white
+    private var selectedTool = HandwritingEditorView.Tool.PEN
+    private var selectedPenSize = HandwritingEditorView.PenSize.SMALL
+
     private val _setToolsVisibility = MutableLiveData<Int>()
-    private val _selectNewColor = MutableLiveData<Pair<Int, Int>>()
+    private val _selectNewColor = MutableLiveData<Pair<Int?, Int>>()
+    private val _selectNewTool = MutableLiveData<Pair<HandwritingEditorView.Tool?, HandwritingEditorView.Tool>>()
+    private val _selectedNewPenSize = MutableLiveData<Pair<HandwritingEditorView.PenSize?, HandwritingEditorView.PenSize>>()
     private val _drawableReady = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
@@ -35,8 +38,14 @@ class HandwritingEditorViewModel(
     val setToolsVisibility: LiveData<Int>
         get() = _setToolsVisibility
 
-    val selectNewColor: LiveData<Pair<Int, Int>>
+    val selectNewColor: LiveData<Pair<Int?, Int>>
         get() = _selectNewColor
+
+    val selectNewTool: LiveData<Pair<HandwritingEditorView.Tool?, HandwritingEditorView.Tool>>
+        get() = _selectNewTool
+
+    val selectedNewPenSize: LiveData<Pair<HandwritingEditorView.PenSize?, HandwritingEditorView.PenSize>>
+        get() = _selectedNewPenSize
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -47,32 +56,18 @@ class HandwritingEditorViewModel(
     val drawableReady: LiveData<Unit>
         get() = _drawableReady
 
-    fun handleTouchEvent(event: MotionEvent, toolsVisibility: Int) {
-        val isCorrectMotionEvent = event.action == MotionEvent.ACTION_DOWN && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER
-
-        if (isCorrectMotionEvent && !isAnimatingTools) {
-            isAnimatingTools = true
-
-            singleTapTimer.schedule(
-                object : TimerTask() {
-                    override fun run() {
-                        if (toolsVisibility == View.VISIBLE) {
-                            _setToolsVisibility.postValue(View.GONE)
-                        } else {
-                            _setToolsVisibility.postValue(View.VISIBLE)
-                        }
-                        isAnimatingTools = false
-                    }
-                },
-                200
-            )
-        }
+    init {
+        _selectNewColor.postValue(Pair(null, android.R.color.white))
+        _selectNewTool.postValue(Pair(null, HandwritingEditorView.Tool.PEN))
+        _selectedNewPenSize.postValue(Pair(null, HandwritingEditorView.PenSize.SMALL))
     }
 
-    fun detectedScale() {
-        singleTapTimer.cancel()
-        singleTapTimer = Timer()
-        isAnimatingTools = false
+    fun handleTouchEvent(toolsVisibility: Int) {
+        if (toolsVisibility == View.VISIBLE) {
+            _setToolsVisibility.postValue(View.GONE)
+        } else {
+            _setToolsVisibility.postValue(View.VISIBLE)
+        }
     }
 
     fun getDrawing(id: String) {
@@ -142,5 +137,15 @@ class HandwritingEditorViewModel(
     fun handleNewColorSelected(newColor: Int) {
         _selectNewColor.postValue(Pair(selectedColor, newColor))
         selectedColor = newColor
+    }
+
+    fun handleNewToolSelected(newTool: HandwritingEditorView.Tool) {
+        _selectNewTool.postValue(Pair(selectedTool, newTool))
+        selectedTool = newTool
+    }
+
+    fun handleNewPenSizeSelected(newPenSize: HandwritingEditorView.PenSize) {
+        _selectedNewPenSize.postValue(Pair(selectedPenSize, newPenSize))
+        selectedPenSize = newPenSize
     }
 }
