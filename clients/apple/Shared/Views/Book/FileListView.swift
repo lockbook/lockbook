@@ -4,10 +4,12 @@ import SwiftLockbookCore
 struct FileListView: View {
     @ObservedObject var core: Core
     @State var showingAccount: Bool = false
+    @State var creating: FileType?
+    @State var creatingName: String = ""
     let currentFolder: FileMetadata
     let account: Account
     
-    var children: [FileMetadata] {
+    func computeFileList() -> [FileMetadata] {
         core.files.filter {
             $0.parent == currentFolder.id && $0.id != currentFolder.id
         }
@@ -15,11 +17,14 @@ struct FileListView: View {
     
     var body: some View {
         ScrollView {
-            HStack {
-                Spacer()
-            }
             VStack {
-                ForEach(children) { meta in
+                creating.map { type in
+                    SyntheticFileCell(params: (currentFolder, type), nameField: $creatingName, onCreate: {
+                        handleCreate(meta: currentFolder, type: type)
+                    }, onCancel: doneCreating)
+                }
+                
+                ForEach(computeFileList()) { meta in
                     if meta.fileType == .Folder {
                         NavigationLink(destination: FileListView(core: core, currentFolder: meta, account: account)) {
                             FileCell(meta: meta)
@@ -31,9 +36,9 @@ struct FileListView: View {
                     }
                 }
             }
-            .cornerRadius(10)
+            .padding(.leading, 20)
         }
-        .padding(.leading, 10)
+        
         .sheet(isPresented: $showingAccount, content: {
             AccountView(core: core, account: account)
         })
@@ -55,15 +60,51 @@ struct FileListView: View {
                 Text("\(core.files.count) items")
                     .foregroundColor(.secondary)
                 Spacer()
-                Button(action: { }) {
-                    Image(systemName: "folder.badge.plus")
+                Menu {
+                    Button(action: {creating = .Document}) {
+                        Label("Create a document", systemImage: "doc")
+                    }
+                    
+                    Button(action: {creating = .Folder}) {
+                        Label("Create a folder", systemImage: "folder")
+                    }
                 }
-                Button(action: { }) {
-                    Image(systemName: "square.and.pencil")
+                label: {
+                    Label("Add", systemImage: "plus")
+                        .frame(width: 40, height: 40)
                 }
             }
         }
         .navigationTitle(currentFolder.name)
     }
+    
+    func handleCreate(meta: FileMetadata, type: FileType) {
+        switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
+        case .success(_):
+            doneCreating()
+            core.updateFiles()
+        case .failure(let err):
+            core.handleError(err)
+        }
+    }
+    
+    func doneCreating() {
+        withAnimation {
+            creating = .none
+            creatingName = ""
+        }
+    }
+    
 }
 
+struct FileListView_Previews: PreviewProvider {
+    static let core = Core()
+    
+    static var previews: some View {
+        NavigationView {
+            FileListView(core: core,
+                         showingAccount: false, currentFolder: core.root!,
+                         account: core.account!)
+        }
+    }
+}
