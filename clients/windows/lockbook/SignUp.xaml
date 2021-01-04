@@ -90,7 +90,7 @@
                         </Button>
                     </StackPanel>
                     <TextBlock
-                        x:Name="importError"
+                        x:Name="importAccountErrorTextBlock"
                         HorizontalAlignment="Center"
                         Style="{StaticResource BaseTextBlockStyle}"
                         Foreground="Red"
@@ -98,14 +98,14 @@
                         TextWrapping="WrapWholeWords" />
                     <StackPanel
                         HorizontalAlignment="Center"
-                        x:Name="importProgressGroup"
+                        x:Name="importAccountProgressGroup"
                         Visibility="Collapsed">
                         <TextBlock
                             Text="Importing Account String..."
                             HorizontalAlignment="Center"
                             Style="{StaticResource BaseTextBlockStyle}" />
                         <ProgressRing
-                            x:Name="ImportProgressRing"
+                            x:Name="importAccountProgressRing"
                             Margin="0,20,0,0"
                             Width="50"
                             Height="50" />
@@ -127,11 +127,11 @@
                     </TextBlock>
                     <TextBox
                         Width="300"
-                        x:Name="username"
+                        x:Name="usernameTextBox"
                         Header="Select a Username" />
                     <Button
                         Click="CreateAccount"
-                        x:Name="createAccount"
+                        x:Name="createAccountButton"
                         HorizontalAlignment="Center">
                         <StackPanel
                             Orientation="Horizontal"
@@ -143,20 +143,20 @@
                         </StackPanel>
                     </Button>
                     <TextBlock
-                        x:Name="newAccountError"
+                        x:Name="newAccountErrorTextBlock"
                         HorizontalAlignment="Center"
                         Style="{StaticResource BaseTextBlockStyle}"
                         Foreground="Red" />
                     <StackPanel
                         HorizontalAlignment="Center"
-                        x:Name="progressGroup"
+                        x:Name="newAccountProgressGroup"
                         Visibility="Collapsed">
                         <TextBlock
                             Text="Generating Keys..."
                             HorizontalAlignment="Center"
                             Style="{StaticResource BaseTextBlockStyle}" />
                         <ProgressRing
-                            x:Name="progressRing"
+                            x:Name="newAccountProgressRing"
                             Margin="0,20,0,0"
                             Width="50"
                             Height="50" />
