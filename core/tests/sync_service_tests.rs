@@ -342,15 +342,12 @@ mod sync_tests {
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
                 .unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
         DefaultFileService::rename_file(&db1, file.id, "new_name.txt").unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "noice".as_bytes()).unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
     }
 
