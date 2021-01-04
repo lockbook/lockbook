@@ -8,6 +8,8 @@ use std::env;
 use std::path::Path;
 use std::str::FromStr;
 
+use basic_human_duration::ChronoHumanDuration;
+use chrono::Duration;
 use serde::Serialize;
 use serde_json::json;
 use serde_json::value::Value;
@@ -35,7 +37,7 @@ use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
 };
-use crate::service::clock_service::ClockImpl;
+use crate::service::clock_service::{Clock, ClockImpl};
 use crate::service::code_version_service::CodeVersionImpl;
 use crate::service::crypto_service::{AESImpl, RSAImpl};
 use crate::service::db_state_service;
@@ -814,6 +816,18 @@ pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>
     }
 }
 
+pub fn calculate_last_synced(config: &Config) -> Result<String, Error<GetLastSyncedError>> {
+    let last_synced = get_last_synced(config)?;
+
+    if last_synced != 0 {
+        let duration = Duration::milliseconds(DefaultClock::get_time() - last_synced);
+        println!("{}, {}", DefaultClock::get_time(), last_synced);
+        Ok(duration.format_human().to_string())
+    } else {
+        Ok("never".to_string())
+    }
+}
+
 #[derive(Debug, Serialize, EnumIter)]
 pub enum GetUsageError {
     NoAccount,
@@ -842,6 +856,42 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
             | ApiError::ReceiveFailed(_)
             | ApiError::Deserialize(_) => unexpected!("{:#?}", err),
         })
+}
+
+pub const BYTE: u64 = 1;
+pub const KILOBYTE: u64 = BYTE * 1000;
+pub const MEGABYTE: u64 = KILOBYTE * 1000;
+pub const GIGABYTE: u64 = MEGABYTE * 1000;
+pub const TERABYTE: u64 = GIGABYTE * 1000;
+
+pub const KILOBYTE_PLUS_ONE: u64 = KILOBYTE + 1;
+pub const MEGABYTE_PLUS_ONE: u64 = MEGABYTE + 1;
+pub const GIGABYTE_PLUS_ONE: u64 = GIGABYTE + 1;
+pub const TERABYTE_PLUS_ONE: u64 = TERABYTE + 1;
+
+pub fn calculate_usage(config: &Config, exact: bool) -> Result<String, Error<GetUsageError>> {
+    let usage_in_bytes: u64 = get_usage(config)?
+        .into_iter()
+        .map(|usage| usage.byte_secs)
+        .sum();
+
+    if exact {
+        Ok(usage_in_bytes.to_string())
+    } else {
+        let (unit, abbr) = match usage_in_bytes {
+            0..=KILOBYTE => (BYTE, ""),
+            KILOBYTE_PLUS_ONE..=MEGABYTE => (KILOBYTE, "K"),
+            MEGABYTE_PLUS_ONE..=GIGABYTE => (MEGABYTE, "M"),
+            GIGABYTE_PLUS_ONE..=TERABYTE => (GIGABYTE, "G"),
+            TERABYTE_PLUS_ONE..=u64::MAX => (TERABYTE, "T"),
+        };
+
+        Ok(format!(
+            "{:.3} {}B",
+            usage_in_bytes as f64 / unit as f64,
+            abbr
+        ))
+    }
 }
 
 // This basically generates a function called `get_all_error_variants`,
