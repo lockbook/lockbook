@@ -41,6 +41,25 @@ mod sync_tests {
         }};
     }
 
+    macro_rules! make_new_client {
+        ($new_client:ident, $old_client:expr) => {
+            let sled2 = test_db();
+            let $new_client = to_backend(&sled2);
+            DefaultAccountService::import_account(
+                &$new_client,
+                &DefaultAccountService::export_account(&$old_client).unwrap(),
+            )
+            .unwrap();
+        };
+    }
+
+    macro_rules! make_and_sync_new_client {
+        ($new_client:ident, $old_client:expr) => {
+            make_new_client!($new_client, $old_client);
+            DefaultSyncService::sync(&$new_client).unwrap();
+        };
+    }
+
     #[test]
     fn test_create_files_and_folders_sync() {
         let sled = &test_db();
@@ -55,13 +74,7 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db).unwrap();
 
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db).unwrap(),
-        )
-        .unwrap();
+        make_new_client!(db2, db);
         assert_n_work_units!(db2, 5);
 
         DefaultSyncService::sync(&db2).unwrap();
@@ -88,15 +101,7 @@ mod sync_tests {
         DefaultSyncService::sync(&db).unwrap();
         println!("1st sync done");
 
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db).unwrap(),
-        )
-        .unwrap();
-
-        DefaultSyncService::sync(&db2).unwrap();
+        make_and_sync_new_client!(db2, db);
         println!("2nd sync done, db2");
 
         DefaultFileService::write_document(&db, file.id, "meaningful messages".as_bytes()).unwrap();
@@ -160,8 +165,6 @@ mod sync_tests {
     fn test_move_document_sync() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
@@ -171,17 +174,9 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "nice document".as_bytes()).unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-
-        DefaultSyncService::sync(&db2).unwrap();
-
+        make_and_sync_new_client!(db2, db1);
         assert_dbs_eq(&db1, &db2);
 
         let new_folder =
@@ -215,8 +210,6 @@ mod sync_tests {
     fn test_move_reject() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
@@ -237,14 +230,7 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-
-        DefaultSyncService::sync(&db2).unwrap();
-
+        make_and_sync_new_client!(db2, db1);
         DefaultFileService::move_file(&db2, file.id, new_folder1.id).unwrap();
         DefaultSyncService::sync(&db2).unwrap();
 
@@ -267,8 +253,6 @@ mod sync_tests {
     fn test_rename_sync() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
@@ -278,15 +262,9 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::rename_file(&db1, file.parent, "folder1-new").unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
+        make_and_sync_new_client!(db2, db1);
 
         assert_eq!(
             DefaultFileMetadataRepo::get_by_path(
@@ -315,8 +293,6 @@ mod sync_tests {
     fn test_rename_reject_sync() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
@@ -328,12 +304,8 @@ mod sync_tests {
 
         DefaultFileService::rename_file(&db1, file.parent, "folder1-new").unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
+        make_and_sync_new_client!(db2, db1);
+
         DefaultFileService::rename_file(&db2, file.parent, "folder2-new").unwrap();
         DefaultSyncService::sync(&db2).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
@@ -386,8 +358,6 @@ mod sync_tests {
     fn sync_fs_invalid_state_via_rename() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file1 =
@@ -398,15 +368,8 @@ mod sync_tests {
                 .unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
-
+        make_and_sync_new_client!(db2, db1);
         DefaultFileService::rename_file(&db2, file1.id, "test3.txt").unwrap();
-
         DefaultSyncService::sync(&db2).unwrap();
 
         DefaultFileService::rename_file(&db1, file2.id, "test3.txt").unwrap();
@@ -442,8 +405,6 @@ mod sync_tests {
     fn sync_fs_invalid_state_via_move() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file1 =
@@ -454,12 +415,8 @@ mod sync_tests {
                 .unwrap();
 
         DefaultSyncService::sync(&db1).unwrap();
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
+
+        make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::move_file(
             &db1,
@@ -508,8 +465,6 @@ mod sync_tests {
     fn test_content_conflict_unmergable() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file =
@@ -520,13 +475,7 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
-
+        make_and_sync_new_client!(db2, db1);
         DefaultFileService::write_document(&db1, file.id, "some new content".as_bytes()).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
 
@@ -560,8 +509,6 @@ mod sync_tests {
     fn test_content_conflict_mergable() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
@@ -574,12 +521,7 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
+        make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
@@ -608,8 +550,6 @@ mod sync_tests {
     fn test_content_conflict_local_move_before_mergable() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
@@ -619,15 +559,9 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
+        make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
@@ -660,8 +594,6 @@ mod sync_tests {
     fn test_content_conflict_local_after_before_mergable() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
@@ -671,15 +603,9 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
+        make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
@@ -712,8 +638,6 @@ mod sync_tests {
     fn test_content_conflict_server_after_before_mergable() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file = DefaultFileService::create_at_path(
@@ -723,15 +647,9 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
+        make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         let folder =
@@ -816,8 +734,6 @@ mod sync_tests {
     fn delete_document_test_sync() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file =
@@ -832,11 +748,7 @@ mod sync_tests {
             .unwrap()
             .is_none());
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
+        make_new_client!(db2, db1);
         assert!(DefaultFileMetadataRepo::maybe_get(&db2, file.id)
             .unwrap()
             .is_none());
@@ -875,22 +787,14 @@ mod sync_tests {
     fn delete_document_test_after_sync() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
 
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
                 .unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-        DefaultSyncService::sync(&db2).unwrap();
+        make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::delete_document(&db1, file.id).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
@@ -932,8 +836,6 @@ mod sync_tests {
 
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
@@ -947,16 +849,10 @@ mod sync_tests {
         let file1_stay = DefaultFileService::create_at_path(&db1, &path("stay/file1.md")).unwrap();
         let file2_stay = DefaultFileService::create_at_path(&db1, &path("stay/file2.md")).unwrap();
         let file3_stay = DefaultFileService::create_at_path(&db1, &path("stay/file3.md")).unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
+        make_and_sync_new_client!(db2, db1);
 
-        DefaultSyncService::sync(&db2).unwrap();
         DefaultFileService::delete_folder(
             &db2,
             DefaultFileMetadataRepo::get_by_path(&db2, &path("delete"))
@@ -1074,8 +970,6 @@ mod sync_tests {
 
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
@@ -1089,16 +983,10 @@ mod sync_tests {
         let file1_stay = DefaultFileService::create_at_path(&db1, &path("stay/file1.md")).unwrap();
         let file2_stay = DefaultFileService::create_at_path(&db1, &path("stay/file2.md")).unwrap();
         let file3_stay = DefaultFileService::create_at_path(&db1, &path("stay/file3.md")).unwrap();
-
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
+        make_and_sync_new_client!(db2, db1);
 
-        DefaultSyncService::sync(&db2).unwrap();
         DefaultFileService::move_file(&db2, file2_delete.id, file1_stay.parent).unwrap();
         DefaultFileService::delete_folder(
             &db2,
@@ -1212,8 +1100,6 @@ mod sync_tests {
     fn create_new_folder_and_move_old_files_into_it_then_delete_that_folder() {
         let sled1 = &test_db();
         let db1 = &to_backend(sled1);
-        let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
         let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
@@ -1262,13 +1148,7 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db1).unwrap();
 
-        DefaultAccountService::import_account(
-            &db2,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
-
-        DefaultSyncService::sync(&db2).unwrap();
+        make_and_sync_new_client!(db2, db1);
 
         assert!(
             !DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.id)
