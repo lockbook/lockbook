@@ -203,16 +203,6 @@ pub trait SyncService {
         account: &Account,
         work: WorkUnit,
     ) -> Result<(), WorkExecutionError>;
-    fn handle_server_change(
-        backend: &Backend,
-        account: &Account,
-        local_change: &mut FileMetadata,
-    ) -> Result<(), WorkExecutionError>;
-    fn handle_local_change(
-        backend: &Backend,
-        account: &Account,
-        local_change: &mut FileMetadata,
-    ) -> Result<(), WorkExecutionError>;
     fn sync(backend: &Backend) -> Result<(), SyncError>;
 }
 
@@ -251,8 +241,8 @@ impl<
         Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > SyncService
-    for FileSyncService<
+    >
+    FileSyncService<
         FileMetadataDb,
         ChangeDb,
         DocsDb,
@@ -263,75 +253,6 @@ impl<
         FileCompression,
     >
 {
-    fn calculate_work(backend: &Backend) -> Result<WorkCalculated, CalculateWorkError> {
-        info!("Calculating Work");
-        let mut work_units: Vec<WorkUnit> = vec![];
-
-        let account = AccountDb::get_account(backend).map_err(AccountRetrievalError)?;
-        let last_sync = FileMetadataDb::get_last_updated(backend).map_err(GetMetadataError)?;
-
-        let server_updates = ApiClient::request(
-            &account,
-            GetUpdatesRequest {
-                since_metadata_version: last_sync,
-            },
-        )
-        .map_err(GetUpdatesError)?
-        .file_metadata;
-
-        let mut most_recent_update_from_server: u64 = last_sync;
-        for metadata in server_updates {
-            if metadata.metadata_version > most_recent_update_from_server {
-                most_recent_update_from_server = metadata.metadata_version;
-            }
-
-            match FileMetadataDb::maybe_get(backend, metadata.id).map_err(GetMetadataError)? {
-                None => work_units.push(ServerChange { metadata }),
-                Some(local_metadata) => {
-                    if metadata.metadata_version != local_metadata.metadata_version {
-                        work_units.push(ServerChange { metadata })
-                    }
-                }
-            };
-        }
-
-        work_units.sort_by(|f1, f2| {
-            f1.get_metadata()
-                .metadata_version
-                .cmp(&f2.get_metadata().metadata_version)
-        });
-
-        let changes = ChangeDb::get_all_local_changes(backend).map_err(LocalChangesRepoError)?;
-
-        for change_description in changes {
-            let metadata =
-                FileMetadataDb::get(backend, change_description.id).map_err(MetadataRepoError)?;
-
-            work_units.push(LocalChange { metadata });
-        }
-        debug!("Work Calculated: {:#?}", work_units);
-
-        Ok(WorkCalculated {
-            work_units,
-            most_recent_update_from_server,
-        })
-    }
-
-    fn execute_work(
-        backend: &Backend,
-        account: &Account,
-        work: WorkUnit,
-    ) -> Result<(), WorkExecutionError> {
-        match work {
-            WorkUnit::LocalChange { mut metadata } => {
-                Self::handle_local_change(backend, &account, &mut metadata)
-            }
-            WorkUnit::ServerChange { mut metadata } => {
-                Self::handle_server_change(backend, &account, &mut metadata)
-            }
-        }
-    }
-
     fn handle_server_change(
         backend: &Backend,
         account: &Account,
@@ -773,7 +694,29 @@ impl<
         }
         Ok(())
     }
+}
 
+impl<
+        FileMetadataDb: FileMetadataRepo,
+        ChangeDb: LocalChangesRepo,
+        DocsDb: DocumentRepo,
+        AccountDb: AccountRepo,
+        ApiClient: Client,
+        Files: FileService,
+        FileCrypto: FileEncryptionService,
+        FileCompression: FileCompressionService,
+    > SyncService
+    for FileSyncService<
+        FileMetadataDb,
+        ChangeDb,
+        DocsDb,
+        AccountDb,
+        ApiClient,
+        Files,
+        FileCrypto,
+        FileCompression,
+    >
+{
     fn sync(backend: &Backend) -> Result<(), SyncError> {
         let account = AccountDb::get_account(backend).map_err(SyncError::AccountRetrievalError)?;
 
@@ -825,6 +768,74 @@ impl<
         } else {
             error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
             Err(SyncError::WorkExecutionError(sync_errors))
+        }
+    }
+    fn calculate_work(backend: &Backend) -> Result<WorkCalculated, CalculateWorkError> {
+        info!("Calculating Work");
+        let mut work_units: Vec<WorkUnit> = vec![];
+
+        let account = AccountDb::get_account(backend).map_err(AccountRetrievalError)?;
+        let last_sync = FileMetadataDb::get_last_updated(backend).map_err(GetMetadataError)?;
+
+        let server_updates = ApiClient::request(
+            &account,
+            GetUpdatesRequest {
+                since_metadata_version: last_sync,
+            },
+        )
+        .map_err(GetUpdatesError)?
+        .file_metadata;
+
+        let mut most_recent_update_from_server: u64 = last_sync;
+        for metadata in server_updates {
+            if metadata.metadata_version > most_recent_update_from_server {
+                most_recent_update_from_server = metadata.metadata_version;
+            }
+
+            match FileMetadataDb::maybe_get(backend, metadata.id).map_err(GetMetadataError)? {
+                None => work_units.push(ServerChange { metadata }),
+                Some(local_metadata) => {
+                    if metadata.metadata_version != local_metadata.metadata_version {
+                        work_units.push(ServerChange { metadata })
+                    }
+                }
+            };
+        }
+
+        work_units.sort_by(|f1, f2| {
+            f1.get_metadata()
+                .metadata_version
+                .cmp(&f2.get_metadata().metadata_version)
+        });
+
+        let changes = ChangeDb::get_all_local_changes(backend).map_err(LocalChangesRepoError)?;
+
+        for change_description in changes {
+            let metadata =
+                FileMetadataDb::get(backend, change_description.id).map_err(MetadataRepoError)?;
+
+            work_units.push(LocalChange { metadata });
+        }
+        debug!("Work Calculated: {:#?}", work_units);
+
+        Ok(WorkCalculated {
+            work_units,
+            most_recent_update_from_server,
+        })
+    }
+
+    fn execute_work(
+        backend: &Backend,
+        account: &Account,
+        work: WorkUnit,
+    ) -> Result<(), WorkExecutionError> {
+        match work {
+            WorkUnit::LocalChange { mut metadata } => {
+                Self::handle_local_change(backend, &account, &mut metadata)
+            }
+            WorkUnit::ServerChange { mut metadata } => {
+                Self::handle_server_change(backend, &account, &mut metadata)
+            }
         }
     }
 }
