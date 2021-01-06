@@ -817,7 +817,7 @@ pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>
     }
 }
 
-pub fn calculate_last_synced(config: &Config) -> Result<String, Error<GetLastSyncedError>> {
+pub fn get_last_synced_human_string(config: &Config) -> Result<String, Error<GetLastSyncedError>> {
     let last_synced = get_last_synced(config)?;
 
     if last_synced != 0 {

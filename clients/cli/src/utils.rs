@@ -2,8 +2,8 @@ use std::{env, fs};
 
 use lockbook_core::model::state::Config;
 use lockbook_core::{
-    calculate_last_synced, get_account, get_db_state, init_logger, migrate_db, GetAccountError,
-    GetStateError, MigrationError,
+    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
+    GetAccountError, GetStateError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
@@ -168,7 +168,7 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
 
 pub fn print_last_successful_sync() {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = calculate_last_synced(&get_config())
+        let last_updated = get_last_synced_human_string(&get_config())
             .expect("Failed to retrieve content from FileMetadataRepo");
 
         println!("Last successful sync: {}", last_updated);
