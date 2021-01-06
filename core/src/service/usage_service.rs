@@ -32,7 +32,7 @@ impl UsageService for UsageServiceImpl {
     fn get_usage(backend: &Backend) -> Result<GetUsageResponse, GetUsageError> {
         let acc = DefaultAccountRepo::get_account(backend).map_err(|_| GetUsageError::NoAccount)?;
 
-        DefaultClient::request(&acc, GetUsageRequest {}).map_err(|err| GetUsageError::ApiError(err))
+        DefaultClient::request(&acc, GetUsageRequest {}).map_err(GetUsageError::ApiError)
     }
 
     fn get_usage_human_string(backend: &Backend, exact: bool) -> Result<String, GetUsageError> {
