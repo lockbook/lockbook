@@ -18,9 +18,9 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use crate::client::{ApiError, Client, ClientImpl};
+use crate::client::{ApiError, ClientImpl};
 use crate::model::account::Account;
-use crate::model::api::{FileUsage, GetPublicKeyError, GetUsageRequest, NewAccountError};
+use crate::model::api::{FileUsage, GetPublicKeyError, NewAccountError};
 use crate::model::crypto::DecryptedDocument;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
@@ -40,7 +40,6 @@ use crate::service::account_service::{
 use crate::service::clock_service::{Clock, ClockImpl};
 use crate::service::code_version_service::CodeVersionImpl;
 use crate::service::crypto_service::{AESImpl, RSAImpl};
-use crate::service::db_state_service;
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
 use crate::service::file_compression_service::FileCompressionServiceImpl;
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
@@ -55,6 +54,7 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
+use crate::service::{db_state_service, usage_service};
 use crate::storage::db_provider::{Backend, DbProvider, DiskBackedDB};
 
 #[derive(Debug, Serialize)]
@@ -63,6 +63,7 @@ pub enum Error<U: Serialize> {
     UiError(U),
     Unexpected(String),
 }
+use crate::service::usage_service::{UsageService, UsageServiceImpl};
 use Error::UiError;
 
 macro_rules! unexpected {
@@ -821,7 +822,6 @@ pub fn calculate_last_synced(config: &Config) -> Result<String, Error<GetLastSyn
 
     if last_synced != 0 {
         let duration = Duration::milliseconds(DefaultClock::get_time() - last_synced);
-        println!("{}, {}", DefaultClock::get_time(), last_synced);
         Ok(duration.format_human().to_string())
     } else {
         Ok("never".to_string())
@@ -838,12 +838,35 @@ pub enum GetUsageError {
 pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>> {
     let backend = &Backend::File(config);
 
-    let acc =
-        DefaultAccountRepo::get_account(backend).map_err(|_| UiError(GetUsageError::NoAccount))?;
-
-    DefaultClient::request(&acc, GetUsageRequest {})
+    DefaultUsageService::get_usage(backend)
         .map(|resp| resp.usages)
         .map_err(|err| match err {
+            usage_service::GetUsageError::NoAccount => UiError(GetUsageError::NoAccount),
+            usage_service::GetUsageError::ApiError(api_err) => match api_err {
+                ApiError::SendFailed(_) => UiError(GetUsageError::CouldNotReachServer),
+                ApiError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
+                ApiError::Endpoint(_)
+                | ApiError::InvalidAuth
+                | ApiError::ExpiredAuth
+                | ApiError::InternalError
+                | ApiError::BadRequest
+                | ApiError::Sign(_)
+                | ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_) => unexpected!("{:#?}", api_err),
+            },
+        })
+}
+
+pub fn get_usage_human_string(
+    config: &Config,
+    exact: bool,
+) -> Result<String, Error<GetUsageError>> {
+    let backend = &Backend::File(config);
+
+    DefaultUsageService::get_usage_human_string(backend, exact).map_err(|err| match err {
+        usage_service::GetUsageError::NoAccount => UiError(GetUsageError::NoAccount),
+        usage_service::GetUsageError::ApiError(api_err) => match api_err {
             ApiError::SendFailed(_) => UiError(GetUsageError::CouldNotReachServer),
             ApiError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
             ApiError::Endpoint(_)
@@ -854,44 +877,9 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
             | ApiError::Sign(_)
             | ApiError::Serialize(_)
             | ApiError::ReceiveFailed(_)
-            | ApiError::Deserialize(_) => unexpected!("{:#?}", err),
-        })
-}
-
-pub const BYTE: u64 = 1;
-pub const KILOBYTE: u64 = BYTE * 1000;
-pub const MEGABYTE: u64 = KILOBYTE * 1000;
-pub const GIGABYTE: u64 = MEGABYTE * 1000;
-pub const TERABYTE: u64 = GIGABYTE * 1000;
-
-pub const KILOBYTE_PLUS_ONE: u64 = KILOBYTE + 1;
-pub const MEGABYTE_PLUS_ONE: u64 = MEGABYTE + 1;
-pub const GIGABYTE_PLUS_ONE: u64 = GIGABYTE + 1;
-pub const TERABYTE_PLUS_ONE: u64 = TERABYTE + 1;
-
-pub fn calculate_usage(config: &Config, exact: bool) -> Result<String, Error<GetUsageError>> {
-    let usage_in_bytes: u64 = get_usage(config)?
-        .into_iter()
-        .map(|usage| usage.byte_secs)
-        .sum();
-
-    if exact {
-        Ok(usage_in_bytes.to_string())
-    } else {
-        let (unit, abbr) = match usage_in_bytes {
-            0..=KILOBYTE => (BYTE, ""),
-            KILOBYTE_PLUS_ONE..=MEGABYTE => (KILOBYTE, "K"),
-            MEGABYTE_PLUS_ONE..=GIGABYTE => (MEGABYTE, "M"),
-            GIGABYTE_PLUS_ONE..=TERABYTE => (GIGABYTE, "G"),
-            TERABYTE_PLUS_ONE..=u64::MAX => (TERABYTE, "T"),
-        };
-
-        Ok(format!(
-            "{:.3} {}B",
-            usage_in_bytes as f64 / unit as f64,
-            abbr
-        ))
-    }
+            | ApiError::Deserialize(_) => unexpected!("{:#?}", api_err),
+        },
+    })
 }
 
 // This basically generates a function called `get_all_error_variants`,
@@ -960,6 +948,7 @@ pub type DefaultDbProvider = DiskBackedDB;
 pub type DefaultCodeVersion = CodeVersionImpl;
 pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl;
+pub type DefaultUsageService = UsageServiceImpl;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl;
 pub type DefaultDbStateService =
     DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo, DefaultCodeVersion>;
