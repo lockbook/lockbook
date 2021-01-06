@@ -5,6 +5,7 @@ import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
+import timber.log.Timber
 
 object CoreModel {
 

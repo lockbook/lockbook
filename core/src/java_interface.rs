@@ -37,9 +37,20 @@ fn jstring_to_string(env: &JNIEnv, json: JString, err_msg: &str) -> Result<Strin
         .map_err(|err| {
             serialize_to_jstring(
                 &env,
-                Error::<()>::Unexpected(format!("{}:{:?}", err_msg, err)),
+                translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!("{}:{:?}", err_msg, err)))),
             )
         })
+}
+
+fn deserialize_id(env: &JNIEnv, json: JString, err_msg: &str) -> Result<Uuid, jstring> {
+    let json_string = jstring_to_string(env, json, err_msg)?;
+
+    Uuid::parse_str(&json_string).map_err(|err| {
+        serialize_to_jstring(
+            &env,
+            translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!("{}:{:?}", err_msg, err)))),
+        )
+    })
 }
 
 fn deserialize<U: DeserializeOwned>(
@@ -49,10 +60,11 @@ fn deserialize<U: DeserializeOwned>(
 ) -> Result<U, jstring> {
     let json_string = jstring_to_string(env, json, err_msg)?;
 
-    serde_json::from_str(&json_string).map_err(|err| {
+    serde_json::from_str::<U>(&json_string)
+        .map_err(|err| {
         serialize_to_jstring(
-            &env,
-            Error::<()>::Unexpected(format!("{}:{:?}", err_msg, err)),
+            env,
+            translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!("{}:{:?}", err_msg, err)))),
         )
     })
 }
@@ -275,7 +287,8 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize::<Uuid>(&env, jid, "Couldn't successfully get id") {
+
+    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -294,7 +307,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize::<Uuid>(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -334,7 +347,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize::<Uuid>(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -363,7 +376,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize::<Uuid>(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -389,7 +402,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize::<Uuid>(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -408,7 +421,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize::<Uuid>(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -431,7 +444,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize::<Uuid>(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -458,7 +471,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize::<Uuid>(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
