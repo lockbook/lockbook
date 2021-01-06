@@ -821,7 +821,6 @@ pub fn calculate_last_synced(config: &Config) -> Result<String, Error<GetLastSyn
 
     if last_synced != 0 {
         let duration = Duration::milliseconds(DefaultClock::get_time() - last_synced);
-        println!("{}, {}", DefaultClock::get_time(), last_synced);
         Ok(duration.format_human().to_string())
     } else {
         Ok("never".to_string())

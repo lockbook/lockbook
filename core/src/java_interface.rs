@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use jni::objects::{JClass, JString};
-use jni::sys::{jlong, jstring, jboolean};
+use jni::sys::{jboolean, jlong, jstring};
 use jni::JNIEnv;
 use serde::Serialize;
 use uuid::Uuid;
@@ -13,7 +13,13 @@ use crate::model::account::Account;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
-use crate::{calculate_work, create_account, create_file, delete_file, execute_work, export_account, get_account, get_all_error_variants, get_children, get_db_state, get_file_by_id, get_root, get_usage, import_account, init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced, sync_all, write_document, Error, calculate_last_synced, calculate_usage};
+use crate::{
+    calculate_last_synced, calculate_usage, calculate_work, create_account, create_file,
+    delete_file, execute_work, export_account, get_account, get_all_error_variants, get_children,
+    get_db_state, get_file_by_id, get_root, get_usage, import_account, init_logger, insert_file,
+    migrate_db, move_file, read_document, rename_file, set_last_synced, sync_all, write_document,
+    Error,
+};
 use serde::de::DeserializeOwned;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
@@ -32,14 +38,15 @@ fn string_to_jstring(env: &JNIEnv, result: String) -> jstring {
 }
 
 fn jstring_to_string(env: &JNIEnv, json: JString, err_msg: &str) -> Result<String, jstring> {
-    env.get_string(json)
-        .map(|ok| ok.into())
-        .map_err(|err| {
-            serialize_to_jstring(
-                &env,
-                translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!("{}:{:?}", err_msg, err)))),
-            )
-        })
+    env.get_string(json).map(|ok| ok.into()).map_err(|err| {
+        serialize_to_jstring(
+            &env,
+            translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
+                "{}:{:?}",
+                err_msg, err
+            )))),
+        )
+    })
 }
 
 fn deserialize_id(env: &JNIEnv, json: JString, err_msg: &str) -> Result<Uuid, jstring> {
@@ -48,7 +55,10 @@ fn deserialize_id(env: &JNIEnv, json: JString, err_msg: &str) -> Result<Uuid, js
     Uuid::parse_str(&json_string).map_err(|err| {
         serialize_to_jstring(
             &env,
-            translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!("{}:{:?}", err_msg, err)))),
+            translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
+                "{}:{:?}",
+                err_msg, err
+            )))),
         )
     })
 }
@@ -60,11 +70,13 @@ fn deserialize<U: DeserializeOwned>(
 ) -> Result<U, jstring> {
     let json_string = jstring_to_string(env, json, err_msg)?;
 
-    serde_json::from_str::<U>(&json_string)
-        .map_err(|err| {
+    serde_json::from_str::<U>(&json_string).map_err(|err| {
         serialize_to_jstring(
             env,
-            translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!("{}:{:?}", err_msg, err)))),
+            translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
+                "{}:{:?}",
+                err_msg, err
+            )))),
         )
     })
 }
@@ -117,7 +129,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateUsage(
         _ => {
             return serialize_to_jstring(
                 &env,
-                Error::<()>::Unexpected(format!("{}:{}", "Couldn't successfully get exact", exact_int)),
+                Error::<()>::Unexpected(format!(
+                    "{}:{}",
+                    "Couldn't successfully get exact", exact_int
+                )),
             );
         }
     };
@@ -256,10 +271,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateLastSynced(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(calculate_last_synced(&config)),
-    )
+    string_to_jstring(&env, translate(calculate_last_synced(&config)))
 }
 
 #[no_mangle]
@@ -326,11 +338,14 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let file_metadata =
-        match deserialize::<FileMetadata>(&env, jfilemetadata, "Couldn't successfully get file metadata") {
-            Ok(ok) => ok,
-            Err(err) => return err,
-        };
+    let file_metadata = match deserialize::<FileMetadata>(
+        &env,
+        jfilemetadata,
+        "Couldn't successfully get file metadata",
+    ) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
 
     string_to_jstring(&env, translate(insert_file(&config, file_metadata)))
 }
@@ -372,10 +387,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let file_type = match deserialize::<FileType>(&env, jfiletype, "Couldn't successfully get filetype") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
+    let file_type =
+        match deserialize::<FileType>(&env, jfiletype, "Couldn't successfully get filetype") {
+            Ok(ok) => ok,
+            Err(err) => return err,
+        };
     let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
@@ -523,14 +539,16 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let account = match deserialize::<Account>(&env, jaccount, "Couldn't successfully get account") {
+    let account = match deserialize::<Account>(&env, jaccount, "Couldn't successfully get account")
+    {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let work_unit = match deserialize::<WorkUnit>(&env, jworkunit, "Couldn't successfully get work unit") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
+    let work_unit =
+        match deserialize::<WorkUnit>(&env, jworkunit, "Couldn't successfully get work unit") {
+            Ok(ok) => ok,
+            Err(err) => return err,
+        };
 
     string_to_jstring(&env, translate(execute_work(&config, &account, work_unit)))
 }

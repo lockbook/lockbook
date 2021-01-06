@@ -75,15 +75,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun setCurrentUsage() {
-        when (val getUsageResult = CoreModel.getUsage(config)) {
-            is Ok -> {
-                var totalBytes = 0L
-                getUsageResult.value.forEach { fileUsage ->
-                    totalBytes += fileUsage.byteSections
-                }
-                findPreference<Preference>(BYTE_USAGE_KEY)?.summary = totalBytes.toString()
-            }
-            is Err -> when (val error = getUsageResult.error) {
+        when (val calculateUsageResult = CoreModel.calculateUsage(config, false)) {
+            is Ok -> findPreference<Preference>(BYTE_USAGE_KEY)?.summary = calculateUsageResult.value
+            is Err -> when (val error = calculateUsageResult.error) {
                 GetUsageError.NoAccount -> {
                     Snackbar.make(
                         requireActivity().findViewById(android.R.id.content),

@@ -5,7 +5,6 @@ import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
-import timber.log.Timber
 
 object CoreModel {
 
@@ -165,6 +164,35 @@ object CoreModel {
         }
 
         return Err(SetLastSyncedError.Unexpected("setLastSyncedConverter was unable to be called!"))
+    }
+
+    fun calculateLastSynced(
+        config: Config,
+    ): Result<String, GetLastSynced> {
+        val calculateLastSynced: Result<String, GetLastSynced>? =
+            Klaxon().converter(calculateLastSyncedConverter)
+                .parse(calculateLastSynced(Klaxon().toJsonString(config)))
+
+        if (calculateLastSynced != null) {
+            return calculateLastSynced
+        }
+
+        return Err(GetLastSynced.Unexpected("calculateLastSyncedConverter was unable to be called!"))
+    }
+
+    fun calculateUsage(
+        config: Config,
+        exact: Boolean
+    ): Result<String, GetUsageError> {
+        val calculateUsage: Result<String, GetUsageError>? =
+            Klaxon().converter(calculateUsageConverter)
+                .parse(calculateUsage(Klaxon().toJsonString(config), exact))
+
+        if (calculateUsage != null) {
+            return calculateUsage
+        }
+
+        return Err(GetUsageError.Unexpected("calculateUsageConverter was unable to be called!"))
     }
 
     fun getChildren(
