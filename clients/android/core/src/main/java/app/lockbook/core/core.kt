@@ -9,8 +9,8 @@ external fun importAccount(config: String, account: String): String
 external fun exportAccount(config: String): String
 external fun getAccount(config: String): String
 external fun setLastSynced(config: String, lastSynced: Long): String
-external fun calculateLastSynced(config: String): String
-external fun calculateUsage(config: String, exact: Boolean): String
+external fun getLastSyncedHumanString(config: String): String
+external fun getUsageHumanString(config: String, exact: Boolean): String
 external fun getRoot(config: String): String
 external fun getChildren(config: String, id: String): String
 external fun getFileById(config: String, id: String): String

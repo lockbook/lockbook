@@ -166,33 +166,33 @@ object CoreModel {
         return Err(SetLastSyncedError.Unexpected("setLastSyncedConverter was unable to be called!"))
     }
 
-    fun calculateLastSynced(
+    fun getLastSyncedHumanString(
         config: Config,
     ): Result<String, GetLastSynced> {
-        val calculateLastSynced: Result<String, GetLastSynced>? =
-            Klaxon().converter(calculateLastSyncedConverter)
-                .parse(calculateLastSynced(Klaxon().toJsonString(config)))
+        val getLastSyncedHumanString: Result<String, GetLastSynced>? =
+            Klaxon().converter(getLastSyncedHumanStringConverter)
+                .parse(getLastSyncedHumanString(Klaxon().toJsonString(config)))
 
-        if (calculateLastSynced != null) {
-            return calculateLastSynced
+        if (getLastSyncedHumanString != null) {
+            return getLastSyncedHumanString
         }
 
-        return Err(GetLastSynced.Unexpected("calculateLastSyncedConverter was unable to be called!"))
+        return Err(GetLastSynced.Unexpected("getLastSyncedHumanString was unable to be called!"))
     }
 
-    fun calculateUsage(
+    fun getUsageHumanString(
         config: Config,
         exact: Boolean
     ): Result<String, GetUsageError> {
-        val calculateUsage: Result<String, GetUsageError>? =
-            Klaxon().converter(calculateUsageConverter)
-                .parse(calculateUsage(Klaxon().toJsonString(config), exact))
+        val getUsageHumanString: Result<String, GetUsageError>? =
+            Klaxon().converter(getUsageHumanStringConverter)
+                .parse(getUsageHumanString(Klaxon().toJsonString(config), exact))
 
-        if (calculateUsage != null) {
-            return calculateUsage
+        if (getUsageHumanString != null) {
+            return getUsageHumanString
         }
 
-        return Err(GetUsageError.Unexpected("calculateUsageConverter was unable to be called!"))
+        return Err(GetUsageError.Unexpected("getUsageHumanStringConverter was unable to be called!"))
     }
 
     fun getChildren(

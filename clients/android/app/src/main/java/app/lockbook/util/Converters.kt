@@ -341,7 +341,7 @@ val setLastSyncedConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-val calculateLastSyncedConverter = object : Converter {
+val getLastSyncedHumanStringConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
@@ -370,7 +370,7 @@ val calculateLastSyncedConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-val calculateUsageConverter = object : Converter {
+val getUsageHumanStringConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {

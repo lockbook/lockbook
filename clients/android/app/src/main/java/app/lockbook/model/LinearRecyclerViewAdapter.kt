@@ -42,12 +42,12 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
     override fun getItemCount(): Int = files.size
 
     private fun setReadableLastSynced(description: TextView, resources: Resources, metadataVersion: Long) {
-        when (val calculateUsageResult = CoreModel.calculateLastSynced(config)) {
+        when (val getLastSyncedHumanStringResult = CoreModel.getLastSyncedHumanString(config)) {
             is Ok -> description.text = resources.getString(
                 R.string.last_synced,
-                calculateUsageResult.value
+                getLastSyncedHumanStringResult.value
             )
-            is Err -> when (val error = calculateUsageResult.error) {
+            is Err -> when (val error = getLastSyncedHumanStringResult.error) {
                 is GetLastSynced.Unexpected -> {
                     description.text = resources.getString(
                         R.string.last_synced,

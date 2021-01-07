@@ -14,11 +14,11 @@ use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::{
-    calculate_last_synced, calculate_usage, calculate_work, create_account, create_file,
-    delete_file, execute_work, export_account, get_account, get_all_error_variants, get_children,
-    get_db_state, get_file_by_id, get_root, get_usage, import_account, init_logger, insert_file,
-    migrate_db, move_file, read_document, rename_file, set_last_synced, sync_all, write_document,
-    Error,
+    calculate_work, create_account, create_file, delete_file, execute_work, export_account,
+    get_account, get_all_error_variants, get_children, get_db_state, get_file_by_id,
+    get_last_synced_human_string, get_root, get_usage, get_usage_human_string, import_account,
+    init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced,
+    sync_all, write_document, Error,
 };
 use serde::de::DeserializeOwned;
 
@@ -111,7 +111,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateUsage(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsageHumanString(
     env: JNIEnv,
     _: JClass,
     jconfig: JString,
@@ -137,7 +137,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateUsage(
         }
     };
 
-    string_to_jstring(&env, translate(calculate_usage(&config, exact)))
+    string_to_jstring(&env, translate(get_usage_human_string(&config, exact)))
 }
 
 #[no_mangle]
@@ -261,7 +261,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_setLastSynced(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateLastSynced(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getLastSyncedHumanString(
     env: JNIEnv,
     _: JClass,
     jconfig: JString,
@@ -271,7 +271,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateLastSynced(
         Err(err) => return err,
     };
 
-    string_to_jstring(&env, translate(calculate_last_synced(&config)))
+    string_to_jstring(&env, translate(get_last_synced_human_string(&config)))
 }
 
 #[no_mangle]

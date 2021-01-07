@@ -75,9 +75,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun setCurrentUsage() {
-        when (val calculateUsageResult = CoreModel.calculateUsage(config, false)) {
-            is Ok -> findPreference<Preference>(BYTE_USAGE_KEY)?.summary = calculateUsageResult.value
-            is Err -> when (val error = calculateUsageResult.error) {
+        when (val getUsageHumanStringResult = CoreModel.getUsageHumanString(config, false)) {
+            is Ok -> findPreference<Preference>(BYTE_USAGE_KEY)?.summary = getUsageHumanStringResult.value
+            is Err -> when (val error = getUsageHumanStringResult.error) {
                 GetUsageError.NoAccount -> {
                     Snackbar.make(
                         requireActivity().findViewById(android.R.id.content),
