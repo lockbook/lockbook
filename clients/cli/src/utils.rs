@@ -2,8 +2,8 @@ use std::{env, fs};
 
 use lockbook_core::model::state::Config;
 use lockbook_core::{
-    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db, Error,
-    GetAccountError, GetLastSyncedError, GetStateError, MigrationError,
+    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
+    GetAccountError, GetStateError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
