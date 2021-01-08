@@ -168,8 +168,13 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
 
 pub fn print_last_successful_sync() {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = get_last_synced_human_string(&get_config())
-            .expect("Failed to retrieve content from FileMetadataRepo");
+        let last_updated = match get_last_synced_human_string(&get_config()) {
+            Ok(ok) => ok,
+            Err(_) => exit_with(
+                "Unexpected error while attempting to retrieve usage: {:#?}",
+                UNEXPECTED_ERROR,
+            ),
+        };
 
         println!("Last successful sync: {}", last_updated);
     }
