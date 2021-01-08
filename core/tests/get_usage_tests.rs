@@ -6,7 +6,6 @@ mod get_usage_tests {
     use lockbook_core::model::file_metadata::FileType;
     use lockbook_core::model::file_metadata::FileType::Folder;
     use lockbook_core::repo::document_repo::DocumentRepo;
-    use lockbook_core::storage::db_provider::to_backend;
     use lockbook_core::{
         create_account, create_file, delete_file, get_root, get_usage, init_logger, sync_all,
         write_document, DefaultDocumentRepo,
@@ -36,7 +35,7 @@ mod get_usage_tests {
         sync_all(config).unwrap();
 
         let local_encrypted = {
-            let backend = &to_backend(config);
+            let backend = FileBackend::connect_to_db(config);
             DefaultDocumentRepo::get(backend, file.id).unwrap().value
         };
 
@@ -98,7 +97,7 @@ mod get_usage_tests {
         sync_all(config).unwrap();
 
         let local_encrypted = {
-            let backend = &to_backend(config);
+            let backend = FileBackend::connect_to_db(config);
             DefaultDocumentRepo::get(backend, file.id).unwrap().value
         };
 

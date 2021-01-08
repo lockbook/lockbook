@@ -12,7 +12,7 @@ mod unit_tests_sled {
         let db = &connect_to_db(cfg).unwrap();
         let backend = &Backend::Sled(db);
 
-        let result = backend.read::<_, _, Vec<u8>>("files", "notes.txt").unwrap();
+        let result = MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt").unwrap();
 
         assert_eq!(result, None);
     }
@@ -25,10 +25,9 @@ mod unit_tests_sled {
 
         let data = "noice";
 
-        backend.write("files", "notes.txt", data).unwrap();
+        MyBackend::write(backend, "files", "notes.txt", data).unwrap();
 
-        let result = backend
-            .read::<_, _, Vec<u8>>("files", "notes.txt")
+        let result = MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt")
             .unwrap()
             .unwrap();
 
@@ -43,9 +42,9 @@ mod unit_tests_sled {
 
         let data = "noice";
 
-        backend.write("files", "a.txt", data).unwrap();
-        backend.write("files", "b.txt", data).unwrap();
-        backend.write("files", "c.txt", data).unwrap();
+        MyBackend::write(backend, "files", "a.txt", data).unwrap();
+        MyBackend::write(backend, "files", "b.txt", data).unwrap();
+        MyBackend::write(backend, "files", "c.txt", data).unwrap();
 
         assert_eq!(
             vec![
@@ -53,7 +52,7 @@ mod unit_tests_sled {
                 data.as_bytes().to_vec(),
                 data.as_bytes().to_vec()
             ],
-            backend.dump::<_, Vec<u8>>("files").unwrap()
+            MyBackend::<_, Vec<u8>>::dump(backend, "files").unwrap()
         )
     }
 
@@ -65,21 +64,20 @@ mod unit_tests_sled {
 
         let data = "noice";
 
-        backend.write("files", "notes.txt", data).unwrap();
+        MyBackend::write(backend, "files", "notes.txt", data).unwrap();
 
         assert_eq!(
             data.as_bytes().to_vec(),
-            backend
-                .read::<_, _, Vec<u8>>("files", "notes.txt")
+            MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt")
                 .unwrap()
                 .unwrap()
         );
 
-        backend.delete("files", "notes.txt").unwrap();
+        MyBackend::delete(backend, "files", "notes.txt").unwrap();
 
         assert_eq!(
             None,
-            backend.read::<_, _, Vec<u8>>("files", "notes.txt").unwrap()
+            MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt").unwrap()
         );
     }
 }
@@ -95,7 +93,7 @@ mod unit_tests_file {
         let cfg = &temp_config();
         let backend = &Backend::File(cfg);
 
-        let result = backend.read::<_, _, Vec<u8>>("files", "notes.txt").unwrap();
+        let result = MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt").unwrap();
 
         assert_eq!(result, None);
     }
@@ -107,10 +105,9 @@ mod unit_tests_file {
 
         let data = "noice";
 
-        backend.write("files", "notes.txt", data).unwrap();
+        MyBackend::write(backend, "files", "notes.txt", data).unwrap();
 
-        let result = backend
-            .read::<_, _, Vec<u8>>("files", "notes.txt")
+        let result = MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt")
             .unwrap()
             .unwrap();
 
@@ -126,9 +123,9 @@ mod unit_tests_file {
 
         let data = "noice";
 
-        backend.write("files", "a.txt", data).unwrap();
-        backend.write("files", "b.txt", data).unwrap();
-        backend.write("files", "c.txt", data).unwrap();
+        MyBackend::write(backend, "files", "a.txt", data).unwrap();
+        MyBackend::write(backend, "files", "b.txt", data).unwrap();
+        MyBackend::write(backend, "files", "c.txt", data).unwrap();
 
         assert_eq!(
             vec![
@@ -136,7 +133,7 @@ mod unit_tests_file {
                 data.as_bytes().to_vec(),
                 data.as_bytes().to_vec()
             ],
-            backend.dump::<_, Vec<u8>>("files").unwrap()
+            MyBackend::<_, Vec<u8>>::dump(backend, "files").unwrap()
         )
     }
 
@@ -147,21 +144,20 @@ mod unit_tests_file {
 
         let data = "noice";
 
-        backend.write("files", "notes.txt", data).unwrap();
+        MyBackend::write(backend, "files", "notes.txt", data).unwrap();
 
         assert_eq!(
             data.as_bytes().to_vec(),
-            backend
-                .read::<_, _, Vec<u8>>("files", "notes.txt")
+            MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt")
                 .unwrap()
                 .unwrap()
         );
 
-        backend.delete("files", "notes.txt").unwrap();
+        MyBackend::delete(backend, "files", "notes.txt").unwrap();
 
         assert_eq!(
             None,
-            backend.read::<_, _, Vec<u8>>("files", "notes.txt").unwrap()
+            MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt").unwrap()
         );
     }
 }

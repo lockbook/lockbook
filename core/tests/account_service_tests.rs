@@ -12,7 +12,6 @@ mod account_tests {
         AccountCreationError, AccountImportError, AccountService,
     };
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::storage::db_provider::to_backend;
     use lockbook_core::{
         create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
         DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
@@ -23,7 +22,7 @@ mod account_tests {
     #[test]
     fn create_account_successfully() {
         let sled = &test_db();
-        let db = &to_backend(sled);
+        let db = FileBackend::connect_to_db(sled);
         let generated_account = generate_account();
         DefaultAccountService::create_account(
             &db,
@@ -36,9 +35,9 @@ mod account_tests {
     #[test]
     fn username_taken_test() {
         let sled1 = &test_db();
-        let db1 = &to_backend(sled1);
+        let db1 = FileBackend::connect_to_db(sled1);
         let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
+        let db2 = FileBackend::connect_to_db(sled2);
         let generated_account = generate_account();
         DefaultAccountService::create_account(
             &db1,
@@ -68,7 +67,7 @@ mod account_tests {
     #[test]
     fn invalid_username_test() {
         let sled = &test_db();
-        let db = &to_backend(sled);
+        let db = FileBackend::connect_to_db(sled);
 
         let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
@@ -94,7 +93,7 @@ mod account_tests {
     #[test]
     fn import_sync() {
         let sled1 = &test_db();
-        let db1 = &to_backend(sled1);
+        let db1 = FileBackend::connect_to_db(sled1);
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -107,7 +106,7 @@ mod account_tests {
         let home_folders1 = DefaultFileMetadataRepo::get_root(&db1).unwrap().unwrap();
 
         let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
+        let db2 = FileBackend::connect_to_db(sled2);
         assert!(DefaultAccountService::export_account(&db2).is_err());
         assert!(DefaultAccountService::import_account(&db2, &account_string).is_ok());
         assert_eq!(DefaultAccountRepo::get_account(&db2).unwrap(), account);
@@ -130,7 +129,7 @@ mod account_tests {
     #[test]
     fn test_new_account_when_one_exists() {
         let sled = &test_db();
-        let db = &to_backend(sled);
+        let db = FileBackend::connect_to_db(sled);
         let generated_account = generate_account();
 
         DefaultAccountService::create_account(
@@ -162,9 +161,9 @@ mod account_tests {
     #[test]
     fn test_import_invalid_private_key() {
         let sled1 = &test_db();
-        let db1 = &to_backend(sled1);
+        let db1 = FileBackend::connect_to_db(sled1);
         let sled2 = &test_db();
-        let db2 = &to_backend(sled2);
+        let db2 = FileBackend::connect_to_db(sled2);
 
         let account = Account {
             username: "Smail".to_string(),
@@ -262,7 +261,8 @@ mod account_tests {
                 username: random_username(),
                 private_key: generated_account.private_key,
             };
-            DefaultAccountRepo::insert_account(&to_backend(&cfg2), &account).unwrap();
+            DefaultAccountRepo::insert_account(FileBackend::connect_to_db(&cfg2), &account)
+                .unwrap();
         } // release lock on db
 
         let account_string = export_account(&cfg2).unwrap();
@@ -289,9 +289,9 @@ mod account_tests {
     fn test_account_public_key_mismatch_import() {
         let bad_account_string = {
             let sled1 = &test_db();
-            let db1 = &to_backend(sled1);
+            let db1 = FileBackend::connect_to_db(sled1);
             let sled2 = &test_db();
-            let db2 = &to_backend(sled2);
+            let db2 = FileBackend::connect_to_db(sled2);
             let generated_account1 = generate_account();
             let generated_account2 = generate_account();
             let account1 = DefaultAccountService::create_account(
