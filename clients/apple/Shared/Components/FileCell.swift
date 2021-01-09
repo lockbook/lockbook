@@ -26,7 +26,7 @@ struct FileCell: View {
                     .foregroundColor(.secondary)
             }
         }
-        .background(Color(UIColor.systemBackground))
+        .contentShape(Rectangle()) // https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }
 

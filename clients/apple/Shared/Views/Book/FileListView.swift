@@ -16,7 +16,7 @@ struct FileListView: View {
     }
     
     var body: some View {
-        ScrollView {
+        RefreshableScrollView(height: 70, refreshing: self.$core.syncing) {
             VStack {
                 creating.map { type in
                     SyntheticFileCell(params: (currentFolder, type), nameField: $creatingName, onCreate: {
@@ -35,14 +35,9 @@ struct FileListView: View {
             AccountView(core: core, account: account)
         })
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: { showingAccount.toggle() }) {
                     Image(systemName: "person.circle.fill")
-                }
-            }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: core.sync) {
-                    Image(systemName: "arrow.right.arrow.left.circle.fill")
                 }
             }
             ToolbarItemGroup(placement: .bottomBar) {
@@ -67,7 +62,8 @@ struct FileListView: View {
                 }
             }
         }
-        .navigationTitle(currentFolder.name)
+        .navigationBarTitle(currentFolder.name, displayMode: .inline)
+
     }
     
     func handleDelete(meta: FileMetadata) {

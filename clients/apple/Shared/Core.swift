@@ -11,7 +11,15 @@ class Core: ObservableObject {
     @Published var globalError: AnyFfiError?
     @Published var files: [FileMetadata] = []
     @Published var root: FileMetadata?
-    @Published var syncing: Bool = false
+    @Published var syncing: Bool = false {
+        didSet {
+            if oldValue == false && syncing == true {
+                serialQueue.async {
+                    self.passthrough.send(self.api.synchronize())
+                }
+            }
+        }
+    }
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
     
@@ -63,9 +71,7 @@ class Core: ObservableObject {
     
     func sync() {
         self.syncing = true
-        serialQueue.async {
-            self.passthrough.send(self.api.synchronize())
-        }
+        
     }
     
     func handleError(_ error: AnyFfiError) {
