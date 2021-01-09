@@ -314,11 +314,9 @@ object CoreModel {
         id: String,
         parentId: String
     ): Result<Unit, MoveFileError> {
-        val response = moveFile(Klaxon().toJsonString(config), id, parentId)
-        println(response)
         val moveResult: Result<Unit, MoveFileError>? =
             Klaxon().converter(moveFileConverter)
-                .parse(response)
+                .parse(moveFile(Klaxon().toJsonString(config), id, parentId))
 
         if (moveResult != null) {
             return moveResult

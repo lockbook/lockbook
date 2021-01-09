@@ -5,7 +5,6 @@ use std::path::Path;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jlong, jstring};
 use jni::JNIEnv;
-use serde::Serialize;
 use uuid::Uuid;
 
 use crate::json_interface::translate;
@@ -21,6 +20,7 @@ use crate::{
     sync_all, write_document, Error,
 };
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -39,7 +39,7 @@ fn string_to_jstring(env: &JNIEnv, result: String) -> jstring {
 
 fn jstring_to_string(env: &JNIEnv, json: JString, err_msg: &str) -> Result<String, jstring> {
     env.get_string(json).map(|ok| ok.into()).map_err(|err| {
-        serialize_to_jstring(
+        string_to_jstring(
             &env,
             translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
                 "{}:{:?}",
@@ -53,7 +53,7 @@ fn deserialize_id(env: &JNIEnv, json: JString, err_msg: &str) -> Result<Uuid, js
     let json_string = jstring_to_string(env, json, err_msg)?;
 
     Uuid::parse_str(&json_string).map_err(|err| {
-        serialize_to_jstring(
+        string_to_jstring(
             &env,
             translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
                 "{}:{:?}",
@@ -71,7 +71,7 @@ fn deserialize<U: DeserializeOwned>(
     let json_string = jstring_to_string(env, json, err_msg)?;
 
     serde_json::from_str::<U>(&json_string).map_err(|err| {
-        serialize_to_jstring(
+        string_to_jstring(
             env,
             translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
                 "{}:{:?}",
@@ -127,12 +127,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsageHumanString(
         0 => false,
         1 => true,
         _ => {
-            return serialize_to_jstring(
+            return string_to_jstring(
                 &env,
-                Error::<()>::Unexpected(format!(
-                    "{}:{}",
-                    "Couldn't successfully get exact", exact_int
-                )),
+                translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
+                    "Couldn't successfully get exact:{}",
+                    exact_int
+                )))),
             );
         }
     };
@@ -491,7 +491,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let parent_id = match deserialize::<Uuid>(&env, jparentid, "Couldn't successfully get id") {
+    let parent_id = match deserialize_id(&env, jparentid, "Couldn't successfully get id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
