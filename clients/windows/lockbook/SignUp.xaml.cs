@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Threading.Tasks;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
 namespace lockbook {
-
     public sealed partial class SignUp : Page {
         public SignUp() {
             InitializeComponent();
@@ -114,8 +112,6 @@ namespace lockbook {
                     break;
             }
 
-            await Task.Delay(1000);
-
             var syncResult = await App.CoreService.SyncAll();
             switch (syncResult) {
                 case Core.SyncAll.Success:
@@ -160,8 +156,6 @@ namespace lockbook {
                     }
                     break;
             }
-
-            await Task.Delay(1000);
 
             ButtonsEnabled = true;
             NewAccountWorking = false;

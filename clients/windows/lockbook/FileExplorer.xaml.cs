@@ -13,7 +13,6 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
 namespace lockbook {
-
     public class UIFile {
         public string Id { get; set; }
         public string Icon { get; set; }
@@ -25,15 +24,14 @@ namespace lockbook {
     }
 
     public sealed partial class FileExplorer : Page {
-
         public string currentDocumentId = "";
 
-        public string folderGlyph = "\uED25";
-        public string documentGlyph = "\uE9F9";
-        public string rootGlyph = "\uEC25";
-        public string checkGlyph = "\uE73E";
-        public string syncGlyph = "\uE895";
-        public string offlineGlyph = "\uF384";
+        public const string folderGlyph = "\uED25";
+        public const string documentGlyph = "\uE9F9";
+        public const string rootGlyph = "\uEC25";
+        public const string checkGlyph = "\uE73E";
+        public const string syncGlyph = "\uE895";
+        public const string offlineGlyph = "\uF384";
 
         ObservableCollection<UIFile> Files = new ObservableCollection<UIFile>();
         Dictionary<string, UIFile> uiFiles = new Dictionary<string, UIFile>();
