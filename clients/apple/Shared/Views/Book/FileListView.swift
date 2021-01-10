@@ -3,6 +3,7 @@ import SwiftLockbookCore
 
 struct FileListView: View {
     @ObservedObject var core: Core
+    @State var progress: Bool = false
     @State var showingAccount: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
@@ -15,8 +16,14 @@ struct FileListView: View {
         }
     }
     
+    var animation: Animation {
+        Animation
+            .linear
+            .repeatForever(autoreverses: false)
+    }
+    
     var body: some View {
-        RefreshableScrollView(height: 70, refreshing: self.$core.syncing) {
+        ScrollView {
             VStack {
                 creating.map { type in
                     SyntheticFileCell(params: (currentFolder, type), nameField: $creatingName, onCreate: {
@@ -37,12 +44,19 @@ struct FileListView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: { showingAccount.toggle() }) {
-                    Image(systemName: "person.circle.fill")
+                    Image(systemName: "ellipsis.circle.fill")
                 }
             }
             ToolbarItemGroup(placement: .bottomBar) {
-                ProgressView()
-                    .opacity(core.syncing ? 1.0 : 0)
+                Button(action: {
+                        progress.toggle()
+                        print(progress)
+                }) {
+                    Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                        .rotationEffect(.degrees(self.progress ? 360 : 0))
+                        .animation(animation)
+                }
+                
                 Spacer()
                 Text("\(core.files.count) items")
                     .foregroundColor(.secondary)
@@ -57,13 +71,14 @@ struct FileListView: View {
                     }
                 }
                 label: {
-                    Label("Add", systemImage: "plus")
+                    Label("Add", systemImage: "plus.circle.fill")
+                        .imageScale(.large)
                         .frame(width: 40, height: 40)
                 }
             }
         }
-        .navigationBarTitle(currentFolder.name, displayMode: .inline)
-
+        .navigationBarTitle(currentFolder.name)
+        
     }
     
     func handleDelete(meta: FileMetadata) {
@@ -93,7 +108,7 @@ struct FileListView: View {
         } else {
             return AnyView (NavigationLink(destination: EditorView(core: core, meta: meta).equatable()) {
                 FileCell(meta: meta)
-                    
+                
             }.contextMenu(menuItems: {
                 Button(action: {
                     handleDelete(meta: meta)
