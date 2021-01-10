@@ -13,6 +13,8 @@
 		1F7E4FC02521297D0045F606 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FBE2521297D0045F606 /* Colors.swift */; };
 		1F7E4FC525212E5F0045F606 /* ContentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FC425212E5F0045F606 /* ContentEditor.swift */; };
 		1F7E4FC625212E5F0045F606 /* ContentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FC425212E5F0045F606 /* ContentEditor.swift */; };
+		8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
+		8741E8E525AAA524005B7B01 /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		EA14E8192516643400B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E8182516643400B9158C /* SwiftLockbookCore */; };
 		EA14E81F2516655B00B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
 		EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
@@ -62,6 +64,7 @@
 		1F7E4FBB252122450045F606 /* TitleFieldStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitleFieldStyle.swift; sourceTree = "<group>"; };
 		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		1F7E4FC425212E5F0045F606 /* ContentEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentEditor.swift; sourceTree = "<group>"; };
+		8741E8E325AAA524005B7B01 /* BottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomBar.swift; sourceTree = "<group>"; };
 		EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageIndicator.swift; sourceTree = "<group>"; };
 		EA380B1F2561FA2C0021C4FA /* AccountView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		EA380B242561FAEF0021C4FA /* FileListView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
@@ -179,6 +182,7 @@
 				EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */,
 				EADE1A5825352EAA00710996 /* ContentBuffer.swift */,
 				EA9079C22569960A00E04F5D /* FileCell.swift */,
+				8741E8E325AAA524005B7B01 /* BottomBar.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -344,6 +348,7 @@
 				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
 				EA831A5A2534E5020048CE26 /* SettingsView.swift in Sources */,
 				EA9079C32569960A00E04F5D /* FileCell.swift in Sources */,
+				8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
 				EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */,
 				EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
@@ -375,6 +380,7 @@
 				EA9079C42569960A00E04F5D /* FileCell.swift in Sources */,
 				EAEDCD132517193500EBE313 /* EditorView.swift in Sources */,
 				1F7E4FC625212E5F0045F606 /* ContentEditor.swift in Sources */,
+				8741E8E525AAA524005B7B01 /* BottomBar.swift in Sources */,
 				1F7E4FC02521297D0045F606 /* Colors.swift in Sources */,
 				EADE1A5A25352EAA00710996 /* ContentBuffer.swift in Sources */,
 				EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */,

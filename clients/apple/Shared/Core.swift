@@ -69,11 +69,6 @@ class Core: ObservableObject {
         }
     }
     
-    func sync() {
-        self.syncing = true
-        
-    }
-    
     func handleError(_ error: AnyFfiError) {
         globalError = error
     }

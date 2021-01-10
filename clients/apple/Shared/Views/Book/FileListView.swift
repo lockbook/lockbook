@@ -3,7 +3,6 @@ import SwiftLockbookCore
 
 struct FileListView: View {
     @ObservedObject var core: Core
-    @State var progress: Bool = false
     @State var showingAccount: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
@@ -48,33 +47,7 @@ struct FileListView: View {
                 }
             }
             ToolbarItemGroup(placement: .bottomBar) {
-                Button(action: {
-                        progress.toggle()
-                        print(progress)
-                }) {
-                    Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                        .rotationEffect(.degrees(self.progress ? 360 : 0))
-                        .animation(animation)
-                }
-                
-                Spacer()
-                Text("\(core.files.count) items")
-                    .foregroundColor(.secondary)
-                Spacer()
-                Menu {
-                    Button(action: {creating = .Document}) {
-                        Label("Create a document", systemImage: "doc")
-                    }
-                    
-                    Button(action: {creating = .Folder}) {
-                        Label("Create a folder", systemImage: "folder")
-                    }
-                }
-                label: {
-                    Label("Add", systemImage: "plus.circle.fill")
-                        .imageScale(.large)
-                        .frame(width: 40, height: 40)
-                }
+                BottomBar(core: core, creating: creating)
             }
         }
         .navigationBarTitle(currentFolder.name)
