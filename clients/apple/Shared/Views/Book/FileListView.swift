@@ -26,6 +26,13 @@ struct FileListView: View {
                 
                 ForEach(computeFileList()) { meta in
                     renderCell(meta: meta)
+                        .contextMenu(menuItems: {
+                            Button(action: {
+                                handleDelete(meta: meta)
+                            }) {
+                                Label("Delete", systemImage: "trash.fill")
+                            }
+                        })
                 }
             }
             .padding(.leading, 20)
@@ -62,30 +69,14 @@ struct FileListView: View {
             return AnyView (
                 NavigationLink(destination: FileListView(core: core, currentFolder: meta, account: account)) {
                     FileCell(meta: meta)
-                    
                 }.isDetailLink(false)
-                .contextMenu(menuItems: {
-                    Button(action: {
-                        handleDelete(meta: meta)
-                    }) {
-                        Label("Delete", systemImage: "trash.fill")
-                    }
-                })
             )
         } else {
             return AnyView (NavigationLink(destination: EditorView(core: core, meta: meta).equatable()) {
                 FileCell(meta: meta)
                 
-            }.contextMenu(menuItems: {
-                Button(action: {
-                    handleDelete(meta: meta)
-                }) {
-                    Label("Delete", systemImage: "trash.fill")
-                }
             })
-            )
         }
-        
     }
     
     func handleCreate(meta: FileMetadata, type: FileType) {
