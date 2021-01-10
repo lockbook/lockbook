@@ -1,10 +1,3 @@
-//
-//  BottomBar.swift
-//  Lockbook
-//
-//  Created by Parth Mehrotra on 1/9/21.
-//
-
 import SwiftUI
 import SwiftLockbookCore
 
