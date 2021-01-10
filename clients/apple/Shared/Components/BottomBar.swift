@@ -12,13 +12,32 @@ struct BottomBar: View {
     
     @ObservedObject var core: Core
     
-    @State var creating: FileType?
     @State var work: Int = 0
     @State var offline: Bool = false
     @State var lastSynced = "moments ago"
     
+    var onNewDocument: () -> Void = {}
+    var onNewFolder: () -> Void = {}
+    
     let calculateWorkTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
     let syncTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    
+    var menu: some View {
+        Menu {
+            Button(action: onNewDocument) {
+                Label("Create a document", systemImage: "doc")
+            }
+            
+            Button(action: onNewDocument) {
+                Label("Create a folder", systemImage: "folder")
+            }
+        }
+        label: {
+            Label("Add", systemImage: "plus.circle.fill")
+                .imageScale(.large)
+                .frame(width: 40, height: 40)
+        }
+    }
     
     var body: some View {
         
@@ -49,20 +68,8 @@ struct BottomBar: View {
                         checkForNewWork()
                     }
                 Spacer()
-                Menu {
-                    Button(action: {creating = .Document}) {
-                        Label("Create a document", systemImage: "doc")
-                    }
-                    
-                    Button(action: {creating = .Folder}) {
-                        Label("Create a folder", systemImage: "folder")
-                    }
-                }
-                label: {
-                    Label("Add", systemImage: "plus.circle.fill")
-                        .imageScale(.large)
-                        .frame(width: 40, height: 40)
-                }
+                
+                menu
             } else {
                 Button(action: {
                     core.syncing = true
@@ -83,20 +90,7 @@ struct BottomBar: View {
                         core.syncing = true
                     }
                 Spacer()
-                Menu {
-                    Button(action: {creating = .Document}) {
-                        Label("Create a document", systemImage: "doc")
-                    }
-                    
-                    Button(action: {creating = .Folder}) {
-                        Label("Create a folder", systemImage: "folder")
-                    }
-                }
-                label: {
-                    Label("Add", systemImage: "plus.circle.fill")
-                        .imageScale(.large)
-                        .frame(width: 40, height: 40)
-                }
+                menu
             }
         }
     }

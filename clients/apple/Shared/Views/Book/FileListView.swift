@@ -15,12 +15,6 @@ struct FileListView: View {
         }
     }
     
-    var animation: Animation {
-        Animation
-            .linear
-            .repeatForever(autoreverses: false)
-    }
-    
     var body: some View {
         ScrollView {
             VStack {
@@ -43,11 +37,11 @@ struct FileListView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: { showingAccount.toggle() }) {
-                    Image(systemName: "ellipsis.circle.fill")
+                    Image(systemName: "gearshape.fill")
                 }
             }
             ToolbarItemGroup(placement: .bottomBar) {
-                BottomBar(core: core, creating: creating)
+                BottomBar(core: core, onNewDocument: newDocument, onNewFolder: newFolder)
             }
         }
         .navigationBarTitle(currentFolder.name)
@@ -111,6 +105,19 @@ struct FileListView: View {
         }
     }
     
+    func newDocument() {
+        withAnimation {
+            creating = .Document
+            creatingName = ""
+        }
+    }
+    
+    func newFolder() {
+        withAnimation {
+            creating = .Folder
+            creatingName = ""
+        }
+    }
 }
 
 struct FileListView_Previews: PreviewProvider {
