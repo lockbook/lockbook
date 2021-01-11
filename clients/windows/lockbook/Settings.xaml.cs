@@ -1,5 +1,6 @@
 ﻿using QRCoder;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage.Streams;
@@ -10,7 +11,6 @@ using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
 
 namespace lockbook {
-
     public sealed partial class SignInContentDialog : ContentDialog {
         const ulong BYTE = 1;
         const ulong KILOBYTES = BYTE * 1000;
@@ -56,8 +56,9 @@ namespace lockbook {
 
         public SignInContentDialog() {
             InitializeComponent();
-            setUsage();
-            setUsernameAndApiUrl();
+            ReloadSpaceUsed();
+            Username = App.Account.username;
+            ServerLocation = App.Account.apiUrl;
         }
 
         public static string SpaceUsedStringFromUsageBytes(ulong usageBytes) {
@@ -75,18 +76,11 @@ namespace lockbook {
             }
         }
 
-        private async void setUsage() {
+        private async void ReloadSpaceUsed() {
             var usageString = "";
             switch (await App.CoreService.GetUsage()) {
                 case Core.GetUsage.Success success:
-                    ulong bytes = 0;
-                    foreach (var usage in success.usage) {
-                        bytes += usage.byteSeconds;
-                    }
-
-                    System.Diagnostics.Debug.WriteLine(bytes + " bytes");
-
-                    usageString = SpaceUsedStringFromUsageBytes(bytes);
+                    usageString = SpaceUsedStringFromUsageBytes(success.usage.Aggregate(0UL, (a, c) => a + c.byteSeconds));
                     break;
 
                 case Core.GetUsage.ExpectedError expectedError:
@@ -111,28 +105,6 @@ namespace lockbook {
             SpaceUsed = usageString;
         }
 
-        public async void setUsernameAndApiUrl() {
-            switch (await App.CoreService.GetAccount()) {
-                case Core.GetAccount.Success success:
-                    Username = success.account.username;
-                    ServerLocation = success.account.apiUrl;
-                    break;
-
-                case Core.GetAccount.ExpectedError expectedError:
-                    switch (expectedError.Error) {
-                        case Core.GetAccount.PossibleErrors.NoAccount:
-                            usernameTextBlock.Text = "No Account!";
-                            serverLocationTextBlock.Text = "No Account!";
-                            break;
-                    }
-                    break;
-
-                case Core.GetAccount.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
-                    break;
-            }
-        }
-
         private static void CopyToClipboard(string s) {
             var dataPackage = new DataPackage {
                 RequestedOperation = DataPackageOperation.Copy
@@ -141,25 +113,8 @@ namespace lockbook {
             Clipboard.SetContent(dataPackage);
         }
 
-        private async void CopyAccountStringToClipboard(object sender, RoutedEventArgs e) {
-            switch (await App.CoreService.ExportAccount()) {
-                case Core.ExportAccount.Success success:
-                    CopyToClipboard(success.accountString);
-                    break;
-
-                case Core.ExportAccount.ExpectedError expectedError:
-                    switch (expectedError.Error) {
-                        case Core.ExportAccount.PossibleErrors.NoAccount:
-                            usernameTextBlock.Text = "No Account!";
-                            serverLocationTextBlock.Text = "No Account!";
-                            break;
-                    }
-                    break;
-
-                case Core.ExportAccount.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
-                    break;
-            }
+        private void CopyAccountStringToClipboard(object sender, RoutedEventArgs e) {
+            CopyToClipboard(App.AccountString);
         }
 
         private static async Task<ImageSource> GenerateQRCode(string accountString) {
@@ -182,25 +137,8 @@ namespace lockbook {
         }
 
         private async void ShowQRCode(object sender, RoutedEventArgs e) {
-            switch (await App.CoreService.ExportAccount()) {
-                case Core.ExportAccount.Success success:
-                    showQRCode.IsEnabled = false;
-                    qrCodeImg.Source = await GenerateQRCode(success.accountString);
-                    break;
-
-                case Core.ExportAccount.ExpectedError expectedError:
-                    switch (expectedError.Error) {
-                        case Core.ExportAccount.PossibleErrors.NoAccount:
-                            usernameTextBlock.Text = "No Account!";
-                            serverLocationTextBlock.Text = "No Account!";
-                            break;
-                    }
-                    break;
-
-                case Core.ExportAccount.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
-                    break;
-            }
+            showQRCode.IsEnabled = false;
+            qrCodeImg.Source = await GenerateQRCode(App.AccountString);
         }
     }
 }

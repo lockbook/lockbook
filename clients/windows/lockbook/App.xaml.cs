@@ -47,15 +47,8 @@ namespace lockbook {
             }
         }
 
-        private static Core.Account account;
-        public static Core.Account Account {
-            get {
-                return account;
-            }
-            set {
-                account = value;
-            }
-        }
+        public static Core.Account Account { get; set; }
+        public static string AccountString { get; set; }
 
         public static async Task ReloadDbState() {
             switch (await CoreService.GetDbState()) {
@@ -82,6 +75,21 @@ namespace lockbook {
                     break;
                 case Core.GetAccount.UnexpectedError error:
                     await new MessageDialog(error.ErrorMessage, "Unexpected error while loading account: " + error.ErrorMessage).ShowAsync();
+                    break;
+            }
+            switch (await CoreService.ExportAccount()) {
+                case Core.ExportAccount.Success success:
+                    AccountString = success.accountString;
+                    break;
+                case Core.ExportAccount.ExpectedError expectedError:
+                    switch (expectedError.Error) {
+                        case Core.ExportAccount.PossibleErrors.NoAccount:
+                            AccountString = null;
+                            break;
+                    }
+                    break;
+                case Core.ExportAccount.UnexpectedError error:
+                    await new MessageDialog(error.ErrorMessage, "Unexpected error while exporting account: " + error.ErrorMessage).ShowAsync();
                     break;
             }
         }
