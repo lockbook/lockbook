@@ -83,13 +83,12 @@ namespace lockbook {
             ButtonsEnabled = false;
             ImportAccountWorking = true;
 
-            var importAccountResult = await App.CoreService.ImportAccount(AccountString);
-
-            switch (importAccountResult) {
+            switch (await App.CoreService.ImportAccount(AccountString)) {
                 case Core.ImportAccount.Success:
+                    await App.ReloadAccount();
                     break;
-                case Core.ImportAccount.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
+                case Core.ImportAccount.UnexpectedError error:
+                    await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
                 case Core.ImportAccount.ExpectedError expectedError:
                     switch (expectedError.Error) {
@@ -130,14 +129,12 @@ namespace lockbook {
             ButtonsEnabled = false;
             NewAccountWorking = true;
 
-            var createAccountResult = await App.CoreService.CreateAccount(Username, "http://localhost:8000");
-
-            switch (createAccountResult) {
+            switch (await App.CoreService.CreateAccount(Username, "http://localhost:8000")) {
                 case Core.CreateAccount.Success:
-                    Frame.Navigate(typeof(FileExplorer));
+                    await App.ReloadAccount();
                     break;
-                case Core.CreateAccount.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
+                case Core.CreateAccount.UnexpectedError error:
+                    await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
                 case Core.CreateAccount.ExpectedError expectedError:
                     switch (expectedError.Error) {
