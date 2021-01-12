@@ -1,6 +1,6 @@
 import Foundation
 
-public struct FileMetadata: Codable, Identifiable {
+public struct FileMetadata: Codable, Identifiable, Equatable {
     public var fileType: FileType
     public var id: UUID
     public var parent: UUID
@@ -11,6 +11,10 @@ public struct FileMetadata: Codable, Identifiable {
     public var deleted: Bool
     public var userAccessKeys: [Account.Username : UserAccessInfo] = .init()
     public var folderAccessKeys: FolderAccessInfo = FolderAccessInfo(folderId: .init(), accessKey: .init(value: [], nonce: []))
+    
+    public static func == (lhs: FileMetadata, rhs: FileMetadata) -> Bool {
+        return lhs.id == rhs.id && lhs.metadataVersion == rhs.metadataVersion
+    }
 }
 
 public enum FileType: String, Codable {

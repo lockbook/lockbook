@@ -16,39 +16,39 @@ class ContentBuffer: ObservableObject {
         self.core = core
         self.content = initialContent
         self.title = meta.name
-
-        $content
-            .debounce(for: 0.2, scheduler: RunLoop.main)
-            .sink { _ in
-                self.status = .Inactive
-            }
-            .store(in: &cancellables)
-
-        $content
-            .debounce(for: 1, scheduler: DispatchQueue.global(qos: .background))
-            .filter({ _ in self.succeeded })
-            .flatMap { _ in
-                Future<FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, Never> { promise in
-                    promise(.success(self.save()))
-                }
-            }
-            .eraseToAnyPublisher()
-            .receive(on: RunLoop.main)
-            .sink(receiveCompletion: { (err) in
-                self.succeeded = false
-                self.status = .BufferDied
-            }, receiveValue: { (input) in
-                switch input {
-                case .success(_):
-                    self.succeeded = true
-                    self.status = .WriteSuccess
-                case .failure(let err):
-                    core.handleError(err)
-                    self.status = .WriteFailure
-                }
-
-            })
-            .store(in: &cancellables)
+//
+//        $content
+//            .debounce(for: 0.2, scheduler: RunLoop.main)
+//            .sink { _ in
+//                self.status = .Inactive
+//            }
+//            .store(in: &cancellables)
+//
+//        $content
+//            .debounce(for: 1, scheduler: DispatchQueue.global(qos: .background))
+//            .filter({ _ in self.succeeded })
+//            .flatMap { _ in
+//                Future<FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, Never> { promise in
+//                    promise(.success(self.save()))
+//                }
+//            }
+//            .eraseToAnyPublisher()
+//            .receive(on: RunLoop.main)
+//            .sink(receiveCompletion: { (err) in
+//                self.succeeded = false
+//                self.status = .BufferDied
+//            }, receiveValue: { (input) in
+//                switch input {
+//                case .success(_):
+//                    self.succeeded = true
+//                    self.status = .WriteSuccess
+//                case .failure(let err):
+//                    core.handleError(err)
+//                    self.status = .WriteFailure
+//                }
+//
+//            })
+//            .store(in: &cancellables)
     }
 
     func save() -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError> {

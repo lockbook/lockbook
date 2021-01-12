@@ -9,7 +9,7 @@ struct FileListView: View {
     let currentFolder: FileMetadata
     let account: Account
     
-    func computeFileList() -> [FileMetadata] {
+    var files: [FileMetadata] {
         core.files.filter {
             $0.parent == currentFolder.id && $0.id != currentFolder.id
         }
@@ -24,7 +24,7 @@ struct FileListView: View {
                     }, onCancel: doneCreating)
                 }
                 
-                ForEach(computeFileList()) { meta in
+                ForEach(files) { meta in
                     renderCell(meta: meta)
                         .contextMenu(menuItems: {
                             Button(action: {
@@ -33,6 +33,7 @@ struct FileListView: View {
                                 Label("Delete", systemImage: "trash.fill")
                             }
                         })
+                    
                 }
             }
             .padding(.leading, 20)
@@ -55,15 +56,6 @@ struct FileListView: View {
         
     }
     
-    func handleDelete(meta: FileMetadata) {
-        switch core.api.deleteFile(id: meta.id) {
-        case .success(_):
-            core.updateFiles()
-        case .failure(let err):
-            core.handleError(err)
-        }
-    }
-    
     func renderCell(meta: FileMetadata) -> AnyView {
         if meta.fileType == .Folder {
             return AnyView (
@@ -72,10 +64,19 @@ struct FileListView: View {
                 }.isDetailLink(false)
             )
         } else {
-            return AnyView (NavigationLink(destination: EditorView(core: core, meta: meta).equatable()) {
+            return AnyView (NavigationLink(destination: EditorLoader(core: core, meta: meta)) {
                 FileCell(meta: meta)
                 
             })
+        }
+    }
+
+    func handleDelete(meta: FileMetadata) {
+        switch core.api.deleteFile(id: meta.id) {
+        case .success(_):
+            core.updateFiles()
+        case .failure(let err):
+            core.handleError(err)
         }
     }
     

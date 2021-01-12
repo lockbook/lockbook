@@ -108,6 +108,7 @@ struct BottomBar: View {
     }
 }
 
+#if os(iOS)
 struct SyncingPreview: PreviewProvider {
     
     static let core = Core()
@@ -184,3 +185,4 @@ struct WorkItemsPreview: PreviewProvider {
     }
 }
 
+#endif

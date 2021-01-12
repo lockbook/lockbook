@@ -10,8 +10,6 @@ struct BookView: View {
     var body: some View {
         NavigationView {
             FileListView(core: core, currentFolder: currentFolder, account: account)
-
-            Text("Pick a file!")
         }
     }
 }
@@ -19,11 +17,11 @@ struct BookView: View {
 struct BookView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            //            BookView(core: Core(), account: .fake(username: "jeff"))
-            //                .ignoresSafeArea()
-            //            BookView(core: Core(), account: .fake(username: "test"))
-            //                .ignoresSafeArea()
-            //                .preferredColorScheme(.dark)
+//                        BookView(core: Core(), account: .fake(username: "jeff"))
+//                            .ignoresSafeArea()
+//                        BookView(core: Core(), account: .fake(username: "test"))
+//                            .ignoresSafeArea()
+//                            .preferredColorScheme(.dark)
         }
     }
 }
