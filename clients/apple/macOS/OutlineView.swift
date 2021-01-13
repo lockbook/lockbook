@@ -59,6 +59,24 @@ struct OutlineRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .padding(.leading, level * 20)
+        .contextMenu(menuItems: {
+            Button(action: {
+                handleDelete(meta: file)
+            }) {
+                Label("Delete", systemImage: "trash.fill")
+            }
+        })
+        
+    }
+    
+    
+    func handleDelete(meta: FileMetadata) {
+        switch core.api.deleteFile(id: meta.id) {
+        case .success(_):
+            core.updateFiles()
+        case .failure(let err):
+            core.handleError(err)
+        }
     }
 }
 

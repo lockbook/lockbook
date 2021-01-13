@@ -22,7 +22,6 @@ struct EditorView: View {
     var body: some View {
         #if os(iOS)
         HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
-            .autocorrectionType(.no)
         #else
         HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
         #endif
@@ -37,15 +36,25 @@ struct EditorLoader: View {
     @State var editorContent: String = ""
     @State var title: String = ""
     
+    var deleted: Bool {
+        core.files.filter({$0.id == meta.id}).isEmpty
+    }
+    
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            if content.text == nil {
+            if content.text == nil && !deleted {
                 ProgressView()
             } else {
-                EditorView(core: core, meta: meta, text: content.text!, changeCallback: content.updateText)
-                    .onDisappear {
-                        let _ = content.save() // TODO handle this error
-                    }
+                if deleted {
+                    Text("\(meta.name) file has been deleted")
+                } else {
+                    EditorView(core: core, meta: meta, text: content.text!, changeCallback: content.updateText)
+                        .onDisappear {
+                            if !deleted {
+                                content.finalize()
+                            }
+                        }
+                }
             }
             
             if content.status == .WriteSuccess {
@@ -70,6 +79,7 @@ struct EditorLoader: View {
     init (core: Core, meta: FileMetadata) {
         self.core = core
         self.meta = meta
+        print("init called")
         self.content = Content(core: core, meta: meta)
     }
 }
@@ -93,30 +103,33 @@ class Content: ObservableObject {
         
         // Load
         DispatchQueue.main.async { [weak self] in
-            switch core.api.getFile(id: meta.id) {
-            case .success(let decrypted):
-                self?.text = decrypted
-            case .failure(let err):
-                print(err)
-                core.handleError(err)
+            if !core.files.filter({$0.id == meta.id}).isEmpty {
+                switch core.api.getFile(id: meta.id) {
+                case .success(let decrypted):
+                    self?.text = decrypted
+                case .failure(let err):
+                    print(err)
+                    core.handleError(err)
+                }
             }
         }
         
         // Save
         $text
             .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
-            .flatMap { _ in
+            .compactMap({$0})
+            .compactMap { content in
                 Future<FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, Never> { promise in
-                    promise(.success(self.save()))
+                    promise(.success(self.save(content: content!)))
                 }
             }
             .sink(receiveValue: { print($0)})
             .store(in: &cancellables)
     }
     
-    func save() -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError> {
+    func save(content: String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError> {
         return core.serialQueue.sync {
-            switch core.api.updateFile(id: meta.id, content: text!) {
+            switch core.api.updateFile(id: meta.id, content: content) {
             case .success(let e):
                 print("File saved successfully")
                 withAnimation {
@@ -129,12 +142,20 @@ class Content: ObservableObject {
         }
     }
     
-    enum Status {
-        case WriteSuccess
-        case WriteFailure
-        case Inactive
+    func finalize() {
+        switch core.api.updateFile(id: meta.id, content: text!) {
+        case .success:
+            print("File finalized successfully")
+        case .failure(let err):
+            core.handleError(err)
+        }
     }
-    
+}
+
+enum Status {
+    case WriteSuccess
+    case WriteFailure
+    case Inactive
 }
 
 #if os(macOS)

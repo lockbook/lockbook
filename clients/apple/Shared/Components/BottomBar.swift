@@ -14,7 +14,7 @@
         var onNewFolder: () -> Void = {}
         #endif
         
-        let calculateWorkTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+        let calculateWorkTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
         let syncTimer = Timer.publish(every: 300, on: .main, in: .common).autoconnect()
         
         #if os(iOS)
@@ -30,7 +30,7 @@
                         Label("Create a document", systemImage: "doc")
                     }
                     
-                    Button(action: onNewDocument) {
+                    Button(action: onNewFolder) {
                         Label("Create a folder", systemImage: "folder")
                     }
                 }
@@ -95,10 +95,12 @@
         
         var statusText: AnyView {
             if core.syncing {
-                return AnyView(Text("Syncing..."))
+                return AnyView(Text("Syncing...")
+                                .foregroundColor(.secondary))
             } else {
                 if offline {
                     return AnyView(Text("Offline")
+                                    .foregroundColor(.secondary)
                                     .onReceive(calculateWorkTimer) { _ in
                                         checkForNewWork()
                                     })
@@ -106,6 +108,7 @@
                     return AnyView(
                         Text(work == 0 ? "Last synced: \(lastSynced)" : "\(work) items pending sync")
                             .font(.callout)
+                            .foregroundColor(.secondary)
                             .bold()
                             .onReceive(calculateWorkTimer) { _ in
                                 checkForNewWork()
@@ -134,7 +137,7 @@
         }
         
         func checkForNewWork() {
-            DispatchQueue.main.async {
+            DispatchQueue.global(qos: .background).async {
                 print("Checking")
                 switch core.api.calculateWork() {
                 case .success(let work):

@@ -16,6 +16,7 @@ class Core: ObservableObject {
             if oldValue == false && syncing == true {
                 serialQueue.async {
                     self.passthrough.send(self.api.synchronize())
+                    self.updateFiles()
                 }
             }
         }
@@ -73,10 +74,6 @@ class Core: ObservableObject {
         globalError = error
     }
     
-    private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
-        return FileMetadataWithChildren(meta: meta, children: files.filter({ $0.parent == meta.id && $0.id != meta.id }).map(buildTree))
-    }
-    
     func updateFiles() {
         if (account != nil) {
             switch api.getRoot() {
@@ -132,22 +129,6 @@ class Core: ObservableObject {
         if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {
             self.files = metas
             self.root = root
-        }
-    }
-}
-
-struct FileMetadataWithChildren: Identifiable {
-    let id: UUID
-    let meta: FileMetadata
-    let children: [FileMetadataWithChildren]?
-    
-    init(meta: FileMetadata, children: [FileMetadataWithChildren]) {
-        self.id = meta.id
-        self.meta = meta
-        if !children.isEmpty {
-            self.children = children
-        } else {
-            self.children = nil
         }
     }
 }
