@@ -162,7 +162,7 @@ impl Item {
         for (item_key, (name, accel, msg)) in Self::data() {
             let mi = GtkMenuItem::with_label(name);
 
-            if accel != "" {
+            if !accel.is_empty() {
                 let (key, modifier) = gtk::accelerator_parse(accel);
                 mi.add_accelerator("activate", accels, key, modifier, gtk::AccelFlags::VISIBLE);
             }
