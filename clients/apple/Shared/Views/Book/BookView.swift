@@ -10,6 +10,7 @@ struct BookView: View {
     var body: some View {
         NavigationView {
             FileListView(core: core, currentFolder: currentFolder, account: account)
+                
         }
     }
 }

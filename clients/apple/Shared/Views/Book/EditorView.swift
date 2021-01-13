@@ -9,14 +9,24 @@ struct EditorView: View {
     let meta: FileMetadata
     @State var text: String
     
-    var body: some View {
-        VStack(spacing: 0) {
-            if meta.name.hasSuffix(".md") {
-                HighlightedTextEditor(text: $text, highlightRules: [])
-            } else {
-                TextEditor(text: $text)
-            }
+    let changeCallback: (String) -> Void
+    
+    var highlightRules: [HighlightRule] {
+        if meta.name.hasSuffix(".md") {
+            return .lockbookMarkdown
+        } else {
+            return []
         }
+    }
+    
+    var body: some View {
+        #if os(iOS)
+        HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
+            .autocorrectionType(.no)
+        #else
+        HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
+        #endif
+        
     }
 }
 
@@ -24,14 +34,38 @@ struct EditorLoader: View {
     @ObservedObject var core: Core
     let meta: FileMetadata
     @ObservedObject var content: Content
+    @State var editorContent: String = ""
+    @State var title: String = ""
     
     var body: some View {
-        if content.text == nil {
-            ProgressView()
-        } else {
-            EditorView(core: core, meta: meta, text: content.text!)
+        ZStack(alignment: .topTrailing) {
+            if content.text == nil {
+                ProgressView()
+            } else {
+                EditorView(core: core, meta: meta, text: content.text!, changeCallback: content.updateText)
+                    .onDisappear {
+                        let _ = content.save() // TODO handle this error
+                    }
+            }
+            
+            if content.status == .WriteSuccess {
+                Image(systemName: "externaldrive.fill.badge.checkmark")
+                    .foregroundColor(.green)
+                    .padding(.top, 2.0)
+                    .padding(.trailing, 20)
+                    .opacity(0.5)
+                    .animation(.easeInOut(duration: 0.5))
+                    .onAppear(perform: {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
+                            content.status = .Inactive
+                        })
+                    })
+                
+            }
         }
+        .navigationTitle(meta.name)
     }
+    
     
     init (core: Core, meta: FileMetadata) {
         self.core = core
@@ -43,12 +77,21 @@ struct EditorLoader: View {
 class Content: ObservableObject {
     @ObservedObject var core: Core
     @Published var text: String?
+    var cancellables = Set<AnyCancellable>()
+    @Published var succeeded: Bool = false
+    @Published var status: Status = .Inactive
     
     let meta: FileMetadata
+    
+    func updateText(text: String) {
+        self.text = text
+        self.status = .Inactive
+    }
     init(core: Core, meta: FileMetadata) {
         self.core = core
         self.meta = meta
         
+        // Load
         DispatchQueue.main.async { [weak self] in
             switch core.api.getFile(id: meta.id) {
             case .success(let decrypted):
@@ -58,40 +101,40 @@ class Content: ObservableObject {
                 core.handleError(err)
             }
         }
+        
+        // Save
+        $text
+            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
+            .flatMap { _ in
+                Future<FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, Never> { promise in
+                    promise(.success(self.save()))
+                }
+            }
+            .sink(receiveValue: { print($0)})
+            .store(in: &cancellables)
     }
     
-}
-
-struct EditorStatus: View {
-    let status: ContentBuffer.Status
-    var body: some View {
-        switch status {
-        case .BufferDied:
-            return Image(systemName: "lock.fill")
-                .foregroundColor(.red)
-                .opacity(0.6)
-        case .WriteSuccess:
-            return Image(systemName: "text.badge.checkmark")
-                .foregroundColor(.green)
-                .opacity(0.3)
-        case .WriteFailure:
-            return Image(systemName: "text.badge.xmark")
-                .foregroundColor(.red)
-                .opacity(0.6)
-        case .RenameSuccess:
-            return Image(systemName: "checkmark.circle")
-                .foregroundColor(.green)
-                .opacity(0.3)
-        case .RenameFailure:
-            return Image(systemName: "xmark.circle")
-                .foregroundColor(.red)
-                .opacity(0.6)
-        case .Inactive:
-            return Image(systemName: "ellipsis")
-                .foregroundColor(.secondary)
-                .opacity(0.3)
+    func save() -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError> {
+        return core.serialQueue.sync {
+            switch core.api.updateFile(id: meta.id, content: text!) {
+            case .success(let e):
+                print("File saved successfully")
+                withAnimation {
+                    self.status = .WriteSuccess
+                }
+                return .success(e)
+            case .failure(let err):
+                return .failure(err)
+            }
         }
     }
+    
+    enum Status {
+        case WriteSuccess
+        case WriteFailure
+        case Inactive
+    }
+    
 }
 
 #if os(macOS)
@@ -104,10 +147,10 @@ extension NSTextField {
 }
 #endif
 
-//struct EditorView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        NavigationView {
-//            EditorView(core: Core(), meta: FakeApi().fileMetas[0])
-//        }
-//    }
-//}
+struct EditorView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            EditorLoader(core: Core(), meta: FakeApi().fileMetas[0])
+        }
+    }
+}

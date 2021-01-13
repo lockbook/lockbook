@@ -23,7 +23,12 @@ struct FileListView: View {
     }
     
     var body: some View {
-        OutlineSection(core: core, root: currentFolder, selectedItem: $selectedItem)
+        VStack {
+            OutlineSection(core: core, root: currentFolder, selectedItem: $selectedItem)
+            VStack (spacing: 3) {
+                BottomBar(core: core)
+            }
+        }
         if selectedItem != nil {
             EditorLoader(core: core, meta: selectedItem!)
         }

@@ -14,6 +14,7 @@ struct LockbookApp: App {
             CommandMenu("Lockbook") {
                 Button("Sync", action: {core.syncing = true} ).keyboardShortcut("S", modifiers: .command)
             }
+            SidebarCommands()
         }
         
         #if os(macOS)

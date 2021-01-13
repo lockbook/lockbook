@@ -1,188 +1,233 @@
-import SwiftUI
-import SwiftLockbookCore
-
-struct BottomBar: View {
+    import SwiftUI
+    import SwiftLockbookCore
     
-    @ObservedObject var core: Core
-    
-    @State var work: Int = 0
-    @State var offline: Bool = false
-    @State var lastSynced = "moments ago"
-    
-    var onNewDocument: () -> Void = {}
-    var onNewFolder: () -> Void = {}
-    
-    let calculateWorkTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
-    let syncTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
-    
-    var menu: some View {
-        Menu {
-            Button(action: onNewDocument) {
-                Label("Create a document", systemImage: "doc")
-            }
-            
-            Button(action: onNewDocument) {
-                Label("Create a folder", systemImage: "folder")
-            }
-        }
-        label: {
-            Label("Add", systemImage: "plus.circle.fill")
-                .imageScale(.large)
-                .frame(width: 40, height: 40)
-        }
-    }
-    
-    var body: some View {
+    struct BottomBar: View {
         
-        // If syncing, disable the sync button, and the ability to create new files
-        if core.syncing {
-            
-            ProgressView()
-            
-            Spacer()
-            Text("Syncing...")
-                .foregroundColor(.secondary)
-            Spacer()
-            
-            Label("Add", systemImage: "plus.circle.fill")
-                .imageScale(.large)
-                .frame(width: 40, height: 40)
-                .foregroundColor(Color.gray)
-            
-        } else {
-            if offline {
-                Image(systemName: "xmark.icloud.fill")
-                    .foregroundColor(Color.gray)
-                
-                Spacer()
-                Text("Offline")
-                    .foregroundColor(.secondary)
-                    .onReceive(calculateWorkTimer) { _ in
-                        checkForNewWork()
-                    }
-                Spacer()
-                
-                menu
+        @ObservedObject var core: Core
+        
+        @State var work: Int = 0
+        @State var offline: Bool = false
+        @State var lastSynced = "moments ago"
+        
+        #if os(iOS)
+        var onNewDocument: () -> Void = {}
+        var onNewFolder: () -> Void = {}
+        #endif
+        
+        let calculateWorkTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+        let syncTimer = Timer.publish(every: 300, on: .main, in: .common).autoconnect()
+        
+        #if os(iOS)
+        var menu: AnyView {
+            if core.syncing {
+                return AnyView(Label("Add", systemImage: "plus.circle.fill")
+                                .imageScale(.large)
+                                .frame(width: 40, height: 40)
+                                .foregroundColor(Color.gray))
             } else {
-                Button(action: {
+                return AnyView(Menu {
+                    Button(action: onNewDocument) {
+                        Label("Create a document", systemImage: "doc")
+                    }
+                    
+                    Button(action: onNewDocument) {
+                        Label("Create a folder", systemImage: "folder")
+                    }
+                }
+                label: {
+                    Label("Add", systemImage: "plus.circle.fill")
+                        .imageScale(.large)
+                        .frame(width: 40, height: 40)
+                }
+                )
+            }
+        }
+        #endif
+        
+        // Consider syncing onAppear here
+        
+        #if os(iOS)
+        var syncButton: AnyView {
+            if core.syncing {
+                return AnyView(ProgressView())
+            } else {
+                if offline {
+                    return AnyView(Image(systemName: "xmark.icloud.fill")
+                                    .foregroundColor(Color.gray))
+                } else {
+                    return AnyView(Button(action: {
+                        core.syncing = true
+                        work = 0
+                    }) {
+                        #if os(iOS)
+                        Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                        #else
+                        Text("Sync now")
+                            .font(.callout)
+                            .foregroundColor(Color.init(red: 0.3, green: 0.45, blue: 0.79))
+                        #endif
+                    })
+                }
+            }
+        }
+        #else
+        var syncButton: AnyView {
+            if core.syncing || offline {
+                
+                return AnyView(
+                    Text("")
+                        .font(.callout)
+                        .foregroundColor(Color.gray)
+                )
+                
+            } else {
+                return AnyView(Button(action: {
                     core.syncing = true
                     work = 0
-                    
                 }) {
-                    Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                    Text("Sync now")
+                        .font(.callout)
+                        .foregroundColor(Color.init(red: 0.3, green: 0.45, blue: 0.79))
+                })
+            }
+        }
+        #endif
+        
+        var statusText: AnyView {
+            if core.syncing {
+                return AnyView(Text("Syncing..."))
+            } else {
+                if offline {
+                    return AnyView(Text("Offline")
+                                    .onReceive(calculateWorkTimer) { _ in
+                                        checkForNewWork()
+                                    })
+                } else {
+                    return AnyView(
+                        Text(work == 0 ? "Last synced: \(lastSynced)" : "\(work) items pending sync")
+                            .font(.callout)
+                            .bold()
+                            .onReceive(calculateWorkTimer) { _ in
+                                checkForNewWork()
+                            }
+                            .onReceive(syncTimer) { _ in
+                                core.syncing = true
+                            }
+                    )
                 }
-                
-                Spacer()
-                
-                Text(work == 0 ? "Last synced: \(lastSynced)" : "\(work) items pending sync")
-                    .foregroundColor(.secondary)
-                    .onReceive(calculateWorkTimer) { _ in
-                        checkForNewWork()
+            }
+        }
+        
+        var body: some View {
+            #if os(iOS)
+            syncButton
+            Spacer()
+            statusText
+            Spacer()
+            menu
+            #else
+            Divider()
+            statusText
+            syncButton
+                .padding(.bottom, 4)
+            #endif
+        }
+        
+        func checkForNewWork() {
+            DispatchQueue.main.async {
+                print("Checking")
+                switch core.api.calculateWork() {
+                case .success(let work):
+                    self.work = work.workUnits.count
+                case .failure(let err):
+                    switch err.kind {
+                    case .UiError(let error):
+                        if error == .CouldNotReachServer {
+                            offline = true
+                        }
+                    case .Unexpected(_):
+                        core.handleError(err)
                     }
-                    .onReceive(syncTimer) { _ in
-                        core.syncing = true
+                }
+            }
+        }
+    }
+    
+    #if os(iOS)
+    struct SyncingPreview: PreviewProvider {
+        
+        static let core = Core()
+        
+        static var previews: some View {
+            NavigationView {
+                HStack {
+                }.toolbar {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        BottomBar(core: core)
                     }
-                Spacer()
-                menu
+                }
+            }.onAppear {
+                core.syncing = true
             }
+            
+            
         }
     }
     
-    func checkForNewWork() {
-        DispatchQueue.main.async {
-            print("Checking")
-            switch core.api.calculateWork() {
-            case .success(let work):
-                self.work = work.workUnits.count
-            case .failure(let err):
-                switch err.kind {
-                case .UiError(let error):
-                    if error == .CouldNotReachServer {
-                        offline = true
+    struct NonSyncingPreview: PreviewProvider {
+        
+        static let core = Core()
+        
+        static var previews: some View {
+            NavigationView {
+                HStack {
+                }.toolbar {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        BottomBar(core: core)
                     }
-                case .Unexpected(_):
-                    core.handleError(err)
                 }
+            }.onAppear {
+                core.syncing = false
             }
+            
+            
         }
     }
-}
-
-#if os(iOS)
-struct SyncingPreview: PreviewProvider {
     
-    static let core = Core()
-    
-    static var previews: some View {
-        NavigationView {
-            HStack {
-            }.toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar(core: core)
+    struct OfflinePreview: PreviewProvider {
+        
+        static let core = Core()
+        
+        static var previews: some View {
+            NavigationView {
+                HStack {
+                }.toolbar {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        BottomBar(core: core, offline: true)
+                    }
                 }
             }
-        }.onAppear {
-            core.syncing = true
+            
+            
         }
-        
-        
     }
-}
-
-struct NonSyncingPreview: PreviewProvider {
     
-    static let core = Core()
-    
-    static var previews: some View {
-        NavigationView {
-            HStack {
-            }.toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar(core: core)
+    struct WorkItemsPreview: PreviewProvider {
+        
+        static let core = Core()
+        
+        static var previews: some View {
+            NavigationView {
+                HStack {
+                }.toolbar {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        BottomBar(core: core, work: 5)
+                    }
                 }
             }
-        }.onAppear {
-            core.syncing = false
+            
+            
         }
-        
-        
     }
-}
-
-struct OfflinePreview: PreviewProvider {
     
-    static let core = Core()
-    
-    static var previews: some View {
-        NavigationView {
-            HStack {
-            }.toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar(core: core, offline: true)
-                }
-            }
-        }
-        
-        
-    }
-}
-
-struct WorkItemsPreview: PreviewProvider {
-    
-    static let core = Core()
-    
-    static var previews: some View {
-        NavigationView {
-            HStack {
-            }.toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar(core: core, work: 5)
-                }
-            }
-        }
-        
-        
-    }
-}
-
-#endif
+    #endif

@@ -140,7 +140,7 @@ struct OutlineSection: View {
             .collapsible(false)
         }
         .listStyle(SidebarListStyle())
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
         .padding(.leading, -8)
         // A hack for list row insets not working. This hack also applies to the section header though.
     }
