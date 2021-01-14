@@ -166,8 +166,8 @@ kill_dev_stack:
 # Helpers
 .PHONY: is_docker_running
 is_docker_running:
-	@echo "Checking if docker is running"
-	@docker ps -q
+	@echo "Checking if docker is running by doing docker container ls"
+	docker container ls
 	@echo "Docker is running"
 
 # For docker tags
