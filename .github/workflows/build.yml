@@ -27,7 +27,9 @@ jobs:
         ref: ${{ github.event.inputs.git-ref }}
     - name: Build Server
       working-directory: server
-      run: cargo build --release
+      run: |
+        echo $PATH
+        cargo build --release
     - name: Archive Build
       uses: actions/upload-artifact@v2
       with:
