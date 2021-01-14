@@ -38,7 +38,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="center"
-        android:animateLayoutChanges="true"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -51,7 +50,6 @@
                 android:layout_gravity="start|center_vertical"
                 android:background="@color/colorPrimaryDark"
                 android:gravity="center_horizontal"
-                android:animateLayoutChanges="true"
                 android:orientation="vertical">
 
                 <ImageButton

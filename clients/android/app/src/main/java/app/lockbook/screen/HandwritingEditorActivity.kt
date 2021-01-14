@@ -1,5 +1,6 @@
 package app.lockbook.screen
 
+import android.animation.Animator
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.os.Handler
@@ -214,7 +215,23 @@ class HandwritingEditorActivity : AppCompatActivity() {
     }
 
     private fun changeToolsVisibility(newVisibility: Int) {
-        handwriting_editor_tools_menu.visibility = newVisibility
+        val onAnimationEnd = object : Animator.AnimatorListener {
+            override fun onAnimationStart(animation: Animator?) {
+                if (newVisibility == View.VISIBLE) {
+                    handwriting_editor_tools_menu.visibility = newVisibility
+                }
+            }
+            override fun onAnimationEnd(animation: Animator?) {
+                if (newVisibility == View.GONE) {
+                    handwriting_editor_tools_menu.visibility = newVisibility
+                }
+            }
+
+            override fun onAnimationCancel(animation: Animator?) {}
+            override fun onAnimationRepeat(animation: Animator?) {}
+        }
+
+        handwriting_editor_tools_menu.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f).setListener(onAnimationEnd).start()
     }
 
     private fun addDrawingToView() {
