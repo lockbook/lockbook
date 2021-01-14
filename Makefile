@@ -116,7 +116,7 @@ kotlin_interface_tests: is_docker_running
 
 .PHONY: kotlin_interface_tests_run
 kotlin_interface_tests_run: server kotlin_interface_tests db_container
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) start kotlin_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up kotlin_interface_tests
 	exit $$(docker wait kotlin_interface_tests-kotlin-$(hash))
 
 .PHONY: swift_interface_tests
@@ -125,7 +125,7 @@ swift_interface_tests: is_docker_running
 
 .PHONY: swift_interface_tests_run
 swift_interface_tests_run: server swift_interface_tests db_container
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) start swift_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up swift_interface_tests
 	exit $$(docker wait swift_interface_tests-swift-$(hash))
 
 .PHONY: csharp_interface_tests
@@ -134,7 +134,7 @@ csharp_interface_tests: is_docker_running
 
 .PHONY: csharp_interface_tests_run
 csharp_interface_tests_run: server csharp_interface_tests db_container
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) start csharp_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up csharp_interface_tests
 	exit $$(docker wait csharp_interface_tests-csharp-$(hash))
 
 .PHONY: performance
@@ -143,7 +143,7 @@ performance: is_docker_running
 
 .PHONY: performance_bench
 performance_bench: performance server db_container
-	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) start performance_bench
+	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up performance_bench
 	exit $$(docker wait performance-performance-$(hash))
 
 .PHONY: performance_bench_report
