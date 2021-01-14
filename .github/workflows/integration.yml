@@ -13,7 +13,7 @@ jobs:
     runs-on: [self-hosted, dockerized]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
     - uses: actions/checkout@v2
     - name: Build container
@@ -29,7 +29,7 @@ jobs:
     runs-on: [self-hosted, dockerized]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
     - uses: actions/checkout@v2
     - name: Build container
@@ -45,7 +45,7 @@ jobs:
     runs-on: [self-hosted, dockerized]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
     - uses: actions/checkout@v2
     - name: Build container
@@ -61,7 +61,7 @@ jobs:
     runs-on: [self-hosted, dockerized]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v2
       - name: Build container
@@ -75,7 +75,7 @@ jobs:
     runs-on: [self-hosted, dockerized]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v2
       - name: Build server container
@@ -90,7 +90,7 @@ jobs:
     needs: [Core, Server]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
     - uses: actions/checkout@v2
     - name: DB Assertions
@@ -113,7 +113,7 @@ jobs:
     needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v2
       - name: Core-Server-DB Integration Tests
@@ -125,7 +125,7 @@ jobs:
     needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v2
       - name: Server-DB
@@ -137,7 +137,7 @@ jobs:
     needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v2
       - name: Kotlin-Core
@@ -149,7 +149,7 @@ jobs:
     needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v2
       - name: Swift-Core
@@ -161,7 +161,7 @@ jobs:
     needs: Prep-Integration-Tests
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v2
       - name: CSharp-Core
@@ -174,7 +174,7 @@ jobs:
     if: always()
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      BRANCH: ${{ github.head_ref }}
+      CI_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v2
       - name: Tear Down Stack
