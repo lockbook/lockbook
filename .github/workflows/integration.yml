@@ -118,7 +118,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Core-Server-DB Integration Tests
         if: always()
-        run: make server_tests_run
+        run: make integration_tests_run
 
   Server-DB:
     runs-on: [self-hosted, dockerized]
