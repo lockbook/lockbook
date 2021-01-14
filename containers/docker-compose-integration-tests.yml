@@ -3,13 +3,11 @@ version: '3'
 services:
   filesdb:
     image: minio/minio:RELEASE.2020-05-16T01-33-21Z
-    container_name: filesdb-integration-$HASH
     env_file:
       - ../containers/test.env
     entrypoint: /bin/sh -c 'MINIO_REGION_NAME=$$FILES_DB_REGION /usr/bin/minio server /data'
   config_filesdb:
     image: minio/mc:RELEASE.2020-05-16T01-44-37Z
-    container_name: config_filesdb-integration-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -24,7 +22,6 @@ services:
       '
   indexdb:
     image: postgres:12.3
-    container_name: indexdb-integration-$HASH
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
   config_indexdb:
@@ -42,7 +39,6 @@ services:
       '
   lockbook_server:
     image: server:$HASH
-    container_name: lockbook-server-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -56,7 +52,6 @@ services:
 
   integration_tests:
     image: integration_tests:$HASH
-    container_name: integration_tests-integration-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -69,7 +64,6 @@ services:
 
   server_tests:
     image: server_tests:$HASH
-    container_name: server_tests-client-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -82,7 +76,6 @@ services:
 
   swift_interface_tests:
     image: swift_interface_tests:$HASH
-    container_name: swift_interface_tests-swift-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -95,7 +88,6 @@ services:
 
   csharp_interface_tests:
     image: csharp_interface_tests:$HASH
-    container_name: csharp_interface_tests-csharp-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -108,7 +100,6 @@ services:
 
   kotlin_interface_tests:
     image: kotlin_interface_tests:$HASH
-    container_name: kotlin_interface_tests-kotlin-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
@@ -121,7 +112,6 @@ services:
 
   performance_bench:
     image: performance:$HASH
-    container_name: performance-$TYPE-$HASH
     env_file:
       - ../containers/test.env
     depends_on:
