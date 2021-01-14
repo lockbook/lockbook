@@ -171,5 +171,5 @@ is_docker_running:
 	@echo "Docker is running"
 
 # For docker tags
-hash := $(if ${CI_RUN_ID},${CI_RUN_ID},$(shell git rev-parse --short HEAD))
+hash := $(shell git rev-parse --short HEAD)
 branch := $(if ${BRANCH},${BRANCH},$(shell git rev-parse --abbrev-ref HEAD))
