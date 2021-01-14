@@ -4,7 +4,11 @@ all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cl
 
 .PHONY: clean
 clean:
+    -sleep 5 # make sure things are really down
 	-docker system prune -af --filter "until=24h"
+	-docker network prune -f
+	-docker container prune
+	-docker volume prune
 
 .PHONY: exorcise
 exorcise:
@@ -157,7 +161,7 @@ dev_stack_run: server db_container
 
 .PHONY: kill_dev_stack
 kill_dev_stack:
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) down -v
 
 # Helpers
 .PHONY: is_docker_running
