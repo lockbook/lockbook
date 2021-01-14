@@ -4,7 +4,7 @@ all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cl
 
 .PHONY: clean
 clean:
-    -sleep 5 # make sure things are really down
+	-sleep 5
 	-docker system prune -af --filter "until=24h"
 	-docker network prune -f
 	-docker container prune
