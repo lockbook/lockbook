@@ -1,7 +1,7 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::model::file_metadata::FileType;
+use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 use lockbook_core::{
     delete_file, get_and_get_children_recursively, get_file_by_path, Error::UiError,
     Error::Unexpected as UnexpectedError, FileDeleteError, GetAndGetChildrenError,
@@ -30,8 +30,12 @@ pub fn remove(path: &str) {
         match get_and_get_children_recursively(&config, meta.id) {
             Ok(children) => {
                 print!(
-                    "Are you sure you want to delete {} files? [y/n]: ",
-                    children.len()
+                    "Are you sure you want to delete {} documents? [y/n]: ",
+                    children
+                        .into_iter()
+                        .filter(|child| child.file_type == FileType::Document)
+                        .collect::<Vec<FileMetadata>>()
+                        .len()
                 );
                 io::stdout().flush().unwrap();
 
