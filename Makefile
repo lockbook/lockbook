@@ -4,8 +4,9 @@ all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cl
 
 .PHONY: clean
 clean:
+	-sleep 5
+	-docker system prune -f --filter "until=24h"
 	-docker network prune -f
-	-docker image prune -af --filter "until=24h"
 	-docker container prune
 	-docker volume prune
 
@@ -51,7 +52,7 @@ server_tests: is_docker_running
 
 .PHONY: server_tests_run
 server_tests_run: server server_tests db_container
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate server_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up server_tests
 	exit $$(docker wait server_tests-client-$(hash))
 
 .PHONY: cli
@@ -115,7 +116,7 @@ kotlin_interface_tests: is_docker_running
 
 .PHONY: kotlin_interface_tests_run
 kotlin_interface_tests_run: server kotlin_interface_tests db_container
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate kotlin_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up kotlin_interface_tests
 	exit $$(docker wait kotlin_interface_tests-kotlin-$(hash))
 
 .PHONY: swift_interface_tests
@@ -124,7 +125,7 @@ swift_interface_tests: is_docker_running
 
 .PHONY: swift_interface_tests_run
 swift_interface_tests_run: server swift_interface_tests db_container
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate swift_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up swift_interface_tests
 	exit $$(docker wait swift_interface_tests-swift-$(hash))
 
 .PHONY: csharp_interface_tests
@@ -133,7 +134,7 @@ csharp_interface_tests: is_docker_running
 
 .PHONY: csharp_interface_tests_run
 csharp_interface_tests_run: server csharp_interface_tests db_container
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate csharp_interface_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up csharp_interface_tests
 	exit $$(docker wait csharp_interface_tests-csharp-$(hash))
 
 .PHONY: performance
@@ -142,7 +143,7 @@ performance: is_docker_running
 
 .PHONY: performance_bench
 performance_bench: performance server db_container
-	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate performance_bench
+	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up performance_bench
 	exit $$(docker wait performance-performance-$(hash))
 
 .PHONY: performance_bench_report
@@ -155,18 +156,18 @@ db_container: is_docker_running
 
 .PHONY: dev_stack_run
 dev_stack_run: server db_container
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --no-recreate --detach lockbook_server
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --detach lockbook_server
 	sleep 5
 
 .PHONY: kill_dev_stack
 kill_dev_stack:
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) down
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) down -v
 
 # Helpers
 .PHONY: is_docker_running
 is_docker_running:
-	@echo "Checking if docker is running"
-	@docker ps -q
+	@echo "Checking if docker is running by doing docker container ls"
+	docker container ls
 	@echo "Docker is running"
 
 # For docker tags
