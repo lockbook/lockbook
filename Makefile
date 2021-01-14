@@ -4,10 +4,7 @@ all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cl
 
 .PHONY: clean
 clean:
-	-docker network prune -f
-	-docker image prune -af --filter "until=24h"
-	-docker container prune
-	-docker volume prune
+	-docker system prune -af --filter "until=24h"
 
 .PHONY: exorcise
 exorcise:
