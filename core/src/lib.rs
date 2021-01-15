@@ -87,7 +87,9 @@ pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum GetStateError {}
+pub enum GetStateError {
+    Stub, // TODO: Enums should not be empty
+}
 
 pub fn get_db_state(config: &Config) -> Result<State, Error<GetStateError>> {
     let backend = DefaultBackend::connect_to_db(config)
@@ -390,7 +392,9 @@ pub fn get_root(config: &Config) -> Result<FileMetadata, Error<GetRootError>> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum GetChildrenError {}
+pub enum GetChildrenError {
+    Stub, // TODO: Enums should not be empty
+}
 
 pub fn get_children(
     config: &Config,
@@ -464,7 +468,9 @@ pub fn get_file_by_path(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum InsertFileError {}
+pub enum InsertFileError {
+    Stub, // TODO: Enums should not be empty
+}
 
 pub fn insert_file(
     config: &Config,
@@ -559,7 +565,9 @@ pub fn read_document(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum ListPathsError {}
+pub enum ListPathsError {
+    Stub, // TODO: Enums should not be empty
+}
 
 pub fn list_paths(
     config: &Config,
@@ -572,7 +580,9 @@ pub fn list_paths(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum ListMetadatasError {}
+pub enum ListMetadatasError {
+    Stub, // TODO: Enums should not be empty
+}
 
 pub fn list_metadatas(config: &Config) -> Result<Vec<FileMetadata>, Error<ListMetadatasError>> {
     let backend = DefaultBackend::connect_to_db(config)
@@ -792,7 +802,9 @@ pub fn execute_work(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum SetLastSyncedError {}
+pub enum SetLastSyncedError {
+    Stub, // TODO: Enums should not be empty
+}
 
 pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), Error<SetLastSyncedError>> {
     let backend = DefaultBackend::connect_to_db(config)
@@ -803,7 +815,9 @@ pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), Error<SetL
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum GetLastSyncedError {}
+pub enum GetLastSyncedError {
+    Stub, // TODO: Enums should not be empty
+}
 
 pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>> {
     let backend = DefaultBackend::connect_to_db(config)
