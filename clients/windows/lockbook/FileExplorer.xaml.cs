@@ -23,8 +23,20 @@ namespace lockbook {
         public ObservableCollection<UIFile> Children { get; set; }
     }
 
+    public enum SyncState {
+        Synced,
+        Unsynced,
+        Offline,
+    }
+
     public sealed partial class FileExplorer : Page {
         public string currentDocumentId = "";
+
+        public string SelectedDocumentId { get; set; }
+        public SyncState SyncState { get; set; }
+        public int ItemsToSync { get; set; } // render text jointly with above field
+        public bool SyncWorking { get; set; }
+        public UIFile Root { get; set; }
 
         public const string folderGlyph = "\uED25";
         public const string documentGlyph = "\uE9F9";
@@ -49,6 +61,10 @@ namespace lockbook {
         private async void NavigationViewLoaded(object sender, RoutedEventArgs e) {
             await RefreshFiles();
             CheckForWorkLoop();
+        }
+
+        public async void RefreshCalculatedWork() {
+            // todo
         }
 
         private async void CheckForWorkLoop() {
@@ -307,10 +323,6 @@ namespace lockbook {
                     }
                     break;
             }
-        }
-
-        private async void Unimplemented(object sender, RoutedEventArgs e) {
-            await new MessageDialog("Parth has not implemented this yet!", "Sorry!").ShowAsync();
         }
 
         // Move things
