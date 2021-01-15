@@ -103,23 +103,23 @@ impl<
 #[cfg(test)]
 mod unit_tests {
     use crate::model::state::temp_config;
-    use crate::repo::db_version_repo::{DbVersionRepo, DbVersionRepoImpl};
+    use crate::repo::db_version_repo::DbVersionRepo;
     use crate::service::code_version_service::{CodeVersion, CodeVersionImpl};
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
     use crate::storage::db_provider::{Backend, FileBackend};
-    use crate::DefaultDbStateService;
+    use crate::{DefaultDbStateService, DefaultDbVersionRepo};
 
     #[test]
     fn test_initial_state() {
         let config = temp_config();
         let backend = FileBackend::connect_to_db(&config).unwrap();
 
-        assert!(DbVersionRepoImpl::get(backend).unwrap().is_none());
-        assert_eq!(DefaultDbStateService::get_state(backend).unwrap(), Empty);
-        assert_eq!(DefaultDbStateService::get_state(backend).unwrap(), Empty);
+        assert!(DefaultDbVersionRepo::get(&backend).unwrap().is_none());
+        assert_eq!(DefaultDbStateService::get_state(&backend).unwrap(), Empty);
+        assert_eq!(DefaultDbStateService::get_state(&backend).unwrap(), Empty);
         assert_eq!(
-            DbVersionRepoImpl::get(backend).unwrap().unwrap(),
+            DefaultDbVersionRepo::get(&backend).unwrap().unwrap(),
             CodeVersionImpl::get_code_version()
         );
     }

@@ -566,7 +566,7 @@ mod unit_tests {
     use crate::model::state::Config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
-    use crate::repo::file_metadata_repo::{FileMetadataRepo, FileMetadataRepoImpl, Problem};
+    use crate::repo::file_metadata_repo::{FileMetadataRepo, Problem};
     use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
@@ -603,7 +603,7 @@ mod unit_tests {
             parent: root_id,
             ..base_test_file_metadata()
         };
-        FileMetadataRepoImpl::insert(backend, &fmd).unwrap();
+        DefaultFileMetadataRepo::insert(backend, &fmd).unwrap();
         fmd
     }
 
@@ -620,26 +620,26 @@ mod unit_tests {
             parent,
             ..base_test_file_metadata()
         };
-        FileMetadataRepoImpl::insert(backend, &fmd).unwrap();
+        DefaultFileMetadataRepo::insert(backend, &fmd).unwrap();
         fmd
     }
 
     #[test]
     fn insert_file_metadata() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let root = insert_test_metadata_root(backend, "root_folder");
         let test_file = insert_test_metadata(backend, FileType::Document, root.id, "test.txt");
 
-        let retrieved_file_metadata = FileMetadataRepoImpl::get(backend, test_file.id).unwrap();
+        let retrieved_file_metadata = DefaultFileMetadataRepo::get(backend, test_file.id).unwrap();
         assert_eq!(test_file.name, retrieved_file_metadata.name);
         assert_eq!(test_file.parent, retrieved_file_metadata.parent);
 
-        FileMetadataRepoImpl::maybe_get(backend, test_file.id)
+        DefaultFileMetadataRepo::maybe_get(backend, test_file.id)
             .unwrap()
             .unwrap();
-        assert!(FileMetadataRepoImpl::maybe_get(backend, Uuid::new_v4())
+        assert!(DefaultFileMetadataRepo::maybe_get(backend, Uuid::new_v4())
             .unwrap()
             .is_none());
     }
@@ -647,7 +647,7 @@ mod unit_tests {
     #[test]
     fn update_file_metadata() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let id = Uuid::new_v4();
         let parent = Uuid::new_v4();
@@ -665,17 +665,17 @@ mod unit_tests {
             ..base_test_file_metadata()
         };
 
-        FileMetadataRepoImpl::insert(backend, &test_meta).unwrap();
+        DefaultFileMetadataRepo::insert(backend, &test_meta).unwrap();
         assert_eq!(
             test_meta.content_version,
-            FileMetadataRepoImpl::get(backend, test_meta.id)
+            DefaultFileMetadataRepo::get(backend, test_meta.id)
                 .unwrap()
                 .content_version
         );
-        FileMetadataRepoImpl::insert(backend, &test_meta_updated).unwrap();
+        DefaultFileMetadataRepo::insert(backend, &test_meta_updated).unwrap();
         assert_eq!(
             test_meta_updated.content_version,
-            FileMetadataRepoImpl::get(backend, test_meta_updated.id)
+            DefaultFileMetadataRepo::get(backend, test_meta_updated.id)
                 .unwrap()
                 .content_version
         );
@@ -684,7 +684,7 @@ mod unit_tests {
     #[test]
     fn test_searches() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let root = insert_test_metadata_root(backend, "root_folder1");
         let _ = insert_test_metadata(backend, FileType::Document, root.id, "test.txt");
@@ -694,21 +694,22 @@ mod unit_tests {
         let test_file4 =
             insert_test_metadata(backend, FileType::Document, test_folder.id, "test.txt");
 
-        let parents = FileMetadataRepoImpl::get_with_all_parents(backend, test_file4.id).unwrap();
+        let parents =
+            DefaultFileMetadataRepo::get_with_all_parents(backend, test_file4.id).unwrap();
         assert_eq!(parents.len(), 3);
         assert!(parents.contains_key(&root.id));
         assert!(parents.contains_key(&test_folder.id));
         assert!(parents.contains_key(&test_file4.id));
 
         let children =
-            FileMetadataRepoImpl::get_children_non_recursively(backend, root.id).unwrap();
+            DefaultFileMetadataRepo::get_children_non_recursively(backend, root.id).unwrap();
         assert_eq!(children.len(), 2);
     }
 
     #[test]
     fn test_integrity_no_problems() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let _ = insert_test_metadata_root(backend, "rootdir");
 
@@ -721,7 +722,7 @@ mod unit_tests {
         let cfg = &temp_config();
         let backend = FileBackend::connect_to_db(cfg).unwrap();
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(backend).unwrap();
+        let probs = DefaultFileMetadataRepo::test_repo_integrity(&backend).unwrap();
         assert_eq!(probs.len(), 1);
         assert_eq!(probs.get(0).unwrap(), &Problem::NoRootFolder);
     }
@@ -729,7 +730,7 @@ mod unit_tests {
     #[test]
     fn test_orphaned_children() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let keys = DefaultCrypto::generate_key().unwrap();
 
@@ -768,7 +769,7 @@ mod unit_tests {
     #[test]
     fn test_files_invalid_names() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let root = insert_test_metadata_root(backend, "rootdir");
         let has_slash = insert_test_metadata(backend, FileType::Document, root.id, "uh/oh");
@@ -783,7 +784,7 @@ mod unit_tests {
     #[test]
     fn test_cycle_detection() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let _ = insert_test_metadata_root(backend, "rootdir");
         let folder1 = Uuid::new_v4();
@@ -826,7 +827,7 @@ mod unit_tests {
     #[test]
     fn test_name_conflicts() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let root = insert_test_metadata_root(backend, "uhoh");
         let doc1 = insert_test_metadata(backend, FileType::Document, root.id, "a");
@@ -842,7 +843,7 @@ mod unit_tests {
     #[test]
     fn test_document_treated_as_folder() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let root = insert_test_metadata_root(backend, "uhoh");
         let doc = insert_test_metadata(backend, FileType::Document, root.id, "a");
@@ -856,7 +857,7 @@ mod unit_tests {
     #[test]
     fn test_get_children_handle_empty_root() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
         let root = insert_test_metadata_root(backend, "root");
         let children_of_root =
             DefaultFileMetadataRepo::get_and_get_children_recursively(backend, root.id).unwrap();
@@ -866,7 +867,7 @@ mod unit_tests {
     #[test]
     fn test_get_children() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(cfg).unwrap();
+        let backend = &FileBackend::connect_to_db(cfg).unwrap();
 
         let root = insert_test_metadata_root(backend, "root");
 

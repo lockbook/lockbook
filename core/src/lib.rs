@@ -53,7 +53,7 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
-use crate::storage::db_provider::{Backend, SledBackend};
+use crate::storage::db_provider::{Backend, FileBackend};
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -84,17 +84,6 @@ pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
         .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
     info!("Logger initialized! Path: {:?}", log_path);
     Ok(())
-}
-
-pub fn connect_to_db(config: &Config) -> Result<<DefaultBackend as Backend>::Db, String> {
-    let db = DefaultBackend::connect_to_db(&config).map_err(|err| {
-        format!(
-            "Could not connect to db, config: {:#?}, error: {:#?}",
-            &config, err
-        )
-    })?;
-
-    Ok(db)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -923,7 +912,7 @@ static LOG_FILE: &str = "lockbook.log";
 pub type DefaultClock = ClockImpl;
 pub type DefaultCrypto = RSAImpl<DefaultClock>;
 pub type DefaultSymmetric = AESImpl;
-pub type DefaultBackend = SledBackend;
+pub type DefaultBackend = FileBackend;
 pub type DefaultCodeVersion = CodeVersionImpl;
 pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl<DefaultBackend>;
@@ -943,7 +932,7 @@ pub type DefaultAccountService = AccountServiceImpl<
     DefaultBackend,
 >;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl<DefaultBackend>;
-pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock>;
+pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock, DefaultBackend>;
 pub type DefaultDocumentRepo = DocumentRepoImpl<DefaultBackend>;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
 pub type DefaultFileCompressionService = FileCompressionServiceImpl;

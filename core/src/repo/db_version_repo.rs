@@ -46,24 +46,26 @@ impl<MyBackend: Backend> DbVersionRepo<MyBackend> for DbVersionRepoImpl<MyBacken
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::repo::db_version_repo::{DbVersionRepo, DbVersionRepoImpl};
+    use crate::repo::db_version_repo::DbVersionRepo;
     use crate::storage::db_provider::Backend;
-    use crate::{model::state::temp_config, storage::db_provider::FileBackend};
+    use crate::{
+        model::state::temp_config, storage::db_provider::FileBackend, DefaultDbVersionRepo,
+    };
 
     #[test]
     fn db_version_sanity_check() {
         let cfg = &temp_config();
         let backend = FileBackend::connect_to_db(&cfg).unwrap();
 
-        assert!(DbVersionRepoImpl::get(backend).unwrap().is_none());
-        DbVersionRepoImpl::set(backend, "version 1").unwrap();
+        assert!(DefaultDbVersionRepo::get(&backend).unwrap().is_none());
+        DefaultDbVersionRepo::set(&backend, "version 1").unwrap();
         assert_eq!(
-            DbVersionRepoImpl::get(backend).unwrap().unwrap(),
+            DefaultDbVersionRepo::get(&backend).unwrap().unwrap(),
             "version 1"
         );
-        DbVersionRepoImpl::set(backend, "version 2").unwrap();
+        DefaultDbVersionRepo::set(&backend, "version 2").unwrap();
         assert_eq!(
-            DbVersionRepoImpl::get(backend).unwrap().unwrap(),
+            DefaultDbVersionRepo::get(&backend).unwrap().unwrap(),
             "version 2"
         );
     }

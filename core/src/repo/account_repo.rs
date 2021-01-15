@@ -93,12 +93,12 @@ mod unit_tests {
 
         let config = temp_config();
         let backend = FileBackend::connect_to_db(&config).unwrap();
-        let res = DefaultAccountRepo::get_account(backend);
+        let res = DefaultAccountRepo::get_account(&backend);
         assert!(res.is_err());
 
         DefaultAccountRepo::insert_account(&backend, &test_account).unwrap();
 
-        let db_account = DefaultAccountRepo::get_account(backend).unwrap();
+        let db_account = DefaultAccountRepo::get_account(&backend).unwrap();
         assert_eq!(test_account, db_account);
     }
 }

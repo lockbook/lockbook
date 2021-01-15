@@ -9,6 +9,7 @@ mod db_state_service_tests {
     use lockbook_core::service::db_state_service::State::{
         Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
     };
+    use lockbook_core::storage::db_provider::{Backend, FileBackend};
     use lockbook_core::{
         create_account, get_db_state, DefaultDbStateService, DefaultDbVersionRepo,
     };
@@ -27,30 +28,30 @@ mod db_state_service_tests {
         .unwrap();
         assert_eq!(get_db_state(&cfg).unwrap(), ReadyToUse);
 
-        let backend = FileBackend::connect_to_db(&cfg);
+        let backend = FileBackend::connect_to_db(&cfg).unwrap();
 
-        DefaultDbVersionRepo::set(backend, "0.1.0").unwrap();
+        DefaultDbVersionRepo::set(&backend, "0.1.0").unwrap();
         assert_ne!(
-            DefaultDbVersionRepo::get(backend).unwrap().unwrap(),
+            DefaultDbVersionRepo::get(&backend).unwrap().unwrap(),
             CodeVersionImpl::get_code_version()
         );
 
         assert_eq!(
-            DefaultDbStateService::get_state(backend).unwrap(),
+            DefaultDbStateService::get_state(&backend).unwrap(),
             MigrationRequired
         );
         assert_eq!(
-            DefaultDbStateService::get_state(backend).unwrap(),
+            DefaultDbStateService::get_state(&backend).unwrap(),
             MigrationRequired
         );
 
-        assert!(DefaultDbStateService::perform_migration(backend).is_err());
+        assert!(DefaultDbStateService::perform_migration(&backend).is_err());
         assert_eq!(
-            DefaultDbStateService::get_state(backend).unwrap(),
+            DefaultDbStateService::get_state(&backend).unwrap(),
             StateRequiresClearing
         );
         assert_eq!(
-            DefaultDbStateService::get_state(backend).unwrap(),
+            DefaultDbStateService::get_state(&backend).unwrap(),
             StateRequiresClearing
         );
     }

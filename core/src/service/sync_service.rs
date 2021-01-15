@@ -4,6 +4,7 @@ use std::time::SystemTimeError;
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::client;
 use crate::client::{ApiError, Client};
 use crate::model::account::Account;
 use crate::model::api;
@@ -39,7 +40,6 @@ use crate::service::sync_service::WorkExecutionError::{
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::storage::db_provider::Backend;
-use crate::client;
 
 #[derive(Debug)]
 pub enum CalculateWorkError<MyBackend: Backend> {

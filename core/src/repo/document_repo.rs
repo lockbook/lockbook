@@ -86,32 +86,32 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::state::temp_config;
-    use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
+    use crate::repo::document_repo::DocumentRepo;
     use crate::storage::db_provider::Backend;
-    use crate::{model::crypto::*, storage::db_provider::FileBackend};
+    use crate::{model::crypto::*, DefaultBackend, DefaultDocumentRepo};
 
     #[test]
     fn update_document() {
         let test_document = EncryptedDocument::new("something", "nonce1");
 
         let config = temp_config();
-        let db = FileBackend::connect_to_db(&config).unwrap();
-        let sled = Backend::Sled(&db);
+        let db = DefaultBackend::connect_to_db(&config).unwrap();
+
         let document_id = Uuid::new_v4();
 
-        DocumentRepoImpl::insert(&sled, document_id, &test_document).unwrap();
+        DefaultDocumentRepo::insert(&db, document_id, &test_document).unwrap();
 
-        let document = DocumentRepoImpl::get(&sled, document_id).unwrap();
+        let document = DefaultDocumentRepo::get(&db, document_id).unwrap();
         assert_eq!(document, EncryptedDocument::new("something", "nonce1"),);
 
-        DocumentRepoImpl::insert(
-            &sled,
+        DefaultDocumentRepo::insert(
+            &db,
             document_id,
             &EncryptedDocument::new("updated", "nonce2"),
         )
         .unwrap();
 
-        let file_updated = DocumentRepoImpl::get(&sled, document_id).unwrap();
+        let file_updated = DefaultDocumentRepo::get(&db, document_id).unwrap();
 
         assert_eq!(file_updated, EncryptedDocument::new("updated", "nonce2"));
     }
