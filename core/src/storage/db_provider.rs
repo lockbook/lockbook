@@ -1,7 +1,5 @@
 use crate::model::state::Config;
 use crate::DB_NAME;
-use sled;
-use std;
 use std::fmt::Debug;
 use std::fs::{create_dir_all, read_dir, remove_file, File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
