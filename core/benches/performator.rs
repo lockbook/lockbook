@@ -7,7 +7,6 @@ use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::account_service::AccountService;
 use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::storage::db_provider::to_backend;
 use lockbook_core::{
     DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
 };
@@ -35,7 +34,7 @@ pub fn bench_performator(c: &mut Criterion) {
         writeable_path: format!("/tmp/perf-{}", Uuid::new_v4().to_string()),
     };
 
-    let backend = &to_backend(config);
+    let backend = FileBackend::connect_to_db(config);
 
     let _ = DefaultAccountService::create_account(
         backend,

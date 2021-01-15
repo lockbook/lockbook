@@ -1,56 +1,72 @@
 use uuid::Uuid;
 
 use crate::model::crypto::*;
-use crate::storage::db_provider::{Backend, BackendError};
+use crate::storage::db_provider::Backend;
 
 #[derive(Debug)]
-pub enum Error {
-    BackendError(BackendError),
+pub enum Error<MyBackend: Backend> {
+    BackendError(MyBackend::Error),
     SerdeError(serde_json::Error),
     FileRowMissing(()), // TODO remove from insert
 }
 
 #[derive(Debug)]
-pub enum DbError {
-    BackendError(BackendError),
+pub enum DbError<MyBackend: Backend> {
+    BackendError(MyBackend::Error),
     SerdeError(serde_json::Error),
 }
 
-pub trait DocumentRepo {
+pub trait DocumentRepo<MyBackend: Backend> {
     const NAMESPACE: &'static [u8] = b"documents";
-    fn insert(backend: &Backend, id: Uuid, document: &EncryptedDocument) -> Result<(), Error>;
-    fn get(backend: &Backend, id: Uuid) -> Result<EncryptedDocument, Error>;
-    fn maybe_get(backend: &Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError>;
-    fn delete(backend: &Backend, id: Uuid) -> Result<(), Error>;
+    fn insert(
+        backend: &MyBackend::Db,
+        id: Uuid,
+        document: &EncryptedDocument,
+    ) -> Result<(), Error<MyBackend>>;
+    fn get(backend: &MyBackend::Db, id: Uuid) -> Result<EncryptedDocument, Error<MyBackend>>;
+    fn maybe_get(
+        backend: &MyBackend::Db,
+        id: Uuid,
+    ) -> Result<Option<EncryptedDocument>, DbError<MyBackend>>;
+    fn delete(backend: &MyBackend::Db, id: Uuid) -> Result<(), Error<MyBackend>>;
 }
 
-pub struct DocumentRepoImpl;
+pub struct DocumentRepoImpl<MyBackend: Backend> {
+    _backend: MyBackend,
+}
 
-impl DocumentRepo for DocumentRepoImpl {
-    fn insert(backend: &Backend, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
-        backend
-            .write(
-                Self::NAMESPACE,
-                id.to_string().as_str(),
-                serde_json::to_vec(document).map_err(Error::SerdeError)?,
-            )
-            .map_err(Error::BackendError)
+impl<MyBackend: Backend> DocumentRepo<MyBackend> for DocumentRepoImpl<MyBackend> {
+    fn insert(
+        backend: &MyBackend::Db,
+        id: Uuid,
+        document: &EncryptedDocument,
+    ) -> Result<(), Error<MyBackend>> {
+        MyBackend::write(
+            backend,
+            Self::NAMESPACE,
+            id.to_string().as_str(),
+            serde_json::to_vec(document).map_err(Error::SerdeError)?,
+        )
+        .map_err(Error::BackendError)
     }
 
-    fn get(backend: &Backend, id: Uuid) -> Result<EncryptedDocument, Error> {
-        let maybe_data: Option<Vec<u8>> = backend
-            .read(Self::NAMESPACE, id.to_string().as_str())
-            .map_err(Error::BackendError)?;
+    fn get(backend: &MyBackend::Db, id: Uuid) -> Result<EncryptedDocument, Error<MyBackend>> {
+        let maybe_data: Option<Vec<u8>> =
+            MyBackend::read(backend, Self::NAMESPACE, id.to_string().as_str())
+                .map_err(Error::BackendError)?;
         match maybe_data {
             None => Err(Error::FileRowMissing(())),
             Some(data) => serde_json::from_slice(&data).map_err(Error::SerdeError),
         }
     }
 
-    fn maybe_get(backend: &Backend, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
-        let maybe_data: Option<Vec<u8>> = backend
-            .read(Self::NAMESPACE, id.to_string().as_str())
-            .map_err(DbError::BackendError)?;
+    fn maybe_get(
+        backend: &MyBackend::Db,
+        id: Uuid,
+    ) -> Result<Option<EncryptedDocument>, DbError<MyBackend>> {
+        let maybe_data: Option<Vec<u8>> =
+            MyBackend::read(backend, Self::NAMESPACE, id.to_string().as_str())
+                .map_err(DbError::BackendError)?;
         match maybe_data {
             None => Ok(None),
             Some(data) => serde_json::from_slice(&data)
@@ -59,9 +75,8 @@ impl DocumentRepo for DocumentRepoImpl {
         }
     }
 
-    fn delete(backend: &Backend, id: Uuid) -> Result<(), Error> {
-        backend
-            .delete(Self::NAMESPACE, id.to_string().as_str())
+    fn delete(backend: &MyBackend::Db, id: Uuid) -> Result<(), Error<MyBackend>> {
+        MyBackend::delete(backend, Self::NAMESPACE, id.to_string().as_str())
             .map_err(Error::BackendError)
     }
 }
@@ -70,35 +85,33 @@ impl DocumentRepo for DocumentRepoImpl {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::crypto::*;
     use crate::model::state::temp_config;
-    use crate::repo::document_repo::{DocumentRepo, DocumentRepoImpl};
-    use crate::storage::db_provider::{Backend, DbProvider, DiskBackedDB};
-
-    type DefaultDbProvider = DiskBackedDB;
+    use crate::repo::document_repo::DocumentRepo;
+    use crate::storage::db_provider::Backend;
+    use crate::{model::crypto::*, DefaultBackend, DefaultDocumentRepo};
 
     #[test]
     fn update_document() {
         let test_document = EncryptedDocument::new("something", "nonce1");
 
         let config = temp_config();
-        let db = DefaultDbProvider::connect_to_db(&config).unwrap();
-        let sled = Backend::Sled(&db);
+        let db = DefaultBackend::connect_to_db(&config).unwrap();
+
         let document_id = Uuid::new_v4();
 
-        DocumentRepoImpl::insert(&sled, document_id, &test_document).unwrap();
+        DefaultDocumentRepo::insert(&db, document_id, &test_document).unwrap();
 
-        let document = DocumentRepoImpl::get(&sled, document_id).unwrap();
+        let document = DefaultDocumentRepo::get(&db, document_id).unwrap();
         assert_eq!(document, EncryptedDocument::new("something", "nonce1"),);
 
-        DocumentRepoImpl::insert(
-            &sled,
+        DefaultDocumentRepo::insert(
+            &db,
             document_id,
             &EncryptedDocument::new("updated", "nonce2"),
         )
         .unwrap();
 
-        let file_updated = DocumentRepoImpl::get(&sled, document_id).unwrap();
+        let file_updated = DefaultDocumentRepo::get(&db, document_id).unwrap();
 
         assert_eq!(file_updated, EncryptedDocument::new("updated", "nonce2"));
     }

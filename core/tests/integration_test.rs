@@ -6,6 +6,7 @@ use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::account_repo::AccountRepo;
 use lockbook_core::repo::db_version_repo::DbVersionRepo;
+use lockbook_core::repo::document_repo::DocumentRepo;
 use lockbook_core::repo::file_metadata_repo::{FileMetadataRepo, FILE_METADATA};
 use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 use lockbook_core::service::clock_service::ClockImpl;
@@ -14,7 +15,8 @@ use lockbook_core::service::crypto_service::{
 };
 use lockbook_core::storage::db_provider::Backend;
 use lockbook_core::{
-    DefaultAccountRepo, DefaultDbVersionRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
+    DefaultAccountRepo, DefaultBackend, DefaultDbVersionRepo, DefaultDocumentRepo,
+    DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
 use rsa::{RSAPrivateKey, RSAPublicKey};
 use serde::de::DeserializeOwned;
@@ -35,8 +37,8 @@ macro_rules! assert_matches (
     }
 );
 
-pub fn test_db() -> Config {
-    test_config()
+pub fn test_db() -> <DefaultBackend as Backend>::Db {
+    <DefaultBackend as Backend>::connect_to_db(&test_config()).unwrap()
 }
 
 pub fn test_config() -> Config {
@@ -158,15 +160,14 @@ pub fn rsa_decrypt<T: Serialize + DeserializeOwned>(
     RSAImpl::<ClockImpl>::decrypt(key, to_decrypt).unwrap()
 }
 
-pub fn assert_dbs_eq(db1: &Backend, db2: &Backend) {
-    let value1: Vec<FileMetadata> = db1
-        .dump::<_, Vec<u8>>(FILE_METADATA)
+pub fn assert_dbs_eq(db1: &<DefaultBackend as Backend>::Db, db2: &<DefaultBackend as Backend>::Db) {
+    let value1: Vec<FileMetadata> = DefaultBackend::dump::<_, Vec<u8>>(&db1, FILE_METADATA)
         .unwrap()
         .iter()
         .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
         .collect();
-    let value2: Vec<FileMetadata> = db2
-        .dump::<_, Vec<u8>>(FILE_METADATA)
+
+    let value2: Vec<FileMetadata> = DefaultBackend::dump::<_, Vec<u8>>(&db2, FILE_METADATA)
         .unwrap()
         .iter()
         .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
@@ -193,17 +194,17 @@ pub fn assert_dbs_eq(db1: &Backend, db2: &Backend) {
         DefaultFileMetadataRepo::get_last_updated(&db2).unwrap()
     );
 
-    let value1: Vec<FileMetadata> = db1
-        .dump::<_, Vec<u8>>(FILE_METADATA)
-        .unwrap()
-        .iter()
-        .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
-        .collect();
-    let value2: Vec<FileMetadata> = db2
-        .dump::<_, Vec<u8>>(FILE_METADATA)
-        .unwrap()
-        .iter()
-        .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
-        .collect();
+    let value1: Vec<FileMetadata> =
+        DefaultBackend::dump::<_, Vec<u8>>(&db1, DefaultDocumentRepo::NAMESPACE)
+            .unwrap()
+            .iter()
+            .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
+            .collect();
+    let value2: Vec<FileMetadata> =
+        DefaultBackend::dump::<_, Vec<u8>>(&db2, DefaultDocumentRepo::NAMESPACE)
+            .unwrap()
+            .iter()
+            .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
+            .collect();
     assert_eq!(value1, value2);
 }

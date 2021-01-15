@@ -19,75 +19,78 @@ use crate::service::file_encryption_service::{FileEncryptionService, RootFolderC
 use crate::storage::db_provider::Backend;
 
 #[derive(Debug)]
-pub enum AccountCreationError {
+pub enum AccountCreationError<MyBackend: Backend> {
     KeyGenerationError(rsa::errors::Error),
-    AccountRepoError(account_repo::AccountRepoError),
+    AccountRepoError(account_repo::AccountRepoError<MyBackend>),
     FolderError(RootFolderCreationError),
-    MetadataRepoError(file_metadata_repo::DbError),
+    MetadataRepoError(file_metadata_repo::DbError<MyBackend>),
     ApiError(client::ApiError<NewAccountError>),
     KeySerializationError(serde_json::error::Error),
     AccountExistsAlready,
 }
 
 #[derive(Debug)]
-pub enum AccountImportError {
+pub enum AccountImportError<MyBackend: Backend> {
     AccountStringCorrupted(base64::DecodeError),
     AccountStringFailedToDeserialize(bincode::Error),
-    PersistenceError(account_repo::AccountRepoError),
+    PersistenceError(account_repo::AccountRepoError<MyBackend>),
     InvalidPrivateKey(rsa::errors::Error),
-    AccountRepoError(account_repo::AccountRepoError),
+    AccountRepoError(account_repo::AccountRepoError<MyBackend>),
     FailedToVerifyAccountServerSide(client::ApiError<GetPublicKeyError>),
     PublicKeyMismatch,
     AccountExistsAlready,
 }
 
 #[derive(Debug)]
-pub enum AccountExportError {
-    AccountRetrievalError(account_repo::AccountRepoError),
+pub enum AccountExportError<MyBackend: Backend> {
+    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
     AccountStringFailedToSerialize(bincode::Error),
 }
 
-pub trait AccountService {
+pub trait AccountService<MyBackend: Backend> {
     fn create_account(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         username: &str,
         api_url: &str,
-    ) -> Result<Account, AccountCreationError>;
+    ) -> Result<Account, AccountCreationError<MyBackend>>;
     fn import_account(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         account_string: &str,
-    ) -> Result<Account, AccountImportError>;
-    fn export_account(backend: &Backend) -> Result<String, AccountExportError>;
+    ) -> Result<Account, AccountImportError<MyBackend>>;
+    fn export_account(backend: &MyBackend::Db) -> Result<String, AccountExportError<MyBackend>>;
 }
 
 pub struct AccountServiceImpl<
     Crypto: PubKeyCryptoService,
-    AccountDb: AccountRepo,
+    AccountDb: AccountRepo<MyBackend>,
     ApiClient: Client,
     FileCrypto: FileEncryptionService,
-    FileMetadata: FileMetadataRepo,
+    FileMetadata: FileMetadataRepo<MyBackend>,
+    MyBackend: Backend,
 > {
     _encryption: Crypto,
     _accounts: AccountDb,
     _client: ApiClient,
     _file_crypto: FileCrypto,
     _file_db: FileMetadata,
+    _backend: MyBackend,
 }
 
 impl<
         Crypto: PubKeyCryptoService,
-        AccountDb: AccountRepo,
+        AccountDb: AccountRepo<MyBackend>,
         ApiClient: Client,
         FileCrypto: FileEncryptionService,
-        FileMetadata: FileMetadataRepo,
-    > AccountService
-    for AccountServiceImpl<Crypto, AccountDb, ApiClient, FileCrypto, FileMetadata>
+        FileMetadata: FileMetadataRepo<MyBackend>,
+        MyBackend: Backend,
+    > AccountService<MyBackend>
+    for AccountServiceImpl<Crypto, AccountDb, ApiClient, FileCrypto, FileMetadata, MyBackend>
 {
     fn create_account(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         username: &str,
         api_url: &str,
-    ) -> Result<Account, AccountCreationError> {
+    ) -> Result<Account, AccountCreationError<MyBackend>> {
         info!("Checking if account already exists");
         if AccountDb::maybe_get_account(backend)
             .map_err(AccountRepoError)?
@@ -137,9 +140,9 @@ impl<
     }
 
     fn import_account(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         account_string: &str,
-    ) -> Result<Account, AccountImportError> {
+    ) -> Result<Account, AccountImportError<MyBackend>> {
         info!("Checking if account already exists");
         if AccountDb::maybe_get_account(backend)
             .map_err(AccountImportError::AccountRepoError)?
@@ -188,7 +191,7 @@ impl<
         Ok(account)
     }
 
-    fn export_account(backend: &Backend) -> Result<String, AccountExportError> {
+    fn export_account(backend: &MyBackend::Db) -> Result<String, AccountExportError<MyBackend>> {
         let account =
             &AccountDb::get_account(backend).map_err(AccountExportError::AccountRetrievalError)?;
         let encoded: Vec<u8> = bincode::serialize(&account)
