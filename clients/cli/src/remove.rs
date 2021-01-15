@@ -1,7 +1,7 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::model::file_metadata::{FileMetadata, FileType};
+use lockbook_core::model::file_metadata::FileType;
 use lockbook_core::{
     delete_file, get_and_get_children_recursively, get_file_by_path, Error::UiError,
     Error::Unexpected as UnexpectedError, FileDeleteError, GetAndGetChildrenError,
