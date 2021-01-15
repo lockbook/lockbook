@@ -727,59 +727,6 @@ impl<
         MyBackend,
     >
 {
-    fn sync(backend: &MyBackend::Db) -> Result<(), SyncError<MyBackend>> {
-        let account = AccountDb::get_account(backend).map_err(SyncError::AccountRetrievalError)?;
-
-        let mut sync_errors: HashMap<Uuid, WorkExecutionError<MyBackend>> = HashMap::new();
-
-        let mut work_calculated =
-            Self::calculate_work(backend).map_err(SyncError::CalculateWorkError)?;
-
-        for _ in 0..10 {
-            // Retry sync n times
-            info!("Syncing");
-
-            for work_unit in work_calculated.work_units {
-                match Self::execute_work(backend, &account, work_unit.clone()) {
-                    Ok(_) => {
-                        debug!("{:#?} executed successfully", work_unit);
-                        sync_errors.remove(&work_unit.get_metadata().id);
-                    }
-                    Err(err) => {
-                        error!("Sync error detected: {:#?} {:#?}", work_unit, err);
-                        sync_errors.insert(work_unit.get_metadata().id, err);
-                    }
-                }
-            }
-
-            if sync_errors.is_empty() {
-                FileMetadataDb::set_last_synced(
-                    backend,
-                    work_calculated.most_recent_update_from_server,
-                )
-                .map_err(SyncError::MetadataUpdateError)?;
-            }
-
-            work_calculated =
-                Self::calculate_work(backend).map_err(SyncError::CalculateWorkError)?;
-
-            if work_calculated.work_units.is_empty() {
-                break;
-            }
-        }
-
-        if sync_errors.is_empty() {
-            FileMetadataDb::set_last_synced(
-                backend,
-                work_calculated.most_recent_update_from_server,
-            )
-            .map_err(SyncError::MetadataUpdateError)?;
-            Ok(())
-        } else {
-            error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
-            Err(SyncError::WorkExecutionError(sync_errors))
-        }
-    }
     fn calculate_work(
         backend: &MyBackend::Db,
     ) -> Result<WorkCalculated, CalculateWorkError<MyBackend>> {
@@ -835,7 +782,6 @@ impl<
             most_recent_update_from_server,
         })
     }
-
     fn execute_work(
         backend: &MyBackend::Db,
         account: &Account,
@@ -848,6 +794,60 @@ impl<
             WorkUnit::ServerChange { mut metadata } => {
                 Self::handle_server_change(backend, &account, &mut metadata)
             }
+        }
+    }
+
+    fn sync(backend: &MyBackend::Db) -> Result<(), SyncError<MyBackend>> {
+        let account = AccountDb::get_account(backend).map_err(SyncError::AccountRetrievalError)?;
+
+        let mut sync_errors: HashMap<Uuid, WorkExecutionError<MyBackend>> = HashMap::new();
+
+        let mut work_calculated =
+            Self::calculate_work(backend).map_err(SyncError::CalculateWorkError)?;
+
+        for _ in 0..10 {
+            // Retry sync n times
+            info!("Syncing");
+
+            for work_unit in work_calculated.work_units {
+                match Self::execute_work(backend, &account, work_unit.clone()) {
+                    Ok(_) => {
+                        debug!("{:#?} executed successfully", work_unit);
+                        sync_errors.remove(&work_unit.get_metadata().id);
+                    }
+                    Err(err) => {
+                        error!("Sync error detected: {:#?} {:#?}", work_unit, err);
+                        sync_errors.insert(work_unit.get_metadata().id, err);
+                    }
+                }
+            }
+
+            if sync_errors.is_empty() {
+                FileMetadataDb::set_last_synced(
+                    backend,
+                    work_calculated.most_recent_update_from_server,
+                )
+                .map_err(SyncError::MetadataUpdateError)?;
+            }
+
+            work_calculated =
+                Self::calculate_work(backend).map_err(SyncError::CalculateWorkError)?;
+
+            if work_calculated.work_units.is_empty() {
+                break;
+            }
+        }
+
+        if sync_errors.is_empty() {
+            FileMetadataDb::set_last_synced(
+                backend,
+                work_calculated.most_recent_update_from_server,
+            )
+            .map_err(SyncError::MetadataUpdateError)?;
+            Ok(())
+        } else {
+            error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
+            Err(SyncError::WorkExecutionError(sync_errors))
         }
     }
 }
