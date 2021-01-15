@@ -34,8 +34,7 @@ pub fn remove(path: &str) {
                     children
                         .into_iter()
                         .filter(|child| child.file_type == FileType::Document)
-                        .collect::<Vec<FileMetadata>>()
-                        .len()
+                        .count()
                 );
                 io::stdout().flush().unwrap();
 
