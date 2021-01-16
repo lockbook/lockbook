@@ -81,7 +81,7 @@ cryptographic operation.
 
 There is an implicit `name`->`public_key` resolution attack vector here -- lockbook servers could lie about what a 
 `username`'s `public_key` is. The only solution to this problem is out of band (ideally in person) verification of 
-`public_key`s. Our process will likely look something [like Signal's][TODO signal-link] except the `username -> public_key` 
+`public_key`s. Our process will likely look something [like Signal's][signal-link] except the `username -> public_key` 
 relationship is immutable within lockbook.
 
 ### Sync
@@ -97,7 +97,7 @@ Clients keep track of what has changed locally. These changes look something lik
 + `Edit(old_checksum, new_checksum)`
 + Etc
 
-When they call `get-updates` they pass the largest `metadata_version` they have. Any files they don't know about (are 
+When they call `get-updates` they pass the largest `metadata_version` (see [sync.md](sync.md) for more details) they have. Any files they don't know about (are 
 new) are resolved trivially, any local changes are pushed up. For files that have changed remotely, and have changed 
 locally, an attempt to merge the changes is made. If you moved a file remotely and renamed it locally there is no 
 conflict. If you have local edits and remote edits, they are merged `git` style. In cases where there's a truly 
@@ -106,7 +106,7 @@ unresolvable conflict (remote and local both rename a file), the server wins.
 All edits are cryptographically signed, and clients verify that they are genuine before altering their local state. 
 [No one should ever be able to impersonate a user of Lockbook.](https://en.wikipedia.org/wiki/2020_Twitter_bitcoin_scam)
 
-The specifics of how `sync` happens can be found in [`sync_service.rs`][sync-service].
+Specifics of how sync handles certain situations can be found in [sync.md](sync.md)
 
 #### Archived Files
 
