@@ -54,44 +54,44 @@
 
                 <ImageButton
                     android:id="@+id/drawing_erase"
-                    style="@style/Main.DrawingImageButton"
+                    style="@style/Main.Widget.DrawingImageButton"
                     android:src="@drawable/ic_eraser_outline"
                     android:contentDescription="@string/handwriting_editor_eraser_description" />
 
                 <ImageButton
                     android:id="@+id/drawing_pen"
-                    style="@style/Main.DrawingImageButton"
+                    style="@style/Main.Widget.DrawingImageButton"
                     android:src="@drawable/ic_pencil_outline"
                     android:contentDescription="@string/handwriting_editor_pen_description" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_white"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/white" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_blue"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_blue_light" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_red"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_red_light" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_green"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_green_light" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_orange"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_orange_light" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_purple"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_purple" />
 
                 <TextView

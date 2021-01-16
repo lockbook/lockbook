@@ -72,7 +72,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             }
             is Err -> when (val error = getDBStateResult.error) {
                 is GetStateError.Unexpected -> {
-                    AlertDialog.Builder(this, R.style.Main_Dialog)
+                    AlertDialog.Builder(this, R.style.Main_Widget_Dialog)
                         .setTitle(UNEXPECTED_ERROR)
                         .setMessage(error.error)
                         .show()
@@ -129,7 +129,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                 migrate_progress_bar.visibility = View.GONE
                                 AlertDialog.Builder(
                                     this@InitialLaunchFigureOuter,
-                                    R.style.Main_Dialog
+                                    R.style.Main_Widget_Dialog
                                 )
                                     .setTitle(UNEXPECTED_ERROR)
                                     .setMessage(error.error)

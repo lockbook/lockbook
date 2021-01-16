@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:id="@+id/create_file_layout"
-    style="@style/Main.Dialog"
+    style="@style/Main.Widget.Dialog"
     android:orientation="vertical">
 
     <TextView
@@ -45,7 +45,6 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:hint="@string/dialog_file_extension"
-            android:text="@string/create_file_dialog_default_extension"
             style="@style/Main.Text.Small"
             android:inputType="text"
             android:layout_weight="0.4"
@@ -78,15 +77,11 @@
         <Button
             android:id="@+id/create_file_cancel"
             style="@style/Main.Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
             android:text="@string/cancel" />
 
         <Button
             android:id="@+id/create_file_create"
             style="@style/Main.Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
             android:text="@string/create_file_create" />
     </LinearLayout>
 
