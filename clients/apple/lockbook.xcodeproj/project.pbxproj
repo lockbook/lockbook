@@ -161,8 +161,8 @@
 			isa = PBXGroup;
 			children = (
 				EA380B242561FAEF0021C4FA /* FileListView.swift */,
-				EA5C7D722516606000F7F358 /* Info.plist */,
 				EA4559BD25169F7D003AD80A /* CodeScannerView.swift */,
+				EA5C7D722516606000F7F358 /* Info.plist */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -170,11 +170,11 @@
 		EA5C7D782516606100F7F358 /* macOS */ = {
 			isa = PBXGroup;
 			children = (
-				8741E91825AD188C005B7B01 /* Assets.xcassets */,
+				8741E8F925ACBCF9005B7B01 /* FileListView.swift */,
 				8741E90E25AD1565005B7B01 /* OutlineView.swift */,
 				EA5C7D792516606100F7F358 /* Info.plist */,
 				EA5C7D7A2516606100F7F358 /* macOS.entitlements */,
-				8741E8F925ACBCF9005B7B01 /* FileListView.swift */,
+				8741E91825AD188C005B7B01 /* Assets.xcassets */,
 			);
 			path = macOS;
 			sourceTree = "<group>";
