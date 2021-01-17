@@ -33,7 +33,7 @@
                         <DataTemplate x:DataType="local:UIFile">
                             <muxc:TreeViewItem 
                                 ItemsSource="{x:Bind Children}" 
-                                IsExpanded="{x:Bind Expanded}" 
+                                IsExpanded="{x:Bind IsExpanded}" 
                                 x:DefaultBindMode="TwoWay"
                                 Tapped="DocumentSelected"
                                 Tag="{x:Bind Id}">
