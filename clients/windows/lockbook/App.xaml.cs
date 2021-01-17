@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.Core;
+using Windows.Storage;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -50,7 +51,7 @@ namespace lockbook {
         public static Core.Account Account { get; set; }
         public static string AccountString { get; set; }
 
-        public static async Task ReloadDbState() {
+        public static async Task ReloadDbStateAndAccount() {
             switch (await CoreService.GetDbState()) {
                 case Core.GetDbState.Success success:
                     DbState = success.dbState;
@@ -59,9 +60,6 @@ namespace lockbook {
                     await new MessageDialog(error.ErrorMessage, "Unexpected error while getting state of local database: " + error.ErrorMessage).ShowAsync();
                     break;
             }
-        }
-
-        public static async Task ReloadAccount() {
             switch (await CoreService.GetAccount()) {
                 case Core.GetAccount.Success success:
                     Account = success.account;
@@ -94,6 +92,11 @@ namespace lockbook {
             }
         }
 
+        public static async Task ClearState() {
+            await ApplicationData.Current.ClearAsync();
+            await ReloadDbStateAndAccount();
+        }
+
         protected override async void OnLaunched(LaunchActivatedEventArgs e)
         {
             Frame ??= new Frame();
@@ -107,14 +110,13 @@ namespace lockbook {
                 CoreService = new CoreService(Windows.Storage.ApplicationData.Current.LocalFolder.Path);
                 await CoreService.InitLoggerSafely();
 
-                await ReloadAccount();
-                await ReloadDbState();
+                await ReloadDbStateAndAccount();
                 if (DbState == Core.DbState.MigrationRequired) {
                     startup.Message = "Updating local data for new app version";
                     await CoreService.MigrateDb();
-                    await ReloadDbState();
+                    await ReloadDbStateAndAccount();
                 }
-                if (DbState == Core.DbState.MigrationRequired) {
+                if (DbState == Core.DbState.StateRequiresClearing) {
                     startup.Working = false;
                     startup.Title = "Error";
                     startup.Message = "We're embarrassed about this, but your local data is corrupted and you need to reinstall Lockbook.";
