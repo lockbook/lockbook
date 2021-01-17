@@ -24,32 +24,49 @@ namespace lockbook {
             }
         }
 
+        private static bool clientUpdateRequired;
+        public static bool ClientUpdateRequired {
+            get {
+                return clientUpdateRequired;
+            }
+            set {
+                clientUpdateRequired = value;
+                (Frame.Content as Startup)?.Refresh();
+                RefreshNavigation();
+            }
+        }
+
         private static Core.DbState dbState;
         public static Core.DbState DbState {
             get {
                 return dbState;
             }
             set {
-                switch (value) {
-                    case Core.DbState.ReadyToUse:
-                        Frame.Navigate(typeof(FileExplorer));
-                        break;
-                    case Core.DbState.Empty:
-                        Frame.Navigate(typeof(SignUp));
-                        break;
-                    case Core.DbState.MigrationRequired:
-                        Frame.Navigate(typeof(Startup));
-                        break;
-                    case Core.DbState.StateRequiresClearing:
-                        Frame.Navigate(typeof(Startup));
-                        break;
-                }
                 dbState = value;
+                (Frame.Content as Startup)?.Refresh();
+                RefreshNavigation();
             }
         }
 
         public static Core.Account Account { get; set; }
         public static string AccountString { get; set; }
+
+        public static void RefreshNavigation() {
+            switch (DbState) {
+                case Core.DbState.ReadyToUse:
+                    Frame.Navigate(typeof(FileExplorer));
+                    break;
+                case Core.DbState.Empty:
+                    Frame.Navigate(typeof(SignUp));
+                    break;
+                case Core.DbState.MigrationRequired:
+                    Frame.Navigate(typeof(Startup));
+                    break;
+                case Core.DbState.StateRequiresClearing:
+                    Frame.Navigate(typeof(Startup));
+                    break;
+            }
+        }
 
         public static async Task ReloadDbStateAndAccount() {
             switch (await CoreService.GetDbState()) {
@@ -92,7 +109,7 @@ namespace lockbook {
             }
         }
 
-        public static async Task ClearState() {
+        public static async Task SignOut() {
             await ApplicationData.Current.ClearAsync();
             await ReloadDbStateAndAccount();
         }
@@ -105,21 +122,14 @@ namespace lockbook {
             if (!e.PrelaunchActivated && Frame.Content == null) {
                 Window.Current.Activate();
                 Frame.Navigate(typeof(Startup));
-                var startup = Frame.Content as Startup;
 
-                CoreService = new CoreService(Windows.Storage.ApplicationData.Current.LocalFolder.Path);
+                CoreService = new CoreService(ApplicationData.Current.LocalFolder.Path);
                 await CoreService.InitLoggerSafely();
 
                 await ReloadDbStateAndAccount();
                 if (DbState == Core.DbState.MigrationRequired) {
-                    startup.Message = "Updating local data for new app version";
                     await CoreService.MigrateDb();
                     await ReloadDbStateAndAccount();
-                }
-                if (DbState == Core.DbState.StateRequiresClearing) {
-                    startup.Working = false;
-                    startup.Title = "Error";
-                    startup.Message = "We're embarrassed about this, but your local data is corrupted and you need to reinstall Lockbook.";
                 }
             }
         }

@@ -132,8 +132,8 @@
                     <TextBox
                         Width="300"
                         x:Name="apiLocationTextBox"
-                        Text="http://localhost:8000"
-                        Header="API Location" />
+                        Text="http://api.lockbook.app:8000"
+                        Header="Server" />
                     <Button
                         Click="CreateAccount"
                         x:Name="createAccountButton"

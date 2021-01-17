@@ -94,8 +94,8 @@ namespace lockbook {
             InitializeComponent();
         }
 
-        private async void ClearStateClicked(object sender, RoutedEventArgs e) {
-            await App.ClearState();
+        private async void SignOutClicked(object sender, RoutedEventArgs e) {
+            await App.SignOut();
         }
 
         private async void NavigationViewLoaded(object sender, RoutedEventArgs e) {
@@ -279,8 +279,11 @@ namespace lockbook {
                         case Core.SyncAll.PossibleErrors.CouldNotReachServer:
                             IsOnline = false;
                             break;
+                        case Core.SyncAll.PossibleErrors.ClientUpdateRequired:
+                            await App.ReloadDbStateAndAccount();
+                            break;
                         case Core.SyncAll.PossibleErrors.NoAccount:
-                            // todo: reset App.Account
+                            await App.ReloadDbStateAndAccount();
                             break;
                         case Core.SyncAll.PossibleErrors.ExecuteWorkError:
                             await new MessageDialog(error.ToString(), "Unexpected Error!").ShowAsync();

@@ -68,8 +68,8 @@
                                             Tag="{x:Bind Id}" />
                                         <MenuFlyoutSeparator />
                                         <MenuFlyoutItem
-                                            Text="Nuke all data"
-                                            Click="ClearStateClicked" />
+                                            Text="Sign out"
+                                            Click="SignOutClicked" />
                                     </MenuFlyout>
                                 </muxc:TreeViewItem.ContextFlyout>
                             </muxc:TreeViewItem>
