@@ -31,8 +31,7 @@ namespace lockbook {
             }
             set {
                 clientUpdateRequired = value;
-                (Frame.Content as Startup)?.Refresh();
-                RefreshNavigation();
+                Refresh();
             }
         }
 
@@ -43,15 +42,15 @@ namespace lockbook {
             }
             set {
                 dbState = value;
-                (Frame.Content as Startup)?.Refresh();
-                RefreshNavigation();
+                Refresh();
             }
         }
 
         public static Core.Account Account { get; set; }
         public static string AccountString { get; set; }
 
-        public static void RefreshNavigation() {
+        public static void Refresh() {
+            (Frame.Content as Startup)?.Refresh();
             switch (DbState) {
                 case Core.DbState.ReadyToUse:
                     Frame.Navigate(typeof(FileExplorer));
@@ -66,6 +65,11 @@ namespace lockbook {
                     Frame.Navigate(typeof(Startup));
                     break;
             }
+        }
+
+        public static async Task SignOut() {
+            await ApplicationData.Current.ClearAsync();
+            await ReloadDbStateAndAccount();
         }
 
         public static async Task ReloadDbStateAndAccount() {
@@ -107,11 +111,6 @@ namespace lockbook {
                     await new MessageDialog(error.ErrorMessage, "Unexpected error while exporting account: " + error.ErrorMessage).ShowAsync();
                     break;
             }
-        }
-
-        public static async Task SignOut() {
-            await ApplicationData.Current.ClearAsync();
-            await ReloadDbStateAndAccount();
         }
 
         protected override async void OnLaunched(LaunchActivatedEventArgs e)
