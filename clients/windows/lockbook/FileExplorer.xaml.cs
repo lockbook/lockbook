@@ -95,8 +95,7 @@ namespace lockbook {
         }
 
         private async void ClearStateClicked(object sender, RoutedEventArgs e) {
-            await ApplicationData.Current.ClearAsync();
-            CoreApplication.Exit();
+            await App.ClearState();
         }
 
         private async void NavigationViewLoaded(object sender, RoutedEventArgs e) {

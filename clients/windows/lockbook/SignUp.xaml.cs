@@ -85,7 +85,7 @@ namespace lockbook {
 
             switch (await App.CoreService.ImportAccount(AccountString)) {
                 case Core.ImportAccount.Success:
-                    await App.ReloadAccount();
+                    await App.ReloadDbStateAndAccount();
                     break;
                 case Core.ImportAccount.UnexpectedError error:
                     await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();
@@ -131,7 +131,7 @@ namespace lockbook {
 
             switch (await App.CoreService.CreateAccount(Username, "http://localhost:8000")) {
                 case Core.CreateAccount.Success:
-                    await App.ReloadAccount();
+                    await App.ReloadDbStateAndAccount();
                     break;
                 case Core.CreateAccount.UnexpectedError error:
                     await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();
