@@ -317,6 +317,7 @@ public class RSAPrivateKey {
         public class Success : IResult { }
         public enum PossibleErrors {
             NoAccount,
+            ClientUpdateRequired,
             CouldNotReachServer,
             ExecuteWorkError,
         }

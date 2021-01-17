@@ -145,8 +145,8 @@ namespace lockbook {
                 case Core.CreateAccount.UnexpectedError error:
                     await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
-                case Core.CreateAccount.ExpectedError expectedError:
-                    switch (expectedError.Error) {
+                case Core.CreateAccount.ExpectedError error:
+                    switch (error.Error) {
                         case Core.CreateAccount.PossibleErrors.InvalidUsername:
                             NewAccountError = "Invalid username!";
                             break;
