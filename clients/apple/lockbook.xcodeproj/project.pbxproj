@@ -12,7 +12,6 @@
 		1F7E4FC525212E5F0045F606 /* ContentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FC425212E5F0045F606 /* ContentEditor.swift */; };
 		1F7E4FC625212E5F0045F606 /* ContentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FC425212E5F0045F606 /* ContentEditor.swift */; };
 		8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
-		8741E8E525AAA524005B7B01 /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		8741E8EC25ACBB21005B7B01 /* FileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* FileCell.swift */; };
 		8741E8FA25ACBCF9005B7B01 /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* FileListView.swift */; };
 		8741E91225AD167B005B7B01 /* OutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E90E25AD1565005B7B01 /* OutlineView.swift */; };
@@ -38,6 +37,7 @@
 		EA831A5A2534E5020048CE26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A592534E5020048CE26 /* SettingsView.swift */; };
 		EA831A5B2534E5020048CE26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A592534E5020048CE26 /* SettingsView.swift */; };
 		EA9079C32569960A00E04F5D /* FileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* FileCell.swift */; };
+		EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		EAB4B50025167AF50071D1CD /* Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* Core.swift */; };
 		EAB4B50125167AF50071D1CD /* Core.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* Core.swift */; };
 		EAB4B5072516924F0071D1CD /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B5062516924F0071D1CD /* OnboardingView.swift */; };
@@ -182,11 +182,11 @@
 		EAC3DA35251ED797009499BA /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				8741E8E325AAA524005B7B01 /* BottomBar.swift */,
 				EA9079C22569960A00E04F5D /* FileCell.swift */,
 				1F7E4FC425212E5F0045F606 /* ContentEditor.swift */,
 				EAC3DA50251FB8ED009499BA /* NotificationButton.swift */,
 				EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */,
-				8741E8E325AAA524005B7B01 /* BottomBar.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -384,7 +384,6 @@
 				EAC3DA52251FB8ED009499BA /* NotificationButton.swift in Sources */,
 				EAEDCD132517193500EBE313 /* EditorView.swift in Sources */,
 				1F7E4FC625212E5F0045F606 /* ContentEditor.swift in Sources */,
-				8741E8E525AAA524005B7B01 /* BottomBar.swift in Sources */,
 				1F7E4FC02521297D0045F606 /* Colors.swift in Sources */,
 				8741E8EC25ACBB21005B7B01 /* FileCell.swift in Sources */,
 				8741E91225AD167B005B7B01 /* OutlineView.swift in Sources */,
@@ -392,6 +391,7 @@
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 				8741E8FA25ACBCF9005B7B01 /* FileListView.swift in Sources */,
+				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
 				8741E92825AD9B02005B7B01 /* LockbookMarkdownConfig.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				EA831A5B2534E5020048CE26 /* SettingsView.swift in Sources */,

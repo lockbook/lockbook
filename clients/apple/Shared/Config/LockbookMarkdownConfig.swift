@@ -44,8 +44,8 @@ let textColor = UIColor.label
 let headingColor = UIColor(red: 0.94, green: 0.51, blue: 0.69, alpha: 1)
 #endif
 
-// HighlightedTextEditor.markdown will only be accessible via [HighlightRule].markdown in a future 2.0.0 breaking release
-// It does not really make any sense to have it here
+/// HighlightedTextEditor.markdown will only be accessible via [HighlightRule].markdown in a future 2.0.0 breaking release
+/// It does not really make any sense to have it here
 public extension HighlightedTextEditor {
     static let markdown: [HighlightRule] = [HighlightRule].markdown
 }

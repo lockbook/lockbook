@@ -1,10 +1,3 @@
-//
-//  FileListView.swift
-//  Lockbook (macOS)
-//
-//  Created by Parth Mehrotra on 1/11/21.
-//
-
 import SwiftUI
 import SwiftLockbookCore
 

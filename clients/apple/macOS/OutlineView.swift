@@ -1,16 +1,12 @@
-//
-//  OutlineView.swift
-//  OutlineView
-//
-//  Created by Toph Allen on 4/13/20.
-//  Copyright © 2020 Toph Allen. All rights reserved.
-//
+///
+/// Ripped from: https://github.com/toph-allen/OutlineView/blob/main/OutlineView/OutlineView.swift
+///
 import Foundation
 import SwiftUI
 import Combine
 import SwiftLockbookCore
 
-// This view handles displaying the contents of each row for its object. Clicking its arrow image also toggles a node's open state.
+/// This view handles displaying the contents of each row for its object. Clicking its arrow image also toggles a node's open state./
 struct OutlineRow: View {
     @ObservedObject var core: Core
     var file: FileMetadata

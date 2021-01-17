@@ -26,7 +26,7 @@ struct FileCell: View {
                     .foregroundColor(.secondary)
             }
         }
-        .contentShape(Rectangle()) // https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
+        .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }
 
