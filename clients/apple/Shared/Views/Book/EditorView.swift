@@ -35,6 +35,7 @@ struct EditorLoader: View {
     @ObservedObject var content: Content
     @State var editorContent: String = ""
     @State var title: String = ""
+    @Environment(\.colorScheme) var colorScheme
     
     var deleted: Bool {
         core.files.filter({$0.id == meta.id}).isEmpty
@@ -58,18 +59,26 @@ struct EditorLoader: View {
             }
             
             if content.status == .WriteSuccess {
-                Image(systemName: "externaldrive.fill.badge.checkmark")
-                    .foregroundColor(.green)
-                    .padding(.top, 2.0)
-                    .padding(.trailing, 20)
-                    .opacity(0.5)
-                    .animation(.easeInOut(duration: 0.5))
-                    .onAppear(perform: {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
+                ZStack {
+                    Rectangle()
+                        .foregroundColor(.textEditorBackground(isDark: colorScheme == .dark))
+                        .frame(width: 30, height: 30, alignment: .center)
+                        .cornerRadius(5)
+                        .opacity(0.9)
+                    Image(systemName: "externaldrive.fill.badge.checkmark")
+                        .foregroundColor(.green)
+                        .opacity(0.5)
+                }
+                .padding(.top, 2.0)
+                .padding(.trailing, 20)
+                .animation(.easeInOut(duration: 0.5))
+                .onAppear(perform: {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
+                        withAnimation {
                             content.status = .Inactive
-                        })
+                        }
                     })
-                
+                })
             }
         }
         .navigationTitle(meta.name)
@@ -173,5 +182,6 @@ struct EditorView_Previews: PreviewProvider {
         NavigationView {
             EditorLoader(core: Core(), meta: FakeApi().fileMetas[0])
         }
+        .preferredColorScheme(.dark)
     }
 }
