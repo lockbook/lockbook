@@ -125,8 +125,9 @@ struct BottomBar: View {
         #else
         Divider()
         statusText
+            .padding(4)
         syncButton
-            .padding(.bottom, 4)
+            .padding(.bottom, 7)
         #endif
     }
 
