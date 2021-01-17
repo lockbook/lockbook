@@ -18,6 +18,15 @@ namespace lockbook {
             }
         }
 
+        public string APILocation {
+            get {
+                return apiLocationTextBox.Text;
+            }
+            set {
+                apiLocationTextBox.Text = value;
+            }
+        }
+
         public string AccountString {
             get {
                 return accountStringTextBox.Text;
@@ -129,7 +138,7 @@ namespace lockbook {
             ButtonsEnabled = false;
             NewAccountWorking = true;
 
-            switch (await App.CoreService.CreateAccount(Username, "http://localhost:8000")) {
+            switch (await App.CoreService.CreateAccount(Username, APILocation)) {
                 case Core.CreateAccount.Success:
                     await App.ReloadDbStateAndAccount();
                     break;

@@ -128,7 +128,12 @@
                     <TextBox
                         Width="300"
                         x:Name="usernameTextBox"
-                        Header="Select a Username" />
+                        Header="Username" />
+                    <TextBox
+                        Width="300"
+                        x:Name="apiLocationTextBox"
+                        Text="http://localhost:8000"
+                        Header="API Location" />
                     <Button
                         Click="CreateAccount"
                         x:Name="createAccountButton"
