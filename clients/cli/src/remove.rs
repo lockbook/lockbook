@@ -11,7 +11,7 @@ use lockbook_core::{
 use crate::utils::{exit_with, get_account_or_exit, get_config};
 use crate::{COULD_NOT_DELETE_ROOT, DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, UNEXPECTED_ERROR};
 
-pub fn remove(path: &str) {
+pub fn remove(path: &str, force: bool) {
     get_account_or_exit();
     let config = get_config();
 
@@ -26,7 +26,7 @@ pub fn remove(path: &str) {
         },
     };
 
-    if meta.file_type == FileType::Folder {
+    if meta.file_type == FileType::Folder && !force {
         match get_and_get_children_recursively(&config, meta.id) {
             Ok(children) => {
                 print!(
