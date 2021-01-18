@@ -38,15 +38,13 @@ namespace lockbook {
             } else {
                 switch (App.DbState) {
                     case Core.DbState.ReadyToUse:
-                        // navigated to file explorer
-                        Working = false;
-                        Title = "";
+                        Working = true;
+                        Title = "Loading";
                         Message = "";
                         break;
                     case Core.DbState.Empty:
-                        // navigated to sign up
-                        Working = false;
-                        Title = "";
+                        Working = true;
+                        Title = "Loading";
                         Message = "";
                         break;
                     case Core.DbState.MigrationRequired:

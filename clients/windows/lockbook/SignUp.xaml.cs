@@ -116,17 +116,36 @@ namespace lockbook {
                         case Core.ImportAccount.PossibleErrors.UsernamePKMismatch:
                             ImportAccountError = "This username does not correspond to the public key in this account_string!";
                             break;
+                        case Core.ImportAccount.PossibleErrors.ClientUpdateRequired:
+                            ImportAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
+                            break;
                     };
                     break;
             }
 
-            var syncResult = await App.CoreService.SyncAll();
-            switch (syncResult) {
+            switch (await App.CoreService.SyncAll()) {
                 case Core.SyncAll.Success:
-                    Frame.Navigate(typeof(FileExplorer));
                     break;
-                default:
-                    await new MessageDialog(syncResult.ToString(), "Unhandled Error!").ShowAsync(); // TODO
+                case Core.SyncAll.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+                case Core.SyncAll.ExpectedError error:
+                    switch (error.Error) {
+                        case Core.SyncAll.PossibleErrors.CouldNotReachServer:
+                            // When in doubt, sign out
+                            await App.SignOut();
+                            App.Refresh();
+                            break;
+                        case Core.SyncAll.PossibleErrors.ClientUpdateRequired:
+                            ImportAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
+                            break;
+                        case Core.SyncAll.PossibleErrors.NoAccount:
+                            ImportAccountError = "Successfully imported account but failed to load it. Try restarting the app. If the problem persists, please file a bug report.";
+                            break;
+                        case Core.SyncAll.PossibleErrors.ExecuteWorkError:
+                            await new MessageDialog(error.ToString(), "Unexpected Error!").ShowAsync();
+                            break;
+                    }
                     break;
             }
 
@@ -158,6 +177,9 @@ namespace lockbook {
                             break;
                         case Core.CreateAccount.PossibleErrors.AccountExistsAlready:
                             NewAccountError = "An account exists already!";
+                            break;
+                        case Core.CreateAccount.PossibleErrors.ClientUpdateRequired:
+                            NewAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
                             break;
                     }
                     break;

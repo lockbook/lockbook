@@ -4,9 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using Windows.ApplicationModel.Core;
 using Windows.ApplicationModel.DataTransfer;
-using Windows.Storage;
 using Windows.UI.Popups;
 using Windows.UI.Text;
 using Windows.UI.Xaml;
@@ -42,16 +40,6 @@ namespace lockbook {
 
     public sealed partial class FileExplorer : Page {
         public string SelectedDocumentId { get; set; } = "";
-        private bool isOnline;
-        public bool IsOnline {
-            get {
-                return isOnline;
-            }
-            set {
-                isOnline = value;
-                RefreshSyncTextAndGlyph();
-            }
-        }
         private int itemsToSync;
         public int ItemsToSync {
             get {
@@ -59,7 +47,7 @@ namespace lockbook {
             }
             set {
                 itemsToSync = value;
-                RefreshSyncTextAndGlyph();
+                Refresh();
             }
         }
         public bool SyncWorking {
@@ -68,7 +56,7 @@ namespace lockbook {
             }
             set {
                 syncContainer.IsEnabled = !value;
-                RefreshSyncTextAndGlyph();
+                Refresh();
             }
         }
 
@@ -77,17 +65,6 @@ namespace lockbook {
         public const string offlineGlyph = "\uF384";
 
         ObservableCollection<UIFile> Files = new ObservableCollection<UIFile>();
-        Dictionary<string, UIFile> uiFiles = new Dictionary<string, UIFile>();
-        Dictionary<string, UIFile> UIFiles {
-            get {
-                return uiFiles;
-            }
-            set {
-                uiFiles = value;
-                Files.Clear();
-                Files.Add(UIFiles.FirstOrDefault(kvp => kvp.Value.IsRoot).Value);
-            }
-        }
         Dictionary<string, int> keyStrokeCount = new Dictionary<string, int>();
 
         public FileExplorer() {
@@ -113,7 +90,7 @@ namespace lockbook {
         public async Task RefreshCalculatedWork() {
             switch (await App.CoreService.CalculateWork()) {
                 case Core.CalculateWork.Success success:
-                    IsOnline = true;
+                    App.IsOnline = true;
                     itemsToSync = success.workCalculated.workUnits.Count;
                     break;
                 case Core.CalculateWork.UnexpectedError uhOh:
@@ -122,19 +99,22 @@ namespace lockbook {
                 case Core.CalculateWork.ExpectedError error:
                     switch (error.Error) {
                         case Core.CalculateWork.PossibleErrors.CouldNotReachServer:
-                            IsOnline = false;
+                            App.IsOnline = false;
                             break;
-                        default:
-                            System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + error.Error);
+                        case Core.CalculateWork.PossibleErrors.ClientUpdateRequired:
+                            App.ClientUpdateRequired = true;
+                            App.Refresh();
                             break;
-
+                        case Core.CalculateWork.PossibleErrors.NoAccount:
+                            await App.ReloadDbStateAndAccount();
+                            break;
                     }
                     break;
             }
         }
 
-        public void RefreshSyncTextAndGlyph() {
-            if(!IsOnline) {
+        public void Refresh() {
+            if(!App.IsOnline) {
                 syncIcon.Glyph = offlineGlyph;
                 syncText.Text = "Offline";
             }
@@ -152,6 +132,9 @@ namespace lockbook {
                 syncIcon.Glyph = syncGlyph;
                 syncText.Text = ItemsToSync + " items need to be synced";
             }
+
+            Files.Clear();
+            Files.Add(App.UIFiles.FirstOrDefault(kvp => kvp.Value.IsRoot).Value);
         }
 
         private async Task ReloadFiles() {
@@ -175,7 +158,7 @@ namespace lockbook {
             }
             PopulateTreeRecursive(files, newUIFiles, root);
             newUIFiles[root.Id].IsRoot = true;
-            foreach (var f in UIFiles) {
+            foreach (var f in App.UIFiles) {
                 if (f.Value.IsExpanded) {
                     if (newUIFiles.TryGetValue(f.Key, out var newUIFile)) {
                         newUIFile.IsExpanded = true;
@@ -184,7 +167,7 @@ namespace lockbook {
             }
             Files.Clear();
             Files.Add(newUIFiles[root.Id]);
-            UIFiles = newUIFiles;
+            App.UIFiles = newUIFiles;
         }
 
         private void PopulateTreeRecursive(List<FileMetadata> files, Dictionary<string, UIFile> tree, FileMetadata file) {
@@ -267,7 +250,7 @@ namespace lockbook {
             SyncWorking = true;
             switch (await App.CoreService.SyncAll()) {
                 case Core.SyncAll.Success:
-                    IsOnline = true;
+                    App.IsOnline = true;
                     await ReloadFiles();
                     await RefreshCalculatedWork();
                     break;
@@ -277,10 +260,11 @@ namespace lockbook {
                 case Core.SyncAll.ExpectedError error:
                     switch (error.Error) {
                         case Core.SyncAll.PossibleErrors.CouldNotReachServer:
-                            IsOnline = false;
+                            App.IsOnline = false;
                             break;
                         case Core.SyncAll.PossibleErrors.ClientUpdateRequired:
-                            await App.ReloadDbStateAndAccount();
+                            App.ClientUpdateRequired = true;
+                            App.Refresh();
                             break;
                         case Core.SyncAll.PossibleErrors.NoAccount:
                             await App.ReloadDbStateAndAccount();
@@ -414,7 +398,7 @@ namespace lockbook {
 
         private async void DocumentSelected(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
             string tag = (string)((FrameworkElement)sender).Tag;
-            var file = UIFiles[tag];
+            var file = App.UIFiles[tag];
 
             if (file.IsDocument) {
                 SelectedDocumentId = tag;
@@ -452,10 +436,10 @@ namespace lockbook {
                 string text;
                 editor.TextDocument.GetText(TextGetOptions.UseLf, out text);
 
-                // Only save the document if no keystrokes have happened in the last 1 second
+                // Only save the document if no keystrokes have happened in the last .5 seconds
                 keyStrokeCount[docID]++;
                 var current = keyStrokeCount[docID];
-                await Task.Delay(750);
+                await Task.Delay(500);
                 if (current != keyStrokeCount[docID]) {
                     return;
                 }
@@ -464,6 +448,7 @@ namespace lockbook {
 
                 switch (result) {
                     case Core.WriteDocument.Success:
+                        await RefreshCalculatedWork();
                         break;
                     case Core.WriteDocument.UnexpectedError uhOh:
                         await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();

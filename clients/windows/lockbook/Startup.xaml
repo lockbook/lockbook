@@ -42,14 +42,12 @@
                     <TextBlock
                         x:Name="TitleTextBlock"
                         Grid.Row="0"
-                        Text="Getting Ready"
                         Style="{StaticResource HeaderTextBlockStyle}"
                         HorizontalAlignment="Center">
                     </TextBlock>
                     <TextBlock
                         Grid.Row="0"
                         x:Name="MessageTextBlock"
-                        Text="Reading local state"
                         Style="{StaticResource SubtitleTextBlockStyle}"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center">

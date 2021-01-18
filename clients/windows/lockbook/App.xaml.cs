@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.Core;
@@ -24,6 +26,17 @@ namespace lockbook {
             }
         }
 
+        private static bool isOnline;
+        public static bool IsOnline {
+            get {
+                return isOnline;
+            }
+            set {
+                isOnline = value;
+                Refresh();
+            }
+        }
+
         private static bool clientUpdateRequired;
         public static bool ClientUpdateRequired {
             get {
@@ -46,25 +59,45 @@ namespace lockbook {
             }
         }
 
+        private static Dictionary<string, UIFile> uiFiles = new Dictionary<string, UIFile>();
+        public static Dictionary<string, UIFile> UIFiles {
+            get {
+                return uiFiles;
+            }
+            set {
+                uiFiles = value;
+                Refresh();
+            }
+        }
+
         public static Core.Account Account { get; set; }
         public static string AccountString { get; set; }
 
         public static void Refresh() {
-            (Frame.Content as Startup)?.Refresh();
-            switch (DbState) {
-                case Core.DbState.ReadyToUse:
-                    Frame.Navigate(typeof(FileExplorer));
-                    break;
-                case Core.DbState.Empty:
-                    Frame.Navigate(typeof(SignUp));
-                    break;
-                case Core.DbState.MigrationRequired:
-                    Frame.Navigate(typeof(Startup));
-                    break;
-                case Core.DbState.StateRequiresClearing:
-                    Frame.Navigate(typeof(Startup));
-                    break;
+            Type targetType = typeof(Startup);
+            if (ClientUpdateRequired) {
+                targetType = typeof(Startup);
+            } else {
+                switch (DbState) {
+                    case Core.DbState.ReadyToUse:
+                        targetType = typeof(FileExplorer);
+                        break;
+                    case Core.DbState.Empty:
+                        targetType = typeof(SignUp);
+                        break;
+                    case Core.DbState.MigrationRequired:
+                        targetType = typeof(Startup);
+                        break;
+                    case Core.DbState.StateRequiresClearing:
+                        targetType = typeof(Startup);
+                        break;
+                }
             }
+            if (Frame.Content.GetType() != targetType) {
+                Frame.Navigate(targetType);
+            }
+            (Frame.Content as Startup)?.Refresh();
+            (Frame.Content as FileExplorer)?.Refresh();
         }
 
         public static async Task SignOut() {
