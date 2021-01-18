@@ -4,6 +4,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -52,7 +53,7 @@ namespace lockbook {
         private static extern IntPtr create_file_at_path(string writeable_path, string path_and_name);
 
         [DllImport("lockbook_core")]
-        private static extern IntPtr write_document(string writeable_path, string id, string content);
+        private static extern IntPtr write_document(string writeable_path, string id, IntPtr content);
 
         [DllImport("lockbook_core")]
         private static extern IntPtr create_file(string writeable_path, string name, string parent, string file_type);
@@ -103,10 +104,19 @@ namespace lockbook {
         private static extern IntPtr get_usage(string writeable_path);
 
         private static string getStringAndRelease(IntPtr pointer) {
-            string temp_string = Marshal.PtrToStringAnsi(pointer);
-            string IResult = (string)temp_string.Clone();
+            // Simplify to the commented code below when UWP supports .NET Standard 2.1
+            // var result = Marshal.PtrToStringUTF8(pointer);
+            // release_pointer(pointer);
+            // return result;
+
+            // https://stackoverflow.com/a/54745272
+            int len = 0;
+            while (Marshal.ReadByte(pointer, len) != 0) { ++len; }
+            byte[] buffer = new byte[len];
+            Marshal.Copy(pointer, buffer, 0, buffer.Length);
+            var result = Encoding.UTF8.GetString(buffer);
             release_pointer(pointer);
-            return IResult;
+            return result;
         }
 
         public async Task<bool> AccountExists() {
@@ -217,9 +227,19 @@ namespace lockbook {
         }
 
         public async Task<Core.WriteDocument.IResult> WriteDocument(string id, string content) {
-            return await FFICommon<Core.WriteDocument.IResult, Core.WriteDocument.ExpectedError, Core.WriteDocument.PossibleErrors, Core.WriteDocument.UnexpectedError>(
-                () => write_document(path, id, content),
+            // todo: correct string encodings everywhere (it's a miracle that this thing is working)
+            var bytes = Encoding.UTF8.GetBytes(content);
+
+            var unmanagedPointer = Marshal.AllocHGlobal(bytes.Length);
+            Marshal.Copy(bytes, 0, unmanagedPointer, bytes.Length);
+
+            var result = await FFICommon<Core.WriteDocument.IResult, Core.WriteDocument.ExpectedError, Core.WriteDocument.PossibleErrors, Core.WriteDocument.UnexpectedError>(
+                () => write_document(path, id, unmanagedPointer),
                 s => new Core.WriteDocument.Success());
+
+            Marshal.FreeHGlobal(unmanagedPointer);
+
+            return result;
         }
 
         public async Task<Core.CreateFile.IResult> CreateFile(string name, string parent, FileType ft) {
