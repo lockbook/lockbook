@@ -12,7 +12,7 @@
 
         <TextView
             android:id="@+id/debug_text"
-            style="@style/Text.Small"
+            style="@style/Main.Text.Small"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@null"

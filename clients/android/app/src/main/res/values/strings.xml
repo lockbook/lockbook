@@ -174,6 +174,11 @@
     <string name="create_file_hint_folder">Folder name</string>
     <string name="create_file_hint_document">Document name</string>
     <string name="create_file_hint_drawing">Drawing name</string>
+    <string name="handwriting_editor_eraser_description">Eraser</string>
+    <string name="handwriting_editor_pen_description">Pen</string>
+    <string name="handwriting_editor_pen_small_description">Small</string>
+    <string name="handwriting_editor_pen_medium_description">Medium</string>
+    <string name="handwriting_editor_pen_large_description">Large</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>
