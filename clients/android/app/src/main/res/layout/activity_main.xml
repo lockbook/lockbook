@@ -26,15 +26,11 @@
     <Button
         android:id="@+id/welcome_new_lockbook"
         style="@style/Main.Button.Borderless.Colored"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:layout_marginBottom="15dp"
         android:text="@string/lockbook_new_account" />
 
     <Button
         android:id="@+id/welcome_import_lockbook"
         style="@style/Main.Button.Borderless.Colored"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:text="@string/lockbook_import" />
 </LinearLayout>

@@ -1,37 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/handwriting_editor_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <LinearLayout
-        android:id="@+id/handwriting_editor_layout"
+    <ProgressBar
+        android:id="@+id/handwriting_editor_progress_bar"
+        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_gravity="center"
-        android:orientation="vertical"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:minHeight="20dp"
+        android:visibility="gone"
+        android:background="@color/black"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <app.lockbook.ui.HandwritingEditorView
+        android:id="@+id/handwriting_editor"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toBottomOf="@+id/handwriting_editor_progress_bar" />
 
-        <ProgressBar
-            android:id="@+id/handwriting_editor_progress_bar"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="-4dp"
-            android:layout_marginBottom="-8dp"
-            android:indeterminate="true"
-            android:minHeight="20dp"
-            android:visibility="gone" />
-
-        <app.lockbook.ui.HandwritingEditorView
-            android:id="@+id/handwriting_editor"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
-    </LinearLayout>
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:translationZ="-1dp"
+        android:background="@color/drawingUntouchableBackground" />
 
     <FrameLayout
         android:id="@+id/handwriting_editor_frame_layout"
@@ -54,44 +54,44 @@
 
                 <ImageButton
                     android:id="@+id/drawing_erase"
-                    style="@style/Main.DrawingImageButton"
+                    style="@style/Main.Widget.DrawingImageButton"
                     android:src="@drawable/ic_eraser_outline"
                     android:contentDescription="@string/handwriting_editor_eraser_description" />
 
                 <ImageButton
                     android:id="@+id/drawing_pen"
-                    style="@style/Main.DrawingImageButton"
+                    style="@style/Main.Widget.DrawingImageButton"
                     android:src="@drawable/ic_pencil_outline"
                     android:contentDescription="@string/handwriting_editor_pen_description" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_white"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/white" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_blue"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_blue_light" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_red"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_red_light" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_green"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_green_light" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_orange"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_orange_light" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_purple"
-                    style="@style/Main.DrawingButton"
+                    style="@style/Main.Widget.DrawingButton"
                     app:backgroundTint="@android:color/holo_purple" />
 
                 <TextView
