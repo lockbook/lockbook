@@ -6,10 +6,10 @@ mod get_usage_tests {
     use lockbook_core::model::file_metadata::FileType;
     use lockbook_core::model::file_metadata::FileType::Folder;
     use lockbook_core::repo::document_repo::DocumentRepo;
-    use lockbook_core::storage::db_provider::{Backend, FileBackend};
+    use lockbook_core::storage::db_provider::Backend;
     use lockbook_core::{
         create_account, create_file, delete_file, get_root, get_usage, init_logger, sync_all,
-        write_document, DefaultDocumentRepo,
+        write_document, DefaultBackend, DefaultDocumentRepo,
     };
     use std::path::Path;
 
@@ -36,7 +36,7 @@ mod get_usage_tests {
         sync_all(config).unwrap();
 
         let local_encrypted = {
-            let backend = FileBackend::connect_to_db(config).unwrap();
+            let backend = DefaultBackend::connect_to_db(config).unwrap();
             DefaultDocumentRepo::get(&backend, file.id).unwrap().value
         };
 
@@ -98,7 +98,7 @@ mod get_usage_tests {
         sync_all(config).unwrap();
 
         let local_encrypted = {
-            let backend = FileBackend::connect_to_db(config).unwrap();
+            let backend = DefaultBackend::connect_to_db(config).unwrap();
             DefaultDocumentRepo::get(&backend, file.id).unwrap().value
         };
 
