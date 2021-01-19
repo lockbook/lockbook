@@ -82,13 +82,6 @@ class ListFilesFragment : Fragment() {
             listFilesViewModel.onSwipeToRefresh()
         }
 
-        listFilesViewModel.setToolbarTitle.observe(
-            viewLifecycleOwner,
-            { toolbarTitle ->
-                setToolbarTitle(toolbarTitle)
-            }
-        )
-
         listFilesViewModel.files.observe(
             viewLifecycleOwner,
             { files ->
@@ -451,14 +444,6 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-    private fun setToolbarTitle(title: String) {
-        if (activity is ListFilesActivity) {
-            (activity as ListFilesActivity).setToolbarTitle(title)
-        } else {
-            errorHasOccurred(fragment_list_files, UNEXPECTED_CLIENT_ERROR)
-        }
-    }
-
     private fun navigateToHandwritingEditor(editableFile: EditableFile) {
         val intent = Intent(context, HandwritingEditorActivity::class.java)
         intent.putExtra("name", editableFile.name)
@@ -471,7 +456,7 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(requireContext(), R.style.Main_Dialog)
+        AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
             .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
             .show()

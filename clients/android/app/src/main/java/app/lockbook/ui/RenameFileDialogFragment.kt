@@ -150,7 +150,7 @@ class RenameFileDialogFragment : DialogFragment() {
 
     private suspend fun unexpectedErrorHasOccurred(error: String) {
         withContext(Dispatchers.Main) {
-            AlertDialog.Builder(requireContext(), R.style.Main_Dialog)
+            AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
                 .setTitle(Messages.UNEXPECTED_ERROR)
                 .setMessage(error)
                 .setOnCancelListener {

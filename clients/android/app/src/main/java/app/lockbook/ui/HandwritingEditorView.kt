@@ -10,6 +10,7 @@ import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
+import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
 import kotlin.math.pow
@@ -29,10 +30,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     var isTouchable = false
 
     // Current drawing stroke state
-    private val activePaint = Paint()
-    private val lastPoint = PointF()
-    private val activePath = Path()
+    private val strokePaint = Paint()
     private val bitmapPaint = Paint()
+    private val backgroundPaint = Paint()
+    private val lastPoint = PointF()
+    private val strokePath = Path()
 
     // Scaling and Viewport state
     private val viewPort = Rect()
@@ -108,14 +110,19 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         )
 
     init {
-        activePaint.isAntiAlias = true
-        activePaint.style = Paint.Style.STROKE
-        activePaint.strokeJoin = Paint.Join.ROUND
-        activePaint.color = Color.WHITE
-        activePaint.strokeCap = Paint.Cap.ROUND
+        setUpPaint()
+    }
+    private fun setUpPaint() {
+        strokePaint.isAntiAlias = true
+        strokePaint.style = Paint.Style.STROKE
+        strokePaint.strokeJoin = Paint.Join.ROUND
+        strokePaint.color = Color.WHITE
+        strokePaint.strokeCap = Paint.Cap.ROUND
 
         bitmapPaint.strokeCap = Paint.Cap.ROUND
         bitmapPaint.strokeJoin = Paint.Join.ROUND
+
+        backgroundPaint.style = Paint.Style.FILL
     }
 
     private fun render(canvas: Canvas) {
@@ -129,17 +136,22 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             drawingModel.currentView.transformation.translation.x,
             drawingModel.currentView.transformation.translation.y
         )
-        canvas.drawColor(
-            Color.TRANSPARENT,
-            PorterDuff.Mode.CLEAR
+
+        backgroundPaint.color = ResourcesCompat.getColor(
+            App.instance.resources,
+            R.color.drawingUntouchableBackground,
+            App.instance.theme
         )
+
+        canvas.drawPaint(backgroundPaint)
+        backgroundPaint.color = Color.BLACK
+        canvas.drawRect(Rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT), backgroundPaint)
         canvas.drawBitmap(canvasBitmap, 0f, 0f, bitmapPaint)
         canvas.restore()
     }
 
     private fun initializeCanvasesAndBitmaps() {
         canvasBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
-
         tempCanvas = Canvas(canvasBitmap)
     }
 
@@ -148,7 +160,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         currentPaint.color = Color.WHITE
         currentPaint.strokeWidth = 10f
         currentPaint.style = Paint.Style.STROKE
-        tempCanvas.drawRect(Rect(0, 0, tempCanvas.width, tempCanvas.height), currentPaint)
 
         currentPaint.isAntiAlias = true
         currentPaint.strokeJoin = Paint.Join.ROUND
@@ -161,20 +172,20 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 var pointIndex = 3
                 while (pointIndex < event.stroke.points.size) {
                     currentPaint.strokeWidth = event.stroke.points[pointIndex - 3]
-                    activePath.moveTo(
+                    strokePath.moveTo(
                         event.stroke.points[pointIndex - 2],
                         event.stroke.points[pointIndex - 1]
                     )
-                    activePath.lineTo(
+                    strokePath.lineTo(
                         event.stroke.points[pointIndex + 1],
                         event.stroke.points[pointIndex + 2]
                     )
-                    tempCanvas.drawPath(activePath, currentPaint)
-                    activePath.reset()
+                    tempCanvas.drawPath(strokePath, currentPaint)
+                    strokePath.reset()
                     pointIndex += 3
                 }
 
-                activePath.reset()
+                strokePath.reset()
             }
         }
 
@@ -263,7 +274,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point.x, point.y)
-        val penPath = Stroke(activePaint.color)
+        val penPath = Stroke(strokePaint.color)
         penPath.points.add(pressure)
         penPath.points.add(point.x)
         penPath.points.add(point.y)
@@ -377,20 +388,20 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun lineTo(point: PointF, pressure: Float) {
-        activePaint.strokeWidth = pressure
-        activePath.moveTo(
+        strokePaint.strokeWidth = pressure
+        strokePath.moveTo(
             lastPoint.x,
             lastPoint.y
         )
 
-        activePath.lineTo(
+        strokePath.lineTo(
             point.x,
             point.y
         )
 
-        tempCanvas.drawPath(activePath, activePaint)
+        tempCanvas.drawPath(strokePath, strokePaint)
 
-        activePath.reset()
+        strokePath.reset()
         lastPoint.set(point.x, point.y)
         for (eventIndex in drawingModel.events.size - 1 downTo 0) {
             val currentEvent = drawingModel.events[eventIndex].stroke
@@ -409,7 +420,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             colorId,
             App.instance.theme
         )
-        activePaint.color = color
+        strokePaint.color = color
     }
 
     fun endThread() {

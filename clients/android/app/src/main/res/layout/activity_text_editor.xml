@@ -13,7 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="?attr/actionBarSize"
-        android:theme="@style/Main.Actionbar"
+        android:theme="@style/Main.Widget.Actionbar"
         app:layout_constraintTop_toTopOf="parent"
         tools:layout_editor_absoluteX="5dp" />
 
@@ -59,7 +59,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                style="@style/Main.RegularImageButton"
+                style="@style/Main.Widget.RegularImageButton"
                 android:contentDescription="@string/menu_markdown_title"
                 android:src="@drawable/ic_baseline_title_24" />
 
@@ -68,7 +68,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                style="@style/Main.RegularImageButton"
+                style="@style/Main.Widget.RegularImageButton"
                 android:contentDescription="@string/menu_markdown_bold"
                 android:src="@drawable/ic_baseline_format_bold_24" />
 
@@ -78,7 +78,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
                 android:contentDescription="@string/menu_markdown_italics"
-                style="@style/Main.RegularImageButton"
+                style="@style/Main.Widget.RegularImageButton"
                 android:src="@drawable/ic_baseline_format_italic_24" />
 
             <ImageButton
@@ -87,7 +87,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
                 android:contentDescription="@string/menu_markdown_image"
-                style="@style/Main.RegularImageButton"
+                style="@style/Main.Widget.RegularImageButton"
                 android:src="@drawable/ic_baseline_image_24" />
 
             <ImageButton
@@ -96,7 +96,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
                 android:contentDescription="@string/menu_markdown_link"
-                style="@style/Main.RegularImageButton"
+                style="@style/Main.Widget.RegularImageButton"
                 android:src="@drawable/ic_baseline_link_24" />
 
             <ImageButton
@@ -104,7 +104,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                style="@style/Main.RegularImageButton"
+                style="@style/Main.Widget.RegularImageButton"
                 android:contentDescription="@string/menu_markdown_code"
                 android:src="@drawable/ic_baseline_code_24" />
 
