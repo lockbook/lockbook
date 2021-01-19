@@ -21,11 +21,11 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/DarkBlue">
+        android:theme="@style/Main">
         <activity
             android:name=".screen.InitialLaunchFigureOuter"
             android:noHistory="true"
-            android:theme="@style/DarkBlue.NoActionBar">
+            android:theme="@style/Main.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -33,16 +33,16 @@
         </activity>
         <activity
             android:name=".screen.WelcomeActivity"
-            android:theme="@style/DarkBlue.NoActionBar" />
+            android:theme="@style/Main.NoActionBar" />
         <activity
             android:name=".screen.NewAccountActivity"
-            android:theme="@style/DarkBlue.NoActionBar" />
+            android:theme="@style/Main.NoActionBar" />
         <activity
             android:name=".screen.ImportAccountActivity"
-            android:theme="@style/DarkBlue.NoActionBar" />
+            android:theme="@style/Main.NoActionBar" />
         <activity
             android:name=".screen.HandwritingEditorActivity"
-            android:theme="@style/DarkBlue.NoActionBar" />
+            android:theme="@style/Main.FullScreen" />
         <activity android:name=".screen.ListFilesActivity" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.TextEditorActivity" />
