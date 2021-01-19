@@ -244,7 +244,7 @@ class CreateFileDialogFragment : DialogFragment() {
 
     private suspend fun unexpectedErrorHasOccurred(error: String) {
         withContext(Dispatchers.Main) {
-            AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+            AlertDialog.Builder(requireContext(), R.style.Main_Dialog)
                 .setTitle(Messages.UNEXPECTED_ERROR)
                 .setMessage(error)
                 .setOnCancelListener {

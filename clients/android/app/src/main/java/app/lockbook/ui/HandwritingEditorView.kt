@@ -8,7 +8,8 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
-import app.lockbook.R
+import androidx.core.content.res.ResourcesCompat
+import app.lockbook.App
 import app.lockbook.util.*
 import app.lockbook.util.Point
 import kotlin.math.pow
@@ -20,8 +21,10 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     var drawingModel: Drawing = Drawing()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
+    private var erasePoints = Pair(PointF(-1f, -1f), PointF(-1f, -1f))
     private var thread = Thread(this)
     private var isThreadRunning = false
+    private var penSizeMultiplier = 7
     var isErasing = false
     var isTouchable = false
 
@@ -37,6 +40,17 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private var modelFocusPoint = PointF()
     private var driftWhileScalingX = 0f
     private var driftWhileScalingY = 0f
+
+    enum class PenSize {
+        SMALL,
+        MEDIUM,
+        LARGE
+    }
+
+    enum class Tool {
+        PEN,
+        ERASER
+    }
 
     private val scaleGestureDetector =
         ScaleGestureDetector(
@@ -144,21 +158,19 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             if (event.stroke is Stroke) {
                 currentPaint.color = event.stroke.color
 
-                var pointIndex = 0
+                var pointIndex = 3
                 while (pointIndex < event.stroke.points.size) {
-                    if (pointIndex != 0) {
-                        currentPaint.strokeWidth = event.stroke.points[pointIndex - 3]
-                        activePath.moveTo(
-                            event.stroke.points[pointIndex - 2],
-                            event.stroke.points[pointIndex - 1]
-                        )
-                        activePath.lineTo(
-                            event.stroke.points[pointIndex + 1],
-                            event.stroke.points[pointIndex + 2]
-                        )
-                        tempCanvas.drawPath(activePath, currentPaint)
-                        activePath.reset()
-                    }
+                    currentPaint.strokeWidth = event.stroke.points[pointIndex - 3]
+                    activePath.moveTo(
+                        event.stroke.points[pointIndex - 2],
+                        event.stroke.points[pointIndex - 1]
+                    )
+                    activePath.lineTo(
+                        event.stroke.points[pointIndex + 1],
+                        event.stroke.points[pointIndex + 2]
+                    )
+                    tempCanvas.drawPath(activePath, currentPaint)
+                    activePath.reset()
                     pointIndex += 3
                 }
 
@@ -233,8 +245,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val pressure = compressPressure(event.pressure)
 
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-            eraseAtPoint(modelPoint, pressure)
+            eraseAtPoint(modelPoint)
         } else {
+            if (erasePoints.first.x != -1f || erasePoints.second.x != -1f) {
+                erasePoints.first.set(PointF(-1f, -1f))
+                erasePoints.second.set(PointF(-1f, -1f))
+            }
+
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> moveTo(modelPoint, pressure)
                 MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
@@ -242,7 +259,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    private fun compressPressure(pressure: Float): Float = ((pressure * 7) * 100).roundToInt() / 100f
+    private fun compressPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point.x, point.y)
@@ -253,9 +270,23 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         drawingModel.events.add(Event(penPath))
     }
 
-    private fun eraseAtPoint(point: PointF, pressure: Float) {
-        val roundedPressure = if (pressure > 5) pressure.toInt() else 8
-        val roundedPoint = PointF(point.x.roundToInt().toFloat(), point.y.roundToInt().toFloat())
+    private fun eraseAtPoint(point: PointF) {
+        val roundedPressure = 20
+
+        when {
+            erasePoints.first.x == -1f -> {
+                erasePoints.first.set(point)
+                return
+            }
+            erasePoints.second.x == -1f -> {
+                erasePoints.second.set(point)
+                return
+            }
+            else -> {
+                erasePoints.first.set(erasePoints.second)
+                erasePoints.second.set(point)
+            }
+        }
 
         val drawing = Drawing(
             Page(
@@ -283,27 +314,34 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             val stroke = drawing.events[eventIndex].stroke
             if (stroke != null) {
                 var deleteStroke = false
-                var pointIndex = 0
+                var pointIndex = 3
 
                 pointLoop@ while (pointIndex < stroke.points.size) {
-                    if (pointIndex != 0) {
+                    for (pixel in 1..roundedPressure) {
+                        val roundedPoint1 =
+                            PointF(stroke.points[pointIndex - 2].roundToInt().toFloat(), stroke.points[pointIndex - 1].roundToInt().toFloat())
+                        val roundedPoint2 =
+                            PointF(stroke.points[pointIndex + 1].roundToInt().toFloat(), stroke.points[pointIndex + 2].roundToInt().toFloat())
 
-                        for (pixel in 1..roundedPressure) {
-                            val initialPoint =
-                                PointF(stroke.points[pointIndex - 2].roundToInt().toFloat(), stroke.points[pointIndex - 1].roundToInt().toFloat())
-                            val endPoint =
-                                PointF(stroke.points[pointIndex + 1].roundToInt().toFloat(), stroke.points[pointIndex + 2].roundToInt().toFloat())
+                        val distToFromRoundedPoint1 = distanceBetweenPoints(erasePoints.first, roundedPoint1) +
+                            distanceBetweenPoints(roundedPoint1, erasePoints.second)
+                        val distToFromRoundedPoint2 = distanceBetweenPoints(erasePoints.first, roundedPoint2) +
+                            distanceBetweenPoints(roundedPoint2, erasePoints.second)
+                        val distToFromErasePoint1 = distanceBetweenPoints(roundedPoint1, erasePoints.first) +
+                            distanceBetweenPoints(erasePoints.first, roundedPoint2)
+                        val distToFromErasePoint2 = distanceBetweenPoints(roundedPoint1, erasePoints.second) +
+                            distanceBetweenPoints(erasePoints.second, roundedPoint2)
 
-                            if ((
-                                distanceBetweenPoints(initialPoint, roundedPoint) +
-                                    distanceBetweenPoints(roundedPoint, endPoint) - roundedPressure..distanceBetweenPoints(initialPoint, roundedPoint) +
-                                    distanceBetweenPoints(roundedPoint, endPoint) + roundedPressure
-                                ).contains(distanceBetweenPoints(initialPoint, endPoint))
-                            ) {
+                        val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
+                        val distBetweenRoundedPoints = distanceBetweenPoints(roundedPoint1, roundedPoint2)
 
-                                deleteStroke = true
-                                break@pointLoop
-                            }
+                        if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(distBetweenErasePoints) ||
+                            ((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(distBetweenErasePoints) ||
+                            ((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(distBetweenRoundedPoints) ||
+                            ((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(distBetweenRoundedPoints)
+                        ) {
+                            deleteStroke = true
+                            break@pointLoop
                         }
                     }
 
@@ -329,6 +367,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun distanceBetweenPoints(initialPoint: PointF, endPoint: PointF): Float =
         sqrt((initialPoint.x - endPoint.x).pow(2) + (initialPoint.y - endPoint.y).pow(2))
+
+    fun setPenSize(penSize: PenSize) {
+        when (penSize) {
+            PenSize.SMALL -> penSizeMultiplier = 7
+            PenSize.MEDIUM -> penSizeMultiplier = 20
+            PenSize.LARGE -> penSizeMultiplier = 40
+        }.exhaustive
+    }
 
     private fun lineTo(point: PointF, pressure: Float) {
         activePaint.strokeWidth = pressure
@@ -357,21 +403,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    fun setColor(color: String) {
-        when (color) {
-            resources.getString(R.string.handwriting_editor_pallete_white) ->
-                activePaint.color =
-                    Color.WHITE
-            resources.getString(R.string.handwriting_editor_pallete_blue) ->
-                activePaint.color =
-                    Color.BLUE
-            resources.getString(R.string.handwriting_editor_pallete_red) ->
-                activePaint.color =
-                    Color.RED
-            resources.getString(R.string.handwriting_editor_pallete_yellow) ->
-                activePaint.color =
-                    Color.YELLOW
-        }
+    fun setColor(colorId: Int) {
+        val color = ResourcesCompat.getColor(
+            App.instance.resources,
+            colorId,
+            App.instance.theme
+        )
+        activePaint.color = color
     }
 
     fun endThread() {
