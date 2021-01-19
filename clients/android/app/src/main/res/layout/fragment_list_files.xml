@@ -79,27 +79,27 @@
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
                     android:id="@+id/list_files_fab_drawing"
-                    style="@style/Main.FAB"
+                    style="@style/Main.Widget.FAB"
                     android:contentDescription="@string/list_files_create_document"
                     android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked(true)}"
                     android:visibility="gone"
                     android:src="@drawable/ic_baseline_border_color_24" />
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
-                    android:id="@+id/list_files_fab_folder"
-                    style="@style/Main.FAB"
-                    android:contentDescription="@string/list_files_create_folder"
-                    android:onClick="@{() -> listFilesViewModel.onNewFolderFABClicked()}"
-                    android:visibility="gone"
-                    android:src="@drawable/round_folder_white_18dp" />
-
-                <com.google.android.material.floatingactionbutton.FloatingActionButton
                     android:id="@+id/list_files_fab_document"
-                    style="@style/Main.FAB"
+                    style="@style/Main.Widget.FAB"
                     android:contentDescription="@string/list_files_create_document"
                     android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked(false)}"
                     android:visibility="gone"
                     android:src="@drawable/ic_baseline_insert_drive_file_24" />
+
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/list_files_fab_folder"
+                    style="@style/Main.Widget.FAB"
+                    android:contentDescription="@string/list_files_create_folder"
+                    android:onClick="@{() -> listFilesViewModel.onNewFolderFABClicked()}"
+                    android:visibility="gone"
+                    android:src="@drawable/round_folder_white_18dp" />
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
                     android:id="@+id/list_files_fab"

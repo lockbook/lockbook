@@ -2,15 +2,15 @@
     <style name="Main" parent="Theme.MaterialComponents.DayNight">
         <item name="android:windowBackground">@color/colorPrimaryDark</item>
         <item name="android:navigationBarColor">@color/navigationBarColor</item>
-        <item name="snackbarStyle">@style/Main.SnackBar</item>
-        <item name="snackbarTextViewStyle">@style/Main.SnackBar.TextView</item>
+        <item name="snackbarStyle">@style/Main.Widget.SnackBar</item>
+        <item name="snackbarTextViewStyle">@style/Main.Widget.SnackBar.TextView</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="android:windowLightStatusBar" tools:targetApi="23">@bool/windowLightStatusBar</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:actionBarStyle">@style/Main.Actionbar</item>
+        <item name="android:actionBarStyle">@style/Main.Widget.Actionbar</item>
         <item name="titleTextStyle">@style/Main.Title</item>
         <item name="android:actionOverflowButtonStyle">@style/Main.Overflow</item>
     </style>
@@ -20,41 +20,37 @@
         <item name="android:windowContentOverlay">@null</item>
     </style>
 
-    <style name="Main.Dialog" parent="Theme.AppCompat.DayNight.Dialog">
+    <style name="Main.Widget.Dialog" parent="Theme.AppCompat.DayNight.Dialog">
         <item name="android:background">@color/windowBackground</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
     </style>
 
-    <style name="Main.SnackBar" parent="Widget.MaterialComponents.Snackbar">
+    <style name="Main.Widget.SnackBar" parent="Widget.MaterialComponents.Snackbar">
         <item name="backgroundTint">@color/background</item>
         <item name="android:textColor">@color/white</item>
     </style>
 
-    <style name="Main.SnackBar.TextView" parent="Widget.MaterialComponents.Snackbar.TextView">
+    <style name="Main.Widget.SnackBar.TextView" parent="Widget.MaterialComponents.Snackbar.TextView">
         <item name="android:textColor">@color/white</item>
     </style>
 
-    <style name="Main.NoActionBar" parent="Main">
-        <item name="background">@color/windowBackground</item>
-    </style>
-
-    <style name="Main.Actionbar" parent="Widget.AppCompat.ActionBar">
+    <style name="Main.Widget.Actionbar" parent="Widget.AppCompat.ActionBar">
         <item name="backgroundColor">@color/windowBackground</item>
         <item name="android:textColorPrimary">@color/textColor</item>
         <item name="android:textColorSecondary">@color/textColor</item>
         <item name="actionMenuTextColor">@color/textColor</item>
     </style>
 
-    <style name="Main.RegularImageButton" parent="Widget.AppCompat.ImageButton">
+    <style name="Main.Widget.RegularImageButton" parent="Widget.AppCompat.ImageButton">
         <item name="android:background">?android:selectableItemBackgroundBorderless</item>
         <item name="android:backgroundTint">?attr/colorPrimaryDark</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
     </style>
 
-    <style name="Main.DrawingImageButton" parent="Widget.AppCompat.ImageButton">
+    <style name="Main.Widget.DrawingImageButton" parent="Widget.AppCompat.ImageButton">
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_margin">10dp</item>
@@ -64,24 +60,20 @@
         <item name="android:focusable">true</item>
     </style>
 
-    <style name="Main.DrawingButton" parent="Widget.MaterialComponents.ExtendedFloatingActionButton">
+    <style name="Main.Widget.DrawingButton" parent="Widget.MaterialComponents.ExtendedFloatingActionButton">
         <item name="android:layout_width">40dp</item>
         <item name="android:layout_height">40dp</item>
         <item name="android:layout_margin">10dp</item>
         <item name="cornerRadius">100dp</item>
     </style>
 
-    <style name="Main.FAB" parent="Widget.MaterialComponents.FloatingActionButton">
+    <style name="Main.Widget.FAB" parent="Widget.MaterialComponents.FloatingActionButton">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_margin">10dp</item>
         <item name="backgroundTint">@color/colorPrimary</item>
         <item name="rippleColor">@color/light</item>
-        <item name="tint">@color/iconColor</item>
-    </style>
-
-    <style name="Main.Toolbar">
-        <item name="backgroundColor">@color/windowBackground</item>
+        <item name="tint">@null</item>
     </style>
 
     <style name="Main.Overflow">
@@ -156,6 +148,8 @@
     <style name="Main.Button.Borderless" parent="Widget.AppCompat.Button.Borderless" />
 
     <style name="Main.Button.Borderless.Colored" parent="Widget.AppCompat.Button.Borderless.Colored">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_width">wrap_content</item>
         <item name="android:textColor">@color/colorPrimary</item>
     </style>
 </resources>

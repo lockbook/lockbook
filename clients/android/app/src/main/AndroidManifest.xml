@@ -25,21 +25,18 @@
         <activity
             android:name=".screen.InitialLaunchFigureOuter"
             android:noHistory="true"
-            android:theme="@style/Main.NoActionBar">
+            android:theme="@style/Main">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name=".screen.WelcomeActivity"
-            android:theme="@style/Main.NoActionBar" />
+            android:name=".screen.WelcomeActivity" />
         <activity
-            android:name=".screen.NewAccountActivity"
-            android:theme="@style/Main.NoActionBar" />
+            android:name=".screen.NewAccountActivity" />
         <activity
-            android:name=".screen.ImportAccountActivity"
-            android:theme="@style/Main.NoActionBar" />
+            android:name=".screen.ImportAccountActivity" />
         <activity
             android:name=".screen.HandwritingEditorActivity"
             android:theme="@style/Main.FullScreen" />
