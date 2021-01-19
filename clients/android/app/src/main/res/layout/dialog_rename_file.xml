@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:id="@+id/rename_file_layout"
-    style="@style/Main.Dialog"
+    style="@style/Main.Widget.Dialog"
     android:orientation="vertical">
 
     <TextView
@@ -41,15 +41,11 @@
         <Button
             android:id="@+id/rename_file_cancel"
             style="@style/Main.Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
             android:text="@string/cancel" />
 
         <Button
             android:id="@+id/rename_file_rename"
             style="@style/Main.Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
             android:text="@string/rename_file_rename" />
     </LinearLayout>
 

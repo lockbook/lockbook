@@ -15,8 +15,7 @@
   <color name="white">#FFFFFF</color>
   <color name="grey">#787878</color>
 
-  <color name="transparent_black">#94000000</color>
-  <color name="transparent_white">#94E3E5EB</color>
+  <color name="drawingUntouchableBackground">@color/grey</color>
 
   <color name="selectedFileBackground">#64B5F6</color>
   <color name="navigationBarColor">@color/white</color>
@@ -24,7 +23,6 @@
   <color name="colorPrimary">@color/blue</color>
   <color name="colorAccent">@color/blue</color>
   <color name="colorPrimaryDark">@color/white</color>
-  <color name="drawingToolbarBackground">@color/transparent_white</color>
   <color name="windowBackground">@color/white</color>
   <color name="textColor">@color/black</color>
   <color name="iconColor">@color/black</color>

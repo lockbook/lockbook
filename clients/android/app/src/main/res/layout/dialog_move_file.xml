@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    style="@style/Main.Dialog"
+    style="@style/Main.Widget.Dialog"
     android:padding="10dp">
 
     <ProgressBar
@@ -42,15 +42,11 @@
         <Button
             android:id="@+id/move_file_cancel"
             style="@style/Main.Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
             android:text="@string/cancel" />
 
         <Button
             android:id="@+id/move_file_confirm"
             style="@style/Main.Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
             android:text="@string/move_file_confirm" />
 
     </LinearLayout>

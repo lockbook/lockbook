@@ -37,7 +37,7 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val item = files[position]
         holder.fileMetadata = item
-        holder.cardView.grid_file_name.text = item.name.removeSuffix(".draw")
+        holder.cardView.grid_file_name.text = item.name
 
         when {
             selectedFiles[position] -> {
