@@ -32,8 +32,6 @@ class ListFilesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_list_files)
-
-        list_files_toolbar.title = "Lockbook"
         setSupportActionBar(list_files_toolbar)
     }
 

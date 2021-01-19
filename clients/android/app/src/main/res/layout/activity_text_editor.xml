@@ -13,7 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="?attr/actionBarSize"
-        android:theme="@style/DarkBlue.Actionbar"
+        android:theme="@style/Main.Actionbar"
         app:layout_constraintTop_toTopOf="parent"
         tools:layout_editor_absoluteX="5dp" />
 
@@ -29,7 +29,7 @@
 
         <EditText
             android:id="@+id/text_editor_text_field"
-            style="@style/Text.Small"
+            style="@style/Main.Text.Small"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@null"
@@ -59,11 +59,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                android:background="?android:selectableItemBackgroundBorderless"
-                android:backgroundTint="?attr/colorPrimaryDark"
-                android:clickable="true"
+                style="@style/Main.RegularImageButton"
                 android:contentDescription="@string/menu_markdown_title"
-                android:focusable="true"
                 android:src="@drawable/ic_baseline_title_24" />
 
             <ImageButton
@@ -71,11 +68,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                android:background="?android:selectableItemBackgroundBorderless"
-                android:backgroundTint="?attr/colorPrimaryDark"
-                android:clickable="true"
+                style="@style/Main.RegularImageButton"
                 android:contentDescription="@string/menu_markdown_bold"
-                android:focusable="true"
                 android:src="@drawable/ic_baseline_format_bold_24" />
 
             <ImageButton
@@ -83,11 +77,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                android:background="?android:selectableItemBackgroundBorderless"
-                android:backgroundTint="?attr/colorPrimaryDark"
-                android:clickable="true"
                 android:contentDescription="@string/menu_markdown_italics"
-                android:focusable="true"
+                style="@style/Main.RegularImageButton"
                 android:src="@drawable/ic_baseline_format_italic_24" />
 
             <ImageButton
@@ -95,11 +86,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                android:background="?android:selectableItemBackgroundBorderless"
-                android:backgroundTint="?attr/colorPrimaryDark"
-                android:clickable="true"
                 android:contentDescription="@string/menu_markdown_image"
-                android:focusable="true"
+                style="@style/Main.RegularImageButton"
                 android:src="@drawable/ic_baseline_image_24" />
 
             <ImageButton
@@ -107,10 +95,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                android:background="?android:selectableItemBackgroundBorderless"
-                android:clickable="true"
                 android:contentDescription="@string/menu_markdown_link"
-                android:focusable="true"
+                style="@style/Main.RegularImageButton"
                 android:src="@drawable/ic_baseline_link_24" />
 
             <ImageButton
@@ -118,11 +104,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                android:background="?android:selectableItemBackgroundBorderless"
-                android:backgroundTint="?attr/colorPrimaryDark"
-                android:clickable="true"
+                style="@style/Main.RegularImageButton"
                 android:contentDescription="@string/menu_markdown_code"
-                android:focusable="true"
                 android:src="@drawable/ic_baseline_code_24" />
 
         </LinearLayout>
@@ -141,7 +124,7 @@
 
         <TextView
             android:id="@+id/markdown_viewer"
-            style="@style/Text.Medium"
+            style="@style/Main.Text.Medium"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="top|start" />

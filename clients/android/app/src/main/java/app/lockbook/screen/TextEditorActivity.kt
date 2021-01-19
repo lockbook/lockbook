@@ -108,7 +108,7 @@ class TextEditorActivity : AppCompatActivity() {
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
+        AlertDialog.Builder(this, R.style.Main_Dialog)
             .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
             .setOnCancelListener {

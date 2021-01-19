@@ -1,15 +1,18 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.view.View
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import app.lockbook.ui.HandwritingEditorView
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
+import java.util.*
 
 class HandwritingEditorViewModel(
     application: Application,
@@ -17,11 +20,32 @@ class HandwritingEditorViewModel(
 ) : AndroidViewModel(application) {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
-    var lockBookDrawable: Drawing? = null
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
+    var lockBookDrawable: Drawing? = null
+
+    private var selectedColor = android.R.color.white
+    private var selectedTool = HandwritingEditorView.Tool.PEN
+    private var selectedPenSize = HandwritingEditorView.PenSize.SMALL
+
+    private val _setToolsVisibility = MutableLiveData<Int>()
+    private val _selectNewColor = MutableLiveData<Pair<Int?, Int>>()
+    private val _selectNewTool = MutableLiveData<Pair<HandwritingEditorView.Tool?, HandwritingEditorView.Tool>>()
+    private val _selectedNewPenSize = MutableLiveData<Pair<HandwritingEditorView.PenSize?, HandwritingEditorView.PenSize>>()
     private val _drawableReady = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
+
+    val setToolsVisibility: LiveData<Int>
+        get() = _setToolsVisibility
+
+    val selectNewColor: LiveData<Pair<Int?, Int>>
+        get() = _selectNewColor
+
+    val selectNewTool: LiveData<Pair<HandwritingEditorView.Tool?, HandwritingEditorView.Tool>>
+        get() = _selectNewTool
+
+    val selectedNewPenSize: LiveData<Pair<HandwritingEditorView.PenSize?, HandwritingEditorView.PenSize>>
+        get() = _selectedNewPenSize
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -31,6 +55,20 @@ class HandwritingEditorViewModel(
 
     val drawableReady: LiveData<Unit>
         get() = _drawableReady
+
+    init {
+        _selectNewColor.postValue(Pair(null, android.R.color.white))
+        _selectNewTool.postValue(Pair(null, HandwritingEditorView.Tool.PEN))
+        _selectedNewPenSize.postValue(Pair(null, HandwritingEditorView.PenSize.SMALL))
+    }
+
+    fun handleTouchEvent(toolsVisibility: Int) {
+        if (toolsVisibility == View.VISIBLE) {
+            _setToolsVisibility.postValue(View.GONE)
+        } else {
+            _setToolsVisibility.postValue(View.VISIBLE)
+        }
+    }
 
     fun getDrawing(id: String) {
         uiScope.launch {
@@ -94,5 +132,20 @@ class HandwritingEditorViewModel(
                 }
             }
         }
+    }
+
+    fun handleNewColorSelected(newColor: Int) {
+        _selectNewColor.postValue(Pair(selectedColor, newColor))
+        selectedColor = newColor
+    }
+
+    fun handleNewToolSelected(newTool: HandwritingEditorView.Tool) {
+        _selectNewTool.postValue(Pair(selectedTool, newTool))
+        selectedTool = newTool
+    }
+
+    fun handleNewPenSizeSelected(newPenSize: HandwritingEditorView.PenSize) {
+        _selectedNewPenSize.postValue(Pair(selectedPenSize, newPenSize))
+        selectedPenSize = newPenSize
     }
 }

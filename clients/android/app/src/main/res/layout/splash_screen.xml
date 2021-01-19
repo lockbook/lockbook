@@ -20,7 +20,7 @@
 
     <TextView
         android:id="@+id/splash_screen_text"
-        style="@style/Text.Headline"
+        style="@style/Main.Text.Headline"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/lockbook_title"
