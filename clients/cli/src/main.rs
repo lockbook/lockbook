@@ -80,7 +80,12 @@ enum Lockbook {
     Rename { path: String, name: String },
 
     /// Move a file to trash TODO
-    Remove { path: String },
+    Remove {
+        path: String,
+        /// Skip the confirmation check for a folder
+        #[structopt(short, long)]
+        force: bool,
+    },
 
     /// What operations a sync would perform
     Status,
@@ -125,7 +130,7 @@ fn main() {
         Lockbook::Move { target, new_parent } => move_file::move_file(&target, &new_parent),
         Lockbook::New { path } => new::new(&path.trim()),
         Lockbook::Print { path } => print::print(&path.trim()),
-        Lockbook::Remove { path } => remove::remove(&path.trim()),
+        Lockbook::Remove { path, force } => remove::remove(&path.trim(), force),
         Lockbook::Rename { path, name } => rename::rename(&path, &name),
         Lockbook::Status => status::status(),
         Lockbook::Sync => sync::sync(),
