@@ -40,6 +40,12 @@ mod sync_tests {
         }};
     }
 
+    macro_rules! path {
+        ($account:expr, $path:expr) => {{
+            &format!("{}/{}", $account.username, $path)
+        }};
+    }
+
     macro_rules! make_new_client {
         ($new_client:ident, $old_client:expr) => {
             let $new_client = test_db();
@@ -1173,5 +1179,24 @@ mod sync_tests {
 
         DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
         DefaultSyncService::sync(&db1).unwrap();
+    }
+
+    #[test]
+    fn folder_delete_bug() {
+        let db1 = test_db();
+        let account = make_account!(db1);
+
+        DefaultFileService::create_at_path(&db1, path!(account, "test/folder/document.md"))
+            .unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+        make_and_sync_new_client!(db2, db1);
+
+        let folder_to_delete = DefaultFileMetadataRepo::get_by_path(&db1, path!(account, "test"))
+            .unwrap()
+            .unwrap();
+        DefaultFileService::delete_folder(&db1, folder_to_delete.id).unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultSyncService::sync(&db2).unwrap(); // There was an error here
     }
 }

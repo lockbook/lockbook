@@ -147,7 +147,11 @@ impl Backend for FileBackend {
         let path_str = Self::key_path(db, namespace, key);
         let path = Path::new(&path_str);
         trace!("delete\t{}", &path_str);
-        remove_file(path)
+        if path.exists() {
+            remove_file(path)
+        } else {
+            Ok(())
+        }
     }
 
     fn dump<N, V>(db: &Self::Db, namespace: N) -> Result<Vec<V>, Self::Error>

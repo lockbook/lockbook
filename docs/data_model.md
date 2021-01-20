@@ -17,7 +17,7 @@ associated operations we do on them.
 + `owner`
 + `signature` - Proof that the `owner` created this file.
 + `metadata_version` - A `u64` that represents this struct's version.
-+ `content_version` - If the `File` is a `Document` this corresponds to that content's `version`. `id` also represents 
++ `content_version` - If the `file_type` is a `Document` this corresponds to that content's `version`. `id` also represents 
 the Document's `id` if this is a `Document`. 
 + `user_access_keys` - The decryption key for this `File` encrypted by the `public_key` of a particular user.
 + `folder_access_keys` - The decryption key for this `File` encrypted by the encryption key of the `parent` of this 
@@ -37,11 +37,17 @@ Similarly, every change to a `Document`s content increments it's `content` versi
 ### Access Keys
 
 When a client authors a file they generate a 256 bit `AES` key. Content is encrypted with this key. Each `File` gets 
-it's own key. These keys are encrypted either with the `AES` key of a `Folder` or the `public_key` of a user.
+its own key. To decrypt a file, you need the `access_key` of that file. These keys however are stored in an encrypted manner.
 
-Every user is given a `root` folder during account creation. And every file they create exists somewhere inside this 
-root folder. The `root` folder is the folder that has their `username` mapped to `AES key for the root folder` encrypted
- with their `public_key` (only they can access their root folder's "Access Key").
+They are either encrypted for a particular user (with their public key) or are encrypted with the access key for a folder.
+
+This means you can give someone cryptographic access to a particular file or an entire folder. In most situations, folder
+based decryption is how the `core` library decrypts the contents of files. Let's dive a bit deeper into how that works.
+
+During account creation, every user generates a `root` folder (locally). An `access_key` -- `a` is generated and encrypted with
+their public key -- `b = user_keys.encrypt(a)`. `b` is what is stored locally in `user_access_keys` and sent to the server. Direct descendants 
+of `root` (`folder1` for example) will generate new `access_keys` for their files -- `c`. `c` will be encrypted with `a`
+and stored in `folder_access_keys`. 
 
 The procedure for decrypting a given file is:
 ```
@@ -52,10 +58,10 @@ file. <Done>
 ```
 
 In this procedure 2 is a recursive action. Decrypting a file often means walking through your folder structure to your 
-root folder where you'll find the 1 key you can decrypt with your `public_key`. 
+root folder where you'll find the 1 key you can decrypt with your `private_key`.
 
-The motivation for this design is the flexibility it gives us around sharing. You can share a file directly with 
-someone. The procedure for that looks something like this:
+The motivation for this design is the flexibility it gives us around sharing. You can share a file or folder directly with 
+someone, without having to re-key one or many files. The proposed share procedure looks something like this:
 
 ```
 1. Decrypt the key for this file, let's refer to this as *secret*. (See above)
@@ -68,13 +74,10 @@ Parallel to their root folder, in a `shared_with_me/` folder this `File` will sh
 This works for `Document`s as well as `Folder`s. Consider the procedure for decrypting a given file that is shared with 
 you and is a folder with hundreds of documents.
 
-The primary motivation is to be able to share both documents and folders in a way that:
+Other constraints apart from sharing flexibility for the design include:
 1. Is trustless -- Lockbook server will never handle these secrets, all secrets stay in an encrypted form.
-2. Is effecient -- Share a folder with hundreds of documents sub-folders, etc without having to perform more than 1 
+2. Is efficient -- Share a folder with hundreds of documents sub-folders, etc without having to perform more than 1 
 cryptographic operation.
-3. Is flexible -- Given an organizational structure with multiple people having different levels of access. This allows 
-you to share the root folder with administrators, the engineering folder with engineers and the hr folder with your 
-people team.
 
 There is an implicit `name`->`public_key` resolution attack vector here -- lockbook servers could lie about what a 
 `username`'s `public_key` is. The only solution to this problem is out of band (ideally in person) verification of 
@@ -94,7 +97,7 @@ Clients keep track of what has changed locally. These changes look something lik
 + `Edit(old_checksum, new_checksum)`
 + Etc
 
-When they call `get-updates` they pass the largest `metadata_version` they have. Any files they don't know about (are 
+When they call `get-updates` they pass the largest `metadata_version` (see [sync.md](sync.md) for more details) they have. Any files they don't know about (are 
 new) are resolved trivially, any local changes are pushed up. For files that have changed remotely, and have changed 
 locally, an attempt to merge the changes is made. If you moved a file remotely and renamed it locally there is no 
 conflict. If you have local edits and remote edits, they are merged `git` style. In cases where there's a truly 
@@ -103,7 +106,7 @@ unresolvable conflict (remote and local both rename a file), the server wins.
 All edits are cryptographically signed, and clients verify that they are genuine before altering their local state. 
 [No one should ever be able to impersonate a user of Lockbook.](https://en.wikipedia.org/wiki/2020_Twitter_bitcoin_scam)
 
-The specifics of how `sync` happens can be found in [`sync_service.rs`][sync-service].
+Specifics of how sync handles certain situations can be found in [sync.md](sync.md)
 
 #### Archived Files
 

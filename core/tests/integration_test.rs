@@ -194,13 +194,13 @@ pub fn assert_dbs_eq(db1: &<DefaultBackend as Backend>::Db, db2: &<DefaultBacken
         DefaultFileMetadataRepo::get_last_updated(&db2).unwrap()
     );
 
-    let value1: Vec<FileMetadata> =
+    let value1: Vec<EncryptedDocument> =
         DefaultBackend::dump::<_, Vec<u8>>(&db1, DefaultDocumentRepo::NAMESPACE)
             .unwrap()
             .iter()
             .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
             .collect();
-    let value2: Vec<FileMetadata> =
+    let value2: Vec<EncryptedDocument> =
         DefaultBackend::dump::<_, Vec<u8>>(&db2, DefaultDocumentRepo::NAMESPACE)
             .unwrap()
             .iter()

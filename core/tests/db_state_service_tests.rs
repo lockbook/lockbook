@@ -9,9 +9,9 @@ mod db_state_service_tests {
     use lockbook_core::service::db_state_service::State::{
         Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
     };
-    use lockbook_core::storage::db_provider::{Backend, FileBackend};
+    use lockbook_core::storage::db_provider::Backend;
     use lockbook_core::{
-        create_account, get_db_state, DefaultDbStateService, DefaultDbVersionRepo,
+        create_account, get_db_state, DefaultBackend, DefaultDbStateService, DefaultDbVersionRepo,
     };
 
     #[test]
@@ -28,7 +28,7 @@ mod db_state_service_tests {
         .unwrap();
         assert_eq!(get_db_state(&cfg).unwrap(), ReadyToUse);
 
-        let backend = FileBackend::connect_to_db(&cfg).unwrap();
+        let backend = DefaultBackend::connect_to_db(&cfg).unwrap();
 
         DefaultDbVersionRepo::set(&backend, "0.1.0").unwrap();
         assert_ne!(

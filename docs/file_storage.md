@@ -7,7 +7,7 @@ Located here: [https://locked.nyc3.digitaloceanspaces.com/](https://locked.nyc3.
 ## Setup
 Get DigitalOcean [s3cmd](https://www.digitalocean.com/docs/spaces/resources/s3cmd/)
 ```shell script
-$ s3cmd --configure
+s3cmd --configure
 ```
 Set `access_key` and `secret_key` to the corresponding values from secrets
 
@@ -37,5 +37,5 @@ TLDR, it allows reading of every object to the public.
 
 To set the content policy run
 ```shell script
-$ s3cmd setpolicy s3_policy.txt s3://locked
+s3cmd setpolicy s3_policy.txt s3://locked
 ```

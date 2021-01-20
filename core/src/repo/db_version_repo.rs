@@ -48,14 +48,12 @@ impl<MyBackend: Backend> DbVersionRepo<MyBackend> for DbVersionRepoImpl<MyBacken
 mod unit_tests {
     use crate::repo::db_version_repo::DbVersionRepo;
     use crate::storage::db_provider::Backend;
-    use crate::{
-        model::state::temp_config, storage::db_provider::FileBackend, DefaultDbVersionRepo,
-    };
+    use crate::{model::state::temp_config, DefaultBackend, DefaultDbVersionRepo};
 
     #[test]
     fn db_version_sanity_check() {
         let cfg = &temp_config();
-        let backend = FileBackend::connect_to_db(&cfg).unwrap();
+        let backend = DefaultBackend::connect_to_db(&cfg).unwrap();
 
         assert!(DefaultDbVersionRepo::get(&backend).unwrap().is_none());
         DefaultDbVersionRepo::set(&backend, "version 1").unwrap();

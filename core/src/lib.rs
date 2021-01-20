@@ -54,8 +54,10 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
+
 use crate::service::{db_state_service, usage_service};
-use crate::storage::db_provider::{Backend, FileBackend};
+#[allow(unused_imports)] // For one touch backend switching, allow one of these to be unused
+use crate::storage::db_provider::{Backend, FileBackend, SledBackend};
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
