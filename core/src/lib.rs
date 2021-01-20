@@ -8,6 +8,8 @@ use std::env;
 use std::path::Path;
 use std::str::FromStr;
 
+use basic_human_duration::ChronoHumanDuration;
+use chrono::Duration;
 use serde::Serialize;
 use serde_json::json;
 use serde_json::value::Value;
@@ -16,9 +18,9 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use crate::client::{ApiError, Client, ClientImpl};
+use crate::client::{ApiError, ClientImpl};
 use crate::model::account::Account;
-use crate::model::api::{FileUsage, GetPublicKeyError, GetUsageRequest, NewAccountError};
+use crate::model::api::{FileUsage, GetPublicKeyError, NewAccountError};
 use crate::model::crypto::DecryptedDocument;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
@@ -35,10 +37,9 @@ use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
     AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
 };
-use crate::service::clock_service::ClockImpl;
+use crate::service::clock_service::{Clock, ClockImpl};
 use crate::service::code_version_service::CodeVersionImpl;
 use crate::service::crypto_service::{AESImpl, RSAImpl};
-use crate::service::db_state_service;
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
 use crate::service::file_compression_service::FileCompressionServiceImpl;
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
@@ -53,6 +54,7 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
 };
 use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
+use crate::service::{db_state_service, usage_service};
 use crate::storage::db_provider::{Backend, FileBackend};
 
 #[derive(Debug, Serialize)]
@@ -61,6 +63,7 @@ pub enum Error<U: Serialize> {
     UiError(U),
     Unexpected(String),
 }
+use crate::service::usage_service::{UsageService, UsageServiceImpl};
 use Error::UiError;
 
 macro_rules! unexpected {
@@ -824,12 +827,23 @@ pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>
         .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
 
     match DefaultFileMetadataRepo::get_last_updated(&backend) {
-        Ok(val) => Ok(val as i64),
+        Ok(ok) => Ok(ok as i64),
         Err(err) => match err {
             DbError::BackendError(_) | DbError::SerdeError(_) => {
                 Err(Error::Unexpected(format!("{:#?}", err)))
             }
         },
+    }
+}
+
+pub fn get_last_synced_human_string(config: &Config) -> Result<String, Error<GetLastSyncedError>> {
+    let last_synced = get_last_synced(config)?;
+
+    if last_synced != 0 {
+        let duration = Duration::milliseconds(DefaultClock::get_time() - last_synced);
+        Ok(duration.format_human().to_string())
+    } else {
+        Ok("never".to_string())
     }
 }
 
@@ -844,12 +858,46 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
     let backend = DefaultBackend::connect_to_db(config)
         .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
 
-    let acc =
-        DefaultAccountRepo::get_account(&backend).map_err(|_| UiError(GetUsageError::NoAccount))?;
-
-    DefaultClient::request(&acc, GetUsageRequest {})
+    DefaultUsageService::get_usage(&backend)
         .map(|resp| resp.usages)
         .map_err(|err| match err {
+            usage_service::GetUsageError::AccountRetrievalError(db_err) => match db_err {
+                AccountRepoError::NoAccount => UiError(GetUsageError::NoAccount),
+                AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
+                    unexpected!("{:#?}", db_err)
+                }
+            },
+            usage_service::GetUsageError::ApiError(api_err) => match api_err {
+                ApiError::SendFailed(_) => UiError(GetUsageError::CouldNotReachServer),
+                ApiError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
+                ApiError::Endpoint(_)
+                | ApiError::InvalidAuth
+                | ApiError::ExpiredAuth
+                | ApiError::InternalError
+                | ApiError::BadRequest
+                | ApiError::Sign(_)
+                | ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_) => unexpected!("{:#?}", api_err),
+            },
+        })
+}
+
+pub fn get_usage_human_string(
+    config: &Config,
+    exact: bool,
+) -> Result<String, Error<GetUsageError>> {
+    let backend = DefaultBackend::connect_to_db(config)
+        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+
+    DefaultUsageService::get_usage_human_string(&backend, exact).map_err(|err| match err {
+        usage_service::GetUsageError::AccountRetrievalError(db_err) => match db_err {
+            AccountRepoError::NoAccount => UiError(GetUsageError::NoAccount),
+            AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
+                unexpected!("{:#?}", db_err)
+            }
+        },
+        usage_service::GetUsageError::ApiError(api_err) => match api_err {
             ApiError::SendFailed(_) => UiError(GetUsageError::CouldNotReachServer),
             ApiError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
             ApiError::Endpoint(_)
@@ -860,8 +908,9 @@ pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>
             | ApiError::Sign(_)
             | ApiError::Serialize(_)
             | ApiError::ReceiveFailed(_)
-            | ApiError::Deserialize(_) => Error::Unexpected(format!("{:#?}", err)),
-        })
+            | ApiError::Deserialize(_) => Error::Unexpected(format!("{:#?}", api_err)),
+        },
+    })
 }
 
 // This basically generates a function called `get_all_error_variants`,
@@ -930,6 +979,7 @@ pub type DefaultBackend = FileBackend;
 pub type DefaultCodeVersion = CodeVersionImpl;
 pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl<DefaultBackend>;
+pub type DefaultUsageService = UsageServiceImpl<DefaultBackend, DefaultAccountRepo>;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl<DefaultBackend>;
 pub type DefaultDbStateService = DbStateServiceImpl<
     DefaultAccountRepo,

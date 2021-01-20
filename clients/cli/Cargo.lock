@@ -914,7 +914,6 @@ name = "lockbook"
 version = "0.2.19"
 dependencies = [
  "atty",
- "basic-human-duration",
  "chrono",
  "hotwatch",
  "lockbook_core",
@@ -931,6 +930,7 @@ dependencies = [
  "aead",
  "aes-gcm",
  "base64 0.11.0",
+ "basic-human-duration",
  "bincode",
  "chrono",
  "diffy",
