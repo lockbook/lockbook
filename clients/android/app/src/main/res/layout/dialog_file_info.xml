@@ -4,19 +4,19 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="5dp"
-    style="@style/DarkBlue.Dialog"
+    style="@style/Main.Widget.Dialog"
     android:orientation="vertical">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
-        style="@style/Text.Medium"
+        style="@style/Main.Text.Medium"
         android:text="@string/popup_info_title"/>
 
     <TextView
         android:id="@+id/popup_info_name"
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:text="@string/default_value"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -25,7 +25,7 @@
 
     <TextView
         android:id="@+id/popup_info_id"
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:text="@string/default_value"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -33,7 +33,7 @@
 
     <TextView
         android:id="@+id/popup_info_file_type"
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:text="@string/default_value"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -41,7 +41,7 @@
 
     <TextView
         android:id="@+id/popup_info_metadata_version"
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:text="@string/default_value"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -49,7 +49,7 @@
 
     <TextView
         android:id="@+id/popup_info_content_version"
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:text="@string/default_value"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -113,60 +113,46 @@ class CreateFileDialogFragment : DialogFragment() {
                 create_file_title.setText(R.string.create_file_title_folder)
                 create_file_text.setHint(R.string.create_file_hint_folder)
             }
-            Klaxon().toJsonString(FileType.Document) ->
-                if (isDrawing) {
-                    create_file_extension.visibility = View.GONE
-                    create_file_text_part.visibility = View.GONE
-                    create_file_text.visibility = View.VISIBLE
-
-                    create_file_text.setOnEditorActionListener { _, actionId, _ ->
-                        if (actionId == EditorInfo.IME_ACTION_DONE) {
-                            handleCreateFileRequest(create_file_text.text.toString() + ".draw")
+            Klaxon().toJsonString(FileType.Document) -> {
+                create_file_text_part.setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == EditorInfo.IME_ACTION_NEXT) {
+                        create_file_extension.requestFocus()
+                        val extension = create_file_extension.text.toString()
+                        if (extension.isEmpty()) {
+                            create_file_extension.setText(".")
+                            create_file_extension.setSelection(1)
+                        } else {
+                            create_file_extension.setSelection(extension.length)
                         }
-
-                        true
                     }
 
-                    create_file_create.setOnClickListener {
-                        handleCreateFileRequest(create_file_text.text.toString())
-                    }
+                    true
+                }
 
-                    create_file_create.setOnClickListener {
-                        handleCreateFileRequest(create_file_text.text.toString() + ".draw")
-                    }
-
-                    create_file_text.setHint(R.string.create_file_hint_drawing)
-                    create_file_title.setText(R.string.create_file_title_drawing)
-                } else {
-                    create_file_text_part.setOnEditorActionListener { _, actionId, _ ->
-                        if (actionId == EditorInfo.IME_ACTION_NEXT) {
-                            create_file_extension.requestFocus()
-                            val extension = create_file_extension.text.toString()
-                            if (extension.isEmpty()) {
-                                create_file_extension.setText(".")
-                                create_file_extension.setSelection(1)
-                            } else {
-                                create_file_extension.setSelection(extension.length)
-                            }
-                        }
-
-                        true
-                    }
-
-                    create_file_extension.setOnEditorActionListener { _, actionId, _ ->
-                        if (actionId == EditorInfo.IME_ACTION_DONE) {
-                            handleCreateFileRequest(create_file_text_part.text.toString() + create_file_extension.text.toString())
-                        }
-
-                        true
-                    }
-
-                    create_file_create.setOnClickListener {
+                create_file_extension.setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == EditorInfo.IME_ACTION_DONE) {
                         handleCreateFileRequest(create_file_text_part.text.toString() + create_file_extension.text.toString())
                     }
 
-                    create_file_title.setText(R.string.create_file_title_document)
+                    true
                 }
+
+                create_file_create.setOnClickListener {
+                    handleCreateFileRequest(create_file_text_part.text.toString() + create_file_extension.text.toString())
+                }
+
+                if (isDrawing) {
+                    create_file_title.setText(R.string.create_file_title_drawing)
+                    create_file_text_part.setHint(R.string.create_file_hint_drawing)
+                    create_file_extension.setHint(R.string.create_file_hint_drawing_extension)
+                    create_file_extension.setText(R.string.create_file_dialog_drawing_extension)
+                } else {
+                    create_file_title.setText(R.string.create_file_title_document)
+                    create_file_text_part.setHint(R.string.create_file_hint_document)
+                    create_file_extension.setHint(R.string.create_file_hint_document_extension)
+                    create_file_extension.setText(R.string.create_file_dialog_document_extension)
+                }
+            }
             else -> {
                 Snackbar.make(create_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
                     .addCallback(object : Snackbar.Callback() {
@@ -244,7 +230,7 @@ class CreateFileDialogFragment : DialogFragment() {
 
     private suspend fun unexpectedErrorHasOccurred(error: String) {
         withContext(Dispatchers.Main) {
-            AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+            AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
                 .setTitle(Messages.UNEXPECTED_ERROR)
                 .setMessage(error)
                 .setOnCancelListener {

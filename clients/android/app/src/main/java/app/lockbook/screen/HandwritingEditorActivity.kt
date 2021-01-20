@@ -1,21 +1,26 @@
 package app.lockbook.screen
 
+import android.animation.Animator
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.os.Handler
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.model.HandwritingEditorViewModel
 import app.lockbook.modelfactory.HandwritingEditorViewModelFactory
+import app.lockbook.ui.HandwritingEditorView
 import app.lockbook.util.*
+import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_handwriting_editor.*
+import timber.log.Timber
 import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
@@ -37,8 +42,9 @@ class HandwritingEditorActivity : AppCompatActivity() {
         }
     }
 
-    private var timer: Timer = Timer()
+    private var autoSaveTimer = Timer()
     private val handler = Handler()
+    private lateinit var gestureDetector: GestureDetector
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,7 +64,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
             finish()
             return
         }
-        handwriting_editor_drawing_name.text = name
 
         handwritingEditorViewModel =
             ViewModelProvider(
@@ -90,8 +95,143 @@ class HandwritingEditorActivity : AppCompatActivity() {
             }
         }
 
+        handwritingEditorViewModel.selectNewColor.observe(
+            this
+        ) { colors ->
+            selectNewColor(colors.first, colors.second)
+        }
+
+        handwritingEditorViewModel.setToolsVisibility.observe(
+            this
+        ) { newVisibility ->
+            changeToolsVisibility(newVisibility)
+        }
+
+        handwritingEditorViewModel.selectNewTool.observe(
+            this
+        ) { tools ->
+            selectNewTool(tools.second)
+        }
+
+        handwritingEditorViewModel.selectedNewPenSize.observe(
+            this
+        ) { penSizes ->
+            selectedNewPenSize(penSizes.first, penSizes.second)
+        }
+
         startBackgroundSave()
-        setUpHandwritingToolbar()
+        setUpToolbarListeners()
+        setUpToolbarDefaults()
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        handwriting_editor.restartThread()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handwriting_editor.endThread()
+    }
+
+    private fun selectNewColor(oldColor: Int?, newColor: Int) {
+        if (oldColor != null) {
+            val previousButton = when (oldColor) {
+                android.R.color.white -> drawing_color_white
+                android.R.color.holo_blue_light -> drawing_color_blue
+                android.R.color.holo_green_light -> drawing_color_green
+                android.R.color.holo_orange_light -> drawing_color_orange
+                android.R.color.holo_purple -> drawing_color_purple
+                android.R.color.holo_red_light -> drawing_color_red
+                else -> {
+                    errorHasOccurred(UNEXPECTED_CLIENT_ERROR)
+                    Timber.e("The previously selected color from the toolbar is not handled: $oldColor")
+                    return
+                }
+            }.exhaustive
+
+            previousButton.strokeWidth = 0
+        }
+
+        val newButton = when (newColor) {
+            android.R.color.white -> drawing_color_white
+            android.R.color.holo_blue_light -> drawing_color_blue
+            android.R.color.holo_green_light -> drawing_color_green
+            android.R.color.holo_orange_light -> drawing_color_orange
+            android.R.color.holo_purple -> drawing_color_purple
+            android.R.color.holo_red_light -> drawing_color_red
+            else -> {
+                errorHasOccurred(UNEXPECTED_CLIENT_ERROR)
+                Timber.e("The newly selected color from the toolbar is not handled: $newColor")
+                return
+            }
+        }.exhaustive
+
+        newButton.strokeWidth = 4
+        handwriting_editor.setColor(newColor)
+    }
+
+    private fun selectNewTool(newTool: HandwritingEditorView.Tool) {
+        if (newTool == HandwritingEditorView.Tool.PEN) {
+            drawing_pen.setImageResource(R.drawable.ic_pencil_filled)
+            drawing_erase.setImageResource(R.drawable.ic_eraser_outline)
+            handwriting_editor.isErasing = false
+        } else {
+            drawing_erase.setImageResource(R.drawable.ic_eraser_filled)
+            drawing_pen.setImageResource(R.drawable.ic_pencil_outline)
+            handwriting_editor.isErasing = true
+        }
+    }
+
+    private fun selectedNewPenSize(
+        oldPenSize: HandwritingEditorView.PenSize?,
+        newPenSize: HandwritingEditorView.PenSize
+    ) {
+        if (oldPenSize != null) {
+            val previousButton = when (oldPenSize) {
+                HandwritingEditorView.PenSize.SMALL -> handwriting_editor_pen_small
+                HandwritingEditorView.PenSize.MEDIUM -> handwriting_editor_pen_medium
+                HandwritingEditorView.PenSize.LARGE -> handwriting_editor_pen_large
+            }.exhaustive
+
+            previousButton.setBackgroundResource(0)
+        }
+
+        val newButton = when (newPenSize) {
+            HandwritingEditorView.PenSize.SMALL -> handwriting_editor_pen_small
+            HandwritingEditorView.PenSize.MEDIUM -> handwriting_editor_pen_medium
+            HandwritingEditorView.PenSize.LARGE -> handwriting_editor_pen_large
+        }.exhaustive
+
+        newButton.setBackgroundResource(R.drawable.item_border)
+        handwriting_editor.setPenSize(newPenSize)
+    }
+
+    private fun setUpToolbarDefaults() {
+        val colorButtons = listOf(drawing_color_white, drawing_color_blue, drawing_color_green, drawing_color_orange, drawing_color_purple, drawing_color_red)
+        colorButtons.forEach { button ->
+            button.setStrokeColorResource(R.color.blue)
+        }
+    }
+
+    private fun changeToolsVisibility(newVisibility: Int) {
+        val onAnimationEnd = object : Animator.AnimatorListener {
+            override fun onAnimationStart(animation: Animator?) {
+                if (newVisibility == View.VISIBLE) {
+                    handwriting_editor_tools_menu.visibility = newVisibility
+                }
+            }
+            override fun onAnimationEnd(animation: Animator?) {
+                if (newVisibility == View.GONE) {
+                    handwriting_editor_tools_menu.visibility = newVisibility
+                }
+            }
+
+            override fun onAnimationCancel(animation: Animator?) {}
+            override fun onAnimationRepeat(animation: Animator?) {}
+        }
+
+        handwriting_editor_tools_menu.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f).setListener(onAnimationEnd).start()
     }
 
     private fun addDrawingToView() {
@@ -110,47 +250,92 @@ class HandwritingEditorActivity : AppCompatActivity() {
         }
     }
 
-    override fun onRestart() {
-        super.onRestart()
-        handwriting_editor.restartThread()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        handwriting_editor.endThread()
-    }
-
-    private fun setUpHandwritingToolbar() {
-        ArrayAdapter.createFromResource(
-            this,
-            R.array.handwriting_editor_pallete_colors,
-            android.R.layout.simple_spinner_item
-        ).also { adapter ->
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            handwriting_editor_pallete_spinner.adapter = adapter
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setUpToolbarListeners() {
+        drawing_color_white.setOnClickListener {
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.white)
+        }
+        drawing_color_blue.setOnClickListener {
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_blue_light)
         }
 
-        handwriting_editor_pallete_spinner.onItemSelectedListener =
-            object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: AdapterView<*>?,
-                    view: View?,
-                    position: Int,
-                    id: Long
-                ) {
-                    handwriting_editor.setColor(parent?.getItemAtPosition(position).toString())
+        drawing_color_green.setOnClickListener {
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_green_light)
+        }
+
+        drawing_color_orange.setOnClickListener {
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_orange_light)
+        }
+
+        drawing_color_purple.setOnClickListener {
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_purple)
+        }
+
+        drawing_color_red.setOnClickListener {
+            handwritingEditorViewModel.handleNewColorSelected(android.R.color.holo_red_light)
+        }
+
+        drawing_erase.setOnClickListener {
+            handwritingEditorViewModel.handleNewToolSelected(HandwritingEditorView.Tool.ERASER)
+        }
+
+        drawing_pen.setOnClickListener {
+            handwritingEditorViewModel.handleNewToolSelected(HandwritingEditorView.Tool.PEN)
+        }
+
+        handwriting_editor_pen_small.setOnClickListener {
+            handwritingEditorViewModel.handleNewPenSizeSelected(HandwritingEditorView.PenSize.SMALL)
+        }
+
+        handwriting_editor_pen_medium.setOnClickListener {
+            handwritingEditorViewModel.handleNewPenSizeSelected(HandwritingEditorView.PenSize.MEDIUM)
+        }
+
+        handwriting_editor_pen_large.setOnClickListener {
+            handwritingEditorViewModel.handleNewPenSizeSelected(HandwritingEditorView.PenSize.LARGE)
+        }
+
+        gestureDetector = GestureDetector(
+            applicationContext,
+            object : GestureDetector.OnGestureListener {
+                override fun onDown(e: MotionEvent?): Boolean = true
+
+                override fun onShowPress(e: MotionEvent?) {}
+
+                override fun onSingleTapUp(e: MotionEvent?): Boolean {
+                    handwritingEditorViewModel.handleTouchEvent(handwriting_editor_tools_menu.visibility)
+                    return true
                 }
 
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
+                override fun onScroll(
+                    e1: MotionEvent?,
+                    e2: MotionEvent?,
+                    distanceX: Float,
+                    distanceY: Float
+                ): Boolean = true
+
+                override fun onLongPress(e: MotionEvent?) {}
+
+                override fun onFling(
+                    e1: MotionEvent?,
+                    e2: MotionEvent?,
+                    velocityX: Float,
+                    velocityY: Float
+                ): Boolean = true
+            }
+        )
+
+        handwriting_editor.setOnTouchListener { _, event ->
+            if (event != null && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
+                gestureDetector.onTouchEvent(event)
             }
 
-        handwriting_editor_erase.setOnCheckedChangeListener { _, isChecked ->
-            handwriting_editor.isErasing = isChecked
+            false
         }
     }
 
     private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!
-        timer.schedule(
+        autoSaveTimer.schedule(
             object : TimerTask() {
                 override fun run() {
                     handler.post {
@@ -184,7 +369,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        timer.cancel()
+        autoSaveTimer.cancel()
         handwritingEditorViewModel.lockBookDrawable = handwriting_editor.drawingModel
         handwritingEditorViewModel.savePath(handwriting_editor.drawingModel)
         super.onDestroy()
@@ -201,7 +386,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(this, R.style.DarkBlue_Dialog)
+        AlertDialog.Builder(this, R.style.Main_Widget_Dialog)
             .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
             .setOnCancelListener {

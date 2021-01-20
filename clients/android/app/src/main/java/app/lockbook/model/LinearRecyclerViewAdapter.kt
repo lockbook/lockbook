@@ -63,9 +63,8 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
         val item = files[position]
 
         holder.fileMetadata = item
-        holder.cardView.linear_file_name.text = item.name.removeSuffix(".draw")
+        holder.cardView.linear_file_name.text = item.name
         setReadableLastSynced(holder.cardView.linear_file_description, holder.cardView.resources, item.metadataVersion)
-
         when {
             selectedFiles[position] -> {
                 holder.cardView.background.setTint(

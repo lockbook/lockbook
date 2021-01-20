@@ -34,16 +34,15 @@ use crate::service::file_service::NewFileFromPathError::{
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::storage::db_provider::Backend;
-use crate::DefaultFileMetadataRepo;
 
 #[derive(Debug)]
-pub enum NewFileError {
-    AccountRetrievalError(account_repo::AccountRepoError),
-    CouldNotFindParents(FindingParentsFailed),
+pub enum NewFileError<MyBackend: Backend> {
+    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
+    CouldNotFindParents(FindingParentsFailed<MyBackend>),
     FileCryptoError(file_encryption_service::FileCreationError),
-    MetadataRepoError(file_metadata_repo::DbError),
-    FailedToWriteFileContent(DocumentUpdateError),
-    FailedToRecordChange(local_changes_repo::DbError),
+    MetadataRepoError(file_metadata_repo::DbError<MyBackend>),
+    FailedToWriteFileContent(DocumentUpdateError<MyBackend>),
+    FailedToRecordChange(local_changes_repo::DbError<MyBackend>),
     FileNameNotAvailable,
     DocumentTreatedAsFolder,
     FileNameEmpty,
@@ -51,139 +50,151 @@ pub enum NewFileError {
 }
 
 #[derive(Debug)]
-pub enum NewFileFromPathError {
-    DbError(file_metadata_repo::DbError),
+pub enum NewFileFromPathError<MyBackend: Backend> {
+    DbError(file_metadata_repo::DbError<MyBackend>),
     NoRoot,
     PathDoesntStartWithRoot,
     PathContainsEmptyFile,
-    FailedToCreateChild(NewFileError),
-    FailedToRecordChange(local_changes_repo::DbError),
+    FailedToCreateChild(NewFileError<MyBackend>),
+    FailedToRecordChange(local_changes_repo::DbError<MyBackend>),
     FileAlreadyExists,
 }
 
 #[derive(Debug)]
-pub enum DocumentUpdateError {
-    AccountRetrievalError(account_repo::AccountRepoError),
+pub enum DocumentUpdateError<MyBackend: Backend> {
+    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
     CouldNotFindFile,
-    CouldNotFindParents(FindingParentsFailed),
+    CouldNotFindParents(FindingParentsFailed<MyBackend>),
     FolderTreatedAsDocument,
     FileCryptoError(file_encryption_service::FileWriteError),
     FileCompressionError(std::io::Error),
     FileDecompressionError(std::io::Error),
-    DocumentWriteError(document_repo::Error),
-    FetchOldVersionError(document_repo::DbError),
+    DocumentWriteError(document_repo::Error<MyBackend>),
+    FetchOldVersionError(document_repo::DbError<MyBackend>),
     DecryptOldVersionError(file_encryption_service::UnableToReadFile),
     AccessInfoCreationError(UnableToGetKeyForUser),
-    DbError(file_metadata_repo::DbError),
-    FailedToRecordChange(local_changes_repo::DbError),
+    DbError(file_metadata_repo::DbError<MyBackend>),
+    FailedToRecordChange(local_changes_repo::DbError<MyBackend>),
 }
 
 #[derive(Debug)]
-pub enum ReadDocumentError {
-    AccountRetrievalError(account_repo::AccountRepoError),
+pub enum ReadDocumentError<MyBackend: Backend> {
+    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
     CouldNotFindFile,
-    DbError(file_metadata_repo::DbError),
+    DbError(file_metadata_repo::DbError<MyBackend>),
     TreatedFolderAsDocument,
-    DocumentReadError(document_repo::Error),
-    CouldNotFindParents(FindingParentsFailed),
+    DocumentReadError(document_repo::Error<MyBackend>),
+    CouldNotFindParents(FindingParentsFailed<MyBackend>),
     FileCryptoError(file_encryption_service::UnableToReadFile),
     FileDecompressionError(std::io::Error),
 }
 
 #[derive(Debug)]
-pub enum DocumentRenameError {
+pub enum DocumentRenameError<MyBackend: Backend> {
     FileDoesNotExist,
     FileNameEmpty,
     FileNameContainsSlash,
     FileNameNotAvailable,
     CannotRenameRoot,
-    DbError(file_metadata_repo::DbError),
-    FailedToRecordChange(local_changes_repo::DbError),
+    DbError(file_metadata_repo::DbError<MyBackend>),
+    FailedToRecordChange(local_changes_repo::DbError<MyBackend>),
 }
 
 #[derive(Debug)]
-pub enum FileMoveError {
-    AccountRetrievalError(account_repo::AccountRepoError),
+pub enum FileMoveError<MyBackend: Backend> {
+    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
     TargetParentHasChildNamedThat,
     FolderMovedIntoItself,
     FileDoesNotExist,
     TargetParentDoesNotExist,
     DocumentTreatedAsFolder,
     CannotMoveRoot,
-    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
-    DbError(file_metadata_repo::DbError),
-    FailedToRecordChange(local_changes_repo::DbError),
+    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed<MyBackend>),
+    DbError(file_metadata_repo::DbError<MyBackend>),
+    FailedToRecordChange(local_changes_repo::DbError<MyBackend>),
     FailedToDecryptKey(KeyDecryptionFailure),
     FailedToReEncryptKey(FileCreationError),
-    CouldNotFindParents(FindingParentsFailed),
+    CouldNotFindParents(FindingParentsFailed<MyBackend>),
 }
 
 #[derive(Debug)]
-pub enum DeleteDocumentError {
+pub enum DeleteDocumentError<MyBackend: Backend> {
     CouldNotFindFile,
     FolderTreatedAsDocument,
-    FailedToRecordChange(local_changes_repo::DbError),
-    FailedToUpdateMetadata(file_metadata_repo::DbError),
-    FailedToDeleteDocument(document_repo::Error),
-    FailedToTrackDelete(local_changes_repo::DbError),
-    DbError(file_metadata_repo::DbError),
+    FailedToRecordChange(local_changes_repo::DbError<MyBackend>),
+    FailedToUpdateMetadata(file_metadata_repo::DbError<MyBackend>),
+    FailedToDeleteDocument(document_repo::Error<MyBackend>),
+    FailedToTrackDelete(local_changes_repo::DbError<MyBackend>),
+    DbError(file_metadata_repo::DbError<MyBackend>),
 }
 
 #[derive(Debug)]
-pub enum DeleteFolderError {
-    MetadataError(file_metadata_repo::DbError),
+pub enum DeleteFolderError<MyBackend: Backend> {
+    MetadataError(file_metadata_repo::DbError<MyBackend>),
     CouldNotFindFile,
     CannotDeleteRoot,
-    FailedToDeleteMetadata(file_metadata_repo::DbError),
-    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
-    FailedToRecordChange(local_changes_repo::DbError),
-    CouldNotFindParents(FindingParentsFailed),
+    FailedToDeleteMetadata(file_metadata_repo::DbError<MyBackend>),
+    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed<MyBackend>),
+    FailedToRecordChange(local_changes_repo::DbError<MyBackend>),
+    CouldNotFindParents(FindingParentsFailed<MyBackend>),
     DocumentTreatedAsFolder,
-    FailedToDeleteDocument(document_repo::Error),
-    FailedToDeleteChangeEntry(local_changes_repo::DbError),
+    FailedToDeleteDocument(document_repo::Error<MyBackend>),
+    FailedToDeleteChangeEntry(local_changes_repo::DbError<MyBackend>),
 }
 
-pub trait FileService {
+pub trait FileService<MyBackend: Backend> {
     fn create(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         name: &str,
         parent: Uuid,
         file_type: FileType,
-    ) -> Result<FileMetadata, NewFileError>;
+    ) -> Result<FileMetadata, NewFileError<MyBackend>>;
 
     fn create_at_path(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         path_and_name: &str,
-    ) -> Result<FileMetadata, NewFileFromPathError>;
+    ) -> Result<FileMetadata, NewFileFromPathError<MyBackend>>;
 
     fn write_document(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         id: Uuid,
         content: &[u8],
-    ) -> Result<(), DocumentUpdateError>;
+    ) -> Result<(), DocumentUpdateError<MyBackend>>;
 
-    fn rename_file(backend: &Backend, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError>;
+    fn rename_file(
+        backend: &MyBackend::Db,
+        id: Uuid,
+        new_name: &str,
+    ) -> Result<(), DocumentRenameError<MyBackend>>;
 
     fn move_file(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         file_metadata: Uuid,
         new_parent: Uuid,
-    ) -> Result<(), FileMoveError>;
+    ) -> Result<(), FileMoveError<MyBackend>>;
 
-    fn read_document(backend: &Backend, id: Uuid) -> Result<DecryptedDocument, ReadDocumentError>;
+    fn read_document(
+        backend: &MyBackend::Db,
+        id: Uuid,
+    ) -> Result<DecryptedDocument, ReadDocumentError<MyBackend>>;
 
-    fn delete_document(backend: &Backend, id: Uuid) -> Result<(), DeleteDocumentError>;
+    fn delete_document(
+        backend: &MyBackend::Db,
+        id: Uuid,
+    ) -> Result<(), DeleteDocumentError<MyBackend>>;
 
-    fn delete_folder(backend: &Backend, id: Uuid) -> Result<(), DeleteFolderError>;
+    fn delete_folder(backend: &MyBackend::Db, id: Uuid)
+        -> Result<(), DeleteFolderError<MyBackend>>;
 }
 
 pub struct FileServiceImpl<
-    FileMetadataDb: FileMetadataRepo,
-    FileDb: DocumentRepo,
-    ChangesDb: LocalChangesRepo,
-    AccountDb: AccountRepo,
+    FileMetadataDb: FileMetadataRepo<MyBackend>,
+    FileDb: DocumentRepo<MyBackend>,
+    ChangesDb: LocalChangesRepo<MyBackend>,
+    AccountDb: AccountRepo<MyBackend>,
     FileCrypto: FileEncryptionService,
     FileCompression: FileCompressionService,
+    MyBackend: Backend,
 > {
     _metadatas: FileMetadataDb,
     _files: FileDb,
@@ -191,24 +202,34 @@ pub struct FileServiceImpl<
     _account: AccountDb,
     _file_crypto: FileCrypto,
     _file_compression: FileCompression,
+    _backend: MyBackend,
 }
 
 impl<
-        FileMetadataDb: FileMetadataRepo,
-        FileDb: DocumentRepo,
-        ChangesDb: LocalChangesRepo,
-        AccountDb: AccountRepo,
+        FileMetadataDb: FileMetadataRepo<MyBackend>,
+        FileDb: DocumentRepo<MyBackend>,
+        ChangesDb: LocalChangesRepo<MyBackend>,
+        AccountDb: AccountRepo<MyBackend>,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > FileService
-    for FileServiceImpl<FileMetadataDb, FileDb, ChangesDb, AccountDb, FileCrypto, FileCompression>
+        MyBackend: Backend,
+    > FileService<MyBackend>
+    for FileServiceImpl<
+        FileMetadataDb,
+        FileDb,
+        ChangesDb,
+        AccountDb,
+        FileCrypto,
+        FileCompression,
+        MyBackend,
+    >
 {
     fn create(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         name: &str,
         parent: Uuid,
         file_type: FileType,
-    ) -> Result<FileMetadata, NewFileError> {
+    ) -> Result<FileMetadata, NewFileError<MyBackend>> {
         if name.is_empty() {
             return Err(FileNameEmpty);
         }
@@ -231,7 +252,7 @@ impl<
         }
 
         // Check that this file name is available
-        for child in DefaultFileMetadataRepo::get_children_non_recursively(backend, parent)
+        for child in FileMetadataDb::get_children_non_recursively(backend, parent)
             .map_err(MetadataRepoError)?
         {
             if child.name == name {
@@ -255,9 +276,9 @@ impl<
     }
 
     fn create_at_path(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         path_and_name: &str,
-    ) -> Result<FileMetadata, NewFileFromPathError> {
+    ) -> Result<FileMetadata, NewFileFromPathError<MyBackend>> {
         if path_and_name.contains("//") {
             return Err(PathContainsEmptyFile);
         }
@@ -331,10 +352,10 @@ impl<
     }
 
     fn write_document(
-        backend: &Backend,
+        backend: &MyBackend::Db,
         id: Uuid,
         content: &[u8],
-    ) -> Result<(), DocumentUpdateError> {
+    ) -> Result<(), DocumentUpdateError<MyBackend>> {
         let account =
             AccountDb::get_account(backend).map_err(DocumentUpdateError::AccountRetrievalError)?;
 
@@ -392,7 +413,11 @@ impl<
         Ok(())
     }
 
-    fn rename_file(backend: &Backend, id: Uuid, new_name: &str) -> Result<(), DocumentRenameError> {
+    fn rename_file(
+        backend: &MyBackend::Db,
+        id: Uuid,
+        new_name: &str,
+    ) -> Result<(), DocumentRenameError<MyBackend>> {
         if new_name.is_empty() {
             return Err(DocumentRenameError::FileNameEmpty);
         }
@@ -429,7 +454,11 @@ impl<
         }
     }
 
-    fn move_file(backend: &Backend, id: Uuid, new_parent: Uuid) -> Result<(), FileMoveError> {
+    fn move_file(
+        backend: &MyBackend::Db,
+        id: Uuid,
+        new_parent: Uuid,
+    ) -> Result<(), FileMoveError<MyBackend>> {
         let account =
             AccountDb::get_account(backend).map_err(FileMoveError::AccountRetrievalError)?;
 
@@ -507,7 +536,10 @@ impl<
         }
     }
 
-    fn read_document(backend: &Backend, id: Uuid) -> Result<DecryptedDocument, ReadDocumentError> {
+    fn read_document(
+        backend: &MyBackend::Db,
+        id: Uuid,
+    ) -> Result<DecryptedDocument, ReadDocumentError<MyBackend>> {
         let account =
             AccountDb::get_account(backend).map_err(ReadDocumentError::AccountRetrievalError)?;
 
@@ -534,7 +566,10 @@ impl<
         Ok(content)
     }
 
-    fn delete_document(backend: &Backend, id: Uuid) -> Result<(), DeleteDocumentError> {
+    fn delete_document(
+        backend: &MyBackend::Db,
+        id: Uuid,
+    ) -> Result<(), DeleteDocumentError<MyBackend>> {
         let mut file_metadata = FileMetadataDb::maybe_get(backend, id)
             .map_err(DeleteDocumentError::DbError)?
             .ok_or(DeleteDocumentError::CouldNotFindFile)?;
@@ -567,7 +602,10 @@ impl<
         Ok(())
     }
 
-    fn delete_folder(backend: &Backend, id: Uuid) -> Result<(), DeleteFolderError> {
+    fn delete_folder(
+        backend: &MyBackend::Db,
+        id: Uuid,
+    ) -> Result<(), DeleteFolderError<MyBackend>> {
         let file_metadata = FileMetadataDb::maybe_get(backend, id)
             .map_err(DeleteFolderError::MetadataError)?
             .ok_or(DeleteFolderError::CouldNotFindFile)?;
@@ -635,7 +673,8 @@ mod unit_tests {
     use crate::service::file_service::{
         DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
-    use crate::storage::db_provider::to_backend;
+    use crate::storage::db_provider::Backend;
+    use crate::DefaultBackend;
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,
         DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
@@ -683,7 +722,7 @@ mod unit_tests {
     #[test]
     fn file_service_runthrough() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -742,7 +781,7 @@ mod unit_tests {
     #[test]
     fn path_calculations_runthrough() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -799,8 +838,8 @@ mod unit_tests {
 
     #[test]
     fn get_path_tests() {
-        let db = &&temp_config();
-        let backend = &to_backend(db);
+        let db = temp_config();
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -857,7 +896,7 @@ mod unit_tests {
     fn test_arbitrary_path_file_creation() {
         init_logger(temp_config().path()).expect("Logger failed to initialize in test!");
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -945,7 +984,7 @@ mod unit_tests {
     #[test]
     fn ensure_no_duplicate_files_via_path() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -962,7 +1001,7 @@ mod unit_tests {
     #[test]
     fn ensure_no_duplicate_files_via_create() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -979,7 +1018,7 @@ mod unit_tests {
     #[test]
     fn ensure_no_document_has_children_via_path() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -996,7 +1035,7 @@ mod unit_tests {
     #[test]
     fn ensure_no_document_has_children() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1013,7 +1052,7 @@ mod unit_tests {
     #[test]
     fn ensure_no_bad_names() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1028,7 +1067,7 @@ mod unit_tests {
     #[test]
     fn rename_runthrough() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1116,7 +1155,7 @@ mod unit_tests {
     #[test]
     fn move_runthrough() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1183,7 +1222,7 @@ mod unit_tests {
     #[test]
     fn test_move_folder_into_itself() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1212,7 +1251,7 @@ mod unit_tests {
     #[test]
     fn test_keeping_track_of_edits() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1251,7 +1290,7 @@ mod unit_tests {
     #[test]
     fn test_document_delete_new_documents_no_trace_when_deleted() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1280,7 +1319,7 @@ mod unit_tests {
     #[test]
     fn test_document_delete_after_sync() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1313,7 +1352,7 @@ mod unit_tests {
     #[test]
     fn test_folders_are_created_in_order() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1354,7 +1393,7 @@ mod unit_tests {
     #[test]
     fn test_delete_folder() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1395,7 +1434,7 @@ mod unit_tests {
     #[test]
     fn test_other_things_are_not_touched_during_delete() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();
@@ -1441,7 +1480,7 @@ mod unit_tests {
     #[test]
     fn test_cannot_delete_root() {
         let db = &temp_config();
-        let backend = &to_backend(db);
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let account = test_account();
         DefaultAccountRepo::insert_account(backend, &account).unwrap();

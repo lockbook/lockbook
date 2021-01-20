@@ -5,14 +5,14 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:id="@+id/create_file_layout"
-    style="@style/DarkBlue.Dialog"
+    style="@style/Main.Widget.Dialog"
     android:orientation="vertical">
 
     <TextView
         android:id="@+id/create_file_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        style="@style/Text.Medium"
+        style="@style/Main.Text.Medium"
         android:fontFamily="sans-serif"
         android:paddingTop="8dp"
         android:textAlignment="center"
@@ -32,8 +32,8 @@
             android:id="@+id/create_file_text_part"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:hint="@string/create_file_hint_document"
-            style="@style/Text.Small"
+            android:hint="@string/dialog_file_name"
+            style="@style/Main.Text.Small"
             android:inputType="text"
             android:layout_weight="1"
             android:layout_marginEnd="10dp"
@@ -45,8 +45,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:hint="@string/dialog_file_extension"
-            android:text="@string/create_file_dialog_default_extension"
-            style="@style/Text.Small"
+            style="@style/Main.Text.Small"
             android:inputType="text"
             android:layout_weight="0.4"
             android:importantForAutofill="no"
@@ -57,7 +56,7 @@
             android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            style="@style/Text.Small"
+            style="@style/Main.Text.Small"
             android:hint="@string/create_file_default_file_hint"
             android:inputType="text"
             android:layout_weight="1"
@@ -77,16 +76,12 @@
 
         <Button
             android:id="@+id/create_file_cancel"
-            style="@style/Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            style="@style/Main.Button.Borderless.Colored"
             android:text="@string/cancel" />
 
         <Button
             android:id="@+id/create_file_create"
-            style="@style/Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            style="@style/Main.Button.Borderless.Colored"
             android:text="@string/create_file_create" />
     </LinearLayout>
 

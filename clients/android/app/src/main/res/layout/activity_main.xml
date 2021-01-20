@@ -10,14 +10,14 @@
 
 
     <TextView
-        style="@style/Text.Headline"
+        style="@style/Main.Text.Headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="20dp"
         android:text="@string/lockbook_title" />
 
     <TextView
-        style="@style/Text.Body"
+        style="@style/Main.Text.Body"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="75dp"
@@ -25,16 +25,12 @@
 
     <Button
         android:id="@+id/welcome_new_lockbook"
-        style="@style/Button.Colored"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        style="@style/Main.Button.Borderless.Colored"
         android:layout_marginBottom="15dp"
         android:text="@string/lockbook_new_account" />
 
     <Button
         android:id="@+id/welcome_import_lockbook"
-        style="@style/Button.Colored"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        style="@style/Main.Button.Borderless.Colored"
         android:text="@string/lockbook_import" />
 </LinearLayout>

@@ -132,7 +132,7 @@ class MoveFileDialogFragment : DialogFragment() {
     }
 
     private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+        AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
             .setTitle(Messages.UNEXPECTED_ERROR)
             .setMessage(error)
             .setOnCancelListener {

@@ -106,7 +106,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         "Update required."
                 }
                 is GetUsageError.Unexpected -> {
-                    AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+                    AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
                         .setTitle(UNEXPECTED_ERROR)
                         .setMessage(error.error)
                         .show()
@@ -269,7 +269,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         Snackbar.LENGTH_SHORT
                     ).show()
                     is AccountExportError.Unexpected -> {
-                        AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+                        AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
                             .setTitle(UNEXPECTED_ERROR)
                             .setMessage(error.error)
                             .show()
@@ -300,7 +300,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     Snackbar.LENGTH_SHORT
                 ).show()
                 is AccountExportError.Unexpected -> {
-                    AlertDialog.Builder(requireContext(), R.style.DarkBlue_Dialog)
+                    AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
                         .setTitle(UNEXPECTED_ERROR)
                         .setMessage(error.error)
                         .show()

@@ -6,13 +6,13 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:id="@+id/rename_file_layout"
-    style="@style/DarkBlue.Dialog"
+    style="@style/Main.Widget.Dialog"
     android:orientation="vertical">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        style="@style/Text.Medium"
+        style="@style/Main.Text.Medium"
         android:fontFamily="sans-serif"
         android:paddingTop="8dp"
         android:textAlignment="center"
@@ -27,7 +27,7 @@
         android:layout_marginRight="4dp"
         android:layout_marginBottom="4dp"
         android:hint="@string/dialog_file_name"
-        style="@style/Text.Small"
+        style="@style/Main.Text.Small"
         android:inputType="text"
         android:importantForAutofill="no"
         android:imeOptions="actionDone" />
@@ -40,16 +40,12 @@
 
         <Button
             android:id="@+id/rename_file_cancel"
-            style="@style/Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            style="@style/Main.Button.Borderless.Colored"
             android:text="@string/cancel" />
 
         <Button
             android:id="@+id/rename_file_rename"
-            style="@style/Button.Borderless.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            style="@style/Main.Button.Borderless.Colored"
             android:text="@string/rename_file_rename" />
     </LinearLayout>
 
