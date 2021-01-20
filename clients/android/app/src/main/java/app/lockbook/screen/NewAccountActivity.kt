@@ -90,7 +90,7 @@ class NewAccountActivity : AppCompatActivity() {
                             Snackbar.LENGTH_SHORT
                         ).show()
                         is CreateAccountError.Unexpected -> {
-                            AlertDialog.Builder(this@NewAccountActivity, R.style.DarkBlue_Dialog)
+                            AlertDialog.Builder(this@NewAccountActivity, R.style.Main_Widget_Dialog)
                                 .setTitle(UNEXPECTED_ERROR)
                                 .setMessage(error.error)
                                 .show()

@@ -55,7 +55,10 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:animateLayoutChanges="true"
-            app:layout_constraintTop_toTopOf="@+id/files_breadcrumb_bar">
+            app:layout_constraintTop_toTopOf="@+id/files_breadcrumb_bar"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent">
 
             <TextView
                 android:id="@+id/list_files_empty_folder"
@@ -63,7 +66,7 @@
                 android:layout_width="150dp"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                style="@style/Text.Caption"
+                style="@style/Main.Text.Caption"
                 android:gravity="center"
                 android:text="@string/empty_folder" />
 
@@ -76,49 +79,39 @@
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
                     android:id="@+id/list_files_fab_drawing"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="10dp"
+                    style="@style/Main.Widget.FAB"
                     android:contentDescription="@string/list_files_create_document"
                     android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked(true)}"
-                    android:src="@drawable/ic_baseline_border_color_24"
                     android:visibility="gone"
-                    app:rippleColor="@color/light" />
-
-                <com.google.android.material.floatingactionbutton.FloatingActionButton
-                    android:id="@+id/list_files_fab_folder"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="10dp"
-                    android:contentDescription="@string/list_files_create_folder"
-                    android:onClick="@{() -> listFilesViewModel.onNewFolderFABClicked()}"
-                    android:src="@drawable/round_folder_white_18dp"
-                    android:visibility="gone"
-                    app:rippleColor="@color/light" />
+                    android:src="@drawable/ic_baseline_border_color_24" />
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
                     android:id="@+id/list_files_fab_document"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="10dp"
+                    style="@style/Main.Widget.FAB"
                     android:contentDescription="@string/list_files_create_document"
                     android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked(false)}"
-                    android:src="@drawable/ic_baseline_insert_drive_file_24"
                     android:visibility="gone"
-                    app:rippleColor="@color/light" />
+                    android:src="@drawable/ic_baseline_insert_drive_file_24" />
+
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/list_files_fab_folder"
+                    style="@style/Main.Widget.FAB"
+                    android:contentDescription="@string/list_files_create_folder"
+                    android:onClick="@{() -> listFilesViewModel.onNewFolderFABClicked()}"
+                    android:visibility="gone"
+                    android:src="@drawable/round_folder_white_18dp" />
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
                     android:id="@+id/list_files_fab"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginLeft="18dp"
-                    android:layout_marginTop="10dp"
-                    android:layout_marginRight="18dp"
-                    android:layout_marginBottom="18dp"
+                    android:layout_margin="18dp"
+                    app:backgroundTint="@color/colorPrimary"
                     android:contentDescription="@string/list_files_create_file"
                     android:onClick="@{() -> listFilesViewModel.collapseExpandFAB()}"
                     android:src="@drawable/ic_baseline_add_24"
-                    app:rippleColor="@color/light" />
+                    app:tint="@color/white"
+                    app:rippleColor="@color/colorPrimaryDark" />
 
             </LinearLayout>
         </FrameLayout>

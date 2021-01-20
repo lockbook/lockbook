@@ -1,9 +1,10 @@
 use crate::client::Client;
 use crate::model::api;
 use crate::model::api::{GetUsageRequest, GetUsageResponse};
+use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::storage::db_provider::Backend;
-use crate::{client, DefaultAccountRepo, DefaultClient};
+use crate::{client, DefaultClient};
 
 pub const BYTE: u64 = 1;
 pub const KILOBYTE: u64 = BYTE * 1000;
@@ -16,26 +17,37 @@ pub const MEGABYTE_PLUS_ONE: u64 = MEGABYTE + 1;
 pub const GIGABYTE_PLUS_ONE: u64 = GIGABYTE + 1;
 pub const TERABYTE_PLUS_ONE: u64 = TERABYTE + 1;
 
-pub enum GetUsageError {
-    NoAccount,
+pub enum GetUsageError<MyBackend: Backend> {
+    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
     ApiError(client::ApiError<api::GetUsageError>),
 }
 
-pub trait UsageService {
-    fn get_usage(backend: &Backend) -> Result<GetUsageResponse, GetUsageError>;
-    fn get_usage_human_string(backend: &Backend, exact: bool) -> Result<String, GetUsageError>;
+pub trait UsageService<MyBackend: Backend, AccountDb: AccountRepo<MyBackend>> {
+    fn get_usage(backend: &MyBackend::Db) -> Result<GetUsageResponse, GetUsageError<MyBackend>>;
+    fn get_usage_human_string(
+        backend: &MyBackend::Db,
+        exact: bool,
+    ) -> Result<String, GetUsageError<MyBackend>>;
 }
 
-pub struct UsageServiceImpl;
+pub struct UsageServiceImpl<MyBackend: Backend, AccountDb: AccountRepo<MyBackend>> {
+    _accounts: AccountDb,
+    _backend: MyBackend,
+}
 
-impl UsageService for UsageServiceImpl {
-    fn get_usage(backend: &Backend) -> Result<GetUsageResponse, GetUsageError> {
-        let acc = DefaultAccountRepo::get_account(backend).map_err(|_| GetUsageError::NoAccount)?;
+impl<MyBackend: Backend, AccountDb: AccountRepo<MyBackend>> UsageService<MyBackend, AccountDb>
+    for UsageServiceImpl<MyBackend, AccountDb>
+{
+    fn get_usage(backend: &MyBackend::Db) -> Result<GetUsageResponse, GetUsageError<MyBackend>> {
+        let acc = AccountDb::get_account(backend).map_err(GetUsageError::AccountRetrievalError)?;
 
         DefaultClient::request(&acc, GetUsageRequest {}).map_err(GetUsageError::ApiError)
     }
 
-    fn get_usage_human_string(backend: &Backend, exact: bool) -> Result<String, GetUsageError> {
+    fn get_usage_human_string(
+        backend: &MyBackend::Db,
+        exact: bool,
+    ) -> Result<String, GetUsageError<MyBackend>> {
         let usage_in_bytes: u64 = Self::get_usage(backend)?
             .usages
             .into_iter()

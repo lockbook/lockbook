@@ -791,7 +791,7 @@ impl SearchComponents {
                     .get::<String>()
                     .unwrap_or_default()
                     .unwrap_or_default();
-                if text2 == "" {
+                if text2.is_empty() {
                     return Ordering::Less;
                 }
 

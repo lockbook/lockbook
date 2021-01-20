@@ -13,7 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="?attr/actionBarSize"
-        android:theme="@style/DarkBlue.Actionbar" />
+        android:theme="@style/Main.Widget.Actionbar" />
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/files_fragment"

@@ -164,7 +164,8 @@
     <string name="empty_folder">There are no files, please click the bottom right button to create a new file, folder, or drawing.</string>
     <string name="krumbs_start_item">Root</string>
     <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
-    <string name="create_file_dialog_default_extension">.md</string>
+    <string name="create_file_dialog_document_extension">.md</string>
+    <string name="create_file_dialog_drawing_extension">.draw</string>
     <string name="bread_crumb_folder">Folder</string>
 
     <string name="create_file_title_folder">New Folder</string>
@@ -174,6 +175,15 @@
     <string name="create_file_hint_folder">Folder name</string>
     <string name="create_file_hint_document">Document name</string>
     <string name="create_file_hint_drawing">Drawing name</string>
+
+    <string name="create_file_hint_document_extension">Document Ext.</string>
+    <string name="create_file_hint_drawing_extension">Drawing Ext.</string>
+
+    <string name="handwriting_editor_eraser_description">Eraser</string>
+    <string name="handwriting_editor_pen_description">Pen</string>
+    <string name="handwriting_editor_pen_small_description">Small</string>
+    <string name="handwriting_editor_pen_medium_description">Medium</string>
+    <string name="handwriting_editor_pen_large_description">Large</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>
