@@ -1,15 +1,10 @@
 use std::{env, fs};
 
-use basic_human_duration::ChronoHumanDuration;
-use chrono::Duration;
-
 use lockbook_core::model::state::Config;
-use lockbook_core::service::clock_service::Clock;
 use lockbook_core::{
-    get_account, get_db_state, init_logger, migrate_db, GetAccountError, GetStateError,
-    MigrationError,
+    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
+    GetAccountError, GetStateError, MigrationError,
 };
-use lockbook_core::{get_last_synced, DefaultClock};
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
@@ -173,17 +168,15 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
 
 pub fn print_last_successful_sync() {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = get_last_synced(&get_config())
-            .expect("Failed to retrieve content from FileMetadataRepo");
-
-        let duration = if last_updated != 0 {
-            let duration = Duration::milliseconds(DefaultClock::get_time() - last_updated);
-            duration.format_human().to_string()
-        } else {
-            "never".to_string()
+        let last_updated = match get_last_synced_human_string(&get_config()) {
+            Ok(ok) => ok,
+            Err(_) => exit_with(
+                "Unexpected error while attempting to retrieve usage: {:#?}",
+                UNEXPECTED_ERROR,
+            ),
         };
 
-        println!("Last successful sync: {}", duration);
+        println!("Last successful sync: {}", last_updated);
     }
 }
 
