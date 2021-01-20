@@ -107,13 +107,14 @@ mod unit_tests {
     use crate::service::code_version_service::{CodeVersion, CodeVersionImpl};
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
-    use crate::storage::db_provider::{Backend, FileBackend};
+    use crate::storage::db_provider::Backend;
+    use crate::DefaultBackend;
     use crate::{DefaultDbStateService, DefaultDbVersionRepo};
 
     #[test]
     fn test_initial_state() {
         let config = temp_config();
-        let backend = FileBackend::connect_to_db(&config).unwrap();
+        let backend = DefaultBackend::connect_to_db(&config).unwrap();
 
         assert!(DefaultDbVersionRepo::get(&backend).unwrap().is_none());
         assert_eq!(DefaultDbStateService::get_state(&backend).unwrap(), Empty);

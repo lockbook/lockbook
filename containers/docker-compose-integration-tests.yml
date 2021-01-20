@@ -51,6 +51,7 @@ services:
       '
 
   integration_tests:
+    container_name: integration_tests-integration-$HASH
     image: integration_tests:$HASH
     env_file:
       - ../containers/test.env
@@ -63,6 +64,7 @@ services:
       '
 
   server_tests:
+    container_name: server_tests-client-$HASH
     image: server_tests:$HASH
     env_file:
       - ../containers/test.env
@@ -75,6 +77,7 @@ services:
       '
 
   swift_interface_tests:
+    container_name: swift_interface_tests-swift-$HASH
     image: swift_interface_tests:$HASH
     env_file:
       - ../containers/test.env
@@ -87,6 +90,7 @@ services:
       '
 
   csharp_interface_tests:
+    container_name: csharp_interface_tests-csharp-$HASH
     image: csharp_interface_tests:$HASH
     env_file:
       - ../containers/test.env
@@ -99,6 +103,7 @@ services:
       '
 
   kotlin_interface_tests:
+    container_name: kotlin_interface_tests-kotlin-$HASH
     image: kotlin_interface_tests:$HASH
     env_file:
       - ../containers/test.env
