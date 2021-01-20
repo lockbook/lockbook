@@ -12,10 +12,10 @@ mod account_tests {
         AccountCreationError, AccountImportError, AccountService,
     };
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::storage::db_provider::{Backend, FileBackend};
+    use lockbook_core::storage::db_provider::Backend;
     use lockbook_core::{
         create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
-        DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
+        DefaultBackend, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
     };
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
@@ -253,7 +253,7 @@ mod account_tests {
                 username: random_username(),
                 private_key: generated_account.private_key,
             };
-            let db = FileBackend::connect_to_db(&cfg2).unwrap();
+            let db = DefaultBackend::connect_to_db(&cfg2).unwrap();
             DefaultAccountRepo::insert_account(&db, &account).unwrap();
         } // release lock on db
 
