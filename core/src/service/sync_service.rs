@@ -595,8 +595,6 @@ impl<
                     }
                     Some(local_changes) => {
                         if !local_changes.deleted && !metadata.deleted {
-                            // We renamed it locally
-
                             Self::merge_files(
                                 &backend,
                                 &account,
@@ -607,7 +605,8 @@ impl<
 
                             FileMetadataDb::insert(backend, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
-                        } else if !local_changes.deleted && metadata.deleted {
+                        } else if metadata.deleted {
+                            // Adding checks here is how you can protect local state from being deleted
                             Self::delete_file_locally(&backend, &metadata)?;
                         }
                     }
