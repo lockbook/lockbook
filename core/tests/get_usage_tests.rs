@@ -8,8 +8,8 @@ mod get_usage_tests {
     use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::storage::db_provider::Backend;
     use lockbook_core::{
-        create_account, create_file, delete_file, get_root, get_usage, init_logger, sync_all,
-        write_document, DefaultBackend, DefaultDocumentRepo,
+        create_account, create_file, delete_file, get_root, get_usage, get_usage_human_string,
+        init_logger, sync_all, write_document, DefaultBackend, DefaultDocumentRepo,
     };
     use std::path::Path;
 
@@ -110,5 +110,39 @@ mod get_usage_tests {
 
         assert_eq!(get_usage(config).unwrap().len(), 3);
         assert_eq!(total_usage, local_encrypted.len() as u64)
+    }
+
+    #[test]
+    fn usage_human_string_sanity_check() {
+        let config = &test_config();
+        let generated_account = generate_account();
+        create_account(
+            config,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        let root = get_root(config).unwrap();
+
+        let file = create_file(config, &random_filename(), root.id, FileType::Document).unwrap();
+        write_document(config, file.id, "0000000000".as_bytes()).unwrap();
+
+        let pre_usage = get_usage_human_string(config, false).unwrap();
+        let pre_usage_exact = get_usage_human_string(config, true).unwrap();
+        assert!(!pre_usage.is_empty());
+        assert!(!pre_usage_exact.is_empty());
+
+        sync_all(config).unwrap();
+
+        let local_encrypted = {
+            let backend = DefaultBackend::connect_to_db(config).unwrap();
+            DefaultDocumentRepo::get(&backend, file.id).unwrap().value
+        };
+
+        let post_usage = get_usage_human_string(config, false).unwrap();
+        let post_usage_exact = get_usage_human_string(config, true).unwrap();
+
+        assert!(!post_usage.is_empty() && post_usage != pre_usage);
+        assert!(!post_usage_exact.is_empty() && post_usage_exact != pre_usage_exact);
     }
 }
