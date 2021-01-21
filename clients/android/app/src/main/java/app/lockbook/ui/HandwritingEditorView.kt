@@ -13,7 +13,6 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
-import timber.log.Timber
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -217,13 +216,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         modelX = (modelX * 100).roundToInt() / 100f
         modelY = (modelY * 100).roundToInt() / 100f
 
-        if(modelX < 0) {
+        if (modelX < 0) {
             modelX = 0f
         } else if (modelX > CANVAS_WIDTH) {
             modelX = CANVAS_WIDTH.toFloat()
         }
 
-        if(modelY < 0) {
+        if (modelY < 0) {
             modelY = 0f
         } else if (modelY > CANVAS_HEIGHT) {
             modelY = CANVAS_HEIGHT.toFloat()
@@ -297,13 +296,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun lineTo(point: PointF, pressure: Float) {
         strokePaint.strokeWidth = pressure
         strokePath.moveTo(
-                lastPoint.x,
-                lastPoint.y
+            lastPoint.x,
+            lastPoint.y
         )
 
         strokePath.lineTo(
-                point.x,
-                point.y
+            point.x,
+            point.y
         )
 
         tempCanvas.drawPath(strokePath, strokePaint)
