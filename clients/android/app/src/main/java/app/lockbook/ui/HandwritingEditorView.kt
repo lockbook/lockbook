@@ -13,6 +13,7 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
+import timber.log.Timber
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -216,6 +217,18 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         modelX = (modelX * 100).roundToInt() / 100f
         modelY = (modelY * 100).roundToInt() / 100f
 
+        if(modelX < 0) {
+            modelX = 0f
+        } else if (modelX > CANVAS_WIDTH) {
+            modelX = CANVAS_WIDTH.toFloat()
+        }
+
+        if(modelY < 0) {
+            modelY = 0f
+        } else if (modelY > CANVAS_HEIGHT) {
+            modelY = CANVAS_HEIGHT.toFloat()
+        }
+
         return PointF(modelX, modelY)
     }
 
@@ -258,9 +271,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
             eraseAtPoint(modelPoint)
         } else {
-            if (erasePoints.first.x != -1f || erasePoints.second.x != -1f) {
-                erasePoints.first.set(PointF(-1f, -1f))
-                erasePoints.second.set(PointF(-1f, -1f))
+            if (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN()) {
+                erasePoints.first.set(PointF(Float.NaN, Float.NaN))
+                erasePoints.second.set(PointF(Float.NaN, Float.NaN))
             }
 
             when (event.action) {
@@ -281,17 +294,43 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         drawingModel.events.add(Event(penPath))
     }
 
+    private fun lineTo(point: PointF, pressure: Float) {
+        strokePaint.strokeWidth = pressure
+        strokePath.moveTo(
+                lastPoint.x,
+                lastPoint.y
+        )
+
+        strokePath.lineTo(
+                point.x,
+                point.y
+        )
+
+        tempCanvas.drawPath(strokePath, strokePaint)
+
+        strokePath.reset()
+        lastPoint.set(point.x, point.y)
+        for (eventIndex in drawingModel.events.size - 1 downTo 0) {
+            val currentEvent = drawingModel.events[eventIndex].stroke
+            if (currentEvent is Stroke) {
+                currentEvent.points.add(pressure)
+                currentEvent.points.add(point.x)
+                currentEvent.points.add(point.y)
+                break
+            }
+        }
+    }
+
     private fun eraseAtPoint(point: PointF) {
         val roundedPressure = 20
 
         when {
-            erasePoints.first.x == -1f -> {
+            erasePoints.first.x.isNaN() -> {
                 erasePoints.first.set(point)
                 return
             }
-            erasePoints.second.x == -1f -> {
+            erasePoints.second.x.isNaN() -> {
                 erasePoints.second.set(point)
-                return
             }
             else -> {
                 erasePoints.first.set(erasePoints.second)
@@ -385,33 +424,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             PenSize.MEDIUM -> penSizeMultiplier = 20
             PenSize.LARGE -> penSizeMultiplier = 40
         }.exhaustive
-    }
-
-    private fun lineTo(point: PointF, pressure: Float) {
-        strokePaint.strokeWidth = pressure
-        strokePath.moveTo(
-            lastPoint.x,
-            lastPoint.y
-        )
-
-        strokePath.lineTo(
-            point.x,
-            point.y
-        )
-
-        tempCanvas.drawPath(strokePath, strokePaint)
-
-        strokePath.reset()
-        lastPoint.set(point.x, point.y)
-        for (eventIndex in drawingModel.events.size - 1 downTo 0) {
-            val currentEvent = drawingModel.events[eventIndex].stroke
-            if (currentEvent is Stroke) {
-                currentEvent.points.add(pressure)
-                currentEvent.points.add(point.x)
-                currentEvent.points.add(point.y)
-                break
-            }
-        }
     }
 
     fun setColor(colorId: Int) {
