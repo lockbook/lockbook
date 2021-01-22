@@ -29,7 +29,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
     private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder?) {
             if (!firstLaunch) {
-                handwriting_editor.initializeWithDrawing(null)
+                handwriting_editor.startThread()
             } else {
                 addDrawingToView()
             }

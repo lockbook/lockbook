@@ -225,8 +225,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             this.drawingModel = maybeDrawing
         }
         restoreFromModel()
-        isThreadRunning = true
-        thread.start()
+        startThread()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -429,6 +428,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     fun restartThread() {
         thread = Thread(this)
+    }
+
+    fun startThread() {
+        isThreadRunning = true
+        thread.start()
     }
 
     override fun run() {
