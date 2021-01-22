@@ -101,6 +101,9 @@ namespace lockbook {
         private static extern IntPtr get_last_synced(string writeable_path);
 
         [DllImport("lockbook_core")]
+        private static extern IntPtr get_last_synced_human_string(string writeable_path);
+
+        [DllImport("lockbook_core")]
         private static extern IntPtr get_usage(string writeable_path);
 
         private static string getStringAndRelease(IntPtr pointer) {
