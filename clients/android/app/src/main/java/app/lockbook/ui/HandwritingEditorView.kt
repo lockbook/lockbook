@@ -445,6 +445,5 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 holder.unlockCanvasAndPost(canvas)
             }
         }
-        thread.interrupt()
     }
 }

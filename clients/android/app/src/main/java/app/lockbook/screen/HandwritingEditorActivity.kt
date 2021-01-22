@@ -25,9 +25,14 @@ import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
     private lateinit var handwritingEditorViewModel: HandwritingEditorViewModel
+    private var firstLaunch = true
     private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder?) {
-            addDrawingToView()
+            if (!firstLaunch) {
+                handwriting_editor.initializeWithDrawing(null)
+            } else {
+                addDrawingToView()
+            }
         }
 
         override fun surfaceChanged(
@@ -83,8 +88,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
             unexpectedErrorHasOccurred(errorText)
         }
 
-        startDrawing(id)
-
         handwritingEditorViewModel.drawableReady.observe(
             this
         ) {
@@ -119,6 +122,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
             selectedNewPenSize(penSizes.first, penSizes.second)
         }
 
+        startDrawing(id)
         startBackgroundSave()
         setUpToolbarListeners()
         setUpToolbarDefaults()
@@ -132,6 +136,13 @@ class HandwritingEditorActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         handwriting_editor.endThread()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        autoSaveTimer.cancel()
+        handwritingEditorViewModel.backupDrawing = handwriting_editor.drawingModel
+        handwritingEditorViewModel.savePath(handwriting_editor.drawingModel)
     }
 
     private fun selectNewColor(oldColor: Int?, newColor: Int) {
@@ -237,13 +248,14 @@ class HandwritingEditorActivity : AppCompatActivity() {
     private fun addDrawingToView() {
         handwriting_editor.isTouchable = true
         handwriting_editor_progress_bar.visibility = View.GONE
-        handwriting_editor.initializeWithDrawing(handwritingEditorViewModel.lockBookDrawable)
+        firstLaunch = false
+        handwriting_editor.initializeWithDrawing(handwritingEditorViewModel.backupDrawing)
     }
 
     private fun startDrawing(id: String) {
         handwriting_editor_progress_bar.visibility = View.VISIBLE
 
-        if (handwritingEditorViewModel.lockBookDrawable == null) {
+        if (handwritingEditorViewModel.backupDrawing == null) {
             handwritingEditorViewModel.getDrawing(id)
         } else {
             handwriting_editor.holder.addCallback(surfaceViewReadyCallback)
@@ -366,13 +378,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
             1000,
             TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
         )
-    }
-
-    override fun onDestroy() {
-        autoSaveTimer.cancel()
-        handwritingEditorViewModel.lockBookDrawable = handwriting_editor.drawingModel
-        handwritingEditorViewModel.savePath(handwriting_editor.drawingModel)
-        super.onDestroy()
     }
 
     private fun errorHasOccurred(error: String) {
