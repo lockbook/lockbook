@@ -13,7 +13,13 @@ public struct FileMetadata: Codable, Identifiable, Equatable {
     public var folderAccessKeys: FolderAccessInfo = FolderAccessInfo(folderId: .init(), accessKey: .init(value: [], nonce: []))
     
     public static func == (lhs: FileMetadata, rhs: FileMetadata) -> Bool {
-        return lhs.id == rhs.id && lhs.metadataVersion == rhs.metadataVersion
+        return lhs.fileType == rhs.fileType &&
+            lhs.id == rhs.id &&
+            lhs.metadataVersion == rhs.metadataVersion &&
+            lhs.contentVersion == rhs.contentVersion &&
+            lhs.parent == rhs.parent &&
+            lhs.owner == rhs.owner &&
+            lhs.deleted == rhs.deleted
     }
 }
 
