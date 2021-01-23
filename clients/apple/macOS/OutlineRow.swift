@@ -32,7 +32,9 @@ struct OutlineRow: View {
             }
             .frame(width: 16, height: 16)
             .onTapGesture {
-                open.toggle()
+                withAnimation {
+                    open.toggle()
+                }
             }
 
             Image(systemName: file.fileType == .Folder ? "folder" : "doc")
@@ -50,30 +52,16 @@ struct OutlineRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .padding(.leading, level * 20)
-        .contextMenu(menuItems: {
-            Button(action: {
-                handleDelete(meta: file)
-            }) {
-                Label("Delete", systemImage: "trash.fill")
-            }
-        })
-    }
-
-    func handleDelete(meta: FileMetadata) {
-        switch core.api.deleteFile(id: meta.id) {
-        case .success(_):
-            core.updateFiles()
-        case .failure(let err):
-            core.handleError(err)
-        }
     }
 }
 
 struct SyntheticOutlineRow: View {
     let fileType: FileType
     var level: CGFloat
-    @State var nameField: String = ""
     let onCreate: (String) -> Void
+    let onCancel: () -> Void
+
+    @State var nameField: String = ""
 
     var body: some View {
         HStack {
@@ -86,7 +74,13 @@ struct SyntheticOutlineRow: View {
                 .frame(width: 16, height: 16)
                 .padding(.leading, -4)
 
-            TextField("\(fileType.rawValue.lowercased()) name", text: $nameField, onCommit: { onCreate(nameField) })
+            TextField("\(fileType.rawValue.lowercased()) name", text: $nameField, onCommit: {
+                if (!nameField.isEmpty) {
+                    onCreate(nameField)
+                } else {
+                    onCancel()
+                }
+            })
 
             Spacer()
         }
