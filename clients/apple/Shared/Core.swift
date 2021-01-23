@@ -16,9 +16,6 @@ class Core: ObservableObject {
             if oldValue == false && syncing == true {
                 serialQueue.async {
                     self.passthrough.send(self.api.synchronize())
-                    DispatchQueue.main.async {
-                        self.updateFiles()
-                    }
                 }
             }
         }
@@ -79,6 +76,7 @@ class Core: ObservableObject {
     }
     
     func updateFiles() {
+        print("Updating files!")
         if (account != nil) {
             switch api.getRoot() {
             case .success(let root):
@@ -96,6 +94,7 @@ class Core: ObservableObject {
     }
     
     init(documenstDirectory: String) {
+        print("Initializing core...")
         self.documenstDirectory = documenstDirectory
         self.api = CoreApi(documentsDirectory: documenstDirectory)
         self.state = (try? self.api.getState().get())!

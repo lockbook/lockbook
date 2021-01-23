@@ -43,19 +43,20 @@ struct EditorLoader: View {
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            if content.text == nil && !deleted {
-                ProgressView()
-            } else {
+            switch content.text {
+            case .some(let c):
                 if deleted {
                     Text("\(meta.name) file has been deleted")
                 } else {
-                    EditorView(core: core, meta: meta, text: content.text!, changeCallback: content.updateText)
+                    EditorView(core: core, meta: meta, text: c, changeCallback: content.updateText)
                         .onDisappear {
                             if !deleted {
                                 content.finalize()
                             }
                         }
                 }
+            case .none:
+                ProgressView()
             }
             
             if content.status == .WriteSuccess {
