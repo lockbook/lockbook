@@ -16,7 +16,9 @@ class Core: ObservableObject {
             if oldValue == false && syncing == true {
                 serialQueue.async {
                     self.passthrough.send(self.api.synchronize())
-                    self.updateFiles()
+                    DispatchQueue.main.async {
+                        self.updateFiles()
+                    }
                 }
             }
         }
@@ -71,7 +73,9 @@ class Core: ObservableObject {
     }
     
     func handleError(_ error: AnyFfiError) {
-        globalError = error
+        DispatchQueue.main.async {
+            self.globalError = error
+        }
     }
     
     func updateFiles() {
