@@ -1,81 +1,9 @@
 ///
 /// Ripped from: https://github.com/toph-allen/OutlineView/blob/main/OutlineView/OutlineView.swift
 ///
-import Foundation
 import SwiftUI
 import Combine
 import SwiftLockbookCore
-
-/// This view handles displaying the contents of each row for its object. Clicking its arrow image also toggles a node's open state./
-struct OutlineRow: View {
-    @ObservedObject var core: Core
-    var file: FileMetadata
-    var level: CGFloat
-    @Binding var open: Bool
-    
-    var children: [FileMetadata] {
-        core.files.filter {
-            $0.parent == file.id && $0.id != file.id
-        }
-    }
-    
-    var isLeaf: Bool {
-        children.isEmpty
-    }
-    
-    var body: some View {
-        HStack {
-            Group {
-                if !isLeaf {
-                    Image(open == false ? "arrowtriangle.right.fill.13-regular-small" : "arrowtriangle.down.fill.13-regular-small")
-                        .renderingMode(.template)
-                        .foregroundColor(Color.secondary)
-                } else {
-                    Image("arrowtriangle.right.fill.13-regular-small")
-                        .opacity(0)
-                }
-            }
-            .frame(width: 16, height: 16)
-            .onTapGesture {
-                open.toggle()
-            }
-            
-            Image(file.fileType == .Folder ? "folder.13-regular-medium" : "doc.13-regular-medium")
-                .renderingMode(.template)
-                .frame(width: 16, height: 16)
-                .padding(.leading, -4)
-            
-            Text(file.name)
-                .lineLimit(1) // If lineLimit is not specified, non-leaf names will wrap
-                .truncationMode(.tail)
-                .allowsTightening(true)
-            
-            Spacer()
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .padding(.leading, level * 20)
-        .contextMenu(menuItems: {
-            Button(action: {
-                handleDelete(meta: file)
-            }) {
-                Label("Delete", systemImage: "trash.fill")
-            }
-        })
-        
-    }
-    
-    
-    func handleDelete(meta: FileMetadata) {
-        switch core.api.deleteFile(id: meta.id) {
-        case .success(_):
-            core.updateFiles()
-        case .failure(let err):
-            core.handleError(err)
-        }
-    }
-}
-
 
 struct OutlineBranch: View {
     @ObservedObject var core: Core
@@ -134,6 +62,7 @@ struct OutlineSection: View {
     
     var root: FileMetadata
     @Binding var selectedItem: FileMetadata?
+    @State var creating: FileType?
     
     var children: [FileMetadata] {
         core.files.filter {
@@ -152,12 +81,47 @@ struct OutlineSection: View {
                 OutlineBranch(core: core, file: root, selectedItem: self.$selectedItem, level: -1)
             }
             .collapsible(false)
+            creating.map { c in
+                SyntheticOutlineRow(fileType: c, level: 0, onCreate: handleCreate(meta: root, type: c))
+            }
         }
         .listStyle(SidebarListStyle())
         .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
         .padding(.leading, -8)
+        .contextMenu(menuItems: {
+            makeContextActions(parent: root, creating: $creating)
+        })
         // A hack for list row insets not working. This hack also applies to the section header though.
+    }
+
+    func handleCreate(meta: FileMetadata, type: FileType) -> (String) -> Void {
+        return { creatingName in
+            switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
+            case .success(_):
+                doneCreating()
+                core.updateFiles()
+            case .failure(let err):
+                core.handleError(err)
+            }
+        }
+    }
+
+    func doneCreating() {
+        withAnimation {
+            creating = .none
+        }
     }
 }
 
+func makeContextActions(parent: FileMetadata, creating: Binding<FileType?>) -> TupleView<(Text, Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
+    TupleView((
+        Text("\(parent.name)::\(parent.fileType.rawValue)"),
+        Button(action: { creating.wrappedValue = .Document }) {
+            Label("Create a document", systemImage: "doc")
+        },
+        Button(action: { creating.wrappedValue = .Folder }) {
+            Label("Create a folder", systemImage: "folder")
+        }
+    ))
+}
 

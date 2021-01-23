@@ -13,6 +13,7 @@ struct LockbookApp: App {
         }.commands {
             CommandMenu("Lockbook") {
                 Button("Sync", action: {core.syncing = true} ).keyboardShortcut("S", modifiers: .command)
+                Button("New File", action: {} ).keyboardShortcut("N", modifiers: .command)
             }
             SidebarCommands()
         }
