@@ -475,13 +475,13 @@ namespace lockbook {
             await signInDialog.ShowAsync();
         }
 
-        private async void Pasted(object sender, TextControlPasteEventArgs e) {
-            if (sender is RichEditBox box) {
+        DateTime prev;
+        private void Pasted(object sender, TextControlPasteEventArgs e) {
+            var now = DateTime.Now;
+            if (now - prev < TimeSpan.FromMilliseconds(10)) {
                 e.Handled = true;
-                DataPackageView dataPackageView = Clipboard.GetContent();
-                if (dataPackageView.Contains(StandardDataFormats.Text)) {
-                    box.Document.Selection.TypeText(await dataPackageView.GetTextAsync());
-                }
+            } else {
+                prev = now;
             }
         }
     }

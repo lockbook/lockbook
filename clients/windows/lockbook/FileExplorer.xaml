@@ -120,6 +120,7 @@
                 x:Name="editor"
                 IsEnabled="True"
                 TextChanged="TextChanged"
+                Paste="Pasted"
                 FontFamily="Consolas"
                 BorderThickness="0"
                 DisabledFormattingAccelerators="All"
