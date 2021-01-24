@@ -70,6 +70,7 @@ namespace lockbook {
 
         public FileExplorer() {
             InitializeComponent();
+            Files.Add(App.UIFiles.FirstOrDefault(kvp => kvp.Value.IsRoot).Value);
         }
 
         private async void SignOutClicked(object sender, RoutedEventArgs e) {
@@ -98,12 +99,12 @@ namespace lockbook {
 
         private async void CheckForWorkLoop() {
             while (true) {
-                await RefreshCalculatedWork();
+                await ReloadCalculatedWork();
                 await Task.Delay(2000);
             }
         }
 
-        public async Task RefreshCalculatedWork() {
+        public async Task ReloadCalculatedWork() {
             switch (await App.CoreService.CalculateWork()) {
                 case Core.CalculateWork.Success success:
                     App.IsOnline = true;
@@ -148,9 +149,6 @@ namespace lockbook {
                 syncIcon.Glyph = syncGlyph;
                 syncText.Text = ItemsToSync + " items need to be synced";
             }
-
-            Files.Clear();
-            Files.Add(App.UIFiles.FirstOrDefault(kvp => kvp.Value.IsRoot).Value);
         }
 
         private async Task ReloadFiles() {
@@ -268,7 +266,7 @@ namespace lockbook {
                 case Core.SyncAll.Success:
                     App.IsOnline = true;
                     await ReloadFiles();
-                    await RefreshCalculatedWork();
+                    await ReloadCalculatedWork();
                     break;
                 case Core.SyncAll.UnexpectedError uhOh:
                     await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
@@ -464,7 +462,7 @@ namespace lockbook {
 
                 switch (result) {
                     case Core.WriteDocument.Success:
-                        await RefreshCalculatedWork();
+                        await ReloadCalculatedWork();
                         break;
                     case Core.WriteDocument.UnexpectedError uhOh:
                         await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
