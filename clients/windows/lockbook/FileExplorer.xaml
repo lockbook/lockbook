@@ -27,8 +27,7 @@
                     Grid.Row="1"
                     AllowDrop="True"
                     CanDragItems="True"
-                    DragItemsCompleted="NavigationViewItem_Drop"
-                    DragItemsStarting="NavigationViewItem_DragStarting">
+                    DragItemsCompleted="NavigationViewItem_Drop">
                     <muxc:TreeView.ItemTemplate>
                         <DataTemplate x:DataType="local:UIFile">
                             <muxc:TreeViewItem 

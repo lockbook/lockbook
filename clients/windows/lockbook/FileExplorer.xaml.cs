@@ -349,28 +349,22 @@ namespace lockbook {
             }
         }
 
-        // Move things
-        // TODO supporting multiple file moves would simply require iterating through this list, 
-        // perhaps also it would require figuring out if a move is going to fail, maybe staging it
-        // as a transaction or something like that could be what we need to do this.
-        private void NavigationViewItem_DragStarting(UIElement sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsStartingEventArgs args) {
-            string id = (args.Items[0] as UIFile)?.Id;
-            System.Diagnostics.Debug.WriteLine("drag starting: " + args.Items[0]);
-
-            if (id != null) {
-                args.Data.SetData("id", id); // TODO we do not need to do this
-            } else {
-                System.Diagnostics.Debug.WriteLine("tag was null");
-            }
-        }
-
         private void NavigationViewItem_DragOver(object sender, DragEventArgs e) {
             e.AcceptedOperation = DataPackageOperation.Move; // TODO show none over documents
         }
 
         private async void NavigationViewItem_Drop(object sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsCompletedEventArgs e) {
-            string toMove = (e.Items[0] as UIFile)?.Id;
-            string newParent = (e.NewParentItem as UIFile)?.Id;
+            var toMove = (e.Items[0] as UIFile)?.Id;
+            var newParent = (e.NewParentItem as UIFile)?.Id;
+            if (toMove == null || newParent == null) {
+                return;
+            }
+
+            App.UIFiles.TryGetValue(toMove, out var toMoveFile);
+            App.UIFiles.TryGetValue(newParent, out var newParentFile);
+            if (toMoveFile.IsRoot || toMove == newParent || newParentFile.IsDocument || newParentFile.Children.Contains(toMoveFile)) {
+                return;
+            }
 
             var result = await App.CoreService.MoveFile(toMove, newParent);
 
