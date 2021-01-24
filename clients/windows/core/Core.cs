@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -234,9 +235,8 @@ namespace lockbook {
 
         public async Task<Core.WriteDocument.IResult> WriteDocument(string id, string content) {
             // todo: correct string encodings everywhere (it's a miracle that this thing is working)
-            var bytes = Encoding.UTF8.GetBytes(content);
-
-            var unmanagedPointer = Marshal.AllocHGlobal(bytes.Length);
+            var bytes = Encoding.UTF8.GetBytes(content).Concat(new byte[]{ 0 }).ToArray(); // null terminator ;)
+            var unmanagedPointer = Marshal.AllocHGlobal(bytes.Length+1);
             Marshal.Copy(bytes, 0, unmanagedPointer, bytes.Length);
 
             var result = await FFICommon<Core.WriteDocument.IResult, Core.WriteDocument.ExpectedError, Core.WriteDocument.PossibleErrors, Core.WriteDocument.UnexpectedError>(
