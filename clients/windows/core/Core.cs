@@ -106,6 +106,9 @@ namespace lockbook {
         [DllImport("lockbook_core")]
         private static extern IntPtr get_usage(string writeable_path);
 
+        [DllImport("lockbook_core")]
+        private static extern IntPtr get_usage_human_string(string writeable_path, bool exact);
+
         private static string getStringAndRelease(IntPtr pointer) {
             // Simplify to the commented code below when UWP supports .NET Standard 2.1
             // var result = Marshal.PtrToStringUTF8(pointer);
@@ -335,10 +338,22 @@ namespace lockbook {
                 s => new Core.GetLastSynced.Success { timestamp = JsonConvert.DeserializeObject<ulong>(s) });
         }
 
+        public async Task<Core.GetLastSyncedHumanString.IResult> GetLastSyncedHumanString() {
+            return await FFICommon<Core.GetLastSyncedHumanString.IResult, Core.GetLastSyncedHumanString.ExpectedError, Core.GetLastSyncedHumanString.PossibleErrors, Core.GetLastSyncedHumanString.UnexpectedError>(
+                () => get_last_synced_human_string(path),
+                s => new Core.GetLastSyncedHumanString.Success { timestamp = s });
+        }
+
         public async Task<Core.GetUsage.IResult> GetUsage() {
             return await FFICommon<Core.GetUsage.IResult, Core.GetUsage.ExpectedError, Core.GetUsage.PossibleErrors, Core.GetUsage.UnexpectedError>(
                 () => get_usage(path),
                 s => new Core.GetUsage.Success { usage = JsonConvert.DeserializeObject<List<FileUsage>>(s) });
+        }
+
+        public async Task<Core.GetUsageHumanString.IResult> GetUsageHumanString() {
+            return await FFICommon<Core.GetUsageHumanString.IResult, Core.GetUsageHumanString.ExpectedError, Core.GetUsageHumanString.PossibleErrors, Core.GetUsageHumanString.UnexpectedError>(
+                () => get_usage_human_string(path, false),
+                s => new Core.GetUsageHumanString.Success { usage = s });
         }
     }
 }

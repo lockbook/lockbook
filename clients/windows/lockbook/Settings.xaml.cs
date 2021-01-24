@@ -12,12 +12,6 @@ using Windows.UI.Xaml.Media.Imaging;
 
 namespace lockbook {
     public sealed partial class SignInContentDialog : ContentDialog {
-        const ulong BYTE = 1;
-        const ulong KILOBYTES = BYTE * 1000;
-        const ulong MEGABYTES = KILOBYTES * 1000;
-        const ulong GIGABYTES = MEGABYTES * 1000;
-        const ulong TERABYTES = GIGABYTES * 1000;
-
         public string Username {
             get {
                 return usernameTextBlock.Text;
@@ -61,43 +55,28 @@ namespace lockbook {
             ServerLocation = App.Account.apiUrl;
         }
 
-        public static string SpaceUsedStringFromUsageBytes(ulong usageBytes) {
-            switch (usageBytes) {
-                case ulong inBytes when inBytes < KILOBYTES:
-                    return "" + usageBytes + " Bytes";
-                case ulong inKiloBytes when inKiloBytes < MEGABYTES:
-                    return "" + usageBytes / (double)KILOBYTES + " KB";
-                case ulong inMegabytes when inMegabytes < GIGABYTES:
-                    return "" + usageBytes / (double)MEGABYTES + " MB";
-                case ulong inGigaytes when inGigaytes < TERABYTES:
-                    return "" + usageBytes / (double)GIGABYTES + " GB";
-                default:
-                    return "" + usageBytes / (double)TERABYTES + " TB";
-            }
-        }
-
         private async void ReloadSpaceUsed() {
             var usageString = "";
-            switch (await App.CoreService.GetUsage()) {
-                case Core.GetUsage.Success success:
-                    usageString = SpaceUsedStringFromUsageBytes(success.usage.Aggregate(0UL, (a, c) => a + c.byteSeconds));
+            switch (await App.CoreService.GetUsageHumanString()) {
+                case Core.GetUsageHumanString.Success success:
+                    usageString = success.usage;
                     break;
 
-                case Core.GetUsage.ExpectedError expectedError:
+                case Core.GetUsageHumanString.ExpectedError expectedError:
                     switch (expectedError.Error) {
-                        case Core.GetUsage.PossibleErrors.NoAccount:
+                        case Core.GetUsageHumanString.PossibleErrors.NoAccount:
                             usageString = "No Account!";
                             break;
-                        case Core.GetUsage.PossibleErrors.CouldNotReachServer:
+                        case Core.GetUsageHumanString.PossibleErrors.CouldNotReachServer:
                             usageString = "Offline!";
                             break;
-                        case Core.GetUsage.PossibleErrors.ClientUpdateRequired:
+                        case Core.GetUsageHumanString.PossibleErrors.ClientUpdateRequired:
                             usageString = "Update required to calculate usage!";
                             break;
                     }
                     break;
 
-                case Core.GetUsage.UnexpectedError ohNo:
+                case Core.GetUsageHumanString.UnexpectedError ohNo:
                     await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }

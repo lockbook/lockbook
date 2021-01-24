@@ -368,10 +368,34 @@ public class RSAPrivateKey {
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
+    namespace GetLastSyncedHumanString {
+        public interface IResult { }
+        public class Success : IResult {
+            public string timestamp;
+        }
+        public enum PossibleErrors { }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
+    }
+
     namespace GetUsage {
         public interface IResult { }
         public class Success : IResult {
             public List<FileUsage> usage;
+        }
+        public enum PossibleErrors {
+            NoAccount,
+            CouldNotReachServer,
+            ClientUpdateRequired,
+        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
+    }
+
+    namespace GetUsageHumanString {
+        public interface IResult { }
+        public class Success : IResult {
+            public string usage;
         }
         public enum PossibleErrors {
             NoAccount,
