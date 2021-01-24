@@ -1,11 +1,10 @@
-﻿using Core;
+﻿using core;
+using Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,7 +20,7 @@ namespace lockbook {
         public IntPtr path;
 
         public CoreService(string path) {
-            this.path = ToPtr(path);
+            this.path = Utils.ToFFI(path);
         }
 
         private static Mutex coreMutex = new Mutex();
@@ -110,27 +109,9 @@ namespace lockbook {
         [DllImport("lockbook_core")]
         private static extern IntPtr get_usage_human_string(IntPtr writeable_path, bool exact);
 
-        private static string FromPtr(IntPtr pointer) {
-            // Simplify to the commented code below when UWP supports .NET Standard 2.1
-            // var result = Marshal.PtrToStringUTF8(pointer);
-            // release_pointer(pointer);
-            // return result;
-
-            // https://stackoverflow.com/a/54745272
-            int len = 0;
-            while (Marshal.ReadByte(pointer, len) != 0) { ++len; } // read until null terminator
-            byte[] buffer = new byte[len];
-            Marshal.Copy(pointer, buffer, 0, buffer.Length);
-            var result = Encoding.UTF8.GetString(buffer);
-            release_pointer(pointer);
-            return result;
-        }
-
-        // remember to Marshal.FreeHGlobal(yourPointer) when you're done!
-        private static IntPtr ToPtr(string str) {
-            var bytes = Encoding.UTF8.GetBytes(str).Concat(new byte[] { 0 }).ToArray(); // add null terminator
-            var result = Marshal.AllocHGlobal(bytes.Length + 1);
-            Marshal.Copy(bytes, 0, result, bytes.Length);
+        private static string CopyToManagedAndRelease(IntPtr ptr) {
+            var result = Utils.FromFFI(ptr);
+            release_pointer(ptr);
             return result;
         }
 
@@ -147,7 +128,7 @@ namespace lockbook {
                 string coreResponse;
                 try {
                     coreMutex.WaitOne();
-                    coreResponse = FromPtr(func());
+                    coreResponse = CopyToManagedAndRelease(func());
                 } finally {
                     coreMutex.ReleaseMutex();
                 }
@@ -212,8 +193,8 @@ namespace lockbook {
         }
 
         public async Task<Core.CreateAccount.IResult> CreateAccount(string username, string apiUrl) {
-            var usernamePtr = ToPtr(username);
-            var apiUrlPtr = ToPtr(apiUrl);
+            var usernamePtr = Utils.ToFFI(username);
+            var apiUrlPtr = Utils.ToFFI(apiUrl);
             var result = await FFICommon<Core.CreateAccount.IResult, Core.CreateAccount.ExpectedError, Core.CreateAccount.PossibleErrors, Core.CreateAccount.UnexpectedError>(
                 () => create_account(path, usernamePtr, apiUrlPtr),
                 s => new Core.CreateAccount.Success());
@@ -223,7 +204,7 @@ namespace lockbook {
         }
 
         public async Task<Core.ImportAccount.IResult> ImportAccount(string accountString) {
-            var accountStringPtr = ToPtr(accountString);
+            var accountStringPtr = Utils.ToFFI(accountString);
             var result = await FFICommon<Core.ImportAccount.IResult, Core.ImportAccount.ExpectedError, Core.ImportAccount.PossibleErrors, Core.ImportAccount.UnexpectedError>(
                 () => import_account(path, accountStringPtr),
                 s => new Core.ImportAccount.Success());
@@ -244,7 +225,7 @@ namespace lockbook {
         }
 
         public async Task<Core.CreateFileAtPath.IResult> CreateFileAtPath(string pathWithName) {
-            var pathWithNamePtr = ToPtr(pathWithName);
+            var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.CreateFileAtPath.IResult, Core.CreateFileAtPath.ExpectedError, Core.CreateFileAtPath.PossibleErrors, Core.CreateFileAtPath.UnexpectedError>(
                 () => create_file_at_path(path, pathWithNamePtr),
                 s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s)});
@@ -253,8 +234,8 @@ namespace lockbook {
         }
 
         public async Task<Core.WriteDocument.IResult> WriteDocument(string id, string content) {
-            var idPtr = ToPtr(id);
-            var contentPtr = ToPtr(content);
+            var idPtr = Utils.ToFFI(id);
+            var contentPtr = Utils.ToFFI(content);
             var result = await FFICommon<Core.WriteDocument.IResult, Core.WriteDocument.ExpectedError, Core.WriteDocument.PossibleErrors, Core.WriteDocument.UnexpectedError>(
                 () => write_document(path, idPtr, contentPtr),
                 s => new Core.WriteDocument.Success());
@@ -264,9 +245,9 @@ namespace lockbook {
         }
 
         public async Task<Core.CreateFile.IResult> CreateFile(string name, string parent, FileType ft) {
-            var namePtr = ToPtr(name);
-            var parentPtr = ToPtr(parent);
-            var fileTypePtr = ToPtr(ft == FileType.Folder ? "Folder" : "Document");
+            var namePtr = Utils.ToFFI(name);
+            var parentPtr = Utils.ToFFI(parent);
+            var fileTypePtr = Utils.ToFFI(ft == FileType.Folder ? "Folder" : "Document");
             var result = await FFICommon<Core.CreateFile.IResult, Core.CreateFile.ExpectedError, Core.CreateFile.PossibleErrors, Core.CreateFile.UnexpectedError>(
                 () => create_file(path, namePtr, parentPtr, fileTypePtr),
                 s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s) });
@@ -283,7 +264,7 @@ namespace lockbook {
         }
 
         public async Task<Core.GetChildren.IResult> GetChildren(string id) {
-            var idPtr = ToPtr(id);
+            var idPtr = Utils.ToFFI(id);
             var result = await FFICommon<Core.GetChildren.IResult, Core.GetChildren.ExpectedError, Core.GetChildren.PossibleErrors, Core.GetChildren.UnexpectedError>(
                 () => get_children(path, idPtr),
                 s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<FileMetadata>>(s) });
@@ -292,7 +273,7 @@ namespace lockbook {
         }
 
         public async Task<Core.ReadDocument.IResult> ReadDocument(string id) {
-            var idPtr = ToPtr(id);
+            var idPtr = Utils.ToFFI(id);
             var result = await FFICommon<Core.ReadDocument.IResult, Core.ReadDocument.ExpectedError, Core.ReadDocument.PossibleErrors, Core.ReadDocument.UnexpectedError>(
                 () => read_document(path, idPtr),
                 s => new Core.ReadDocument.Success { content = s });
@@ -301,7 +282,7 @@ namespace lockbook {
         }
 
         public async Task<Core.GetFileByPath.IResult> GetFileByPath(string pathWithName) {
-            var pathWithNamePtr = ToPtr(pathWithName);
+            var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.GetFileByPath.IResult, Core.GetFileByPath.ExpectedError, Core.GetFileByPath.PossibleErrors, Core.GetFileByPath.UnexpectedError>(
                 () => get_file_by_path(path, pathWithNamePtr),
                 s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<FileMetadata>(s) });
@@ -310,7 +291,7 @@ namespace lockbook {
         }
 
         public async Task<Core.DeleteFile.IResult> DeleteFile(string id) {
-            var idPtr = ToPtr(id);
+            var idPtr = Utils.ToFFI(id);
             var result = await FFICommon<Core.DeleteFile.IResult, Core.DeleteFile.ExpectedError, Core.DeleteFile.PossibleErrors, Core.DeleteFile.UnexpectedError>(
                 () => delete_file(path, idPtr),
                 s => new Core.DeleteFile.Success());
@@ -319,7 +300,7 @@ namespace lockbook {
         }
 
         public async Task<Core.ListPaths.IResult> ListPaths(string filter) {
-            var filterPtr = ToPtr(filter);
+            var filterPtr = Utils.ToFFI(filter);
             var result = await FFICommon<Core.ListPaths.IResult, Core.ListPaths.ExpectedError, Core.ListPaths.PossibleErrors, Core.ListPaths.UnexpectedError>(
                 () => list_paths(path, filterPtr),
                 s => new Core.ListPaths.Success { paths = JsonConvert.DeserializeObject<List<string>>(s) });
@@ -334,8 +315,8 @@ namespace lockbook {
         }
 
         public async Task<Core.RenameFile.IResult> RenameFile(string id, string newName) {
-            var idPtr = ToPtr(id);
-            var newNamePtr = ToPtr(newName);
+            var idPtr = Utils.ToFFI(id);
+            var newNamePtr = Utils.ToFFI(newName);
             var result = await FFICommon<Core.RenameFile.IResult, Core.RenameFile.ExpectedError, Core.RenameFile.PossibleErrors, Core.RenameFile.UnexpectedError>(
                 () => rename_file(path, idPtr, newNamePtr),
                 s => new Core.RenameFile.Success());
@@ -345,8 +326,8 @@ namespace lockbook {
         }
 
         public async Task<Core.MoveFile.IResult> MoveFile(string id, string newParent) {
-            var idPtr = ToPtr(id);
-            var newParentPtr = ToPtr(newParent);
+            var idPtr = Utils.ToFFI(id);
+            var newParentPtr = Utils.ToFFI(newParent);
             var result = await FFICommon<Core.MoveFile.IResult, Core.MoveFile.ExpectedError, Core.MoveFile.PossibleErrors, Core.MoveFile.UnexpectedError>(
                 () => move_file(path, idPtr, newParentPtr),
                 s => new Core.MoveFile.Success());
@@ -368,7 +349,7 @@ namespace lockbook {
         }
 
         public async Task<Core.ExecuteWork.IResult> ExecuteWork(string workUnit) {
-            var workUnitPtr = ToPtr(workUnit);
+            var workUnitPtr = Utils.ToFFI(workUnit);
             var result = await FFICommon<Core.ExecuteWork.IResult, Core.ExecuteWork.ExpectedError, Core.ExecuteWork.PossibleErrors, Core.ExecuteWork.UnexpectedError>(
                 () => execute_work(path, workUnitPtr),
                 s => new Core.ExecuteWork.Success());
