@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.UI.Popups;
@@ -473,6 +474,16 @@ namespace lockbook {
         private async void ListViewItem_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
             SignInContentDialog signInDialog = new SignInContentDialog();
             await signInDialog.ShowAsync();
+        }
+
+        private async void Pasted(object sender, TextControlPasteEventArgs e) {
+            if (sender is RichEditBox box) {
+                e.Handled = true;
+                DataPackageView dataPackageView = Clipboard.GetContent();
+                if (dataPackageView.Contains(StandardDataFormats.Text)) {
+                    box.Document.Selection.TypeText(await dataPackageView.GetTextAsync());
+                }
+            }
         }
     }
 }
