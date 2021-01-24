@@ -72,7 +72,16 @@ namespace lockbook {
         }
 
         private async void SignOutClicked(object sender, RoutedEventArgs e) {
-            await App.SignOut();
+            ContentDialog dialog = new ContentDialog {
+                Content = "Signing out removes your account from this device. It will not affect your files, but if you haven't backed up your private key or signed in on another device, you will forever lose access to your account.",
+                Title = "Confirm Sign Out",
+                IsSecondaryButtonEnabled = true,
+                PrimaryButtonText = "Remove Account From This Device",
+                SecondaryButtonText = "Cancel",
+            };
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary) {
+                await App.SignOut();
+            }
         }
 
         private async void NavigationViewLoaded(object sender, RoutedEventArgs e) {
