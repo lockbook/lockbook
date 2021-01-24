@@ -1,124 +1,169 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
-using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.Core;
+using Windows.Storage;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Navigation;
 
 namespace lockbook {
-    /// <summary>
-    /// Provides application-specific behavior to supplement the default Application class.
-    /// </summary>
     sealed partial class App : Application {
         public static CoreService CoreService;
 
-        /// <summary>
-        /// Initializes the singleton application object.  This is the first line of authored code
-        /// executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
-        public App()
-        {
+        public App() {
             InitializeComponent();
-            Suspending += OnSuspending;
         }
 
-        /// <summary>
-        /// Invoked when the application is launched normally by the end user.  Other entry points
-        /// will be used such as when the application is launched to open a specific file.
-        /// </summary>
-        /// <param name="e">Details about the launch request and process.</param>
+        public static Frame Frame {
+            get {
+                return Window.Current.Content as Frame;
+            }
+            set {
+                Window.Current.Content = value;
+            }
+        }
+
+        private static bool isOnline;
+        public static bool IsOnline {
+            get {
+                return isOnline;
+            }
+            set {
+                isOnline = value;
+                Refresh();
+            }
+        }
+
+        private static bool clientUpdateRequired;
+        public static bool ClientUpdateRequired {
+            get {
+                return clientUpdateRequired;
+            }
+            set {
+                clientUpdateRequired = value;
+                Refresh();
+            }
+        }
+
+        private static Core.DbState dbState;
+        public static Core.DbState DbState {
+            get {
+                return dbState;
+            }
+            set {
+                dbState = value;
+                Refresh();
+            }
+        }
+
+        private static Dictionary<string, UIFile> uiFiles = new Dictionary<string, UIFile>();
+        public static Dictionary<string, UIFile> UIFiles {
+            get {
+                return uiFiles;
+            }
+            set {
+                uiFiles = value;
+                Refresh();
+            }
+        }
+
+        public static Core.Account Account { get; set; }
+        public static string AccountString { get; set; }
+
+        public static void Refresh() {
+            Type targetType = typeof(Startup);
+            if (ClientUpdateRequired) {
+                targetType = typeof(Startup);
+            } else {
+                switch (DbState) {
+                    case Core.DbState.ReadyToUse:
+                        targetType = typeof(FileExplorer);
+                        break;
+                    case Core.DbState.Empty:
+                        targetType = typeof(SignUp);
+                        break;
+                    case Core.DbState.MigrationRequired:
+                        targetType = typeof(Startup);
+                        break;
+                    case Core.DbState.StateRequiresClearing:
+                        targetType = typeof(Startup);
+                        break;
+                }
+            }
+            if (Frame.Content.GetType() != targetType) {
+                Frame.Navigate(targetType);
+            }
+            (Frame.Content as Startup)?.Refresh();
+            (Frame.Content as FileExplorer)?.Refresh();
+        }
+
+        public static async Task SignOut() {
+            await ApplicationData.Current.ClearAsync();
+            await ReloadDbStateAndAccount();
+        }
+
+        public static async Task ReloadDbStateAndAccount() {
+            switch (await CoreService.GetDbState()) {
+                case Core.GetDbState.Success success:
+                    DbState = success.dbState;
+                    break;
+                case Core.GetDbState.UnexpectedError error:
+                    await new MessageDialog(error.ErrorMessage, "Unexpected error while getting state of local database: " + error.ErrorMessage).ShowAsync();
+                    break;
+            }
+            switch (await CoreService.GetAccount()) {
+                case Core.GetAccount.Success success:
+                    Account = success.account;
+                    break;
+                case Core.GetAccount.ExpectedError expectedError:
+                    switch (expectedError.Error) {
+                        case Core.GetAccount.PossibleErrors.NoAccount:
+                            Account = null;
+                            break;
+                    }
+                    break;
+                case Core.GetAccount.UnexpectedError error:
+                    await new MessageDialog(error.ErrorMessage, "Unexpected error while loading account: " + error.ErrorMessage).ShowAsync();
+                    break;
+            }
+            switch (await CoreService.ExportAccount()) {
+                case Core.ExportAccount.Success success:
+                    AccountString = success.accountString;
+                    break;
+                case Core.ExportAccount.ExpectedError expectedError:
+                    switch (expectedError.Error) {
+                        case Core.ExportAccount.PossibleErrors.NoAccount:
+                            AccountString = null;
+                            break;
+                    }
+                    break;
+                case Core.ExportAccount.UnexpectedError error:
+                    await new MessageDialog(error.ErrorMessage, "Unexpected error while exporting account: " + error.ErrorMessage).ShowAsync();
+                    break;
+            }
+        }
+
         protected override async void OnLaunched(LaunchActivatedEventArgs e)
         {
-            Frame rootFrame = Window.Current.Content as Frame;
+            Frame ??= new Frame();
+            CoreApplication.GetCurrentView().TitleBar.ExtendViewIntoTitleBar = true;
 
-            // Do not repeat app initialization when the Window already has content,
-            // just ensure that the window is active
-            if (rootFrame == null)
-            {
-                // Create a Frame to act as the navigation context and navigate to the first page
-                rootFrame = new Frame();
+            if (!e.PrelaunchActivated && Frame.Content == null) {
+                Window.Current.Activate();
+                Frame.Navigate(typeof(Startup));
 
-                rootFrame.NavigationFailed += OnNavigationFailed;
+                CoreService = new CoreService(ApplicationData.Current.LocalFolder.Path);
+                await CoreService.InitLoggerSafely();
 
-                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated)
-                {
-                    //TODO: Load state from previously suspended application
+                await ReloadDbStateAndAccount();
+                if (DbState == Core.DbState.MigrationRequired) {
+                    await CoreService.MigrateDb();
+                    await ReloadDbStateAndAccount();
                 }
-
-                // Place the frame in the current Window
-                Window.Current.Content = rootFrame;
             }
-
-            CoreService = new CoreService(Windows.Storage.ApplicationData.Current.LocalFolder.Path);
-            await CoreService.InitLoggerSafely();
-
-            if (e.PrelaunchActivated == false)
-            {
-                if (rootFrame.Content == null)
-                {
-                    rootFrame.Navigate(typeof(Startup), e.Arguments);
-                    Window.Current.Activate();
-                    var frame = (Startup)((Frame)Window.Current.Content).Content;
-                    for (bool done = false; !done;) {
-                        switch (await CoreService.GetDbState()) {
-                            case Core.GetDbState.Success success:
-                                switch (success.dbState) {
-                                    case Core.DbState.ReadyToUse:
-                                        rootFrame.Navigate(typeof(FileExplorer), e.Arguments);
-                                        done = true;
-                                        break;
-                                    case Core.DbState.Empty:
-                                        rootFrame.Navigate(typeof(SignUp), e.Arguments);
-                                        done = true;
-                                        break;
-                                    case Core.DbState.MigrationRequired:
-                                        frame.Message = "Updating local data for new app version";
-                                        await CoreService.MigrateDb();
-                                        break;
-                                    case Core.DbState.StateRequiresClearing:
-                                        frame.Working = false;
-                                        frame.Title = "Error";
-                                        frame.Message = "We're embarrased about this, but your local data is corrupted and you need to reinstall Lockbook.";
-                                        done = true;
-                                        break;
-                                }
-                                break;
-                            case Core.CalculateWork.UnexpectedError uhOh:
-                                await new MessageDialog(uhOh.ErrorMessage, "Unexpected error during get db state: " + uhOh.ErrorMessage).ShowAsync();
-                                break;
-                        }
-                    }
-                }
-                var coreTitleBar = CoreApplication.GetCurrentView().TitleBar;
-                coreTitleBar.ExtendViewIntoTitleBar = true;
-            }
-        }
-
-        /// <summary>
-        /// Invoked when Navigation to a certain page fails
-        /// </summary>
-        /// <param name="sender">The Frame which failed navigation</param>
-        /// <param name="e">Details about the navigation failure</param>
-        void OnNavigationFailed(object sender, NavigationFailedEventArgs e)
-        {
-            throw new Exception("Failed to load Page " + e.SourcePageType.FullName);
-        }
-
-        /// <summary>
-        /// Invoked when application execution is being suspended.  Application state is saved
-        /// without knowing whether the application will be terminated or resumed with the contents
-        /// of memory still intact.
-        /// </summary>
-        /// <param name="sender">The source of the suspend request.</param>
-        /// <param name="e">Details about the suspend request.</param>
-        private void OnSuspending(object sender, SuspendingEventArgs e)
-        {
-            var deferral = e.SuspendingOperation.GetDeferral();
-            //TODO: Save application state and stop any background activity
-            deferral.Complete();
         }
     }
 }

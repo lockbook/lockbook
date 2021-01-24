@@ -17,15 +17,23 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="Lockbook" Margin="13,30,0,20"
-                           Style="{StaticResource SubheaderTextBlockStyle}"
-                           />
-                <muxc:TreeView ItemsSource="{x:Bind Files}" Grid.Row="1" AllowDrop="True" CanDragItems="True" DragItemsCompleted="NavigationViewItem_Drop" DragItemsStarting="NavigationViewItem_DragStarting">
+                <TextBlock
+                    Grid.Row="0"
+                    Text="Lockbook"
+                    Margin="13,30,0,20"
+                    Style="{StaticResource SubheaderTextBlockStyle}"/>
+                <muxc:TreeView
+                    ItemsSource="{x:Bind Files}"
+                    Grid.Row="1"
+                    AllowDrop="True"
+                    CanDragItems="True"
+                    DragItemsCompleted="NavigationViewItem_Drop"
+                    DragItemsStarting="NavigationViewItem_DragStarting">
                     <muxc:TreeView.ItemTemplate>
                         <DataTemplate x:DataType="local:UIFile">
                             <muxc:TreeViewItem 
                                 ItemsSource="{x:Bind Children}" 
-                                IsExpanded="{x:Bind Expanded}" 
+                                IsExpanded="{x:Bind IsExpanded}" 
                                 x:DefaultBindMode="TwoWay"
                                 Tapped="DocumentSelected"
                                 Tag="{x:Bind Id}">
@@ -41,40 +49,66 @@
                                 </StackPanel>
                                 <muxc:TreeViewItem.ContextFlyout>
                                     <MenuFlyout>
-                                        <MenuFlyoutItem Text="New Folder"
-                                        Click="NewFolder"
-                                        Tag="{x:Bind Id}" />
-                                        <MenuFlyoutItem Text="New Document"
-                                        Tag="{x:Bind Id}"
-                                        Click="NewDocument" />
+                                        <MenuFlyoutItem
+                                            Text="New Folder"
+                                            Click="NewFolder"
+                                            Tag="{x:Bind Id}" />
+                                        <MenuFlyoutItem
+                                            Text="New Document"
+                                            Tag="{x:Bind Id}"
+                                            Click="NewDocument" />
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Rename"
-                                        Click="RenameFile"
-                                        Tag="{x:Bind Id}" />
-                                        <MenuFlyoutItem Text="Delete"
-                                        Click="DeleteFile"
-                                        Tag="{x:Bind Id}" />
+                                        <MenuFlyoutItem
+                                            Text="Rename"
+                                            Click="RenameFile"
+                                            Tag="{x:Bind Id}" />
+                                        <MenuFlyoutItem
+                                            Text="Delete"
+                                            Click="DeleteFile"
+                                            Tag="{x:Bind Id}" />
                                         <MenuFlyoutSeparator />
-                                        <MenuFlyoutItem Text="Nuke all data"
-                                        Click="ClearStateClicked" />
+                                        <MenuFlyoutItem
+                                            Text="Sign out"
+                                            Click="SignOutClicked" />
                                     </MenuFlyout>
                                 </muxc:TreeViewItem.ContextFlyout>
                             </muxc:TreeViewItem>
                         </DataTemplate>
                     </muxc:TreeView.ItemTemplate>
                 </muxc:TreeView>
-                <StackPanel Grid.Row="2" Margin="0,30,0,0">
-                    <ListView x:Name="Fruits" SelectionMode="None" IsItemClickEnabled="True">
-                        <ListViewItem x:Name="syncContainer" Tapped="SyncCalled">
-                            <StackPanel Tag="numeric" Orientation="Horizontal">
-                                <FontIcon x:Name="syncIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xF146;" />
-                                <TextBlock x:Name="syncText" Text="Numeric" Margin="8,0" />
+                <StackPanel
+                    Grid.Row="2"
+                    Margin="0,30,0,0">
+                    <ListView
+                        x:Name="Fruits"
+                        SelectionMode="None"
+                        IsItemClickEnabled="True">
+                        <ListViewItem
+                            x:Name="syncContainer"
+                            Tapped="SyncCalled">
+                            <StackPanel
+                                Tag="numeric"
+                                Orientation="Horizontal">
+                                <FontIcon
+                                    x:Name="syncIcon"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    Glyph="&#xF146;" />
+                                <TextBlock
+                                    x:Name="syncText"
+                                    Text="Numeric"
+                                    Margin="8,0" />
                             </StackPanel>
                         </ListViewItem>
                         <ListViewItem Tapped="ListViewItem_Tapped">
-                            <StackPanel Tag="numeric" Orientation="Horizontal">
-                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xEF58;"/>
-                                <TextBlock Text="Settings" Margin="8,0"/>
+                            <StackPanel
+                                Tag="numeric"
+                                Orientation="Horizontal">
+                                <FontIcon
+                                    FontFamily="Segoe MDL2 Assets"
+                                    Glyph="&#xEF58;"/>
+                                <TextBlock
+                                    Text="Settings"
+                                    Margin="8,0"/>
                             </StackPanel>
                         </ListViewItem>
                     </ListView>
@@ -82,12 +116,14 @@
             </Grid>
         </SplitView.Pane>
         <SplitView.Content>
-            <RichEditBox x:Name="editor"
-                         IsEnabled="True"
-                         TextChanged="TextChanged"
-                         BorderThickness="0"
-                         DisabledFormattingAccelerators="All"
-                         Background="Black">
+            <RichEditBox
+                x:Name="editor"
+                IsEnabled="True"
+                TextChanged="TextChanged"
+                FontFamily="Consolas"
+                BorderThickness="0"
+                DisabledFormattingAccelerators="All"
+                Background="Black">
             </RichEditBox>
         </SplitView.Content>
     </SplitView>

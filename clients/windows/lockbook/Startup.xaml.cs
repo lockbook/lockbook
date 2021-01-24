@@ -30,6 +30,37 @@ namespace lockbook {
             }
         }
 
+        public void Refresh() {
+            if (App.ClientUpdateRequired) {
+                Working = false;
+                Title = "Update Lockbook";
+                Message = "You need to update the app. This can happen if you recently updated the app on another device.";
+            } else {
+                switch (App.DbState) {
+                    case Core.DbState.ReadyToUse:
+                        Working = true;
+                        Title = "Loading";
+                        Message = "";
+                        break;
+                    case Core.DbState.Empty:
+                        Working = true;
+                        Title = "Loading";
+                        Message = "";
+                        break;
+                    case Core.DbState.MigrationRequired:
+                        Working = true;
+                        Title = "Finishing update";
+                        Message = "You've recently updated the app and we need to make some final adjustments.";
+                        break;
+                    case Core.DbState.StateRequiresClearing:
+                        Working = true;
+                        Title = "Signing Out";
+                        Message = "Something unexpected happened and we need to sign you out.";
+                        break;
+                }
+            }
+        }
+
         public Startup() {
             InitializeComponent();
         }

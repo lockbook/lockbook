@@ -4,115 +4,189 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
 namespace lockbook {
-
     public sealed partial class SignUp : Page {
         public SignUp() {
             InitializeComponent();
         }
 
+        public string Username {
+            get {
+                return usernameTextBox.Text;
+            }
+            set {
+                usernameTextBox.Text = value;
+            }
+        }
+
+        public string APILocation {
+            get {
+                return apiLocationTextBox.Text;
+            }
+            set {
+                apiLocationTextBox.Text = value;
+            }
+        }
+
+        public string AccountString {
+            get {
+                return accountStringTextBox.Text;
+            }
+            set {
+                accountStringTextBox.Text = value;
+            }
+        }
+
+        public string NewAccountError {
+            get {
+                return newAccountErrorTextBlock.Text;
+            }
+            set {
+                newAccountErrorTextBlock.Visibility = string.IsNullOrEmpty(value) ? Visibility.Collapsed : Visibility.Visible;
+                newAccountErrorTextBlock.Text = value;
+            }
+        }
+
+        public string ImportAccountError {
+            get {
+                return importAccountErrorTextBlock.Text;
+            }
+            set {
+                importAccountErrorTextBlock.Visibility = string.IsNullOrEmpty(value) ? Visibility.Collapsed : Visibility.Visible;
+                importAccountErrorTextBlock.Text = value;
+            }
+        }
+
+        public bool ButtonsEnabled {
+            get {
+                return createAccountButton.IsEnabled;
+            }
+            set {
+                createAccountButton.IsEnabled = value;
+                importAccountButton.IsEnabled = value;
+            }
+        }
+
+        public bool NewAccountWorking {
+            get {
+                return newAccountProgressRing.IsActive;
+            }
+            set {
+                newAccountProgressRing.IsActive = value;
+                newAccountProgressRing.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+                newAccountProgressGroup.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        public bool ImportAccountWorking {
+            get {
+                return importAccountProgressRing.IsActive;
+            }
+            set {
+                importAccountProgressRing.IsActive = value;
+                importAccountProgressRing.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+                importAccountProgressGroup.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
         private async void ImportAccount(object sender, RoutedEventArgs e) {
-            createAccount.IsEnabled = false;
-            importAccountButton.IsEnabled = false;
-            importProgressGroup.Visibility = Visibility.Visible;
-            ImportProgressRing.Visibility = Visibility.Visible;
-            ImportProgressRing.IsActive = true;
-            importError.Visibility = Visibility.Collapsed;
+            ButtonsEnabled = false;
+            ImportAccountWorking = true;
 
-            Core.ImportAccount.IResult importAccountResult = await App.CoreService.ImportAccount(accountStringTextBox.Text);
-
-            switch (importAccountResult) {
+            switch (await App.CoreService.ImportAccount(AccountString)) {
                 case Core.ImportAccount.Success:
+                    await App.ReloadDbStateAndAccount();
                     break;
-                case Core.ImportAccount.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
+                case Core.ImportAccount.UnexpectedError error:
+                    await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
                 case Core.ImportAccount.ExpectedError expectedError:
                     switch (expectedError.Error) {
                         case Core.ImportAccount.PossibleErrors.AccountDoesNotExist:
-                            importError.Text = "That account does not exist on this server!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "That account does not exist on this server!";
                             break;
                         case Core.ImportAccount.PossibleErrors.AccountExistsAlready:
-                            importError.Text = "An account exists already, clear your app data to import another account!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "An account exists already, clear your app data to import another account!";
                             break;
                         case Core.ImportAccount.PossibleErrors.AccountStringCorrupted:
-                            importError.Text = "This account string is corrupt!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "This account string is corrupt!";
                             break;
                         case Core.ImportAccount.PossibleErrors.CouldNotReachServer:
-                            importError.Text = "Could not reach the server!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "Could not reach the server!";
                             break;
                         case Core.ImportAccount.PossibleErrors.UsernamePKMismatch:
-                            importError.Text = "This username does not correspond to the public key in this account_string!";
-                            newAccountError.Visibility = Visibility.Visible;
+                            ImportAccountError = "This username does not correspond to the public key in this account_string!";
+                            break;
+                        case Core.ImportAccount.PossibleErrors.ClientUpdateRequired:
+                            ImportAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
                             break;
                     };
                     break;
             }
 
-            var syncResult = await App.CoreService.SyncAll();
-            switch (syncResult) {
+            switch (await App.CoreService.SyncAll()) {
                 case Core.SyncAll.Success:
-                    Frame.Navigate(typeof(FileExplorer));
                     break;
-                default:
-                    await new MessageDialog(syncResult.ToString(), "Unhandled Error!").ShowAsync(); // TODO
+                case Core.SyncAll.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
-            }
-
-            createAccount.IsEnabled = true;
-            importAccountButton.IsEnabled = true;
-            importProgressGroup.Visibility = Visibility.Collapsed;
-            ImportProgressRing.Visibility = Visibility.Collapsed;
-            ImportProgressRing.IsActive = false;
-            importError.Visibility = Visibility.Visible;
-        }
-
-        private async void CreateAccount(object sender, RoutedEventArgs e) {
-            createAccount.IsEnabled = false;
-            importAccountButton.IsEnabled = false;
-            progressGroup.Visibility = Visibility.Visible;
-            progressRing.Visibility = Visibility.Visible;
-            progressRing.IsActive = true;
-            newAccountError.Visibility = Visibility.Collapsed;
-            var createAccountResult = await App.CoreService.CreateAccount(username.Text, "http://localhost:8000");
-
-            switch (createAccountResult) {
-                case Core.CreateAccount.Success:
-                    Frame.Navigate(typeof(FileExplorer));
-                    break;
-                case Core.CreateAccount.UnexpectedError ohNo:
-                    await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
-                    break;
-                case Core.CreateAccount.ExpectedError expectedError:
-                    switch (expectedError.Error) {
-                        case Core.CreateAccount.PossibleErrors.InvalidUsername:
-                            newAccountError.Text = "Invalid username!";
-                            newAccountError.Visibility = Visibility.Visible;
+                case Core.SyncAll.ExpectedError error:
+                    switch (error.Error) {
+                        case Core.SyncAll.PossibleErrors.CouldNotReachServer:
+                            // When in doubt, sign out
+                            await App.SignOut();
+                            App.Refresh();
                             break;
-                        case Core.CreateAccount.PossibleErrors.UsernameTaken:
-                            newAccountError.Text = "Username taken!";
-                            newAccountError.Visibility = Visibility.Visible;
+                        case Core.SyncAll.PossibleErrors.ClientUpdateRequired:
+                            ImportAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
                             break;
-                        case Core.CreateAccount.PossibleErrors.CouldNotReachServer:
-                            newAccountError.Text = "Could not reach server!";
-                            newAccountError.Visibility = Visibility.Visible;
+                        case Core.SyncAll.PossibleErrors.NoAccount:
+                            ImportAccountError = "Successfully imported account but failed to load it. Try restarting the app. If the problem persists, please file a bug report.";
                             break;
-                        case Core.CreateAccount.PossibleErrors.AccountExistsAlready:
-                            newAccountError.Text = "An account exists already!";
-                            newAccountError.Visibility = Visibility.Visible;
+                        case Core.SyncAll.PossibleErrors.ExecuteWorkError:
+                            await new MessageDialog(error.ToString(), "Unexpected Error!").ShowAsync();
                             break;
                     }
                     break;
             }
 
-            createAccount.IsEnabled = true;
-            importAccountButton.IsEnabled = true;
-            progressGroup.Visibility = Visibility.Collapsed;
-            progressRing.Visibility = Visibility.Collapsed;
-            progressRing.IsActive = false;
+            ButtonsEnabled = true;
+            ImportAccountWorking = false;
+        }
+
+        private async void CreateAccount(object sender, RoutedEventArgs e) {
+            ButtonsEnabled = false;
+            NewAccountWorking = true;
+
+            switch (await App.CoreService.CreateAccount(Username, APILocation)) {
+                case Core.CreateAccount.Success:
+                    await App.ReloadDbStateAndAccount();
+                    break;
+                case Core.CreateAccount.UnexpectedError error:
+                    await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+                case Core.CreateAccount.ExpectedError error:
+                    switch (error.Error) {
+                        case Core.CreateAccount.PossibleErrors.InvalidUsername:
+                            NewAccountError = "Invalid username!";
+                            break;
+                        case Core.CreateAccount.PossibleErrors.UsernameTaken:
+                            NewAccountError = "Username taken!";
+                            break;
+                        case Core.CreateAccount.PossibleErrors.CouldNotReachServer:
+                            NewAccountError = "Could not reach server!";
+                            break;
+                        case Core.CreateAccount.PossibleErrors.AccountExistsAlready:
+                            NewAccountError = "An account exists already!";
+                            break;
+                        case Core.CreateAccount.PossibleErrors.ClientUpdateRequired:
+                            NewAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
+                            break;
+                    }
+                    break;
+            }
+
+            ButtonsEnabled = true;
+            NewAccountWorking = false;
         }
     }
 }
