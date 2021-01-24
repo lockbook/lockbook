@@ -94,7 +94,6 @@ namespace lockbook {
 
             switch (await App.CoreService.ImportAccount(AccountString)) {
                 case Core.ImportAccount.Success:
-                    await App.ReloadDbStateAndAccount();
                     break;
                 case Core.ImportAccount.UnexpectedError error:
                     await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();
@@ -148,6 +147,8 @@ namespace lockbook {
                     }
                     break;
             }
+
+            await App.ReloadDbStateAndAccount();
 
             ButtonsEnabled = true;
             ImportAccountWorking = false;
