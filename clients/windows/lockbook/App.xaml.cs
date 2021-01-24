@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.Core;
 using Windows.Storage;
+using Windows.UI;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -88,7 +89,7 @@ namespace lockbook {
                         targetType = typeof(Startup);
                         break;
                     case Core.DbState.StateRequiresClearing:
-                        targetType = typeof(Startup);
+                        targetType = typeof(FileExplorer);
                         break;
                 }
             }
@@ -108,6 +109,9 @@ namespace lockbook {
             switch (await CoreService.GetDbState()) {
                 case Core.GetDbState.Success success:
                     DbState = success.dbState;
+                    if (DbState == Core.DbState.StateRequiresClearing) {
+                        await PromptClearState();
+                    }
                     break;
                 case Core.GetDbState.UnexpectedError error:
                     await new MessageDialog(error.ErrorMessage, "Unexpected error while getting state of local database: " + error.ErrorMessage).ShowAsync();
@@ -142,6 +146,25 @@ namespace lockbook {
                 case Core.ExportAccount.UnexpectedError error:
                     await new MessageDialog(error.ErrorMessage, "Unexpected error while exporting account: " + error.ErrorMessage).ShowAsync();
                     break;
+            }
+        }
+
+        private static async Task PromptClearState() {
+            ContentDialog dialog = new ContentDialog {
+                Content = "Lockbook has encountered an unexpected problem - please file a bug. Back up any unsynced files before removing your account from this device.",
+                Title = "Unexpected Problem",
+                IsSecondaryButtonEnabled = true,
+                PrimaryButtonText = "Remove Account From This Device",
+                SecondaryButtonText = "Try Using Lockbook Anyway",
+            };
+
+            var bst = new Style(typeof(Button));
+            bst.Setters.Add(new Setter(Control.BackgroundProperty, Colors.Red));
+            bst.Setters.Add(new Setter(Control.ForegroundProperty, Colors.White));
+            dialog.PrimaryButtonStyle = bst;
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary) {
+                await SignOut();
             }
         }
 

@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.UI;
 using Windows.UI.Popups;
 using Windows.UI.Text;
 using Windows.UI.Xaml;
@@ -79,6 +80,12 @@ namespace lockbook {
                 PrimaryButtonText = "Remove Account From This Device",
                 SecondaryButtonText = "Cancel",
             };
+
+            var bst = new Style(typeof(Button));
+            bst.Setters.Add(new Setter(BackgroundProperty, Colors.Red));
+            bst.Setters.Add(new Setter(ForegroundProperty, Colors.White));
+            dialog.PrimaryButtonStyle = bst;
+
             if (await dialog.ShowAsync() == ContentDialogResult.Primary) {
                 await App.SignOut();
             }
