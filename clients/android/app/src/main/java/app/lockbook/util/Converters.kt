@@ -341,6 +341,80 @@ val setLastSyncedConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
+val getLastSyncedHumanStringConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        okTag -> {
+            val ok = jv.obj?.string("content")
+            if (ok != null) {
+                Ok(ok)
+            } else {
+                Err(GetLastSynced.Unexpected("calculateLastSyncedConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
+            }
+        }
+        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(GetLastSynced.Unexpected(error))
+                } else {
+                    Err(GetLastSynced.Unexpected("calculateLastSyncedConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            else -> Err(GetLastSynced.Unexpected("calculateLastSyncedConverter $unmatchedErrorTag $errorTag"))
+        }
+        else -> Err(GetLastSynced.Unexpected("calculateLastSyncedConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val getUsageHumanStringConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
+        okTag -> {
+            val ok = jv.obj?.string("content")
+
+            if (ok != null) {
+                Ok(ok)
+            } else {
+                Err(GetUsageError.Unexpected("calculateUsageConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
+            }
+        }
+        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
+            uiErrorTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(
+                        when (error) {
+                            GetUsageError.ClientUpdateRequired::class.simpleName -> GetUsageError.ClientUpdateRequired
+                            GetUsageError.CouldNotReachServer::class.simpleName -> GetUsageError.CouldNotReachServer
+                            GetUsageError.NoAccount::class.simpleName -> GetUsageError.NoAccount
+                            else -> GetUsageError.Unexpected("calculateUsageConverter $unmatchedUiError $error")
+                        }
+                    )
+                } else {
+                    Err(GetUsageError.Unexpected("calculateUsageConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(GetUsageError.Unexpected(error))
+                } else {
+                    Err(GetUsageError.Unexpected("calculateUsageConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            else -> Err(GetUsageError.Unexpected("calculateUsageConverter $unmatchedErrorTag $errorTag"))
+        }
+        else -> Err(GetUsageError.Unexpected("calculateUsageConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
 val getRootConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 

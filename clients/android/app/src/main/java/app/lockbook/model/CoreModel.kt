@@ -166,6 +166,35 @@ object CoreModel {
         return Err(SetLastSyncedError.Unexpected("setLastSyncedConverter was unable to be called!"))
     }
 
+    fun getLastSyncedHumanString(
+        config: Config,
+    ): Result<String, GetLastSynced> {
+        val getLastSyncedHumanString: Result<String, GetLastSynced>? =
+            Klaxon().converter(getLastSyncedHumanStringConverter)
+                .parse(getLastSyncedHumanString(Klaxon().toJsonString(config)))
+
+        if (getLastSyncedHumanString != null) {
+            return getLastSyncedHumanString
+        }
+
+        return Err(GetLastSynced.Unexpected("getLastSyncedHumanString was unable to be called!"))
+    }
+
+    fun getUsageHumanString(
+        config: Config,
+        exact: Boolean
+    ): Result<String, GetUsageError> {
+        val getUsageHumanString: Result<String, GetUsageError>? =
+            Klaxon().converter(getUsageHumanStringConverter)
+                .parse(getUsageHumanString(Klaxon().toJsonString(config), exact))
+
+        if (getUsageHumanString != null) {
+            return getUsageHumanString
+        }
+
+        return Err(GetUsageError.Unexpected("getUsageHumanStringConverter was unable to be called!"))
+    }
+
     fun getChildren(
         config: Config,
         parentId: String
@@ -285,11 +314,9 @@ object CoreModel {
         id: String,
         parentId: String
     ): Result<Unit, MoveFileError> {
-        val response = moveFile(Klaxon().toJsonString(config), id, parentId)
-        println(response)
         val moveResult: Result<Unit, MoveFileError>? =
             Klaxon().converter(moveFileConverter)
-                .parse(response)
+                .parse(moveFile(Klaxon().toJsonString(config), id, parentId))
 
         if (moveResult != null) {
             return moveResult
