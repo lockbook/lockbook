@@ -204,7 +204,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Enter your fingerprint to modify this biometric sensitive setting.")
+                    .setSubtitle("Verify your identity to access this setting.")
                     .setDeviceCredentialAllowed(true)
                     .build()
 
