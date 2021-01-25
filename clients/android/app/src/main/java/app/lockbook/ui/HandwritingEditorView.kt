@@ -169,9 +169,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             if (event.stroke is Stroke) {
                 currentPaint.color = event.stroke.color
 
-                var pointIndex = 3
+                var pointIndex = 2
                 while (pointIndex < event.stroke.points.size) {
-                    currentPaint.strokeWidth = event.stroke.points[pointIndex - 3]
+                    currentPaint.strokeWidth = event.stroke.points[pointIndex]
                     strokePath.moveTo(
                         event.stroke.points[pointIndex - 2],
                         event.stroke.points[pointIndex - 1]
@@ -216,6 +216,18 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         modelX = (modelX * 100).roundToInt() / 100f
         modelY = (modelY * 100).roundToInt() / 100f
 
+        if (modelX < 0) {
+            modelX = 0f
+        } else if (modelX > CANVAS_WIDTH) {
+            modelX = CANVAS_WIDTH.toFloat()
+        }
+
+        if (modelY < 0) {
+            modelY = 0f
+        } else if (modelY > CANVAS_HEIGHT) {
+            modelY = CANVAS_HEIGHT.toFloat()
+        }
+
         return PointF(modelX, modelY)
     }
 
@@ -225,8 +237,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             this.drawingModel = maybeDrawing
         }
         restoreFromModel()
-        isThreadRunning = true
-        thread.start()
+        startThread()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -258,13 +269,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
             eraseAtPoint(modelPoint)
         } else {
-            if (erasePoints.first.x != -1f || erasePoints.second.x != -1f) {
-                erasePoints.first.set(PointF(-1f, -1f))
-                erasePoints.second.set(PointF(-1f, -1f))
+            if (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN()) {
+                erasePoints.first.set(PointF(Float.NaN, Float.NaN))
+                erasePoints.second.set(PointF(Float.NaN, Float.NaN))
             }
 
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> moveTo(modelPoint, pressure)
+                MotionEvent.ACTION_DOWN -> moveTo(modelPoint)
                 MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
             }
         }
@@ -272,26 +283,51 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun compressPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
 
-    private fun moveTo(point: PointF, pressure: Float) {
+    private fun moveTo(point: PointF) {
         lastPoint.set(point.x, point.y)
         val penPath = Stroke(strokePaint.color)
-        penPath.points.add(pressure)
         penPath.points.add(point.x)
         penPath.points.add(point.y)
         drawingModel.events.add(Event(penPath))
+    }
+
+    private fun lineTo(point: PointF, pressure: Float) {
+        strokePaint.strokeWidth = pressure
+        strokePath.moveTo(
+            lastPoint.x,
+            lastPoint.y
+        )
+
+        strokePath.lineTo(
+            point.x,
+            point.y
+        )
+
+        tempCanvas.drawPath(strokePath, strokePaint)
+
+        strokePath.reset()
+        lastPoint.set(point.x, point.y)
+        for (eventIndex in drawingModel.events.size - 1 downTo 0) {
+            val currentEvent = drawingModel.events[eventIndex].stroke
+            if (currentEvent is Stroke) {
+                currentEvent.points.add(pressure)
+                currentEvent.points.add(point.x)
+                currentEvent.points.add(point.y)
+                break
+            }
+        }
     }
 
     private fun eraseAtPoint(point: PointF) {
         val roundedPressure = 20
 
         when {
-            erasePoints.first.x == -1f -> {
+            erasePoints.first.x.isNaN() -> {
                 erasePoints.first.set(point)
                 return
             }
-            erasePoints.second.x == -1f -> {
+            erasePoints.second.x.isNaN() -> {
                 erasePoints.second.set(point)
-                return
             }
             else -> {
                 erasePoints.first.set(erasePoints.second)
@@ -325,7 +361,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             val stroke = drawing.events[eventIndex].stroke
             if (stroke != null) {
                 var deleteStroke = false
-                var pointIndex = 3
+                var pointIndex = 2
 
                 pointLoop@ while (pointIndex < stroke.points.size) {
                     for (pixel in 1..roundedPressure) {
@@ -387,33 +423,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }.exhaustive
     }
 
-    private fun lineTo(point: PointF, pressure: Float) {
-        strokePaint.strokeWidth = pressure
-        strokePath.moveTo(
-            lastPoint.x,
-            lastPoint.y
-        )
-
-        strokePath.lineTo(
-            point.x,
-            point.y
-        )
-
-        tempCanvas.drawPath(strokePath, strokePaint)
-
-        strokePath.reset()
-        lastPoint.set(point.x, point.y)
-        for (eventIndex in drawingModel.events.size - 1 downTo 0) {
-            val currentEvent = drawingModel.events[eventIndex].stroke
-            if (currentEvent is Stroke) {
-                currentEvent.points.add(pressure)
-                currentEvent.points.add(point.x)
-                currentEvent.points.add(point.y)
-                break
-            }
-        }
-    }
-
     fun setColor(colorId: Int) {
         val color = ResourcesCompat.getColor(
             App.instance.resources,
@@ -431,6 +440,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         thread = Thread(this)
     }
 
+    fun startThread() {
+        isThreadRunning = true
+        thread.start()
+    }
+
     override fun run() {
         while (isThreadRunning) {
             var canvas: Canvas? = null
@@ -445,6 +459,5 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 holder.unlockCanvasAndPost(canvas)
             }
         }
-        thread.interrupt()
     }
 }

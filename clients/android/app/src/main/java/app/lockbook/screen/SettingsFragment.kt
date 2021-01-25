@@ -75,15 +75,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun setCurrentUsage() {
-        when (val getUsageResult = CoreModel.getUsage(config)) {
-            is Ok -> {
-                var totalBytes = 0L
-                getUsageResult.value.forEach { fileUsage ->
-                    totalBytes += fileUsage.byteSections
-                }
-                findPreference<Preference>(BYTE_USAGE_KEY)?.summary = totalBytes.toString()
-            }
-            is Err -> when (val error = getUsageResult.error) {
+        when (val getUsageHumanStringResult = CoreModel.getUsageHumanString(config, false)) {
+            is Ok -> findPreference<Preference>(BYTE_USAGE_KEY)?.summary = getUsageHumanStringResult.value
+            is Err -> when (val error = getUsageHumanStringResult.error) {
                 GetUsageError.NoAccount -> {
                     Snackbar.make(
                         requireActivity().findViewById(android.R.id.content),
@@ -210,7 +204,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Enter your fingerprint to modify this biometric sensitive setting.")
+                    .setSubtitle("Verify your identity to access this setting.")
                     .setDeviceCredentialAllowed(true)
                     .build()
 

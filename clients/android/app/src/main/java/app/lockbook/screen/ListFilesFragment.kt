@@ -72,14 +72,15 @@ class ListFilesFragment : Fragment() {
         )
 
         val application = requireNotNull(this.activity).application
+        val filesDir = application.filesDir.absolutePath
         val listFilesViewModelFactory =
-            ListFilesViewModelFactory(application.filesDir.absolutePath, application)
+            ListFilesViewModelFactory(filesDir, application)
         listFilesViewModel =
             ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
-        LinearRecyclerViewAdapter(listFilesViewModel)
+        LinearRecyclerViewAdapter(listFilesViewModel, filesDir)
 
         binding.listFilesViewModel = listFilesViewModel
-        var adapter = setFileAdapter(binding)
+        var adapter = setFileAdapter(binding, filesDir)
         binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
@@ -153,8 +154,8 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.switchFileLayout.observe(
             viewLifecycleOwner,
             {
-                adapter = setFileAdapter(binding)
                 listFilesViewModel.refreshAndAssessChanges(null)
+                adapter = setFileAdapter(binding, filesDir)
             }
         )
 
@@ -266,7 +267,7 @@ class ListFilesFragment : Fragment() {
         })
     }
 
-    private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {
+    private fun setFileAdapter(binding: FragmentListFilesBinding, filesDir: String): GeneralViewAdapter {
         val config = resources.configuration
 
         val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
@@ -280,7 +281,7 @@ class ListFilesFragment : Fragment() {
             )
 
         if (fileLayoutPreference == SharedPreferences.LINEAR_LAYOUT) {
-            val adapter = LinearRecyclerViewAdapter(listFilesViewModel)
+            val adapter = LinearRecyclerViewAdapter(listFilesViewModel, filesDir)
             binding.filesList.adapter = adapter
             binding.filesList.layoutManager = LinearLayoutManager(context)
             return adapter
