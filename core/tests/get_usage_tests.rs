@@ -129,8 +129,9 @@ mod get_usage_tests {
 
         let pre_usage = get_usage_human_string(config, false).unwrap();
         let pre_usage_exact = get_usage_human_string(config, true).unwrap();
-        assert!(!pre_usage.is_empty());
-        assert!(!pre_usage_exact.is_empty());
+
+        assert_eq!(pre_usage, "0.000");
+        assert_eq!(pre_usage_exact, "0");
 
         sync_all(config).unwrap();
 
@@ -142,7 +143,7 @@ mod get_usage_tests {
         let post_usage = get_usage_human_string(config, false).unwrap();
         let post_usage_exact = get_usage_human_string(config, true).unwrap();
 
-        assert!(!post_usage.is_empty() && post_usage != pre_usage);
-        assert!(!post_usage_exact.is_empty() && post_usage_exact != pre_usage_exact);
+        assert_eq!(post_usage, format!("{}.000", local_encrypted.len()));
+        assert_eq!(post_usage_exact, local_encrypted.len().to_string());
     }
 }
