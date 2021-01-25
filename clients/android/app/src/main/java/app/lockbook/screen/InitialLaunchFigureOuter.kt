@@ -245,7 +245,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Enter your fingerprint to access lockbook.")
+                    .setSubtitle("Verify your identity to access Lockbook.")
                     .setDeviceCredentialAllowed(true)
                     .build()
 
