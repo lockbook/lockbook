@@ -18,17 +18,17 @@ The local stores of state that are relevant to syncing are:
 + `LastSyncedRepo` -- a simple `get/set` value that the sync algorithm uses to help the server filter out events that
   are already known locally
 
-As discussed in the [data model](data_model.md), every time a file's property changes, the server increments it's
+As discussed in the [data model](data_model.md), every time a file's property changes, the server increments its
 `metadata_version`. Ordering the `file_metadata` by this property is our primary means of filtering out what events a
-client knows about, and what new events it has to sync.
+client knows about and what new events it has to sync.
 
-Syncing for a new client is trivial, `/get-updates` with a value of `0` (as you have never synced before), you'll
-receive a list of all the `file_metadata`s that you don't know about, save them in `FileMetadataRepo`, pull any
+Syncing for a new client is trivial. Call `/get-updates` with a value of `0` (as you have never synced before). You'll
+receive a list of all the `file_metadata`s that you don't know about. Save them in `FileMetadataRepo` and pull any
 documents and store them in `DocumentRepo`. Set `LastSynced` to the largest `metadata_version` from your first call to
 `get_updates`.
 
 However, as lockbook is used across a handful of devices, and documents are collaborated on, the sync process becomes
-more involved. This document specifies how sync behaves in various situations, and is implemented in
+more involved. This document specifies how sync behaves in various situations and is implemented in
 [sync_service.rs][sync-service].
 
 There are 3 components to the sync algorithm:
@@ -42,7 +42,7 @@ There are 3 components to the sync algorithm:
 ## `calculate_work`
 
 + Ask the server for the latest updates since the last time we synced
-    + Sort this by `metadata_version`, compare new `metadata_version` to what we know about locally. Filter out any
+    + Sort this by `metadata_version` and compare new `metadata_version` to what we know about locally. Filter out any
       matches as they will result in no-ops.
     + The `max(metadata_version)` here will be the new `last_synced` value if this sync completes without any unresolved
       errors.
@@ -74,14 +74,14 @@ There are 3 components to the sync algorithm:
 
 ### `core -> server`
 
-Pushing local changes from core is much more trivial. Core will ask `LocalChangesRepo` what changed, and perform the
+Pushing local changes from core is much more trivial. Core will ask `LocalChangesRepo` what changed and perform the
 corresponding network action. If a file was renamed, for example, it will send a `/rename` request to the server.
 
 # Future work on sync
 
 1. Server operations like `move` currently require the metadata version. Server will make sure you have the most recent
    version before performing an action. However, this could cause a rename to fail because you don't have the most 
-   recent parent version. Ideally server will simply ask for a `from` and a `to` and check that you have the right `from`.
+   recent parent version. Ideally, the server will simply ask for a `from` and a `to` and check that you have the right `from`.
 2. Realtime sharing will likely be implemented independently of this syncing logic. This syncing logic should be regarded
    as a settlement layer of sorts, while real time collaboration will likely involve setting up an encrypted channel with
    peers.
