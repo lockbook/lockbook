@@ -2,7 +2,7 @@
 
 Understanding the [data model](data_model.md) is a prerequisite to understanding this document.
 
-Sync is the means by which a client updates their local state after
+Sync is the means by which a user updates a client with either their changes on other devices or peer changes on shared files.
 
 Design constraints:
 
