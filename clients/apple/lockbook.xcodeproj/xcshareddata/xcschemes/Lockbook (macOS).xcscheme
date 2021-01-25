@@ -59,7 +59,7 @@
          <EnvironmentVariable
             key = "LOCKBOOK_LOCATION"
             value = "/tmp/lockbook_macos"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "LOCKBOOK_NO_COLOR"

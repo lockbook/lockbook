@@ -25,6 +25,8 @@
 		EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
 		EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
 		EA349F0725BC7C360016241E /* OutlineRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA349F0125BC7C110016241E /* OutlineRow.swift */; };
+		EA349F0B25BE6BD80016241E /* ActivityIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */; };
+		EA349F0C25BE6BD80016241E /* ActivityIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */; };
 		EA380B202561FA2C0021C4FA /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B1F2561FA2C0021C4FA /* AccountView.swift */; };
 		EA380B212561FA2C0021C4FA /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B1F2561FA2C0021C4FA /* AccountView.swift */; };
 		EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B242561FAEF0021C4FA /* FileListView.swift */; };
@@ -71,6 +73,7 @@
 		8741E92725AD9B02005B7B01 /* LockbookMarkdownConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookMarkdownConfig.swift; sourceTree = "<group>"; };
 		EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageIndicator.swift; sourceTree = "<group>"; };
 		EA349F0125BC7C110016241E /* OutlineRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineRow.swift; sourceTree = "<group>"; };
+		EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityIndicator.swift; sourceTree = "<group>"; };
 		EA380B1F2561FA2C0021C4FA /* AccountView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		EA380B242561FAEF0021C4FA /* FileListView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
 		EA4559BD25169F7D003AD80A /* CodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeScannerView.swift; sourceTree = "<group>"; };
@@ -190,6 +193,7 @@
 				1F7E4FC425212E5F0045F606 /* ContentEditor.swift */,
 				EAC3DA50251FB8ED009499BA /* NotificationButton.swift */,
 				EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */,
+				EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -355,6 +359,7 @@
 				EA831A552534E3C80048CE26 /* AppView.swift in Sources */,
 				EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */,
 				EAEDCCFA2516ACA400EBE313 /* ImportAccountView.swift in Sources */,
+				EA349F0B25BE6BD80016241E /* ActivityIndicator.swift in Sources */,
 				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
 				EA831A5A2534E5020048CE26 /* SettingsView.swift in Sources */,
 				EA9079C32569960A00E04F5D /* FileCell.swift in Sources */,
@@ -394,6 +399,7 @@
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAEDCD042516ACC900EBE313 /* CreateAccountView.swift in Sources */,
 				8741E8FA25ACBCF9005B7B01 /* FileListView.swift in Sources */,
+				EA349F0C25BE6BD80016241E /* ActivityIndicator.swift in Sources */,
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
 				8741E92825AD9B02005B7B01 /* LockbookMarkdownConfig.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
