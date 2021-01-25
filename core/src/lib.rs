@@ -86,7 +86,7 @@ pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
         .level(log::LevelFilter::Warn)
         .level_for("lockbook_core", lockbook_log_level)
         .apply()
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+        .map_err(|err| unexpected!("{:#?}", err))?;
     info!("Logger initialized! Path: {:?}", log_path);
     Ok(())
 }
@@ -97,10 +97,8 @@ pub enum GetStateError {
 }
 
 pub fn get_db_state(config: &Config) -> Result<State, Error<GetStateError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
-    DefaultDbStateService::get_state(&backend)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
+    DefaultDbStateService::get_state(&backend).map_err(|err| unexpected!("{:#?}", err))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -109,8 +107,7 @@ pub enum MigrationError {
 }
 
 pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultDbStateService::perform_migration(&backend).map_err(|e| match e {
         db_state_service::MigrationError::StateRequiresClearing => {
@@ -134,8 +131,7 @@ pub fn create_account(
     username: &str,
     api_url: &str,
 ) -> Result<Account, Error<CreateAccountError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultAccountService::create_account(&backend, username, api_url).map_err(|e| match e {
         AccountCreationError::AccountExistsAlready => {
@@ -182,8 +178,7 @@ pub fn import_account(
     config: &Config,
     account_string: &str,
 ) -> Result<Account, Error<ImportError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultAccountService::import_account(&backend, account_string).map_err(|e| match e {
         AccountImportError::AccountStringCorrupted(_)
@@ -219,8 +214,7 @@ pub enum AccountExportError {
 }
 
 pub fn export_account(config: &Config) -> Result<String, Error<AccountExportError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultAccountService::export_account(&backend).map_err(|e| match e {
         ASAccountExportError::AccountRetrievalError(db_err) => match db_err {
@@ -239,8 +233,7 @@ pub enum GetAccountError {
 }
 
 pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultAccountRepo::get_account(&backend).map_err(|e| match e {
         AccountRepoError::NoAccount => UiError(GetAccountError::NoAccount),
@@ -264,8 +257,7 @@ pub fn create_file_at_path(
     config: &Config,
     path_and_name: &str,
 ) -> Result<FileMetadata, Error<CreateFileAtPathError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileService::create_at_path(&backend, path_and_name).map_err(|e| match e {
         NewFileFromPathError::PathDoesntStartWithRoot => {
@@ -315,8 +307,7 @@ pub fn write_document(
     id: Uuid,
     content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileService::write_document(&backend, id, content).map_err(|e| match e {
         DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
@@ -358,8 +349,7 @@ pub fn create_file(
     parent: Uuid,
     file_type: FileType,
 ) -> Result<FileMetadata, Error<CreateFileError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileService::create(&backend, name, parent, file_type).map_err(|e| match e {
         NewFileError::AccountRetrievalError(_) => UiError(CreateFileError::NoAccount),
@@ -384,15 +374,14 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<FileMetadata, Error<GetRootError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     match DefaultFileMetadataRepo::get_root(&backend) {
         Ok(file_metadata) => match file_metadata {
             None => Err(UiError(GetRootError::NoRoot)),
             Some(file_metadata) => Ok(file_metadata),
         },
-        Err(err) => Err(Error::Unexpected(format!("{:#?}", err))),
+        Err(err) => Err(unexpected!("{:#?}", err)),
     }
 }
 
@@ -405,8 +394,7 @@ pub fn get_children(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, Error<GetChildrenError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileMetadataRepo::get_children_non_recursively(&backend, id)
         .map_err(|e| unexpected!("{:#?}", e))
@@ -422,8 +410,7 @@ pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileMetadataRepo::get_and_get_children_recursively(&backend, id).map_err(|e| match e {
         FindingChildrenFailed::FileDoesNotExist => {
@@ -442,8 +429,7 @@ pub enum GetFileByIdError {
 }
 
 pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, Error<GetFileByIdError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileMetadataRepo::get(&backend, id).map_err(|e| match e {
         FileMetadataRepoError::FileRowMissing => UiError(GetFileByIdError::NoFileWithThatId),
@@ -460,15 +446,14 @@ pub fn get_file_by_path(
     config: &Config,
     path: &str,
 ) -> Result<FileMetadata, Error<GetFileByPathError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     match DefaultFileMetadataRepo::get_by_path(&backend, path) {
         Ok(maybe_file_metadata) => match maybe_file_metadata {
             None => Err(UiError(GetFileByPathError::NoFileAtThatPath)),
             Some(file_metadata) => Ok(file_metadata),
         },
-        Err(err) => Err(Error::Unexpected(format!("{:#?}", err))),
+        Err(err) => Err(unexpected!("{:#?}", err)),
     }
 }
 
@@ -481,8 +466,7 @@ pub fn insert_file(
     config: &Config,
     file_metadata: FileMetadata,
 ) -> Result<(), Error<InsertFileError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileMetadataRepo::insert(&backend, &file_metadata).map_err(|e| unexpected!("{:#?}", e))
 }
@@ -494,8 +478,7 @@ pub enum FileDeleteError {
 }
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     match DefaultFileMetadataRepo::get(&backend, id) {
         Ok(meta) => match meta.file_type {
@@ -508,7 +491,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
                     | file_service::DeleteDocumentError::FailedToDeleteDocument(_)
                     | file_service::DeleteDocumentError::FailedToTrackDelete(_)
                     | file_service::DeleteDocumentError::DbError(_) => {
-                        Error::Unexpected(format!("{:#?}", err))
+                        unexpected!("{:#?}", err)
                     }
                 })
             }
@@ -526,7 +509,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
                     | file_service::DeleteFolderError::DocumentTreatedAsFolder
                     | file_service::DeleteFolderError::FailedToDeleteDocument(_)
                     | file_service::DeleteFolderError::FailedToDeleteChangeEntry(_) => {
-                        Error::Unexpected(format!("{:#?}", err))
+                        unexpected!("{:#?}", err)
                     }
                 })
             }
@@ -546,8 +529,7 @@ pub fn read_document(
     config: &Config,
     id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileService::read_document(&backend, id).map_err(|e| match e {
         FSReadDocumentError::TreatedFolderAsDocument => {
@@ -578,8 +560,7 @@ pub fn list_paths(
     config: &Config,
     filter: Option<Filter>,
 ) -> Result<Vec<String>, Error<ListPathsError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileMetadataRepo::get_all_paths(&backend, filter).map_err(|e| unexpected!("{:#?}", e))
 }
@@ -590,8 +571,7 @@ pub enum ListMetadatasError {
 }
 
 pub fn list_metadatas(config: &Config) -> Result<Vec<FileMetadata>, Error<ListMetadatasError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileMetadataRepo::get_all(&backend).map_err(|e| unexpected!("{:#?}", e))
 }
@@ -610,8 +590,7 @@ pub fn rename_file(
     id: Uuid,
     new_name: &str,
 ) -> Result<(), Error<RenameFileError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileService::rename_file(&backend, id, new_name).map_err(|e| match e {
         DocumentRenameError::FileDoesNotExist => UiError(RenameFileError::FileDoesNotExist),
@@ -639,8 +618,7 @@ pub enum MoveFileError {
 }
 
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileService::move_file(&backend, id, new_parent).map_err(|e| match e {
         FileMoveError::DocumentTreatedAsFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
@@ -675,20 +653,19 @@ pub enum SyncAllError {
 }
 
 pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultSyncService::sync(&backend).map_err(|e| match e {
         SyncError::AccountRetrievalError(err) => match err {
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                Error::Unexpected(format!("{:#?}", err))
+                unexpected!("{:#?}", err)
             }
             AccountRepoError::NoAccount => UiError(SyncAllError::NoAccount),
         },
         SyncError::CalculateWorkError(err) => match err {
             SSCalculateWorkError::LocalChangesRepoError(_)
             | SSCalculateWorkError::MetadataRepoError(_)
-            | SSCalculateWorkError::GetMetadataError(_) => Error::Unexpected(format!("{:#?}", err)),
+            | SSCalculateWorkError::GetMetadataError(_) => unexpected!("{:#?}", err),
             SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
                 AccountRepoError::NoAccount => UiError(SyncAllError::NoAccount),
                 AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
@@ -710,7 +687,7 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
             },
         },
         SyncError::WorkExecutionError(_) => UiError(SyncAllError::ExecuteWorkError),
-        SyncError::MetadataUpdateError(err) => Error::Unexpected(format!("{:#?}", err)),
+        SyncError::MetadataUpdateError(err) => unexpected!("{:#?}", err),
     })
 }
 
@@ -722,8 +699,7 @@ pub enum CalculateWorkError {
 }
 
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultSyncService::calculate_work(&backend).map_err(|e| match e {
         SSCalculateWorkError::LocalChangesRepoError(_)
@@ -763,8 +739,7 @@ pub fn execute_work(
     account: &Account,
     wu: WorkUnit,
 ) -> Result<(), Error<ExecuteWorkError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultSyncService::execute_work(&backend, &account, wu).map_err(|e| match e {
         WorkExecutionError::SendFailed(_) => UiError(ExecuteWorkError::CouldNotReachServer),
@@ -812,8 +787,7 @@ pub enum SetLastSyncedError {
 }
 
 pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), Error<SetLastSyncedError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultFileMetadataRepo::set_last_synced(&backend, last_sync)
         .map_err(|e| unexpected!("{:#?}", e))
@@ -825,15 +799,12 @@ pub enum GetLastSyncedError {
 }
 
 pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     match DefaultFileMetadataRepo::get_last_updated(&backend) {
         Ok(ok) => Ok(ok as i64),
         Err(err) => match err {
-            DbError::BackendError(_) | DbError::SerdeError(_) => {
-                Err(Error::Unexpected(format!("{:#?}", err)))
-            }
+            DbError::BackendError(_) | DbError::SerdeError(_) => Err(unexpected!("{:#?}", err)),
         },
     }
 }
@@ -857,8 +828,7 @@ pub enum GetUsageError {
 }
 
 pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultUsageService::get_usage(&backend)
         .map(|resp| resp.usages)
@@ -889,8 +859,7 @@ pub fn get_usage_human_string(
     config: &Config,
     exact: bool,
 ) -> Result<String, Error<GetUsageError>> {
-    let backend = DefaultBackend::connect_to_db(config)
-        .map_err(|err| Error::Unexpected(format!("{:#?}", err)))?;
+    let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
     DefaultUsageService::get_usage_human_string(&backend, exact).map_err(|err| match err {
         usage_service::GetUsageError::AccountRetrievalError(db_err) => match db_err {
@@ -910,7 +879,7 @@ pub fn get_usage_human_string(
             | ApiError::Sign(_)
             | ApiError::Serialize(_)
             | ApiError::ReceiveFailed(_)
-            | ApiError::Deserialize(_) => Error::Unexpected(format!("{:#?}", api_err)),
+            | ApiError::Deserialize(_) => unexpected!("{:#?}", api_err),
         },
     })
 }
