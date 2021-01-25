@@ -3,7 +3,6 @@
     x:Class="lockbook.SignInContentDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:lockbook"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -11,14 +10,41 @@
 
     <ScrollViewer>
         <StackPanel VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-            <TextBlock Text="Settings" Style="{StaticResource SubheaderTextBlockStyle}" Margin="0,0,0,20"/>
-            <TextBlock Text="Username" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,5"/>
-            <TextBlock Text="Checking..." x:Name="usernameTextBlock" FontSize="11"  Margin="0,0,0,10"/>
-            <TextBlock Text="Server Location" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,5"/>
-            <TextBlock Text="Checking..." x:Name="apiTextBlock" FontSize="11"  Margin="0,0,0,10"/>
-            <TextBlock Text="Space Utilized" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,5"/>
-            <TextBlock Text="Checking Server..." x:Name="spaceUsedTextBlock" FontSize="11"  Margin="0,0,0,10"/>
-            <TextBlock Text="Export Private Key" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,5"/>
+            <TextBlock
+                Text="Settings"
+                Style="{StaticResource SubheaderTextBlockStyle}"
+                Margin="0,0,0,20"/>
+            <TextBlock
+                Text="Username"
+                Style="{StaticResource SubtitleTextBlockStyle}"
+                Margin="0,0,0,5"/>
+            <TextBlock
+                Text="Checking..."
+                x:Name="usernameTextBlock"
+                FontSize="11"
+                Margin="0,0,0,10"/>
+            <TextBlock
+                Text="Server Location"
+                Style="{StaticResource SubtitleTextBlockStyle}"
+                Margin="0,0,0,5"/>
+            <TextBlock
+                Text="Checking..."
+                x:Name="serverLocationTextBlock"
+                FontSize="11"
+                Margin="0,0,0,10"/>
+            <TextBlock
+                Text="Space Used"
+                Style="{StaticResource SubtitleTextBlockStyle}"
+                Margin="0,0,0,5"/>
+            <TextBlock
+                Text="Checking Server..."
+                x:Name="spaceUsedTextBlock"
+                FontSize="11"
+                Margin="0,0,0,10"/>
+            <TextBlock
+                Text="Export Private Key"
+                Style="{StaticResource SubtitleTextBlockStyle}"
+                Margin="0,0,0,5"/>
             <Grid Margin="0,0,0,10">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
@@ -27,8 +53,21 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Button Margin="10,0" Content="Copy To Clipboard" FontSize="11" HorizontalAlignment="Stretch" Grid.Column="0" Click="CopyAccountStringToClipboard"></Button>
-                <Button Margin="10,0" Content="Show QR Code" FontSize="11"  HorizontalAlignment="Stretch"  Grid.Column="1" Click="ShowQRCode" x:Name="showQRCode"></Button>
+                <Button
+                    Margin="10,0"
+                    Content="Copy To Clipboard"
+                    FontSize="11"
+                    HorizontalAlignment="Stretch"
+                    Grid.Column="0"
+                    Click="CopyAccountStringToClipboard" />
+                <Button
+                    Margin="10,0"
+                    Content="Show QR Code"
+                    FontSize="11"
+                    HorizontalAlignment="Stretch"
+                    Grid.Column="1"
+                    Click="ShowQRCode"
+                    x:Name="showQRCode" />
             </Grid>
             <Image x:Name="qrCodeImg"/>
         </StackPanel>

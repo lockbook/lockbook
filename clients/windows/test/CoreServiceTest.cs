@@ -315,6 +315,16 @@ namespace test {
         }
 
         [TestMethod]
+        public void GetLastSyncedHumanString() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getLastSyncedResult = CoreService.GetLastSyncedHumanString().WaitResult();
+            CastOrDie(getLastSyncedResult, out Core.GetLastSyncedHumanString.Success _);
+        }
+
+        [TestMethod]
         public void SetLastSynced() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
@@ -332,6 +342,16 @@ namespace test {
 
             var getUsageResult = CoreService.GetUsage().WaitResult();
             CastOrDie(getUsageResult, out Core.GetUsage.Success _);
+        }
+
+        [TestMethod]
+        public void GetUsageHumanString() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var getUsageResult = CoreService.GetUsageHumanString().WaitResult();
+            CastOrDie(getUsageResult, out Core.GetUsageHumanString.Success _);
         }
 
         [TestMethod]
@@ -446,7 +466,7 @@ namespace test {
             var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
             var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var writeDocResult = CoreService.WriteDocument(file.Id, "content").WaitResult();
+            var writeDocResult = CoreService.WriteDocument(file.Id, "test content").WaitResult();
             CastOrDie(writeDocResult, out Core.WriteDocument.Success _);
         }
 

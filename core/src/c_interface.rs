@@ -298,10 +298,32 @@ pub unsafe extern "C" fn get_last_synced(writeable_path: *const c_char) -> *cons
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn get_last_synced_human_string(
+    writeable_path: *const c_char,
+) -> *const c_char {
+    c_string(translate(crate::get_last_synced_human_string(&Config {
+        writeable_path: str_from_ptr(writeable_path),
+    })))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn get_usage(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_usage(&Config {
         writeable_path: str_from_ptr(writeable_path),
     })))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_usage_human_string(
+    writeable_path: *const c_char,
+    exact: bool,
+) -> *const c_char {
+    c_string(translate(crate::get_usage_human_string(
+        &Config {
+            writeable_path: str_from_ptr(writeable_path),
+        },
+        exact,
+    )))
 }
 
 //// FOR INTEGRATION TESTS ONLY
