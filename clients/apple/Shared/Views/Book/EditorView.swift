@@ -29,11 +29,7 @@ struct EditorView: View {
     }
 }
 
-struct EditorLoader: View, Equatable {
-    /// Do not reload unless the file changes
-    static func == (lhs: EditorLoader, rhs: EditorLoader) -> Bool {
-        return lhs.meta.id == rhs.meta.id
-    }
+struct EditorLoader: View {
 
     @ObservedObject var core: Core
     let meta: FileMetadata
@@ -53,11 +49,6 @@ struct EditorLoader: View, Equatable {
                     Text("\(meta.name) file has been deleted")
                 } else {
                     EditorView(core: core, meta: meta, text: c, changeCallback: content.updateText)
-                        .onDisappear {
-                            if !deleted {
-                                content.finalize()
-                            }
-                        }
                 }
             case .none:
                 ProgressView()
@@ -122,15 +113,6 @@ class Content: ObservableObject {
             withAnimation {
                 self.status = .WriteSuccess
             }
-        case .failure(let err):
-            core.handleError(err)
-        }
-    }
-    
-    func finalize() {
-        switch core.api.updateFile(id: meta.id, content: text!) {
-        case .success:
-            ()
         case .failure(let err):
             core.handleError(err)
         }

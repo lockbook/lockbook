@@ -24,7 +24,6 @@ struct FileListView: View {
         }
         if selectedItem != nil {
             EditorLoader(core: core, meta: selectedItem!)
-                .equatable()
         }
     }
 }
