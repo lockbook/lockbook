@@ -801,12 +801,11 @@ pub enum GetLastSyncedError {
 pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>> {
     let backend = DefaultBackend::connect_to_db(config).map_err(|err| unexpected!("{:#?}", err))?;
 
-    match DefaultFileMetadataRepo::get_last_updated(&backend) {
-        Ok(ok) => Ok(ok as i64),
-        Err(err) => match err {
-            DbError::BackendError(_) | DbError::SerdeError(_) => Err(unexpected!("{:#?}", err)),
-        },
-    }
+    DefaultFileMetadataRepo::get_last_updated(&backend)
+        .and_then(|n| Ok(n as i64))
+        .map_err(|err| match err {
+            DbError::BackendError(_) | DbError::SerdeError(_) => unexpected!("{:#?}", err),
+        })
 }
 
 pub fn get_last_synced_human_string(config: &Config) -> Result<String, Error<GetLastSyncedError>> {
