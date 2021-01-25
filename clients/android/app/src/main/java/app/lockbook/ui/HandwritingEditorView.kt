@@ -169,9 +169,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             if (event.stroke is Stroke) {
                 currentPaint.color = event.stroke.color
 
-                var pointIndex = 3
+                var pointIndex = 2
                 while (pointIndex < event.stroke.points.size) {
-                    currentPaint.strokeWidth = event.stroke.points[pointIndex - 3]
+                    currentPaint.strokeWidth = event.stroke.points[pointIndex]
                     strokePath.moveTo(
                         event.stroke.points[pointIndex - 2],
                         event.stroke.points[pointIndex - 1]
@@ -276,7 +276,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             }
 
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> moveTo(modelPoint, pressure)
+                MotionEvent.ACTION_DOWN -> moveTo(modelPoint)
                 MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
             }
         }
@@ -284,10 +284,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun compressPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
 
-    private fun moveTo(point: PointF, pressure: Float) {
+    private fun moveTo(point: PointF) {
         lastPoint.set(point.x, point.y)
         val penPath = Stroke(strokePaint.color)
-        penPath.points.add(pressure)
         penPath.points.add(point.x)
         penPath.points.add(point.y)
         drawingModel.events.add(Event(penPath))
@@ -363,7 +362,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             val stroke = drawing.events[eventIndex].stroke
             if (stroke != null) {
                 var deleteStroke = false
-                var pointIndex = 3
+                var pointIndex = 2
 
                 pointLoop@ while (pointIndex < stroke.points.size) {
                     for (pixel in 1..roundedPressure) {
