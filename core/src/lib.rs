@@ -802,7 +802,7 @@ pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>
     let backend = connect_to_db!(config)?;
 
     DefaultFileMetadataRepo::get_last_updated(&backend)
-        .and_then(|n| Ok(n as i64))
+        .map(|n| n as i64)
         .map_err(|err| match err {
             DbError::BackendError(_) | DbError::SerdeError(_) => unexpected!("{:#?}", err),
         })
