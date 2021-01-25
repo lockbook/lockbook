@@ -13,7 +13,6 @@ use chrono::Duration;
 use serde::Serialize;
 use serde_json::json;
 use serde_json::value::Value;
-pub use sled::Db;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
