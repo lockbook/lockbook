@@ -841,12 +841,12 @@ pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>
 pub fn get_last_synced_human_string(config: &Config) -> Result<String, Error<GetLastSyncedError>> {
     let last_synced = get_last_synced(config)?;
 
-    if last_synced != 0 {
-        let duration = Duration::milliseconds(DefaultClock::get_time() - last_synced);
-        Ok(duration.format_human().to_string())
-    } else {
-        Ok("never".to_string())
-    }
+    Ok(match last_synced {
+        0 => Duration::milliseconds(DefaultClock::get_time() - last_synced)
+            .format_human()
+            .to_string(),
+        _ => "never".to_string(),
+    })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
