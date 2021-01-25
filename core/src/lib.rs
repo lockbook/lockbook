@@ -11,8 +11,7 @@ use std::str::FromStr;
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use serde::Serialize;
-use serde_json::json;
-use serde_json::value::Value;
+use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
@@ -32,9 +31,9 @@ use crate::repo::file_metadata_repo::{
     FindingParentsFailed, GetError as FileMetadataRepoError,
 };
 use crate::repo::local_changes_repo::LocalChangesRepoImpl;
-use crate::service::account_service::AccountExportError as ASAccountExportError;
 use crate::service::account_service::{
-    AccountCreationError, AccountImportError, AccountService, AccountServiceImpl,
+    AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
+    AccountService, AccountServiceImpl,
 };
 use crate::service::clock_service::{Clock, ClockImpl};
 use crate::service::code_version_service::CodeVersionImpl;
@@ -42,19 +41,16 @@ use crate::service::crypto_service::{AESImpl, RSAImpl};
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
 use crate::service::file_compression_service::FileCompressionServiceImpl;
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
-use crate::service::file_service;
 use crate::service::file_service::{
-    DocumentRenameError, FileMoveError, ReadDocumentError as FSReadDocumentError,
-};
-use crate::service::file_service::{
-    DocumentUpdateError, FileService, FileServiceImpl, NewFileError, NewFileFromPathError,
+    DocumentRenameError, DocumentUpdateError, FileMoveError, FileService, FileServiceImpl,
+    NewFileError, NewFileFromPathError, ReadDocumentError as FSReadDocumentError,
 };
 use crate::service::sync_service::{
-    CalculateWorkError as SSCalculateWorkError, SyncError, WorkExecutionError,
+    CalculateWorkError as SSCalculateWorkError, FileSyncService, SyncError, SyncService,
+    WorkCalculated, WorkExecutionError,
 };
-use crate::service::sync_service::{FileSyncService, SyncService, WorkCalculated};
-
-use crate::service::{db_state_service, usage_service};
+use crate::service::usage_service::{UsageService, UsageServiceImpl};
+use crate::service::{db_state_service, file_service, usage_service};
 #[allow(unused_imports)] // For one touch backend switching, allow one of these to be unused
 use crate::storage::db_provider::{Backend, FileBackend, SledBackend};
 
@@ -64,7 +60,6 @@ pub enum Error<U: Serialize> {
     UiError(U),
     Unexpected(String),
 }
-use crate::service::usage_service::{UsageService, UsageServiceImpl};
 use Error::UiError;
 
 macro_rules! unexpected {
