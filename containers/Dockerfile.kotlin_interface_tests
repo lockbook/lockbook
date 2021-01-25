@@ -1,12 +1,11 @@
 ARG HASH
 
-FROM core:$HASH as core-build
+FROM core:$HASH AS core-build
 
-FROM ubuntu:20.04 AS kotlin-interface-tests
+FROM gradle:6.7-jdk8 AS kotlin-interface-tests
 
 ENV ANDROID_HOME /opt/android-sdk-linux
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
 
 # Install android things
 RUN cd /opt \
@@ -25,4 +24,4 @@ WORKDIR /clients/android
 COPY --from=core-build /core/target/release/liblockbook_core.so /clients/android/core/src/main/jniLibs/desktop/liblockbook_core.so
 
 # Build android
-RUN ./gradlew assemble
+RUN gradle assemble
