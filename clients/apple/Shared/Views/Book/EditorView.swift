@@ -4,7 +4,7 @@ import HighlightedTextEditor
 import Combine
 
 struct EditorView: View {
-    
+
     @ObservedObject var core: Core
     let meta: FileMetadata
     @State var text: String
@@ -29,7 +29,12 @@ struct EditorView: View {
     }
 }
 
-struct EditorLoader: View {
+struct EditorLoader: View, Equatable {
+    /// Do not reload unless the file changes
+    static func == (lhs: EditorLoader, rhs: EditorLoader) -> Bool {
+        return lhs.meta.id == rhs.meta.id
+    }
+
     @ObservedObject var core: Core
     let meta: FileMetadata
     @ObservedObject var content: Content
@@ -58,7 +63,7 @@ struct EditorLoader: View {
             case .none:
                 ProgressView()
             }
-            
+
             if content.status == .WriteSuccess {
                 ZStack {
                     Rectangle()
@@ -89,7 +94,6 @@ struct EditorLoader: View {
     init (core: Core, meta: FileMetadata) {
         self.core = core
         self.meta = meta
-        print("init called")
         self.content = Content(core: core, meta: meta)
     }
 }
@@ -118,7 +122,6 @@ class Content: ObservableObject {
                 case .success(let decrypted):
                     self?.text = decrypted
                 case .failure(let err):
-                    print(err)
                     core.handleError(err)
                 }
             }
@@ -127,35 +130,27 @@ class Content: ObservableObject {
         // Save
         $text
             .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
-            .compactMap({$0})
-            .compactMap { content in
-                Future<FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, Never> { promise in
-                    promise(.success(self.save(content: content!)))
-                }
-            }
-            .sink(receiveValue: { print($0)})
+            .sink(receiveValue: {
+                self.save(content: $0!)
+            })
             .store(in: &cancellables)
     }
     
-    func save(content: String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError> {
-        return core.serialQueue.sync {
-            switch core.api.updateFile(id: meta.id, content: content) {
-            case .success(let e):
-                print("File saved successfully")
-                withAnimation {
-                    self.status = .WriteSuccess
-                }
-                return .success(e)
-            case .failure(let err):
-                return .failure(err)
+    func save(content: String) {
+        switch core.api.updateFile(id: meta.id, content: content) {
+        case .success(_):
+            withAnimation {
+                self.status = .WriteSuccess
             }
+        case .failure(let err):
+            core.handleError(err)
         }
     }
     
     func finalize() {
         switch core.api.updateFile(id: meta.id, content: text!) {
         case .success:
-            print("File finalized successfully")
+            ()
         case .failure(let err):
             core.handleError(err)
         }
