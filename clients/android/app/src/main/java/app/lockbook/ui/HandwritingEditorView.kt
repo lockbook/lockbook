@@ -237,8 +237,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             this.drawingModel = maybeDrawing
         }
         restoreFromModel()
-        isThreadRunning = true
-        thread.start()
+        startThread()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -441,6 +440,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         thread = Thread(this)
     }
 
+    fun startThread() {
+        isThreadRunning = true
+        thread.start()
+    }
+
     override fun run() {
         while (isThreadRunning) {
             var canvas: Canvas? = null
@@ -455,6 +459,5 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 holder.unlockCanvasAndPost(canvas)
             }
         }
-        thread.interrupt()
     }
 }

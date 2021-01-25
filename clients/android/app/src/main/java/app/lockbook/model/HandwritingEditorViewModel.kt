@@ -12,7 +12,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
-import java.util.*
 
 class HandwritingEditorViewModel(
     application: Application,
@@ -21,7 +20,7 @@ class HandwritingEditorViewModel(
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
-    var lockBookDrawable: Drawing? = null
+    var backupDrawing: Drawing? = null
 
     private var selectedColor = android.R.color.white
     private var selectedTool = HandwritingEditorView.Tool.PEN
@@ -75,9 +74,9 @@ class HandwritingEditorViewModel(
             withContext(Dispatchers.IO) {
                 val contents = readDocument(id)
                 if (contents != null && contents.isEmpty()) {
-                    lockBookDrawable = Drawing()
+                    backupDrawing = Drawing()
                 } else if (contents != null) {
-                    lockBookDrawable = Klaxon().parse<Drawing>(contents)
+                    backupDrawing = Klaxon().parse<Drawing>(contents)
                 }
 
                 _drawableReady.postValue(Unit)
