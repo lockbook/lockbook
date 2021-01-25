@@ -1,15 +1,14 @@
 ﻿<Page x:Class="lockbook.SignUp"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:local="using:lockbook"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-      xmlns:Windows10version1903="http://schemas.microsoft.com/winfx/2006/xaml/presentation?IsApiContractPresent(Windows.Foundation.UniversalApiContract, 8)"
       mc:Ignorable="d"
       Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Auto">
+    <ScrollViewer
+        VerticalScrollBarVisibility="Auto"
+        HorizontalScrollBarVisibility="Auto">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition />
@@ -18,14 +17,21 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition />
             </Grid.RowDefinitions>
-            <StackPanel Grid.Row="0"
-                        Margin="40,30,40,0">
-                <TextBlock Text="Lockbook"
-                           Style="{StaticResource HeaderTextBlockStyle}" />
-                <TextBlock TextWrapping="WrapWholeWords"
-                           Style="{StaticResource TitleTextBlockStyle}">
-                <Span xml:space="preserve"><Run>Get started with the document editing platform of the future. </Run><Hyperlink UnderlineStyle="None"
-                                                                                                                               NavigateUri="https://lockbook.app">Learn more.</Hyperlink></Span>
+            <StackPanel
+                Grid.Row="0"
+                Margin="40,30,40,0">
+                <TextBlock
+                    Text="Lockbook"
+                    Style="{StaticResource HeaderTextBlockStyle}" />
+                <TextBlock
+                    TextWrapping="WrapWholeWords"
+                    Style="{StaticResource TitleTextBlockStyle}">
+                    <Span xml:space="preserve">
+                        <Run>Get started with the document editing platform of the future. </Run>
+                        <Hyperlink
+                            UnderlineStyle="None"
+                            NavigateUri="https://lockbook.app">Learn more.</Hyperlink>
+                    </Span>
                 </TextBlock>
             </StackPanel>
 
@@ -38,103 +44,128 @@
                     <RowDefinition />
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Column="0"
-                            Spacing="50"
-                            VerticalAlignment="Stretch"
-                            Background="#111111"
-                            Margin="30,30,15,30"
-                            Padding="30,30,30,30">
-                    <TextBlock Grid.Row="0"
-                               Text="Import an existing account"
-                               Style="{StaticResource SubtitleTextBlockStyle}"
-                               HorizontalAlignment="Center">
+                <StackPanel
+                    Grid.Column="0"
+                    Spacing="50"
+                    VerticalAlignment="Stretch"
+                    Background="#111111"
+                    Margin="30,30,15,30"
+                    Padding="30,30,30,30">
+                    <TextBlock
+                        Grid.Row="0"
+                        Text="Import an existing account"
+                        Style="{StaticResource SubtitleTextBlockStyle}"
+                        HorizontalAlignment="Center">
                     </TextBlock>
-                    <TextBox AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             Height="172"
-                             x:Name="accountStringTextBox"
-                             Width="300"
-                             Header="Account String"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                    <TextBox
+                        AcceptsReturn="True"
+                        TextWrapping="Wrap"
+                        Height="172"
+                        x:Name="accountStringTextBox"
+                        Width="300"
+                        Header="Account String"
+                        ScrollViewer.VerticalScrollBarVisibility="Auto" />
 
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Center"
-                                Spacing="10">
+                    <StackPanel
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        Spacing="10">
                         <Button IsEnabled="False">
                             <StackPanel Orientation="Horizontal">
                                 <SymbolIcon Symbol="Camera" />
-                                <TextBlock Text=" Scan QR Code"
-                                           HorizontalAlignment="Center" />
+                                <TextBlock
+                                    Text=" Scan QR Code"
+                                    HorizontalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Name="importAccountButton"
-                                Click="ImportAccount">
+                        <Button
+                            Name="importAccountButton"
+                            Click="ImportAccount">
                             <StackPanel Orientation="Horizontal">
                                 <SymbolIcon Symbol="Download" />
-                                <TextBlock Text=" Import Account String"
-                                           HorizontalAlignment="Center" />
+                                <TextBlock
+                                    Text=" Import Account String"
+                                    HorizontalAlignment="Center" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
-                    <TextBlock x:Name="importError"
-                               HorizontalAlignment="Center"
-                               Style="{StaticResource BaseTextBlockStyle}"
-                               Foreground="Red"
-                               MaxWidth="300"
-                               TextWrapping="WrapWholeWords" />
-                    <StackPanel HorizontalAlignment="Center"
-                                x:Name="importProgressGroup"
-                                Visibility="Collapsed">
-                        <TextBlock Text="Importing Account String..."
-                                   HorizontalAlignment="Center"
-                                   Style="{StaticResource BaseTextBlockStyle}" />
-                        <ProgressRing x:Name="ImportProgressRing"
-                                      Margin="0,20,0,0"
-                                      Width="50"
-                                      Height="50" />
+                    <TextBlock
+                        x:Name="importAccountErrorTextBlock"
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource BaseTextBlockStyle}"
+                        Foreground="Red"
+                        MaxWidth="300"
+                        TextWrapping="WrapWholeWords" />
+                    <StackPanel
+                        HorizontalAlignment="Center"
+                        x:Name="importAccountProgressGroup"
+                        Visibility="Collapsed">
+                        <TextBlock
+                            Text="Importing Account String..."
+                            HorizontalAlignment="Center"
+                            Style="{StaticResource BaseTextBlockStyle}" />
+                        <ProgressRing
+                            x:Name="importAccountProgressRing"
+                            Margin="0,20,0,0"
+                            Width="50"
+                            Height="50" />
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="2"
-                            VerticalAlignment="Stretch"
-                            Background="#111111"
-                            Margin="15,30,30,30"
-                            Padding="30,30,30,30"
-                            Spacing="50">
-                    <TextBlock Grid.Row="0"
-                               Text="Create a new account"
-                               Style="{StaticResource SubtitleTextBlockStyle}"
-                               HorizontalAlignment="Center">
+                <StackPanel
+                    Grid.Column="2"
+                    VerticalAlignment="Stretch"
+                    Background="#111111"
+                    Margin="15,30,30,30"
+                    Padding="30,30,30,30"
+                    Spacing="50">
+                    <TextBlock
+                        Grid.Row="0"
+                        Text="Create a new account"
+                        Style="{StaticResource SubtitleTextBlockStyle}"
+                        HorizontalAlignment="Center">
                     </TextBlock>
-                    <TextBox Width="300"
-                             x:Name="username"
-                             Header="Select a Username" />
-
-                    <Button Click="CreateAccount"
-                            x:Name="createAccount"
-                            HorizontalAlignment="Center">
-                        <StackPanel Orientation="Horizontal"
-                                    Spacing="10">
-                            <TextBlock Text="Create Account"
-                                       HorizontalAlignment="Center" />
+                    <TextBox
+                        Width="300"
+                        x:Name="usernameTextBox"
+                        Header="Username" />
+                    <TextBox
+                        Width="300"
+                        x:Name="apiLocationTextBox"
+                        Text="http://api.lockbook.app:8000"
+                        Header="Server"
+                        Visibility="Collapsed"/>
+                    <Button
+                        Click="CreateAccount"
+                        x:Name="createAccountButton"
+                        HorizontalAlignment="Center">
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="10">
+                            <TextBlock
+                                Text="Create Account"
+                                HorizontalAlignment="Center" />
                             <SymbolIcon Symbol="Forward" />
-
                         </StackPanel>
                     </Button>
-                    <TextBlock x:Name="newAccountError"
-                               HorizontalAlignment="Center"
-                               Style="{StaticResource BaseTextBlockStyle}"
-                               Foreground="Red" />
-                    <StackPanel HorizontalAlignment="Center"
-                                x:Name="progressGroup"
-                                Visibility="Collapsed">
-                        <TextBlock Text="Generating Keys..."
-                                   HorizontalAlignment="Center"
-                                   Style="{StaticResource BaseTextBlockStyle}" />
-                        <ProgressRing x:Name="progressRing"
-                                      Margin="0,20,0,0"
-                                      Width="50"
-                                      Height="50" />
+                    <TextBlock
+                        x:Name="newAccountErrorTextBlock"
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource BaseTextBlockStyle}"
+                        Foreground="Red" />
+                    <StackPanel
+                        HorizontalAlignment="Center"
+                        x:Name="newAccountProgressGroup"
+                        Visibility="Collapsed">
+                        <TextBlock
+                            Text="Generating Keys..."
+                            HorizontalAlignment="Center"
+                            Style="{StaticResource BaseTextBlockStyle}" />
+                        <ProgressRing
+                            x:Name="newAccountProgressRing"
+                            Margin="0,20,0,0"
+                            Width="50"
+                            Height="50" />
                     </StackPanel>
                 </StackPanel>
             </Grid>
