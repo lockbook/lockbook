@@ -9,7 +9,7 @@ pub fn rename(path: &str, new_name: &str) {
 
     match get_file_by_path(&get_config(), path) {
         Ok(file_metadata) => match rename_file(&get_config(), file_metadata.id, new_name) {
-            Ok(_) => exit_success(None),
+            Ok(_) => exit_success(""),
             Err(err) => match err {
                 CoreError::UiError(RenameFileError::NewNameEmpty) => {
                     exitlb!(NameEmpty, "New name is empty!")

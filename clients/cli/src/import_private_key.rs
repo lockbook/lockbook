@@ -23,7 +23,7 @@ pub fn import_private_key() {
         println!("Importing...");
 
         match import_account(&get_config(), &account_string) {
-            Ok(_) => exit_success(Some("Account imported successfully")),
+            Ok(_) => exit_success("Account imported successfully"),
             Err(err) => match err {
                 CoreError::UiError(ImportError::AccountStringCorrupted) => exitlb!(
                     AccountStringCorrupted,

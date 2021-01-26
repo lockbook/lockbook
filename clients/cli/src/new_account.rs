@@ -22,7 +22,7 @@ pub fn new_account() {
     println!("Generating keys and checking for username availability...");
 
     match create_account(&get_config(), &username, &api_location) {
-        Ok(_) => exit_success(Some("Account created successfully")),
+        Ok(_) => exit_success("Account created successfully"),
         Err(error) => match error {
             CoreError::UiError(CreateAccountError::UsernameTaken) => {
                 exitlb!(UsernameTaken, "Username taken.")

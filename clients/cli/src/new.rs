@@ -58,7 +58,7 @@ pub fn new(file_name: &str) {
     }
 
     if file_metadata.file_type == Folder {
-        exit_success(Some("Folder created."));
+        exit_success("Folder created.");
     }
 
     let watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());

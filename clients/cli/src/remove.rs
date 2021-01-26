@@ -44,7 +44,7 @@ pub fn remove(path: &str, force: bool) {
                 answer.retain(|c| c != '\n');
 
                 if answer != "y" && answer != "Y" {
-                    exit_success(Some("Aborted."))
+                    exit_success("Aborted.")
                 }
             }
             Err(err) => match err {

@@ -100,8 +100,8 @@ pub fn exit_with_no_account() -> ! {
     exitlb!(NoAccount, "No account! Run init or import to get started!")
 }
 
-pub fn exit_success(msgopt: Option<&str>) -> ! {
-    if let Some(msg) = msgopt {
+pub fn exit_success(msg: &str) -> ! {
+    if !msg.is_empty() {
         println!("{}", msg);
     }
     std::process::exit(ErrCode::Success as i32)
@@ -249,9 +249,7 @@ pub fn save_temp_file_contents(
     match write_document(&get_config(), file_metadata.id, &secret) {
         Ok(_) => {
             if !silent {
-                exit_success(Some(
-                    "Document encrypted and saved. Cleaning up temporary file.",
-                ))
+                exit_success("Document encrypted and saved. Cleaning up temporary file.")
             }
         }
         Err(err) => {

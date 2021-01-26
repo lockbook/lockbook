@@ -13,7 +13,7 @@ pub fn move_file(path1: &str, path2: &str) {
                     file_metadata.id,
                     target_file_metadata.id,
                 ) {
-                    Ok(_) => exit_success(None),
+                    Ok(_) => exit_success(""),
                     Err(move_file_error) => match move_file_error {
                         CoreError::UiError(MoveFileError::NoAccount) => exit_with_no_account(),
                         CoreError::UiError(MoveFileError::CannotMoveRoot) => {

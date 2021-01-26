@@ -35,7 +35,7 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
 
     if path.is_file() {
         match copy_file(&path, import_dest, &config, edit) {
-            Ok(msg) => exit_success(Some(&msg)),
+            Ok(msg) => exit_success(&msg),
             Err(err) => err.exit(),
         }
     } else {
