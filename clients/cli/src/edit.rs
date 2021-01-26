@@ -65,7 +65,7 @@ pub fn edit(file_name: &str) {
 
     file_handle.write_all(&file_content).unwrap_or_else(|_| {
         exitlb!(
-            CouldNotWriteToOsFile,
+            OsCouldNotWriteFile,
             "Failed to write decrypted contents to temporary file, check {}",
             file_location
         )
@@ -73,7 +73,7 @@ pub fn edit(file_name: &str) {
 
     file_handle.sync_all().unwrap_or_else(|_| {
         exitlb!(
-            CouldNotWriteToOsFile,
+            OsCouldNotWriteFile,
             "Failed to write decrypted contents to temporary file, check {}",
             file_location
         )
@@ -95,7 +95,7 @@ pub fn edit(file_name: &str) {
 
     fs::remove_file(&temp_file_path).unwrap_or_else(|_| {
         exitlb!(
-            CouldNotDeleteOsFile,
+            OsCouldNotDeleteFile,
             "Failed to delete temporary file: {}",
             file_location
         )

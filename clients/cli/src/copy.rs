@@ -48,7 +48,7 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
             .and_then(|name| name.to_str())
             .unwrap_or_else(|| {
                 exitlb!(
-                    CouldNotReadOsChildren,
+                    OsCouldNotReadChildren,
                     "Failed to read parent name, OS path: {:?}",
                     path
                 )
@@ -76,7 +76,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                     .and_then(|child_name| child_name.to_str())
                     .unwrap_or_else(|| {
                         exitlb!(
-                            CouldNotReadOsChildren,
+                            OsCouldNotReadChildren,
                             "Failed to read child name, OS parent path: {:?}",
                             child_path
                         )
@@ -114,14 +114,14 @@ fn copy_file(
 ) -> Result<String, LbCliError> {
     let content = fs::read_to_string(&path).map_err(|err| {
         LbCliError::new(
-            ErrCode::CouldNotReadOsFile,
+            ErrCode::OsCouldNotReadFile,
             format!("Failed to read file from {:?}, OS error: {}", path, err),
         )
     })?;
 
     let absolute_path = fs::canonicalize(&path).map_err(|err| {
         LbCliError::new(
-            ErrCode::CouldNotGetOsAbsPath,
+            ErrCode::OsCouldNotGetAbsPath,
             format!(
                 "Failed to get absolute path from {:?}, OS error: {}",
                 path, err
@@ -196,7 +196,7 @@ fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
     fs::read_dir(p)
         .unwrap_or_else(|err| {
             exitlb!(
-                CouldNotReadOsChildren,
+                OsCouldNotReadChildren,
                 "Unable to list children of folder: {:?}, OS error: {}",
                 p,
                 err
@@ -205,7 +205,7 @@ fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
         .map(|child| {
             child.unwrap_or_else(|err| {
                 exitlb!(
-                    CouldNotReadOsChildren,
+                    OsCouldNotReadChildren,
                     "Failed to retrieve child path: {}",
                     err
                 )

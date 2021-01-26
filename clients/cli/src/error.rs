@@ -20,12 +20,12 @@ pub enum ErrCode {
     UsernameInvalid = 3,
     UsernamePkMismatch = 23,
 
-    CouldNotReadOsFile = 15,
-    CouldNotGetOsAbsPath = 16,
-    CouldNotWriteToOsFile = 18,
-    CouldNotDeleteOsFile = 180,
-    CouldNotCreateOsDirectory = 31,
-    CouldNotReadOsChildren = 34,
+    OsCouldNotGetAbsPath = 16,
+    OsCouldNotCreateDir= 31,
+    OsCouldNotReadChildren = 34,
+    OsCouldNotReadFile = 15,
+    OsCouldNotWriteFile = 18,
+    OsCouldNotDeleteFile = 180,
 
     FileNotFound = 17,
     FileAlreadyExists = 9,

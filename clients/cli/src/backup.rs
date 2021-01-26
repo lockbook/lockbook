@@ -29,7 +29,7 @@ pub fn backup() {
 
     fs::create_dir(&backup_directory).unwrap_or_else(|err| {
         exitlb!(
-            CouldNotCreateOsDirectory,
+            OsCouldNotCreateDir,
             "Could not create backup directory! Error: {}",
             err
         )
@@ -75,7 +75,7 @@ pub fn backup() {
     };
     let mut index_file = File::create(&index_file_path).unwrap_or_else(|err| {
         exitlb!(
-            CouldNotWriteToOsFile,
+            OsCouldNotWriteFile,
             "Could not create index file, error: {}",
             err
         )
@@ -85,7 +85,7 @@ pub fn backup() {
         .write_all(index_file_content.as_bytes())
         .unwrap_or_else(|err| {
             exitlb!(
-                CouldNotWriteToOsFile,
+                OsCouldNotWriteFile,
                 "Could not write to index file: {}",
                 err
             )
@@ -96,7 +96,7 @@ pub fn backup() {
         let path = backup_directory.join(PathBuf::from(folder));
         fs::create_dir_all(&path).unwrap_or_else(|err| {
             exitlb!(
-                CouldNotCreateOsDirectory,
+                OsCouldNotCreateDir,
                 "Could not create {:?} directory! Error: {}",
                 path,
                 err
@@ -110,7 +110,7 @@ pub fn backup() {
 
         let mut document = File::create(&path).unwrap_or_else(|err| {
             exitlb!(
-                CouldNotWriteToOsFile,
+                OsCouldNotWriteFile,
                 "Could not create index file, error: {}",
                 err
             )
@@ -139,7 +139,7 @@ pub fn backup() {
 
         document.write_all(&document_content).unwrap_or_else(|err| {
             exitlb!(
-                CouldNotWriteToOsFile,
+                OsCouldNotWriteFile,
                 "Could not write to file: {}, error: {}",
                 &doc,
                 err
