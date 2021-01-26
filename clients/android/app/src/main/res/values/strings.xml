@@ -184,6 +184,7 @@
     <string name="handwriting_editor_pen_small_description">Small</string>
     <string name="handwriting_editor_pen_medium_description">Medium</string>
     <string name="handwriting_editor_pen_large_description">Large</string>
+    <string name="settings_open_new_document_automatically">Automatically open new documents</string>
 
     <array name="handwriting_editor_pen_size">
         <item>@string/handwriting_editor_pen_1</item>

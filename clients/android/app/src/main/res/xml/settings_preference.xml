@@ -89,4 +89,16 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        android:title="Miscellaneous"
+        android:icon="@drawable/ic_baseline_miscellaneous_services_24">
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="open_new_doc_automatically"
+            android:title="@string/settings_open_new_document_automatically"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
 </PreferenceScreen>
