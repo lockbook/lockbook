@@ -168,6 +168,3 @@ jobs:
       - name: Tear Down Stack
         run: make kill_dev_stack
         if: always()
-      - name: Cleanup Stale Things
-        run: make clean
-        if: always()
