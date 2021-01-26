@@ -45,7 +45,7 @@ struct ImportAccountView: View {
         switch res {
         case .success(let acc):
             self.core.account = acc
-            self.core.sync()
+            self.core.syncing = true
             return .success(())
         case .failure(let err):
             hideKeyboard()

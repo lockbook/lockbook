@@ -13,9 +13,9 @@ public class AnyFfiError: Error, Equatable {
 }
 
 public class FfiError<U: UiError>: AnyFfiError, Decodable {
-    let kind: Kind
+    public let kind: Kind
     
-    enum Kind {
+    public enum Kind {
         case UiError(U)
         case Unexpected(String)
     }
