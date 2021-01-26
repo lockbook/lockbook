@@ -1,8 +1,8 @@
 # Windows
 
-## Sideload from Github Release
+## Sideload from GitHub Release
 
-Download the lastest github release.
+Download the lastest GitHub release.
 
 ### Trust the signature that signed the package
 

@@ -26,7 +26,7 @@ Secure software cannot be closed source. This is free and unencumbered software 
 
 ## Cross Platform
 
-Native support for: Linux, macOS, iOS, iPadOS, Android, and Windows. We capture the essence of each device / platform. This means a scriptable cli on linux, and Apple Pencil support for our iPad app.
+Native support for: Linux, macOS, iOS, iPadOS, Android, and Windows. We capture the essence of each device / platform. This means a scriptable CLI on Linux and Apple Pencil support for our iPad app.
 
 ## Install a client
 
