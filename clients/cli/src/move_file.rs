@@ -1,12 +1,8 @@
-use crate::utils::{exit_with, exit_with_no_account, get_config};
-use crate::{
-    COULD_NOT_MOVE_FOLDER_INTO_ITSELF, DOCUMENT_TREATED_AS_FOLDER, FILE_NAME_NOT_AVAILABLE,
-    FILE_NOT_FOUND, NO_ROOT_OPS, UNEXPECTED_ERROR,
-};
+use crate::exitlb;
+use crate::utils::{exit_success, exit_with_no_account, get_config};
 use lockbook_core::{
     get_file_by_path, Error as CoreError, Error, GetFileByPathError, MoveFileError,
 };
-use std::process::exit;
 
 pub fn move_file(path1: &str, path2: &str) {
     match get_file_by_path(&get_config(), path1) {
@@ -17,56 +13,54 @@ pub fn move_file(path1: &str, path2: &str) {
                     file_metadata.id,
                     target_file_metadata.id,
                 ) {
-                    Ok(_) => exit(0),
+                    Ok(_) => exit_success(None),
                     Err(move_file_error) => match move_file_error {
                         CoreError::UiError(MoveFileError::NoAccount) => exit_with_no_account(),
                         CoreError::UiError(MoveFileError::CannotMoveRoot) => {
-                            exit_with("Cannot move root directory!", NO_ROOT_OPS)
+                            exitlb!(NoRootOps, "Cannot move root directory!")
                         }
                         CoreError::UiError(MoveFileError::FileDoesNotExist) => {
-                            exit_with(&format!("No file found at {}", path1), FILE_NOT_FOUND)
+                            exitlb!(FileNotFound, "No file found at {}", path1)
                         }
                         CoreError::UiError(MoveFileError::TargetParentDoesNotExist) => {
-                            exit_with(&format!("No file found at {}", path2), FILE_NOT_FOUND)
+                            exitlb!(FileNotFound, "No file found at {}", path2)
                         }
                         Error::UiError(MoveFileError::FolderMovedIntoItself) => {
-                            exit_with(
-                                "Cannot move file into its self or children.",
-                                COULD_NOT_MOVE_FOLDER_INTO_ITSELF,
-                            );
-                        }
-                        CoreError::UiError(MoveFileError::TargetParentHasChildNamedThat) => {
-                            exit_with(
-                                &format!(
-                                    "{}/ has a file named {}",
-                                    file_metadata.name, target_file_metadata.name
-                                ),
-                                FILE_NAME_NOT_AVAILABLE,
+                            exitlb!(
+                                CannotMoveFolderIntoItself,
+                                "Cannot move file into its self or children."
                             )
                         }
-                        CoreError::UiError(MoveFileError::DocumentTreatedAsFolder) => exit_with(
-                            &format!(
-                                "{} is a document, {} cannot be moved there",
-                                target_file_metadata.name, file_metadata.name
-                            ),
-                            DOCUMENT_TREATED_AS_FOLDER,
+                        CoreError::UiError(MoveFileError::TargetParentHasChildNamedThat) => {
+                            exitlb!(
+                                FileNameNotAvailable,
+                                "{}/ has a file named {}",
+                                file_metadata.name,
+                                target_file_metadata.name
+                            )
+                        }
+                        CoreError::UiError(MoveFileError::DocumentTreatedAsFolder) => exitlb!(
+                            DocTreatedAsFolder,
+                            "{} is a document, {} cannot be moved there",
+                            target_file_metadata.name,
+                            file_metadata.name
                         ),
-                        CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                        CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
                     },
                 }
             }
             Err(get_file_error) => match get_file_error {
                 CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                    exit_with(&format!("No file at {}", path2), FILE_NOT_FOUND)
+                    exitlb!(Unexpected, "No file at {}", path2)
                 }
-                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
             },
         },
         Err(get_file_error) => match get_file_error {
             CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                exit_with(&format!("No file at {}", path1), FILE_NOT_FOUND)
+                exitlb!(FileNotFound, "No file at {}", path1)
             }
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
         },
     }
 }

@@ -3,8 +3,8 @@ use std::{env, io};
 
 use lockbook_core::{create_account, CreateAccountError, Error as CoreError};
 
-use crate::utils::{exit_with, exit_with_offline, exit_with_upgrade_required, get_config};
-use crate::{ACCOUNT_ALREADY_EXISTS, SUCCESS, UNEXPECTED_ERROR, USERNAME_INVALID, USERNAME_TAKEN};
+use crate::exitlb;
+use crate::utils::{exit_success, exit_with_offline, exit_with_upgrade_required, get_config};
 
 pub fn new_account() {
     print!("Enter a Username: ");
@@ -22,23 +22,23 @@ pub fn new_account() {
     println!("Generating keys and checking for username availability...");
 
     match create_account(&get_config(), &username, &api_location) {
-        Ok(_) => exit_with("Account created successfully", SUCCESS),
+        Ok(_) => exit_success(Some("Account created successfully")),
         Err(error) => match error {
             CoreError::UiError(CreateAccountError::UsernameTaken) => {
-                exit_with("Username taken.", USERNAME_TAKEN)
+                exitlb!(UsernameTaken, "Username taken.")
             }
             CoreError::UiError(CreateAccountError::InvalidUsername) => {
-                exit_with("Username is not a-z || 0-9", USERNAME_INVALID)
+                exitlb!(UsernameInvalid, "Username is not a-z || 0-9")
             }
             CoreError::UiError(CreateAccountError::CouldNotReachServer) => exit_with_offline(),
-            CoreError::UiError(CreateAccountError::AccountExistsAlready) => exit_with(
-                "Account already exists. `lockbook erase-everything` to erase your local state.",
-                ACCOUNT_ALREADY_EXISTS,
+            CoreError::UiError(CreateAccountError::AccountExistsAlready) => exitlb!(
+                AccountAlreadyExists,
+                "Account already exists. `lockbook erase-everything` to erase your local state."
             ),
             CoreError::UiError(CreateAccountError::ClientUpdateRequired) => {
                 exit_with_upgrade_required()
             }
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
         },
     }
 }

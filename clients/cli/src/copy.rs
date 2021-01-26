@@ -8,21 +8,23 @@ use lockbook_core::{
     Error as CoreError, GetFileByPathError,
 };
 
-use crate::utils::{exit_with, exit_with_no_account, get_account_or_exit, get_config};
-use crate::{
-    COULD_NOT_GET_OS_ABSOLUTE_PATH, COULD_NOT_READ_OS_CHILDREN, COULD_NOT_READ_OS_FILE,
-    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
-    PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
-};
+use crate::error::ErrCode;
+use crate::exitlb;
+use crate::utils::{exit_success, exit_with_no_account, get_account_or_exit, get_config};
 
 struct LbCliError {
-    code: u8,
+    code: ErrCode,
     msg: String,
 }
 
 impl LbCliError {
-    fn new(code: u8, msg: String) -> Self {
+    fn new(code: ErrCode, msg: String) -> Self {
         Self { code, msg }
+    }
+
+    fn exit(&self) -> ! {
+        eprintln!("{}", self.msg);
+        std::process::exit(self.code as i32)
     }
 }
 
@@ -33,8 +35,8 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
 
     if path.is_file() {
         match copy_file(&path, import_dest, &config, edit) {
-            Ok(msg) => exit_with(&msg, SUCCESS),
-            Err(err) => exit_with(&err.msg, err.code),
+            Ok(msg) => exit_success(Some(&msg)),
+            Err(err) => err.exit(),
         }
     } else {
         let import_dir = match import_dest.ends_with('/') {
@@ -45,9 +47,10 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or_else(|| {
-                exit_with(
-                    &format!("Failed to read parent name, OS path: {:?}", path),
-                    COULD_NOT_READ_OS_CHILDREN,
+                exitlb!(
+                    CouldNotReadOsChildren,
+                    "Failed to read parent name, OS path: {:?}",
+                    path
                 )
             });
         let import_path = format!("{}{}", import_dir, parent);
@@ -72,12 +75,10 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                     .file_name()
                     .and_then(|child_name| child_name.to_str())
                     .unwrap_or_else(|| {
-                        exit_with(
-                            &format!(
-                                "Failed to read child name, OS parent path: {:?}",
-                                child_path
-                            ),
-                            COULD_NOT_READ_OS_CHILDREN,
+                        exitlb!(
+                            CouldNotReadOsChildren,
+                            "Failed to read child name, OS parent path: {:?}",
+                            child_path
                         )
                     });
 
@@ -97,9 +98,9 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                     CreateFileAtPathError::NoRoot => exit_with_no_root(),
                     CreateFileAtPathError::DocumentTreatedAsFolder => eprintln!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
                     CreateFileAtPathError::PathContainsEmptyFile => eprintln!("Input destination {} contains an empty file!", import_dest),
-                    CreateFileAtPathError::PathDoesntStartWithRoot => exit_with("Import destination doesn't start with your root folder.", PATH_NO_ROOT),
+                    CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
                 }
-                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
             }
         }
     }
@@ -113,14 +114,14 @@ fn copy_file(
 ) -> Result<String, LbCliError> {
     let content = fs::read_to_string(&path).map_err(|err| {
         LbCliError::new(
-            COULD_NOT_READ_OS_FILE,
+            ErrCode::CouldNotReadOsFile,
             format!("Failed to read file from {:?}, OS error: {}", path, err),
         )
     })?;
 
     let absolute_path = fs::canonicalize(&path).map_err(|err| {
         LbCliError::new(
-            COULD_NOT_GET_OS_ABSOLUTE_PATH,
+            ErrCode::CouldNotGetOsAbsPath,
             format!(
                 "Failed to get absolute path from {:?}, OS error: {}",
                 path, err
@@ -132,19 +133,13 @@ fn copy_file(
         match absolute_path.file_name() {
             Some(name) => match name.to_os_string().into_string() {
                 Ok(string) => format!("{}{}", &import_dest, string),
-                Err(err) => exit_with(
-                    format!(
-                        "Unexpected error while trying to convert an OsString -> Rust String: {:?}",
-                        err
-                    )
-                    .as_str(),
-                    UNEXPECTED_ERROR,
+                Err(err) => exitlb!(
+                    Unexpected,
+                    "Unexpected error while trying to convert an OsString -> Rust String: {:?}",
+                    err
                 ),
             },
-            None => exit_with(
-                "Import target does not contain a file name!",
-                UNEXPECTED_ERROR,
-            ),
+            None => exitlb!(Unexpected, "Import target does not contain a file name!"),
         }
     } else {
         import_dest.to_string()
@@ -159,24 +154,23 @@ fn copy_file(
                         get_file_by_path(config, &import_dest_with_filename).unwrap_or_else(
                             |get_err| match get_err {
                                 CoreError::UiError(GetFileByPathError::NoFileAtThatPath)
-                                | CoreError::Unexpected(_) => exit_with(
-                                    &format!("Unexpected error: {:?}", get_err),
-                                    UNEXPECTED_ERROR,
-                                ),
+                                | CoreError::Unexpected(_) => {
+                                    exitlb!(Unexpected, "Unexpected error: {:?}", get_err)
+                                }
                             },
                         )
                     } else {
-                        return Err(LbCliError::new(FILE_ALREADY_EXISTS, "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!".to_string()));
+                        return Err(LbCliError::new(ErrCode::FileAlreadyExists, "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!".to_string()));
                     }
                 }
                 CreateFileAtPathError::NoAccount => exit_with_no_account(),
                 CreateFileAtPathError::NoRoot => exit_with_no_root(),
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
-                    return Err(LbCliError::new(DOCUMENT_TREATED_AS_FOLDER, format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest)));
+                    return Err(LbCliError::new(ErrCode::DocTreatedAsFolder, format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest)));
                 }
                 CreateFileAtPathError::PathContainsEmptyFile => {
                     return Err(LbCliError::new(
-                        PATH_CONTAINS_EMPTY_FILE,
+                        ErrCode::PathContainsEmptyFile,
                         format!(
                             "Input destination {} contains an empty file!",
                             import_dest_with_filename
@@ -185,14 +179,14 @@ fn copy_file(
                 }
                 CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
             },
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
         },
     };
 
     match write_document(config, file_metadata.id, content.as_bytes()) {
         Ok(_) => Ok(format!("imported to {}", import_dest_with_filename)),
         Err(err) => Err(LbCliError::new(
-            UNEXPECTED_ERROR,
+            ErrCode::Unexpected,
             format!("Unexpected error: {:#?}", err),
         )),
     }
@@ -201,19 +195,19 @@ fn copy_file(
 fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
     fs::read_dir(p)
         .unwrap_or_else(|err| {
-            exit_with(
-                &format!(
-                    "Unable to list children of folder: {:?}, OS error: {}",
-                    p, err
-                ),
-                COULD_NOT_READ_OS_CHILDREN,
+            exitlb!(
+                CouldNotReadOsChildren,
+                "Unable to list children of folder: {:?}, OS error: {}",
+                p,
+                err
             )
         })
         .map(|child| {
             child.unwrap_or_else(|err| {
-                exit_with(
-                    &format!("Failed to retrieve child path: {}", err),
-                    COULD_NOT_READ_OS_CHILDREN,
+                exitlb!(
+                    CouldNotReadOsChildren,
+                    "Failed to retrieve child path: {}",
+                    err
                 )
             })
         })
@@ -221,12 +215,12 @@ fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
 }
 
 fn exit_with_no_root() -> ! {
-    exit_with("No root folder, have you synced yet?", NO_ROOT)
+    exitlb!(NoRoot, "No root folder, have you synced yet?")
 }
 
 fn exit_with_path_no_root() -> ! {
-    exit_with(
-        "Import destination doesn't start with your root folder.",
-        PATH_NO_ROOT,
+    exitlb!(
+        PathNoRoot,
+        "Import destination doesn't start with your root folder."
     )
 }

@@ -8,8 +8,8 @@ use lockbook_core::{
     GetFileByPathError,
 };
 
-use crate::utils::{exit_with, get_account_or_exit, get_config};
-use crate::{COULD_NOT_DELETE_ROOT, DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, UNEXPECTED_ERROR};
+use crate::exitlb;
+use crate::utils::{exit_success, get_account_or_exit, get_config};
 
 pub fn remove(path: &str, force: bool) {
     get_account_or_exit();
@@ -18,11 +18,10 @@ pub fn remove(path: &str, force: bool) {
     let meta = match get_file_by_path(&config, path) {
         Ok(meta) => meta,
         Err(err) => match err {
-            UiError(GetFileByPathError::NoFileAtThatPath) => exit_with(
-                &format!("No file found with the path {}", path),
-                FILE_NOT_FOUND,
-            ),
-            UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            UiError(GetFileByPathError::NoFileAtThatPath) => {
+                exitlb!(FileNotFound, "No file found with the path {}", path)
+            }
+            UnexpectedError(msg) => exitlb!(Unexpected, "{}", msg),
         },
     };
 
@@ -45,19 +44,17 @@ pub fn remove(path: &str, force: bool) {
                 answer.retain(|c| c != '\n');
 
                 if answer != "y" && answer != "Y" {
-                    exit_with("Aborted.", 0)
+                    exit_success(Some("Aborted."))
                 }
             }
             Err(err) => match err {
-                UiError(GetAndGetChildrenError::DocumentTreatedAsFolder) => exit_with(
-                    &format!("File {} is a document", path),
-                    DOCUMENT_TREATED_AS_FOLDER,
-                ),
-                UiError(GetAndGetChildrenError::FileDoesNotExist) => exit_with(
-                    &format!("No file found with the path {}", path),
-                    FILE_NOT_FOUND,
-                ),
-                UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+                UiError(GetAndGetChildrenError::DocumentTreatedAsFolder) => {
+                    exitlb!(DocTreatedAsFolder, "File {} is a document", path)
+                }
+                UiError(GetAndGetChildrenError::FileDoesNotExist) => {
+                    exitlb!(FileNotFound, "No file found with the path {}", path)
+                }
+                UnexpectedError(msg) => exitlb!(Unexpected, "{}", msg),
             },
         };
     }
@@ -65,15 +62,17 @@ pub fn remove(path: &str, force: bool) {
     match delete_file(&config, meta.id) {
         Ok(_) => {}
         Err(err) => match err {
-            UiError(FileDeleteError::FileDoesNotExist) => exit_with(
-                &format!("Cannot delete '{}', file does not exist.", path),
-                FILE_NOT_FOUND,
+            UiError(FileDeleteError::FileDoesNotExist) => exitlb!(
+                FileNotFound,
+                "Cannot delete '{}', file does not exist.",
+                path
             ),
-            UiError(FileDeleteError::CannotDeleteRoot) => exit_with(
-                &format!("Cannot delete '{}' since it is the root folder.", path),
-                COULD_NOT_DELETE_ROOT,
+            UiError(FileDeleteError::CannotDeleteRoot) => exitlb!(
+                CannotDeleteRoot,
+                "Cannot delete '{}' since it is the root folder.",
+                path
             ),
-            UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            UnexpectedError(msg) => exitlb!(Unexpected, "{}", msg),
         },
     }
 }

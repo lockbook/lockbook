@@ -7,17 +7,14 @@ use lockbook_core::{
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
+use crate::error::ErrCode;
+use crate::exitlb;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::{
-    NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, SUCCESS, UNEXPECTED_ERROR, UNINSTALL_REQUIRED,
-    UPDATE_REQUIRED,
-};
 use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
 use std::path::Path;
-use std::process::exit;
 
 pub fn init_logger_or_print() {
     if let Err(err) = init_logger(&get_config().path()) {
@@ -30,7 +27,7 @@ pub fn get_account_or_exit() -> Account {
         Ok(account) => account,
         Err(error) => match error {
             CoreError::UiError(GetAccountError::NoAccount) => exit_with_no_account(),
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
         },
     }
 }
@@ -51,29 +48,26 @@ pub fn check_and_perform_migrations() {
                         }
                     }
                     Err(error) => match error {
-                        CoreError::UiError(MigrationError::StateRequiresCleaning) => exit_with(
-                            "Your local state cannot be migrated, please re-sync with a fresh client.",
-                            UNINSTALL_REQUIRED,
+                        CoreError::UiError(MigrationError::StateRequiresCleaning) => exitlb!(
+                            UninstallRequired,
+                            "Your local state cannot be migrated, please re-sync with a fresh client."
                         ),
-                        CoreError::Unexpected(msg) =>
-                            exit_with(
-                                &format!(
-                                    "An unexpected error occurred while migrating, it's possible you need to clear your local state and resync. Error: {}",
-                                    &msg
-                                ),
-                                UNEXPECTED_ERROR
-                            )
+                        CoreError::Unexpected(msg) => exitlb!(
+                            Unexpected,
+                            "An unexpected error occurred while migrating, it's possible you need to clear your local state and resync. Error: {}",
+                            msg
+                        )
                     }
                 }
             }
-            State::StateRequiresClearing => exit_with(
-                "Your local state cannot be migrated, please re-sync with a fresh client.",
-                UNINSTALL_REQUIRED,
+            State::StateRequiresClearing => exitlb!(
+                UninstallRequired,
+                "Your local state cannot be migrated, please re-sync with a fresh client."
             ),
         },
         Err(err) => match err {
-            CoreError::UiError(GetStateError::Stub) => exit_with("Impossible", UNEXPECTED_ERROR),
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::UiError(GetStateError::Stub) => exitlb!(Unexpected, "Impossible"),
+            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
         },
     }
 }
@@ -83,7 +77,7 @@ pub fn get_config() -> Config {
         (Ok(s), _, _) => s,
         (Err(_), Ok(s), _) => format!("{}/.lockbook", s),
         (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
-        _ => exit_with("Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your .lockbook folder", NO_CLI_LOCATION)
+        _ => exitlb!(NoCliLocation, "Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your .lockbook folder")
     };
 
     Config {
@@ -92,27 +86,25 @@ pub fn get_config() -> Config {
 }
 
 pub fn exit_with_upgrade_required() -> ! {
-    exit_with(
-        "An update to your application is required to do this action!",
-        UPDATE_REQUIRED,
+    exitlb!(
+        UpdateRequired,
+        "An update to your application is required to do this action!"
     )
 }
 
 pub fn exit_with_offline() -> ! {
-    exit_with("Could not reach server!", NETWORK_ISSUE)
+    exitlb!(NetworkIssue, "Could not reach server!")
 }
 
 pub fn exit_with_no_account() -> ! {
-    exit_with("No account! Run init or import to get started!", NO_ACCOUNT)
+    exitlb!(NoAccount, "No account! Run init or import to get started!")
 }
 
-pub fn exit_with(message: &str, status: u8) -> ! {
-    if status == 0 {
-        println!("{}", message);
-    } else {
-        eprintln!("{}", message);
+pub fn exit_success(msgopt: Option<&str>) -> ! {
+    if let Some(msg) = msgopt {
+        println!("{}", msg);
     }
-    exit(status as i32);
+    std::process::exit(ErrCode::Success as i32)
 }
 
 // In order of superiority
@@ -170,9 +162,10 @@ pub fn print_last_successful_sync() {
     if atty::is(atty::Stream::Stdout) {
         let last_updated = match get_last_synced_human_string(&get_config()) {
             Ok(ok) => ok,
-            Err(_) => exit_with(
+            Err(err) => exitlb!(
+                Unexpected,
                 "Unexpected error while attempting to retrieve usage: {:#?}",
-                UNEXPECTED_ERROR,
+                err
             ),
         };
 
@@ -226,12 +219,9 @@ pub fn set_up_auto_save(
 }
 
 pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
-    watcher.unwatch(file_location).unwrap_or_else(|err| {
-        exit_with(
-            &format!("file watcher failed to unwatch: {:#?}", err),
-            UNEXPECTED_ERROR,
-        )
-    });
+    watcher
+        .unwatch(file_location)
+        .unwrap_or_else(|err| exitlb!(Unexpected, "file watcher failed to unwatch: {:#?}", err));
 }
 
 pub fn save_temp_file_contents(
@@ -244,12 +234,11 @@ pub fn save_temp_file_contents(
         Ok(content) => content.into_bytes(),
         Err(err) => {
             if !silent {
-                exit_with(
-                    &format!(
-                        "Could not read from temporary file, not deleting {}, err: {:#?}",
-                        file_location, err
-                    ),
-                    UNEXPECTED_ERROR,
+                exitlb!(
+                    Unexpected,
+                    "Could not read from temporary file, not deleting {}, err: {:#?}",
+                    file_location,
+                    err
                 )
             } else {
                 return;
@@ -260,25 +249,24 @@ pub fn save_temp_file_contents(
     match write_document(&get_config(), file_metadata.id, &secret) {
         Ok(_) => {
             if !silent {
-                exit_with(
+                exit_success(Some(
                     "Document encrypted and saved. Cleaning up temporary file.",
-                    SUCCESS,
-                )
+                ))
             }
         }
         Err(err) => {
             if !silent {
                 match err {
-                    CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                    CoreError::UiError(WriteToDocumentError::NoAccount) => exit_with(
-                        "Unexpected: No account! Run init or import to get started!",
-                        UNEXPECTED_ERROR,
+                    CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+                    CoreError::UiError(WriteToDocumentError::NoAccount) => exitlb!(
+                        Unexpected,
+                        "Unexpected: No account! Run init or import to get started!"
                     ),
                     CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
-                        exit_with("Unexpected: FileDoesNotExist", UNEXPECTED_ERROR)
+                        exitlb!(Unexpected, "Unexpected: FileDoesNotExist")
                     }
                     CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
-                        exit_with("Unexpected: CannotWriteToFolder", UNEXPECTED_ERROR)
+                        exitlb!(Unexpected, "Unexpected: CannotWriteToFolder")
                     }
                 }
             }

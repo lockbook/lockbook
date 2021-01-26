@@ -5,13 +5,10 @@ use std::fs::File;
 use std::path::Path;
 use uuid::Uuid;
 
+use crate::exitlb;
 use crate::utils::{
-    edit_file_with_editor, exit_with, exit_with_no_account, get_account_or_exit, get_config,
+    edit_file_with_editor, exit_success, exit_with_no_account, get_account_or_exit, get_config,
     save_temp_file_contents, set_up_auto_save, stop_auto_save,
-};
-use crate::{
-    DOCUMENT_TREATED_AS_FOLDER, FILE_ALREADY_EXISTS, NO_ROOT, PATH_CONTAINS_EMPTY_FILE,
-    PATH_NO_ROOT, SUCCESS, UNEXPECTED_ERROR,
 };
 
 pub fn new(file_name: &str) {
@@ -21,45 +18,47 @@ pub fn new(file_name: &str) {
         Ok(file_metadata) => file_metadata,
         Err(err) => match err {
             CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
-                exit_with("File already exists!", FILE_ALREADY_EXISTS)
+                exitlb!(FileAlreadyExists, "File already exists!")
             }
             CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
             CoreError::UiError(CreateFileAtPathError::NoRoot) => {
-                exit_with("No root folder, have you synced yet?", NO_ROOT)
+                exitlb!(NoRoot, "No root folder, have you synced yet?")
             }
             CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => {
-                exit_with("Path contains an empty file.", PATH_CONTAINS_EMPTY_FILE)
+                exitlb!(PathContainsEmptyFile, "Path contains an empty file.")
             }
             CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => {
-                exit_with("Path doesn't start with your root folder.", PATH_NO_ROOT)
+                exitlb!(PathNoRoot, "Path doesn't start with your root folder.")
             }
-            CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => exit_with(
-                "A file within your path is a document that was treated as a folder",
-                DOCUMENT_TREATED_AS_FOLDER,
+            CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => exitlb!(
+                DocTreatedAsFolder,
+                "A file within your path is a document that was treated as a folder"
             ),
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
         },
     };
 
     let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     fs::create_dir(&directory_location).unwrap_or_else(|err| {
-        exit_with(
-            &format!("Could not open temporary file for writing. OS: {:#?}", err),
-            UNEXPECTED_ERROR,
+        exitlb!(
+            Unexpected,
+            "Could not open temporary file for writing. OS: {:#?}",
+            err
         )
     });
     let file_location = format!("{}/{}", directory_location, file_metadata.name);
     let temp_file_path = Path::new(file_location.as_str());
     match File::create(&temp_file_path) {
         Ok(_) => {}
-        Err(err) => exit_with(
-            &format!("Could not open temporary file for writing. OS: {:#?}", err),
-            UNEXPECTED_ERROR,
+        Err(err) => exitlb!(
+            Unexpected,
+            "Could not open temporary file for writing. OS: {:#?}",
+            err
         ),
     }
 
     if file_metadata.file_type == Folder {
-        exit_with("Folder created.", SUCCESS);
+        exit_success(Some("Folder created."));
     }
 
     let watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());

@@ -2,19 +2,16 @@ use std::io;
 
 use lockbook_core::{import_account, Error as CoreError, ImportError};
 
-use crate::utils::{exit_with, exit_with_offline, exit_with_upgrade_required, get_config};
-use crate::{
-    ACCOUNT_ALREADY_EXISTS, ACCOUNT_DOES_NOT_EXIST, ACCOUNT_STRING_CORRUPTED, EXPECTED_STDIN,
-    SUCCESS, UNEXPECTED_ERROR, USERNAME_PK_MISMATCH,
-};
+use crate::exitlb;
+use crate::utils::{exit_success, exit_with_offline, exit_with_upgrade_required, get_config};
 
 pub fn import_private_key() {
     if atty::is(atty::Stream::Stdin) {
-        exit_with(
+        exitlb!(
+            ExpectedStdin,
             "To import an existing Lockbook, pipe your account string into this command, \
     eg. pbpaste | lockbook import-private-key \
-    or xclip -selection clipboard -o | lockbook import-private-key",
-            EXPECTED_STDIN,
+    or xclip -selection clipboard -o | lockbook import-private-key"
         );
     } else {
         let mut account_string = String::new();
@@ -26,16 +23,16 @@ pub fn import_private_key() {
         println!("Importing...");
 
         match import_account(&get_config(), &account_string) {
-            Ok(_) => exit_with("Account imported successfully", SUCCESS),
+            Ok(_) => exit_success(Some("Account imported successfully")),
             Err(err) => match err {
-                CoreError::UiError(ImportError::AccountStringCorrupted) => exit_with(
-                    "Account string corrupted, not imported",
-                    ACCOUNT_STRING_CORRUPTED,
+                CoreError::UiError(ImportError::AccountStringCorrupted) => exitlb!(
+                    AccountStringCorrupted,
+                    "Account string corrupted, not imported"
                 ),
-                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                CoreError::UiError(ImportError::AccountExistsAlready) => exit_with("Account already exists. `lockbook erase-everything` to erase your local state.", ACCOUNT_ALREADY_EXISTS),
-                CoreError::UiError(ImportError::AccountDoesNotExist) => exit_with("An account with this username was not found on the server.", ACCOUNT_DOES_NOT_EXIST),
-                CoreError::UiError(ImportError::UsernamePKMismatch) => exit_with("The public_key in this account_string does not match what is on the server", USERNAME_PK_MISMATCH),
+                CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+                CoreError::UiError(ImportError::AccountExistsAlready) => exitlb!(AccountAlreadyExists, "Account already exists. `lockbook erase-everything` to erase your local state."),
+                CoreError::UiError(ImportError::AccountDoesNotExist) => exitlb!(AccountDoesNotExist, "An account with this username was not found on the server."),
+                CoreError::UiError(ImportError::UsernamePKMismatch) => exitlb!(UsernamePkMismatch, "The public_key in this account_string does not match what is on the server"),
                 CoreError::UiError(ImportError::CouldNotReachServer) => exit_with_offline(),
                 CoreError::UiError(ImportError::ClientUpdateRequired) => exit_with_upgrade_required(),
             },

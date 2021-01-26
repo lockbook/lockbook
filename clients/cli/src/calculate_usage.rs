@@ -1,7 +1,7 @@
+use crate::exitlb;
 use crate::utils::{
-    exit_with, exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
+    exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
 };
-use crate::UNEXPECTED_ERROR;
 use lockbook_core::{Error as CoreError, GetUsageError};
 
 pub fn calculate_usage(exact: bool) {
@@ -13,7 +13,7 @@ pub fn calculate_usage(exact: bool) {
             CoreError::UiError(GetUsageError::CouldNotReachServer) => exit_with_offline(),
             CoreError::UiError(GetUsageError::ClientUpdateRequired) => exit_with_upgrade_required(),
             CoreError::UiError(GetUsageError::NoAccount) | CoreError::Unexpected(_) => {
-                exit_with(&format!("Unexpected Error: {:?}", err), UNEXPECTED_ERROR)
+                exitlb!(Unexpected, "Unexpected Error: {:?}", err)
             }
         },
     };

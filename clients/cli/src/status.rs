@@ -1,11 +1,11 @@
 use lockbook_core::model::work_unit::WorkUnit;
 use lockbook_core::{calculate_work, CalculateWorkError, Error as CoreError};
 
+use crate::exitlb;
 use crate::utils::{
-    exit_with, exit_with_no_account, exit_with_offline, exit_with_upgrade_required,
-    get_account_or_exit, get_config, print_last_successful_sync,
+    exit_with_no_account, exit_with_offline, exit_with_upgrade_required, get_account_or_exit,
+    get_config, print_last_successful_sync,
 };
-use crate::UNEXPECTED_ERROR;
 
 pub fn status() {
     get_account_or_exit();
@@ -21,7 +21,7 @@ pub fn status() {
             CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
                 exit_with_upgrade_required()
             }
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
         },
     };
 
