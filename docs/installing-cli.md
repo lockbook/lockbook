@@ -2,7 +2,12 @@
 
 ## Quick Install
 
-Our binary has no dependencies just, `curl -O` the latest release for your operating system, `tar -xzf` the download and `sudo cp` the binary anywhere on your `$PATH`. Repeat the process to upgrade to newer versions.
+Our binary has no dependencies. Simply:
+* `curl -O` the latest release for your operating system
+* `tar -xzf` the download
+* `sudo cp` the binary anywhere on your `$PATH`
+
+Repeat the process to upgrade to newer versions.
 
 [See our downloads.](https://github.com/lockbook/lockbook/releases)
 
@@ -14,7 +19,7 @@ Our binary has no dependencies just, `curl -O` the latest release for your opera
 
 ## From Source
 
-Get the rust toolchain (rustup), ensure `cargo` is on your path.
+Get the Rust toolchain (`rustup`) and ensure `cargo` is on your path.
 
 ```
 cd clients/cli
@@ -25,10 +30,10 @@ In the `target/release` folder you'll find the `lockbook` binary. Place it anywh
 
 ## Configuration
 
-Design priorities for CLI are inspired by the [Unix philosophy](https://en.wikipedia.org/wiki/Unix_philosophy), this allows it to be minimal and extensible.
+Design priorities for CLI are inspired by the [Unix philosophy](https://en.wikipedia.org/wiki/Unix_philosophy). This allows it to be minimal and extensible.
 
 Essentially:
 
-What files need to be synced, can be answered by: `lockbook status`, how many files need to be synced should be answered by `lockbook status | wc -l`.
+What files need to be synced, can be answered by: `lockbook status`, and how many files need to be synced should be answered by `lockbook status | wc -l`.
 
 [A sample configuration for a zsh user.](https://github.com/Parth/dotfiles/blob/master/zsh/lockbook.sh)
