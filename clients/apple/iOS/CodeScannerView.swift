@@ -1,6 +1,6 @@
-//
-// Ripped from https://github.com/twostraws/CodeScanner/blob/main/Sources/CodeScanner/CodeScanner.swift
-//
+///
+/// Ripped from https://github.com/twostraws/CodeScanner/blob/main/Sources/CodeScanner/CodeScanner.swift
+///
 
 import AVFoundation
 import SwiftUI

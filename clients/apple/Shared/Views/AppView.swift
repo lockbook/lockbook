@@ -11,7 +11,12 @@ struct AppView: View {
                 case .none:
                     AnyView(OnboardingView(core: core))
                 case .some(let account):
-                    AnyView(BookView(core: core, account: account))
+                    switch core.root {
+                    case .some(let root):
+                        AnyView(BookView(core: core, currentFolder: root, account: account))
+                    case .none:
+                        Label("Please sync!", systemImage: "arrow.right.arrow.left.circle.fill")
+                    }
                 }
             case .MigrationRequired:
                 AnyView(VStack(spacing: 20) {

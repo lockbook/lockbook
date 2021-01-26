@@ -4,7 +4,7 @@ import SwiftLockbookCore
 @main
 struct LockbookApp: App {
     @StateObject var core = Core(documenstDirectory: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location)
-
+    
     var body: some Scene {
         WindowGroup {
             AppView(core: core)
@@ -12,10 +12,12 @@ struct LockbookApp: App {
                 .ignoresSafeArea()
         }.commands {
             CommandMenu("Lockbook") {
-                Button("Sync", action: core.sync).keyboardShortcut("S", modifiers: .command)
+                Button("Sync", action: {core.syncing = true} ).keyboardShortcut("S", modifiers: .command)
+                Button("New File", action: {} ).keyboardShortcut("N", modifiers: .command)
             }
+            SidebarCommands()
         }
-
+        
         #if os(macOS)
         Settings {
             SettingsView(core: core)
@@ -30,7 +32,7 @@ extension View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         #endif
     }
-
+    
     /// Allows free use of .autocapitalization without having to if else it on macOS
     #if os(macOS)
     func autocapitalization(_ bunk: String?) -> some View {

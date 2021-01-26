@@ -11,7 +11,15 @@ class Core: ObservableObject {
     @Published var globalError: AnyFfiError?
     @Published var files: [FileMetadata] = []
     @Published var root: FileMetadata?
-    @Published var syncing: Bool = false
+    @Published var syncing: Bool = false {
+        didSet {
+            if oldValue == false && syncing == true {
+                serialQueue.async {
+                    self.passthrough.send(self.api.synchronize())
+                }
+            }
+        }
+    }
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
     
@@ -61,22 +69,14 @@ class Core: ObservableObject {
         }
     }
     
-    func sync() {
-        self.syncing = true
-        serialQueue.async {
-            self.passthrough.send(self.api.synchronize())
+    func handleError(_ error: AnyFfiError) {
+        DispatchQueue.main.async {
+            self.globalError = error
         }
     }
     
-    func handleError(_ error: AnyFfiError) {
-        globalError = error
-    }
-    
-    private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
-        return FileMetadataWithChildren(meta: meta, children: files.filter({ $0.parent == meta.id && $0.id != meta.id }).map(buildTree))
-    }
-    
     func updateFiles() {
+        print("Updating files!")
         if (account != nil) {
             switch api.getRoot() {
             case .success(let root):
@@ -94,6 +94,7 @@ class Core: ObservableObject {
     }
     
     init(documenstDirectory: String) {
+        print("Initializing core...")
         self.documenstDirectory = documenstDirectory
         self.api = CoreApi(documentsDirectory: documenstDirectory)
         self.state = (try? self.api.getState().get())!
@@ -131,22 +132,6 @@ class Core: ObservableObject {
         if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {
             self.files = metas
             self.root = root
-        }
-    }
-}
-
-struct FileMetadataWithChildren: Identifiable {
-    let id: UUID
-    let meta: FileMetadata
-    let children: [FileMetadataWithChildren]?
-    
-    init(meta: FileMetadata, children: [FileMetadataWithChildren]) {
-        self.id = meta.id
-        self.meta = meta
-        if !children.isEmpty {
-            self.children = children
-        } else {
-            self.children = nil
         }
     }
 }

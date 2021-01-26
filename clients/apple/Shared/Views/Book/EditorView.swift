@@ -1,111 +1,128 @@
 import SwiftUI
 import SwiftLockbookCore
+import HighlightedTextEditor
 import Combine
 
-struct EditorView: View, Equatable {
-    /// Define an always equality so that this view doesn't reload once it's initialized
-    static func == (lhs: EditorView, rhs: EditorView) -> Bool {
-        lhs.meta.id == rhs.meta.id
-    }
-    
+struct EditorView: View {
+
     @ObservedObject var core: Core
-    @ObservedObject var contentBuffer: ContentBuffer
     let meta: FileMetadata
+    @State var text: String
     
-    var body: some View {
-        return VStack(spacing: 0) {
-            TitleTextField(text: $contentBuffer.title, doneEditing: {
-                if (meta.name != contentBuffer.title) {
-                    switch core.api.renameFile(id: meta.id, name: contentBuffer.title) {
-                    case .success(_):
-                        core.updateFiles()
-                        contentBuffer.status = .RenameSuccess
-                    case .failure(let err):
-                        core.handleError(err)
-                        contentBuffer.status = .RenameFailure
-                    }
-                }
-            })
-            
-            let baseEditor = ContentEditor(text: $contentBuffer.content)
-                .font(.system(.body, design: .monospaced))
-                .disabled(!contentBuffer.succeeded)
-                .onAppear {
-                    switch core.api.getFile(id: meta.id) {
-                    case .success(let decrypted):
-                        contentBuffer.content = decrypted
-                        contentBuffer.succeeded = true
-                    case .failure(let err):
-                        core.handleError(err)
-                        contentBuffer.succeeded = false
-                    }
-                }
-                .onDisappear {
-                    switch contentBuffer.save() {
-                    case .success(_):
-                        contentBuffer.succeeded = true
-                    case .failure(let err):
-                        core.handleError(err)
-                        contentBuffer.succeeded = false
-                    }
-                }
-            #if os(iOS)
-            baseEditor
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        EditorStatus(status: contentBuffer.status)
-                    }
-                }
-            #else
-            baseEditor
-                .toolbar(content: {
-                    ToolbarItem(placement: .automatic) {
-                        EditorStatus(status: contentBuffer.status)
-                            .font(.title)
-                    }
-                })
-            #endif
+    let changeCallback: (String) -> Void
+    
+    var highlightRules: [HighlightRule] {
+        if meta.name.hasSuffix(".md") {
+            return .lockbookMarkdown
+        } else {
+            return []
         }
     }
     
-    init(core: Core, meta: FileMetadata) {
-        self.core = core
-        self.meta = meta
-        self.contentBuffer = ContentBuffer(meta: meta, initialContent: "loading...", core: core)
+    var body: some View {
+        #if os(iOS)
+        HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
+        #else
+        HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
+        #endif
+        
     }
 }
 
-struct EditorStatus: View {
-    let status: ContentBuffer.Status
+struct EditorLoader: View {
+
+    @ObservedObject var core: Core
+    let meta: FileMetadata
+    @ObservedObject var content: Content
+    @State var editorContent: String = ""
+    @State var title: String = ""
+    
+    var deleted: Bool {
+        core.files.filter({$0.id == meta.id}).isEmpty
+    }
+    
     var body: some View {
-        switch status {
-        case .BufferDied:
-            return Image(systemName: "lock.fill")
-                .foregroundColor(.red)
-                .opacity(0.6)
-        case .WriteSuccess:
-            return Image(systemName: "text.badge.checkmark")
-                .foregroundColor(.green)
-                .opacity(0.3)
-        case .WriteFailure:
-            return Image(systemName: "text.badge.xmark")
-                .foregroundColor(.red)
-                .opacity(0.6)
-        case .RenameSuccess:
-            return Image(systemName: "checkmark.circle")
-                .foregroundColor(.green)
-                .opacity(0.3)
-        case .RenameFailure:
-            return Image(systemName: "xmark.circle")
-                .foregroundColor(.red)
-                .opacity(0.6)
-        case .Inactive:
-            return Image(systemName: "ellipsis")
-                .foregroundColor(.secondary)
-                .opacity(0.3)
+        ZStack(alignment: .topTrailing) {
+            switch content.text {
+            case .some(let c):
+                if deleted {
+                    Text("\(meta.name) file has been deleted")
+                } else {
+                    EditorView(core: core, meta: meta, text: c, changeCallback: content.updateText)
+                }
+            case .none:
+                ProgressView()
+            }
+
+            if content.status == .WriteSuccess {
+                ActivityIndicator(status: $content.status)
+            }
+        }
+        .navigationTitle(meta.name)
+    }
+    
+    
+    init (core: Core, meta: FileMetadata) {
+        self.core = core
+        self.meta = meta
+        self.content = Content(core: core, meta: meta)
+    }
+}
+
+class Content: ObservableObject {
+    @ObservedObject var core: Core
+    @Published var text: String?
+    var cancellables = Set<AnyCancellable>()
+    @Published var succeeded: Bool = false
+    @Published var status: Status = .Inactive
+    
+    let meta: FileMetadata
+    
+    func updateText(text: String) {
+        self.text = text
+        self.status = .Inactive
+    }
+    init(core: Core, meta: FileMetadata) {
+        self.core = core
+        self.meta = meta
+        
+        // Load
+        DispatchQueue.main.async { [weak self] in
+            if !core.files.filter({$0.id == meta.id}).isEmpty {
+                switch core.api.getFile(id: meta.id) {
+                case .success(let decrypted):
+                    self?.text = decrypted
+                case .failure(let err):
+                    core.handleError(err)
+                }
+            }
+        }
+        
+        // Save
+        $text
+            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
+            .sink(receiveValue: {
+                self.save(content: $0!)
+            })
+            .store(in: &cancellables)
+    }
+    
+    func save(content: String) {
+        switch core.api.updateFile(id: meta.id, content: content) {
+        case .success(_):
+            withAnimation {
+                self.status = .WriteSuccess
+            }
+        case .failure(let err):
+            core.handleError(err)
         }
     }
+}
+
+enum Status {
+    case WriteSuccess
+    case WriteFailure
+    case Inactive
 }
 
 #if os(macOS)
@@ -121,7 +138,8 @@ extension NSTextField {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorView(core: Core(), meta: FakeApi().fileMetas[0])
+            EditorLoader(core: Core(), meta: FakeApi().fileMetas[0])
         }
+        .preferredColorScheme(.dark)
     }
 }
