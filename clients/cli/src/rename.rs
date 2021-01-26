@@ -12,13 +12,13 @@ pub fn rename(path: &str, new_name: &str) {
             Ok(_) => exit_success(""),
             Err(err) => match err {
                 CoreError::UiError(RenameFileError::NewNameEmpty) => {
-                    exitlb!(NameEmpty, "New name is empty!")
+                    exitlb!(FileNameEmpty, "New name is empty!")
                 }
                 CoreError::UiError(RenameFileError::CannotRenameRoot) => {
                     exitlb!(NoRootOps, "Cannot rename root directory!")
                 }
                 CoreError::UiError(RenameFileError::NewNameContainsSlash) => {
-                    exitlb!(NameContainsSlash, "New name cannot contain a slash!")
+                    exitlb!(FileNameHasSlash, "New name cannot contain a slash!")
                 }
                 CoreError::UiError(RenameFileError::FileNameNotAvailable) => {
                     exitlb!(FileNameNotAvailable, "File name not available!")

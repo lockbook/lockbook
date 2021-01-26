@@ -10,6 +10,7 @@ pub enum ErrCode {
     ExpectedStdin = 6,
     NoCliLocation = 24,
     PwdMissing = 30,
+    NoRoot = 10,
     NoRootOps = 29,
 
     NoAccount = 8,
@@ -21,7 +22,7 @@ pub enum ErrCode {
     UsernamePkMismatch = 23,
 
     OsCouldNotGetAbsPath = 16,
-    OsCouldNotCreateDir= 31,
+    OsCouldNotCreateDir = 31,
     OsCouldNotReadChildren = 34,
     OsCouldNotReadFile = 15,
     OsCouldNotWriteFile = 18,
@@ -29,15 +30,14 @@ pub enum ErrCode {
 
     FileNotFound = 17,
     FileAlreadyExists = 9,
-    NameContainsSlash = 19,
+    FileNameEmpty = 28,
     FileNameNotAvailable = 20,
-    NoRoot = 10,
+    FileNameHasSlash = 19,
     PathNoRoot = 11,
+    PathContainsEmptyFile = 27,
     DocTreatedAsFolder = 12,
     CannotMoveFolderIntoItself = 32,
     CannotDeleteRoot = 33,
-    PathContainsEmptyFile = 27,
-    NameEmpty = 28,
 }
 
 #[macro_export]
