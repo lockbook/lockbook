@@ -28,6 +28,7 @@ class CreateFileDialogFragment : DialogFragment() {
     private lateinit var parentId: String
     private lateinit var fileType: String
     private var isDrawing by Delegates.notNull<Boolean>()
+    var newDocument: FileMetadata? = null
     lateinit var config: Config
 
     companion object {
@@ -181,10 +182,12 @@ class CreateFileDialogFragment : DialogFragment() {
             is Ok -> {
                 when (val insertFileResult = CoreModel.insertFile(config, createFileResult.value)) {
                     is Ok -> {
+                        if (fileType == Klaxon().toJsonString(FileType.Document)) {
+                            newDocument = createFileResult.value
+                        }
                         withContext(Dispatchers.Main) {
                             dismiss()
                         }
-                        return
                     }
                     is Err -> when (val error = insertFileResult.error) {
                         is InsertFileError.Unexpected -> {
