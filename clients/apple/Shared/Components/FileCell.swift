@@ -3,14 +3,30 @@ import SwiftLockbookCore
 
 struct FileCell: View {
     let meta: FileMetadata
-
+    
     var body: some View {
-        VStack(alignment: .leading) {
-            Text(meta.name)
-            Label(intEpochToString(epoch: meta.contentVersion), systemImage: meta.fileType == .Folder ? "folder" : "doc")
-                .font(.footnote)
-                .foregroundColor(.secondary)
+        HStack {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(meta.name)
+                    .font(.title3)
+                HStack {
+                    Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
+                        .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                    Text(intEpochToString(epoch: meta.contentVersion))
+                        .foregroundColor(.secondary)
+                    
+                }.font(.footnote)
+            }
+            .padding(.vertical, 5)
+            Spacer()
+            
+            if meta.fileType == .Folder {
+                Image(systemName: "chevron.right")
+                    .padding(.trailing, 10)
+                    .foregroundColor(.secondary)
+            }
         }
+        .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }
 
@@ -19,26 +35,28 @@ struct SyntheticFileCell: View {
     @Binding var nameField: String
     let onCreate: () -> Void
     let onCancel: () -> Void
-
+    
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
-                TextField("new file...", text: $nameField)
+            VStack(alignment: .leading, spacing: 5) {
+                TextField(params.1 == .Folder ? "folder name" : "document name", text: $nameField,
+                          onCommit: onCreate)
                     .autocapitalization(.none)
-                Label("New \(params.1.rawValue) in \(params.0.name)", systemImage: params.1 == .Folder ? "folder" : "doc")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-            }
-            Button(action: onCreate) {
-                Image(systemName: "plus")
-                    .foregroundColor(.green)
-            }
-            .padding(.horizontal, 10)
+                    .font(.title3)
+                HStack {
+                    Image(systemName: params.1 == .Folder ? "folder" : "doc")
+                        .foregroundColor(params.1 == .Folder ? .blue : .secondary)
+                    Text("New \(params.1.rawValue) in \(params.0.name)")
+                        .foregroundColor(.gray)
+                }.font(.footnote)
+            }.padding(.vertical, 5)
+            
             Button(action: onCancel) {
                 Image(systemName: "xmark")
                     .foregroundColor(.red)
-            }
+            }.padding(.trailing, 10)
         }
+        
     }
 }
 
@@ -47,6 +65,7 @@ struct FileCell_Previews: PreviewProvider {
         Group {
             FileCell(meta: Core().files[0])
             SyntheticFileCell(params: (Core().files[0], .Document), nameField: .constant(""), onCreate: {}, onCancel: {})
+            
         }
         .previewLayout(.fixed(width: 300, height: 50))
     }
