@@ -50,6 +50,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _stopProgressSpinner = SingleMutableLiveData<Unit>()
     private val _showSyncSnackBar = SingleMutableLiveData<Int>()
+    private val _updateSyncSnackBar = SingleMutableLiveData<Int>()
     private val _showPreSyncSnackBar = SingleMutableLiveData<Int>()
     private val _showOfflineSnackBar = SingleMutableLiveData<Unit>()
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
@@ -78,6 +79,9 @@ class ListFilesViewModel(path: String, application: Application) :
 
     val showSyncSnackBar: LiveData<Int>
         get() = _showSyncSnackBar
+
+    val updateSyncSnackBar: LiveData<Int>
+        get() = _updateSyncSnackBar
 
     val showPreSyncSnackBar: LiveData<Int>
         get() = _showPreSyncSnackBar
@@ -407,8 +411,10 @@ class ListFilesViewModel(path: String, application: Application) :
             }
         }.exhaustive
 
-        var syncWork =
-            when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
+        val syncErrors = hashMapOf<String, ExecuteWorkError>()
+
+        var workCalculated =
+            when (val syncWorkResult = CoreModel.calculateWork(fileModel.config)) {
                 is Ok -> syncWorkResult.value
                 is Err -> return when (val error = syncWorkResult.error) {
                     is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
@@ -423,41 +429,18 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
             }.exhaustive
 
-        if (syncWork.workUnits.isNotEmpty()) {
-            _showSyncSnackBar.postValue(syncWork.workUnits.size)
+        if (workCalculated.workUnits.isEmpty()) {
+            _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
+            return
         }
 
+        _showSyncSnackBar.postValue(workCalculated.workUnits.size)
+
         var currentProgress = 0
-        syncingStatus.maxProgress = syncWork.workUnits.size
-        val syncErrors = hashMapOf<String, ExecuteWorkError>()
+        syncingStatus.maxProgress = workCalculated.workUnits.size
 
-        while(true) {
-            if ((currentProgress + syncWork.workUnits.size) > syncingStatus.maxProgress) {
-                syncingStatus.maxProgress = syncWork.workUnits.size + currentProgress
-                _showSyncSnackBar.postValue(syncingStatus.maxProgress)
-            }
-
-            if (syncWork.workUnits.isEmpty()) {
-                return if (syncErrors.isEmpty()) {
-                    val setLastSyncedResult =
-                        CoreModel.setLastSynced(
-                            fileModel.config,
-                            syncWork.mostRecentUpdateFromServer
-                        )
-                    if (setLastSyncedResult is Err) {
-                        Timber.e("Unable to set most recent sync date: ${setLastSyncedResult.error}")
-                        _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                    } else {
-                        _showPreSyncSnackBar.postValue(syncWork.workUnits.size)
-                    }
-                } else {
-                    Timber.e("Despite all sync work being gone, sync errors still persist.")
-                    _stopSyncSnackBar.postValue(Unit)
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
-                }
-            }
-
-            for (workUnit in syncWork.workUnits) {
+        for (test in 0..10) {
+            for (workUnit in workCalculated.workUnits) {
                 when (
                     val executeFileSyncWorkResult =
                         CoreModel.executeFileSyncWork(fileModel.config, account, workUnit)
@@ -467,15 +450,26 @@ class ListFilesViewModel(path: String, application: Application) :
                         syncErrors.remove(workUnit.content.metadata.id)
                         _updateProgressSnackBar.postValue(currentProgress)
                     }
-                    is Err ->{
+                    is Err ->
                         syncErrors[workUnit.content.metadata.id] =
                             executeFileSyncWorkResult.error
-                    }
                 }.exhaustive
             }
 
-            syncWork =
-                when (val syncWorkResult = CoreModel.calculateFileSyncWork(fileModel.config)) {
+            if (syncErrors.isEmpty()) {
+                val setLastSyncedResult =
+                    CoreModel.setLastSynced(
+                        fileModel.config,
+                        workCalculated.mostRecentUpdateFromServer
+                    )
+                if (setLastSyncedResult is Err) {
+                    Timber.e("Unable to set most recent sync date: ${setLastSyncedResult.error}")
+                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                }
+            }
+
+            workCalculated =
+                when (val syncWorkResult = CoreModel.calculateWork(fileModel.config)) {
                     is Ok -> syncWorkResult.value
                     is Err -> return when (val error = syncWorkResult.error) {
                         is CalculateWorkError.NoAccount -> {
@@ -494,7 +488,14 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                 }.exhaustive
 
-            Timber.e("Sync Work Left: ${Klaxon().toJsonString(syncWork)}")
+            if (workCalculated.workUnits.isEmpty()) {
+                break
+            }
+
+            if ((currentProgress + workCalculated.workUnits.size) > syncingStatus.maxProgress) {
+                syncingStatus.maxProgress = workCalculated.workUnits.size + currentProgress
+                _updateSyncSnackBar.postValue(syncingStatus.maxProgress)
+            }
         }
 
         if (syncErrors.isNotEmpty()) {
@@ -502,7 +503,7 @@ class ListFilesViewModel(path: String, application: Application) :
             _errorHasOccurred.postValue("Couldn't sync all files.")
             _stopSyncSnackBar.postValue(Unit)
         } else {
-            _showPreSyncSnackBar.postValue(syncWork.workUnits.size)
+            _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
         }
     }
 

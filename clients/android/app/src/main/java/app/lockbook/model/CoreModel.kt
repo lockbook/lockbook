@@ -5,13 +5,12 @@ import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
-import timber.log.Timber
 
 object CoreModel {
 
     private const val QA_API_URL = "http://qa.lockbook.app:8000"
     private const val PROD_API_URL = "http://api.lockbook.app:8000"
-    fun getAPIURL(): String = System.getenv("API_URL") ?: QA_API_URL
+    private fun getAPIURL(): String = System.getenv("API_URL") ?: QA_API_URL
 
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
         val initLoggerResult: Result<Unit, InitLoggerError>? =
@@ -326,15 +325,13 @@ object CoreModel {
         return Err(MoveFileError.Unexpected("moveFileConverter was unable to be called!"))
     }
 
-    fun calculateFileSyncWork(config: Config): Result<WorkCalculated, CalculateWorkError> {
-        val result = calculateSyncWork(Klaxon().toJsonString(config))
-        Timber.e(result)
-        val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
+    fun calculateWork(config: Config): Result<WorkCalculated, CalculateWorkError> {
+        val calculateWorkResult: Result<WorkCalculated, CalculateWorkError>? =
             Klaxon().converter(calculateSyncWorkConverter)
-                .parse(result)
+                .parse(calculateWork(Klaxon().toJsonString(config)))
 
-        if (calculateSyncWorkResult != null) {
-            return calculateSyncWorkResult
+        if (calculateWorkResult != null) {
+            return calculateWorkResult
         }
 
         return Err(CalculateWorkError.Unexpected("calculateSyncWorkConverter was unable to be called!"))
@@ -347,7 +344,7 @@ object CoreModel {
     ): Result<Unit, ExecuteWorkError> {
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
             Klaxon().converter(executeSyncWorkConverter).parse(
-                executeSyncWork(
+                executeWork(
                     Klaxon().toJsonString(config),
                     Klaxon().toJsonString(account),
                     Klaxon().toJsonString(workUnit)

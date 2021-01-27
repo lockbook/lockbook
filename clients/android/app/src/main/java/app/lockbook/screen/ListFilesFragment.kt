@@ -116,6 +116,13 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.updateSyncSnackBar.observe(
+            viewLifecycleOwner,
+            { maxProgress ->
+                updateSyncSnackBar(maxProgress)
+            }
+        )
+
         listFilesViewModel.showPreSyncSnackBar.observe(
             viewLifecycleOwner,
             { amountToSync ->
@@ -350,6 +357,19 @@ class ListFilesFragment : Fragment() {
         snackProgressBarManager.show(
             syncSnackProgressBar,
             SnackProgressBarManager.LENGTH_INDEFINITE
+        )
+    }
+
+    private fun updateSyncSnackBar(maxProgress: Int) {
+        syncSnackProgressBar.setProgressMax(maxProgress)
+        syncSnackProgressBar.setMessage(
+            resources.getString(
+                R.string.list_files_sync_snackbar,
+                maxProgress.toString()
+            )
+        )
+        snackProgressBarManager.updateTo(
+            syncSnackProgressBar
         )
     }
 

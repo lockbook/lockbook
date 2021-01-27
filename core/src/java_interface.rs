@@ -514,7 +514,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateSyncWork(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
     env: JNIEnv,
     _: JClass,
     jconfig: JString,
@@ -528,7 +528,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateSyncWork(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_executeSyncWork(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_executeWork(
     env: JNIEnv,
     _: JClass,
     jconfig: JString,
