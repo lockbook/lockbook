@@ -4,6 +4,7 @@
     android:layout_width="90sp"
     android:layout_height="90sp"
     app:cardCornerRadius="0dp"
+    app:cardElevation="0dp"
     android:backgroundTint="?attr/colorPrimaryDark"
     android:clickable="true"
     android:focusable="true"
