@@ -105,7 +105,7 @@ class HandwritingEditorViewModel(
         return null
     }
 
-    fun savePath(drawing: Drawing) {
+    fun saveDrawing(drawing: Drawing) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
