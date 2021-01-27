@@ -5,6 +5,7 @@ import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
+import timber.log.Timber
 
 object CoreModel {
 
@@ -326,9 +327,11 @@ object CoreModel {
     }
 
     fun calculateFileSyncWork(config: Config): Result<WorkCalculated, CalculateWorkError> {
+        val result = calculateSyncWork(Klaxon().toJsonString(config))
+        Timber.e(result)
         val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
             Klaxon().converter(calculateSyncWorkConverter)
-                .parse(calculateSyncWork(Klaxon().toJsonString(config)))
+                .parse(result)
 
         if (calculateSyncWorkResult != null) {
             return calculateSyncWorkResult

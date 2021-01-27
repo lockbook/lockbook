@@ -388,7 +388,7 @@ class ListFilesViewModel(path: String, application: Application) :
         selectedFiles[index]
     }
 
-    fun collapseMoreOptionsMenu() {
+    private fun collapseMoreOptionsMenu() {
         selectedFiles = MutableList(files.value?.size ?: 0) { false }
         _switchMenu.postValue(Unit)
         _uncheckAllFiles.postValue(Unit)
@@ -430,9 +430,10 @@ class ListFilesViewModel(path: String, application: Application) :
         var currentProgress = 0
         syncingStatus.maxProgress = syncWork.workUnits.size
         val syncErrors = hashMapOf<String, ExecuteWorkError>()
-        repeat(10) {
+
+        while(true) {
             if ((currentProgress + syncWork.workUnits.size) > syncingStatus.maxProgress) {
-                syncingStatus.maxProgress = currentProgress + syncWork.workUnits.size
+                syncingStatus.maxProgress = syncWork.workUnits.size + currentProgress
                 _showSyncSnackBar.postValue(syncingStatus.maxProgress)
             }
 
@@ -444,17 +445,18 @@ class ListFilesViewModel(path: String, application: Application) :
                             syncWork.mostRecentUpdateFromServer
                         )
                     if (setLastSyncedResult is Err) {
-                        Timber.e("Unable to set most recent update date: ${setLastSyncedResult.error}")
+                        Timber.e("Unable to set most recent sync date: ${setLastSyncedResult.error}")
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                     } else {
                         _showPreSyncSnackBar.postValue(syncWork.workUnits.size)
                     }
                 } else {
-                    Timber.e("Despite all work being gone, syncErrors still persist.")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                    Timber.e("Despite all sync work being gone, sync errors still persist.")
                     _stopSyncSnackBar.postValue(Unit)
+                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
                 }
             }
+
             for (workUnit in syncWork.workUnits) {
                 when (
                     val executeFileSyncWorkResult =
@@ -465,9 +467,10 @@ class ListFilesViewModel(path: String, application: Application) :
                         syncErrors.remove(workUnit.content.metadata.id)
                         _updateProgressSnackBar.postValue(currentProgress)
                     }
-                    is Err ->
+                    is Err ->{
                         syncErrors[workUnit.content.metadata.id] =
                             executeFileSyncWorkResult.error
+                    }
                 }.exhaustive
             }
 
@@ -476,27 +479,29 @@ class ListFilesViewModel(path: String, application: Application) :
                     is Ok -> syncWorkResult.value
                     is Err -> return when (val error = syncWorkResult.error) {
                         is CalculateWorkError.NoAccount -> {
-                            _errorHasOccurred.postValue("Error! No account!")
                             _stopSyncSnackBar.postValue(Unit)
+                            _errorHasOccurred.postValue("Error! No account!")
                         }
                         is CalculateWorkError.CouldNotReachServer -> _showOfflineSnackBar.postValue(Unit)
                         is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
                         is CalculateWorkError.Unexpected -> {
                             Timber.e("Unable to calculate syncWork: ${error.error}")
+                            _stopSyncSnackBar.postValue(Unit)
                             _unexpectedErrorHasOccurred.postValue(
                                 error.error
                             )
-                            _stopSyncSnackBar.postValue(Unit)
                         }
                     }
                 }.exhaustive
+
+            Timber.e("Sync Work Left: ${Klaxon().toJsonString(syncWork)}")
         }
+
         if (syncErrors.isNotEmpty()) {
             Timber.e("Couldn't resolve all syncErrors: ${Klaxon().toJsonString(syncErrors)}")
             _errorHasOccurred.postValue("Couldn't sync all files.")
             _stopSyncSnackBar.postValue(Unit)
         } else {
-            _stopSyncSnackBar.postValue(Unit)
             _showPreSyncSnackBar.postValue(syncWork.workUnits.size)
         }
     }
