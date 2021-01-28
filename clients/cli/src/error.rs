@@ -76,6 +76,22 @@ impl ErrorKind {
     }
 }
 
+pub struct Error {
+    code: ErrorKind,
+    pub msg: String,
+}
+
+impl Error {
+    pub fn new(code: ErrorKind, msg: String) -> Self {
+        Self { code, msg }
+    }
+
+    pub fn exit(&self) -> ! {
+        eprintln!("{}", self.msg);
+        std::process::exit(self.code.code())
+    }
+}
+
 #[macro_export]
 macro_rules! exitlb {
     ($err:ident) => {{
