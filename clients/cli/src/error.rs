@@ -6,11 +6,11 @@ macro_rules! underscore {
 
 macro_rules! make_errcode_enum {
     ($( $variants:ident $( ( $( $types:ty ),* ) )? => $values:literal ,)*) => {
-        pub enum ErrCode {
+        pub enum ErrorKind {
             $( $variants $( ( $( $types ),* ) )?, )*
         }
 
-        impl ErrCode {
+        impl ErrorKind {
             pub fn code(&self) -> i32 {
                 match self {
                     $( Self::$variants $( ( $( underscore!($types) ),* ) )? => $values ,)*
@@ -60,7 +60,7 @@ make_errcode_enum!(
     CannotDeleteRoot => 33,
 );
 
-impl ErrCode {
+impl ErrorKind {
     pub fn msg(&self) -> String {
         match self {
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
@@ -79,12 +79,12 @@ impl ErrCode {
 #[macro_export]
 macro_rules! exitlb {
     ($err:ident) => {{
-        let err = crate::error::ErrCode::$err;
+        let err = crate::error::ErrorKind::$err;
         eprintln!("{}", err.msg());
         std::process::exit(err.code())
     }};
-    ($code:ident, $base:literal $(, $args:expr )*) => {{
+    ($ekind:ident, $base:literal $(, $args:expr )*) => {{
         eprintln!($base $(, $args )*);
-        std::process::exit(crate::error::ErrCode::$code.code())
+        std::process::exit(crate::error::ErrorKind::$ekind.code())
     }};
 }
