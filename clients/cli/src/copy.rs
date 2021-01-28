@@ -10,7 +10,7 @@ use lockbook_core::{
 
 use crate::error::ErrCode;
 use crate::exitlb;
-use crate::utils::{exit_success, exit_with_no_account, get_account_or_exit, get_config};
+use crate::utils::{exit_success, get_account_or_exit, get_config};
 
 struct LbCliError {
     code: ErrCode,
@@ -94,7 +94,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                             eprintln!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
                         }
                     }
-                    CreateFileAtPathError::NoAccount => exit_with_no_account(),
+                    CreateFileAtPathError::NoAccount => exitlb!(NoAccount),
                     CreateFileAtPathError::NoRoot => exitlb!(NoRoot),
                     CreateFileAtPathError::DocumentTreatedAsFolder => eprintln!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
                     CreateFileAtPathError::PathContainsEmptyFile => eprintln!("Input destination {} contains an empty file!", import_dest),
@@ -163,7 +163,7 @@ fn copy_file(
                         return Err(LbCliError::new(ErrCode::FileAlreadyExists, "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!".to_string()));
                     }
                 }
-                CreateFileAtPathError::NoAccount => exit_with_no_account(),
+                CreateFileAtPathError::NoAccount => exitlb!(NoAccount),
                 CreateFileAtPathError::NoRoot => exitlb!(NoRoot),
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
                     return Err(LbCliError::new(ErrCode::DocTreatedAsFolder, format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest)));

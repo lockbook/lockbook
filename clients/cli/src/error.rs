@@ -65,6 +65,8 @@ impl ErrCode {
         match self {
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
 
+            Self::NoAccount => "No account! Run init or import to get started!".to_string(),
+
             Self::OsCouldNotReadFile(path, err) => {
                 format!("could not read file {}, os error: {}", path, err)
             }
