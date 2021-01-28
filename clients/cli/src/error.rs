@@ -41,7 +41,7 @@ make_errcode_enum!(
     UsernameInvalid => 3,
     UsernamePkMismatch => 23,
 
-    OsCouldNotGetAbsPath => 16,
+    OsCouldNotGetAbsPath(String, std::io::Error) => 16,
     OsCouldNotCreateDir => 31,
     OsCouldNotReadChildren => 34,
     OsCouldNotReadFile(String, std::io::Error) => 15,
@@ -67,6 +67,12 @@ impl ErrorKind {
 
             Self::NoAccount => "No account! Run init or import to get started!".to_string(),
 
+            Self::OsCouldNotGetAbsPath(path, err) => {
+                format!(
+                    "could not get the absolute path for {}, os error: {}",
+                    path, err
+                )
+            }
             Self::OsCouldNotReadFile(path, err) => {
                 format!("could not read file {}, os error: {}", path, err)
             }

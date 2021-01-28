@@ -105,11 +105,8 @@ fn copy_file(
 
     let absolute_path = fs::canonicalize(&path).map_err(|err| {
         Error::new(
-            ErrorKind::OsCouldNotGetAbsPath,
-            format!(
-                "Failed to get absolute path from {:?}, OS error: {}",
-                path, err
-            ),
+            ErrorKind::OsCouldNotGetAbsPath(path.to_string_lossy().to_string(), err),
+            format!("Failed to get absolute path from {:?}", path),
         )
     })?;
 
