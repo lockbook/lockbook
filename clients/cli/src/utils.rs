@@ -104,7 +104,7 @@ pub fn exit_success(msg: &str) -> ! {
     if !msg.is_empty() {
         println!("{}", msg);
     }
-    std::process::exit(ErrCode::Success as i32)
+    std::process::exit(ErrCode::Success.code())
 }
 
 // In order of superiority

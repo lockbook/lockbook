@@ -24,7 +24,7 @@ impl LbCliError {
 
     fn exit(&self) -> ! {
         eprintln!("{}", self.msg);
-        std::process::exit(self.code as i32)
+        std::process::exit(self.code.code())
     }
 }
 
@@ -95,7 +95,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                         }
                     }
                     CreateFileAtPathError::NoAccount => exit_with_no_account(),
-                    CreateFileAtPathError::NoRoot => exit_with_no_root(),
+                    CreateFileAtPathError::NoRoot => exitlb!(NoRoot),
                     CreateFileAtPathError::DocumentTreatedAsFolder => eprintln!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
                     CreateFileAtPathError::PathContainsEmptyFile => eprintln!("Input destination {} contains an empty file!", import_dest),
                     CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
@@ -114,8 +114,8 @@ fn copy_file(
 ) -> Result<String, LbCliError> {
     let content = fs::read_to_string(&path).map_err(|err| {
         LbCliError::new(
-            ErrCode::OsCouldNotReadFile,
-            format!("Failed to read file from {:?}, OS error: {}", path, err),
+            ErrCode::OsCouldNotReadFile(path.to_string_lossy().to_string(), err),
+            format!("Failed to read file from {:?}", path),
         )
     })?;
 
@@ -164,7 +164,7 @@ fn copy_file(
                     }
                 }
                 CreateFileAtPathError::NoAccount => exit_with_no_account(),
-                CreateFileAtPathError::NoRoot => exit_with_no_root(),
+                CreateFileAtPathError::NoRoot => exitlb!(NoRoot),
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
                     return Err(LbCliError::new(ErrCode::DocTreatedAsFolder, format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest)));
                 }
@@ -212,10 +212,6 @@ fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
             })
         })
         .collect()
-}
-
-fn exit_with_no_root() -> ! {
-    exitlb!(NoRoot, "No root folder, have you synced yet?")
 }
 
 fn exit_with_path_no_root() -> ! {

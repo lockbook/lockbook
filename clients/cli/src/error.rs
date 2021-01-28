@@ -1,10 +1,21 @@
 // Error Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
 
+macro_rules! underscore {
+    ($t:ty) => { _ };
+}
+
 macro_rules! make_errcode_enum {
-    ($( $variants:ident => $values:literal ,)*) => {
-        #[derive(Clone, Copy)]
+    ($( $variants:ident $( ( $( $types:ty ),* ) )? => $values:literal ,)*) => {
         pub enum ErrCode {
-            $( $variants = $values, )*
+            $( $variants $( ( $( $types ),* ) )?, )*
+        }
+
+        impl ErrCode {
+            pub fn code(&self) -> i32 {
+                match self {
+                    $( Self::$variants $( ( $( underscore!($types) ),* ) )? => $values ,)*
+                }
+            }
         }
     };
 }
@@ -33,7 +44,7 @@ make_errcode_enum!(
     OsCouldNotGetAbsPath => 16,
     OsCouldNotCreateDir => 31,
     OsCouldNotReadChildren => 34,
-    OsCouldNotReadFile => 15,
+    OsCouldNotReadFile(String, std::io::Error) => 15,
     OsCouldNotWriteFile => 18,
     OsCouldNotDeleteFile => 180,
 
@@ -49,10 +60,29 @@ make_errcode_enum!(
     CannotDeleteRoot => 33,
 );
 
+impl ErrCode {
+    pub fn msg(&self) -> String {
+        match self {
+            Self::NoRoot => "No root folder, have you synced yet?".to_string(),
+
+            Self::OsCouldNotReadFile(path, err) => {
+                format!("could not read file {}, os error: {}", path, err)
+            }
+
+            _ => "I heart Golang".to_string(),
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! exitlb {
+    ($err:ident) => {{
+        let err = crate::error::ErrCode::$err;
+        eprintln!("{}", err.msg());
+        std::process::exit(err.code())
+    }};
     ($code:ident, $base:literal $(, $args:expr )*) => {{
         eprintln!($base $(, $args )*);
-        std::process::exit(crate::error::ErrCode::$code as i32)
+        std::process::exit(crate::error::ErrCode::$code.code())
     }};
 }
