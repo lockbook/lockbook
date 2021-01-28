@@ -18,7 +18,7 @@ pub fn new(file_name: &str) {
         Ok(file_metadata) => file_metadata,
         Err(err) => match err {
             CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
-                exitlb!(FileAlreadyExists, "File already exists!")
+                exitlb!(FileAlreadyExists(file_name.to_string()))
             }
             CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
             CoreError::UiError(CreateFileAtPathError::NoRoot) => {

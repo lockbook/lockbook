@@ -141,7 +141,7 @@ fn copy_file(
                             },
                         )
                     } else {
-                        return Err(Error::new(ErrorKind::FileAlreadyExists, "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!".to_string()));
+                        return Err(Error::new(ErrorKind::FileAlreadyExists(import_dest_with_filename), "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!".to_string()));
                     }
                 }
                 CreateFileAtPathError::NoAccount => exitlb!(NoAccount),

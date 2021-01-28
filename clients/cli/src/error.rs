@@ -49,7 +49,7 @@ make_errcode_enum!(
     OsCouldNotDeleteFile => 180,
 
     FileNotFound => 17,
-    FileAlreadyExists => 9,
+    FileAlreadyExists(String) => 9,
     FileNameEmpty => 28,
     FileNameNotAvailable => 20,
     FileNameHasSlash => 19,
@@ -77,6 +77,10 @@ impl ErrorKind {
                 format!("could not read file {}, os error: {}", path, err)
             }
 
+            Self::FileAlreadyExists(path) => {
+                format!("the file '{}' already exists", path)
+            }
+
             _ => "I heart Golang".to_string(),
         }
     }
@@ -100,8 +104,8 @@ impl Error {
 
 #[macro_export]
 macro_rules! exitlb {
-    ($err:ident) => {{
-        let err = crate::error::ErrorKind::$err;
+    ($err:ident $( ( $( $args:expr ),+ ) )?) => {{
+        let err = crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?;
         eprintln!("{}", err.msg());
         std::process::exit(err.code())
     }};
