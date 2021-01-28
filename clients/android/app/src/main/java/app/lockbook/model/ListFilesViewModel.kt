@@ -443,7 +443,7 @@ class ListFilesViewModel(path: String, application: Application) :
             for (workUnit in workCalculated.workUnits) {
                 when (
                     val executeFileSyncWorkResult =
-                        CoreModel.executeFileSyncWork(fileModel.config, account, workUnit)
+                        CoreModel.executeWork(fileModel.config, account, workUnit)
                 ) {
                     is Ok -> {
                         currentProgress++
