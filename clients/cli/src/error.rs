@@ -38,8 +38,8 @@ make_errkind_enum!(
     21 => AccountAlreadyExists,
     22 => AccountDoesNotExist,
     23 => AccountStringCorrupted,
-    24 => UsernameTaken,
-    25 => UsernameInvalid,
+    24 => UsernameTaken(String),
+    25 => UsernameInvalid(String),
     26 => UsernamePkMismatch,
 
     // OS (30s)
@@ -82,6 +82,12 @@ impl ErrorKind {
             Self::NoRootOps(op) => format!("cannot {} root directory!", op),
 
             Self::NoAccount => "No account! Run init or import to get started!".to_string(),
+            Self::AccountAlreadyExists => "Account already exists. Run `lockbook erase-everything` to erase your local state.".to_string(),
+            Self::AccountDoesNotExist => "An account with this username was not found on the server.".to_string(),
+            Self::AccountStringCorrupted => "Account string corrupted, not imported".to_string(),
+            Self::UsernameTaken(uname) => format!("username '{}' is already taken.", uname),
+            Self::UsernameInvalid(uname) => format!("username '{}' invalid (a-z || 0-9).", uname),
+            Self::UsernamePkMismatch => "The public_key in this account_string does not match what is on the server.".to_string(),
 
             Self::OsCouldNotGetAbsPath(path, err) => format!(
                 "could not get the absolute path for {}, os error: {}",

@@ -26,15 +26,14 @@ pub fn import_private_key() {
         match import_account(&get_config(), &account_string) {
             Ok(_) => exit_success("Account imported successfully"),
             Err(err) => match err {
-                CoreError::UiError(ImportError::AccountStringCorrupted) => exitlb!(
-                    AccountStringCorrupted,
-                    "Account string corrupted, not imported"
-                ),
-                CoreError::UiError(ImportError::AccountExistsAlready) => exitlb!(AccountAlreadyExists, "Account already exists. `lockbook erase-everything` to erase your local state."),
-                CoreError::UiError(ImportError::AccountDoesNotExist) => exitlb!(AccountDoesNotExist, "An account with this username was not found on the server."),
-                CoreError::UiError(ImportError::UsernamePKMismatch) => exitlb!(UsernamePkMismatch, "The public_key in this account_string does not match what is on the server"),
-                CoreError::UiError(ImportError::CouldNotReachServer) => exitlb!(NetworkIssue),
-                CoreError::UiError(ImportError::ClientUpdateRequired) => exitlb!(UpdateRequired),
+                CoreError::UiError(err) => match err {
+                    ImportError::AccountStringCorrupted => exitlb!(AccountStringCorrupted),
+                    ImportError::AccountExistsAlready => exitlb!(AccountAlreadyExists),
+                    ImportError::AccountDoesNotExist => exitlb!(AccountDoesNotExist),
+                    ImportError::UsernamePKMismatch => exitlb!(UsernamePkMismatch),
+                    ImportError::CouldNotReachServer => exitlb!(NetworkIssue),
+                    ImportError::ClientUpdateRequired => exitlb!(UpdateRequired),
+                },
                 CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
             },
         }

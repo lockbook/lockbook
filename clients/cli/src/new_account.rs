@@ -24,18 +24,13 @@ pub fn new_account() {
     match create_account(&get_config(), &username, &api_location) {
         Ok(_) => exit_success("Account created successfully"),
         Err(error) => match error {
-            CoreError::UiError(CreateAccountError::UsernameTaken) => {
-                exitlb!(UsernameTaken, "Username taken.")
-            }
-            CoreError::UiError(CreateAccountError::InvalidUsername) => {
-                exitlb!(UsernameInvalid, "Username is not a-z || 0-9")
-            }
-            CoreError::UiError(CreateAccountError::CouldNotReachServer) => exitlb!(NetworkIssue),
-            CoreError::UiError(CreateAccountError::AccountExistsAlready) => exitlb!(
-                AccountAlreadyExists,
-                "Account already exists. `lockbook erase-everything` to erase your local state."
-            ),
-            CoreError::UiError(CreateAccountError::ClientUpdateRequired) => exitlb!(UpdateRequired),
+            CoreError::UiError(err) => match err {
+                CreateAccountError::UsernameTaken => exitlb!(UsernameTaken(username)),
+                CreateAccountError::InvalidUsername => exitlb!(UsernameInvalid(username)),
+                CreateAccountError::AccountExistsAlready => exitlb!(AccountAlreadyExists),
+                CreateAccountError::CouldNotReachServer => exitlb!(NetworkIssue),
+                CreateAccountError::ClientUpdateRequired => exitlb!(UpdateRequired),
+            },
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     }
