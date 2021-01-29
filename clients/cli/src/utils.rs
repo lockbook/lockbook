@@ -58,7 +58,7 @@ pub fn check_and_perform_migrations() {
                             exitlb!(UninstallRequired)
                         }
                         CoreError::Unexpected(msg) => err_extra!(
-                            Unexpected(format!("{}", msg)),
+                            Unexpected(msg),
                             "It's possible you need to clear your local state and resync."
                         )
                         .exit(),
