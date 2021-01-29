@@ -1,5 +1,5 @@
 use crate::exitlb;
-use crate::utils::{exit_success, exit_with_no_account, get_config};
+use crate::utils::{exit_success, get_config};
 use lockbook_core::{
     get_file_by_path, Error as CoreError, Error, GetFileByPathError, MoveFileError,
 };
@@ -15,7 +15,7 @@ pub fn move_file(path1: &str, path2: &str) {
                 ) {
                     Ok(_) => exit_success(""),
                     Err(move_file_error) => match move_file_error {
-                        CoreError::UiError(MoveFileError::NoAccount) => exit_with_no_account(),
+                        CoreError::UiError(MoveFileError::NoAccount) => exitlb!(NoAccount),
                         CoreError::UiError(MoveFileError::CannotMoveRoot) => {
                             exitlb!(NoRootOps, "Cannot move root directory!")
                         }

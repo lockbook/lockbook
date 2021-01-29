@@ -10,8 +10,7 @@ use lockbook_core::{
 
 use crate::exitlb;
 use crate::utils::{
-    exit_with_no_account, exit_with_offline, exit_with_upgrade_required, get_account_or_exit,
-    get_config,
+    exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
 };
 
 pub fn sync() {
@@ -32,7 +31,7 @@ pub fn sync() {
             Ok(work) => work,
             Err(err) => match err {
                 CoreError::UiError(err) => match err {
-                    CalculateWorkError::NoAccount => exit_with_no_account(),
+                    CalculateWorkError::NoAccount => exitlb!(NoAccount),
                     CalculateWorkError::CouldNotReachServer => exit_with_offline(),
                     CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
                 },

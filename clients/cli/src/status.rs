@@ -3,8 +3,8 @@ use lockbook_core::{calculate_work, CalculateWorkError, Error as CoreError};
 
 use crate::exitlb;
 use crate::utils::{
-    exit_with_no_account, exit_with_offline, exit_with_upgrade_required, get_account_or_exit,
-    get_config, print_last_successful_sync,
+    exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
+    print_last_successful_sync,
 };
 
 pub fn status() {
@@ -16,7 +16,7 @@ pub fn status() {
             WorkUnit::ServerChange { metadata } => println!("{} needs to be pulled", metadata.name),
         }),
         Err(err) => match err {
-            CoreError::UiError(CalculateWorkError::NoAccount) => exit_with_no_account(),
+            CoreError::UiError(CalculateWorkError::NoAccount) => exitlb!(NoAccount),
             CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exit_with_offline(),
             CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
                 exit_with_upgrade_required()

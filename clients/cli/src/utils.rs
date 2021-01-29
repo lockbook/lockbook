@@ -33,7 +33,7 @@ pub fn get_account_or_exit() -> Account {
     match get_account(&get_config()) {
         Ok(account) => account,
         Err(error) => match error {
-            CoreError::UiError(GetAccountError::NoAccount) => exit_with_no_account(),
+            CoreError::UiError(GetAccountError::NoAccount) => exitlb!(NoAccount),
             CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
         },
     }
@@ -101,10 +101,6 @@ pub fn exit_with_upgrade_required() -> ! {
 
 pub fn exit_with_offline() -> ! {
     exitlb!(NetworkIssue, "Could not reach server!")
-}
-
-pub fn exit_with_no_account() -> ! {
-    exitlb!(NoAccount, "No account! Run init or import to get started!")
 }
 
 pub fn exit_success(msg: &str) -> ! {
