@@ -68,6 +68,10 @@ impl ErrorKind {
             Self::UpdateRequired => {
                 "An update to your application is required to do this action!".to_string()
             }
+            Self::UninstallRequired => {
+                "Your local state cannot be migrated, please re-sync with a fresh client."
+                    .to_string()
+            }
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
 
             Self::NoAccount => "No account! Run init or import to get started!".to_string(),

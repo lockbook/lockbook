@@ -55,21 +55,18 @@ pub fn check_and_perform_migrations() {
                         }
                     }
                     Err(error) => match error {
-                        CoreError::UiError(MigrationError::StateRequiresCleaning) => exitlb!(
-                            UninstallRequired,
-                            "Your local state cannot be migrated, please re-sync with a fresh client."
-                        ),
+                        CoreError::UiError(MigrationError::StateRequiresCleaning) => {
+                            exitlb!(UninstallRequired)
+                        }
                         CoreError::Unexpected(msg) => err_extra!(
                             Unexpected(format!("{}", msg)),
                             "It's possible you need to clear your local state and resync."
-                        ).exit()
-                    }
+                        )
+                        .exit(),
+                    },
                 }
             }
-            State::StateRequiresClearing => exitlb!(
-                UninstallRequired,
-                "Your local state cannot be migrated, please re-sync with a fresh client."
-            ),
+            State::StateRequiresClearing => exitlb!(UninstallRequired),
         },
         Err(err) => match err {
             CoreError::UiError(GetStateError::Stub) => err_unexpected!("impossible").exit(),
