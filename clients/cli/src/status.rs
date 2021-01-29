@@ -15,9 +15,7 @@ pub fn status() {
         Err(err) => match err {
             CoreError::UiError(CalculateWorkError::NoAccount) => exitlb!(NoAccount),
             CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exitlb!(NetworkIssue),
-            CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
-                exitlb!(UpdateRequired)
-            }
+            CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => exitlb!(UpdateRequired),
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     };

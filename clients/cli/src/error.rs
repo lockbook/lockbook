@@ -1,10 +1,10 @@
-// Error Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
+type IoError = std::io::Error;
 
 macro_rules! underscore {
     ($t:ty) => { _ };
 }
 
-macro_rules! make_errcode_enum {
+macro_rules! make_errkind_enum {
     ($( $codes:literal => $variants:ident $( ( $( $types:ty ),* ) )? ,)*) => {
         pub enum ErrorKind {
             $( $variants $( ( $( $types ),* ) )?, )*
@@ -20,7 +20,8 @@ macro_rules! make_errcode_enum {
     };
 }
 
-make_errcode_enum!(
+// Error Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
+make_errkind_enum!(
     // Miscellaneous (3-19)
     3 => Unexpected(String),
     4 => NetworkIssue,
@@ -28,7 +29,7 @@ make_errcode_enum!(
     6 => UninstallRequired,
     7 => ExpectedStdin,
     8 => NoCliLocation,
-    9 => PwdMissing(std::io::Error),
+    9 => PwdMissing(IoError),
     10 => NoRoot,
     11 => NoRootOps(String),
 
@@ -42,10 +43,10 @@ make_errcode_enum!(
     26 => UsernamePkMismatch,
 
     // OS (30s)
-    30 => OsCouldNotGetAbsPath(String, std::io::Error),
+    30 => OsCouldNotGetAbsPath(String, IoError),
     31 => OsCouldNotCreateDir,
     32 => OsCouldNotReadChildren,
-    33 => OsCouldNotReadFile(String, std::io::Error),
+    33 => OsCouldNotReadFile(String, IoError),
     34 => OsCouldNotWriteFile,
     35 => OsCouldNotDeleteFile,
 
