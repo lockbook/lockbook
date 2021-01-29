@@ -16,7 +16,7 @@ use lockbook_core::service::db_state_service::State;
 use std::path::Path;
 
 #[macro_export]
-macro_rules! pathbuf_string {
+macro_rules! path_string {
     ($pb:expr) => {
         $pb.to_string_lossy().to_string()
     };

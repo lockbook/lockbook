@@ -10,7 +10,7 @@ use lockbook_core::{
 
 use crate::error::Error;
 use crate::utils::{exit_success, get_account_or_exit, get_config};
-use crate::{err, err_extra, err_unexpected, exitlb, pathbuf_string};
+use crate::{err, err_extra, err_unexpected, exitlb, path_string};
 
 pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     get_account_or_exit();
@@ -97,10 +97,10 @@ fn copy_file(
     edit: bool,
 ) -> Result<String, Error> {
     let content = fs::read_to_string(&path)
-        .map_err(|err| err!(OsCouldNotReadFile(pathbuf_string!(path), err)))?;
+        .map_err(|err| err!(OsCouldNotReadFile(path_string!(path), err)))?;
 
     let absolute_path = fs::canonicalize(&path)
-        .map_err(|err| err!(OsCouldNotGetAbsPath(pathbuf_string!(path), err)))?;
+        .map_err(|err| err!(OsCouldNotGetAbsPath(path_string!(path), err)))?;
 
     let import_dest_with_filename = if import_dest.ends_with('/') {
         match absolute_path.file_name() {

@@ -12,7 +12,7 @@ use lockbook_core::{
 };
 
 use crate::utils::{get_account_or_exit, get_config};
-use crate::{err_unexpected, exitlb, pathbuf_string};
+use crate::{err_unexpected, exitlb, path_string};
 
 pub fn backup() {
     get_account_or_exit();
@@ -62,12 +62,12 @@ pub fn backup() {
         dir
     };
     let mut index_file = File::create(&index_path)
-        .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(pathbuf_string!(index_path), err)));
+        .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(path_string!(index_path), err)));
 
     let index_file_content: String = leaf_nodes.join("\n");
     index_file
         .write_all(index_file_content.as_bytes())
-        .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(pathbuf_string!(index_path), err)));
+        .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(path_string!(index_path), err)));
 
     println!("Creating {} folders", folders.len());
     for folder in folders {
@@ -87,7 +87,7 @@ pub fn backup() {
         let path = backup_directory.join(PathBuf::from(&doc));
 
         let mut document = File::create(&path)
-            .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(pathbuf_string!(path), err)));
+            .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(path_string!(path), err)));
 
         let document_metadata =
             get_file_by_path(&get_config(), &doc).unwrap_or_else(|err| match err {
