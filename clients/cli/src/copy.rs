@@ -8,9 +8,9 @@ use lockbook_core::{
     Error as CoreError, GetFileByPathError,
 };
 
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::utils::{exit_success, get_account_or_exit, get_config};
-use crate::{err, exitlb, pathbuf_string};
+use crate::{err, err_extra, exitlb, pathbuf_string};
 
 pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     get_account_or_exit();
@@ -47,7 +47,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
     if path.is_file() {
         match copy_file(&path, import_dest, config, edit) {
             Ok(msg) => println!("{}", msg),
-            Err(err) => eprintln!("{}", err.msg),
+            Err(err) => err.print(),
         }
     } else {
         let children: Vec<DirEntry> = read_dir_entries_or_exit(&path);
@@ -133,18 +133,18 @@ fn copy_file(
                             },
                         )
                     } else {
-                        return Err(Error::new(ErrorKind::FileAlreadyExists(import_dest_with_filename), "Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!".to_string()));
+                        return Err(err_extra!(FileAlreadyExists(import_dest_with_filename), "The input destination is not available within lockbook. Use --edit to overwrite the contents of this file!"));
                     }
                 }
                 CreateFileAtPathError::NoAccount => exitlb!(NoAccount),
                 CreateFileAtPathError::NoRoot => exitlb!(NoRoot),
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
-                    return Err(Error::new(ErrorKind::DocTreatedAsFolder(import_dest_with_filename), format!("A file along the target destination is a document that cannot be used as a folder")));
+                    return Err(err!(DocTreatedAsFolder(import_dest_with_filename)));
                 }
                 CreateFileAtPathError::PathContainsEmptyFile => {
-                    return Err(Error::new(
-                        ErrorKind::PathContainsEmptyFile(import_dest_with_filename),
-                        "Input destination contains an empty file!".to_string(),
+                    return Err(err_extra!(
+                        PathContainsEmptyFile(import_dest_with_filename),
+                        "The input destination path contains an empty file!"
                     ));
                 }
                 CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
@@ -155,10 +155,7 @@ fn copy_file(
 
     match write_document(config, file_metadata.id, content.as_bytes()) {
         Ok(_) => Ok(format!("imported to {}", import_dest_with_filename)),
-        Err(err) => Err(Error::new(
-            ErrorKind::Unexpected,
-            format!("Unexpected error: {:#?}", err),
-        )),
+        Err(err) => Err(err_extra!(Unexpected, "Unexpected error: {:#?}", err)),
     }
 }
 

@@ -91,26 +91,61 @@ impl ErrorKind {
     }
 }
 
-pub struct Error {
-    code: ErrorKind,
-    pub msg: String,
+pub struct CustomError {
+    pub base: ErrorKind,
+    pub context: Option<String>,
+    pub extra: Option<String>,
+}
+
+pub enum Error {
+    Simple(ErrorKind),
+    Custom(CustomError),
 }
 
 impl Error {
-    pub fn new(code: ErrorKind, msg: String) -> Self {
-        Self { code, msg }
+    pub fn print(&self) {
+        match self {
+            Self::Simple(base) => eprintln!("{}", base.msg()),
+            Self::Custom(err) => {
+                let base_msg = err.base.msg();
+                eprintln!(
+                    "{}",
+                    match &err.context {
+                        Some(ctx) => format!("{}: {}", ctx, base_msg),
+                        None => base_msg,
+                    }
+                );
+                if let Some(extra) = &err.extra {
+                    eprintln!("{}", extra);
+                }
+            }
+        }
     }
 
     pub fn exit(&self) -> ! {
-        eprintln!("{}", self.msg);
-        std::process::exit(self.code.code())
+        self.print();
+        std::process::exit(match self {
+            Self::Simple(base) => base.code(),
+            Self::Custom(err) => err.base.code(),
+        })
     }
 }
 
 #[macro_export]
 macro_rules! err {
     ($err:ident $( ( $( $args:expr ),+ ) )?) => {
-        crate::error::Error::new(crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?, "".to_string())
+        crate::error::Error::Simple(crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?)
+    };
+}
+
+#[macro_export]
+macro_rules! err_extra {
+    ($err:ident $( ( $( $args:expr ),+ ) )?, $base:literal $(, $fmtargs:expr )*) => {
+        crate::error::Error::Custom(crate::error::CustomError {
+            base: crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?,
+            context: None,
+            extra: Some(format!($base $(, $fmtargs )*)),
+        })
     };
 }
 
