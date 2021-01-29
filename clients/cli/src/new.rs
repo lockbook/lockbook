@@ -5,11 +5,11 @@ use std::fs::File;
 use std::path::Path;
 use uuid::Uuid;
 
-use crate::exitlb;
 use crate::utils::{
     edit_file_with_editor, exit_success, get_account_or_exit, get_config, save_temp_file_contents,
     set_up_auto_save, stop_auto_save,
 };
+use crate::{err_unexpected, exitlb};
 
 pub fn new(file_name: &str) {
     get_account_or_exit();
@@ -31,27 +31,19 @@ pub fn new(file_name: &str) {
             CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => {
                 exitlb!(DocTreatedAsFolder(file_name.to_string()))
             }
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     };
 
     let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     fs::create_dir(&directory_location).unwrap_or_else(|err| {
-        exitlb!(
-            Unexpected,
-            "Could not open temporary file for writing. OS: {:#?}",
-            err
-        )
+        err_unexpected!("couldn't open temporary file for writing: {:#?}", err).exit()
     });
     let file_location = format!("{}/{}", directory_location, file_metadata.name);
     let temp_file_path = Path::new(file_location.as_str());
     match File::create(&temp_file_path) {
         Ok(_) => {}
-        Err(err) => exitlb!(
-            Unexpected,
-            "Could not open temporary file for writing. OS: {:#?}",
-            err
-        ),
+        Err(err) => err_unexpected!("couldn't open temporary file for writing: {:#?}", err).exit(),
     }
 
     if file_metadata.file_type == Folder {

@@ -10,7 +10,7 @@ use lockbook_core::{
 
 use crate::error::Error;
 use crate::utils::{exit_success, get_account_or_exit, get_config};
-use crate::{err, err_extra, exitlb, pathbuf_string};
+use crate::{err, err_extra, err_unexpected, exitlb, pathbuf_string};
 
 pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     get_account_or_exit();
@@ -84,7 +84,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                     CreateFileAtPathError::PathContainsEmptyFile => eprintln!("Input destination {} contains an empty file!", import_dest),
                     CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
                 }
-                CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+                CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
             }
         }
     }
@@ -106,13 +106,9 @@ fn copy_file(
         match absolute_path.file_name() {
             Some(name) => match name.to_os_string().into_string() {
                 Ok(string) => format!("{}{}", &import_dest, string),
-                Err(err) => exitlb!(
-                    Unexpected,
-                    "Unexpected error while trying to convert an OsString -> Rust String: {:?}",
-                    err
-                ),
+                Err(err) => err_unexpected!("converting an OsString to String: {:?}", err).exit(),
             },
-            None => exitlb!(Unexpected, "Import target does not contain a file name!"),
+            None => err_unexpected!("Import target does not contain a file name!").exit(),
         }
     } else {
         import_dest.to_string()
@@ -128,7 +124,7 @@ fn copy_file(
                             |get_err| match get_err {
                                 CoreError::UiError(GetFileByPathError::NoFileAtThatPath)
                                 | CoreError::Unexpected(_) => {
-                                    exitlb!(Unexpected, "Unexpected error: {:?}", get_err)
+                                    err_unexpected!("{:?}", get_err).exit()
                                 }
                             },
                         )
@@ -149,13 +145,13 @@ fn copy_file(
                 }
                 CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
             },
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     };
 
     match write_document(config, file_metadata.id, content.as_bytes()) {
         Ok(_) => Ok(format!("imported to {}", import_dest_with_filename)),
-        Err(err) => Err(err_extra!(Unexpected, "Unexpected error: {:#?}", err)),
+        Err(err) => Err(err_unexpected!("{:#?}", err)),
     }
 }
 

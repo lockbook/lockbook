@@ -8,8 +8,8 @@ use lockbook_core::{
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
 use crate::error::ErrorKind;
-use crate::exitlb;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
+use crate::{err_extra, err_unexpected, exitlb};
 use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
 use lockbook_core::model::file_metadata::FileMetadata;
@@ -34,7 +34,7 @@ pub fn get_account_or_exit() -> Account {
         Ok(account) => account,
         Err(error) => match error {
             CoreError::UiError(GetAccountError::NoAccount) => exitlb!(NoAccount),
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     }
 }
@@ -59,11 +59,10 @@ pub fn check_and_perform_migrations() {
                             UninstallRequired,
                             "Your local state cannot be migrated, please re-sync with a fresh client."
                         ),
-                        CoreError::Unexpected(msg) => exitlb!(
-                            Unexpected,
-                            "An unexpected error occurred while migrating, it's possible you need to clear your local state and resync. Error: {}",
-                            msg
-                        )
+                        CoreError::Unexpected(msg) => err_extra!(
+                            Unexpected(format!("{}", msg)),
+                            "It's possible you need to clear your local state and resync."
+                        ).exit()
                     }
                 }
             }
@@ -73,8 +72,8 @@ pub fn check_and_perform_migrations() {
             ),
         },
         Err(err) => match err {
-            CoreError::UiError(GetStateError::Stub) => exitlb!(Unexpected, "Impossible"),
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::UiError(GetStateError::Stub) => err_unexpected!("impossible").exit(),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     }
 }
@@ -165,11 +164,7 @@ pub fn print_last_successful_sync() {
     if atty::is(atty::Stream::Stdout) {
         let last_updated = match get_last_synced_human_string(&get_config()) {
             Ok(ok) => ok,
-            Err(err) => exitlb!(
-                Unexpected,
-                "Unexpected error while attempting to retrieve usage: {:#?}",
-                err
-            ),
+            Err(err) => err_unexpected!("attempting to retrieve usage: {:#?}", err).exit(),
         };
 
         println!("Last successful sync: {}", last_updated);
@@ -224,7 +219,7 @@ pub fn set_up_auto_save(
 pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
     watcher
         .unwatch(file_location)
-        .unwrap_or_else(|err| exitlb!(Unexpected, "file watcher failed to unwatch: {:#?}", err));
+        .unwrap_or_else(|err| err_unexpected!("file watcher failed to unwatch: {:#?}", err).exit());
 }
 
 pub fn save_temp_file_contents(
@@ -237,12 +232,12 @@ pub fn save_temp_file_contents(
         Ok(content) => content.into_bytes(),
         Err(err) => {
             if !silent {
-                exitlb!(
-                    Unexpected,
-                    "Could not read from temporary file, not deleting {}, err: {:#?}",
+                err_unexpected!(
+                    "could not read from temporary file, not deleting {}, err: {:#?}",
                     file_location,
                     err
                 )
+                .exit()
             } else {
                 return;
             }
@@ -258,16 +253,15 @@ pub fn save_temp_file_contents(
         Err(err) => {
             if !silent {
                 match err {
-                    CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
-                    CoreError::UiError(WriteToDocumentError::NoAccount) => exitlb!(
-                        Unexpected,
-                        "Unexpected: No account! Run init or import to get started!"
-                    ),
+                    CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
+                    CoreError::UiError(WriteToDocumentError::NoAccount) => {
+                        err_unexpected!("No account! Run init or import to get started!").exit()
+                    }
                     CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
-                        exitlb!(Unexpected, "Unexpected: FileDoesNotExist")
+                        err_unexpected!("FileDoesNotExist").exit()
                     }
                     CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
-                        exitlb!(Unexpected, "Unexpected: CannotWriteToFolder")
+                        err_unexpected!("CannotWriteToFolder").exit()
                     }
                 }
             }

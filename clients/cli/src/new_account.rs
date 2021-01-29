@@ -3,8 +3,8 @@ use std::{env, io};
 
 use lockbook_core::{create_account, CreateAccountError, Error as CoreError};
 
-use crate::exitlb;
 use crate::utils::{exit_success, exit_with_offline, exit_with_upgrade_required, get_config};
+use crate::{err_unexpected, exitlb};
 
 pub fn new_account() {
     print!("Enter a Username: ");
@@ -38,7 +38,7 @@ pub fn new_account() {
             CoreError::UiError(CreateAccountError::ClientUpdateRequired) => {
                 exit_with_upgrade_required()
             }
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     }
 }

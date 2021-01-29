@@ -1,8 +1,6 @@
-use crate::exitlb;
 use crate::utils::{exit_success, get_config};
-use lockbook_core::{
-    get_file_by_path, Error as CoreError, Error, GetFileByPathError, MoveFileError,
-};
+use crate::{err_unexpected, exitlb};
+use lockbook_core::{get_file_by_path, Error as CoreError, GetFileByPathError, MoveFileError};
 
 pub fn move_file(path1: &str, path2: &str) {
     match get_file_by_path(&get_config(), path1) {
@@ -25,7 +23,7 @@ pub fn move_file(path1: &str, path2: &str) {
                         CoreError::UiError(MoveFileError::TargetParentDoesNotExist) => {
                             exitlb!(FileNotFound, "No file found at {}", path2)
                         }
-                        Error::UiError(MoveFileError::FolderMovedIntoItself) => {
+                        CoreError::UiError(MoveFileError::FolderMovedIntoItself) => {
                             exitlb!(
                                 CannotMoveFolderIntoItself,
                                 "Cannot move file into its self or children."
@@ -45,22 +43,22 @@ pub fn move_file(path1: &str, path2: &str) {
                             file_metadata.name,
                             target_file_metadata.name
                         ),
-                        CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+                        CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
                     },
                 }
             }
             Err(get_file_error) => match get_file_error {
                 CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                    exitlb!(Unexpected, "No file at {}", path2)
+                    err_unexpected!("No file at {}", path2).exit()
                 }
-                CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+                CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
             },
         },
         Err(get_file_error) => match get_file_error {
             CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
                 exitlb!(FileNotFound, "No file at {}", path1)
             }
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     }
 }

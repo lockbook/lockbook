@@ -8,10 +8,10 @@ use lockbook_core::{
     SetLastSyncedError,
 };
 
-use crate::exitlb;
 use crate::utils::{
     exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
 };
+use crate::{err_unexpected, exitlb};
 
 pub fn sync() {
     let account = get_account_or_exit();
@@ -20,8 +20,8 @@ pub fn sync() {
     let update_last_synced = |time| match set_last_synced(&config, time) {
         Ok(_) => {}
         Err(err) => match err {
-            CoreError::UiError(SetLastSyncedError::Stub) => exitlb!(Unexpected, "Impossible"),
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::UiError(SetLastSyncedError::Stub) => err_unexpected!("impossible").exit(),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     };
 
@@ -35,7 +35,7 @@ pub fn sync() {
                     CalculateWorkError::CouldNotReachServer => exit_with_offline(),
                     CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
                 },
-                CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+                CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
             },
         };
         !work_calculated.work_units.is_empty()

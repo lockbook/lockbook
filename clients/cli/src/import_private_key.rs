@@ -2,8 +2,8 @@ use std::io;
 
 use lockbook_core::{import_account, Error as CoreError, ImportError};
 
-use crate::exitlb;
 use crate::utils::{exit_success, exit_with_offline, exit_with_upgrade_required, get_config};
+use crate::{err_unexpected, exitlb};
 
 pub fn import_private_key() {
     if atty::is(atty::Stream::Stdin) {
@@ -29,7 +29,7 @@ pub fn import_private_key() {
                     AccountStringCorrupted,
                     "Account string corrupted, not imported"
                 ),
-                CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+                CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
                 CoreError::UiError(ImportError::AccountExistsAlready) => exitlb!(AccountAlreadyExists, "Account already exists. `lockbook erase-everything` to erase your local state."),
                 CoreError::UiError(ImportError::AccountDoesNotExist) => exitlb!(AccountDoesNotExist, "An account with this username was not found on the server."),
                 CoreError::UiError(ImportError::UsernamePKMismatch) => exitlb!(UsernamePkMismatch, "The public_key in this account_string does not match what is on the server"),

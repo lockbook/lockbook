@@ -1,7 +1,7 @@
 use lockbook_core::{export_account, AccountExportError, Error as CoreError};
 
-use crate::exitlb;
 use crate::utils::get_config;
+use crate::{err_unexpected, exitlb};
 
 pub fn export_private_key() {
     match export_account(&get_config()) {
@@ -20,7 +20,7 @@ pub fn export_private_key() {
         }
         Err(err) => match err {
             CoreError::UiError(AccountExportError::NoAccount) => exitlb!(NoAccount),
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     }
 }

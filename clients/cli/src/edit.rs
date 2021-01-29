@@ -9,11 +9,11 @@ use lockbook_core::{
     get_file_by_path, read_document, Error as CoreError, GetFileByPathError, ReadDocumentError,
 };
 
-use crate::exitlb;
 use crate::utils::{
     edit_file_with_editor, get_account_or_exit, get_config, save_temp_file_contents,
     set_up_auto_save, stop_auto_save,
 };
+use crate::{err_unexpected, exitlb};
 
 pub fn edit(file_name: &str) {
     get_account_or_exit();
@@ -24,7 +24,7 @@ pub fn edit(file_name: &str) {
             CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
                 exitlb!(FileNotFound, "No file found with the path {}", file_name)
             }
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     };
 
@@ -36,31 +36,21 @@ pub fn edit(file_name: &str) {
             }
             CoreError::UiError(ReadDocumentError::NoAccount)
             | CoreError::UiError(ReadDocumentError::FileDoesNotExist)
-            | CoreError::Unexpected(_) => exitlb!(
-                Unexpected,
-                "Unexpected error while reading encrypted doc: {:#?}",
-                err
-            ),
+            | CoreError::Unexpected(_) => {
+                err_unexpected!("reading encrypted doc: {:#?}", err).exit()
+            }
         },
     };
 
     let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
     fs::create_dir(&directory_location).unwrap_or_else(|err| {
-        exitlb!(
-            Unexpected,
-            "Could not open temporary file for writing. OS: {:#?}",
-            err
-        )
+        err_unexpected!("couldn't open temporary file for writing: {:#?}", err).exit()
     });
     let file_location = format!("{}/{}", directory_location, file_metadata.name);
     let temp_file_path = Path::new(file_location.as_str());
     let mut file_handle = match File::create(&temp_file_path) {
         Ok(handle) => handle,
-        Err(err) => exitlb!(
-            Unexpected,
-            "Could not open temporary file for writing. OS: {:#?}",
-            err
-        ),
+        Err(err) => err_unexpected!("couldn't open temporary file for writing: {:#?}", err).exit(),
     };
 
     file_handle.write_all(&file_content).unwrap_or_else(|_| {

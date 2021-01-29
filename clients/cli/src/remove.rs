@@ -8,8 +8,8 @@ use lockbook_core::{
     GetFileByPathError,
 };
 
-use crate::exitlb;
 use crate::utils::{exit_success, get_account_or_exit, get_config};
+use crate::{err_unexpected, exitlb};
 
 pub fn remove(path: &str, force: bool) {
     get_account_or_exit();
@@ -21,7 +21,7 @@ pub fn remove(path: &str, force: bool) {
             UiError(GetFileByPathError::NoFileAtThatPath) => {
                 exitlb!(FileNotFound, "No file found with the path {}", path)
             }
-            UnexpectedError(msg) => exitlb!(Unexpected, "{}", msg),
+            UnexpectedError(msg) => err_unexpected!("{}", msg).exit(),
         },
     };
 
@@ -54,7 +54,7 @@ pub fn remove(path: &str, force: bool) {
                 UiError(GetAndGetChildrenError::FileDoesNotExist) => {
                     exitlb!(FileNotFound, "No file found with the path {}", path)
                 }
-                UnexpectedError(msg) => exitlb!(Unexpected, "{}", msg),
+                UnexpectedError(msg) => err_unexpected!("{}", msg).exit(),
             },
         };
     }
@@ -72,7 +72,7 @@ pub fn remove(path: &str, force: bool) {
                 "Cannot delete '{}' since it is the root folder.",
                 path
             ),
-            UnexpectedError(msg) => exitlb!(Unexpected, "{}", msg),
+            UnexpectedError(msg) => err_unexpected!("{}", msg).exit(),
         },
     }
 }

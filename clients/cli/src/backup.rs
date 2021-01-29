@@ -11,8 +11,8 @@ use lockbook_core::{
     ListPathsError, ReadDocumentError,
 };
 
-use crate::exitlb;
 use crate::utils::{get_account_or_exit, get_config};
+use crate::{err_unexpected, exitlb};
 
 pub fn backup() {
     get_account_or_exit();
@@ -37,30 +37,18 @@ pub fn backup() {
 
     let leaf_nodes =
         list_paths(&get_config(), Some(LeafNodesOnly)).unwrap_or_else(|err| match err {
-            CoreError::UiError(ListPathsError::Stub) => exitlb!(Unexpected, "Impossible"),
-            CoreError::Unexpected(msg) => exitlb!(
-                Unexpected,
-                "Unexpected error while listing leaf nodes: {}",
-                msg
-            ),
+            CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible").exit(),
+            CoreError::Unexpected(msg) => err_unexpected!("listing leaf nodes: {}", msg).exit(),
         });
 
     let docs = list_paths(&get_config(), Some(DocumentsOnly)).unwrap_or_else(|err| match err {
-        CoreError::UiError(ListPathsError::Stub) => exitlb!(Unexpected, "Impossible"),
-        CoreError::Unexpected(msg) => exitlb!(
-            Unexpected,
-            "Unexpected error while listing documents: {}",
-            msg
-        ),
+        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("Impossible").exit(),
+        CoreError::Unexpected(msg) => err_unexpected!("listing documents: {}", msg).exit(),
     });
 
     let folders = list_paths(&get_config(), Some(FoldersOnly)).unwrap_or_else(|err| match err {
-        CoreError::UiError(ListPathsError::Stub) => exitlb!(Unexpected, "Impossible"),
-        CoreError::Unexpected(msg) => exitlb!(
-            Unexpected,
-            "Unexpected error while listing folders: {}",
-            msg
-        ),
+        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible").exit(),
+        CoreError::Unexpected(msg) => err_unexpected!("listing folders: {}", msg).exit(),
     });
 
     println!(
@@ -119,12 +107,10 @@ pub fn backup() {
         let document_metadata =
             get_file_by_path(&get_config(), &doc).unwrap_or_else(|err| match err {
                 CoreError::UiError(GetFileByPathError::NoFileAtThatPath)
-                | CoreError::Unexpected(_) => exitlb!(
-                    Unexpected,
-                    "Could not get file metadata for: {} error: {:?}",
-                    &doc,
-                    err
-                ),
+                | CoreError::Unexpected(_) => {
+                    err_unexpected!("couldn't get file metadata for: {} error: {:?}", &doc, err)
+                        .exit()
+                }
             });
 
         let document_content =
@@ -133,7 +119,7 @@ pub fn backup() {
                 | CoreError::UiError(ReadDocumentError::NoAccount)
                 | CoreError::UiError(ReadDocumentError::FileDoesNotExist)
                 | CoreError::Unexpected(_) => {
-                    exitlb!(Unexpected, "Could not read file: {} error: {:?}", &doc, err)
+                    err_unexpected!("couldn't read file: {} error: {:?}", &doc, err).exit()
                 }
             });
 

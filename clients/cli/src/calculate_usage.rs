@@ -1,4 +1,4 @@
-use crate::exitlb;
+use crate::err_unexpected;
 use crate::utils::{
     exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
 };
@@ -13,7 +13,7 @@ pub fn calculate_usage(exact: bool) {
             CoreError::UiError(GetUsageError::CouldNotReachServer) => exit_with_offline(),
             CoreError::UiError(GetUsageError::ClientUpdateRequired) => exit_with_upgrade_required(),
             CoreError::UiError(GetUsageError::NoAccount) | CoreError::Unexpected(_) => {
-                exitlb!(Unexpected, "Unexpected Error: {:?}", err)
+                err_unexpected!("{:?}", err).exit()
             }
         },
     };

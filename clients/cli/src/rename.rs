@@ -1,5 +1,5 @@
-use crate::exitlb;
 use crate::utils::{exit_success, get_account_or_exit, get_config};
+use crate::{err_unexpected, exitlb};
 use lockbook_core::{
     get_file_by_path, rename_file, Error as CoreError, GetFileByPathError, RenameFileError,
 };
@@ -24,16 +24,16 @@ pub fn rename(path: &str, new_name: &str) {
                     exitlb!(FileNameNotAvailable, "File name not available!")
                 }
                 CoreError::UiError(RenameFileError::FileDoesNotExist) => {
-                    exitlb!(Unexpected, "Unexpected: FileDoesNotExist!")
+                    err_unexpected!("FileDoesNotExist!").exit()
                 }
-                CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+                CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
             },
         },
         Err(err) => match err {
             CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
                 exitlb!(FileNotFound, "No file at {}", path)
             }
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     }
 }

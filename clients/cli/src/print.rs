@@ -1,5 +1,5 @@
-use crate::exitlb;
 use crate::utils::{get_account_or_exit, get_config};
+use crate::{err_unexpected, exitlb};
 use lockbook_core::{get_file_by_path, read_document, Error as CoreError, GetFileByPathError};
 
 pub fn print(file_name: &str) {
@@ -11,12 +11,12 @@ pub fn print(file_name: &str) {
             CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
                 exitlb!(FileNotFound, "File not found")
             }
-            CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     };
 
     match read_document(&get_config(), file_metadata.id) {
         Ok(content) => print!("{}", String::from_utf8_lossy(&content)),
-        Err(error) => panic!("Unexpected error: {:?}", error),
+        Err(error) => panic!("unexpected error: {:?}", error),
     };
 }

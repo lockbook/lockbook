@@ -23,7 +23,7 @@ macro_rules! make_errcode_enum {
 make_errcode_enum!(
     Success => 0,
 
-    Unexpected => 5,
+    Unexpected(String) => 5,
     NetworkIssue => 4,
     UpdateRequired => 25,
     UninstallRequired => 26,
@@ -63,6 +63,7 @@ make_errcode_enum!(
 impl ErrorKind {
     pub fn msg(&self) -> String {
         match self {
+            Self::Unexpected(msg) => msg.to_string(),
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
 
             Self::NoAccount => "No account! Run init or import to get started!".to_string(),
@@ -135,6 +136,16 @@ impl Error {
 macro_rules! err {
     ($err:ident $( ( $( $args:expr ),+ ) )?) => {
         crate::error::Error::Simple(crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?)
+    };
+}
+
+#[macro_export]
+macro_rules! err_unexpected {
+    ($base:literal $(, $fmtargs:expr )*) => {
+        crate::error::Error::Simple(crate::error::ErrorKind::Unexpected({
+            let msg = format!($base $(, $fmtargs )*);
+            format!("unexpected error: {}", msg)
+        }))
     };
 }
 
