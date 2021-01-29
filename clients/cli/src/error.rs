@@ -29,7 +29,6 @@ make_errkind_enum!(
     6 => UninstallRequired,
     7 => ExpectedStdin,
     8 => NoCliLocation,
-    9 => PwdMissing(IoError),
     10 => NoRoot,
     11 => NoRootOps(String),
 
@@ -43,13 +42,14 @@ make_errkind_enum!(
     26 => UsernamePkMismatch,
 
     // OS (30s)
-    30 => OsCouldNotGetAbsPath(String, IoError),
-    31 => OsCouldNotCreateDir,
-    32 => OsCouldNotReadChildren,
-    33 => OsCouldNotReadFile(String, IoError),
-    34 => OsCouldNotCreateFile(String, IoError),
-    35 => OsCouldNotWriteFile(String, IoError),
-    36 => OsCouldNotDeleteFile,
+    30 => OsPwdMissing(IoError),
+    31 => OsCouldNotGetAbsPath(String, IoError),
+    32 => OsCouldNotCreateDir,
+    33 => OsCouldNotReadChildren,
+    34 => OsCouldNotReadFile(String, IoError),
+    35 => OsCouldNotCreateFile(String, IoError),
+    36 => OsCouldNotWriteFile(String, IoError),
+    37 => OsCouldNotDeleteFile,
 
     // Lockbook file ops (40s)
     40 => FileNotFound,
@@ -78,7 +78,6 @@ impl ErrorKind {
             }
             Self::ExpectedStdin => "expected stdin".to_string(),
             Self::NoCliLocation => "Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your `.lockbook` folder".to_string(),
-            Self::PwdMissing(err) => format!("getting PWD from OS: {}", err),
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
             Self::NoRootOps(op) => format!("cannot {} root directory!", op),
 
@@ -90,6 +89,7 @@ impl ErrorKind {
             Self::UsernameInvalid(uname) => format!("username '{}' invalid (a-z || 0-9).", uname),
             Self::UsernamePkMismatch => "The public_key in this account_string does not match what is on the server.".to_string(),
 
+            Self::OsPwdMissing(err) => format!("getting PWD from OS: {}", err),
             Self::OsCouldNotGetAbsPath(path, err) => format!(
                 "could not get the absolute path for {}, os error: {}",
                 path, err
