@@ -111,39 +111,4 @@ mod get_usage_tests {
         assert_eq!(get_usage(config).unwrap().len(), 3);
         assert_eq!(total_usage, local_encrypted.len() as u64)
     }
-
-    #[test]
-    fn usage_human_string_sanity_check() {
-        let config = &test_config();
-        let generated_account = generate_account();
-        create_account(
-            config,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
-        let root = get_root(config).unwrap();
-
-        let file = create_file(config, &random_filename(), root.id, FileType::Document).unwrap();
-        write_document(config, file.id, "0000000000".as_bytes()).unwrap();
-
-        let pre_usage = get_usage_human_string(config, false).unwrap();
-        let pre_usage_exact = get_usage_human_string(config, true).unwrap();
-
-        assert_eq!(pre_usage, "0.000 B");
-        assert_eq!(pre_usage_exact, "0");
-
-        sync_all(config).unwrap();
-
-        let local_encrypted = {
-            let backend = DefaultBackend::connect_to_db(config).unwrap();
-            DefaultDocumentRepo::get(&backend, file.id).unwrap().value
-        };
-
-        let post_usage = get_usage_human_string(config, false).unwrap();
-        let post_usage_exact = get_usage_human_string(config, true).unwrap();
-
-        assert_eq!(post_usage, format!("{}.000 B", local_encrypted.len()));
-        assert_eq!(post_usage_exact, local_encrypted.len().to_string());
-    }
 }
