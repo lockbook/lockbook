@@ -53,21 +53,13 @@ pub fn edit(file_name: &str) {
         Err(err) => err_unexpected!("couldn't open temporary file for writing: {:#?}", err).exit(),
     };
 
-    file_handle.write_all(&file_content).unwrap_or_else(|_| {
-        exitlb!(
-            OsCouldNotWriteFile,
-            "Failed to write decrypted contents to temporary file, check {}",
-            file_location
-        )
-    });
+    file_handle
+        .write_all(&file_content)
+        .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(file_location.clone(), err)));
 
-    file_handle.sync_all().unwrap_or_else(|_| {
-        exitlb!(
-            OsCouldNotWriteFile,
-            "Failed to write decrypted contents to temporary file, check {}",
-            file_location
-        )
-    });
+    file_handle
+        .sync_all()
+        .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(file_location.clone(), err)));
 
     let watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
 

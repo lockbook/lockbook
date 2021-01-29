@@ -63,16 +63,11 @@ pub fn backup() {
     };
     let mut index_file = File::create(&index_file_path)
         .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(pathbuf_string!(index_file_path), err)));
+
     let index_file_content: String = leaf_nodes.join("\n");
     index_file
         .write_all(index_file_content.as_bytes())
-        .unwrap_or_else(|err| {
-            exitlb!(
-                OsCouldNotWriteFile,
-                "Could not write to index file: {}",
-                err
-            )
-        });
+        .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(pathbuf_string!(index_file_path), err)));
 
     println!("Creating {} folders", folders.len());
     for folder in folders {
@@ -113,13 +108,8 @@ pub fn backup() {
                 }
             });
 
-        document.write_all(&document_content).unwrap_or_else(|err| {
-            exitlb!(
-                OsCouldNotWriteFile,
-                "Could not write to file: {}, error: {}",
-                &doc,
-                err
-            )
-        });
+        document
+            .write_all(&document_content)
+            .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(doc, err)));
     }
 }
