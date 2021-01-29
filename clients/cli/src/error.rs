@@ -47,8 +47,9 @@ make_errkind_enum!(
     31 => OsCouldNotCreateDir,
     32 => OsCouldNotReadChildren,
     33 => OsCouldNotReadFile(String, IoError),
-    34 => OsCouldNotWriteFile,
-    35 => OsCouldNotDeleteFile,
+    34 => OsCouldNotCreateFile(String, IoError),
+    35 => OsCouldNotWriteFile,
+    36 => OsCouldNotDeleteFile,
 
     // Lockbook file ops (40s)
     40 => FileNotFound,
@@ -93,8 +94,11 @@ impl ErrorKind {
                 "could not get the absolute path for {}, os error: {}",
                 path, err
             ),
+            Self::OsCouldNotCreateFile(path, err) => {
+                format!("could not create file '{}': {}", path, err)
+            }
             Self::OsCouldNotReadFile(path, err) => {
-                format!("could not read file {}, os error: {}", path, err)
+                format!("could not read file '{}': {}", path, err)
             }
 
             Self::FileAlreadyExists(path) => {

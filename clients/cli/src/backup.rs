@@ -12,7 +12,7 @@ use lockbook_core::{
 };
 
 use crate::utils::{get_account_or_exit, get_config};
-use crate::{err_unexpected, exitlb};
+use crate::{err_unexpected, exitlb, pathbuf_string};
 
 pub fn backup() {
     get_account_or_exit();
@@ -61,13 +61,8 @@ pub fn backup() {
         dir.push("lockbook.index");
         dir
     };
-    let mut index_file = File::create(&index_file_path).unwrap_or_else(|err| {
-        exitlb!(
-            OsCouldNotWriteFile,
-            "Could not create index file, error: {}",
-            err
-        )
-    });
+    let mut index_file = File::create(&index_file_path)
+        .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(pathbuf_string!(index_file_path), err)));
     let index_file_content: String = leaf_nodes.join("\n");
     index_file
         .write_all(index_file_content.as_bytes())
@@ -96,13 +91,8 @@ pub fn backup() {
     for doc in docs {
         let path = backup_directory.join(PathBuf::from(&doc));
 
-        let mut document = File::create(&path).unwrap_or_else(|err| {
-            exitlb!(
-                OsCouldNotWriteFile,
-                "Could not create index file, error: {}",
-                err
-            )
-        });
+        let mut document = File::create(&path)
+            .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(pathbuf_string!(path), err)));
 
         let document_metadata =
             get_file_by_path(&get_config(), &doc).unwrap_or_else(|err| match err {
