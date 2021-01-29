@@ -24,7 +24,7 @@ pub fn backup() {
             path.push(format!("LOCKBOOK_BACKUP_{}", now.format("%Y-%m-%d")));
             path
         }
-        Err(err) => exitlb!(PwdMissing, "Could not get PWD from OS, error: {}", err),
+        Err(err) => exitlb!(PwdMissing(err)),
     };
 
     fs::create_dir(&backup_directory).unwrap_or_else(|err| {

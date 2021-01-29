@@ -76,11 +76,15 @@ pub fn check_and_perform_migrations() {
 }
 
 pub fn get_config() -> Config {
-    let path = match (env::var("LOCKBOOK_CLI_LOCATION"), env::var("HOME"), env::var("HOMEPATH")) {
+    let path = match (
+        env::var("LOCKBOOK_CLI_LOCATION"),
+        env::var("HOME"),
+        env::var("HOMEPATH"),
+    ) {
         (Ok(s), _, _) => s,
         (Err(_), Ok(s), _) => format!("{}/.lockbook", s),
         (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
-        _ => exitlb!(NoCliLocation, "Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your .lockbook folder")
+        _ => exitlb!(NoCliLocation),
     };
 
     Config {

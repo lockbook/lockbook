@@ -3,16 +3,17 @@ use std::io;
 use lockbook_core::{import_account, Error as CoreError, ImportError};
 
 use crate::utils::{exit_success, get_config};
-use crate::{err_unexpected, exitlb};
+use crate::{err_extra, err_unexpected, exitlb};
 
 pub fn import_private_key() {
     if atty::is(atty::Stream::Stdin) {
-        exitlb!(
+        err_extra!(
             ExpectedStdin,
             "To import an existing Lockbook, pipe your account string into this command, \
     eg. pbpaste | lockbook import-private-key \
     or xclip -selection clipboard -o | lockbook import-private-key"
-        );
+        )
+        .exit();
     } else {
         let mut account_string = String::new();
         io::stdin()
@@ -29,12 +30,12 @@ pub fn import_private_key() {
                     AccountStringCorrupted,
                     "Account string corrupted, not imported"
                 ),
-                CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
                 CoreError::UiError(ImportError::AccountExistsAlready) => exitlb!(AccountAlreadyExists, "Account already exists. `lockbook erase-everything` to erase your local state."),
                 CoreError::UiError(ImportError::AccountDoesNotExist) => exitlb!(AccountDoesNotExist, "An account with this username was not found on the server."),
                 CoreError::UiError(ImportError::UsernamePKMismatch) => exitlb!(UsernamePkMismatch, "The public_key in this account_string does not match what is on the server"),
                 CoreError::UiError(ImportError::CouldNotReachServer) => exitlb!(NetworkIssue),
                 CoreError::UiError(ImportError::ClientUpdateRequired) => exitlb!(UpdateRequired),
+                CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
             },
         }
     }

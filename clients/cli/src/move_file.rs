@@ -15,7 +15,7 @@ pub fn move_file(path1: &str, path2: &str) {
                     Err(move_file_error) => match move_file_error {
                         CoreError::UiError(MoveFileError::NoAccount) => exitlb!(NoAccount),
                         CoreError::UiError(MoveFileError::CannotMoveRoot) => {
-                            exitlb!(NoRootOps, "Cannot move root directory!")
+                            exitlb!(NoRootOps("move".to_string()))
                         }
                         CoreError::UiError(MoveFileError::FileDoesNotExist) => {
                             exitlb!(FileNotFound, "No file found at {}", path1)

@@ -15,7 +15,7 @@ pub fn rename(path: &str, new_name: &str) {
                     exitlb!(FileNameEmpty, "New name is empty!")
                 }
                 CoreError::UiError(RenameFileError::CannotRenameRoot) => {
-                    exitlb!(NoRootOps, "Cannot rename root directory!")
+                    exitlb!(NoRootOps("rename".to_string()))
                 }
                 CoreError::UiError(RenameFileError::NewNameContainsSlash) => {
                     exitlb!(FileNameHasSlash, "New name cannot contain a slash!")

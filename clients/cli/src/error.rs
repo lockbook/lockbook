@@ -29,9 +29,9 @@ make_errcode_enum!(
     UninstallRequired => 26,
     ExpectedStdin => 6,
     NoCliLocation => 24,
-    PwdMissing => 30,
+    PwdMissing(std::io::Error) => 30,
     NoRoot => 10,
-    NoRootOps => 29,
+    NoRootOps(String) => 29,
 
     NoAccount => 8,
     AccountAlreadyExists => 21,
@@ -72,7 +72,11 @@ impl ErrorKind {
                 "Your local state cannot be migrated, please re-sync with a fresh client."
                     .to_string()
             }
+            Self::ExpectedStdin => "expected stdin".to_string(),
+            Self::NoCliLocation => "Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your `.lockbook` folder".to_string(),
+            Self::PwdMissing(err) => format!("getting PWD from OS: {}", err),
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
+            Self::NoRootOps(op) => format!("cannot {} root directory!", op),
 
             Self::NoAccount => "No account! Run init or import to get started!".to_string(),
 
