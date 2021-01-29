@@ -75,11 +75,6 @@ pub fn edit(file_name: &str) {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
 
-    fs::remove_file(&temp_file_path).unwrap_or_else(|_| {
-        exitlb!(
-            OsCouldNotDeleteFile,
-            "Failed to delete temporary file: {}",
-            file_location
-        )
-    });
+    fs::remove_file(&temp_file_path)
+        .unwrap_or_else(|err| exitlb!(OsCouldNotDeleteFile(file_location, err)));
 }

@@ -49,7 +49,7 @@ make_errkind_enum!(
     34 => OsCouldNotReadFile(String, IoError),
     35 => OsCouldNotCreateFile(String, IoError),
     36 => OsCouldNotWriteFile(String, IoError),
-    37 => OsCouldNotDeleteFile,
+    37 => OsCouldNotDeleteFile(String, IoError),
 
     // Lockbook file ops (40s)
     40 => FileNotFound,
@@ -102,6 +102,9 @@ impl ErrorKind {
             }
             Self::OsCouldNotWriteFile(path, err) => {
                 format!("could not write file '{}': {}", path, err)
+            }
+            Self::OsCouldNotDeleteFile(path, err) => {
+                format!("could not delete file '{}': {}", path, err)
             }
 
             Self::FileAlreadyExists(path) => {
