@@ -56,18 +56,18 @@ pub fn backup() {
         leaf_nodes.len()
     );
 
-    let index_file_path = {
+    let index_path = {
         let mut dir = backup_directory.clone();
         dir.push("lockbook.index");
         dir
     };
-    let mut index_file = File::create(&index_file_path)
-        .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(pathbuf_string!(index_file_path), err)));
+    let mut index_file = File::create(&index_path)
+        .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(pathbuf_string!(index_path), err)));
 
     let index_file_content: String = leaf_nodes.join("\n");
     index_file
         .write_all(index_file_content.as_bytes())
-        .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(pathbuf_string!(index_file_path), err)));
+        .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(pathbuf_string!(index_path), err)));
 
     println!("Creating {} folders", folders.len());
     for folder in folders {
