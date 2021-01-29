@@ -29,7 +29,7 @@ pub fn rename(path: &str, new_name: &str) {
         },
         Err(err) => match err {
             CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                exitlb!(FileNotFound, "No file at {}", path)
+                exitlb!(FileNotFound(path.to_string()))
             }
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },

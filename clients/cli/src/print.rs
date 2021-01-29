@@ -9,7 +9,7 @@ pub fn print(file_name: &str) {
         Ok(fm) => fm,
         Err(err) => match err {
             CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                exitlb!(FileNotFound, "File not found")
+                exitlb!(FileNotFound(file_name.to_string()))
             }
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },

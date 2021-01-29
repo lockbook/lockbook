@@ -18,10 +18,10 @@ pub fn move_file(path1: &str, path2: &str) {
                             exitlb!(NoRootOps("move".to_string()))
                         }
                         CoreError::UiError(MoveFileError::FileDoesNotExist) => {
-                            exitlb!(FileNotFound, "No file found at {}", path1)
+                            exitlb!(FileNotFound(path1.to_string()))
                         }
                         CoreError::UiError(MoveFileError::TargetParentDoesNotExist) => {
-                            exitlb!(FileNotFound, "No file found at {}", path2)
+                            exitlb!(FileNotFound(path2.to_string()))
                         }
                         CoreError::UiError(MoveFileError::FolderMovedIntoItself) => {
                             exitlb!(
@@ -56,7 +56,7 @@ pub fn move_file(path1: &str, path2: &str) {
         },
         Err(get_file_error) => match get_file_error {
             CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                exitlb!(FileNotFound, "No file at {}", path1)
+                exitlb!(FileNotFound(path1.to_string()))
             }
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },

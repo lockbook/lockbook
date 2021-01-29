@@ -19,7 +19,7 @@ pub fn remove(path: &str, force: bool) {
         Ok(meta) => meta,
         Err(err) => match err {
             UiError(GetFileByPathError::NoFileAtThatPath) => {
-                exitlb!(FileNotFound, "No file found with the path {}", path)
+                exitlb!(FileNotFound(path.to_string()))
             }
             UnexpectedError(msg) => err_unexpected!("{}", msg).exit(),
         },
@@ -52,7 +52,7 @@ pub fn remove(path: &str, force: bool) {
                     exitlb!(DocTreatedAsFolder(path.to_string()))
                 }
                 UiError(GetAndGetChildrenError::FileDoesNotExist) => {
-                    exitlb!(FileNotFound, "No file found with the path {}", path)
+                    exitlb!(FileNotFound(path.to_string()))
                 }
                 UnexpectedError(msg) => err_unexpected!("{}", msg).exit(),
             },
@@ -62,11 +62,7 @@ pub fn remove(path: &str, force: bool) {
     match delete_file(&config, meta.id) {
         Ok(_) => {}
         Err(err) => match err {
-            UiError(FileDeleteError::FileDoesNotExist) => exitlb!(
-                FileNotFound,
-                "Cannot delete '{}', file does not exist.",
-                path
-            ),
+            UiError(FileDeleteError::FileDoesNotExist) => exitlb!(FileNotFound(path.to_string())),
             UiError(FileDeleteError::CannotDeleteRoot) => exitlb!(
                 CannotDeleteRoot,
                 "Cannot delete '{}' since it is the root folder.",

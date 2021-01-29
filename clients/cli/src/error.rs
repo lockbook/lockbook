@@ -29,8 +29,8 @@ make_errkind_enum!(
     6 => UninstallRequired,
     7 => ExpectedStdin,
     8 => NoCliLocation,
-    10 => NoRoot,
-    11 => NoRootOps(String),
+    9 => NoRoot,
+    10 => NoRootOps(String),
 
     // Account (20s)
     20 => NoAccount,
@@ -52,7 +52,7 @@ make_errkind_enum!(
     37 => OsCouldNotDeleteFile(String, IoError),
 
     // Lockbook file ops (40s)
-    40 => FileNotFound,
+    40 => FileNotFound(String),
     41 => FileAlreadyExists(String),
     42 => FileNameEmpty,
     43 => FileNameNotAvailable,
@@ -110,6 +110,7 @@ impl ErrorKind {
                 format!("could not delete file '{}': {}", path, err)
             }
 
+            Self::FileNotFound(path) => format!("file '{}' not found", path),
             Self::FileAlreadyExists(path) => {
                 format!("the file '{}' already exists", path)
             }

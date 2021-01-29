@@ -22,7 +22,7 @@ pub fn edit(file_name: &str) {
         Ok(file_metadata) => file_metadata,
         Err(err) => match err {
             CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                exitlb!(FileNotFound, "No file found with the path {}", file_name)
+                exitlb!(FileNotFound(file_name.to_string()))
             }
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
