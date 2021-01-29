@@ -80,17 +80,27 @@ jobs:
       - name: Lint
         run: make server_lint
 
-  Prep-Integration-Tests:
+  Prep-Core-Server-Db:
     runs-on: [self-hosted, dockerized]
     needs: [Core, Server]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-    - uses: actions/checkout@v2
-    - name: DB Assertions
-      run: make server_tests
-    - name: Rust Integration Tests
-      run: make integration_tests
+      - uses: actions/checkout@v2
+      - name: Prep-Core-Server-Db
+        if: always()
+        run: make integration_tests
+
+  Prep-Server-DB:
+    runs-on: [self-hosted, dockerized]
+    needs: [Core, Server]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prep-Server-DB
+        if: always()
+        run: make server_tests
   
   Prep-Kotlin-Core:
     runs-on: [self-hosted, dockerized]
@@ -127,7 +137,7 @@ jobs:
 
   Run-Dev-Stack:
     runs-on: [self-hosted, dockerized]
-    needs: [Prep-Integration-Tests, Prep-Kotlin-Core, Prep-Swift-Core, Prep-CSharp-Core]
+    needs: [Prep-Core-Server-Db, Prep-Server-DB, Prep-Kotlin-Core, Prep-Swift-Core, Prep-CSharp-Core]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
