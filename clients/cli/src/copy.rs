@@ -9,8 +9,8 @@ use lockbook_core::{
 };
 
 use crate::error::{Error, ErrorKind};
-use crate::{exitlb, pathbuf_string};
 use crate::utils::{exit_success, get_account_or_exit, get_config};
+use crate::{exitlb, pathbuf_string};
 
 pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     get_account_or_exit();
@@ -147,15 +147,12 @@ fn copy_file(
                 CreateFileAtPathError::NoAccount => exitlb!(NoAccount),
                 CreateFileAtPathError::NoRoot => exitlb!(NoRoot),
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
-                    return Err(Error::new(ErrorKind::DocTreatedAsFolder, format!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest)));
+                    return Err(Error::new(ErrorKind::DocTreatedAsFolder(import_dest_with_filename), format!("A file along the target destination is a document that cannot be used as a folder")));
                 }
                 CreateFileAtPathError::PathContainsEmptyFile => {
                     return Err(Error::new(
-                        ErrorKind::PathContainsEmptyFile,
-                        format!(
-                            "Input destination {} contains an empty file!",
-                            import_dest_with_filename
-                        ),
+                        ErrorKind::PathContainsEmptyFile(import_dest_with_filename),
+                        "Input destination contains an empty file!".to_string(),
                     ));
                 }
                 CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),

@@ -49,7 +49,7 @@ pub fn remove(path: &str, force: bool) {
             }
             Err(err) => match err {
                 UiError(GetAndGetChildrenError::DocumentTreatedAsFolder) => {
-                    exitlb!(DocTreatedAsFolder, "File {} is a document", path)
+                    exitlb!(DocTreatedAsFolder(path.to_string()))
                 }
                 UiError(GetAndGetChildrenError::FileDoesNotExist) => {
                     exitlb!(FileNotFound, "No file found with the path {}", path)

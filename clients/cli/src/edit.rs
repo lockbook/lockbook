@@ -32,7 +32,7 @@ pub fn edit(file_name: &str) {
         Ok(content) => content,
         Err(err) => match err {
             CoreError::UiError(ReadDocumentError::TreatedFolderAsDocument) => {
-                exitlb!(DocTreatedAsFolder, "Specified file is a folder!")
+                exitlb!(DocTreatedAsFolder(file_name.to_string()))
             }
             CoreError::UiError(ReadDocumentError::NoAccount)
             | CoreError::UiError(ReadDocumentError::FileDoesNotExist)

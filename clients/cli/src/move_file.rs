@@ -40,10 +40,10 @@ pub fn move_file(path1: &str, path2: &str) {
                             )
                         }
                         CoreError::UiError(MoveFileError::DocumentTreatedAsFolder) => exitlb!(
-                            DocTreatedAsFolder,
-                            "{} is a document, {} cannot be moved there",
-                            target_file_metadata.name,
-                            file_metadata.name
+                            DocTreatedAsFolder(path2.to_string()),
+                            "{} cannot be moved to {}",
+                            file_metadata.name,
+                            target_file_metadata.name
                         ),
                         CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
                     },

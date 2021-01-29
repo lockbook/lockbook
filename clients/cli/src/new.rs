@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::exitlb;
 use crate::utils::{
-    edit_file_with_editor, exit_success, exit_with_no_account, get_account_or_exit, get_config,
-    save_temp_file_contents, set_up_auto_save, stop_auto_save,
+    edit_file_with_editor, exit_success, get_account_or_exit, get_config, save_temp_file_contents,
+    set_up_auto_save, stop_auto_save,
 };
 
 pub fn new(file_name: &str) {
@@ -20,20 +20,17 @@ pub fn new(file_name: &str) {
             CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
                 exitlb!(FileAlreadyExists(file_name.to_string()))
             }
-            CoreError::UiError(CreateFileAtPathError::NoAccount) => exit_with_no_account(),
-            CoreError::UiError(CreateFileAtPathError::NoRoot) => {
-                exitlb!(NoRoot, "No root folder, have you synced yet?")
-            }
+            CoreError::UiError(CreateFileAtPathError::NoAccount) => exitlb!(NoAccount),
+            CoreError::UiError(CreateFileAtPathError::NoRoot) => exitlb!(NoRoot),
             CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => {
-                exitlb!(PathContainsEmptyFile, "Path contains an empty file.")
+                exitlb!(PathContainsEmptyFile(file_name.to_string()))
             }
             CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => {
                 exitlb!(PathNoRoot, "Path doesn't start with your root folder.")
             }
-            CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => exitlb!(
-                DocTreatedAsFolder,
-                "A file within your path is a document that was treated as a folder"
-            ),
+            CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => {
+                exitlb!(DocTreatedAsFolder(file_name.to_string()))
+            }
             CoreError::Unexpected(msg) => exitlb!(Unexpected, "{}", msg),
         },
     };

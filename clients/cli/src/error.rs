@@ -54,8 +54,8 @@ make_errcode_enum!(
     FileNameNotAvailable => 20,
     FileNameHasSlash => 19,
     PathNoRoot => 11,
-    PathContainsEmptyFile => 27,
-    DocTreatedAsFolder => 12,
+    PathContainsEmptyFile(String) => 27,
+    DocTreatedAsFolder(String) => 12,
     CannotMoveFolderIntoItself => 32,
     CannotDeleteRoot => 33,
 );
@@ -79,6 +79,15 @@ impl ErrorKind {
 
             Self::FileAlreadyExists(path) => {
                 format!("the file '{}' already exists", path)
+            }
+            Self::PathContainsEmptyFile(path) => {
+                format!("the path '{}' contains an empty file name", path)
+            }
+            Self::DocTreatedAsFolder(path) => {
+                format!(
+                    "a file in path '{}' is a document being treated as a folder",
+                    path
+                )
             }
 
             _ => "I heart Golang".to_string(),
@@ -109,8 +118,9 @@ macro_rules! exitlb {
         eprintln!("{}", err.msg());
         std::process::exit(err.code())
     }};
-    ($ekind:ident, $base:literal $(, $args:expr )*) => {{
-        eprintln!($base $(, $args )*);
-        std::process::exit(crate::error::ErrorKind::$ekind.code())
+    ($ekind:ident $( ( $( $args:expr ),+ ) )?, $base:literal $(, $fmtargs:expr )*) => {{
+        let err = crate::error::ErrorKind::$ekind $( ( $( $args ),+ ) )?;
+        eprintln!($base $(, $fmtargs )*);
+        std::process::exit(err.code())
     }};
 }
