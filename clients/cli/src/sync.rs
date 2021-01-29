@@ -8,9 +8,7 @@ use lockbook_core::{
     SetLastSyncedError,
 };
 
-use crate::utils::{
-    exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
-};
+use crate::utils::{get_account_or_exit, get_config};
 use crate::{err_unexpected, exitlb};
 
 pub fn sync() {
@@ -32,8 +30,8 @@ pub fn sync() {
             Err(err) => match err {
                 CoreError::UiError(err) => match err {
                     CalculateWorkError::NoAccount => exitlb!(NoAccount),
-                    CalculateWorkError::CouldNotReachServer => exit_with_offline(),
-                    CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
+                    CalculateWorkError::CouldNotReachServer => exitlb!(NetworkIssue),
+                    CalculateWorkError::ClientUpdateRequired => exitlb!(UpdateRequired),
                 },
                 CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
             },

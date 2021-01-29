@@ -3,7 +3,7 @@ use std::{env, io};
 
 use lockbook_core::{create_account, CreateAccountError, Error as CoreError};
 
-use crate::utils::{exit_success, exit_with_offline, exit_with_upgrade_required, get_config};
+use crate::utils::{exit_success, get_config};
 use crate::{err_unexpected, exitlb};
 
 pub fn new_account() {
@@ -30,14 +30,12 @@ pub fn new_account() {
             CoreError::UiError(CreateAccountError::InvalidUsername) => {
                 exitlb!(UsernameInvalid, "Username is not a-z || 0-9")
             }
-            CoreError::UiError(CreateAccountError::CouldNotReachServer) => exit_with_offline(),
+            CoreError::UiError(CreateAccountError::CouldNotReachServer) => exitlb!(NetworkIssue),
             CoreError::UiError(CreateAccountError::AccountExistsAlready) => exitlb!(
                 AccountAlreadyExists,
                 "Account already exists. `lockbook erase-everything` to erase your local state."
             ),
-            CoreError::UiError(CreateAccountError::ClientUpdateRequired) => {
-                exit_with_upgrade_required()
-            }
+            CoreError::UiError(CreateAccountError::ClientUpdateRequired) => exitlb!(UpdateRequired),
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
     }

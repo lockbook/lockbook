@@ -64,6 +64,10 @@ impl ErrorKind {
     pub fn msg(&self) -> String {
         match self {
             Self::Unexpected(msg) => msg.to_string(),
+            Self::NetworkIssue => "Could not reach server!".to_string(),
+            Self::UpdateRequired => {
+                "An update to your application is required to do this action!".to_string()
+            }
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
 
             Self::NoAccount => "No account! Run init or import to get started!".to_string(),

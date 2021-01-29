@@ -91,17 +91,6 @@ pub fn get_config() -> Config {
     }
 }
 
-pub fn exit_with_upgrade_required() -> ! {
-    exitlb!(
-        UpdateRequired,
-        "An update to your application is required to do this action!"
-    )
-}
-
-pub fn exit_with_offline() -> ! {
-    exitlb!(NetworkIssue, "Could not reach server!")
-}
-
 pub fn exit_success(msg: &str) -> ! {
     if !msg.is_empty() {
         println!("{}", msg);

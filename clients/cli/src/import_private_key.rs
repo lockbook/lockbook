@@ -2,7 +2,7 @@ use std::io;
 
 use lockbook_core::{import_account, Error as CoreError, ImportError};
 
-use crate::utils::{exit_success, exit_with_offline, exit_with_upgrade_required, get_config};
+use crate::utils::{exit_success, get_config};
 use crate::{err_unexpected, exitlb};
 
 pub fn import_private_key() {
@@ -33,8 +33,8 @@ pub fn import_private_key() {
                 CoreError::UiError(ImportError::AccountExistsAlready) => exitlb!(AccountAlreadyExists, "Account already exists. `lockbook erase-everything` to erase your local state."),
                 CoreError::UiError(ImportError::AccountDoesNotExist) => exitlb!(AccountDoesNotExist, "An account with this username was not found on the server."),
                 CoreError::UiError(ImportError::UsernamePKMismatch) => exitlb!(UsernamePkMismatch, "The public_key in this account_string does not match what is on the server"),
-                CoreError::UiError(ImportError::CouldNotReachServer) => exit_with_offline(),
-                CoreError::UiError(ImportError::ClientUpdateRequired) => exit_with_upgrade_required(),
+                CoreError::UiError(ImportError::CouldNotReachServer) => exitlb!(NetworkIssue),
+                CoreError::UiError(ImportError::ClientUpdateRequired) => exitlb!(UpdateRequired),
             },
         }
     }

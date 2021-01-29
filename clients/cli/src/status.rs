@@ -1,10 +1,7 @@
 use lockbook_core::model::work_unit::WorkUnit;
 use lockbook_core::{calculate_work, CalculateWorkError, Error as CoreError};
 
-use crate::utils::{
-    exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
-    print_last_successful_sync,
-};
+use crate::utils::{get_account_or_exit, get_config, print_last_successful_sync};
 use crate::{err_unexpected, exitlb};
 
 pub fn status() {
@@ -17,9 +14,9 @@ pub fn status() {
         }),
         Err(err) => match err {
             CoreError::UiError(CalculateWorkError::NoAccount) => exitlb!(NoAccount),
-            CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exit_with_offline(),
+            CoreError::UiError(CalculateWorkError::CouldNotReachServer) => exitlb!(NetworkIssue),
             CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => {
-                exit_with_upgrade_required() //TODO
+                exitlb!(UpdateRequired)
             }
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
