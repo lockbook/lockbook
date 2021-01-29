@@ -5,7 +5,7 @@ macro_rules! underscore {
 }
 
 macro_rules! make_errcode_enum {
-    ($( $variants:ident $( ( $( $types:ty ),* ) )? => $values:literal ,)*) => {
+    ($( $codes:literal => $variants:ident $( ( $( $types:ty ),* ) )? ,)*) => {
         pub enum ErrorKind {
             $( $variants $( ( $( $types ),* ) )?, )*
         }
@@ -13,7 +13,7 @@ macro_rules! make_errcode_enum {
         impl ErrorKind {
             pub fn code(&self) -> i32 {
                 match self {
-                    $( Self::$variants $( ( $( underscore!($types) ),* ) )? => $values ,)*
+                    $( Self::$variants $( ( $( underscore!($types) ),* ) )? => $codes ,)*
                 }
             }
         }
@@ -21,43 +21,47 @@ macro_rules! make_errcode_enum {
 }
 
 make_errcode_enum!(
-    Success => 0,
+    0 => Success,
 
-    Unexpected(String) => 5,
-    NetworkIssue => 4,
-    UpdateRequired => 25,
-    UninstallRequired => 26,
-    ExpectedStdin => 6,
-    NoCliLocation => 24,
-    PwdMissing(std::io::Error) => 30,
-    NoRoot => 10,
-    NoRootOps(String) => 29,
+    // Miscellaneous (3-19)
+    3 => Unexpected(String),
+    4 => NetworkIssue,
+    5 => UpdateRequired,
+    6 => UninstallRequired,
+    7 => ExpectedStdin,
+    8 => NoCliLocation,
+    9 => PwdMissing(std::io::Error),
+    10 => NoRoot,
+    11 => NoRootOps(String),
 
-    NoAccount => 8,
-    AccountAlreadyExists => 21,
-    AccountDoesNotExist => 22,
-    AccountStringCorrupted => 7,
-    UsernameTaken => 1,
-    UsernameInvalid => 3,
-    UsernamePkMismatch => 23,
+    // Account (20s)
+    20 => NoAccount,
+    21 => AccountAlreadyExists,
+    22 => AccountDoesNotExist,
+    23 => AccountStringCorrupted,
+    24 => UsernameTaken,
+    25 => UsernameInvalid,
+    26 => UsernamePkMismatch,
 
-    OsCouldNotGetAbsPath(String, std::io::Error) => 16,
-    OsCouldNotCreateDir => 31,
-    OsCouldNotReadChildren => 34,
-    OsCouldNotReadFile(String, std::io::Error) => 15,
-    OsCouldNotWriteFile => 18,
-    OsCouldNotDeleteFile => 180,
+    // OS (30s)
+    30 => OsCouldNotGetAbsPath(String, std::io::Error),
+    31 => OsCouldNotCreateDir,
+    32 => OsCouldNotReadChildren,
+    33 => OsCouldNotReadFile(String, std::io::Error),
+    34 => OsCouldNotWriteFile,
+    35 => OsCouldNotDeleteFile,
 
-    FileNotFound => 17,
-    FileAlreadyExists(String) => 9,
-    FileNameEmpty => 28,
-    FileNameNotAvailable => 20,
-    FileNameHasSlash => 19,
-    PathNoRoot => 11,
-    PathContainsEmptyFile(String) => 27,
-    DocTreatedAsFolder(String) => 12,
-    CannotMoveFolderIntoItself => 32,
-    CannotDeleteRoot => 33,
+    // Lockbook file ops (40s)
+    40 => FileNotFound,
+    41 => FileAlreadyExists(String),
+    42 => FileNameEmpty,
+    43 => FileNameNotAvailable,
+    44 => FileNameHasSlash,
+    45 => PathNoRoot,
+    46 => PathContainsEmptyFile(String),
+    47 => DocTreatedAsFolder(String),
+    48 => CannotMoveFolderIntoItself,
+    49 => CannotDeleteRoot,
 );
 
 impl ErrorKind {
