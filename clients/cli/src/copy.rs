@@ -30,13 +30,7 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
         let parent = path
             .file_name()
             .and_then(|name| name.to_str())
-            .unwrap_or_else(|| {
-                exitlb!(
-                    OsCouldNotReadChildren,
-                    "Failed to read parent name, OS path: {:?}",
-                    path
-                )
-            });
+            .unwrap_or_else(|| exitlb!(OsCouldNotGetFileName(path_string!(path))));
         let import_path = format!("{}{}", import_dir, parent);
 
         recursive_copy_folder(&path, &import_path, &config, edit);
@@ -58,13 +52,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                 let child_name = child_path
                     .file_name()
                     .and_then(|child_name| child_name.to_str())
-                    .unwrap_or_else(|| {
-                        exitlb!(
-                            OsCouldNotReadChildren,
-                            "Failed to read child name, OS parent path: {:?}",
-                            child_path
-                        )
-                    });
+                    .unwrap_or_else(|| exitlb!(OsCouldNotGetFileName(path_string!(child_path))));
 
                 let lb_child_path = format!("{}/{}", import_dest, child_name);
 
@@ -157,23 +145,8 @@ fn copy_file(
 
 fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
     fs::read_dir(p)
-        .unwrap_or_else(|err| {
-            exitlb!(
-                OsCouldNotReadChildren,
-                "Unable to list children of folder: {:?}, OS error: {}",
-                p,
-                err
-            )
-        })
-        .map(|child| {
-            child.unwrap_or_else(|err| {
-                exitlb!(
-                    OsCouldNotReadChildren,
-                    "Failed to retrieve child path: {}",
-                    err
-                )
-            })
-        })
+        .unwrap_or_else(|err| exitlb!(OsCouldNotListChildren(path_string!(p), err)))
+        .map(|child| child.unwrap_or_else(|err| exitlb!(OsCouldNotReadFile("".to_string(), err))))
         .collect()
 }
 

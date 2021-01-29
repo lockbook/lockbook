@@ -44,12 +44,13 @@ make_errkind_enum!(
     // OS (30s)
     30 => OsPwdMissing(IoError),
     31 => OsCouldNotGetAbsPath(String, IoError),
-    32 => OsCouldNotCreateDir(String, IoError),
-    33 => OsCouldNotReadChildren,
-    34 => OsCouldNotReadFile(String, IoError),
-    35 => OsCouldNotCreateFile(String, IoError),
-    36 => OsCouldNotWriteFile(String, IoError),
-    37 => OsCouldNotDeleteFile(String, IoError),
+    32 => OsCouldNotGetFileName(String),
+    33 => OsCouldNotCreateDir(String, IoError),
+    34 => OsCouldNotListChildren(String, IoError),
+    35 => OsCouldNotReadFile(String, IoError),
+    36 => OsCouldNotCreateFile(String, IoError),
+    37 => OsCouldNotWriteFile(String, IoError),
+    38 => OsCouldNotDeleteFile(String, IoError),
 
     // Lockbook file ops (40s)
     40 => FileNotFound(String),
@@ -91,11 +92,15 @@ impl ErrorKind {
 
             Self::OsPwdMissing(err) => format!("getting PWD from OS: {}", err),
             Self::OsCouldNotGetAbsPath(path, err) => format!(
-                "could not get the absolute path for {}, os error: {}",
+                "could not get absolute path for '{}': {}",
                 path, err
             ),
+            Self::OsCouldNotGetFileName(path) => format!("could not get file name for '{}'", path),
             Self::OsCouldNotCreateDir(path, err) => {
                 format!("could not create directory '{}': {}", path, err)
+            }
+            Self::OsCouldNotListChildren(path, err) => {
+                format!("could not list children for directory '{}': {}", path, err)
             }
             Self::OsCouldNotReadFile(path, err) => {
                 format!("could not read file '{}': {}", path, err)
