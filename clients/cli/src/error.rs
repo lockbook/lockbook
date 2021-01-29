@@ -67,12 +67,10 @@ impl ErrorKind {
 
             Self::NoAccount => "No account! Run init or import to get started!".to_string(),
 
-            Self::OsCouldNotGetAbsPath(path, err) => {
-                format!(
-                    "could not get the absolute path for {}, os error: {}",
-                    path, err
-                )
-            }
+            Self::OsCouldNotGetAbsPath(path, err) => format!(
+                "could not get the absolute path for {}, os error: {}",
+                path, err
+            ),
             Self::OsCouldNotReadFile(path, err) => {
                 format!("could not read file {}, os error: {}", path, err)
             }
@@ -83,12 +81,10 @@ impl ErrorKind {
             Self::PathContainsEmptyFile(path) => {
                 format!("the path '{}' contains an empty file name", path)
             }
-            Self::DocTreatedAsFolder(path) => {
-                format!(
-                    "a file in path '{}' is a document being treated as a folder",
-                    path
-                )
-            }
+            Self::DocTreatedAsFolder(path) => format!(
+                "a file in path '{}' is a document being treated as a folder",
+                path
+            ),
 
             _ => "I heart Golang".to_string(),
         }
@@ -109,6 +105,13 @@ impl Error {
         eprintln!("{}", self.msg);
         std::process::exit(self.code.code())
     }
+}
+
+#[macro_export]
+macro_rules! err {
+    ($err:ident $( ( $( $args:expr ),+ ) )?) => {
+        crate::error::Error::new(crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?, "".to_string())
+    };
 }
 
 #[macro_export]
