@@ -50,7 +50,6 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _stopProgressSpinner = SingleMutableLiveData<Unit>()
     private val _showSyncSnackBar = SingleMutableLiveData<Int>()
-    private val _updateSyncSnackBar = SingleMutableLiveData<Int>()
     private val _showPreSyncSnackBar = SingleMutableLiveData<Int>()
     private val _showOfflineSnackBar = SingleMutableLiveData<Unit>()
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
@@ -79,9 +78,6 @@ class ListFilesViewModel(path: String, application: Application) :
 
     val showSyncSnackBar: LiveData<Int>
         get() = _showSyncSnackBar
-
-    val updateSyncSnackBar: LiveData<Int>
-        get() = _updateSyncSnackBar
 
     val showPreSyncSnackBar: LiveData<Int>
         get() = _showPreSyncSnackBar
@@ -436,19 +432,21 @@ class ListFilesViewModel(path: String, application: Application) :
 
         _showSyncSnackBar.postValue(workCalculated.workUnits.size)
 
-        var currentProgress = 0
+        syncingStatus.currentProgress = 0
         syncingStatus.maxProgress = workCalculated.workUnits.size
 
         for (test in 0..10) {
+            Timber.e("Before: ${syncingStatus.currentProgress}")
             for (workUnit in workCalculated.workUnits) {
                 when (
                     val executeFileSyncWorkResult =
                         CoreModel.executeWork(fileModel.config, account, workUnit)
                 ) {
                     is Ok -> {
-                        currentProgress++
+                        syncingStatus.currentProgress++
+                        Timber.e("Success: ${syncingStatus.currentProgress}")
                         syncErrors.remove(workUnit.content.metadata.id)
-                        _updateProgressSnackBar.postValue(currentProgress)
+                        _updateProgressSnackBar.postValue(syncingStatus.currentProgress)
                     }
                     is Err ->
                         syncErrors[workUnit.content.metadata.id] =
@@ -490,18 +488,18 @@ class ListFilesViewModel(path: String, application: Application) :
 
             if (workCalculated.workUnits.isEmpty()) {
                 break
-            }
-
-            if ((currentProgress + workCalculated.workUnits.size) > syncingStatus.maxProgress) {
-                syncingStatus.maxProgress = workCalculated.workUnits.size + currentProgress
-                _updateSyncSnackBar.postValue(syncingStatus.maxProgress)
+            } else {
+                syncingStatus.maxProgress = workCalculated.workUnits.size
+                _showSyncSnackBar.postValue(syncingStatus.maxProgress)
+                syncingStatus.currentProgress = 0
+                Timber.e("WORKCALCULATED: ${syncingStatus.maxProgress}")
             }
         }
 
         if (syncErrors.isNotEmpty()) {
             Timber.e("Couldn't resolve all syncErrors: ${Klaxon().toJsonString(syncErrors)}")
-            _errorHasOccurred.postValue("Couldn't sync all files.")
             _stopSyncSnackBar.postValue(Unit)
+            _errorHasOccurred.postValue("Couldn't sync all files.")
         } else {
             _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
         }
