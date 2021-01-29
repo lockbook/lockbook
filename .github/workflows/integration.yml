@@ -91,20 +91,55 @@ jobs:
       run: make server_tests
     - name: Rust Integration Tests
       run: make integration_tests
-    - name: Kotlin
-      run: make kotlin_interface_tests
-    - name: CSharp
-      run: make csharp_interface_tests
-    - name: Swift
-      run: make swift_interface_tests
-    - name: DB Config Image
-      run: make db_container
-    - name: Spin up dev stack
-      run: make dev_stack_run
+  
+  Prep-Kotlin-Core:
+    runs-on: [self-hosted, dockerized]
+    needs: [Core, Server]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prep-Kotlin-Core
+        if: always()
+        run: make kotlin_interface_tests
+  
+  Prep-Swift-Core:
+    runs-on: [self-hosted, dockerized]
+    needs: [Core, Server]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prep-Swift-Core
+        if: always()
+        run: make swift_interface_tests
+
+  Prep-CSharp-Core:
+    runs-on: [self-hosted, dockerized]
+    needs: [Core, Server]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prep-CSharp-Core
+        if: always()
+        run: make csharp_interface_tests
+
+  Run-Dev-Stack:
+    runs-on: [self-hosted, dockerized]
+    needs: [Prep-Integration-Tests, Prep-Kotlin-Core, Prep-Swift-Core, Prep-CSharp-Core]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: DB Config Image
+        run: make db_container
+      - name: Spin up dev stack
+        run: make dev_stack_run
 
   Core-Server-Db:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -115,7 +150,7 @@ jobs:
 
   Server-DB:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -126,7 +161,7 @@ jobs:
 
   Kotlin-Core:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -137,7 +172,7 @@ jobs:
 
   Swift-Core:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -148,7 +183,7 @@ jobs:
 
   CSharp-Core:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
