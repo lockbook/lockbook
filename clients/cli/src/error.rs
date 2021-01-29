@@ -21,8 +21,6 @@ macro_rules! make_errcode_enum {
 }
 
 make_errcode_enum!(
-    0 => Success,
-
     // Miscellaneous (3-19)
     3 => Unexpected(String),
     4 => NetworkIssue,

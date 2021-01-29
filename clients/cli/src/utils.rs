@@ -7,7 +7,6 @@ use lockbook_core::{
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
-use crate::error::ErrorKind;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{err_extra, err_unexpected, exitlb};
 use hotwatch::{Event, Hotwatch};
@@ -96,7 +95,7 @@ pub fn exit_success(msg: &str) -> ! {
     if !msg.is_empty() {
         println!("{}", msg);
     }
-    std::process::exit(ErrorKind::Success.code())
+    std::process::exit(0)
 }
 
 // In order of superiority
