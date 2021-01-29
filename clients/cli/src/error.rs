@@ -44,7 +44,7 @@ make_errkind_enum!(
     // OS (30s)
     30 => OsPwdMissing(IoError),
     31 => OsCouldNotGetAbsPath(String, IoError),
-    32 => OsCouldNotCreateDir,
+    32 => OsCouldNotCreateDir(String, IoError),
     33 => OsCouldNotReadChildren,
     34 => OsCouldNotReadFile(String, IoError),
     35 => OsCouldNotCreateFile(String, IoError),
@@ -94,6 +94,9 @@ impl ErrorKind {
                 "could not get the absolute path for {}, os error: {}",
                 path, err
             ),
+            Self::OsCouldNotCreateDir(path, err) => {
+                format!("could not create directory '{}': {}", path, err)
+            }
             Self::OsCouldNotReadFile(path, err) => {
                 format!("could not read file '{}': {}", path, err)
             }

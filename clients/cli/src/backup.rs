@@ -27,13 +27,8 @@ pub fn backup() {
         Err(err) => exitlb!(OsPwdMissing(err)),
     };
 
-    fs::create_dir(&backup_directory).unwrap_or_else(|err| {
-        exitlb!(
-            OsCouldNotCreateDir,
-            "Could not create backup directory! Error: {}",
-            err
-        )
-    });
+    fs::create_dir(&backup_directory)
+        .unwrap_or_else(|err| exitlb!(OsCouldNotCreateDir(path_string!(backup_directory), err)));
 
     let leaf_nodes =
         list_paths(&get_config(), Some(LeafNodesOnly)).unwrap_or_else(|err| match err {
@@ -72,14 +67,8 @@ pub fn backup() {
     println!("Creating {} folders", folders.len());
     for folder in folders {
         let path = backup_directory.join(PathBuf::from(folder));
-        fs::create_dir_all(&path).unwrap_or_else(|err| {
-            exitlb!(
-                OsCouldNotCreateDir,
-                "Could not create {:?} directory! Error: {}",
-                path,
-                err
-            )
-        });
+        fs::create_dir_all(&path)
+            .unwrap_or_else(|err| exitlb!(OsCouldNotCreateDir(path_string!(path), err)));
     }
 
     println!("Writing {} documents", docs.len());
