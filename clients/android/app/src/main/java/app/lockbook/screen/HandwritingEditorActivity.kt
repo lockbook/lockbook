@@ -25,9 +25,14 @@ import java.util.*
 
 class HandwritingEditorActivity : AppCompatActivity() {
     private lateinit var handwritingEditorViewModel: HandwritingEditorViewModel
+    private var isFirstLaunch = true
     private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder?) {
-            addDrawingToView()
+            if (!isFirstLaunch) {
+                handwriting_editor.startThread()
+            } else {
+                addDrawingToView()
+            }
         }
 
         override fun surfaceChanged(
@@ -44,26 +49,22 @@ class HandwritingEditorActivity : AppCompatActivity() {
 
     private var autoSaveTimer = Timer()
     private val handler = Handler()
+    private lateinit var id: String
     private lateinit var gestureDetector: GestureDetector
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_handwriting_editor)
 
-        val id = intent.getStringExtra("id")
-        val name = intent.getStringExtra("name")
+        val maybeId = intent.getStringExtra("id")
 
-        if (id == null) {
+        if (maybeId == null) {
             errorHasOccurred("Unable to retrieve id.")
             finish()
             return
         }
 
-        if (name == null) {
-            errorHasOccurred("Unable to retrieve name.")
-            finish()
-            return
-        }
+        id = maybeId
 
         handwritingEditorViewModel =
             ViewModelProvider(
@@ -82,8 +83,6 @@ class HandwritingEditorActivity : AppCompatActivity() {
         ) { errorText ->
             unexpectedErrorHasOccurred(errorText)
         }
-
-        startDrawing(id)
 
         handwritingEditorViewModel.drawableReady.observe(
             this
@@ -119,6 +118,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
             selectedNewPenSize(penSizes.first, penSizes.second)
         }
 
+        startDrawing()
         startBackgroundSave()
         setUpToolbarListeners()
         setUpToolbarDefaults()
@@ -132,6 +132,16 @@ class HandwritingEditorActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         handwriting_editor.endThread()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handwriting_editor.endThread()
+        autoSaveTimer.cancel()
+        if (!isFirstLaunch) {
+            handwritingEditorViewModel.backupDrawing = handwriting_editor.drawingModel
+            handwritingEditorViewModel.saveDrawing(handwriting_editor.drawingModel)
+        }
     }
 
     private fun selectNewColor(oldColor: Int?, newColor: Int) {
@@ -237,13 +247,14 @@ class HandwritingEditorActivity : AppCompatActivity() {
     private fun addDrawingToView() {
         handwriting_editor.isTouchable = true
         handwriting_editor_progress_bar.visibility = View.GONE
-        handwriting_editor.initializeWithDrawing(handwritingEditorViewModel.lockBookDrawable)
+        isFirstLaunch = false
+        handwriting_editor.initializeWithDrawing(handwritingEditorViewModel.backupDrawing)
     }
 
-    private fun startDrawing(id: String) {
+    private fun startDrawing() {
         handwriting_editor_progress_bar.visibility = View.VISIBLE
 
-        if (handwritingEditorViewModel.lockBookDrawable == null) {
+        if (handwritingEditorViewModel.backupDrawing == null) {
             handwritingEditorViewModel.getDrawing(id)
         } else {
             handwriting_editor.holder.addCallback(surfaceViewReadyCallback)
@@ -339,40 +350,35 @@ class HandwritingEditorActivity : AppCompatActivity() {
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-                        handwritingEditorViewModel.savePath(
-                            Drawing(
-                                Page(
-                                    Transformation(
-                                        Point(
-                                            handwriting_editor.drawingModel.currentView.transformation.translation.x,
-                                            handwriting_editor.drawingModel.currentView.transformation.translation.y
-                                        ),
-                                        handwriting_editor.drawingModel.currentView.transformation.scale,
-                                    )
-                                ),
-                                handwriting_editor.drawingModel.events.map { event ->
-                                    Event(
-                                        if (event.stroke == null) null else Stroke(
-                                            event.stroke.color,
-                                            event.stroke.points.toMutableList()
+                        if (!isFirstLaunch) {
+                            handwritingEditorViewModel.saveDrawing(
+                                Drawing(
+                                    Page(
+                                        Transformation(
+                                            Point(
+                                                handwriting_editor.drawingModel.currentView.transformation.translation.x,
+                                                handwriting_editor.drawingModel.currentView.transformation.translation.y
+                                            ),
+                                            handwriting_editor.drawingModel.currentView.transformation.scale,
                                         )
-                                    )
-                                }.toMutableList()
+                                    ),
+                                    handwriting_editor.drawingModel.events.map { event ->
+                                        Event(
+                                            if (event.stroke == null) null else Stroke(
+                                                event.stroke.color,
+                                                event.stroke.points.toMutableList()
+                                            )
+                                        )
+                                    }.toMutableList()
+                                )
                             )
-                        )
+                        }
                     }
                 }
             },
             1000,
             TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
         )
-    }
-
-    override fun onDestroy() {
-        autoSaveTimer.cancel()
-        handwritingEditorViewModel.lockBookDrawable = handwriting_editor.drawingModel
-        handwritingEditorViewModel.savePath(handwriting_editor.drawingModel)
-        super.onDestroy()
     }
 
     private fun errorHasOccurred(error: String) {

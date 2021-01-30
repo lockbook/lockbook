@@ -1,8 +1,9 @@
 ARG HASH
-FROM ubuntu:20.04 AS android-build
+
+FROM gradle:6.7-jdk8 AS android-build
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk-linux
-RUN apt update && apt install -y build-essential openjdk-8-jdk wget curl unzip
 
 # Install android things
 RUN wget -q https://dl.google.com/android/repository/android-ndk-r21c-linux-x86_64.zip -O android-ndk-r21c-linux-x86_64.zip
@@ -17,13 +18,13 @@ RUN yes | sdkmanager --licenses
 # Copy android in
 COPY clients/android clients/android
 WORKDIR clients/android
-RUN ./gradlew assemble
+RUN gradle assemble
 
 
 # Check formatting
 FROM android:${HASH} AS android-fmt
-RUN ./gradlew lintKotlin 
+RUN gradle lintKotlin 
 
 # Check lint
 FROM android:${HASH} AS android-lint
-RUN ./gradlew lint
+RUN gradle lint

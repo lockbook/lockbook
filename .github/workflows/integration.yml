@@ -80,81 +80,116 @@ jobs:
       - name: Lint
         run: make server_lint
 
-  Prep-Integration-Tests:
+  Prep-Core-Server-Db:
     runs-on: [self-hosted, dockerized]
     needs: [Core, Server]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-    - uses: actions/checkout@v2
-    - name: DB Assertions
-      run: make server_tests
-    - name: Rust Integration Tests
-      run: make integration_tests
-    - name: Kotlin
-      run: make kotlin_interface_tests
-    - name: CSharp
-      run: make csharp_interface_tests
-    - name: Swift
-      run: make swift_interface_tests
-    - name: DB Config Image
-      run: make db_container
-    - name: Spin up dev stack
-      run: make dev_stack_run
+      - uses: actions/checkout@v2
+      - name: Prep-Core-Server-Db
+        run: make integration_tests
+
+  Prep-Server-DB:
+    runs-on: [self-hosted, dockerized]
+    needs: [Core, Server]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prep-Server-DB
+        run: make server_tests
+  
+  Prep-Kotlin-Core:
+    runs-on: [self-hosted, dockerized]
+    needs: [Core, Server]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prep-Kotlin-Core
+        run: make kotlin_interface_tests
+  
+  Prep-Swift-Core:
+    runs-on: [self-hosted, dockerized]
+    needs: [Core, Server]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prep-Swift-Core
+        run: make swift_interface_tests
+
+  Prep-CSharp-Core:
+    runs-on: [self-hosted, dockerized]
+    needs: [Core, Server]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Prep-CSharp-Core
+        run: make csharp_interface_tests
+
+  Run-Dev-Stack:
+    runs-on: [self-hosted, dockerized]
+    needs: [Prep-Core-Server-Db, Prep-Server-DB, Prep-Kotlin-Core, Prep-Swift-Core, Prep-CSharp-Core]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: DB Config Image
+        run: make db_container
+      - name: Spin up dev stack
+        run: make dev_stack_run
 
   Core-Server-Db:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
       - name: Core-Server-DB Integration Tests
-        if: always()
         run: make integration_tests_run
 
   Server-DB:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
       - name: Server-DB
-        if: always()
         run: make server_tests_run
 
   Kotlin-Core:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
       - name: Kotlin-Core
-        if: always()
         run: make kotlin_interface_tests_run
 
   Swift-Core:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
       - name: Swift-Core
-        if: always()
         run: make swift_interface_tests_run
 
   CSharp-Core:
     runs-on: [self-hosted, dockerized]
-    needs: Prep-Integration-Tests
+    needs: Run-Dev-Stack
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
       - name: CSharp-Core
-        if: always()
         run: make csharp_interface_tests_run
 
   Clean-Up:
@@ -167,7 +202,4 @@ jobs:
       - uses: actions/checkout@v2
       - name: Tear Down Stack
         run: make kill_dev_stack
-        if: always()
-      - name: Cleanup Stale Things
-        run: make clean
         if: always()

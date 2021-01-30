@@ -23,7 +23,6 @@ object SharedPreferences {
     const val BACKGROUND_SYNC_ENABLED_KEY = "background_sync_enabled"
     const val SYNC_AUTOMATICALLY_KEY = "sync_automatically_in_app"
 
-    const val VIEW_LOGS_TITLE_KEY = "view_logs_title"
     const val VIEW_LOGS_KEY = "view_logs"
     const val CLEAR_LOGS_KEY = "clear_logs"
 
@@ -34,6 +33,8 @@ object SharedPreferences {
     const val FILE_LAYOUT_KEY = "file_layout"
     const val GRID_LAYOUT = "grid_layout"
     const val LINEAR_LAYOUT = "linear_layout"
+
+    const val OPEN_NEW_DOC_AUTOMATICALLY_KEY = "open_new_doc_automatically"
 }
 
 object RequestResultCodes {

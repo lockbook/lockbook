@@ -4,102 +4,155 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using Windows.ApplicationModel.Core;
 using Windows.ApplicationModel.DataTransfer;
-using Windows.Storage;
+using Windows.UI;
 using Windows.UI.Popups;
 using Windows.UI.Text;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
 namespace lockbook {
-
     public class UIFile {
+        public const string folderGlyph = "\uED25";
+        public const string documentGlyph = "\uE9F9";
+        public const string rootGlyph = "\uEC25";
+
+        public bool IsRoot { get; set; }
         public string Id { get; set; }
-        public string Icon { get; set; }
+        public string Icon {
+            get {
+                return IsRoot ? rootGlyph : (IsDocument ? documentGlyph : folderGlyph);
+            }
+            set {} // required for Xaml
+        }
         public string Name { get; set; }
         public bool IsDocument { get; set; }
-        public bool IsFolder() { return !IsDocument; }
-        public bool Expanded { get; set; }
+        public bool IsFolder {
+            get {
+                return !IsDocument;
+            }
+            set {
+                IsDocument = !value;
+            }
+        }
+        public bool IsExpanded { get; set; }
         public ObservableCollection<UIFile> Children { get; set; }
     }
 
     public sealed partial class FileExplorer : Page {
+        public string SelectedDocumentId { get; set; } = "";
+        private int itemsToSync;
+        public int ItemsToSync {
+            get {
+                return itemsToSync;
+            }
+            set {
+                itemsToSync = value;
+                Refresh();
+            }
+        }
+        public bool SyncWorking {
+            get {
+                return !syncContainer.IsEnabled;
+            }
+            set {
+                syncContainer.IsEnabled = !value;
+                Refresh();
+            }
+        }
 
-        public string currentDocumentId = "";
-
-        public string folderGlyph = "\uED25";
-        public string documentGlyph = "\uE9F9";
-        public string rootGlyph = "\uEC25";
-        public string checkGlyph = "\uE73E";
-        public string syncGlyph = "\uE895";
-        public string offlineGlyph = "\uF384";
+        public const string checkGlyph = "\uE73E";
+        public const string syncGlyph = "\uE895";
+        public const string offlineGlyph = "\uF384";
 
         ObservableCollection<UIFile> Files = new ObservableCollection<UIFile>();
-        Dictionary<string, UIFile> uiFiles = new Dictionary<string, UIFile>();
         Dictionary<string, int> keyStrokeCount = new Dictionary<string, int>();
 
         public FileExplorer() {
             InitializeComponent();
+            Files.Add(App.UIFiles.FirstOrDefault(kvp => kvp.Value.IsRoot).Value);
         }
 
-        private async void ClearStateClicked(object sender, RoutedEventArgs e) {
-            await ApplicationData.Current.ClearAsync();
-            CoreApplication.Exit();
+        private async void SignOutClicked(object sender, RoutedEventArgs e) {
+            ContentDialog dialog = new ContentDialog {
+                Content = "Signing out removes your account from this device. It will not affect your files, but if you haven't backed up your private key or signed in on another device, you will forever lose access to your account.",
+                Title = "Confirm Sign Out",
+                IsSecondaryButtonEnabled = true,
+                PrimaryButtonText = "Remove Account From This Device",
+                SecondaryButtonText = "Cancel",
+            };
+
+            var bst = new Style(typeof(Button));
+            bst.Setters.Add(new Setter(BackgroundProperty, Colors.Red));
+            bst.Setters.Add(new Setter(ForegroundProperty, Colors.White));
+            dialog.PrimaryButtonStyle = bst;
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary) {
+                await App.SignOut();
+            }
         }
 
         private async void NavigationViewLoaded(object sender, RoutedEventArgs e) {
-            await RefreshFiles();
+            await ReloadFiles();
             CheckForWorkLoop();
         }
 
         private async void CheckForWorkLoop() {
             while (true) {
-                var result = await App.CoreService.CalculateWork();
-
-                switch (result) {
-                    case Core.CalculateWork.Success success:
-                        int work = success.workCalculated.workUnits.Count;
-                        if (syncContainer.IsEnabled) {
-                            if (work == 0) {
-                                syncIcon.Glyph = checkGlyph;
-                                syncText.Text = "Up to date!";
-                            } else {
-                                syncIcon.Glyph = syncGlyph;
-                                if (work == 1)
-                                    syncText.Text = work + " item need to be synced.";
-                                else
-                                    syncText.Text = work + " items need to be synced.";
-                            }
-                        }
-                        break;
-                    case Core.CalculateWork.ExpectedError error:
-                        switch (error.Error) {
-                            case Core.CalculateWork.PossibleErrors.CouldNotReachServer:
-                                if (syncContainer.IsEnabled) {
-                                    syncIcon.Glyph = offlineGlyph;
-                                    syncText.Text = "Offline";
-                                }
-                                break;
-                            default:
-                                System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + error.Error);
-                                break;
-
-                        }
-                        break;
-                    case Core.CalculateWork.UnexpectedError uhOh:
-                        System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + uhOh.ErrorMessage);
-                        break;
-                }
-
+                await ReloadCalculatedWork();
                 await Task.Delay(2000);
             }
         }
 
-        private async Task RefreshFiles() {
-            var result = await App.CoreService.ListMetadatas();
+        public async Task ReloadCalculatedWork() {
+            switch (await App.CoreService.CalculateWork()) {
+                case Core.CalculateWork.Success success:
+                    App.IsOnline = true;
+                    itemsToSync = success.workCalculated.workUnits.Count;
+                    break;
+                case Core.CalculateWork.UnexpectedError uhOh:
+                    System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + uhOh.ErrorMessage);
+                    break;
+                case Core.CalculateWork.ExpectedError error:
+                    switch (error.Error) {
+                        case Core.CalculateWork.PossibleErrors.CouldNotReachServer:
+                            App.IsOnline = false;
+                            break;
+                        case Core.CalculateWork.PossibleErrors.ClientUpdateRequired:
+                            App.ClientUpdateRequired = true;
+                            App.Refresh();
+                            break;
+                        case Core.CalculateWork.PossibleErrors.NoAccount:
+                            await App.ReloadDbStateAndAccount();
+                            break;
+                    }
+                    break;
+            }
+        }
 
-            switch (result) {
+        public void Refresh() {
+            if(!App.IsOnline) {
+                syncIcon.Glyph = offlineGlyph;
+                syncText.Text = "Offline";
+            }
+            if(SyncWorking) {
+                syncIcon.Glyph = syncGlyph;
+                syncText.Text = "Syncing...";
+            }
+            if(ItemsToSync == 0) {
+                syncIcon.Glyph = checkGlyph;
+                syncText.Text = "Up to date";
+            } else if(ItemsToSync == 1) {
+                syncIcon.Glyph = syncGlyph;
+                syncText.Text = ItemsToSync + " item need to be synced";
+            } else {
+                syncIcon.Glyph = syncGlyph;
+                syncText.Text = ItemsToSync + " items need to be synced";
+            }
+        }
+
+        private async Task ReloadFiles() {
+            switch (await App.CoreService.ListMetadatas()) {
                 case Core.ListMetadatas.Success success:
                     await PopulateTree(success.files);
                     break;
@@ -107,71 +160,43 @@ namespace lockbook {
                     await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }
-
         }
 
-        // TODO consider diffing trees and performing the min update to prevent the UI from flashing
-        private async Task PopulateTree(List<FileMetadata> coreFilesWithDeleted) {
-            var coreFiles = coreFilesWithDeleted.Where(f => !f.deleted);
-
-            var expandedItems = new HashSet<string>();
-
-            foreach (var file in uiFiles.Values) {
-                if (file.Expanded)
-                    expandedItems.Add(file.Id);
-            }
-
-            uiFiles.Clear();
-
-            FileMetadata root = null;
-
-            // Find our root
-            foreach (var file in coreFiles) {
-                if (file.Id == file.Parent) {
-                    root = file;
-                }
-            }
-
+        private async Task PopulateTree(List<FileMetadata> files) {
+            files = files.Where(f => !f.deleted).ToList();
+            var newUIFiles = new Dictionary<string, UIFile>();
+            var root = files.FirstOrDefault(file => file.Id == file.Parent);
             if (root == null) {
                 await new MessageDialog("Root not found, file a bug report!", "Root not found!").ShowAsync();
                 return;
             }
-
-            // Explore and find children
-            Queue<FileMetadata> toExplore = new Queue<FileMetadata>();
-            uiFiles[root.Id] = new UIFile { Icon = rootGlyph, Expanded = true, Id = root.Id, Name = root.Name, IsDocument = false, Children = new ObservableCollection<UIFile>() };
-            toExplore.Enqueue(root);
-
-            while (toExplore.Count != 0) {
-                var current = toExplore.Dequeue();
-
-                // Find all children
-                foreach (var file in coreFiles) {
-                    if (current.Id == file.Parent && file.Parent != file.Id) {
-                        toExplore.Enqueue(file);
-
-                        string icon;
-                        ObservableCollection<UIFile> children;
-
-                        if (file.Type == "Folder") {
-                            icon = folderGlyph;
-                            children = new ObservableCollection<UIFile>();
-                        } else {
-                            icon = documentGlyph;
-                            children = null;
-                        }
-
-                        var expanded = expandedItems.Contains(file.Id);
-
-                        var newUi = new UIFile { Name = file.Name, Id = file.Id, Icon = icon, IsDocument = file.Type == "Document", Children = children, Expanded = expanded };
-                        uiFiles[file.Id] = newUi;
-                        uiFiles[current.Id].Children.Add(newUi);
+            PopulateTreeRecursive(files, newUIFiles, root);
+            newUIFiles[root.Id].IsRoot = true;
+            foreach (var f in App.UIFiles) {
+                if (f.Value.IsExpanded) {
+                    if (newUIFiles.TryGetValue(f.Key, out var newUIFile)) {
+                        newUIFile.IsExpanded = true;
                     }
                 }
             }
-
             Files.Clear();
-            Files.Add(uiFiles[root.Id]);
+            Files.Add(newUIFiles[root.Id]);
+            App.UIFiles = newUIFiles;
+        }
+
+        private void PopulateTreeRecursive(List<FileMetadata> files, Dictionary<string, UIFile> tree, FileMetadata file) {
+            tree[file.Id] = new UIFile {
+                Id = file.Id,
+                Name = file.Name,
+                IsDocument = file.Type == "Document",
+                Children = file.Type == "Document" ? null : new ObservableCollection<UIFile>(),
+            };
+            if (file.Id != file.Parent) {
+                tree[file.Parent].Children.Add(tree[file.Id]);
+            }
+            foreach(var f in files.Where(f => f.Parent == file.Id && f.Id != file.Id)) {
+                PopulateTreeRecursive(files, tree, f);
+            }
         }
 
         private async void NewFolder(object sender, RoutedEventArgs e) {
@@ -192,7 +217,10 @@ namespace lockbook {
             var result = await App.CoreService.CreateFile(name, parent, type);
             switch (result) {
                 case Core.CreateFile.Success: // TODO handle this newly created folder elegantly.
-                    await RefreshFiles();
+                    await ReloadFiles();
+                    break;
+                case Core.CreateFile.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
                 case Core.CreateFile.ExpectedError error:
                     switch (error.Error) {
@@ -209,9 +237,6 @@ namespace lockbook {
                             await new MessageDialog("Unhandled Error!", error.Error.ToString()).ShowAsync();
                             break;
                     }
-                    break;
-                case Core.CreateFile.UnexpectedError uhOh:
-                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }
         }
@@ -236,22 +261,35 @@ namespace lockbook {
         }
 
         private async void SyncCalled(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
-            syncContainer.IsEnabled = false;
-            syncText.Text = "Syncing...";
-
-            var result = await App.CoreService.SyncAll();
-
-            switch (result) {
+            SyncWorking = true;
+            switch (await App.CoreService.SyncAll()) {
                 case Core.SyncAll.Success:
-                    await RefreshFiles();
+                    App.IsOnline = true;
+                    await ReloadFiles();
+                    await ReloadCalculatedWork();
                     break;
-                default:
-                    await new MessageDialog(result.ToString(), "Unhandled Error!").ShowAsync(); // TODO
+                case Core.SyncAll.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+                case Core.SyncAll.ExpectedError error:
+                    switch (error.Error) {
+                        case Core.SyncAll.PossibleErrors.CouldNotReachServer:
+                            App.IsOnline = false;
+                            break;
+                        case Core.SyncAll.PossibleErrors.ClientUpdateRequired:
+                            App.ClientUpdateRequired = true;
+                            App.Refresh();
+                            break;
+                        case Core.SyncAll.PossibleErrors.NoAccount:
+                            await App.ReloadDbStateAndAccount();
+                            break;
+                        case Core.SyncAll.PossibleErrors.ExecuteWorkError:
+                            await new MessageDialog(error.ToString(), "Unexpected Error!").ShowAsync();
+                            break;
+                    }
                     break;
             }
-            syncIcon.Glyph = checkGlyph;
-            syncText.Text = "Up to date!";
-            syncContainer.IsEnabled = true;
+            SyncWorking = false;
         }
 
         private async void RenameFile(object sender, RoutedEventArgs e) {
@@ -262,7 +300,10 @@ namespace lockbook {
 
             switch (result) {
                 case Core.RenameFile.Success:
-                    await RefreshFiles();
+                    await ReloadFiles();
+                    break;
+                case Core.RenameFile.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
                 case Core.RenameFile.ExpectedError error:
                     switch (error.Error) {
@@ -280,9 +321,6 @@ namespace lockbook {
                             break;
                     }
                     break;
-                case Core.RenameFile.UnexpectedError uhOh:
-                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
-                    break;
             }
         }
 
@@ -293,7 +331,10 @@ namespace lockbook {
 
             switch (result) {
                 case Core.DeleteFile.Success:
-                    await RefreshFiles();
+                    await ReloadFiles();
+                    break;
+                case Core.DeleteFile.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
                 case Core.DeleteFile.ExpectedError error:
                     switch (error.Error) {
@@ -305,28 +346,6 @@ namespace lockbook {
                             break;
                     }
                     break;
-                case Core.DeleteFile.UnexpectedError uhOh:
-                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
-                    break;
-            }
-        }
-
-        private async void Unimplemented(object sender, RoutedEventArgs e) {
-            await new MessageDialog("Parth has not implemented this yet!", "Sorry!").ShowAsync();
-        }
-
-        // Move things
-        // TODO supporting multiple file moves would simply require iterating through this list, 
-        // perhaps also it would require figuring out if a move is going to fail, maybe staging it
-        // as a transaction or something like that could be what we need to do this.
-        private void NavigationViewItem_DragStarting(UIElement sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsStartingEventArgs args) {
-            string id = (args.Items[0] as UIFile)?.Id;
-            System.Diagnostics.Debug.WriteLine("drag starting: " + args.Items[0]);
-
-            if (id != null) {
-                args.Data.SetData("id", id); // TODO we do not need to do this
-            } else {
-                System.Diagnostics.Debug.WriteLine("tag was null");
             }
         }
 
@@ -335,13 +354,25 @@ namespace lockbook {
         }
 
         private async void NavigationViewItem_Drop(object sender, Microsoft.UI.Xaml.Controls.TreeViewDragItemsCompletedEventArgs e) {
-            string toMove = (e.Items[0] as UIFile)?.Id;
-            string newParent = (e.NewParentItem as UIFile)?.Id;
+            var toMove = (e.Items[0] as UIFile)?.Id;
+            var newParent = (e.NewParentItem as UIFile)?.Id;
+            if (toMove == null || newParent == null) {
+                return;
+            }
+
+            App.UIFiles.TryGetValue(toMove, out var toMoveFile);
+            App.UIFiles.TryGetValue(newParent, out var newParentFile);
+            if (toMoveFile.IsRoot || toMove == newParent || newParentFile.IsDocument || newParentFile.Children.Contains(toMoveFile)) {
+                return;
+            }
 
             var result = await App.CoreService.MoveFile(toMove, newParent);
 
             switch (result) {
                 case Core.MoveFile.Success:
+                    break;
+                case Core.MoveFile.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
                 case Core.MoveFile.ExpectedError error:
                     switch (error.Error) {
@@ -368,27 +399,27 @@ namespace lockbook {
                             break;
                     }
                     break;
-                case Core.MoveFile.UnexpectedError uhOh:
-                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
-                    break;
             }
 
-            await RefreshFiles();
+            await ReloadFiles();
         }
 
         private async void DocumentSelected(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
             string tag = (string)((FrameworkElement)sender).Tag;
-            var file = uiFiles[tag];
+            var file = App.UIFiles[tag];
 
             if (file.IsDocument) {
-                currentDocumentId = tag;
-                var result = await App.CoreService.ReadDocument(currentDocumentId);
+                SelectedDocumentId = tag;
+                var result = await App.CoreService.ReadDocument(SelectedDocumentId);
 
                 switch (result) {
                     case Core.ReadDocument.Success content:
                         editor.TextDocument.SetText(TextSetOptions.None, content.content);
                         editor.TextDocument.ClearUndoRedoHistory();
                         keyStrokeCount[tag] = 0;
+                        break;
+                    case Core.ReadDocument.UnexpectedError uhOh:
+                        await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                         break;
                     case Core.ReadDocument.ExpectedError error:
                         switch (error.Error) {
@@ -403,23 +434,20 @@ namespace lockbook {
                                 break;
                         }
                         break;
-                    case Core.ReadDocument.UnexpectedError uhOh:
-                        await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
-                        break;
                 }
             }
         }
 
         private async void TextChanged(object sender, RoutedEventArgs e) {
-            if (currentDocumentId != "") {
-                string docID = currentDocumentId;
+            if (SelectedDocumentId != "" && editor.FocusState != FocusState.Unfocused) {
+                string docID = SelectedDocumentId;
                 string text;
                 editor.TextDocument.GetText(TextGetOptions.UseLf, out text);
 
-                // Only save the document if no keystrokes have happened in the last 1 second
+                // Only save the document if no keystrokes have happened in the last .5 seconds
                 keyStrokeCount[docID]++;
                 var current = keyStrokeCount[docID];
-                await Task.Delay(750);
+                await Task.Delay(500);
                 if (current != keyStrokeCount[docID]) {
                     return;
                 }
@@ -428,6 +456,10 @@ namespace lockbook {
 
                 switch (result) {
                     case Core.WriteDocument.Success:
+                        await ReloadCalculatedWork();
+                        break;
+                    case Core.WriteDocument.UnexpectedError uhOh:
+                        await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
                         break;
                     case Core.WriteDocument.ExpectedError error:
                         switch (error.Error) {
@@ -442,9 +474,6 @@ namespace lockbook {
                                 break;
                         }
                         break;
-                    case Core.WriteDocument.UnexpectedError uhOh:
-                        await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
-                        break;
                 }
             }
         }
@@ -452,6 +481,16 @@ namespace lockbook {
         private async void ListViewItem_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
             SignInContentDialog signInDialog = new SignInContentDialog();
             await signInDialog.ShowAsync();
+        }
+
+        DateTime prev;
+        private void Pasted(object sender, TextControlPasteEventArgs e) {
+            var now = DateTime.Now;
+            if (now - prev < TimeSpan.FromMilliseconds(10)) {
+                e.Handled = true;
+            } else {
+                prev = now;
+            }
         }
     }
 }
