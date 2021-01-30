@@ -15,9 +15,6 @@ struct OnboardingView: View {
                         Label("Import", systemImage: "rectangle.stack.person.crop")
                     }
                 }
-                
-                // For iPad and macOS
-                Text("You need an account!")
             }
         }
     }

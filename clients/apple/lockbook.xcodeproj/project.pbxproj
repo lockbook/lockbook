@@ -201,32 +201,16 @@
 		EADE1A5725352E5D00710996 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				EA831A542534E3C80048CE26 /* AppView.swift */,
-				EA831A592534E5020048CE26 /* SettingsView.swift */,
-				EAEDCD072516FB5A00EBE313 /* Onboarding */,
-				EAEDCD092516FBA200EBE313 /* Book */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		EAEDCD072516FB5A00EBE313 /* Onboarding */ = {
-			isa = PBXGroup;
-			children = (
-				EAB4B5062516924F0071D1CD /* OnboardingView.swift */,
-				EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */,
-				EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */,
-			);
-			path = Onboarding;
-			sourceTree = "<group>";
-		};
-		EAEDCD092516FBA200EBE313 /* Book */ = {
-			isa = PBXGroup;
-			children = (
 				EA380B1F2561FA2C0021C4FA /* AccountView.swift */,
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
 				EAEDCD112517193500EBE313 /* EditorView.swift */,
+				EAB4B5062516924F0071D1CD /* OnboardingView.swift */,
+				EAEDCD022516ACC900EBE313 /* CreateAccountView.swift */,
+				EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */,
+				EA831A542534E3C80048CE26 /* AppView.swift */,
+				EA831A592534E5020048CE26 /* SettingsView.swift */,
 			);
-			path = Book;
+			path = Views;
 			sourceTree = "<group>";
 		};
 		EAF96D0A252E8EB200AA1A14 /* Config */ = {
