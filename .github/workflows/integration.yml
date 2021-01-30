@@ -88,7 +88,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Prep-Core-Server-Db
-        if: always()
         run: make integration_tests
 
   Prep-Server-DB:
@@ -99,7 +98,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Prep-Server-DB
-        if: always()
         run: make server_tests
   
   Prep-Kotlin-Core:
@@ -110,7 +108,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Prep-Kotlin-Core
-        if: always()
         run: make kotlin_interface_tests
   
   Prep-Swift-Core:
@@ -121,7 +118,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Prep-Swift-Core
-        if: always()
         run: make swift_interface_tests
 
   Prep-CSharp-Core:
@@ -132,7 +128,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Prep-CSharp-Core
-        if: always()
         run: make csharp_interface_tests
 
   Run-Dev-Stack:
@@ -155,7 +150,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Core-Server-DB Integration Tests
-        if: always()
         run: make integration_tests_run
 
   Server-DB:
@@ -166,7 +160,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Server-DB
-        if: always()
         run: make server_tests_run
 
   Kotlin-Core:
@@ -177,7 +170,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Kotlin-Core
-        if: always()
         run: make kotlin_interface_tests_run
 
   Swift-Core:
@@ -188,7 +180,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Swift-Core
-        if: always()
         run: make swift_interface_tests_run
 
   CSharp-Core:
@@ -199,7 +190,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: CSharp-Core
-        if: always()
         run: make csharp_interface_tests_run
 
   Clean-Up:
