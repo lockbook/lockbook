@@ -5,13 +5,18 @@ struct CreateAccountView: View {
     @State var username: String = ""
     
     var body: some View {
-        VStack(spacing: 40) {
-            TextField("Username", text: self.$username)
-                .disableAutocorrection(true)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            Button(action: handleCreate, label: {
-                Label("Create", systemImage: "person.crop.circle.badge.plus")
+        VStack(spacing:40) {
+            HStack {
+                Text("Create a new account")
+                    .font(.title)
+                    .bold()
+                Spacer()
+            }
+            TextField("Choose a username", text: self.$username, onCommit: {
+                handleCreate()
             })
+            .disableAutocorrection(true)
+            .textFieldStyle(RoundedBorderTextFieldStyle())
         }
         .padding(.horizontal)
         .autocapitalization(.none)
@@ -35,9 +40,9 @@ struct CreateAccountView: View {
     }
 }
 
-struct CreateAccountView_Previews: PreviewProvider {
+struct WithoutNavigationView: PreviewProvider {
     static var previews: some View {
-        NavigationView {
+        VStack {
             CreateAccountView(core: GlobalState())
         }
     }

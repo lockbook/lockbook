@@ -7,35 +7,30 @@ struct ImportAccountView: View {
     @State var isScanning: Bool = false
     
     var body: some View {
-        let view = VStack(spacing: 40) {
-            #if os(iOS)
-            Button(action: {
-                self.isScanning = true
-            }) {
-                Label("Scan", systemImage: "qrcode.viewfinder")
+        VStack(spacing: 40) {
+            HStack {
+                Text("Import an existing account")
+                    .font(.title)
+                    .bold()
+                Spacer()
             }
-            #endif
-            TextField("Account String", text: self.$accountKey)
-                .disableAutocorrection(true)
-                .autocapitalization(.none)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            NotificationButton(
-                action: handleImport,
-                label: Label("Import", systemImage: "rectangle.stack.person.crop"),
-                successLabel: Label("Imported!", systemImage: "checkmark.square"),
-                failureLabel: Label("Failure", systemImage: "exclamationmark.square")
-            )
+            HStack {
+                SecureField("Account String", text: self.$accountKey, onCommit: { handleImport() })
+                    .disableAutocorrection(true)
+                    .autocapitalization(.none)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                Button(action: {
+                    self.isScanning = true
+                }) {
+                    Image(systemName: "qrcode.viewfinder")
+                }.frame(width: 40, height: 40)
+            }
         }
         .padding(.horizontal)
-
-        #if os(iOS)
-        return view
-            .sheet(isPresented: self.$isScanning, content: {
-                CodeScannerView(codeTypes: [.qr], simulatedData: "OOF", completion: handleScan)
-            })
-        #else
-        return view
-        #endif
+        .sheet(isPresented: self.$isScanning, content: {
+            CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)
+        })
+        
     }
     
     func handleImport() -> Result<Void, Error> {
@@ -54,7 +49,6 @@ struct ImportAccountView: View {
         }
     }
     
-    #if os(iOS)
     func handleScan(result: Result<String, CodeScannerView.ScanError>) {
         self.isScanning = false
         switch result {
@@ -64,12 +58,11 @@ struct ImportAccountView: View {
             print(err) // TODO: Convert this to an ApplicationError
         }
     }
-    #endif
 }
 
 struct ImportView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationView {
+        HStack {
             ImportAccountView(core: GlobalState())
         }
     }

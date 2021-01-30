@@ -6,7 +6,7 @@ struct LockbookApp: App {
     @StateObject var core = GlobalState(documenstDirectory: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location)
     
     var body: some Scene {
-        WindowGroup {
+        let windowGroup = WindowGroup {
             AppView(core: core)
                 .buttonStyle(PlainButtonStyle())
                 .ignoresSafeArea()
@@ -19,9 +19,13 @@ struct LockbookApp: App {
         }
         
         #if os(macOS)
+        windowGroup
+            .windowStyle(HiddenTitleBarWindowStyle())
         Settings {
             SettingsView(core: core)
         }
+        #else
+        windowGroup
         #endif
     }
 }

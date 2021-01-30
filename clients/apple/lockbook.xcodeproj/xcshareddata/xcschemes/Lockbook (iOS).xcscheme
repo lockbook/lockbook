@@ -31,7 +31,7 @@
       </Testables>
    </TestAction>
    <LaunchAction
-      buildConfiguration = "Development"
+      buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"
@@ -54,11 +54,6 @@
          <EnvironmentVariable
             key = "LOCKBOOK_NO_COLOR"
             value = "1"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "API_URL"
-            value = "http://qa.lockbook.app:8000"
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
