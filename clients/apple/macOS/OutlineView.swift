@@ -6,7 +6,7 @@ import Combine
 import SwiftLockbookCore
 
 struct OutlineBranch: View {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     
     var file: FileMetadata
     @Binding var selectedItem: FileMetadata?
@@ -110,7 +110,7 @@ struct OutlineBranch: View {
 
 struct OutlineSection: View {
     
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     
     var root: FileMetadata
     @Binding var selectedItem: FileMetadata?

@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct ImportAccountView: View {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     @State var accountKey: String = ""
     @State var isScanning: Bool = false
     
@@ -70,7 +70,7 @@ struct ImportAccountView: View {
 struct ImportView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            ImportAccountView(core: Core())
+            ImportAccountView(core: GlobalState())
         }
     }
 }

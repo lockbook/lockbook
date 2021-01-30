@@ -3,19 +3,19 @@ import SwiftLockbookCore
 import SwiftUI
 import Combine
 
-class Core: ObservableObject {
+class GlobalState: ObservableObject {
     let documenstDirectory: String
     let api: LockbookApi
-    @Published var state: DbState
-    @Published var account: Account?
-    @Published var globalError: AnyFfiError?
-    @Published var files: [FileMetadata] = []
-    @Published var root: FileMetadata?
-    @Published var syncing: Bool = false {
+    @Published var state: DbState               // Handles post update logic
+    @Published var account: Account?            // Determines whether to show onboarding or the main view
+    @Published var globalError: AnyFfiError?    // Shows modals for unhandled errors
+    @Published var files: [FileMetadata] = []   // What the file tree displays
+    @Published var root: FileMetadata?          // What the file tree displays
+    @Published var syncing: Bool = false {      // Setting this to true kicks off a sync
         didSet {
             if oldValue == false && syncing == true {
                 serialQueue.async {
-                    self.passthrough.send(self.api.synchronize())
+                    self.syncChannel.send(self.api.syncAll())
                 }
             }
         }
@@ -23,9 +23,9 @@ class Core: ObservableObject {
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
     
-    private var passthrough = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
+    private var syncChannel = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
-
+    
     func load() {
         switch api.getAccount() {
         case .success(let acc):
@@ -34,7 +34,7 @@ class Core: ObservableObject {
             handleError(err)
         }
     }
-
+    
     func migrate() {
         let res = api.migrateState()
             .eraseError()
@@ -53,7 +53,7 @@ class Core: ObservableObject {
             handleError(err)
         }
     }
-
+    
     func purge() {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
@@ -100,8 +100,8 @@ class Core: ObservableObject {
         self.state = (try? self.api.getState().get())!
         self.account = (try? self.api.getAccount().get())
         updateFiles()
-
-        passthrough
+        
+        syncChannel
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
             .removeDuplicates(by: {
                 switch ($0, $1) {

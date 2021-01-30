@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CreateAccountView: View {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     @State var username: String = ""
     
     var body: some View {
@@ -38,7 +38,7 @@ struct CreateAccountView: View {
 struct CreateAccountView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            CreateAccountView(core: Core())
+            CreateAccountView(core: GlobalState())
         }
     }
 }

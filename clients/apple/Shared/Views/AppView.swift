@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct AppView: View {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     var body: some View {
         let view = VStack {
             switch core.state {

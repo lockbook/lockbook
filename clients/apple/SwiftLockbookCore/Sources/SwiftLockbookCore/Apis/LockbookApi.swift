@@ -9,7 +9,7 @@ public protocol LockbookApi {
     func getUsage() -> FfiResult<[FileUsage], GetUsageError>
     
     // Work
-    func synchronize() -> FfiResult<Empty, SyncAllError>
+    func syncAll() -> FfiResult<Empty, SyncAllError>
     func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError>
     func executeWork(work: WorkUnit) -> FfiResult<Empty, ExecuteWorkError>
     func setLastSynced(lastSync: UInt64) -> FfiResult<Empty, SetLastSyncedError>
