@@ -236,7 +236,7 @@ class FileModel(path: String) {
         Worker(appContext, workerParams) {
         override fun doWork(): Result {
             val syncAllResult =
-                CoreModel.syncAllFiles(Config(applicationContext.filesDir.absolutePath))
+                CoreModel.syncAll(Config(applicationContext.filesDir.absolutePath))
             return if (syncAllResult is Err) {
                 when (val error = syncAllResult.error) {
                     is SyncAllError.NoAccount -> {

@@ -1,6 +1,6 @@
 package app.lockbook
 
-import app.lockbook.core.calculateSyncWork
+import app.lockbook.core.calculateWork
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
@@ -31,14 +31,14 @@ class CalculateWorkTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
         assertType<WorkCalculated>(
-            CoreModel.calculateFileSyncWork(config).component1()
+            CoreModel.calculateWork(config).component1()
         )
     }
 
     @Test
     fun calculateWorkUnexpectedError() {
         val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
-            Klaxon().converter(calculateSyncWorkConverter).parse(calculateSyncWork(""))
+            Klaxon().converter(calculateWorkConverter).parse(calculateWork(""))
 
         assertType<CalculateWorkError.Unexpected>(
             calculateSyncWorkResult?.component2()
