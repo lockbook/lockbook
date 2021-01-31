@@ -1,6 +1,6 @@
 package app.lockbook
 
-import app.lockbook.core.executeSyncWork
+import app.lockbook.core.executeWork
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
@@ -62,12 +62,12 @@ class ExecuteWorkTest {
         )
         repeat(10) {
             val syncWork = assertTypeReturn<WorkCalculated>(
-                CoreModel.calculateFileSyncWork(config).component1()
+                CoreModel.calculateWork(config).component1()
             )
 
             for (workUnit in syncWork.workUnits) {
                 assertType<Unit>(
-                    CoreModel.executeFileSyncWork(
+                    CoreModel.executeWork(
                         config,
                         assertTypeReturn(
                             CoreModel.getAccount(config).component1()
@@ -116,7 +116,7 @@ class ExecuteWorkTest {
         )
 
         assertType<Unit>(
-            CoreModel.syncAllFiles(config).component1()
+            CoreModel.syncAll(config).component1()
         )
 
         val exportAccountString = assertTypeReturn<String>(
@@ -131,12 +131,12 @@ class ExecuteWorkTest {
 
         repeat(10) {
             val syncWork = assertTypeReturn<WorkCalculated>(
-                CoreModel.calculateFileSyncWork(config).component1()
+                CoreModel.calculateWork(config).component1()
             )
 
             for (workUnit in syncWork.workUnits) {
                 assertType<Unit>(
-                    CoreModel.executeFileSyncWork(
+                    CoreModel.executeWork(
                         config,
                         assertTypeReturn(
                             CoreModel.getAccount(config).component1()
@@ -151,7 +151,7 @@ class ExecuteWorkTest {
     @Test
     fun executeWorkUnexpectedError() {
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
-            Klaxon().converter(executeSyncWorkConverter).parse(executeSyncWork("", "", ""))
+            Klaxon().converter(executeWorkConverter).parse(executeWork("", "", ""))
 
         assertType<ExecuteWorkError.Unexpected>(
             executeSyncWorkResult?.component2()

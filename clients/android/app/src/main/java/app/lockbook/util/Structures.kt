@@ -107,7 +107,8 @@ data class EditableFile(
 
 data class SyncingStatus(
     var isSyncing: Boolean = false,
-    var maxProgress: Int = 0
+    var maxProgress: Int = 0,
+    var currentProgress: Int = 0
 )
 
 data class MoveFileInfo(

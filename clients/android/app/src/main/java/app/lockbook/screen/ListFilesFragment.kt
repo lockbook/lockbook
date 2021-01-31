@@ -219,7 +219,7 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             {
                 if (container != null) {
-                    showSuccessfulDeletionSnackbar(container)
+                    showSuccessfulDeletionSnackBar(container)
                 }
             }
         )
@@ -340,6 +340,7 @@ class ListFilesFragment : Fragment() {
 
     private fun showSyncSnackBar(maxProgress: Int) {
         snackProgressBarManager.dismiss()
+        snackProgressBarManager.setProgress(0)
         syncSnackProgressBar.setProgressMax(maxProgress)
         syncSnackProgressBar.setMessage(
             resources.getString(
@@ -412,7 +413,7 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-    private fun showSuccessfulDeletionSnackbar(view: ViewGroup) {
+    private fun showSuccessfulDeletionSnackBar(view: ViewGroup) {
         Snackbar.make(view, "Successfully deleted the file(s)", Snackbar.LENGTH_SHORT).show()
     }
 

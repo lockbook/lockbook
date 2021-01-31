@@ -62,14 +62,14 @@ class SyncAllTest {
         )
 
         assertType<Unit>(
-            CoreModel.syncAllFiles(config).component1()
+            CoreModel.syncAll(config).component1()
         )
     }
 
     @Test
     fun syncAllNoAccount() {
         assertType<SyncAllError.NoAccount>(
-            CoreModel.syncAllFiles(config).component2()
+            CoreModel.syncAll(config).component2()
         )
     }
 

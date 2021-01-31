@@ -832,7 +832,7 @@ val syncAllConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-val calculateSyncWorkConverter = object : Converter {
+val calculateWorkConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
@@ -876,7 +876,7 @@ val calculateSyncWorkConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-val executeSyncWorkConverter = object : Converter {
+val executeWorkConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
