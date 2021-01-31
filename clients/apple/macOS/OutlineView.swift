@@ -11,7 +11,7 @@ struct OutlineBranch: View {
     var file: FileMetadata
     @Binding var selectedItem: FileMetadata?
     var level: CGFloat
-    @State var open: Bool = true
+    @State var open: Bool = false
     @State var creating: FileType?
     
     var children: [FileMetadata] {
@@ -76,7 +76,7 @@ struct OutlineBranch: View {
             }
         })
     }
-
+    
     func handleDelete(meta: FileMetadata) -> () -> Void {
         return {
             switch core.api.deleteFile(id: meta.id) {
@@ -87,7 +87,7 @@ struct OutlineBranch: View {
             }
         }
     }
-
+    
     func handleCreate(meta: FileMetadata, type: FileType) -> (String) -> Void {
         return { creatingName in
             switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
@@ -99,7 +99,7 @@ struct OutlineBranch: View {
             }
         }
     }
-
+    
     func doneCreating() {
         withAnimation {
             creating = .none
@@ -114,7 +114,7 @@ struct OutlineSection: View {
     
     var root: FileMetadata
     @Binding var selectedItem: FileMetadata?
-
+    
     var children: [FileMetadata] {
         core.files.filter {
             $0.parent == root.id && $0.id != root.id
@@ -126,15 +126,17 @@ struct OutlineSection: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            // The padding in the section header is there to adjust for the inset hack.
-            OutlineBranch(core: core, file: root, selectedItem: self.$selectedItem, level: -1)
-            Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                // The padding in the section header is there to adjust for the inset hack.
+                OutlineBranch(core: core, file: root, selectedItem: self.$selectedItem, level: -1)
+                Spacer()
+            }
+            .listStyle(SidebarListStyle())
+            .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
+            .padding(8)
+            // A hack for list row insets not working. This hack also applies to the section header though.
         }
-        .listStyle(SidebarListStyle())
-        .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
-        .padding(8)
-        // A hack for list row insets not working. This hack also applies to the section header though.
     }
 }
 
