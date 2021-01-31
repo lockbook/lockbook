@@ -8,8 +8,8 @@ mod get_usage_tests {
     use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::storage::db_provider::Backend;
     use lockbook_core::{
-        create_account, create_file, delete_file, get_root, get_usage, init_logger, sync_all,
-        write_document, DefaultBackend, DefaultDocumentRepo,
+        create_account, create_file, delete_file, get_root, get_usage, get_usage_human_string,
+        init_logger, sync_all, write_document, DefaultBackend, DefaultDocumentRepo,
     };
     use std::path::Path;
 
