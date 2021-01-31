@@ -949,7 +949,7 @@ pub type DefaultBackend = FileBackend;
 pub type DefaultCodeVersion = CodeVersionImpl;
 pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl<DefaultBackend>;
-pub type DefaultUsageService = UsageServiceImpl<DefaultBackend, DefaultAccountRepo>;
+pub type DefaultUsageService = UsageServiceImpl<DefaultBackend, DefaultAccountRepo, DefaultClient>;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl<DefaultBackend>;
 pub type DefaultDbStateService = DbStateServiceImpl<
     DefaultAccountRepo,
