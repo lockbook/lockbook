@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 struct ImportAccountView: View {
     @ObservedObject var core: GlobalState
-    @State var accountKey: String = ""
+    @ObservedObject var onboardingState: OnboardingState
     
     var body: some View {
         VStack(spacing: 40) {
@@ -14,30 +14,20 @@ struct ImportAccountView: View {
                 Spacer()
             }
             HStack {
-                SecureField("Account String", text: self.$accountKey)
+                SecureField("Account String", text: $onboardingState.accountString)
                     .disableAutocorrection(true)
                     .autocapitalization(.none)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                Button("Import", action: { handleImport() }).buttonStyle(BorderedButtonStyle())
+                Button("Import", action: onboardingState.handleImport)
+                    .buttonStyle(BorderedButtonStyle())
+                    .disabled(onboardingState.working)
             }
+            
+            Text(onboardingState.importAccountError)
+                .foregroundColor(.red)
+                .bold()
         }
         .padding(.horizontal)
         
-    }
-    
-    func handleImport() -> Result<Void, Error> {
-        let res = self.core.api.importAccount(accountString: self.accountKey)
-            .eraseError()
-            .flatMap(transform: { _ in self.core.api.getAccount().eraseError() })
-        switch res {
-        case .success(let acc):
-            self.core.account = acc
-            self.core.syncing = true
-            return .success(())
-        case .failure(let err):
-            hideKeyboard()
-            self.core.handleError(err)
-            return .failure(err)
-        }
     }
 }

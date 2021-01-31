@@ -26,6 +26,8 @@
 		87C118EA25C5E20200D28A04 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C118E925C5E20200D28A04 /* ImportAccountView.swift */; };
 		87E198DA25C5E139003E7420 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */; };
 		87E198DB25C5E139003E7420 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B5062516924F0071D1CD /* OnboardingView.swift */; };
+		B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
+		B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
 		EA14E8192516643400B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E8182516643400B9158C /* SwiftLockbookCore */; };
 		EA14E81F2516655B00B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
 		EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
@@ -75,6 +77,7 @@
 		87C118E125C5E1BA00D28A04 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		87C118E525C5E1E700D28A04 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
 		87C118E925C5E20200D28A04 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
+		B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingState.swift; sourceTree = "<group>"; };
 		EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageIndicator.swift; sourceTree = "<group>"; };
 		EA349F0125BC7C110016241E /* OutlineRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineRow.swift; sourceTree = "<group>"; };
 		EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityIndicator.swift; sourceTree = "<group>"; };
@@ -129,6 +132,7 @@
 			isa = PBXGroup;
 			children = (
 				EAB4B4FF25167AF50071D1CD /* GlobalState.swift */,
+				B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */,
 			);
 			path = "Stateful Logic";
 			sourceTree = "<group>";
@@ -360,6 +364,7 @@
 				87E198DA25C5E139003E7420 /* ImportAccountView.swift in Sources */,
 				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
 				EA831A5A2534E5020048CE26 /* SettingsView.swift in Sources */,
+				B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				EA9079C32569960A00E04F5D /* FileCell.swift in Sources */,
 				8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
@@ -382,6 +387,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				87206EBD25C61DF300870A42 /* CreateAccountView.swift in Sources */,
+				B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				EAB4B50125167AF50071D1CD /* GlobalState.swift in Sources */,
 				EA831A562534E3C80048CE26 /* AppView.swift in Sources */,
 				EA380B212561FA2C0021C4FA /* AccountView.swift in Sources */,

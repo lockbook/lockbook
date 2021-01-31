@@ -9,7 +9,7 @@ struct AppView: View {
             case .ReadyToUse, .Empty:
                 switch core.account {
                 case .none:
-                    AnyView(OnboardingView(core: core))
+                    AnyView(OnboardingView(core: core, onboardingState: OnboardingState(core: core)))
                 case .some(let account):
                     switch core.root {
                     case .some(let root):
@@ -61,10 +61,10 @@ struct AppView: View {
                 )
             }
         }
-
+        
         return view
     }
-
+    
     let updateAlert: Alert = Alert(
         title: Text("Update Required!"),
         message: Text("It seems like you're using an out-date client. Please update to perform sync operations."),
