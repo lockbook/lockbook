@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CreateAccountView: View {
     @ObservedObject var core: GlobalState
-    @State var username: String = ""
+    @ObservedObject var onboardingState: OnboardingState
     
     var body: some View {
         VStack(spacing:40) {
@@ -12,38 +12,38 @@ struct CreateAccountView: View {
                     .bold()
                 Spacer()
             }
-            TextField("Choose a username", text: self.$username, onCommit: {
-                handleCreate()
-            })
+            TextField("Choose a username", text: self.$onboardingState.username, onCommit: self.onboardingState.attemptCreate)
             .disableAutocorrection(true)
             .textFieldStyle(RoundedBorderTextFieldStyle())
+            
+            Text(onboardingState.createAccountError)
+                .foregroundColor(.red)
+                .bold()
         }
         .padding(.horizontal)
         .autocapitalization(.none)
     }
+}
+
+struct WithoutNavigationView: PreviewProvider {
     
-    func handleCreate() {
-        let res = self.core.api
-            .createAccount(username: self.username, apiLocation: ConfigHelper.get(.apiLocation))
-            .eraseError()
-            .flatMap { _ in
-                self.core.api.getAccount().eraseError()
-            }
-        
-        switch res {
-        case .success(let acc):
-            self.core.account = acc
-        case .failure(let err):
-            hideKeyboard()
-            self.core.handleError(err)
+    static var onboardingState = OnboardingState(core: GlobalState())
+    static var previews: some View {
+        VStack {
+            CreateAccountView(core: GlobalState(), onboardingState: OnboardingState(core: GlobalState()))
         }
     }
 }
 
-struct WithoutNavigationView: PreviewProvider {
+struct WithoutNavigationViewWithError: PreviewProvider {
+    
+    static var onboardingState = OnboardingState(core: GlobalState())
     static var previews: some View {
         VStack {
-            CreateAccountView(core: GlobalState())
+            CreateAccountView(core: GlobalState(), onboardingState: onboardingState)
+                .onAppear {
+                    onboardingState.createAccountError = "An error occurred"
+                }
         }
     }
 }

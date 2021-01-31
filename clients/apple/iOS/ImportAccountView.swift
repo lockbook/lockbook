@@ -3,7 +3,8 @@ import SwiftLockbookCore
 
 struct ImportAccountView: View {
     @ObservedObject var core: GlobalState
-    @State var accountKey: String = ""
+    @ObservedObject var onboardingState: OnboardingState
+    
     @State var isScanning: Bool = false
     
     var body: some View {
@@ -15,16 +16,23 @@ struct ImportAccountView: View {
                 Spacer()
             }
             HStack {
-                SecureField("Account String", text: self.$accountKey, onCommit: { handleImport() })
+                SecureField("Account String", text: self.$onboardingState.accountString, onCommit: self.onboardingState.handleImport)
                     .disableAutocorrection(true)
                     .autocapitalization(.none)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .disabled(self.onboardingState.working)
                 Button(action: {
                     self.isScanning = true
                 }) {
                     Image(systemName: "qrcode.viewfinder")
-                }.frame(width: 40, height: 40)
+                }
+                .frame(width: 40, height: 40)
+                .disabled(self.onboardingState.working)
             }
+            
+            Text(onboardingState.importAccountError)
+                .foregroundColor(.red)
+                .bold()
         }
         .padding(.horizontal)
         .sheet(isPresented: self.$isScanning, content: {
@@ -33,27 +41,11 @@ struct ImportAccountView: View {
         
     }
     
-    func handleImport() -> Result<Void, Error> {
-        let res = self.core.api.importAccount(accountString: self.accountKey)
-            .eraseError()
-            .flatMap(transform: { _ in self.core.api.getAccount().eraseError() })
-        switch res {
-        case .success(let acc):
-            self.core.account = acc
-            self.core.syncing = true
-            return .success(())
-        case .failure(let err):
-            hideKeyboard()
-            self.core.handleError(err)
-            return .failure(err)
-        }
-    }
-    
     func handleScan(result: Result<String, CodeScannerView.ScanError>) {
         self.isScanning = false
         switch result {
         case .success(let key):
-            self.accountKey = key
+            self.onboardingState.accountString = key
         case .failure(let err):
             print(err) // TODO: Convert this to an ApplicationError
         }
@@ -63,7 +55,19 @@ struct ImportAccountView: View {
 struct ImportView_Previews: PreviewProvider {
     static var previews: some View {
         HStack {
-            ImportAccountView(core: GlobalState())
+            ImportAccountView(core: GlobalState(), onboardingState: OnboardingState(core: GlobalState()))
+        }
+    }
+}
+
+struct ImportViewWithError_Previews: PreviewProvider {
+    static var onboardingState = OnboardingState(core: GlobalState())
+    static var previews: some View {
+        HStack {
+            ImportAccountView(core: GlobalState(), onboardingState:onboardingState)
+                .onAppear {
+                    onboardingState.importAccountError = "Import error text!"
+                }
         }
     }
 }
