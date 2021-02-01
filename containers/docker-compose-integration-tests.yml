@@ -60,7 +60,7 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        LOCKBOOK_DEBUG=1 cargo test --color=always --no-fail-fast --release --package lockbook_core --test create_file_tests --test db_state_service_tests --test sync_service_tests --test request_common_tests --test change_document_content_tests --test get_updates_test --test get_public_key_tests --test move_file_tests --test storage_backend_tests --test get_document_tests --test rename_file_tests --test new_account_tests --test account_service_tests --test get_usage_tests --test delete_file_tests -- --nocapture \
+        LOCKBOOK_DEBUG=1 cargo test --no-fail-fast --release --package lockbook_core --test create_file_tests --test db_state_service_tests --test sync_service_tests --test request_common_tests --test change_document_content_tests --test get_updates_test --test get_public_key_tests --test move_file_tests --test storage_backend_tests --test get_document_tests --test rename_file_tests --test new_account_tests --test account_service_tests --test get_usage_tests --test delete_file_tests -- --nocapture \
       '
 
   server_tests:
