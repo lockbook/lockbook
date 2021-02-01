@@ -13,7 +13,6 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
-import timber.log.Timber
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -249,7 +248,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
                     event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER
                 ) {
-                    Timber.e("STEP 1: ${event.getToolType(0)}")
                     handleStylusEvent(event)
                 }
                 if (event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
