@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     var body: some View {
         switch core.account {
         case .none:
