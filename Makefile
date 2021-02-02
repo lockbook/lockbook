@@ -1,5 +1,5 @@
 .PHONY: all
-all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cli_lint cli_test core_server_tests_run linux_test swift_interface_tests_run kotlin_interface_tests_run android
+all: core_fmt core_lint server_fmt server_lint server_tests cli_fmt cli_lint cli_test core_server_tests_run linux_test swift_interface_tests_run kotlin_interface_tests_run android
 	echo "Done!"
 
 .PHONY: clean
@@ -28,10 +28,6 @@ core_fmt: core
 .PHONY: core_lint
 core_lint: core
 	docker build --target core-lint -f containers/Dockerfile.core . --tag core_lint:$(hash) --build-arg HASH=$(hash)
-
-.PHONY: core_test
-core_test: core
-	docker build --target core-test -f containers/Dockerfile.core . --tag core_test:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: server
 server: is_docker_running
