@@ -48,7 +48,7 @@ namespace Core {
         public RSAPrivateKey key;
     }
 
-public class RSAPrivateKey {
+    public class RSAPrivateKey {
         public List<long> n;
         public List<long> e;
         public List<long> d;
@@ -88,7 +88,9 @@ public class RSAPrivateKey {
         public class Success : IResult {
             public DbState dbState;
         }
-        public enum PossibleErrors { }
+        public enum PossibleErrors {
+            Stub,
+        }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
@@ -219,7 +221,9 @@ public class RSAPrivateKey {
         public class Success : IResult {
             public List<FileMetadata> children;
         }
-        public enum PossibleErrors { }
+        public enum PossibleErrors {
+            Stub,
+        }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
@@ -267,7 +271,9 @@ public class RSAPrivateKey {
         public class Success : IResult {
             public List<string> paths;
         }
-        public enum PossibleErrors { }
+        public enum PossibleErrors {
+            Stub,
+        }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
@@ -277,7 +283,9 @@ public class RSAPrivateKey {
         public class Success : IResult {
             public List<FileMetadata> files;
         }
-        public enum PossibleErrors { }
+        public enum PossibleErrors {
+            Stub,
+        }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
@@ -290,7 +298,7 @@ public class RSAPrivateKey {
             NewNameContainsSlash,
             FileNameNotAvailable,
             NewNameEmpty,
-            CannotRenameRoot
+            CannotRenameRoot,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
@@ -345,6 +353,7 @@ public class RSAPrivateKey {
         public enum PossibleErrors {
             CouldNotReachServer,
             ClientUpdateRequired,
+            BadAccount,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
@@ -353,7 +362,9 @@ public class RSAPrivateKey {
     namespace SetLastSynced {
         public interface IResult { }
         public class Success : IResult { }
-        public enum PossibleErrors { }
+        public enum PossibleErrors {
+            Stub,
+        }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
@@ -363,7 +374,9 @@ public class RSAPrivateKey {
         public class Success : IResult {
             public ulong timestamp;
         }
-        public enum PossibleErrors { }
+        public enum PossibleErrors {
+            Stub,
+        }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
@@ -373,7 +386,9 @@ public class RSAPrivateKey {
         public class Success : IResult {
             public string timestamp;
         }
-        public enum PossibleErrors { }
+        public enum PossibleErrors {
+            Stub,
+        }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }

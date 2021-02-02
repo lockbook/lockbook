@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -767,6 +768,52 @@ namespace test {
             var deleteFileResult = CoreService.DeleteFile(root.Id).WaitResult();
             Assert.AreEqual(Core.DeleteFile.PossibleErrors.CannotDeleteRoot,
                 CastOrDie(deleteFileResult, out Core.DeleteFile.ExpectedError _).Error);
+        }
+
+        [TestMethod]
+        public void GetVariants() {
+            var typeMap = new Dictionary<string, Type> {
+                {"AccountExportError", typeof(Core.ExportAccount.PossibleErrors)},
+                {"CalculateWorkError", typeof(Core.CalculateWork.PossibleErrors)},
+                {"CreateAccountError", typeof(Core.CreateAccount.PossibleErrors)},
+                {"CreateFileAtPathError", typeof(Core.CreateFileAtPath.PossibleErrors)},
+                {"CreateFileError", typeof(Core.CreateFile.PossibleErrors)},
+                {"ExecuteWorkError", typeof(Core.ExecuteWork.PossibleErrors)},
+                {"FileDeleteError", typeof(Core.DeleteFile.PossibleErrors)},
+                {"GetAccountError", typeof(Core.GetAccount.PossibleErrors)},
+                {"GetChildrenError", typeof(Core.GetChildren.PossibleErrors)},
+                // {"GetFileByIdError", typeof(Core.???.PossibleErrors)},
+                {"GetFileByPathError", typeof(Core.GetFileByPath.PossibleErrors)},
+                {"GetLastSyncedError", typeof(Core.GetLastSynced.PossibleErrors)},
+                {"GetRootError", typeof(Core.GetRoot.PossibleErrors)},
+                {"GetStateError", typeof(Core.GetDbState.PossibleErrors)},
+                {"GetUsageError", typeof(Core.GetUsage.PossibleErrors)},
+                {"ImportError", typeof(Core.ImportAccount.PossibleErrors)},
+                // {"InsertFileError", typeof(Core.???.PossibleErrors)},
+                {"ListMetadatasError", typeof(Core.ListMetadatas.PossibleErrors)},
+                {"ListPathsError", typeof(Core.ListPaths.PossibleErrors)},
+                {"MigrationError", typeof(Core.MigrateDb.PossibleErrors)},
+                {"MoveFileError", typeof(Core.MoveFile.PossibleErrors)},
+                {"ReadDocumentError", typeof(Core.ReadDocument.PossibleErrors)},
+                {"RenameFileError", typeof(Core.RenameFile.PossibleErrors)},
+                {"SetLastSyncedError", typeof(Core.SetLastSynced.PossibleErrors)},
+                {"SyncAllError", typeof(Core.SyncAll.PossibleErrors)},
+                {"WriteToDocumentError", typeof(Core.WriteDocument.PossibleErrors)},
+            };
+
+            var variants = CoreService.GetVariants().WaitResult();
+
+            foreach(var kvp in variants) {
+                if(kvp.Key == "GetFileByIdError" || kvp.Key == "InsertFileError") {
+                    continue; // these endpoints, and therefore these errors, are not used by this client
+                }
+                var enumType = typeMap[kvp.Key];
+                foreach(var variant in kvp.Value) {
+                    if (!Enum.TryParse(enumType, variant, out var _)) {
+                        Assert.Fail("Enum variant from core not present in c#. enum=" + kvp.Key + " variant=" + variant);
+                    }
+                }
+            }
         }
     }
 }
