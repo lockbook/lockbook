@@ -1,6 +1,8 @@
 use crate::utils::{exit_with, get_account_or_exit, get_config};
 use crate::{FILE_NOT_FOUND, UNEXPECTED_ERROR};
 use lockbook_core::{get_file_by_path, read_document, Error as CoreError, GetFileByPathError};
+use std::io;
+use std::io::Write;
 
 pub fn print(file_name: &str) {
     get_account_or_exit();
@@ -19,4 +21,8 @@ pub fn print(file_name: &str) {
         Ok(content) => print!("{}", String::from_utf8_lossy(&content)),
         Err(error) => panic!("Unexpected error: {:?}", error),
     };
+
+    io::stdout()
+        .flush()
+        .unwrap_or_else(|err| eprintln!("Failed to flush stdin, err: {:#?}", err));
 }
