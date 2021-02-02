@@ -87,7 +87,7 @@ linux_test: linux
 
 .PHONY: core_server_tests
 core_server_tests: is_docker_running
-	docker build --target integration-tests -f containers/Dockerfile.core . --tag core_server_tests:$(hash) --build-arg HASH=$(hash)
+	docker build --target core-server-tests -f containers/Dockerfile.core . --tag core_server_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: core_server_tests_run
 core_server_tests_run: core_server_tests server db_container

@@ -50,7 +50,7 @@ services:
         RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
       '
 
-  core_server_tests_tests:
+  core_server_tests:
     container_name: core_server_tests-integration-$HASH
     image: core_server_tests:$HASH
     env_file:
