@@ -24,7 +24,7 @@ public struct FakeApi: LockbookApi {
         .success([FileUsage(fileId: .init(), byteSecs: UInt64(100), secs: UInt64(1))])
     }
     
-    public func synchronize() -> FfiResult<Empty, SyncAllError> {
+    public func syncAll() -> FfiResult<Empty, SyncAllError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
