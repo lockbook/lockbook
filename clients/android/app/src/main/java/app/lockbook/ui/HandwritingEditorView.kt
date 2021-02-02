@@ -13,6 +13,7 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
+import kotlin.math.absoluteValue
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -34,6 +35,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val bitmapPaint = Paint()
     private val backgroundPaint = Paint()
     private val lastPoint = PointF()
+    private var lastPressure = Float.NaN
     private val strokePath = Path()
 
     // Scaling and Viewport state
@@ -112,6 +114,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     init {
         setUpPaint()
     }
+
     private fun setUpPaint() {
         strokePaint.isAntiAlias = true
         strokePaint.style = Paint.Style.STROKE
@@ -275,7 +278,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             }
 
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> moveTo(modelPoint)
+                MotionEvent.ACTION_DOWN -> moveTo(modelPoint, pressure)
                 MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
             }
         }
@@ -283,30 +286,77 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun compressPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
 
-    private fun moveTo(point: PointF) {
+    private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point.x, point.y)
+        lastPressure = pressure
         val penPath = Stroke(strokePaint.color)
         penPath.points.add(point.x)
         penPath.points.add(point.y)
         drawingModel.events.add(Event(penPath))
     }
 
+    private fun plotInterpolatedPointsAndSelf(initialPoint: PointF, endPoint: PointF, initialPressure: Float, endPressure: Float) { // maintain a point for every 10 pixels
+        val dist = distanceBetweenPoints(initialPoint, endPoint)
+        val amountOfInterpolatedPoints = (dist / 10).toInt()
+
+        if (amountOfInterpolatedPoints <= 1) {
+            strokePaint.strokeWidth = endPressure
+            strokePath.moveTo(
+                    lastPoint.x,
+                    lastPoint.y
+            )
+
+            strokePath.lineTo(
+                    endPoint.x,
+                    endPoint.y
+            )
+
+            return lastPoint.set(endPoint)
+        }
+
+        val distanceBetweenEachX = (initialPoint.x - endPoint.x).absoluteValue / amountOfInterpolatedPoints
+        val smallerLargerX = if (initialPoint.x > endPoint.x) {
+            Pair(endPoint.x, initialPoint.x)
+        } else {
+            Pair(initialPoint.x, endPoint.x)
+        }
+
+        val amountBetweenEachPressure = (initialPressure - endPressure).absoluteValue / amountOfInterpolatedPoints
+        val smallerLargerPressure = if (initialPressure > endPressure) {
+            Pair(endPressure, initialPressure)
+        } else {
+            Pair(initialPressure, endPressure)
+        }
+
+        var interpolatedX = smallerLargerX.first
+        var interpolatedPressure = smallerLargerPressure.first
+
+        while (interpolatedX <= smallerLargerX.second) {
+            interpolatedX += distanceBetweenEachX
+            interpolatedPressure += amountBetweenEachPressure
+            val interpolatedPoint = PointF(interpolatedX, initialPoint.y * (endPoint.y / initialPoint.y).pow((interpolatedX - initialPoint.x) / (endPoint.x - initialPoint.x)))
+
+            strokePaint.strokeWidth = interpolatedPressure
+
+            strokePath.moveTo(
+                    lastPoint.x,
+                    lastPoint.y
+            )
+
+            strokePath.lineTo(
+                    interpolatedPoint.x,
+                    interpolatedPoint.y
+            )
+
+            lastPoint.set(interpolatedPoint)
+            tempCanvas.drawPath(strokePath, strokePaint)
+            strokePath.reset()
+        }
+    }
+
     private fun lineTo(point: PointF, pressure: Float) {
-        strokePaint.strokeWidth = pressure
-        strokePath.moveTo(
-            lastPoint.x,
-            lastPoint.y
-        )
+        plotInterpolatedPointsAndSelf(lastPoint, point, lastPressure, pressure)
 
-        strokePath.lineTo(
-            point.x,
-            point.y
-        )
-
-        tempCanvas.drawPath(strokePath, strokePaint)
-
-        strokePath.reset()
-        lastPoint.set(point.x, point.y)
         for (eventIndex in drawingModel.events.size - 1 downTo 0) {
             val currentEvent = drawingModel.events[eventIndex].stroke
             if (currentEvent is Stroke) {
