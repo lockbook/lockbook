@@ -9,7 +9,7 @@ final class DbMigrationTests: SLCTest {
 
         assertSuccess(core.api.getState()) { $0 == .ReadyToUse }
 
-        assertSuccess(core.api.synchronize())
+        assertSuccess(core.api.syncAll())
 
         assertSuccess(core.api.getState()) { $0 == .ReadyToUse }
     }
@@ -19,7 +19,7 @@ final class DbMigrationTests: SLCTest {
 
         assertSuccess(core.api.getState()) { $0 == .StateRequiresClearing }
 
-        assertSuccess(core.api.synchronize())
+        assertSuccess(core.api.syncAll())
 
         assertSuccess(core.api.getState()) { $0 == .StateRequiresClearing }
     }

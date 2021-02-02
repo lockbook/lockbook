@@ -63,8 +63,8 @@ struct SyntheticFileCell: View {
 struct FileCell_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            FileCell(meta: Core().files[0])
-            SyntheticFileCell(params: (Core().files[0], .Document), nameField: .constant(""), onCreate: {}, onCancel: {})
+            FileCell(meta: GlobalState().files[0])
+            SyntheticFileCell(params: (GlobalState().files[0], .Document), nameField: .constant(""), onCreate: {}, onCancel: {})
             
         }
         .previewLayout(.fixed(width: 300, height: 50))
