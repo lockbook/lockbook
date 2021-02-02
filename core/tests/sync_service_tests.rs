@@ -1199,4 +1199,25 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db2).unwrap(); // There was an error here
     }
+
+    #[test]
+    fn ensure_that_deleting_a_file_doesnt_make_it_show_up_in_work_calculated() {
+        let db1 = test_db();
+        let account = make_account!(db1);
+
+        let file =
+            DefaultFileService::create_at_path(&db1, path!(account, "test/folder/document.md"))
+                .unwrap();
+        DefaultSyncService::sync(&db1).unwrap();
+
+        DefaultFileService::delete_document(&db1, file.id).unwrap();
+
+        let work = DefaultSyncService::calculate_work(&db1).unwrap();
+
+        assert_n_work_units!(&db1, 1);
+
+        DefaultSyncService::execute_work(&db1, &account, work.work_units[0].clone()).unwrap();
+
+        assert_n_work_units!(&db1, 0);
+    }
 }

@@ -190,7 +190,12 @@ impl<
             }
 
             match FileMetadataDb::maybe_get(backend, metadata.id).map_err(GetMetadataError)? {
-                None => work_units.push(ServerChange { metadata }),
+                None => {
+                    if !metadata.deleted {
+                        // no work for files we don't have that have been deleted
+                        work_units.push(ServerChange { metadata })
+                    }
+                }
                 Some(local_metadata) => {
                     if metadata.metadata_version != local_metadata.metadata_version {
                         work_units.push(ServerChange { metadata })
