@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct AccountView: View {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     let account: Account
     @State var showingUsage: Bool = false
     @State var showingAccount: Bool = false
@@ -140,6 +140,6 @@ struct AccountView: View {
 
 struct AccountView_Previews: PreviewProvider {
     static var previews: some View {
-        AccountView(core: Core(), account: .fake(username: "test"))
+        AccountView(core: GlobalState(), account: .fake(username: "test"))
     }
 }

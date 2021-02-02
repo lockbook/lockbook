@@ -30,7 +30,7 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: get_usage(documentsDirectory))
     }
     
-    public func synchronize() -> FfiResult<Empty, SyncAllError> {
+    public func syncAll() -> FfiResult<Empty, SyncAllError> {
         fromPrimitiveResult(result: sync_all(documentsDirectory))
     }
     

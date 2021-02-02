@@ -11,7 +11,7 @@ class SyncFileTests: SLCTest {
     }
     
     func testBruteNoFiles() throws {
-        let resultSync = core.api.synchronize()
+        let resultSync = core.api.syncAll()
         
         assertSuccess(resultSync)
     }
@@ -26,7 +26,7 @@ class SyncFileTests: SLCTest {
         /// Verify all non-root files are unsynced
         assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.name == root.name || $0.metadataVersion == 0 } && $0.count == numberOfFiles+1 }
         
-        let resultSync = core.api.synchronize()
+        let resultSync = core.api.syncAll()
         
         assertSuccess(resultSync)
         

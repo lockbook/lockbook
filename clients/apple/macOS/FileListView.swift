@@ -5,11 +5,11 @@ struct FileListView: View {
     
     @State var selectedItem: FileMetadata? = nil
     
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     let currentFolder: FileMetadata
     let account: Account
     
-    init(core: Core, currentFolder: FileMetadata, account: Account) {
+    init(core: GlobalState, currentFolder: FileMetadata, account: Account) {
         self.core = core
         self.account = account
         self.currentFolder = currentFolder

@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 struct BookView: View {
     
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     let currentFolder: FileMetadata
     let account: Account
     
@@ -18,7 +18,7 @@ struct BookView: View {
 struct BookView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            BookView(core: Core(), currentFolder: FakeApi.root, account: .fake(username: "jeff"))
+            BookView(core: GlobalState(), currentFolder: FakeApi.root, account: .fake(username: "jeff"))
                 .ignoresSafeArea()
         }
     }

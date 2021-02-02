@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct FileListView: View {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     @State var showingAccount: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
@@ -113,7 +113,7 @@ struct FileListView: View {
 }
 
 struct FileListView_Previews: PreviewProvider {
-    static let core = Core()
+    static let core = GlobalState()
     
     static var previews: some View {
         NavigationView {

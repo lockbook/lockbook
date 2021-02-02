@@ -5,7 +5,7 @@ import Combine
 
 struct EditorView: View {
 
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     let meta: FileMetadata
     @State var text: String
     
@@ -31,7 +31,7 @@ struct EditorView: View {
 
 struct EditorLoader: View {
 
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     let meta: FileMetadata
     @ObservedObject var content: Content
     @State var editorContent: String = ""
@@ -62,7 +62,7 @@ struct EditorLoader: View {
     }
     
     
-    init (core: Core, meta: FileMetadata) {
+    init (core: GlobalState, meta: FileMetadata) {
         self.core = core
         self.meta = meta
         self.content = Content(core: core, meta: meta)
@@ -70,7 +70,7 @@ struct EditorLoader: View {
 }
 
 class Content: ObservableObject {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     @Published var text: String?
     var cancellables = Set<AnyCancellable>()
     @Published var succeeded: Bool = false
@@ -82,7 +82,7 @@ class Content: ObservableObject {
         self.text = text
         self.status = .Inactive
     }
-    init(core: Core, meta: FileMetadata) {
+    init(core: GlobalState, meta: FileMetadata) {
         self.core = core
         self.meta = meta
         
@@ -138,7 +138,7 @@ extension NSTextField {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorLoader(core: Core(), meta: FakeApi().fileMetas[0])
+            EditorLoader(core: GlobalState(), meta: FakeApi().fileMetas[0])
         }
         .preferredColorScheme(.dark)
     }

@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 struct BottomBar: View {
 
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
 
     @State var work: Int = 0
     @State var offline: Bool = false
@@ -154,7 +154,7 @@ struct BottomBar: View {
 #if(iOS)
 struct SyncingPreview: PreviewProvider {
 
-    static let core = Core()
+    static let core = GlobalState()
 
     static var previews: some View {
         NavigationView {
@@ -174,7 +174,7 @@ struct SyncingPreview: PreviewProvider {
 
 struct NonSyncingPreview: PreviewProvider {
 
-    static let core = Core()
+    static let core = GlobalState()
 
     static var previews: some View {
         NavigationView {
@@ -194,7 +194,7 @@ struct NonSyncingPreview: PreviewProvider {
 
 struct OfflinePreview: PreviewProvider {
 
-    static let core = Core()
+    static let core = GlobalState()
     
     static var previews: some View {
         NavigationView {
@@ -212,7 +212,7 @@ struct OfflinePreview: PreviewProvider {
 
 struct WorkItemsPreview: PreviewProvider {
 
-    static let core = Core()
+    static let core = GlobalState()
 
     static var previews: some View {
         NavigationView {

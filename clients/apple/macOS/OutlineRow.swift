@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 /// This view handles displaying the contents of each row for its object. Clicking its arrow image also toggles a node's open state./
 struct OutlineRow: View {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     var file: FileMetadata
     var level: CGFloat
     @Binding var open: Bool
