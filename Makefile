@@ -1,5 +1,5 @@
 .PHONY: all
-all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cli_lint cli_test integration_tests_run linux_test swift_interface_tests_run kotlin_interface_tests_run android
+all: core_fmt core_test core_lint server_fmt server_lint server_tests cli_fmt cli_lint cli_test core_server_tests_run linux_test swift_interface_tests_run kotlin_interface_tests_run android
 	echo "Done!"
 
 .PHONY: clean
@@ -89,14 +89,14 @@ linux_lint: linux
 linux_test: linux
 	docker build --target linux-test -f containers/Dockerfile.linux . --tag linux_test:$(hash) --build-arg HASH=$(hash)
 
-.PHONY: integration_tests
-integration_tests: is_docker_running
-	docker build --target integration-tests -f containers/Dockerfile.core . --tag integration_tests:$(hash) --build-arg HASH=$(hash)
+.PHONY: core_server_tests
+core_server_tests: is_docker_running
+	docker build --target integration-tests -f containers/Dockerfile.core . --tag core_server_tests:$(hash) --build-arg HASH=$(hash)
 
-.PHONY: integration_tests_run
-integration_tests_run: integration_tests server db_container
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up integration_tests
-	exit $$(docker wait integration_tests-integration-$(hash))
+.PHONY: core_server_tests_run
+core_server_tests_run: core_server_tests server db_container
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up core_server_tests
+	exit $$(docker wait core_server_tests-integration-$(hash))
 
 .PHONY: android
 android: is_docker_running
