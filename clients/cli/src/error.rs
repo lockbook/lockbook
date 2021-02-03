@@ -70,7 +70,6 @@ make_errkind_enum!(
     7 => ExpectedStdin,
     8 => NoCliLocation,
     9 => NoRoot,
-    10 => NoRootOps(&'static str),
 
     // Account (20s)
     20 => NoAccount,
@@ -103,6 +102,7 @@ make_errkind_enum!(
     47 => DocTreatedAsFolder(String),
     48 => CannotMoveFolderIntoItself,
     49 => CannotDeleteRoot(String),
+    50 => NoRootOps(&'static str),
 );
 
 impl ErrorKind {
@@ -115,7 +115,6 @@ impl ErrorKind {
             Self::ExpectedStdin => "expected stdin".to_string(),
             Self::NoCliLocation => "Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your `.lockbook` folder".to_string(),
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
-            Self::NoRootOps(op) => format!("cannot {} root directory!", op),
 
             Self::NoAccount => "No account! Run init or import to get started!".to_string(),
             Self::AccountAlreadyExists => "Account already exists. Run `lockbook erase-everything` to erase your local state.".to_string(),
@@ -145,6 +144,7 @@ impl ErrorKind {
             Self::DocTreatedAsFolder(path) => format!("a file in path '{}' is a document being treated as a folder", path),
             Self::CannotMoveFolderIntoItself => "Cannot move file into its self or children.".to_string(),
             Self::CannotDeleteRoot(path) => format!("Cannot delete '{}' since it is the root folder.", path),
+            Self::NoRootOps(op) => format!("cannot {} your root directory!", op),
         }
     }
 }
