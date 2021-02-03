@@ -96,7 +96,7 @@ object CoreModel {
         return Err(AccountExportError.Unexpected("exportAccountConverter was unable to be called!"))
     }
 
-    fun syncAllFiles(config: Config): Result<Unit, SyncAllError> {
+    fun syncAll(config: Config): Result<Unit, SyncAllError> {
         val syncResult: Result<Unit, SyncAllError>? =
             Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString(config)))
 
@@ -325,26 +325,26 @@ object CoreModel {
         return Err(MoveFileError.Unexpected("moveFileConverter was unable to be called!"))
     }
 
-    fun calculateFileSyncWork(config: Config): Result<WorkCalculated, CalculateWorkError> {
-        val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
-            Klaxon().converter(calculateSyncWorkConverter)
-                .parse(calculateSyncWork(Klaxon().toJsonString(config)))
+    fun calculateWork(config: Config): Result<WorkCalculated, CalculateWorkError> {
+        val calculateWorkResult: Result<WorkCalculated, CalculateWorkError>? =
+            Klaxon().converter(calculateWorkConverter)
+                .parse(calculateWork(Klaxon().toJsonString(config)))
 
-        if (calculateSyncWorkResult != null) {
-            return calculateSyncWorkResult
+        if (calculateWorkResult != null) {
+            return calculateWorkResult
         }
 
         return Err(CalculateWorkError.Unexpected("calculateSyncWorkConverter was unable to be called!"))
     }
 
-    fun executeFileSyncWork(
+    fun executeWork(
         config: Config,
         account: Account,
         workUnit: WorkUnit
     ): Result<Unit, ExecuteWorkError> {
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
-            Klaxon().converter(executeSyncWorkConverter).parse(
-                executeSyncWork(
+            Klaxon().converter(executeWorkConverter).parse(
+                executeWork(
                     Klaxon().toJsonString(config),
                     Klaxon().toJsonString(account),
                     Klaxon().toJsonString(workUnit)

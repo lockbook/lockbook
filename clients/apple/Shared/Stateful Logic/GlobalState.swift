@@ -3,21 +3,29 @@ import SwiftLockbookCore
 import SwiftUI
 import Combine
 
-class Core: ObservableObject {
+class GlobalState: ObservableObject {
     let documenstDirectory: String
     let api: LockbookApi
-    @Published var state: DbState
-    @Published var account: Account?
-    @Published var globalError: AnyFfiError?
-    @Published var files: [FileMetadata] = []
-    @Published var root: FileMetadata?
-    @Published var syncing: Bool = false
+    @Published var state: DbState               // Handles post update logic
+    @Published var account: Account?            // Determines whether to show onboarding or the main view
+    @Published var globalError: AnyFfiError?    // Shows modals for unhandled errors
+    @Published var files: [FileMetadata] = []   // What the file tree displays
+    @Published var root: FileMetadata?          // What the file tree displays
+    @Published var syncing: Bool = false {      // Setting this to true kicks off a sync
+        didSet {
+            if oldValue == false && syncing == true {
+                serialQueue.async {
+                    self.syncChannel.send(self.api.syncAll())
+                }
+            }
+        }
+    }
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
     
-    private var passthrough = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
+    private var syncChannel = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
-
+    
     func load() {
         switch api.getAccount() {
         case .success(let acc):
@@ -26,7 +34,7 @@ class Core: ObservableObject {
             handleError(err)
         }
     }
-
+    
     func migrate() {
         let res = api.migrateState()
             .eraseError()
@@ -45,7 +53,7 @@ class Core: ObservableObject {
             handleError(err)
         }
     }
-
+    
     func purge() {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
@@ -61,22 +69,14 @@ class Core: ObservableObject {
         }
     }
     
-    func sync() {
-        self.syncing = true
-        serialQueue.async {
-            self.passthrough.send(self.api.synchronize())
+    func handleError(_ error: AnyFfiError) {
+        DispatchQueue.main.async {
+            self.globalError = error
         }
     }
     
-    func handleError(_ error: AnyFfiError) {
-        globalError = error
-    }
-    
-    private func buildTree(meta: FileMetadata) -> FileMetadataWithChildren {
-        return FileMetadataWithChildren(meta: meta, children: files.filter({ $0.parent == meta.id && $0.id != meta.id }).map(buildTree))
-    }
-    
     func updateFiles() {
+        print("Updating files!")
         if (account != nil) {
             switch api.getRoot() {
             case .success(let root):
@@ -94,13 +94,14 @@ class Core: ObservableObject {
     }
     
     init(documenstDirectory: String) {
+        print("Initializing core...")
         self.documenstDirectory = documenstDirectory
         self.api = CoreApi(documentsDirectory: documenstDirectory)
         self.state = (try? self.api.getState().get())!
         self.account = (try? self.api.getAccount().get())
         updateFiles()
-
-        passthrough
+        
+        syncChannel
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
             .removeDuplicates(by: {
                 switch ($0, $1) {
@@ -131,22 +132,6 @@ class Core: ObservableObject {
         if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {
             self.files = metas
             self.root = root
-        }
-    }
-}
-
-struct FileMetadataWithChildren: Identifiable {
-    let id: UUID
-    let meta: FileMetadata
-    let children: [FileMetadataWithChildren]?
-    
-    init(meta: FileMetadata, children: [FileMetadataWithChildren]) {
-        self.id = meta.id
-        self.meta = meta
-        if !children.isEmpty {
-            self.children = children
-        } else {
-            self.children = nil
         }
     }
 }

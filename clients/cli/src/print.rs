@@ -2,6 +2,8 @@ use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config};
 use crate::{err, err_unexpected};
 use lockbook_core::{get_file_by_path, read_document, Error as CoreError, GetFileByPathError};
+use std::io;
+use std::io::Write;
 
 pub fn print(file_name: &str) -> CliResult {
     get_account_or_exit();
@@ -17,5 +19,8 @@ pub fn print(file_name: &str) -> CliResult {
     let content =
         read_document(&cfg, file_metadata.id).map_err(|err| err_unexpected!("{:?}", err))?;
     print!("{}", String::from_utf8_lossy(&content));
-    Ok(())
+    
+    io::stdout()
+        .flush()
+        .map_err(|err| err_unexpected!("flushing stdin: {:#?}", err))
 }

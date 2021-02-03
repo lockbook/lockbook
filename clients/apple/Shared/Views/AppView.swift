@@ -2,16 +2,21 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct AppView: View {
-    @ObservedObject var core: Core
+    @ObservedObject var core: GlobalState
     var body: some View {
         let view = VStack {
             switch core.state {
             case .ReadyToUse, .Empty:
                 switch core.account {
                 case .none:
-                    AnyView(OnboardingView(core: core))
+                    AnyView(OnboardingView(core: core, onboardingState: OnboardingState(core: core)))
                 case .some(let account):
-                    AnyView(BookView(core: core, account: account))
+                    switch core.root {
+                    case .some(let root):
+                        AnyView(BookView(core: core, currentFolder: root, account: account))
+                    case .none:
+                        Label("Please sync!", systemImage: "arrow.right.arrow.left.circle.fill")
+                    }
                 }
             case .MigrationRequired:
                 AnyView(VStack(spacing: 20) {
@@ -56,10 +61,10 @@ struct AppView: View {
                 )
             }
         }
-
+        
         return view
     }
-
+    
     let updateAlert: Alert = Alert(
         title: Text("Update Required!"),
         message: Text("It seems like you're using an out-date client. Please update to perform sync operations."),

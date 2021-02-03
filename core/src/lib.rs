@@ -811,11 +811,12 @@ pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>
 pub fn get_last_synced_human_string(config: &Config) -> Result<String, Error<GetLastSyncedError>> {
     let last_synced = get_last_synced(config)?;
 
-    Ok(match last_synced {
-        0 => Duration::milliseconds(DefaultClock::get_time() - last_synced)
+    Ok(if last_synced != 0 {
+        Duration::milliseconds(DefaultClock::get_time() - last_synced)
             .format_human()
-            .to_string(),
-        _ => "never".to_string(),
+            .to_string()
+    } else {
+        "never".to_string()
     })
 }
 
@@ -949,7 +950,7 @@ pub type DefaultBackend = FileBackend;
 pub type DefaultCodeVersion = CodeVersionImpl;
 pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl<DefaultBackend>;
-pub type DefaultUsageService = UsageServiceImpl<DefaultBackend, DefaultAccountRepo>;
+pub type DefaultUsageService = UsageServiceImpl<DefaultBackend, DefaultAccountRepo, DefaultClient>;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl<DefaultBackend>;
 pub type DefaultDbStateService = DbStateServiceImpl<
     DefaultAccountRepo,

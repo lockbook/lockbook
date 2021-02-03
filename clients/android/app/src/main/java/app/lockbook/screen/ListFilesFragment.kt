@@ -35,7 +35,11 @@ class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-            listFilesViewModel.refreshAndAssessChanges()
+            if (f is CreateFileDialogFragment) {
+                listFilesViewModel.refreshAndAssessChanges(f.newDocument)
+            } else {
+                listFilesViewModel.refreshAndAssessChanges(null)
+            }
         }
     }
     private val snackProgressBarManager by lazy {
@@ -59,7 +63,7 @@ class ListFilesFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         val binding: FragmentListFilesBinding = DataBindingUtil.inflate(
             inflater,
             R.layout.fragment_list_files,
@@ -150,8 +154,8 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.switchFileLayout.observe(
             viewLifecycleOwner,
             {
+                listFilesViewModel.refreshAndAssessChanges(null)
                 adapter = setFileAdapter(binding, filesDir)
-                listFilesViewModel.refreshAndAssessChanges()
             }
         )
 
@@ -215,7 +219,7 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             {
                 if (container != null) {
-                    showSuccessfulDeletionSnackbar(container)
+                    showSuccessfulDeletionSnackBar(container)
                 }
             }
         )
@@ -303,8 +307,8 @@ class ListFilesFragment : Fragment() {
         adapter.selectedFiles = MutableList(listFilesViewModel.files.value?.size ?: 0) { false }
     }
 
-    override fun onResume() {
-        super.onResume()
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
         setUpAfterConfigChange()
     }
 
@@ -336,6 +340,7 @@ class ListFilesFragment : Fragment() {
 
     private fun showSyncSnackBar(maxProgress: Int) {
         snackProgressBarManager.dismiss()
+        snackProgressBarManager.setProgress(0)
         syncSnackProgressBar.setProgressMax(maxProgress)
         syncSnackProgressBar.setMessage(
             resources.getString(
@@ -408,7 +413,7 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-    private fun showSuccessfulDeletionSnackbar(view: ViewGroup) {
+    private fun showSuccessfulDeletionSnackBar(view: ViewGroup) {
         Snackbar.make(view, "Successfully deleted the file(s)", Snackbar.LENGTH_SHORT).show()
     }
 
@@ -447,7 +452,6 @@ class ListFilesFragment : Fragment() {
 
     private fun navigateToHandwritingEditor(editableFile: EditableFile) {
         val intent = Intent(context, HandwritingEditorActivity::class.java)
-        intent.putExtra("name", editableFile.name)
         intent.putExtra("id", editableFile.id)
         startActivityForResult(intent, HANDWRITING_EDITOR_REQUEST_CODE)
     }
@@ -464,15 +468,15 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun showMoreInfoDialog(fileMetadata: FileMetadata) {
-        listFilesViewModel.collapseMoreOptionsMenu()
-
-        FileInfoDialogFragment.newInstance(
+        val dialogFragment = FileInfoDialogFragment.newInstance(
             fileMetadata.name,
             fileMetadata.id,
             fileMetadata.metadataVersion.toString(),
             fileMetadata.contentVersion.toString(),
             fileMetadata.fileType.name
-        ).show(childFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
+        )
+
+        dialogFragment.show(childFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
     }
 
     private fun showMoveFileDialog(moveFileInfo: MoveFileInfo) {
