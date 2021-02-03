@@ -7,8 +7,9 @@ use lockbook_core::{
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
+use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::{err_extra, err_unexpected, exitlb};
+use crate::{err, err_extra, err_unexpected, exitlb};
 use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
 use lockbook_core::model::file_metadata::FileMetadata;
@@ -38,40 +39,37 @@ pub fn get_account_or_exit() -> Account {
     }
 }
 
-pub fn check_and_perform_migrations() {
-    match get_db_state(&get_config()) {
-        Ok(state) => match state {
-            State::ReadyToUse => {}
-            State::Empty => {}
-            State::MigrationRequired => {
-                if atty::is(atty::Stream::Stdout) {
-                    println!("Local state requires migration! Performing migration now...");
-                }
-                match migrate_db(&get_config()) {
-                    Ok(_) => {
-                        if atty::is(atty::Stream::Stdout) {
-                            println!("Migration Successful!");
-                        }
-                    }
-                    Err(error) => match error {
-                        CoreError::UiError(MigrationError::StateRequiresCleaning) => {
-                            exitlb!(UninstallRequired)
-                        }
-                        CoreError::Unexpected(msg) => err_extra!(
-                            Unexpected(msg),
-                            "It's possible you need to clear your local state and resync."
-                        )
-                        .exit(),
-                    },
-                }
+pub fn check_and_perform_migrations() -> CliResult {
+    let state = get_db_state(&get_config()).map_err(|err| match err {
+        CoreError::UiError(GetStateError::Stub) => err_unexpected!("impossible"),
+        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+    })?;
+
+    match state {
+        State::ReadyToUse => {}
+        State::Empty => {}
+        State::MigrationRequired => {
+            if atty::is(atty::Stream::Stdout) {
+                println!("Local state requires migration! Performing migration now...");
             }
-            State::StateRequiresClearing => exitlb!(UninstallRequired),
-        },
-        Err(err) => match err {
-            CoreError::UiError(GetStateError::Stub) => err_unexpected!("impossible").exit(),
-            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
-        },
+            migrate_db(&get_config()).map_err(|err| match err {
+                CoreError::UiError(MigrationError::StateRequiresCleaning) => {
+                    err!(UninstallRequired)
+                }
+                CoreError::Unexpected(msg) => err_extra!(
+                    Unexpected(msg),
+                    "It's possible you need to clear your local state and resync."
+                ),
+            })?;
+
+            if atty::is(atty::Stream::Stdout) {
+                println!("Migration Successful!");
+            }
+        }
+        State::StateRequiresClearing => return Err(err!(UninstallRequired)),
     }
+
+    Ok(())
 }
 
 pub fn get_config() -> Config {
