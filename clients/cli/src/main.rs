@@ -107,6 +107,8 @@ enum Lockbook {
         #[structopt(long)]
         exact: bool,
     },
+
+    Errors,
 }
 
 fn main() {
@@ -138,5 +140,6 @@ fn main() {
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Backup => backup::backup(),
         Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact),
+        Lockbook::Errors => error::ErrorKind::print_table(),
     }
 }

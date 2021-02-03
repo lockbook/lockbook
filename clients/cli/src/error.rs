@@ -16,6 +16,10 @@ macro_rules! make_errkind_enum {
                     $( Self::$variants $( ( $( underscore!($types) ),* ) )? => $codes ,)*
                 }
             }
+
+            pub fn print_table() {
+                $( println!("{:>6}  {}", $codes, stringify!($variants)); )*
+            }
         }
     };
 }
@@ -209,11 +213,6 @@ macro_rules! exitlb {
     ($err:ident $( ( $( $args:expr ),+ ) )?) => {{
         let err = crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?;
         eprintln!("{}", err.msg());
-        std::process::exit(err.code())
-    }};
-    ($ekind:ident $( ( $( $args:expr ),+ ) )?, $base:literal $(, $fmtargs:expr )*) => {{
-        let err = crate::error::ErrorKind::$ekind $( ( $( $args ),+ ) )?;
-        eprintln!($base $(, $fmtargs )*);
         std::process::exit(err.code())
     }};
 }
