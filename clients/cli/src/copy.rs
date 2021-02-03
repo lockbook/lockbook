@@ -20,7 +20,7 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) -> CliResult {
     if path.is_file() {
         match copy_file(&path, import_dest, &config, edit) {
             Ok(msg) => exit_success(&msg),
-            Err(err) => return Err(err),
+            Err(err) => Err(err),
         }
     } else {
         let import_dir = match import_dest.ends_with('/') {
