@@ -13,6 +13,7 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
+import timber.log.Timber
 import kotlin.math.absoluteValue
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -278,8 +279,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             }
 
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> moveTo(modelPoint, pressure)
-                MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
+                MotionEvent.ACTION_DOWN -> {
+                    Timber.e("MOVE TO")
+                    moveTo(modelPoint, pressure)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    Timber.e("LINE TO")
+                    lineTo(modelPoint, pressure)
+                }
             }
         }
     }
@@ -297,13 +304,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun plotInterpolatedPointsAndSelf(initialPoint: PointF, endPoint: PointF, initialPressure: Float, endPressure: Float) { // maintain a point for every 10 pixels
         val dist = distanceBetweenPoints(initialPoint, endPoint)
-        val amountOfInterpolatedPoints = (dist / 10).toInt()
+        val amountOfInterpolatedPoints = (dist / 2).toInt()
 
         if (amountOfInterpolatedPoints <= 1) {
             strokePaint.strokeWidth = endPressure
             strokePath.moveTo(
-                    lastPoint.x,
-                    lastPoint.y
+                    initialPoint.x,
+                    initialPoint.y
             )
 
             strokePath.lineTo(
@@ -311,27 +318,21 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                     endPoint.y
             )
 
-            return lastPoint.set(endPoint)
+            tempCanvas.drawPath(strokePath, strokePaint)
+
+            strokePath.reset()
+            lastPoint.set(endPoint)
+
+            return
         }
 
-        val distanceBetweenEachX = (initialPoint.x - endPoint.x).absoluteValue / amountOfInterpolatedPoints
-        val smallerLargerX = if (initialPoint.x > endPoint.x) {
-            Pair(endPoint.x, initialPoint.x)
-        } else {
-            Pair(initialPoint.x, endPoint.x)
-        }
+        val distanceBetweenEachX = (endPoint.x - initialPoint.x) / amountOfInterpolatedPoints
+        val amountBetweenEachPressure = (endPressure - initialPressure) / amountOfInterpolatedPoints
 
-        val amountBetweenEachPressure = (initialPressure - endPressure).absoluteValue / amountOfInterpolatedPoints
-        val smallerLargerPressure = if (initialPressure > endPressure) {
-            Pair(endPressure, initialPressure)
-        } else {
-            Pair(initialPressure, endPressure)
-        }
+        var interpolatedX = initialPoint.x
+        var interpolatedPressure = initialPressure
 
-        var interpolatedX = smallerLargerX.first
-        var interpolatedPressure = smallerLargerPressure.first
-
-        while (interpolatedX <= smallerLargerX.second) {
+        repeat(amountOfInterpolatedPoints) {
             interpolatedX += distanceBetweenEachX
             interpolatedPressure += amountBetweenEachPressure
             val interpolatedPoint = PointF(interpolatedX, initialPoint.y * (endPoint.y / initialPoint.y).pow((interpolatedX - initialPoint.x) / (endPoint.x - initialPoint.x)))
@@ -348,9 +349,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                     interpolatedPoint.y
             )
 
-            lastPoint.set(interpolatedPoint)
+            Timber.e("Drawing $lastPoint to $interpolatedPoint")
+
             tempCanvas.drawPath(strokePath, strokePaint)
+
             strokePath.reset()
+
+            lastPressure = interpolatedPressure
+            lastPoint.set(interpolatedPoint)
         }
     }
 
