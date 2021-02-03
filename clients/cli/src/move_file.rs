@@ -1,5 +1,5 @@
 use crate::utils::{exit_success, get_config};
-use crate::{err_unexpected, exitlb};
+use crate::{err_extra, err_unexpected, exitlb};
 use lockbook_core::{get_file_by_path, Error as CoreError, GetFileByPathError, MoveFileError};
 
 pub fn move_file(path1: &str, path2: &str) {
@@ -29,12 +29,12 @@ pub fn move_file(path1: &str, path2: &str) {
                         CoreError::UiError(MoveFileError::TargetParentHasChildNamedThat) => {
                             exitlb!(FileNameNotAvailable(target_file_metadata.name))
                         }
-                        CoreError::UiError(MoveFileError::DocumentTreatedAsFolder) => exitlb!(
+                        CoreError::UiError(MoveFileError::DocumentTreatedAsFolder) => err_extra!(
                             DocTreatedAsFolder(path2.to_string()),
                             "{} cannot be moved to {}",
                             file_metadata.name,
                             target_file_metadata.name
-                        ),
+                        ).exit(),
                         CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
                     },
                 }
