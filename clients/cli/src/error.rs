@@ -77,13 +77,8 @@ impl ErrorKind {
         match self {
             Self::Unexpected(msg) => msg.to_string(),
             Self::NetworkIssue => "Could not reach server!".to_string(),
-            Self::UpdateRequired => {
-                "An update to your application is required to do this action!".to_string()
-            }
-            Self::UninstallRequired => {
-                "Your local state cannot be migrated, please re-sync with a fresh client."
-                    .to_string()
-            }
+            Self::UpdateRequired => "An update to your application is required to do this action!".to_string(),
+            Self::UninstallRequired => "Your local state cannot be migrated, please re-sync with a fresh client.".to_string(),
             Self::ExpectedStdin => "expected stdin".to_string(),
             Self::NoCliLocation => "Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your `.lockbook` folder".to_string(),
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
@@ -98,45 +93,23 @@ impl ErrorKind {
             Self::UsernamePkMismatch => "The public_key in this account_string does not match what is on the server.".to_string(),
 
             Self::OsPwdMissing(err) => format!("getting PWD from OS: {}", err),
-            Self::OsCouldNotGetAbsPath(path, err) => format!(
-                "could not get absolute path for '{}': {}",
-                path, err
-            ),
+            Self::OsCouldNotGetAbsPath(path, err) => format!("could not get absolute path for '{}': {}", path, err),
             Self::OsCouldNotGetFileName(path) => format!("could not get file name for '{}'", path),
-            Self::OsCouldNotCreateDir(path, err) => {
-                format!("could not create directory '{}': {}", path, err)
-            }
-            Self::OsCouldNotListChildren(path, err) => {
-                format!("could not list children for directory '{}': {}", path, err)
-            }
-            Self::OsCouldNotReadFile(path, err) => {
-                format!("could not read file '{}': {}", path, err)
-            }
-            Self::OsCouldNotCreateFile(path, err) => {
-                format!("could not create file '{}': {}", path, err)
-            }
-            Self::OsCouldNotWriteFile(path, err) => {
-                format!("could not write file '{}': {}", path, err)
-            }
-            Self::OsCouldNotDeleteFile(path, err) => {
-                format!("could not delete file '{}': {}", path, err)
-            }
+            Self::OsCouldNotCreateDir(path, err) => format!("could not create directory '{}': {}", path, err),
+            Self::OsCouldNotListChildren(path, err) => format!("could not list children for directory '{}': {}", path, err),
+            Self::OsCouldNotReadFile(path, err) => format!("could not read file '{}': {}", path, err),
+            Self::OsCouldNotCreateFile(path, err) => format!("could not create file '{}': {}", path, err),
+            Self::OsCouldNotWriteFile(path, err) => format!("could not write file '{}': {}", path, err),
+            Self::OsCouldNotDeleteFile(path, err) => format!("could not delete file '{}': {}", path, err),
 
             Self::FileNotFound(path) => format!("file '{}' not found", path),
-            Self::FileAlreadyExists(path) => {
-                format!("the file '{}' already exists", path)
-            }
+            Self::FileAlreadyExists(path) => format!("the file '{}' already exists", path),
             Self::FileNameEmpty => "The file name provided is empty!".to_string(),
             Self::FileNameNotAvailable(name) => format!("File name '{}' is not available.", name),
             Self::FileNameHasSlash(name) => format!("File name '{}' has a slash.", name),
             Self::PathNoRoot(path) => format!("Path '{}' does not start with your root folder.", path),
-            Self::PathContainsEmptyFile(path) => {
-                format!("the path '{}' contains an empty file name", path)
-            }
-            Self::DocTreatedAsFolder(path) => format!(
-                "a file in path '{}' is a document being treated as a folder",
-                path
-            ),
+            Self::PathContainsEmptyFile(path) => format!("the path '{}' contains an empty file name", path),
+            Self::DocTreatedAsFolder(path) => format!("a file in path '{}' is a document being treated as a folder", path),
             Self::CannotMoveFolderIntoItself => "Cannot move file into its self or children.".to_string(),
             Self::CannotDeleteRoot(path) => format!("Cannot delete '{}' since it is the root folder.", path),
         }
