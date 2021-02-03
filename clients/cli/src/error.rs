@@ -8,7 +8,7 @@ pub enum Error {
 impl Error {
     pub fn print(&self) {
         match self {
-            Self::Simple(base) => eprintln!("{}", base.msg()),
+            Self::Simple(base) => eprintln!("error: {}", base.msg()),
             Self::Custom(err) => {
                 let base_msg = err.base.msg();
                 let with_ctx = match &err.context {
@@ -16,7 +16,7 @@ impl Error {
                     None => base_msg,
                 };
 
-                eprintln!("{}", with_ctx);
+                eprintln!("error: {}", with_ctx);
                 if let Some(extra) = &err.extra {
                     eprintln!("{}", extra);
                 }
@@ -167,7 +167,7 @@ macro_rules! err_unexpected {
     ($base:literal $(, $fmtargs:expr )*) => {
         crate::error::Error::Simple(crate::error::ErrorKind::Unexpected({
             let msg = format!($base $(, $fmtargs )*);
-            format!("unexpected error: {}", msg)
+            format!("unexpected: {}", msg)
         }))
     };
 }
