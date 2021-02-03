@@ -108,6 +108,7 @@ enum Lockbook {
         exact: bool,
     },
 
+    /// Print out what each error code means
     Errors,
 }
 

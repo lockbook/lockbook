@@ -34,7 +34,8 @@ pub fn move_file(path1: &str, path2: &str) {
                             "{} cannot be moved to {}",
                             file_metadata.name,
                             target_file_metadata.name
-                        ).exit(),
+                        )
+                        .exit(),
                         CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
                     },
                 }
