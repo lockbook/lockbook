@@ -9,7 +9,7 @@ use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
 use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::{err, err_extra, err_unexpected, exitlb};
+use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
 use lockbook_core::model::file_metadata::FileMetadata;
@@ -32,10 +32,11 @@ pub fn init_logger_or_print() {
 pub fn get_account_or_exit() -> Account {
     match get_account(&get_config()) {
         Ok(account) => account,
-        Err(error) => match error {
-            CoreError::UiError(GetAccountError::NoAccount) => exitlb!(NoAccount),
-            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
-        },
+        Err(err) => match err {
+            CoreError::UiError(GetAccountError::NoAccount) => err!(NoAccount),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+        }
+        .exit(),
     }
 }
 
@@ -81,7 +82,7 @@ pub fn get_config() -> Config {
         (Ok(s), _, _) => s,
         (Err(_), Ok(s), _) => format!("{}/.lockbook", s),
         (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
-        _ => exitlb!(NoCliLocation),
+        _ => err!(NoCliLocation).exit(),
     };
 
     Config {

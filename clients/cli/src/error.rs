@@ -182,12 +182,3 @@ macro_rules! err_extra {
         })
     };
 }
-
-#[macro_export]
-macro_rules! exitlb {
-    ($err:ident $( ( $( $args:expr ),+ ) )?) => {{
-        let err = crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?;
-        eprintln!("{}", err.msg());
-        std::process::exit(err.code())
-    }};
-}

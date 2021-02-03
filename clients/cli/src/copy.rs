@@ -10,7 +10,7 @@ use lockbook_core::{
 
 use crate::error::{CliResult, Error};
 use crate::utils::{exit_success, get_account_or_exit, get_config};
-use crate::{err, err_extra, err_unexpected, exitlb, path_string};
+use crate::{err, err_extra, err_unexpected, path_string};
 
 pub fn copy(path: PathBuf, import_dest: &str, edit: bool) -> CliResult {
     get_account_or_exit();
@@ -30,7 +30,7 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) -> CliResult {
         let parent = path
             .file_name()
             .and_then(|name| name.to_str())
-            .unwrap_or_else(|| exitlb!(OsCouldNotGetFileName(path_string!(path))));
+            .unwrap_or_else(|| err!(OsCouldNotGetFileName(path_string!(path))).exit());
         let import_path = format!("{}{}", import_dir, parent);
 
         recursive_copy_folder(&path, &import_path, &config, edit);
@@ -53,7 +53,9 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                 let child_name = child_path
                     .file_name()
                     .and_then(|child_name| child_name.to_str())
-                    .unwrap_or_else(|| exitlb!(OsCouldNotGetFileName(path_string!(child_path))));
+                    .unwrap_or_else(|| {
+                        err!(OsCouldNotGetFileName(path_string!(child_path))).exit()
+                    });
 
                 let lb_child_path = format!("{}/{}", import_dest, child_name);
 
@@ -67,11 +69,11 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                             eprintln!("Input destination {} not available within lockbook, use --edit to overwrite the contents of this file!", import_dest)
                         }
                     }
-                    CreateFileAtPathError::NoAccount => exitlb!(NoAccount),
-                    CreateFileAtPathError::NoRoot => exitlb!(NoRoot),
+                    CreateFileAtPathError::NoAccount => err!(NoAccount).exit(),
+                    CreateFileAtPathError::NoRoot => err!(NoRoot).exit(),
                     CreateFileAtPathError::DocumentTreatedAsFolder => eprintln!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
                     CreateFileAtPathError::PathContainsEmptyFile => eprintln!("Input destination {} contains an empty file!", import_dest),
-                    CreateFileAtPathError::PathDoesntStartWithRoot => exitlb!(PathNoRoot(import_dest.to_string())),
+                    CreateFileAtPathError::PathDoesntStartWithRoot => err!(PathNoRoot(import_dest.to_string())).exit(),
                 }
                 CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
             }
@@ -121,8 +123,8 @@ fn copy_file(
                         return Err(err_extra!(FileAlreadyExists(import_dest_with_filename), "The input destination is not available within lockbook. Use --edit to overwrite the contents of this file!"));
                     }
                 }
-                CreateFileAtPathError::NoAccount => exitlb!(NoAccount),
-                CreateFileAtPathError::NoRoot => exitlb!(NoRoot),
+                CreateFileAtPathError::NoAccount => err!(NoAccount).exit(),
+                CreateFileAtPathError::NoRoot => err!(NoRoot).exit(),
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
                     return Err(err!(DocTreatedAsFolder(import_dest_with_filename)));
                 }
@@ -133,7 +135,7 @@ fn copy_file(
                     ));
                 }
                 CreateFileAtPathError::PathDoesntStartWithRoot => {
-                    exitlb!(PathNoRoot(import_dest_with_filename.to_string()))
+                    err!(PathNoRoot(import_dest_with_filename.to_string())).exit()
                 }
             },
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
@@ -148,7 +150,9 @@ fn copy_file(
 
 fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
     fs::read_dir(p)
-        .unwrap_or_else(|err| exitlb!(OsCouldNotListChildren(path_string!(p), err)))
-        .map(|child| child.unwrap_or_else(|err| exitlb!(OsCouldNotReadFile("".to_string(), err))))
+        .unwrap_or_else(|err| err!(OsCouldNotListChildren(path_string!(p), err)).exit())
+        .map(|child| {
+            child.unwrap_or_else(|err| err!(OsCouldNotReadFile("".to_string(), err)).exit())
+        })
         .collect()
 }
