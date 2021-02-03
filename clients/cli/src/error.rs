@@ -70,7 +70,7 @@ make_errkind_enum!(
     7 => ExpectedStdin,
     8 => NoCliLocation,
     9 => NoRoot,
-    10 => NoRootOps(String),
+    10 => NoRootOps(&'static str),
 
     // Account (20s)
     20 => NoAccount,

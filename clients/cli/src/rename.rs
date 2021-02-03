@@ -18,7 +18,7 @@ pub fn rename(path: &str, new_name: &str) -> CliResult {
     rename_file(&get_config(), file_metadata.id, new_name).map_err(|err| match err {
         CoreError::UiError(err) => match err {
             RenameFileError::NewNameEmpty => err!(FileNameEmpty),
-            RenameFileError::CannotRenameRoot => err!(NoRootOps("rename".to_string())),
+            RenameFileError::CannotRenameRoot => err!(NoRootOps("rename")),
             RenameFileError::NewNameContainsSlash => {
                 err!(FileNameHasSlash(new_name.to_string()))
             }

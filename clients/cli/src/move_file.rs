@@ -23,9 +23,7 @@ pub fn move_file(path1: &str, path2: &str) -> CliResult {
     lockbook_core::move_file(&cfg, file_metadata.id, target_file_metadata.id).map_err(|err| {
         match err {
             CoreError::UiError(MoveFileError::NoAccount) => err!(NoAccount),
-            CoreError::UiError(MoveFileError::CannotMoveRoot) => {
-                err!(NoRootOps("move".to_string()))
-            }
+            CoreError::UiError(MoveFileError::CannotMoveRoot) => err!(NoRootOps("move")),
             CoreError::UiError(MoveFileError::FileDoesNotExist) => {
                 err!(FileNotFound(path1.to_string()))
             }
