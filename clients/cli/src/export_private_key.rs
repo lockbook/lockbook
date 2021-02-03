@@ -11,9 +11,8 @@ pub fn export_private_key() -> CliResult {
     })?;
 
     if atty::is(atty::Stream::Stdout) {
-        if let Err(qr_err) = qr2term::print_qr(&account_string) {
-            return Err(err_unexpected!("generating qr code: {}", qr_err));
-        }
+        qr2term::print_qr(&account_string)
+            .map_err(|qr_err| err_unexpected!("generating qr code: {}", qr_err))?;
     } else {
         println!("{}", account_string);
     }
