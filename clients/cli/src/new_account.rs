@@ -3,10 +3,11 @@ use std::{env, io};
 
 use lockbook_core::{create_account, CreateAccountError, Error as CoreError};
 
-use crate::utils::{exit_success, get_config};
-use crate::{err_unexpected, exitlb};
+use crate::error::CliResult;
+use crate::utils::get_config;
+use crate::{err, err_unexpected};
 
-pub fn new_account() {
+pub fn new_account() -> CliResult {
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 
@@ -21,17 +22,17 @@ pub fn new_account() {
 
     println!("Generating keys and checking for username availability...");
 
-    match create_account(&get_config(), &username, &api_location) {
-        Ok(_) => exit_success("Account created successfully"),
-        Err(error) => match error {
-            CoreError::UiError(err) => match err {
-                CreateAccountError::UsernameTaken => exitlb!(UsernameTaken(username)),
-                CreateAccountError::InvalidUsername => exitlb!(UsernameInvalid(username)),
-                CreateAccountError::AccountExistsAlready => exitlb!(AccountAlreadyExists),
-                CreateAccountError::CouldNotReachServer => exitlb!(NetworkIssue),
-                CreateAccountError::ClientUpdateRequired => exitlb!(UpdateRequired),
-            },
-            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
+    create_account(&get_config(), &username, &api_location).map_err(|err| match err {
+        CoreError::UiError(err) => match err {
+            CreateAccountError::UsernameTaken => err!(UsernameTaken(username)),
+            CreateAccountError::InvalidUsername => err!(UsernameInvalid(username)),
+            CreateAccountError::AccountExistsAlready => err!(AccountAlreadyExists),
+            CreateAccountError::CouldNotReachServer => err!(NetworkIssue),
+            CreateAccountError::ClientUpdateRequired => err!(UpdateRequired),
         },
-    }
+        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+    })?;
+
+    println!("Account created successfully.");
+    Ok(())
 }

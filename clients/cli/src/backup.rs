@@ -11,10 +11,11 @@ use lockbook_core::{
     ListPathsError, ReadDocumentError,
 };
 
+use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config};
-use crate::{err_unexpected, exitlb, path_string};
+use crate::{err, err_unexpected, path_string};
 
-pub fn backup() {
+pub fn backup() -> CliResult {
     get_account_or_exit();
 
     let now: DateTime<Utc> = Utc::now();
@@ -24,27 +25,26 @@ pub fn backup() {
             path.push(format!("LOCKBOOK_BACKUP_{}", now.format("%Y-%m-%d")));
             path
         }
-        Err(err) => exitlb!(OsPwdMissing(err)),
+        Err(err) => return Err(err!(OsPwdMissing(err))),
     };
 
     fs::create_dir(&backup_directory)
-        .unwrap_or_else(|err| exitlb!(OsCouldNotCreateDir(path_string!(backup_directory), err)));
+        .map_err(|err| err!(OsCouldNotCreateDir(path_string!(backup_directory), err)))?;
 
-    let leaf_nodes =
-        list_paths(&get_config(), Some(LeafNodesOnly)).unwrap_or_else(|err| match err {
-            CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible").exit(),
-            CoreError::Unexpected(msg) => err_unexpected!("listing leaf nodes: {}", msg).exit(),
-        });
+    let leaf_nodes = list_paths(&get_config(), Some(LeafNodesOnly)).map_err(|err| match err {
+        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible"),
+        CoreError::Unexpected(msg) => err_unexpected!("listing leaf nodes: {}", msg),
+    })?;
 
-    let docs = list_paths(&get_config(), Some(DocumentsOnly)).unwrap_or_else(|err| match err {
-        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("Impossible").exit(),
-        CoreError::Unexpected(msg) => err_unexpected!("listing documents: {}", msg).exit(),
-    });
+    let docs = list_paths(&get_config(), Some(DocumentsOnly)).map_err(|err| match err {
+        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("Impossible"),
+        CoreError::Unexpected(msg) => err_unexpected!("listing documents: {}", msg),
+    })?;
 
-    let folders = list_paths(&get_config(), Some(FoldersOnly)).unwrap_or_else(|err| match err {
-        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible").exit(),
-        CoreError::Unexpected(msg) => err_unexpected!("listing folders: {}", msg).exit(),
-    });
+    let folders = list_paths(&get_config(), Some(FoldersOnly)).map_err(|err| match err {
+        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible"),
+        CoreError::Unexpected(msg) => err_unexpected!("listing folders: {}", msg),
+    })?;
 
     println!(
         "Creating an index to keep track of {} files",
@@ -57,18 +57,18 @@ pub fn backup() {
         dir
     };
     let mut index_file = File::create(&index_path)
-        .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(path_string!(index_path), err)));
+        .map_err(|err| err!(OsCouldNotCreateFile(path_string!(index_path), err)))?;
 
     let index_file_content: String = leaf_nodes.join("\n");
     index_file
         .write_all(index_file_content.as_bytes())
-        .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(path_string!(index_path), err)));
+        .map_err(|err| err!(OsCouldNotWriteFile(path_string!(index_path), err)))?;
 
     println!("Creating {} folders", folders.len());
     for folder in folders {
         let path = backup_directory.join(PathBuf::from(folder));
         fs::create_dir_all(&path)
-            .unwrap_or_else(|err| exitlb!(OsCouldNotCreateDir(path_string!(path), err)));
+            .map_err(|err| err!(OsCouldNotCreateDir(path_string!(path), err)))?;
     }
 
     println!("Writing {} documents", docs.len());
@@ -76,29 +76,28 @@ pub fn backup() {
         let path = backup_directory.join(PathBuf::from(&doc));
 
         let mut document = File::create(&path)
-            .unwrap_or_else(|err| exitlb!(OsCouldNotCreateFile(path_string!(path), err)));
+            .map_err(|err| err!(OsCouldNotCreateFile(path_string!(path), err)))?;
 
-        let document_metadata =
-            get_file_by_path(&get_config(), &doc).unwrap_or_else(|err| match err {
-                CoreError::UiError(GetFileByPathError::NoFileAtThatPath)
-                | CoreError::Unexpected(_) => {
-                    err_unexpected!("couldn't get file metadata for: {} error: {:?}", &doc, err)
-                        .exit()
-                }
-            });
+        let document_metadata = get_file_by_path(&get_config(), &doc).map_err(|err| match err {
+            CoreError::UiError(GetFileByPathError::NoFileAtThatPath) | CoreError::Unexpected(_) => {
+                err_unexpected!("couldn't get file metadata for: {} error: {:?}", &doc, err)
+            }
+        })?;
 
         let document_content =
-            read_document(&get_config(), document_metadata.id).unwrap_or_else(|err| match err {
+            read_document(&get_config(), document_metadata.id).map_err(|err| match err {
                 CoreError::UiError(ReadDocumentError::TreatedFolderAsDocument)
                 | CoreError::UiError(ReadDocumentError::NoAccount)
                 | CoreError::UiError(ReadDocumentError::FileDoesNotExist)
                 | CoreError::Unexpected(_) => {
-                    err_unexpected!("couldn't read file: {} error: {:?}", &doc, err).exit()
+                    err_unexpected!("couldn't read file: {} error: {:?}", &doc, err)
                 }
-            });
+            })?;
 
         document
             .write_all(&document_content)
-            .unwrap_or_else(|err| exitlb!(OsCouldNotWriteFile(doc, err)));
+            .map_err(|err| err!(OsCouldNotWriteFile(doc, err)))?;
     }
+
+    Ok(())
 }

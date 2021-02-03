@@ -1,22 +1,21 @@
+use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config};
-use crate::{err_unexpected, exitlb};
+use crate::{err, err_unexpected};
 use lockbook_core::{get_file_by_path, read_document, Error as CoreError, GetFileByPathError};
 
-pub fn print(file_name: &str) {
+pub fn print(file_name: &str) -> CliResult {
     get_account_or_exit();
+    let cfg = get_config();
 
-    let file_metadata = match get_file_by_path(&get_config(), &file_name) {
-        Ok(fm) => fm,
-        Err(err) => match err {
-            CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                exitlb!(FileNotFound(file_name.to_string()))
-            }
-            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
-        },
-    };
+    let file_metadata = get_file_by_path(&cfg, &file_name).map_err(|err| match err {
+        CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
+            err!(FileNotFound(file_name.to_string()))
+        }
+        CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
+    })?;
 
-    match read_document(&get_config(), file_metadata.id) {
-        Ok(content) => print!("{}", String::from_utf8_lossy(&content)),
-        Err(error) => panic!("unexpected error: {:?}", error),
-    };
+    let content =
+        read_document(&cfg, file_metadata.id).map_err(|err| err_unexpected!("{:?}", err))?;
+    print!("{}", String::from_utf8_lossy(&content));
+    Ok(())
 }

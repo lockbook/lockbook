@@ -8,11 +8,11 @@ use lockbook_core::{
     Error as CoreError, GetFileByPathError,
 };
 
-use crate::error::Error;
+use crate::error::{CliResult, Error};
 use crate::utils::{exit_success, get_account_or_exit, get_config};
 use crate::{err, err_extra, err_unexpected, exitlb, path_string};
 
-pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
+pub fn copy(path: PathBuf, import_dest: &str, edit: bool) -> CliResult {
     get_account_or_exit();
 
     let config = get_config();
@@ -20,7 +20,7 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
     if path.is_file() {
         match copy_file(&path, import_dest, &config, edit) {
             Ok(msg) => exit_success(&msg),
-            Err(err) => err.exit(),
+            Err(err) => return Err(err),
         }
     } else {
         let import_dir = match import_dest.ends_with('/') {
@@ -34,6 +34,7 @@ pub fn copy(path: PathBuf, import_dest: &str, edit: bool) {
         let import_path = format!("{}{}", import_dir, parent);
 
         recursive_copy_folder(&path, &import_path, &config, edit);
+        Ok(())
     }
 }
 

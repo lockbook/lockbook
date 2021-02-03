@@ -1,3 +1,5 @@
+pub type CliResult = Result<(), Error>;
+
 type IoError = std::io::Error;
 
 macro_rules! underscore {
@@ -17,8 +19,9 @@ macro_rules! make_errkind_enum {
                 }
             }
 
-            pub fn print_table() {
+            pub fn print_table() -> CliResult {
                 $( println!("{:>6}  {}", $codes, stringify!($variants)); )*
+                Ok(())
             }
         }
     };

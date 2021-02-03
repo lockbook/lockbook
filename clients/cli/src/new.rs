@@ -5,46 +5,45 @@ use std::fs::File;
 use std::path::Path;
 use uuid::Uuid;
 
+use crate::error::CliResult;
 use crate::utils::{
     edit_file_with_editor, exit_success, get_account_or_exit, get_config, save_temp_file_contents,
     set_up_auto_save, stop_auto_save,
 };
-use crate::{err_unexpected, exitlb};
+use crate::{err, err_unexpected};
 
-pub fn new(file_name: &str) {
+pub fn new(file_name: &str) -> CliResult {
     get_account_or_exit();
+    let cfg = get_config();
 
-    let file_metadata = match create_file_at_path(&get_config(), &file_name) {
-        Ok(file_metadata) => file_metadata,
-        Err(err) => match err {
-            CoreError::UiError(CreateFileAtPathError::FileAlreadyExists) => {
-                exitlb!(FileAlreadyExists(file_name.to_string()))
+    let file_metadata = create_file_at_path(&cfg, &file_name).map_err(|err| match err {
+        CoreError::UiError(err) => match err {
+            CreateFileAtPathError::FileAlreadyExists => {
+                err!(FileAlreadyExists(file_name.to_string()))
             }
-            CoreError::UiError(CreateFileAtPathError::NoAccount) => exitlb!(NoAccount),
-            CoreError::UiError(CreateFileAtPathError::NoRoot) => exitlb!(NoRoot),
-            CoreError::UiError(CreateFileAtPathError::PathContainsEmptyFile) => {
-                exitlb!(PathContainsEmptyFile(file_name.to_string()))
+            CreateFileAtPathError::NoAccount => err!(NoAccount),
+            CreateFileAtPathError::NoRoot => err!(NoRoot),
+            CreateFileAtPathError::PathContainsEmptyFile => {
+                err!(PathContainsEmptyFile(file_name.to_string()))
             }
-            CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => {
-                exitlb!(PathNoRoot(file_name.to_string()))
+            CreateFileAtPathError::PathDoesntStartWithRoot => {
+                err!(PathNoRoot(file_name.to_string()))
             }
-            CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => {
-                exitlb!(DocTreatedAsFolder(file_name.to_string()))
+            CreateFileAtPathError::DocumentTreatedAsFolder => {
+                err!(DocTreatedAsFolder(file_name.to_string()))
             }
-            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
-    };
+        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+    })?;
 
     let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
-    fs::create_dir(&directory_location).unwrap_or_else(|err| {
-        err_unexpected!("couldn't open temporary file for writing: {:#?}", err).exit()
-    });
+    fs::create_dir(&directory_location)
+        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
+
     let file_location = format!("{}/{}", directory_location, file_metadata.name);
     let temp_file_path = Path::new(file_location.as_str());
-    match File::create(&temp_file_path) {
-        Ok(_) => {}
-        Err(err) => err_unexpected!("couldn't open temporary file for writing: {:#?}", err).exit(),
-    }
+    let _ = File::create(&temp_file_path)
+        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
 
     if file_metadata.file_type == Folder {
         exit_success("Folder created.");
@@ -65,5 +64,5 @@ pub fn new(file_name: &str) {
     }
 
     fs::remove_file(&temp_file_path)
-        .unwrap_or_else(|_| panic!("Failed to delete temporary file: {}", &file_location));
+        .map_err(|err| err_unexpected!("deleting temporary file '{}': {}", &file_location, err))
 }
