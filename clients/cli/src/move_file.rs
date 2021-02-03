@@ -24,18 +24,10 @@ pub fn move_file(path1: &str, path2: &str) {
                             exitlb!(FileNotFound(path2.to_string()))
                         }
                         CoreError::UiError(MoveFileError::FolderMovedIntoItself) => {
-                            exitlb!(
-                                CannotMoveFolderIntoItself,
-                                "Cannot move file into its self or children."
-                            )
+                            exitlb!(CannotMoveFolderIntoItself)
                         }
                         CoreError::UiError(MoveFileError::TargetParentHasChildNamedThat) => {
-                            exitlb!(
-                                FileNameNotAvailable,
-                                "{}/ has a file named {}",
-                                file_metadata.name,
-                                target_file_metadata.name
-                            )
+                            exitlb!(FileNameNotAvailable(target_file_metadata.name))
                         }
                         CoreError::UiError(MoveFileError::DocumentTreatedAsFolder) => exitlb!(
                             DocTreatedAsFolder(path2.to_string()),

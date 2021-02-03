@@ -56,13 +56,13 @@ make_errkind_enum!(
     40 => FileNotFound(String),
     41 => FileAlreadyExists(String),
     42 => FileNameEmpty,
-    43 => FileNameNotAvailable,
-    44 => FileNameHasSlash,
-    45 => PathNoRoot,
+    43 => FileNameNotAvailable(String),
+    44 => FileNameHasSlash(String),
+    45 => PathNoRoot(String),
     46 => PathContainsEmptyFile(String),
     47 => DocTreatedAsFolder(String),
     48 => CannotMoveFolderIntoItself,
-    49 => CannotDeleteRoot,
+    49 => CannotDeleteRoot(String),
 );
 
 impl ErrorKind {
@@ -119,6 +119,10 @@ impl ErrorKind {
             Self::FileAlreadyExists(path) => {
                 format!("the file '{}' already exists", path)
             }
+            Self::FileNameEmpty => "The file name provided is empty!".to_string(),
+            Self::FileNameNotAvailable(name) => format!("File name '{}' is not available.", name),
+            Self::FileNameHasSlash(name) => format!("File name '{}' has a slash.", name),
+            Self::PathNoRoot(path) => format!("Path '{}' does not start with your root folder.", path),
             Self::PathContainsEmptyFile(path) => {
                 format!("the path '{}' contains an empty file name", path)
             }
@@ -126,8 +130,8 @@ impl ErrorKind {
                 "a file in path '{}' is a document being treated as a folder",
                 path
             ),
-
-            _ => "I heart Golang".to_string(),
+            Self::CannotMoveFolderIntoItself => "Cannot move file into its self or children.".to_string(),
+            Self::CannotDeleteRoot(path) => format!("Cannot delete '{}' since it is the root folder.", path),
         }
     }
 }

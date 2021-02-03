@@ -63,11 +63,9 @@ pub fn remove(path: &str, force: bool) {
         Ok(_) => {}
         Err(err) => match err {
             UiError(FileDeleteError::FileDoesNotExist) => exitlb!(FileNotFound(path.to_string())),
-            UiError(FileDeleteError::CannotDeleteRoot) => exitlb!(
-                CannotDeleteRoot,
-                "Cannot delete '{}' since it is the root folder.",
-                path
-            ),
+            UiError(FileDeleteError::CannotDeleteRoot) => {
+                exitlb!(CannotDeleteRoot(path.to_string()))
+            }
             UnexpectedError(msg) => err_unexpected!("{}", msg).exit(),
         },
     }

@@ -26,7 +26,7 @@ pub fn new(file_name: &str) {
                 exitlb!(PathContainsEmptyFile(file_name.to_string()))
             }
             CoreError::UiError(CreateFileAtPathError::PathDoesntStartWithRoot) => {
-                exitlb!(PathNoRoot, "Path doesn't start with your root folder.")
+                exitlb!(PathNoRoot(file_name.to_string()))
             }
             CoreError::UiError(CreateFileAtPathError::DocumentTreatedAsFolder) => {
                 exitlb!(DocTreatedAsFolder(file_name.to_string()))

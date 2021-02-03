@@ -12,13 +12,13 @@ pub fn rename(path: &str, new_name: &str) {
             Ok(_) => exit_success(""),
             Err(err) => match err {
                 CoreError::UiError(err) => match err {
-                    RenameFileError::NewNameEmpty => exitlb!(FileNameEmpty, "New name is empty!"),
+                    RenameFileError::NewNameEmpty => exitlb!(FileNameEmpty),
                     RenameFileError::CannotRenameRoot => exitlb!(NoRootOps("rename".to_string())),
                     RenameFileError::NewNameContainsSlash => {
-                        exitlb!(FileNameHasSlash, "New name cannot contain a slash!")
+                        exitlb!(FileNameHasSlash(new_name.to_string()))
                     }
                     RenameFileError::FileNameNotAvailable => {
-                        exitlb!(FileNameNotAvailable, "File name not available!")
+                        exitlb!(FileNameNotAvailable(new_name.to_string()))
                     }
                     RenameFileError::FileDoesNotExist => {
                         err_unexpected!("FileDoesNotExist!").exit()

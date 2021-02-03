@@ -70,7 +70,7 @@ fn recursive_copy_folder(path: &PathBuf, import_dest: &str, config: &Config, edi
                     CreateFileAtPathError::NoRoot => exitlb!(NoRoot),
                     CreateFileAtPathError::DocumentTreatedAsFolder => eprintln!("A file along the target destination is a document that cannot be used as a folder: {}", import_dest),
                     CreateFileAtPathError::PathContainsEmptyFile => eprintln!("Input destination {} contains an empty file!", import_dest),
-                    CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
+                    CreateFileAtPathError::PathDoesntStartWithRoot => exitlb!(PathNoRoot(import_dest.to_string())),
                 }
                 CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
             }
@@ -131,7 +131,9 @@ fn copy_file(
                         "The input destination path contains an empty file!"
                     ));
                 }
-                CreateFileAtPathError::PathDoesntStartWithRoot => exit_with_path_no_root(),
+                CreateFileAtPathError::PathDoesntStartWithRoot => {
+                    exitlb!(PathNoRoot(import_dest_with_filename.to_string()))
+                }
             },
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
         },
@@ -148,11 +150,4 @@ fn read_dir_entries_or_exit(p: &PathBuf) -> Vec<DirEntry> {
         .unwrap_or_else(|err| exitlb!(OsCouldNotListChildren(path_string!(p), err)))
         .map(|child| child.unwrap_or_else(|err| exitlb!(OsCouldNotReadFile("".to_string(), err))))
         .collect()
-}
-
-fn exit_with_path_no_root() -> ! {
-    exitlb!(
-        PathNoRoot,
-        "Import destination doesn't start with your root folder."
-    )
 }
