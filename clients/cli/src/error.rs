@@ -1,6 +1,37 @@
 pub type CliResult = Result<(), Error>;
 
-type IoError = std::io::Error;
+pub enum Error {
+    Simple(ErrorKind),
+    Custom(CustomError),
+}
+
+impl Error {
+    pub fn print(&self) {
+        match self {
+            Self::Simple(base) => eprintln!("{}", base.msg()),
+            Self::Custom(err) => {
+                let base_msg = err.base.msg();
+                let with_ctx = match &err.context {
+                    Some(ctx) => format!("{}: {}", ctx, base_msg),
+                    None => base_msg,
+                };
+
+                eprintln!("{}", with_ctx);
+                if let Some(extra) = &err.extra {
+                    eprintln!("{}", extra);
+                }
+            }
+        }
+    }
+
+    pub fn exit(&self) -> ! {
+        self.print();
+        std::process::exit(match self {
+            Self::Simple(base) => base.code(),
+            Self::Custom(err) => err.base.code(),
+        })
+    }
+}
 
 macro_rules! underscore {
     ($t:ty) => { _ };
@@ -26,6 +57,8 @@ macro_rules! make_errkind_enum {
         }
     };
 }
+
+type IoError = std::io::Error;
 
 // Error Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
 make_errkind_enum!(
@@ -120,40 +153,6 @@ pub struct CustomError {
     pub base: ErrorKind,
     pub context: Option<String>,
     pub extra: Option<String>,
-}
-
-pub enum Error {
-    Simple(ErrorKind),
-    Custom(CustomError),
-}
-
-impl Error {
-    pub fn print(&self) {
-        match self {
-            Self::Simple(base) => eprintln!("{}", base.msg()),
-            Self::Custom(err) => {
-                let base_msg = err.base.msg();
-                eprintln!(
-                    "{}",
-                    match &err.context {
-                        Some(ctx) => format!("{}: {}", ctx, base_msg),
-                        None => base_msg,
-                    }
-                );
-                if let Some(extra) = &err.extra {
-                    eprintln!("{}", extra);
-                }
-            }
-        }
-    }
-
-    pub fn exit(&self) -> ! {
-        self.print();
-        std::process::exit(match self {
-            Self::Simple(base) => base.code(),
-            Self::Custom(err) => err.base.code(),
-        })
-    }
 }
 
 #[macro_export]
