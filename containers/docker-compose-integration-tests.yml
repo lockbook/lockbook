@@ -50,9 +50,9 @@ services:
         RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
       '
 
-  integration_tests:
-    container_name: integration_tests-integration-$HASH
-    image: integration_tests:$HASH
+  core_server_tests:
+    container_name: core_server_tests-integration-$HASH
+    image: core_server_tests:$HASH
     env_file:
       - ../containers/test.env
     depends_on:
