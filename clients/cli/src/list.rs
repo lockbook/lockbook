@@ -12,6 +12,5 @@ pub fn list(file_filter: Option<Filter>) -> CliResult {
         .into_iter()
         .for_each(|path| println!("{}", path));
 
-    print_last_successful_sync();
-    Ok(())
+    print_last_successful_sync()
 }

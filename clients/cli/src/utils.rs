@@ -148,15 +148,14 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
         .success()
 }
 
-pub fn print_last_successful_sync() {
+pub fn print_last_successful_sync() -> CliResult {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = match get_last_synced_human_string(&get_config()) {
-            Ok(ok) => ok,
-            Err(err) => err_unexpected!("attempting to retrieve usage: {:#?}", err).exit(),
-        };
+        let last_updated = get_last_synced_human_string(&get_config())
+            .map_err(|err| err_unexpected!("attempting to retrieve usage: {:#?}", err))?;
 
         println!("Last successful sync: {}", last_updated);
     }
+    Ok(())
 }
 
 pub fn set_up_auto_save(

@@ -20,6 +20,5 @@ pub fn status() -> CliResult {
         WorkUnit::ServerChange { metadata } => println!("{} needs to be pulled", metadata.name),
     });
 
-    print_last_successful_sync();
-    Ok(())
+    print_last_successful_sync()
 }
