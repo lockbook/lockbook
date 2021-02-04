@@ -17,8 +17,6 @@ jobs:
     - uses: actions/checkout@v2
     - name: Build container
       run: make core
-    - name: Compile and run tests
-      run: make core_test
     - name: Check Formatting
       run: make core_fmt
     - name: Lint
@@ -88,7 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Prep-Core-Server-Db
-        run: make integration_tests
+        run: make core_server_tests
 
   Prep-Server-DB:
     runs-on: [self-hosted, dockerized]
@@ -149,8 +147,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
-      - name: Core-Server-DB Integration Tests
-        run: make integration_tests_run
+      - name: Core-Server-DB Tests
+        run: make core_server_tests_run
 
   Server-DB:
     runs-on: [self-hosted, dockerized]
