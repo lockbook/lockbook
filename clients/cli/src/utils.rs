@@ -40,7 +40,7 @@ pub fn get_account_or_exit() -> Account {
     }
 }
 
-pub fn check_and_perform_migrations() -> CliResult {
+pub fn check_and_perform_migrations() -> CliResult<()> {
     let state = get_db_state(&get_config()).map_err(|err| match err {
         CoreError::UiError(GetStateError::Stub) => err_unexpected!("impossible"),
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
@@ -148,7 +148,7 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
         .success()
 }
 
-pub fn print_last_successful_sync() -> CliResult {
+pub fn print_last_successful_sync() -> CliResult<()> {
     if atty::is(atty::Stream::Stdout) {
         let last_updated = get_last_synced_human_string(&get_config())
             .map_err(|err| err_unexpected!("attempting to retrieve usage: {:#?}", err))?;

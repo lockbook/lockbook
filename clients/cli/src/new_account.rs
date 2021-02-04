@@ -7,7 +7,7 @@ use crate::error::CliResult;
 use crate::utils::get_config;
 use crate::{err, err_unexpected};
 
-pub fn new_account() -> CliResult {
+pub fn new_account() -> CliResult<()> {
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 

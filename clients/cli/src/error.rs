@@ -1,4 +1,4 @@
-pub type CliResult = Result<(), Error>;
+pub type CliResult<T> = Result<T, Error>;
 
 pub enum Error {
     Simple(ErrorKind),
@@ -50,7 +50,7 @@ macro_rules! make_errkind_enum {
                 }
             }
 
-            pub fn print_table() -> CliResult {
+            pub fn print_table() -> CliResult<()> {
                 $( println!("{:>6}  {}", $codes, stringify!($variants)); )*
                 Ok(())
             }

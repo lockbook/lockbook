@@ -12,7 +12,7 @@ use crate::error::{CliResult, Error};
 use crate::utils::{exit_success, get_account_or_exit, get_config};
 use crate::{err, err_extra, err_unexpected, path_string};
 
-pub fn copy(path: PathBuf, import_dest: &str, edit: bool) -> CliResult {
+pub fn copy(path: PathBuf, import_dest: &str, edit: bool) -> CliResult<()> {
     get_account_or_exit();
 
     let config = get_config();

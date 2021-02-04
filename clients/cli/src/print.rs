@@ -5,7 +5,7 @@ use lockbook_core::{get_file_by_path, read_document, Error as CoreError, GetFile
 use std::io;
 use std::io::Write;
 
-pub fn print(file_name: &str) -> CliResult {
+pub fn print(file_name: &str) -> CliResult<()> {
     get_account_or_exit();
     let cfg = get_config();
 

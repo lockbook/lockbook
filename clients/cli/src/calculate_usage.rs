@@ -3,7 +3,7 @@ use crate::utils::{get_account_or_exit, get_config};
 use crate::{err, err_unexpected};
 use lockbook_core::{Error as CoreError, GetUsageError};
 
-pub fn calculate_usage(exact: bool) -> CliResult {
+pub fn calculate_usage(exact: bool) -> CliResult<()> {
     get_account_or_exit();
 
     let readable_usage =

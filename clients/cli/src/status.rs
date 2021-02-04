@@ -5,7 +5,7 @@ use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config, print_last_successful_sync};
 use crate::{err, err_unexpected};
 
-pub fn status() -> CliResult {
+pub fn status() -> CliResult<()> {
     get_account_or_exit();
 
     let work = calculate_work(&get_config()).map_err(|err| match err {

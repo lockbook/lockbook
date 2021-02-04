@@ -12,7 +12,7 @@ use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config};
 use crate::{err, err_unexpected};
 
-pub fn sync() -> CliResult {
+pub fn sync() -> CliResult<()> {
     let account = get_account_or_exit();
     let config = get_config();
 

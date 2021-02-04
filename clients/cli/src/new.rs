@@ -12,7 +12,7 @@ use crate::utils::{
 };
 use crate::{err, err_unexpected};
 
-pub fn new(file_name: &str) -> CliResult {
+pub fn new(file_name: &str) -> CliResult<()> {
     get_account_or_exit();
     let cfg = get_config();
 

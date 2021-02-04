@@ -15,7 +15,7 @@ use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config};
 use crate::{err, err_unexpected, path_string};
 
-pub fn backup() -> CliResult {
+pub fn backup() -> CliResult<()> {
     get_account_or_exit();
 
     let now: DateTime<Utc> = Utc::now();

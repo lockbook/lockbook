@@ -5,7 +5,7 @@ use lockbook_core::{
     get_file_by_path, rename_file, Error as CoreError, GetFileByPathError, RenameFileError,
 };
 
-pub fn rename(path: &str, new_name: &str) -> CliResult {
+pub fn rename(path: &str, new_name: &str) -> CliResult<()> {
     get_account_or_exit();
 
     let file_metadata = get_file_by_path(&get_config(), path).map_err(|err| match err {

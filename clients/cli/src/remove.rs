@@ -12,7 +12,7 @@ use crate::error::CliResult;
 use crate::utils::{exit_success, get_account_or_exit, get_config};
 use crate::{err, err_unexpected};
 
-pub fn remove(path: &str, force: bool) -> CliResult {
+pub fn remove(path: &str, force: bool) -> CliResult<()> {
     get_account_or_exit();
     let config = get_config();
 

@@ -4,7 +4,7 @@ use crate::error::CliResult;
 use crate::utils::get_config;
 use crate::{err, err_extra, err_unexpected};
 
-pub fn import_private_key() -> CliResult {
+pub fn import_private_key() -> CliResult<()> {
     if atty::is(atty::Stream::Stdin) {
         Err(err_extra!(
             ExpectedStdin,

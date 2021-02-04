@@ -16,7 +16,7 @@ use crate::utils::{
 };
 use crate::{err, err_unexpected};
 
-pub fn edit(file_name: &str) -> CliResult {
+pub fn edit(file_name: &str) -> CliResult<()> {
     get_account_or_exit();
 
     let file_metadata = get_file_by_path(&get_config(), file_name).map_err(|err| match err {
