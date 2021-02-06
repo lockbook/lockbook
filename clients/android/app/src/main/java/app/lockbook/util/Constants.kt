@@ -53,5 +53,8 @@ object WorkManagerTags {
 
 const val CANVAS_WIDTH = 2125
 const val CANVAS_HEIGHT = 2750
+const val SPEN_ACTION_DOWN = 211
+
 const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
+
 const val LOG_FILE_NAME = "lockbook.log"
