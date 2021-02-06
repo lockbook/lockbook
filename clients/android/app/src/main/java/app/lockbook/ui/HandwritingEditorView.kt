@@ -112,6 +112,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     init {
         setUpPaint()
     }
+
     private fun setUpPaint() {
         strokePaint.isAntiAlias = true
         strokePaint.style = Paint.Style.STROKE
@@ -267,13 +268,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val pressure = compressPressure(event.pressure)
 
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-            eraseAtPoint(modelPoint)
-        } else {
-            if (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN()) {
+            if (event.action == SPEN_ACTION_DOWN && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
                 erasePoints.first.set(PointF(Float.NaN, Float.NaN))
                 erasePoints.second.set(PointF(Float.NaN, Float.NaN))
             }
 
+            eraseAtPoint(modelPoint)
+        } else {
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> moveTo(modelPoint)
                 MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
