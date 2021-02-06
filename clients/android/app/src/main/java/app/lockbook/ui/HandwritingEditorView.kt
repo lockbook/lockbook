@@ -34,7 +34,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val bitmapPaint = Paint()
     private val backgroundPaint = Paint()
     private val lastPoint = PointF()
-    private var lastPressures = arrayOf(Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN)
+    private var pressureRollingAverage = Float.NaN
     private val strokePath = Path()
 
     // Scaling and Viewport state
@@ -287,11 +287,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point)
 
-        lastPressures[0] = Float.NaN
-        lastPressures[1] = Float.NaN
-        lastPressures[2] = Float.NaN
-        lastPressures[3] = Float.NaN
-        lastPressures[4] = getAdjustedPressure(pressure)
+        pressureRollingAverage = getAdjustedPressure(pressure)
 
         val penPath = Stroke(strokePaint.color)
 
@@ -300,25 +296,16 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         drawingModel.events.add(Event(penPath))
     }
 
-    private fun calculateRollingAveragePressure(pressure: Float): Float {
-        var validPressures = 1
-        var modifiedPressure = pressure
-
-        lastPressures.forEach { previousPressure ->
-            if (!previousPressure.isNaN()) {
-                modifiedPressure += previousPressure
-                validPressures++
-            }
-        }
-
-        return modifiedPressure / validPressures
+    private fun approximateRollingAveragePressure(newPressure: Float) {
+        pressureRollingAverage -= pressureRollingAverage / 5
+        pressureRollingAverage += newPressure / 5
     }
 
     private fun lineTo(point: PointF, pressure: Float) {
         val adjustedCurrentPressure = getAdjustedPressure(pressure)
-        val newPressure = calculateRollingAveragePressure(adjustedCurrentPressure)
+        approximateRollingAveragePressure(adjustedCurrentPressure)
 
-        strokePaint.strokeWidth = newPressure
+        strokePaint.strokeWidth = pressureRollingAverage
 
         strokePath.moveTo(
             lastPoint.x,
@@ -335,16 +322,10 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         strokePath.reset()
         lastPoint.set(point)
 
-        lastPressures[0] = lastPressures[1]
-        lastPressures[1] = lastPressures[2]
-        lastPressures[2] = lastPressures[3]
-        lastPressures[3] = lastPressures[4]
-        lastPressures[4] = adjustedCurrentPressure
-
         for (eventIndex in drawingModel.events.size - 1 downTo 0) {
             val currentEvent = drawingModel.events[eventIndex].stroke
             if (currentEvent is Stroke) {
-                currentEvent.points.add(newPressure)
+                currentEvent.points.add(pressureRollingAverage)
                 currentEvent.points.add(point.x)
                 currentEvent.points.add(point.y)
                 break
