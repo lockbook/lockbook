@@ -13,8 +13,6 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
-import timber.log.Timber
-import kotlin.math.absoluteValue
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -36,7 +34,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val bitmapPaint = Paint()
     private val backgroundPaint = Paint()
     private val lastPoint = PointF()
-    private var lastPressure = Float.NaN
+    private var lastPressures = arrayOf(Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN)
     private val strokePath = Path()
 
     // Scaling and Viewport state
@@ -268,7 +266,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun handleStylusEvent(event: MotionEvent) {
         val modelPoint = screenToModel(PointF(event.x, event.y))
-        val pressure = compressPressure(event.pressure)
 
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
             eraseAtPoint(modelPoint)
@@ -279,94 +276,75 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             }
 
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    Timber.e("MOVE TO")
-                    moveTo(modelPoint, pressure)
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    Timber.e("LINE TO")
-                    lineTo(modelPoint, pressure)
-                }
+                MotionEvent.ACTION_DOWN -> moveTo(modelPoint, event.pressure)
+                MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
             }
         }
     }
 
-    private fun compressPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
+    private fun getAdjustedPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
 
     private fun moveTo(point: PointF, pressure: Float) {
-        lastPoint.set(point.x, point.y)
-        lastPressure = pressure
+        lastPoint.set(point)
+
+        lastPressures[0] = Float.NaN
+        lastPressures[1] = Float.NaN
+        lastPressures[2] = Float.NaN
+        lastPressures[3] = Float.NaN
+        lastPressures[4] = getAdjustedPressure(pressure)
+
         val penPath = Stroke(strokePaint.color)
+
         penPath.points.add(point.x)
         penPath.points.add(point.y)
         drawingModel.events.add(Event(penPath))
     }
 
-    private fun plotInterpolatedPointsAndSelf(initialPoint: PointF, endPoint: PointF, initialPressure: Float, endPressure: Float) { // maintain a point for every 10 pixels
-        val dist = distanceBetweenPoints(initialPoint, endPoint)
-        val amountOfInterpolatedPoints = (dist / 2).toInt()
+    private fun calculateRollingAveragePressure(pressure: Float): Float {
+        var validPressures = 1
+        var modifiedPressure = pressure
 
-        if (amountOfInterpolatedPoints <= 1) {
-            strokePaint.strokeWidth = endPressure
-            strokePath.moveTo(
-                    initialPoint.x,
-                    initialPoint.y
-            )
-
-            strokePath.lineTo(
-                    endPoint.x,
-                    endPoint.y
-            )
-
-            tempCanvas.drawPath(strokePath, strokePaint)
-
-            strokePath.reset()
-            lastPoint.set(endPoint)
-
-            return
+        lastPressures.forEach { previousPressure ->
+            if (!previousPressure.isNaN()) {
+                modifiedPressure += previousPressure
+                validPressures++
+            }
         }
 
-        val distanceBetweenEachX = (endPoint.x - initialPoint.x) / amountOfInterpolatedPoints
-        val amountBetweenEachPressure = (endPressure - initialPressure) / amountOfInterpolatedPoints
-
-        var interpolatedX = initialPoint.x
-        var interpolatedPressure = initialPressure
-
-        repeat(amountOfInterpolatedPoints) {
-            interpolatedX += distanceBetweenEachX
-            interpolatedPressure += amountBetweenEachPressure
-            val interpolatedPoint = PointF(interpolatedX, initialPoint.y * (endPoint.y / initialPoint.y).pow((interpolatedX - initialPoint.x) / (endPoint.x - initialPoint.x)))
-
-            strokePaint.strokeWidth = interpolatedPressure
-
-            strokePath.moveTo(
-                    lastPoint.x,
-                    lastPoint.y
-            )
-
-            strokePath.lineTo(
-                    interpolatedPoint.x,
-                    interpolatedPoint.y
-            )
-
-            Timber.e("Drawing $lastPoint to $interpolatedPoint")
-
-            tempCanvas.drawPath(strokePath, strokePaint)
-
-            strokePath.reset()
-
-            lastPressure = interpolatedPressure
-            lastPoint.set(interpolatedPoint)
-        }
+        return modifiedPressure / validPressures
     }
 
     private fun lineTo(point: PointF, pressure: Float) {
-        plotInterpolatedPointsAndSelf(lastPoint, point, lastPressure, pressure)
+        val adjustedCurrentPressure = getAdjustedPressure(pressure)
+        val newPressure = calculateRollingAveragePressure(adjustedCurrentPressure)
+
+        strokePaint.strokeWidth = newPressure
+
+        strokePath.moveTo(
+            lastPoint.x,
+            lastPoint.y
+        )
+
+        strokePath.lineTo(
+            point.x,
+            point.y
+        )
+
+        tempCanvas.drawPath(strokePath, strokePaint)
+
+        strokePath.reset()
+        lastPoint.set(point)
+
+        lastPressures[0] = lastPressures[1]
+        lastPressures[1] = lastPressures[2]
+        lastPressures[2] = lastPressures[3]
+        lastPressures[3] = lastPressures[4]
+        lastPressures[4] = adjustedCurrentPressure
 
         for (eventIndex in drawingModel.events.size - 1 downTo 0) {
             val currentEvent = drawingModel.events[eventIndex].stroke
             if (currentEvent is Stroke) {
-                currentEvent.points.add(pressure)
+                currentEvent.points.add(newPressure)
                 currentEvent.points.add(point.x)
                 currentEvent.points.add(point.y)
                 break
