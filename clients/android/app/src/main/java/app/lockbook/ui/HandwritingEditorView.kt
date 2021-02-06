@@ -297,8 +297,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun approximateRollingAveragePressure(newPressure: Float) {
-        pressureRollingAverage -= pressureRollingAverage / 5
-        pressureRollingAverage += newPressure / 5
+        pressureRollingAverage -= pressureRollingAverage / PRESSURE_SAMPLES_AVERAGED
+        pressureRollingAverage += newPressure / PRESSURE_SAMPLES_AVERAGED
     }
 
     private fun lineTo(point: PointF, pressure: Float) {
