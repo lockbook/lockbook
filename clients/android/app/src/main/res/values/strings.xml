@@ -64,8 +64,8 @@
     <string name="biometrics_title">Protect your key with biometrics.</string>
 
     <string name="biometric_disabled">Disabled</string>
-    <string name="biometric_recommended">Protect key export with fingerprint (recommended)</string>
-    <string name="biometric_strict">Use fingerprint every time you open the app (strict mode)</string>
+    <string name="biometric_recommended">Protect key export with biometrics (recommended)</string>
+    <string name="biometric_strict">Use biometrics every time you open the app (strict mode)</string>
 
     <string name="menu_search">Search</string>
     <string name="menu_sort">Sort</string>
