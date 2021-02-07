@@ -34,7 +34,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val bitmapPaint = Paint()
     private val backgroundPaint = Paint()
     private val lastPoint = PointF()
-    private var pressureRollingAverage = Float.NaN
+    private var rollingAveragePressure = Float.NaN
     private val strokePath = Path()
 
     // Scaling and Viewport state
@@ -287,7 +287,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point)
 
-        pressureRollingAverage = getAdjustedPressure(pressure)
+        rollingAveragePressure = getAdjustedPressure(pressure)
 
         val penPath = Stroke(strokePaint.color)
 
@@ -296,16 +296,20 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         drawingModel.events.add(Event(penPath))
     }
 
-    private fun approximateRollingAveragePressure(newPressure: Float) {
-        pressureRollingAverage -= pressureRollingAverage / PRESSURE_SAMPLES_AVERAGED
-        pressureRollingAverage += newPressure / PRESSURE_SAMPLES_AVERAGED
+    private fun approximateRollingAveragePressure(previousRollingAverage: Float, newPressure: Float): Float {
+        var newRollingAverage = previousRollingAverage
+
+        newRollingAverage -= newRollingAverage / PRESSURE_SAMPLES_AVERAGED
+        newRollingAverage += newPressure / PRESSURE_SAMPLES_AVERAGED
+
+        return newRollingAverage
     }
 
     private fun lineTo(point: PointF, pressure: Float) {
         val adjustedCurrentPressure = getAdjustedPressure(pressure)
-        approximateRollingAveragePressure(adjustedCurrentPressure)
+        rollingAveragePressure = approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
 
-        strokePaint.strokeWidth = pressureRollingAverage
+        strokePaint.strokeWidth = rollingAveragePressure
 
         strokePath.moveTo(
             lastPoint.x,
@@ -325,7 +329,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         for (eventIndex in drawingModel.events.size - 1 downTo 0) {
             val currentEvent = drawingModel.events[eventIndex].stroke
             if (currentEvent is Stroke) {
-                currentEvent.points.add(pressureRollingAverage)
+                currentEvent.points.add(rollingAveragePressure)
                 currentEvent.points.add(point.x)
                 currentEvent.points.add(point.y)
                 break
