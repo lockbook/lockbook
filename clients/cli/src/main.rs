@@ -9,6 +9,7 @@ mod backup;
 mod calculate_usage;
 mod copy;
 mod edit;
+mod error;
 mod export_private_key;
 mod import_private_key;
 mod list;
@@ -106,14 +107,20 @@ enum Lockbook {
         #[structopt(long)]
         exact: bool,
     },
+
+    /// Print out what each error code means
+    Errors,
 }
 
 fn main() {
     init_logger_or_print();
     let args: Lockbook = Lockbook::from_args();
-    check_and_perform_migrations();
 
-    match args {
+    if let Err(err) = check_and_perform_migrations() {
+        err.exit()
+    }
+
+    if let Err(err) = match args {
         Lockbook::Copy {
             file,
             destination,
@@ -137,42 +144,8 @@ fn main() {
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Backup => backup::backup(),
         Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact),
+        Lockbook::Errors => error::ErrorKind::print_table(),
+    } {
+        err.exit()
     }
 }
-
-// Exit Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
-static SUCCESS: u8 = 0;
-
-static USERNAME_TAKEN: u8 = 1;
-static USERNAME_INVALID: u8 = 3;
-static NETWORK_ISSUE: u8 = 4;
-static UNEXPECTED_ERROR: u8 = 5;
-static EXPECTED_STDIN: u8 = 6;
-static ACCOUNT_STRING_CORRUPTED: u8 = 7;
-static NO_ACCOUNT: u8 = 8;
-static FILE_ALREADY_EXISTS: u8 = 9;
-static NO_ROOT: u8 = 10;
-static PATH_NO_ROOT: u8 = 11;
-static DOCUMENT_TREATED_AS_FOLDER: u8 = 12;
-static _UNIMPLEMENTED: u8 = 14;
-static COULD_NOT_READ_OS_FILE: u8 = 15;
-static COULD_NOT_GET_OS_ABSOLUTE_PATH: u8 = 16;
-static FILE_NOT_FOUND: u8 = 17;
-static COULD_NOT_WRITE_TO_OS_FILE: u8 = 18;
-static COULD_NOT_DELETE_OS_FILE: u8 = 18;
-static NAME_CONTAINS_SLASH: u8 = 19;
-static FILE_NAME_NOT_AVAILABLE: u8 = 20;
-static ACCOUNT_ALREADY_EXISTS: u8 = 21;
-static ACCOUNT_DOES_NOT_EXIST: u8 = 22;
-static USERNAME_PK_MISMATCH: u8 = 23;
-static NO_CLI_LOCATION: u8 = 24;
-static UPDATE_REQUIRED: u8 = 25;
-static UNINSTALL_REQUIRED: u8 = 26;
-static PATH_CONTAINS_EMPTY_FILE: u8 = 27;
-static NAME_EMPTY: u8 = 28;
-static NO_ROOT_OPS: u8 = 29;
-static PWD_MISSING: u8 = 30;
-static COULD_NOT_CREATE_OS_DIRECTORY: u8 = 31;
-static COULD_NOT_MOVE_FOLDER_INTO_ITSELF: u8 = 32;
-static COULD_NOT_DELETE_ROOT: u8 = 33;
-static COULD_NOT_READ_OS_CHILDREN: u8 = 34;

@@ -7,17 +7,21 @@ use lockbook_core::{
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
+use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::{
-    NETWORK_ISSUE, NO_ACCOUNT, NO_CLI_LOCATION, SUCCESS, UNEXPECTED_ERROR, UNINSTALL_REQUIRED,
-    UPDATE_REQUIRED,
-};
+use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
 use std::path::Path;
-use std::process::exit;
+
+#[macro_export]
+macro_rules! path_string {
+    ($pb:expr) => {
+        $pb.to_string_lossy().to_string()
+    };
+}
 
 pub fn init_logger_or_print() {
     if let Err(err) = init_logger(&get_config().path()) {
@@ -28,62 +32,57 @@ pub fn init_logger_or_print() {
 pub fn get_account_or_exit() -> Account {
     match get_account(&get_config()) {
         Ok(account) => account,
-        Err(error) => match error {
-            CoreError::UiError(GetAccountError::NoAccount) => exit_with_no_account(),
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
+        Err(err) => match err {
+            CoreError::UiError(GetAccountError::NoAccount) => err!(NoAccount),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+        }
+        .exit(),
     }
 }
 
-pub fn check_and_perform_migrations() {
-    match get_db_state(&get_config()) {
-        Ok(state) => match state {
-            State::ReadyToUse => {}
-            State::Empty => {}
-            State::MigrationRequired => {
-                if atty::is(atty::Stream::Stdout) {
-                    println!("Local state requires migration! Performing migration now...");
-                }
-                match migrate_db(&get_config()) {
-                    Ok(_) => {
-                        if atty::is(atty::Stream::Stdout) {
-                            println!("Migration Successful!");
-                        }
-                    }
-                    Err(error) => match error {
-                        CoreError::UiError(MigrationError::StateRequiresCleaning) => exit_with(
-                            "Your local state cannot be migrated, please re-sync with a fresh client.",
-                            UNINSTALL_REQUIRED,
-                        ),
-                        CoreError::Unexpected(msg) =>
-                            exit_with(
-                                &format!(
-                                    "An unexpected error occurred while migrating, it's possible you need to clear your local state and resync. Error: {}",
-                                    &msg
-                                ),
-                                UNEXPECTED_ERROR
-                            )
-                    }
-                }
+pub fn check_and_perform_migrations() -> CliResult<()> {
+    let state = get_db_state(&get_config()).map_err(|err| match err {
+        CoreError::UiError(GetStateError::Stub) => err_unexpected!("impossible"),
+        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+    })?;
+
+    match state {
+        State::ReadyToUse => {}
+        State::Empty => {}
+        State::MigrationRequired => {
+            if atty::is(atty::Stream::Stdout) {
+                println!("Local state requires migration! Performing migration now...");
             }
-            State::StateRequiresClearing => exit_with(
-                "Your local state cannot be migrated, please re-sync with a fresh client.",
-                UNINSTALL_REQUIRED,
-            ),
-        },
-        Err(err) => match err {
-            CoreError::UiError(GetStateError::Stub) => exit_with("Impossible", UNEXPECTED_ERROR),
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
+            migrate_db(&get_config()).map_err(|err| match err {
+                CoreError::UiError(MigrationError::StateRequiresCleaning) => {
+                    err!(UninstallRequired)
+                }
+                CoreError::Unexpected(msg) => err_extra!(
+                    Unexpected(msg),
+                    "It's possible you need to clear your local state and resync."
+                ),
+            })?;
+
+            if atty::is(atty::Stream::Stdout) {
+                println!("Migration Successful!");
+            }
+        }
+        State::StateRequiresClearing => return Err(err!(UninstallRequired)),
     }
+
+    Ok(())
 }
 
 pub fn get_config() -> Config {
-    let path = match (env::var("LOCKBOOK_CLI_LOCATION"), env::var("HOME"), env::var("HOMEPATH")) {
+    let path = match (
+        env::var("LOCKBOOK_CLI_LOCATION"),
+        env::var("HOME"),
+        env::var("HOMEPATH"),
+    ) {
         (Ok(s), _, _) => s,
         (Err(_), Ok(s), _) => format!("{}/.lockbook", s),
         (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
-        _ => exit_with("Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your .lockbook folder", NO_CLI_LOCATION)
+        _ => err!(NoCliLocation).exit(),
     };
 
     Config {
@@ -91,28 +90,11 @@ pub fn get_config() -> Config {
     }
 }
 
-pub fn exit_with_upgrade_required() -> ! {
-    exit_with(
-        "An update to your application is required to do this action!",
-        UPDATE_REQUIRED,
-    )
-}
-
-pub fn exit_with_offline() -> ! {
-    exit_with("Could not reach server!", NETWORK_ISSUE)
-}
-
-pub fn exit_with_no_account() -> ! {
-    exit_with("No account! Run init or import to get started!", NO_ACCOUNT)
-}
-
-pub fn exit_with(message: &str, status: u8) -> ! {
-    if status == 0 {
-        println!("{}", message);
-    } else {
-        eprintln!("{}", message);
+pub fn exit_success(msg: &str) -> ! {
+    if !msg.is_empty() {
+        println!("{}", msg);
     }
-    exit(status as i32);
+    std::process::exit(0)
 }
 
 // In order of superiority
@@ -166,18 +148,14 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
         .success()
 }
 
-pub fn print_last_successful_sync() {
+pub fn print_last_successful_sync() -> CliResult<()> {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = match get_last_synced_human_string(&get_config()) {
-            Ok(ok) => ok,
-            Err(_) => exit_with(
-                "Unexpected error while attempting to retrieve usage: {:#?}",
-                UNEXPECTED_ERROR,
-            ),
-        };
+        let last_updated = get_last_synced_human_string(&get_config())
+            .map_err(|err| err_unexpected!("attempting to retrieve usage: {:#?}", err))?;
 
         println!("Last successful sync: {}", last_updated);
     }
+    Ok(())
 }
 
 pub fn set_up_auto_save(
@@ -226,12 +204,9 @@ pub fn set_up_auto_save(
 }
 
 pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
-    watcher.unwatch(file_location).unwrap_or_else(|err| {
-        exit_with(
-            &format!("file watcher failed to unwatch: {:#?}", err),
-            UNEXPECTED_ERROR,
-        )
-    });
+    watcher
+        .unwatch(file_location)
+        .unwrap_or_else(|err| err_unexpected!("file watcher failed to unwatch: {:#?}", err).exit());
 }
 
 pub fn save_temp_file_contents(
@@ -244,13 +219,12 @@ pub fn save_temp_file_contents(
         Ok(content) => content.into_bytes(),
         Err(err) => {
             if !silent {
-                exit_with(
-                    &format!(
-                        "Could not read from temporary file, not deleting {}, err: {:#?}",
-                        file_location, err
-                    ),
-                    UNEXPECTED_ERROR,
+                err_unexpected!(
+                    "could not read from temporary file, not deleting {}, err: {:#?}",
+                    file_location,
+                    err
                 )
+                .exit()
             } else {
                 return;
             }
@@ -260,25 +234,21 @@ pub fn save_temp_file_contents(
     match write_document(&get_config(), file_metadata.id, &secret) {
         Ok(_) => {
             if !silent {
-                exit_with(
-                    "Document encrypted and saved. Cleaning up temporary file.",
-                    SUCCESS,
-                )
+                exit_success("Document encrypted and saved. Cleaning up temporary file.")
             }
         }
         Err(err) => {
             if !silent {
                 match err {
-                    CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-                    CoreError::UiError(WriteToDocumentError::NoAccount) => exit_with(
-                        "Unexpected: No account! Run init or import to get started!",
-                        UNEXPECTED_ERROR,
-                    ),
+                    CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
+                    CoreError::UiError(WriteToDocumentError::NoAccount) => {
+                        err_unexpected!("No account! Run init or import to get started!").exit()
+                    }
                     CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
-                        exit_with("Unexpected: FileDoesNotExist", UNEXPECTED_ERROR)
+                        err_unexpected!("FileDoesNotExist").exit()
                     }
                     CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
-                        exit_with("Unexpected: CannotWriteToFolder", UNEXPECTED_ERROR)
+                        err_unexpected!("CannotWriteToFolder").exit()
                     }
                 }
             }
