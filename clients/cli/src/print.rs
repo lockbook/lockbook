@@ -1,28 +1,26 @@
-use crate::utils::{exit_with, get_account_or_exit, get_config};
-use crate::{FILE_NOT_FOUND, UNEXPECTED_ERROR};
+use crate::error::CliResult;
+use crate::utils::{get_account_or_exit, get_config};
+use crate::{err, err_unexpected};
 use lockbook_core::{get_file_by_path, read_document, Error as CoreError, GetFileByPathError};
 use std::io;
 use std::io::Write;
 
-pub fn print(file_name: &str) {
+pub fn print(file_name: &str) -> CliResult<()> {
     get_account_or_exit();
+    let cfg = get_config();
 
-    let file_metadata = match get_file_by_path(&get_config(), &file_name) {
-        Ok(fm) => fm,
-        Err(err) => match err {
-            CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                exit_with("File not found", FILE_NOT_FOUND)
-            }
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    };
+    let file_metadata = get_file_by_path(&cfg, &file_name).map_err(|err| match err {
+        CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
+            err!(FileNotFound(file_name.to_string()))
+        }
+        CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
+    })?;
 
-    match read_document(&get_config(), file_metadata.id) {
-        Ok(content) => print!("{}", String::from_utf8_lossy(&content)),
-        Err(error) => panic!("Unexpected error: {:?}", error),
-    };
+    let content =
+        read_document(&cfg, file_metadata.id).map_err(|err| err_unexpected!("{:?}", err))?;
+    print!("{}", String::from_utf8_lossy(&content));
 
     io::stdout()
         .flush()
-        .unwrap_or_else(|err| eprintln!("Failed to flush stdin, err: {:#?}", err));
+        .map_err(|err| err_unexpected!("flushing stdin: {:#?}", err))
 }

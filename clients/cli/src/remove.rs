@@ -8,72 +8,54 @@ use lockbook_core::{
     GetFileByPathError,
 };
 
-use crate::utils::{exit_with, get_account_or_exit, get_config};
-use crate::{COULD_NOT_DELETE_ROOT, DOCUMENT_TREATED_AS_FOLDER, FILE_NOT_FOUND, UNEXPECTED_ERROR};
+use crate::error::CliResult;
+use crate::utils::{exit_success, get_account_or_exit, get_config};
+use crate::{err, err_unexpected};
 
-pub fn remove(path: &str, force: bool) {
+pub fn remove(path: &str, force: bool) -> CliResult<()> {
     get_account_or_exit();
     let config = get_config();
 
-    let meta = match get_file_by_path(&config, path) {
-        Ok(meta) => meta,
-        Err(err) => match err {
-            UiError(GetFileByPathError::NoFileAtThatPath) => exit_with(
-                &format!("No file found with the path {}", path),
-                FILE_NOT_FOUND,
-            ),
-            UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    };
+    let meta = get_file_by_path(&config, path).map_err(|err| match err {
+        UiError(GetFileByPathError::NoFileAtThatPath) => err!(FileNotFound(path.to_string())),
+        UnexpectedError(msg) => err_unexpected!("{}", msg),
+    })?;
 
     if meta.file_type == FileType::Folder && !force {
-        match get_and_get_children_recursively(&config, meta.id) {
-            Ok(children) => {
-                print!(
-                    "Are you sure you want to delete {} documents? [y/n]: ",
-                    children
-                        .into_iter()
-                        .filter(|child| child.file_type == FileType::Document)
-                        .count()
-                );
-                io::stdout().flush().unwrap();
-
-                let mut answer = String::new();
-                io::stdin()
-                    .read_line(&mut answer)
-                    .expect("Failed to read from stdin");
-                answer.retain(|c| c != '\n');
-
-                if answer != "y" && answer != "Y" {
-                    exit_with("Aborted.", 0)
+        let children =
+            get_and_get_children_recursively(&config, meta.id).map_err(|err| match err {
+                UiError(GetAndGetChildrenError::DocumentTreatedAsFolder) => {
+                    err!(DocTreatedAsFolder(path.to_string()))
                 }
-            }
-            Err(err) => match err {
-                UiError(GetAndGetChildrenError::DocumentTreatedAsFolder) => exit_with(
-                    &format!("File {} is a document", path),
-                    DOCUMENT_TREATED_AS_FOLDER,
-                ),
-                UiError(GetAndGetChildrenError::FileDoesNotExist) => exit_with(
-                    &format!("No file found with the path {}", path),
-                    FILE_NOT_FOUND,
-                ),
-                UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-            },
-        };
+                UiError(GetAndGetChildrenError::FileDoesNotExist) => {
+                    err!(FileNotFound(path.to_string()))
+                }
+                UnexpectedError(msg) => err_unexpected!("{}", msg).exit(),
+            })?;
+
+        print!(
+            "Are you sure you want to delete {} documents? [y/n]: ",
+            children
+                .into_iter()
+                .filter(|child| child.file_type == FileType::Document)
+                .count()
+        );
+        io::stdout().flush().unwrap();
+
+        let mut answer = String::new();
+        io::stdin()
+            .read_line(&mut answer)
+            .expect("Failed to read from stdin");
+        answer.retain(|c| c != '\n');
+
+        if answer != "y" && answer != "Y" {
+            exit_success("Aborted.")
+        }
     }
 
-    match delete_file(&config, meta.id) {
-        Ok(_) => {}
-        Err(err) => match err {
-            UiError(FileDeleteError::FileDoesNotExist) => exit_with(
-                &format!("Cannot delete '{}', file does not exist.", path),
-                FILE_NOT_FOUND,
-            ),
-            UiError(FileDeleteError::CannotDeleteRoot) => exit_with(
-                &format!("Cannot delete '{}' since it is the root folder.", path),
-                COULD_NOT_DELETE_ROOT,
-            ),
-            UnexpectedError(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    }
+    delete_file(&config, meta.id).map_err(|err| match err {
+        UiError(FileDeleteError::FileDoesNotExist) => err!(FileNotFound(path.to_string())),
+        UiError(FileDeleteError::CannotDeleteRoot) => err!(CannotDeleteRoot(path.to_string())),
+        UnexpectedError(msg) => err_unexpected!("{}", msg),
+    })
 }
