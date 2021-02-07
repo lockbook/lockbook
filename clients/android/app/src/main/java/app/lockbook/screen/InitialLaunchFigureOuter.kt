@@ -6,9 +6,10 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricPrompt
+import androidx.biometric.BiometricPrompt.*
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import app.lockbook.R
@@ -171,7 +172,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
     private fun isBiometricsOptionsAvailable(): Boolean =
         BiometricManager.from(applicationContext)
-            .canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
+            .canAuthenticate(BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 
     private fun performBiometricFlow(pref: SharedPreferences) {
         when (
@@ -182,7 +183,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         ) {
             BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(applicationContext)
-                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                    .canAuthenticate(BIOMETRIC_WEAK) != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Snackbar.make(
@@ -208,7 +209,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         ) {
                             super.onAuthenticationError(errorCode, errString)
                             when (errorCode) {
-                                BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
+                                ERROR_HW_UNAVAILABLE, ERROR_UNABLE_TO_PROCESS, ERROR_NO_BIOMETRICS, ERROR_HW_NOT_PRESENT -> {
                                     Timber.e("Biometric authentication error: $errString")
                                     Snackbar.make(
                                         splash_screen,
@@ -224,7 +225,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                         }
                                     }).show()
                                 }
-                                BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT ->
+                                ERROR_LOCKOUT, ERROR_LOCKOUT_PERMANENT ->
                                     Snackbar.make(
                                         splash_screen,
                                         "Too many tries, try again later!",
@@ -243,10 +244,11 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     }
                 )
 
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                val promptInfo = PromptInfo.Builder()
                     .setTitle("Lockbook Biometric Verification")
                     .setSubtitle("Verify your identity to access Lockbook.")
-                    .setDeviceCredentialAllowed(true)
+                    .setAllowedAuthenticators(BIOMETRIC_WEAK)
+                    .setNegativeButtonText("Cancel")
                     .build()
 
                 biometricPrompt.authenticate(promptInfo)

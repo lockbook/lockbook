@@ -1,6 +1,5 @@
 package app.lockbook.ui
 
-import android.graphics.Point
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -216,11 +215,8 @@ class CreateFileDialogFragment : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
-        val sizePoint = Point()
-        dialog?.window?.windowManager?.defaultDisplay?.getSize(sizePoint)
-
         dialog?.window?.setLayout(
-            (sizePoint.x * 0.9).toInt(),
+            (resources.displayMetrics.widthPixels * 0.9).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT
         )
     }
