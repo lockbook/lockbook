@@ -34,6 +34,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val bitmapPaint = Paint()
     private val backgroundPaint = Paint()
     private val lastPoint = PointF()
+    private var rollingAveragePressure = Float.NaN
     private val strokePath = Path()
 
     // Scaling and Viewport state
@@ -265,7 +266,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun handleStylusEvent(event: MotionEvent) {
         val modelPoint = screenToModel(PointF(event.x, event.y))
-        val pressure = compressPressure(event.pressure)
 
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
             if (event.action == SPEN_ACTION_DOWN && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
@@ -276,24 +276,41 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             eraseAtPoint(modelPoint)
         } else {
             when (event.action) {
-                MotionEvent.ACTION_DOWN -> moveTo(modelPoint)
-                MotionEvent.ACTION_MOVE -> lineTo(modelPoint, pressure)
+                MotionEvent.ACTION_DOWN -> moveTo(modelPoint, event.pressure)
+                MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
             }
         }
     }
 
-    private fun compressPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
+    private fun getAdjustedPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
 
-    private fun moveTo(point: PointF) {
-        lastPoint.set(point.x, point.y)
+    private fun moveTo(point: PointF, pressure: Float) {
+        lastPoint.set(point)
+
+        rollingAveragePressure = getAdjustedPressure(pressure)
+
         val penPath = Stroke(strokePaint.color)
+
         penPath.points.add(point.x)
         penPath.points.add(point.y)
         drawingModel.events.add(Event(penPath))
     }
 
+    private fun approximateRollingAveragePressure(previousRollingAverage: Float, newPressure: Float): Float {
+        var newRollingAverage = previousRollingAverage
+
+        newRollingAverage -= newRollingAverage / PRESSURE_SAMPLES_AVERAGED
+        newRollingAverage += newPressure / PRESSURE_SAMPLES_AVERAGED
+
+        return newRollingAverage
+    }
+
     private fun lineTo(point: PointF, pressure: Float) {
-        strokePaint.strokeWidth = pressure
+        val adjustedCurrentPressure = getAdjustedPressure(pressure)
+        rollingAveragePressure = approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
+
+        strokePaint.strokeWidth = rollingAveragePressure
+
         strokePath.moveTo(
             lastPoint.x,
             lastPoint.y
@@ -307,11 +324,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         tempCanvas.drawPath(strokePath, strokePaint)
 
         strokePath.reset()
-        lastPoint.set(point.x, point.y)
+        lastPoint.set(point)
+
         for (eventIndex in drawingModel.events.size - 1 downTo 0) {
             val currentEvent = drawingModel.events[eventIndex].stroke
             if (currentEvent is Stroke) {
-                currentEvent.points.add(pressure)
+                currentEvent.points.add(rollingAveragePressure)
                 currentEvent.points.add(point.x)
                 currentEvent.points.add(point.y)
                 break
