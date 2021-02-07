@@ -1,20 +1,20 @@
-use crate::utils::{
-    exit_with, exit_with_offline, exit_with_upgrade_required, get_account_or_exit, get_config,
-};
-use crate::UNEXPECTED_ERROR;
+use crate::error::CliResult;
+use crate::utils::{get_account_or_exit, get_config};
+use crate::{err, err_unexpected};
 use lockbook_core::{Error as CoreError, GetUsageError};
 
-pub fn calculate_usage(exact: bool) {
+pub fn calculate_usage(exact: bool) -> CliResult<()> {
     get_account_or_exit();
 
-    match lockbook_core::get_usage_human_string(&get_config(), exact) {
-        Ok(readable_usage) => println!("{}", readable_usage),
-        Err(err) => match err {
-            CoreError::UiError(GetUsageError::CouldNotReachServer) => exit_with_offline(),
-            CoreError::UiError(GetUsageError::ClientUpdateRequired) => exit_with_upgrade_required(),
+    let readable_usage =
+        lockbook_core::get_usage_human_string(&get_config(), exact).map_err(|err| match err {
+            CoreError::UiError(GetUsageError::CouldNotReachServer) => err!(NetworkIssue),
+            CoreError::UiError(GetUsageError::ClientUpdateRequired) => err!(UpdateRequired),
             CoreError::UiError(GetUsageError::NoAccount) | CoreError::Unexpected(_) => {
-                exit_with(&format!("Unexpected Error: {:?}", err), UNEXPECTED_ERROR)
+                err_unexpected!("{:?}", err)
             }
-        },
-    };
+        })?;
+
+    println!("{}", readable_usage);
+    Ok(())
 }
