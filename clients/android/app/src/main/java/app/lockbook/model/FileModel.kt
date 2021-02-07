@@ -241,25 +241,21 @@ class FileModel(path: String) {
                 when (val error = syncAllResult.error) {
                     is SyncAllError.NoAccount -> {
                         Timber.e("No account.")
-                        Result.failure()
                     }
                     is SyncAllError.CouldNotReachServer -> {
                         Timber.e("Could not reach server.")
-                        Result.retry()
                     }
                     is SyncAllError.ExecuteWorkError -> {
                         Timber.e("Could not execute some work.")
-                        Result.failure()
                     }
                     is SyncAllError.ClientUpdateRequired -> {
                         Timber.e("Client update required.")
-                        Result.failure()
                     }
                     is SyncAllError.Unexpected -> {
                         Timber.e("Unable to sync all files: ${error.error}")
-                        Result.failure()
                     }
                 }.exhaustive
+                Result.failure()
             } else {
                 Result.success()
             }

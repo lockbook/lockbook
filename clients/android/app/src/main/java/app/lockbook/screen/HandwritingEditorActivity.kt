@@ -4,6 +4,7 @@ import android.animation.Animator
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.SurfaceHolder
@@ -27,7 +28,7 @@ class HandwritingEditorActivity : AppCompatActivity() {
     private lateinit var handwritingEditorViewModel: HandwritingEditorViewModel
     private var isFirstLaunch = true
     private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
-        override fun surfaceCreated(holder: SurfaceHolder?) {
+        override fun surfaceCreated(holder: SurfaceHolder) {
             if (!isFirstLaunch) {
                 handwriting_editor.startThread()
             } else {
@@ -36,23 +37,24 @@ class HandwritingEditorActivity : AppCompatActivity() {
         }
 
         override fun surfaceChanged(
-            holder: SurfaceHolder?,
+            holder: SurfaceHolder,
             format: Int,
             width: Int,
             height: Int
         ) {
         }
 
-        override fun surfaceDestroyed(holder: SurfaceHolder?) {
+        override fun surfaceDestroyed(holder: SurfaceHolder) {
         }
     }
 
     private var autoSaveTimer = Timer()
-    private val handler = Handler()
+    private val handler = Handler(requireNotNull(Looper.myLooper()))
     private lateinit var id: String
     private lateinit var gestureDetector: GestureDetector
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_handwriting_editor)
 

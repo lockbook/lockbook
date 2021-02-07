@@ -9,9 +9,10 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.PopupWindow
 import androidx.appcompat.app.AlertDialog
-import androidx.biometric.BiometricConstants
 import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricPrompt
+import androidx.biometric.BiometricPrompt.*
 import androidx.core.content.ContextCompat
 import androidx.preference.*
 import app.lockbook.R
@@ -152,7 +153,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         ) {
             BIOMETRIC_RECOMMENDED, BIOMETRIC_STRICT -> {
                 if (BiometricManager.from(requireContext())
-                    .canAuthenticate() != BiometricManager.BIOMETRIC_SUCCESS
+                    .canAuthenticate(BIOMETRIC_WEAK) != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Snackbar.make(
@@ -174,7 +175,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         ) {
                             super.onAuthenticationError(errorCode, errString)
                             when (errorCode) {
-                                BiometricConstants.ERROR_HW_UNAVAILABLE, BiometricConstants.ERROR_UNABLE_TO_PROCESS, BiometricConstants.ERROR_NO_BIOMETRICS, BiometricConstants.ERROR_HW_NOT_PRESENT -> {
+                                ERROR_HW_UNAVAILABLE, ERROR_UNABLE_TO_PROCESS, ERROR_NO_BIOMETRICS, ERROR_HW_NOT_PRESENT -> {
                                     Timber.e("Biometric authentication error: $errString")
                                     Snackbar.make(
                                         requireActivity().findViewById(android.R.id.content),
@@ -182,7 +183,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                                         Snackbar.LENGTH_SHORT
                                     ).show()
                                 }
-                                BiometricConstants.ERROR_LOCKOUT, BiometricConstants.ERROR_LOCKOUT_PERMANENT -> {
+                                ERROR_LOCKOUT, ERROR_LOCKOUT_PERMANENT -> {
                                     Snackbar.make(
                                         requireActivity().findViewById(android.R.id.content),
                                         "Too many tries, try again later!",
@@ -205,7 +206,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Lockbook Biometric Verification")
                     .setSubtitle("Verify your identity to access this setting.")
-                    .setDeviceCredentialAllowed(true)
+                    .setAllowedAuthenticators(BIOMETRIC_WEAK)
+                    .setNegativeButtonText("Cancel")
                     .build()
 
                 biometricPrompt.authenticate(promptInfo)
@@ -312,5 +314,5 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun isBiometricsOptionsAvailable(): Boolean =
         BiometricManager.from(requireContext())
-            .canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
+            .canAuthenticate(BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 }
