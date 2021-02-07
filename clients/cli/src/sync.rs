@@ -8,39 +8,24 @@ use lockbook_core::{
     SetLastSyncedError,
 };
 
-use crate::utils::{
-    exit_with, exit_with_no_account, exit_with_offline, exit_with_upgrade_required,
-    get_account_or_exit, get_config,
-};
-use crate::UNEXPECTED_ERROR;
+use crate::error::CliResult;
+use crate::utils::{get_account_or_exit, get_config};
+use crate::{err, err_unexpected};
 
-pub fn sync() {
+pub fn sync() -> CliResult<()> {
     let account = get_account_or_exit();
     let config = get_config();
 
-    let update_last_synced = |time| match set_last_synced(&config, time) {
-        Ok(_) => {}
-        Err(err) => match err {
-            CoreError::UiError(SetLastSyncedError::Stub) => {
-                exit_with("Impossible", UNEXPECTED_ERROR)
-            }
-            CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
-        },
-    };
-
     let mut work_calculated: WorkCalculated;
     while {
-        work_calculated = match calculate_work(&config) {
-            Ok(work) => work,
-            Err(err) => match err {
-                CoreError::UiError(err) => match err {
-                    CalculateWorkError::NoAccount => exit_with_no_account(),
-                    CalculateWorkError::CouldNotReachServer => exit_with_offline(),
-                    CalculateWorkError::ClientUpdateRequired => exit_with_upgrade_required(),
-                },
-                CoreError::Unexpected(msg) => exit_with(&msg, UNEXPECTED_ERROR),
+        work_calculated = calculate_work(&config).map_err(|err| match err {
+            CoreError::UiError(err) => match err {
+                CalculateWorkError::NoAccount => err!(NoAccount),
+                CalculateWorkError::CouldNotReachServer => err!(NetworkIssue),
+                CalculateWorkError::ClientUpdateRequired => err!(UpdateRequired),
             },
-        };
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+        })?;
         !work_calculated.work_units.is_empty()
     } {
         let mut there_were_errors = false;
@@ -62,9 +47,15 @@ pub fn sync() {
         }
 
         if !there_were_errors {
-            update_last_synced(work_calculated.most_recent_update_from_server);
+            set_last_synced(&config, work_calculated.most_recent_update_from_server).map_err(
+                |err| match err {
+                    CoreError::UiError(SetLastSyncedError::Stub) => err_unexpected!("impossible"),
+                    CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+                },
+            )?;
         }
     }
 
     println!("Sync complete.");
+    Ok(())
 }
