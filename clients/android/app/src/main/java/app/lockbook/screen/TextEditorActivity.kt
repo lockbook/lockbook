@@ -2,6 +2,7 @@ package app.lockbook.screen
 
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
@@ -30,7 +31,7 @@ import java.util.concurrent.Executors
 class TextEditorActivity : AppCompatActivity() {
     private lateinit var textEditorViewModel: TextEditorViewModel
     private var timer: Timer = Timer()
-    private val handler = Handler()
+    private val handler = Handler(requireNotNull(Looper.myLooper()))
     private var menu: Menu? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
