@@ -171,7 +171,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             if (event.stroke is Stroke) {
                 currentPaint.color = event.stroke.color
 
-                var pointIndex = 2
+                var pointIndex = 4
                 while (pointIndex < event.stroke.points.size) {
                     currentPaint.strokeWidth = event.stroke.points[pointIndex]
                     strokePath.moveTo(
@@ -291,6 +291,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         val penPath = Stroke(strokePaint.color)
 
+        penPath.points.add(rollingAveragePressure)
         penPath.points.add(point.x)
         penPath.points.add(point.y)
         drawingModel.events.add(Event(penPath))
