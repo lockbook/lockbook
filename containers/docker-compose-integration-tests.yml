@@ -112,7 +112,7 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
-        gradle test \
+        gradle testDebugUnitTest \
       '
 
   performance_bench:
