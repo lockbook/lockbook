@@ -411,7 +411,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getLastUpdatedFile(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getLastUpdated(
     env: JNIEnv,
     _: JClass,
     metadata_version: jlong,

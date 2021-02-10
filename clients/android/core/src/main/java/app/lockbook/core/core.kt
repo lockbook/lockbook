@@ -9,7 +9,7 @@ external fun importAccount(config: String, account: String): String
 external fun exportAccount(config: String): String
 external fun getAccount(config: String): String
 external fun setLastSynced(config: String, lastSynced: Long): String
-external fun getLastUpdatedFile(metadataVersion: Long): String
+external fun getLastUpdated(metadataVersion: Long): String
 external fun getLastSyncedHumanString(config: String): String
 external fun getUsageHumanString(config: String, exact: Boolean): String
 external fun getRoot(config: String): String

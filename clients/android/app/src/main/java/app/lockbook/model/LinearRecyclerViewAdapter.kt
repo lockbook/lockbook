@@ -6,7 +6,6 @@ import androidx.cardview.widget.CardView
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.core.getLastUpdatedFile
 import app.lockbook.util.*
 import kotlinx.android.synthetic.main.linear_layout_file_item.view.*
 
@@ -42,7 +41,7 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
         holder.cardView.linear_file_name.text = item.name
         holder.cardView.linear_file_description.text = holder.cardView.resources.getString(
             R.string.last_synced,
-            getLastUpdatedFile(item.metadataVersion)
+            CoreModel.getLastUpdated(item.metadataVersion)
         )
 
         when {

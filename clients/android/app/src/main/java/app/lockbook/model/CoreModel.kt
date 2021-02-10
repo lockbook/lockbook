@@ -166,6 +166,10 @@ object CoreModel {
         return Err(SetLastSyncedError.Unexpected("setLastSyncedConverter was unable to be called!"))
     }
 
+    fun getLastUpdated(
+        metadataVersion: Long
+    ): String = app.lockbook.core.getLastUpdated(metadataVersion)
+
     fun getLastSyncedHumanString(
         config: Config,
     ): Result<String, GetLastSynced> {
