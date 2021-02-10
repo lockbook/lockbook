@@ -1,20 +1,14 @@
 package app.lockbook.model
 
-import android.content.res.Resources
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.core.getLastUpdatedFile
 import app.lockbook.util.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.android.synthetic.main.linear_layout_file_item.view.*
-import timber.log.Timber
-import java.sql.Date
-import java.sql.Timestamp
 
 class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface, filesDir: String) :
     GeneralViewAdapter(listFilesClickInterface) {
@@ -41,30 +35,16 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
 
     override fun getItemCount(): Int = files.size
 
-    private fun setReadableLastSynced(description: TextView, resources: Resources, metadataVersion: Long) {
-        when (val getLastSyncedHumanStringResult = CoreModel.getLastSyncedHumanString(config)) {
-            is Ok -> description.text = resources.getString(
-                R.string.last_synced,
-                getLastSyncedHumanStringResult.value
-            )
-            is Err -> when (val error = getLastSyncedHumanStringResult.error) {
-                is GetLastSynced.Unexpected -> {
-                    description.text = resources.getString(
-                        R.string.last_synced,
-                        if (metadataVersion != 0L) Date(Timestamp(metadataVersion).time) else resources.getString(R.string.never_synced)
-                    )
-                    Timber.e("Unable to calculate last synced: ${error.error}")
-                }
-            }
-        }.exhaustive
-    }
-
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val item = files[position]
 
         holder.fileMetadata = item
         holder.cardView.linear_file_name.text = item.name
-        setReadableLastSynced(holder.cardView.linear_file_description, holder.cardView.resources, item.metadataVersion)
+        holder.cardView.linear_file_description.text = holder.cardView.resources.getString(
+            R.string.last_synced,
+            getLastUpdatedFile(item.metadataVersion)
+        )
+
         when {
             selectedFiles[position] -> {
                 holder.cardView.background.setTint(

@@ -12,13 +12,16 @@ use crate::model::account::Account;
 use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
+use crate::service::clock_service::Clock;
 use crate::{
     calculate_work, create_account, create_file, delete_file, execute_work, export_account,
     get_account, get_all_error_variants, get_children, get_db_state, get_file_by_id,
     get_last_synced_human_string, get_root, get_usage, get_usage_human_string, import_account,
     init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced,
-    sync_all, write_document, Error,
+    sync_all, write_document, DefaultClock, Error,
 };
+use basic_human_duration::ChronoHumanDuration;
+use chrono::Duration;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -404,6 +407,24 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
     string_to_jstring(
         &env,
         translate(create_file(&config, name.as_str(), id, file_type)),
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getLastUpdatedFile(
+    env: JNIEnv,
+    _: JClass,
+    metadata_version: jlong,
+) -> jstring {
+    string_to_jstring(
+        &env,
+        if metadata_version != 0 {
+            Duration::milliseconds(DefaultClock::get_time() - metadata_version)
+                .format_human()
+                .to_string()
+        } else {
+            "never".to_string()
+        },
     )
 }
 
