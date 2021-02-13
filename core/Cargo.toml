@@ -24,6 +24,7 @@ flate2 = "1.0"
 jni = { version = "0.13.1", default-features = false }
 log = "0.4.8"
 rand = "0.7"
+raqote = "0.8.0"
 reqwest = { version = "0.10.6", default-features = false, features = ["rustls-tls", "blocking", "json"] }
 rsa = { version = "^0.2", features = ["serde1"] }
 serde = { version = "1.0", features = ["derive"] }

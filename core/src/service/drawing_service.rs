@@ -1,7 +1,12 @@
 use crate::model::drawing::Drawing;
 use crate::service::file_service::{DocumentUpdateError, FileService, ReadDocumentError};
 use crate::storage::db_provider::Backend;
+use raqote::{
+    DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
+};
 use uuid::Uuid;
+
+pub type DrawingData = Vec<u32>;
 
 #[derive(Debug)]
 pub enum DrawingError<MyBackend: Backend> {
@@ -17,6 +22,10 @@ pub trait DrawingService<MyBackend: Backend, MyFileService: FileService<MyBacken
         serialized_drawing: &str,
     ) -> Result<(), DrawingError<MyBackend>>;
     fn get_drawing(backend: &MyBackend::Db, id: Uuid) -> Result<Drawing, DrawingError<MyBackend>>;
+    fn get_drawing_data(
+        backend: &MyBackend::Db,
+        id: Uuid,
+    ) -> Result<DrawingData, DrawingError<MyBackend>>;
 }
 
 pub struct DrawingServiceImpl<MyBackend: Backend, MyFileService: FileService<MyBackend>> {
@@ -47,4 +56,79 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
         serde_json::from_str::<Drawing>(serialized_drawing.as_str())
             .map_err(DrawingError::InvalidDrawingError)
     }
+
+    fn get_drawing_data(
+        backend: &MyBackend::Db,
+        id: Uuid,
+    ) -> Result<DrawingData, DrawingError<MyBackend>> {
+        let drawing = Self::get_drawing(backend, id)?;
+
+        let mut draw_target = DrawTarget::new(2125, 2750);
+
+        for event in drawing.events {
+            match event.stroke {
+                Some(stroke) => {
+                    let mut index = 3;
+
+                    while index < stroke.points.len() {
+                        let mut pb = PathBuilder::new();
+                        pb.move_to(stroke.points[index - 2], stroke.points[index - 1]);
+                        pb.line_to(stroke.points[index + 1], stroke.points[index + 2]);
+
+                        pb.close();
+                        let path = pb.finish();
+
+                        draw_target.stroke(
+                            &path,
+                            &Source::Solid(SolidSource {
+                                r: 0x0,
+                                g: 0x0,
+                                b: 0x80,
+                                a: 0x80,
+                            }),
+                            &StrokeStyle {
+                                cap: LineCap::Round,
+                                join: LineJoin::Round,
+                                width: index as f32,
+                                miter_limit: 10.0,
+                                dash_array: Vec::new(),
+                                dash_offset: 0.0,
+                            },
+                            &DrawOptions::new(),
+                        );
+
+                        index += 3;
+                    }
+                }
+                None => continue,
+            }
+        }
+
+        Ok(draw_target.into_vec())
+    }
 }
+
+// let mut pb = PathBuilder::new();
+//                     pb.move_to(100., 100.);
+//                     pb.line_to(300., 300.);
+//                     pb.line_to(200., 300.);
+//                     let path = pb.finish();
+//
+//                     dt.stroke(
+//                         &path,
+//                         &Source::Solid(SolidSource {
+//                             r: 0x0,
+//                             g: 0x0,
+//                             b: 0x80,
+//                             a: 0x80,
+//                         }),
+//                         &StrokeStyle {
+//                             cap: LineCap::Round,
+//                             join: LineJoin::Round,
+//                             width: 10.,
+//                             miter_limit: 2.,
+//                             dash_array: vec![10., 18.],
+//                             dash_offset: 16.,
+//                         },
+//                         &DrawOptions::new()
+//                     );
