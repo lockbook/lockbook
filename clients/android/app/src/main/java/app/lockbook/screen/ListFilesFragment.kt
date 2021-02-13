@@ -2,11 +2,12 @@ package app.lockbook.screen
 
 import android.content.Intent
 import android.content.res.Configuration
-import android.content.res.Configuration.ORIENTATION_PORTRAIT
+import android.content.res.Configuration.*
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout.HORIZONTAL
 import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
@@ -265,6 +266,10 @@ class ListFilesFragment : Fragment() {
                 listFilesViewModel.handleRefreshAtParent(position)
             }
         })
+
+        if (resources.configuration.orientation == ORIENTATION_LANDSCAPE && resources.configuration.screenLayout == SCREENLAYOUT_SIZE_SMALL) {
+            list_files_fab_holder.orientation = HORIZONTAL
+        }
     }
 
     private fun setFileAdapter(binding: FragmentListFilesBinding, filesDir: String): GeneralViewAdapter {
@@ -290,7 +295,7 @@ class ListFilesFragment : Fragment() {
             val adapter = GridRecyclerViewAdapter(listFilesViewModel)
             binding.filesList.adapter = adapter
 
-            val displayMetrics = requireContext().resources.displayMetrics
+            val displayMetrics = resources.displayMetrics
             val noOfColumns = (((displayMetrics.widthPixels / displayMetrics.density) / 90)).toInt()
 
             if (orientation == ORIENTATION_PORTRAIT) {

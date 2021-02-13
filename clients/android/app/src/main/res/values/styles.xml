@@ -70,7 +70,7 @@
     <style name="Main.Widget.FAB" parent="Widget.MaterialComponents.FloatingActionButton">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_margin">10dp</item>
+        <item name="android:layout_margin">5dp</item>
         <item name="backgroundTint">@color/colorPrimary</item>
         <item name="rippleColor">@color/light</item>
         <item name="tint">@null</item>
