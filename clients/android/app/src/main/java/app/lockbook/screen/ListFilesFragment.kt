@@ -93,15 +93,15 @@ class ListFilesFragment : Fragment() {
         }
 
         updatedLastSyncedDescription.schedule(
-                object : TimerTask() {
-                    override fun run() {
-                        handler.post {
-                            adapter.notifyDataSetChanged()
-                        }
+            object : TimerTask() {
+                override fun run() {
+                    handler.post {
+                        adapter.notifyDataSetChanged()
                     }
-                },
-                30000,
-                30000
+                }
+            },
+            30000,
+            30000
         )
 
         listFilesViewModel.files.observe(
