@@ -41,7 +41,7 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
         holder.cardView.linear_file_name.text = item.name
         holder.cardView.linear_file_description.text = holder.cardView.resources.getString(
             R.string.last_synced,
-            CoreModel.getLastUpdated(item.metadataVersion)
+            CoreModel.convertToHumanDuration(item.metadataVersion)
         )
 
         when {
