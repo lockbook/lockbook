@@ -71,10 +71,11 @@
                 android:text="@string/empty_folder" />
 
             <LinearLayout
+                android:id="@+id/list_files_fab_holder"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
-                android:gravity="center_horizontal"
+                android:gravity="center"
                 android:orientation="vertical">
 
                 <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -105,7 +106,7 @@
                     android:id="@+id/list_files_fab"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_margin="18dp"
+                    android:layout_margin="10dp"
                     app:backgroundTint="@color/colorPrimary"
                     android:contentDescription="@string/list_files_create_file"
                     android:onClick="@{() -> listFilesViewModel.collapseExpandFAB()}"
