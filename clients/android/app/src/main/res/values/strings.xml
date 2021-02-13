@@ -42,7 +42,7 @@
     <string name="popup_info_file_type">File Type: %s</string>
     <string name="popup_info_metadata_version">Metadata Version: %s</string>
 
-    <string name="last_synced">Last updated: %s</string>
+    <string name="last_synced">Last synced: %s</string>
     <string name="never_synced">never</string>
     <string name="pop_up_info_never_synced">never synced</string>
 
