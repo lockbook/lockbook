@@ -22,6 +22,3 @@ ENV API_URL=http://lockbook_server:8000
 RUN mkdir -p /clients/android/core/src/main/jniLibs/desktop
 WORKDIR /clients/android
 COPY --from=core-build /core/target/release/liblockbook_core.so /clients/android/core/src/main/jniLibs/desktop/liblockbook_core.so
-
-# Build android
-RUN gradle compileDebugUnitTestSources
