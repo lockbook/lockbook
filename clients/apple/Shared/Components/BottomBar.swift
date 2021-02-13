@@ -11,6 +11,7 @@ struct BottomBar: View {
 
     #if os(iOS)
     var onNewDocument: () -> Void = {}
+    var onNewDrawing: () -> Void = {}
     var onNewFolder: () -> Void = {}
     #endif
 
@@ -30,6 +31,10 @@ struct BottomBar: View {
                     Label("Create a document", systemImage: "doc")
                 }
 
+                Button(action: onNewDrawing) {
+                    Label("Create a drawing", systemImage: "scribble.variable")
+                }
+                
                 Button(action: onNewFolder) {
                     Label("Create a folder", systemImage: "folder")
                 }
@@ -150,7 +155,6 @@ struct BottomBar: View {
     }
 }
 
-#if(iOS)
 struct SyncingPreview: PreviewProvider {
 
     static let core = GlobalState()
@@ -226,4 +230,3 @@ struct WorkItemsPreview: PreviewProvider {
 
     }
 }
-#endif

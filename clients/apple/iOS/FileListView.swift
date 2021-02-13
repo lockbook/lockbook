@@ -6,6 +6,7 @@ struct FileListView: View {
     @State var showingAccount: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
+    @State var creatingFileExtension = ""
     let currentFolder: FileMetadata
     let account: Account
     
@@ -19,7 +20,7 @@ struct FileListView: View {
         ScrollView {
             VStack {
                 creating.map { type in
-                    SyntheticFileCell(params: (currentFolder, type), nameField: $creatingName, onCreate: {
+                    SyntheticFileCell(parent: currentFolder, type: type, nameField: $creatingName, fileExtension: $creatingFileExtension, onCreate: {
                         handleCreate(meta: currentFolder, type: type)
                     }, onCancel: doneCreating)
                 }
@@ -49,7 +50,7 @@ struct FileListView: View {
                 }
             }
             ToolbarItemGroup(placement: .bottomBar) {
-                BottomBar(core: core, onNewDocument: newDocument, onNewFolder: newFolder)
+                BottomBar(core: core, onNewDocument: newDocument, onNewDrawing: newDrawing, onNewFolder: newFolder)
             }
         }
         .navigationBarTitle(currentFolder.name)
@@ -81,7 +82,7 @@ struct FileListView: View {
     }
     
     func handleCreate(meta: FileMetadata, type: FileType) {
-        switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
+        switch core.api.createFile(name: creatingName + creatingFileExtension, dirId: meta.id, isFolder: type == .Folder) {
         case .success(_):
             doneCreating()
             core.updateFiles()
@@ -101,6 +102,15 @@ struct FileListView: View {
         withAnimation {
             creating = .Document
             creatingName = ""
+            creatingFileExtension = ".md"
+        }
+    }
+    
+    func newDrawing() {
+        withAnimation {
+            creating = .Document
+            creatingName = ""
+            creatingFileExtension = ".draw"
         }
     }
     
