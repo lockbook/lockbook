@@ -155,6 +155,7 @@ struct BottomBar: View {
     }
 }
 
+#if os(iOS)
 struct SyncingPreview: PreviewProvider {
 
     static let core = GlobalState()
@@ -230,3 +231,4 @@ struct WorkItemsPreview: PreviewProvider {
 
     }
 }
+#endif

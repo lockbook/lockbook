@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftLockbookCore
+import PencilKit
 
 struct FileListView: View {
     @ObservedObject var core: GlobalState
@@ -65,10 +66,17 @@ struct FileListView: View {
                 }.isDetailLink(false)
             )
         } else {
-            return AnyView (NavigationLink(destination: EditorLoader(core: core, meta: meta)) {
-                FileCell(meta: meta)
-                
-            })
+            if meta.name.hasSuffix(".draw") {
+                // This is how you can pop without the navigation bar
+                // https://stackoverflow.com/questions/56513568/ios-swiftui-pop-or-dismiss-view-programmatically
+                return AnyView (NavigationLink(destination: Drawing(core: core, meta: meta).navigationBarTitle(meta.name, displayMode: .inline)) {
+                    FileCell(meta: meta)
+                })
+            } else {
+                return AnyView (NavigationLink(destination: EditorLoader(core: core, meta: meta)) {
+                    FileCell(meta: meta)
+                })
+            }
         }
     }
 
