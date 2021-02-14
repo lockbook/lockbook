@@ -107,28 +107,3 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
         Ok(draw_target.into_vec())
     }
 }
-
-// let mut pb = PathBuilder::new();
-//                     pb.move_to(100., 100.);
-//                     pb.line_to(300., 300.);
-//                     pb.line_to(200., 300.);
-//                     let path = pb.finish();
-//
-//                     dt.stroke(
-//                         &path,
-//                         &Source::Solid(SolidSource {
-//                             r: 0x0,
-//                             g: 0x0,
-//                             b: 0x80,
-//                             a: 0x80,
-//                         }),
-//                         &StrokeStyle {
-//                             cap: LineCap::Round,
-//                             join: LineJoin::Round,
-//                             width: 10.,
-//                             miter_limit: 2.,
-//                             dash_array: vec![10., 18.],
-//                             dash_offset: 16.,
-//                         },
-//                         &DrawOptions::new()
-//                     );
