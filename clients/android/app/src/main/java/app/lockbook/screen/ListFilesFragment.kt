@@ -4,6 +4,8 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Configuration.*
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -31,9 +33,12 @@ import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
+import java.util.*
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
+    private var updatedLastSyncedDescription = Timer()
+    private val handler = Handler(requireNotNull(Looper.myLooper()))
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
             if (f is CreateFileDialogFragment) {
@@ -87,6 +92,18 @@ class ListFilesFragment : Fragment() {
         binding.listFilesRefresh.setOnRefreshListener {
             listFilesViewModel.onSwipeToRefresh()
         }
+
+        updatedLastSyncedDescription.schedule(
+            object : TimerTask() {
+                override fun run() {
+                    handler.post {
+                        adapter.notifyDataSetChanged()
+                    }
+                }
+            },
+            30000,
+            30000
+        )
 
         listFilesViewModel.files.observe(
             viewLifecycleOwner,

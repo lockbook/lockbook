@@ -1,6 +1,5 @@
 package app.lockbook.model
 
-import android.app.Activity.RESULT_CANCELED
 import android.app.Application
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.lifecycle.AndroidViewModel
@@ -224,8 +223,9 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 when (requestCode) {
-                    TEXT_EDITOR_REQUEST_CODE, HANDWRITING_EDITOR_REQUEST_CODE -> syncBasedOnPreferences()
-                    RESULT_CANCELED -> {}
+                    TEXT_EDITOR_REQUEST_CODE, HANDWRITING_EDITOR_REQUEST_CODE -> {
+                        syncBasedOnPreferences()
+                    }
                     else -> {
                         Timber.e("Unable to recognize match requestCode: $requestCode.")
                         _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
