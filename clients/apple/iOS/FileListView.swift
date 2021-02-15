@@ -40,7 +40,6 @@ struct FileListView: View {
             }
             .padding(.leading, 20)
         }
-        
         .sheet(isPresented: $showingAccount, content: {
             AccountView(core: core, account: account)
         })

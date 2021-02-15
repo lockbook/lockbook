@@ -1,6 +1,10 @@
 import Foundation
 
 public struct FakeApi: LockbookApi {
+    public func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public init() {
     }
     
@@ -83,11 +87,11 @@ Vestibulum ante ipsum primis in vel.
     public func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError> {
         .failure(.init(unexpected: "LAZY"))
     }
-
+    
     public func getState() -> FfiResult<DbState, GetStateError> {
         .failure(.init(unexpected: "LAZY"))
     }
-
+    
     public func migrateState() -> FfiResult<Empty, MigrationError> {
         .failure(.init(unexpected: "LAZY"))
     }

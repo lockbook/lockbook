@@ -63,6 +63,10 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
     }
     
+    public func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError> {
+        fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
+    }
+    
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError> {
         let fileType = isFolder ? "Folder" : "Document"
         return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))

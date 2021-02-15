@@ -10,9 +10,18 @@ struct Drawing: UIViewRepresentable {
     @State var drawing: PKDrawing = PKDrawing()
     @State var zoom: CGFloat = 1
     
+    init(core: GlobalState, meta: FileMetadata) {
+        self.core = core
+        self.meta = meta
+        
+        let lbDrawing = core.api.readDrawing(id: meta.id)
+        print(lbDrawing)
+        self.drawing = PKDrawing()
+    }
+    
     // How you'll ultimately replace the PKToolPicker
     // https://sarunw.com/posts/move-view-around-with-drag-gesture-in-swiftui/
-    var toolPicker: PKToolPicker = PKToolPicker()
+    let toolPicker: PKToolPicker = PKToolPicker()
     
     func makeUIView(context: Context) -> PKCanvasView {
         let view = PKCanvasView()

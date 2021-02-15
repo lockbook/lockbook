@@ -24,6 +24,7 @@ public protocol LockbookApi {
     func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError>
     func deleteFile(id: UUID) -> FfiResult<Empty, FileDeleteError>
     func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError>
+    func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError>
 
     // State
     func getState() -> FfiResult<DbState, GetStateError>
