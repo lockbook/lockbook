@@ -2,12 +2,12 @@
   "object": {
     "pins": [
       {
-        "package": "HighlightedTextEditor",
-        "repositoryURL": "https://github.com/kyle-n/HighlightedTextEditor",
+        "package": "Sourceful",
+        "repositoryURL": "https://github.com/twostraws/Sourceful",
         "state": {
           "branch": null,
-          "revision": "d51cf90b040fb6773e778ebf489383656b764823",
-          "version": "1.5.7"
+          "revision": "442989f8e9d290f9c3b893d907a90937b80870c3",
+          "version": "0.3.0"
         }
       }
     ]

@@ -1,31 +1,33 @@
 import SwiftUI
 import SwiftLockbookCore
-import HighlightedTextEditor
 import Combine
 
 struct EditorView: View {
-
+    @Environment(\.colorScheme) var colorScheme
     @ObservedObject var core: GlobalState
     let meta: FileMetadata
     @State var text: String
     
     let changeCallback: (String) -> Void
-    
-    var highlightRules: [HighlightRule] {
-        if meta.name.hasSuffix(".md") {
-            return .lockbookMarkdown
-        } else {
-            return []
-        }
-    }
-    
+
     var body: some View {
-        #if os(iOS)
-        HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
-        #else
-        HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
-        #endif
-        
+        SourceCodeTextEditor(
+            text: $text,
+            customization: SourceCodeTextEditor.Customization(
+                didChangeText: { _ in changeCallback(text) },
+                insertionPointColor: { .systemPink },
+                lexerForSource: { _ in
+                    if meta.name.hasSuffix(".md") {
+                        return LockbookMarkdownLexer()
+                    } else {
+                        return EmptyMarkdownLexer()
+                    }
+                },
+                textViewDidBeginEditing: { _ in () },
+                theme: { LockbookSourceCodeTheme(isDark: colorScheme == .dark) }
+            )
+        )
+        .disableAutocorrection(false)
     }
 }
 
