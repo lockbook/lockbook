@@ -51,7 +51,10 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
     fn get_drawing(backend: &MyBackend::Db, id: Uuid) -> Result<Drawing, DrawingError<MyBackend>> {
         let drawing_bytes = MyFileService::read_document(backend, id)
             .map_err(DrawingError::FailedToRetrieveDrawing)?;
+
         let serialized_drawing = String::from(String::from_utf8_lossy(&drawing_bytes));
+
+        println!("{}", serialized_drawing);
 
         serde_json::from_str::<Drawing>(serialized_drawing.as_str())
             .map_err(DrawingError::InvalidDrawingError)
@@ -80,7 +83,7 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
 
                         draw_target.stroke(
                             &path,
-                            &Source::Solid(SolidSource {
+                            &Source::Solid(SolidSource { // not working
                                 r: 0x0,
                                 g: 0x0,
                                 b: 0x80,

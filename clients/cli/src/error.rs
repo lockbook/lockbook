@@ -103,6 +103,8 @@ make_errkind_enum!(
     48 => CannotMoveFolderIntoItself,
     49 => CannotDeleteRoot(String),
     50 => NoRootOps(&'static str),
+    51 => InvalidDrawing(String),
+    52 => DrawingTreatedAsFolder(String),
 );
 
 impl ErrorKind {
@@ -145,6 +147,8 @@ impl ErrorKind {
             Self::CannotMoveFolderIntoItself => "Cannot move file into its self or children.".to_string(),
             Self::CannotDeleteRoot(path) => format!("Cannot delete '{}' since it is the root folder.", path),
             Self::NoRootOps(op) => format!("cannot {} your root directory!", op),
+            Self::InvalidDrawing(drawing) => format!("the document '{}' is not a valid drawing", drawing),
+            Self::DrawingTreatedAsFolder(drawing) => format!("a file in path '{}' is a folder being treated as a drawing", drawing),
         }
     }
 }
