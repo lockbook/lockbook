@@ -5,9 +5,8 @@ use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
 use uuid::Uuid;
-use serde_json::Error;
 
-pub type DrawingData = Vec<u32>;
+pub type DrawingData = Vec<u8>;
 
 #[derive(Debug)]
 pub enum DrawingError<MyBackend: Backend> {
@@ -55,8 +54,6 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
 
         let serialized_drawing = String::from(String::from_utf8_lossy(&drawing_bytes));
 
-        println!("{}", serialized_drawing);
-
         serde_json::from_str::<Drawing>(serialized_drawing.as_str())
             .map_err(DrawingError::InvalidDrawingError)
     }
@@ -93,7 +90,7 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
                             &StrokeStyle {
                                 cap: LineCap::Round,
                                 join: LineJoin::Round,
-                                width: index as f32,
+                                width: stroke.points[index] as f32,
                                 miter_limit: 10.0,
                                 dash_array: Vec::new(),
                                 dash_offset: 0.0,
@@ -108,6 +105,26 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
             }
         }
 
-        Ok(draw_target.into_vec())
+        let mut drawing_bytes: Vec<u8> = Vec::new();
+
+        draw_target.into_vec().iter().for_each(|pixel| {
+            let a = (pixel >> 24) & 0xffu32;
+            let mut r = (pixel >> 16) & 0xffu32;
+            let mut g = (pixel >> 8) & 0xffu32;
+            let mut b = (pixel >> 0) & 0xffu32;
+
+            if a > 0u32 {
+                r = r * 255u32 / a;
+                g = g * 255u32 / a;
+                b = b * 255u32 / a;
+            }
+
+            drawing_bytes.push(r as u8);
+            drawing_bytes.push(g as u8);
+            drawing_bytes.push(b as u8);
+            drawing_bytes.push(a as u8);
+        });
+
+        Ok(drawing_bytes)
     }
 }
