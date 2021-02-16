@@ -5,6 +5,7 @@ use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
 use uuid::Uuid;
+use serde_json::Error;
 
 pub type DrawingData = Vec<u32>;
 

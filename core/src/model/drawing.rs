@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Drawing {
-    pub dimens: Page,
+    pub currentView: Page,
     pub events: Vec<Event>,
 }
 
@@ -24,7 +24,7 @@ pub struct Event {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Stroke {
-    pub color: u32,
+    pub color: i32,
     pub points: Vec<f32>,
 }
 

@@ -8,6 +8,8 @@ use lockbook_core::{
     get_drawing_data, get_file_by_path, Error as CoreError, GetDrawingDataError, GetFileByPathError,
 };
 use std::path::PathBuf;
+use std::fs::{File, OpenOptions};
+use std::io::Error;
 
 pub enum SupportedImageFormats {
     Png,
@@ -39,12 +41,12 @@ pub fn export_drawing(drawing: &str, destination: PathBuf, format: &str) -> CliR
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
         })?;
 
-    // let p = drawing_data[..].as_ptr();
-    // let len = drawing_data[..].len();
-    // // we want to return an [u8] slice instead of a [u32] slice. This is a safe thing to
-    // // do because requirements of a [u32] slice are stricter.
-    // let drawing_data_refined = unsafe { std::slice::from_raw_parts(p as *const u8, len * std::mem::size_of::<u32>()) };
-    let drawing_data_refined = unsafe { drawing_data.align_to::<u8>().1 };
+    let p = drawing_data[..].as_ptr();
+    let len = drawing_data[..].len();
+    // we want to return an [u8] slice instead of a [u32] slice. This is a safe thing to
+    // do because requirements of a [u32] slice are stricter.
+    let drawing_data_refined = unsafe { std::slice::from_raw_parts(p as *const u8, len * std::mem::size_of::<u32>()) };
+    // let drawing_data_refined = unsafe { drawing_data.align_to::<u8>().1 };
 
     let img = ImageBuffer::from_fn(2125, 2750, |x, y| {
         image::Rgba([
@@ -55,7 +57,13 @@ pub fn export_drawing(drawing: &str, destination: PathBuf, format: &str) -> CliR
         ])
     });
 
-    img.save_with_format(destination, ImageFormat::Png)
+    let new_drawing_path = format!("{}/{}", destination.to_str().unwrap(), file_metadata.name);
+
+    if let Err(err) = OpenOptions::new().write(true).create_new(true).open(new_drawing_path.clone()) {
+        err_unexpected!("WHAT").exit()
+    }
+
+    img.save_with_format(new_drawing_path, ImageFormat::Png)
         .map_err(|err| match err {
             ImageError::Decoding(_)
             | ImageError::Encoding(_)
