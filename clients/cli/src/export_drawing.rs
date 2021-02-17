@@ -1,13 +1,12 @@
 use crate::error::CliResult;
 use crate::utils::{get_config, get_image_format, SupportedImageFormats};
-use crate::{err, err_unexpected, path_string};
+use crate::{err, err_unexpected};
 use image::{ImageBuffer, ImageError, ImageFormat, Rgba};
 use lockbook_core::{
     get_drawing_data, get_file_by_path, Error as CoreError, GetDrawingDataError, GetFileByPathError,
 };
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::path::PathBuf;
-use std::fs;
 
 pub fn export_drawing(drawing: &str, destination: PathBuf, format: &str) -> CliResult<()> {
     let file_metadata = get_file_by_path(&get_config(), drawing).map_err(|err| match err {
@@ -35,19 +34,24 @@ pub fn export_drawing(drawing: &str, destination: PathBuf, format: &str) -> CliR
 
     let drawing_true_name = match file_metadata.name.strip_suffix(".draw") {
         Some(name) => name,
-        None => err_unexpected!("impossible").exit()
+        None => err_unexpected!("impossible").exit(),
     };
 
-    let (lockbook_format, friendly_format) = get_image_format(format);
+    let (lockbook_format, extension) = get_image_format(format);
 
     let image_format = match lockbook_format {
         SupportedImageFormats::Png => ImageFormat::Png,
         SupportedImageFormats::Jpeg => ImageFormat::Jpeg,
         SupportedImageFormats::Bmp => ImageFormat::Bmp,
-        SupportedImageFormats::Tga => ImageFormat::Tga
+        SupportedImageFormats::Tga => ImageFormat::Tga,
     };
 
-    let new_drawing_path = format!("{}/{}", destination.to_str().unwrap(), format!("{}.{}", drawing_true_name, friendly_format));
+    let new_drawing_path = format!(
+        "{}/{}.{}",
+        destination.to_str().unwrap(),
+        drawing_true_name,
+        extension
+    );
 
     File::create(new_drawing_path.clone())
         .map_err(|err| err!(OsCouldNotCreateFile(new_drawing_path.clone(), err)))?;
@@ -61,6 +65,6 @@ pub fn export_drawing(drawing: &str, destination: PathBuf, format: &str) -> CliR
             | ImageError::Unsupported(_)
             | ImageError::IoError(_) => {
                 err_unexpected!("{:?}", err)
-            },
+            }
         })
 }

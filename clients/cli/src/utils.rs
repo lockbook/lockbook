@@ -9,7 +9,7 @@ use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
 use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::utils::SupportedImageFormats::{Bmp, Farbfeld, Jpeg, Png, Pnm, Tga};
+use crate::utils::SupportedImageFormats::{Bmp, Jpeg, Png, Tga};
 use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
@@ -117,7 +117,7 @@ pub fn get_editor() -> SupportedEditors {
             "code" => Code,
             _ => {
                 eprintln!(
-                    "{} is not yet supported, make a github issue! Falling back to vim",
+                    "{} is not yet supported, make a github issue! Falling back to vim.",
                     editor
                 );
                 Vim
@@ -146,7 +146,7 @@ pub fn get_image_format(image_format: &str) -> (SupportedImageFormats, String) {
         "tga" => (Tga, corrected_format),
         _ => {
             eprintln!(
-                "{} is not yet supported, make a github issue! Falling back to png",
+                "{} is not yet supported, make a github issue! Falling back to png.",
                 image_format
             );
             (Png, String::from("png"))
