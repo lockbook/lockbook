@@ -61,7 +61,9 @@ pub enum Error<U: Serialize> {
     Unexpected(String),
 }
 use crate::model::drawing::Drawing;
-use crate::service::drawing_service::{DrawingError, DrawingService, DrawingServiceImpl, DrawingData};
+use crate::service::drawing_service::{
+    DrawingData, DrawingError, DrawingService, DrawingServiceImpl,
+};
 use serde_json::error::Category;
 use Error::UiError;
 
@@ -1027,7 +1029,7 @@ pub enum GetDrawingDataError {
 
 pub fn get_drawing_data(
     config: &Config,
-    id: Uuid
+    id: Uuid,
 ) -> Result<DrawingData, Error<GetDrawingDataError>> {
     let backend = connect_to_db!(config)?;
 

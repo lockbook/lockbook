@@ -71,6 +71,24 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
                 Some(stroke) => {
                     let mut index = 3;
 
+                    let pixel_color: i32 = stroke.color;
+
+                    let a_u32 = (pixel_color >> 24) & 0xffi32;
+                    let mut r_u32 = (pixel_color >> 16) & 0xffi32;
+                    let mut g_u32 = (pixel_color >> 8) & 0xffi32;
+                    let mut b_u32 = (pixel_color >> 0) & 0xffi32;
+
+                    if a_u32 > 0i32 {
+                        r_u32 = r_u32 * 255i32 / a_u32;
+                        g_u32 = g_u32 * 255i32 / a_u32;
+                        b_u32 = b_u32 * 255i32 / a_u32;
+                    }
+
+                    let r = r_u32 as u8;
+                    let g = g_u32 as u8;
+                    let b = b_u32 as u8;
+                    let a = a_u32 as u8;
+
                     while index < stroke.points.len() {
                         let mut pb = PathBuilder::new();
                         pb.move_to(stroke.points[index - 2], stroke.points[index - 1]);
@@ -81,11 +99,11 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
 
                         draw_target.stroke(
                             &path,
-                            &Source::Solid(SolidSource { // not working
-                                r: 0x0,
-                                g: 0x0,
-                                b: 0x80,
-                                a: 0x80,
+                            &Source::Solid(SolidSource {
+                                r: r,
+                                g: g,
+                                b: b,
+                                a: a,
                             }),
                             &StrokeStyle {
                                 cap: LineCap::Round,
