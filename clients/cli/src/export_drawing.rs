@@ -5,10 +5,13 @@ use image::{ImageBuffer, ImageError, ImageFormat, Rgba};
 use lockbook_core::{
     get_drawing_data, get_file_by_path, Error as CoreError, GetDrawingDataError, GetFileByPathError,
 };
+use std::fs;
 use std::fs::File;
-use std::path::PathBuf;
+use std::io::{stdout, Read, Write};
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
 
-pub fn export_drawing(drawing: &str, destination: PathBuf, format: &str) -> CliResult<()> {
+pub fn export_drawing(drawing: &str, format: &str, destination: Option<PathBuf>) -> CliResult<()> {
     let file_metadata = get_file_by_path(&get_config(), drawing).map_err(|err| match err {
         CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
             err!(FileNotFound(drawing.to_string()))
@@ -30,7 +33,7 @@ pub fn export_drawing(drawing: &str, destination: PathBuf, format: &str) -> CliR
         })?;
 
     let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-        ImageBuffer::from_vec(2125, 2750, drawing_data).unwrap();
+        ImageBuffer::from_vec(2125, 2750, drawing_data.clone()).unwrap();
 
     let drawing_true_name = match file_metadata.name.strip_suffix(".draw") {
         Some(name) => name,
@@ -46,25 +49,68 @@ pub fn export_drawing(drawing: &str, destination: PathBuf, format: &str) -> CliR
         SupportedImageFormats::Tga => ImageFormat::Tga,
     };
 
-    let new_drawing_path = format!(
-        "{}/{}.{}",
-        destination.to_str().unwrap(),
-        drawing_true_name,
-        extension
-    );
+    match destination {
+        None => {
+            let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
+            fs::create_dir(&directory_location).map_err(|err| {
+                err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
+            })?;
 
-    File::create(new_drawing_path.clone())
-        .map_err(|err| err!(OsCouldNotCreateFile(new_drawing_path.clone(), err)))?;
+            let file_location = format!("{}/{}", directory_location, file_metadata.name);
+            let mut file_handle = File::create(file_location.as_str()).map_err(|err| {
+                err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
+            })?;
 
-    img.save_with_format(new_drawing_path, image_format)
-        .map_err(|err| match err {
-            ImageError::Decoding(_)
-            | ImageError::Encoding(_)
-            | ImageError::Parameter(_)
-            | ImageError::Limits(_)
-            | ImageError::Unsupported(_)
-            | ImageError::IoError(_) => {
-                err_unexpected!("{:?}", err)
+            img.save_with_format(file_location.as_str(), image_format)
+                .map_err(|err| match err {
+                    ImageError::Decoding(_)
+                    | ImageError::Encoding(_)
+                    | ImageError::Parameter(_)
+                    | ImageError::Limits(_)
+                    | ImageError::Unsupported(_)
+                    | ImageError::IoError(_) => {
+                        err_unexpected!("{:?}", err)
+                    }
+                });
+
+            let mut buffer = Vec::<u8>::new();
+
+            file_handle.read_to_end(&mut buffer);
+            println!("{}", buffer.len());
+
+            stdout().write_all(buffer.as_slice());
+        }
+        Some(destination) => {
+            let destination_string = match destination.to_str() {
+                None => {
+                    err_unexpected!("couldn't get destination as string: {:#?}", destination).exit()
+                }
+                Some(ok) => String::from(ok),
+            };
+
+            if destination.is_file() {
+                err!(DocTreatedAsFolder(destination_string)).exit()
             }
-        })
+
+            let new_drawing_path =
+                format!("{}/{}.{}", destination_string, drawing_true_name, extension);
+
+            File::create(new_drawing_path.clone())
+                .map_err(|err| err!(OsCouldNotCreateFile(new_drawing_path.clone(), err)))?;
+
+            img.save_with_format(new_drawing_path, image_format)
+                .map_err(|err| match err {
+                    ImageError::Decoding(_)
+                    | ImageError::Encoding(_)
+                    | ImageError::Parameter(_)
+                    | ImageError::Limits(_)
+                    | ImageError::Unsupported(_)
+                    | ImageError::IoError(_) => {
+                        err_unexpected!("{:?}", err)
+                    }
+                })?
+        }
+    }
+
+    CliResult::Ok(())
 }

@@ -112,8 +112,8 @@ enum Lockbook {
     /// Export a drawing from your Lockbook to a specified destination and format (ie. png)
     ExportDrawing {
         drawing: String,
-        destination: PathBuf,
         format: String,
+        destination: Option<PathBuf>,
     },
 
     /// Print out what each error code means
@@ -154,9 +154,9 @@ fn main() {
         Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact),
         Lockbook::ExportDrawing {
             drawing,
-            destination,
             format,
-        } => export_drawing::export_drawing(&drawing, destination, &format),
+            destination,
+        } => export_drawing::export_drawing(&drawing, &format, destination),
         Lockbook::Errors => error::ErrorKind::print_table(),
     } {
         err.exit()
