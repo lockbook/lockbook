@@ -37,7 +37,7 @@ pub fn backup() -> CliResult<()> {
     })?;
 
     let docs = list_paths(&get_config(), Some(DocumentsOnly)).map_err(|err| match err {
-        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("Impossible"),
+        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible"),
         CoreError::Unexpected(msg) => err_unexpected!("listing documents: {}", msg),
     })?;
 

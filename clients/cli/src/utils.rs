@@ -9,6 +9,7 @@ use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
 use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
+use crate::utils::SupportedImageFormats::{Bmp, Farbfeld, Jpeg, Png, Pnm, Tga};
 use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
@@ -125,6 +126,30 @@ pub fn get_editor() -> SupportedEditors {
         Err(_) => {
             eprintln!("LOCKBOOK_EDITOR not set, assuming vim");
             Vim
+        }
+    }
+}
+
+pub enum SupportedImageFormats {
+    Png,
+    Jpeg,
+    Bmp,
+    Tga,
+}
+
+pub fn get_image_format(image_format: &str) -> (SupportedImageFormats, String) {
+    let corrected_format = image_format.to_lowercase();
+    match corrected_format.as_str() {
+        "png" => (Png, corrected_format),
+        "jpeg" => (Jpeg, corrected_format),
+        "bmp" => (Bmp, corrected_format),
+        "tga" => (Tga, corrected_format),
+        _ => {
+            eprintln!(
+                "{} is not yet supported, make a github issue! Falling back to png",
+                image_format
+            );
+            (Png, String::from("png"))
         }
     }
 }
