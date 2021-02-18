@@ -1,13 +1,14 @@
 use crate::error::CliResult;
 use crate::utils::{get_config, get_image_format, SupportedImageFormats};
 use crate::{err, err_unexpected};
-use image::{ImageBuffer, ImageError, ImageFormat, Rgba};
+use image::codecs::tiff::{TiffDecoder, TiffEncoder};
+use image::{ColorType, ImageBuffer, ImageEncoder, ImageError, ImageFormat, Rgba};
 use lockbook_core::{
     get_drawing_data, get_file_by_path, Error as CoreError, GetDrawingDataError, GetFileByPathError,
 };
 use std::fs;
 use std::fs::File;
-use std::io::{stdout, Read, Write};
+use std::io::{stdout, BufWriter, Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -57,9 +58,6 @@ pub fn export_drawing(drawing: &str, format: &str, destination: Option<PathBuf>)
             })?;
 
             let file_location = format!("{}/{}", directory_location, file_metadata.name);
-            let mut file_handle = File::create(file_location.as_str()).map_err(|err| {
-                err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
-            })?;
 
             img.save_with_format(file_location.as_str(), image_format)
                 .map_err(|err| match err {
@@ -73,12 +71,9 @@ pub fn export_drawing(drawing: &str, format: &str, destination: Option<PathBuf>)
                     }
                 });
 
-            let mut buffer = Vec::<u8>::new();
+            let bytes = fs::read(file_location.as_str()).unwrap();
 
-            file_handle.read_to_end(&mut buffer);
-            println!("{}", buffer.len());
-
-            stdout().write_all(buffer.as_slice());
+            stdout().write_all(bytes.as_slice());
         }
         Some(destination) => {
             let destination_string = match destination.to_str() {
