@@ -1,15 +1,14 @@
 use crate::error::CliResult;
 use crate::utils::{get_config, get_image_format, SupportedImageFormats};
 use crate::{err, err_unexpected};
-use image::codecs::tiff::{TiffDecoder, TiffEncoder};
-use image::{ColorType, ImageBuffer, ImageEncoder, ImageError, ImageFormat, Rgba};
+use image::{ImageBuffer, ImageError, ImageFormat, Rgba};
 use lockbook_core::{
     get_drawing_data, get_file_by_path, Error as CoreError, GetDrawingDataError, GetFileByPathError,
 };
 use std::fs;
 use std::fs::File;
-use std::io::{stdout, BufWriter, Cursor, Read, Write};
-use std::path::{Path, PathBuf};
+use std::io::{stdout, Write};
+use std::path::PathBuf;
 use uuid::Uuid;
 
 pub fn export_drawing(drawing: &str, format: &str, destination: Option<PathBuf>) -> CliResult<()> {
@@ -34,7 +33,12 @@ pub fn export_drawing(drawing: &str, format: &str, destination: Option<PathBuf>)
         })?;
 
     let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-        ImageBuffer::from_vec(2125, 2750, drawing_data.clone()).unwrap();
+        match ImageBuffer::from_vec(2125, 2750, drawing_data.clone()) {
+            Some(image_buffer) => image_buffer,
+            None => {
+                err_unexpected!("Unable to use drawing data to construct an image buffer.").exit()
+            }
+        };
 
     let drawing_true_name = match file_metadata.name.strip_suffix(".draw") {
         Some(name) => name,
@@ -60,20 +64,14 @@ pub fn export_drawing(drawing: &str, format: &str, destination: Option<PathBuf>)
             let file_location = format!("{}/{}", directory_location, file_metadata.name);
 
             img.save_with_format(file_location.as_str(), image_format)
-                .map_err(|err| match err {
-                    ImageError::Decoding(_)
-                    | ImageError::Encoding(_)
-                    | ImageError::Parameter(_)
-                    | ImageError::Limits(_)
-                    | ImageError::Unsupported(_)
-                    | ImageError::IoError(_) => {
-                        err_unexpected!("{:?}", err)
-                    }
-                });
+                .map_err(|err| err_unexpected!("{:?}", err))?;
 
-            let bytes = fs::read(file_location.as_str()).unwrap();
+            let bytes = fs::read(file_location.as_str())
+                .map_err(|err| err!(OsCouldNotReadFile(file_location.clone(), err)))?;
 
-            stdout().write_all(bytes.as_slice());
+            stdout()
+                .write_all(bytes.as_slice())
+                .map_err(|err| err!(OsCouldNotWriteFile(file_location, err)))?;
         }
         Some(destination) => {
             let destination_string = match destination.to_str() {

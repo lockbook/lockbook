@@ -2,12 +2,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Drawing {
-    pub currentView: Page,
+    pub dimens: Dimensions,
     pub events: Vec<Event>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Page {
+pub struct Dimensions {
     pub transformation: Transformation,
 }
 
