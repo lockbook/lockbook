@@ -1245,7 +1245,6 @@ dependencies = [
  "atty",
  "chrono",
  "hotwatch",
- "image",
  "lockbook_core",
  "qr2term",
  "serde_json",

@@ -9,14 +9,14 @@ use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 
 use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::utils::SupportedImageFormats::{Bmp, Jpeg, Png, Tga};
 use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
 use lockbook_core::model::account::Account;
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
-use std::path::Path;
 use lockbook_core::service::drawing_service::SupportedImageFormats;
+use lockbook_core::service::drawing_service::SupportedImageFormats::{Bmp, Jpeg, Png, Tga};
+use std::path::Path;
 
 #[macro_export]
 macro_rules! path_string {
@@ -131,19 +131,19 @@ pub fn get_editor() -> SupportedEditors {
     }
 }
 
-pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
+pub fn get_image_format(image_format: &str) -> (SupportedImageFormats, String) {
     let corrected_format = image_format.to_lowercase();
     match corrected_format.as_str() {
-        "png" => Png,
-        "jpeg" => Jpeg,
-        "bmp" => Bmp,
-        "tga" => Tga,
+        "png" => (Png, corrected_format),
+        "jpeg" | "jpg" => (Jpeg, String::from("jpg")),
+        "bmp" => (Bmp, corrected_format),
+        "tga" => (Tga, corrected_format),
         _ => {
             eprintln!(
                 "{} is not yet supported, make a github issue! Falling back to png.",
                 image_format
             );
-            Png
+            (Png, String::from("png"))
         }
     }
 }

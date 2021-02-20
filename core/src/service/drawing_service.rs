@@ -16,7 +16,6 @@ pub enum SupportedImageFormats {
     Tga,
 }
 
-
 #[derive(Debug)]
 pub enum DrawingError<MyBackend: Backend> {
     InvalidDrawingError(serde_json::error::Error),
@@ -108,7 +107,7 @@ impl<
                     let a_u32 = (pixel_color >> 24) & 0xffi32;
                     let mut r_u32 = (pixel_color >> 16) & 0xffi32;
                     let mut g_u32 = (pixel_color >> 8) & 0xffi32;
-                    let mut b_u32 = (pixel_color >> 0) & 0xffi32;
+                    let mut b_u32 = pixel_color & 0xffi32;
 
                     if a_u32 > 0i32 {
                         r_u32 = r_u32 * 255i32 / a_u32;
@@ -156,7 +155,7 @@ impl<
             let a = (pixel >> 24) & 0xffu32;
             let mut r = (pixel >> 16) & 0xffu32;
             let mut g = (pixel >> 8) & 0xffu32;
-            let mut b = (pixel >> 0) & 0xffu32;
+            let mut b = pixel & 0xffu32;
 
             if a > 0u32 {
                 r = r * 255u32 / a;
@@ -173,7 +172,7 @@ impl<
         let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
             match ImageBuffer::from_vec(2125, 2750, drawing_bytes) {
                 Some(image_buffer) => image_buffer,
-                None => Err(DrawingError::FailedToCreateBufferImage)?,
+                None => return Err(DrawingError::FailedToCreateBufferImage),
             };
 
         let file_metadata =
@@ -181,7 +180,7 @@ impl<
 
         let drawing_true_name = match file_metadata.name.strip_suffix(".draw") {
             Some(name) => name,
-            None => Err(DrawingError::UnableToStripDrawingExtension)?,
+            None => return Err(DrawingError::UnableToStripDrawingExtension),
         };
 
         let image_format = match format {
@@ -191,7 +190,12 @@ impl<
             SupportedImageFormats::Tga => ImageFormat::Tga,
         };
 
-        let new_drawing_path = format!("{}/{}.{}", destination, drawing_true_name, image_format.extensions_str()[0]);
+        let new_drawing_path = format!(
+            "{}/{}.{}",
+            destination,
+            drawing_true_name,
+            image_format.extensions_str()[0]
+        );
 
         File::create(new_drawing_path.clone()).map_err(DrawingError::FailedToCreateLocalImage)?;
 
