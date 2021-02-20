@@ -62,10 +62,11 @@ pub enum Error<U: Serialize> {
 }
 use crate::model::drawing::Drawing;
 use crate::service::drawing_service::{
-    DrawingData, DrawingError, DrawingService, DrawingServiceImpl,
+    DrawingError, DrawingService, DrawingServiceImpl, SupportedImageFormats,
 };
 use serde_json::error::Category;
 use Error::UiError;
+use std::io::ErrorKind;
 
 macro_rules! unexpected {
     ($base:literal $(, $args:tt )*) => {
@@ -891,9 +892,8 @@ pub fn get_usage_human_string(
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum GetDrawingError {
-    InvalidDrawing,
-    TreatedFolderAsDrawing,
     NoAccount,
+    TreatedFolderAsDrawing,
     FileDoesNotExist,
 }
 
@@ -901,34 +901,6 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
     let backend = connect_to_db!(config)?;
 
     DefaultDrawingService::get_drawing(&backend, id).map_err(|drawing_err| match drawing_err {
-        DrawingError::InvalidDrawingError(err) => match err.classify() {
-            Category::Io => unexpected!("{:#?}", err),
-            Category::Syntax | Category::Data | Category::Eof => {
-                UiError(GetDrawingError::InvalidDrawing)
-            }
-        },
-        DrawingError::FailedToSaveDrawing(err) => match err {
-            DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
-                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                    unexpected!("{:#?}", account_err)
-                }
-                AccountRepoError::NoAccount => UiError(GetDrawingError::NoAccount),
-            },
-            DocumentUpdateError::CouldNotFindFile => UiError(GetDrawingError::FileDoesNotExist),
-            DocumentUpdateError::FolderTreatedAsDocument => {
-                UiError(GetDrawingError::TreatedFolderAsDrawing)
-            }
-            DocumentUpdateError::CouldNotFindParents(_)
-            | DocumentUpdateError::FileCryptoError(_)
-            | DocumentUpdateError::FileCompressionError(_)
-            | DocumentUpdateError::FileDecompressionError(_)
-            | DocumentUpdateError::DocumentWriteError(_)
-            | DocumentUpdateError::DbError(_)
-            | DocumentUpdateError::FetchOldVersionError(_)
-            | DocumentUpdateError::DecryptOldVersionError(_)
-            | DocumentUpdateError::AccessInfoCreationError(_)
-            | DocumentUpdateError::FailedToRecordChange(_) => unexpected!("{:#?}", err),
-        },
         DrawingError::FailedToRetrieveDrawing(err) => match err {
             FSReadDocumentError::TreatedFolderAsDocument => {
                 UiError(GetDrawingError::TreatedFolderAsDrawing)
@@ -946,15 +918,22 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
             | FSReadDocumentError::FileCryptoError(_)
             | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
         },
+        DrawingError::FailedToSaveDrawing(_)
+        | DrawingError::InvalidDrawingError(_)
+        | DrawingError::FailedToCreateBufferImage
+        | DrawingError::FailedToCreateLocalImage(_)
+        | DrawingError::FailedToGetDrawingName(_)
+        | DrawingError::FailedToSaveImage(_)
+        | DrawingError::UnableToStripDrawingExtension => unexpected!("{:#?}", drawing_err),
     })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum SaveDrawingError {
-    InvalidDrawing,
     NoAccount,
     FileDoesNotExist,
     TreatedFolderAsDrawing,
+    InvalidDrawing,
 }
 
 pub fn save_drawing(
@@ -964,80 +943,11 @@ pub fn save_drawing(
 ) -> Result<(), Error<SaveDrawingError>> {
     let backend = connect_to_db!(config)?;
 
-    DefaultDrawingService::save_drawing(&backend, id, serialized_drawing).map_err(|drawing_err| {
-        match drawing_err {
-            DrawingError::InvalidDrawingError(err) => match err.classify() {
-                Category::Io => unexpected!("{:#?}", err),
-                Category::Syntax | Category::Data | Category::Eof => {
-                    UiError(SaveDrawingError::InvalidDrawing)
-                }
-            },
-            DrawingError::FailedToSaveDrawing(err) => match err {
-                DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
-                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                        unexpected!("{:#?}", account_err)
-                    }
-                    AccountRepoError::NoAccount => UiError(SaveDrawingError::NoAccount),
-                },
-                DocumentUpdateError::CouldNotFindFile => {
-                    UiError(SaveDrawingError::FileDoesNotExist)
-                }
-                DocumentUpdateError::FolderTreatedAsDocument => {
-                    UiError(SaveDrawingError::TreatedFolderAsDrawing)
-                }
-                DocumentUpdateError::CouldNotFindParents(_)
-                | DocumentUpdateError::FileCryptoError(_)
-                | DocumentUpdateError::FileCompressionError(_)
-                | DocumentUpdateError::FileDecompressionError(_)
-                | DocumentUpdateError::DocumentWriteError(_)
-                | DocumentUpdateError::DbError(_)
-                | DocumentUpdateError::FetchOldVersionError(_)
-                | DocumentUpdateError::DecryptOldVersionError(_)
-                | DocumentUpdateError::AccessInfoCreationError(_)
-                | DocumentUpdateError::FailedToRecordChange(_) => unexpected!("{:#?}", err),
-            },
-            DrawingError::FailedToRetrieveDrawing(err) => match err {
-                FSReadDocumentError::TreatedFolderAsDocument => {
-                    UiError(SaveDrawingError::TreatedFolderAsDrawing)
-                }
-                FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
-                    AccountRepoError::NoAccount => UiError(SaveDrawingError::NoAccount),
-                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                        unexpected!("{:#?}", account_error)
-                    }
-                },
-                FSReadDocumentError::CouldNotFindFile => {
-                    UiError(SaveDrawingError::FileDoesNotExist)
-                }
-                FSReadDocumentError::DbError(_)
-                | FSReadDocumentError::DocumentReadError(_)
-                | FSReadDocumentError::CouldNotFindParents(_)
-                | FSReadDocumentError::FileCryptoError(_)
-                | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
-            },
-        }
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetDrawingDataError {
-    InvalidDrawing,
-    TreatedFolderAsDrawing,
-    NoAccount,
-    FileDoesNotExist,
-}
-
-pub fn get_drawing_data(
-    config: &Config,
-    id: Uuid,
-) -> Result<DrawingData, Error<GetDrawingDataError>> {
-    let backend = connect_to_db!(config)?;
-
-    DefaultDrawingService::get_drawing_data(&backend, id).map_err(|drawing_err| match drawing_err {
+    DefaultDrawingService::save_drawing(&backend, id, serialized_drawing).map_err(|drawing_err| match drawing_err {
         DrawingError::InvalidDrawingError(err) => match err.classify() {
             Category::Io => unexpected!("{:#?}", err),
             Category::Syntax | Category::Data | Category::Eof => {
-                UiError(GetDrawingDataError::InvalidDrawing)
+                UiError(SaveDrawingError::InvalidDrawing)
             }
         },
         DrawingError::FailedToSaveDrawing(err) => match err {
@@ -1045,11 +955,13 @@ pub fn get_drawing_data(
                 AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                     unexpected!("{:#?}", account_err)
                 }
-                AccountRepoError::NoAccount => UiError(GetDrawingDataError::NoAccount),
+                AccountRepoError::NoAccount => UiError(SaveDrawingError::NoAccount),
             },
-            DocumentUpdateError::CouldNotFindFile => UiError(GetDrawingDataError::FileDoesNotExist),
+            DocumentUpdateError::CouldNotFindFile => {
+                UiError(SaveDrawingError::FileDoesNotExist)
+            }
             DocumentUpdateError::FolderTreatedAsDocument => {
-                UiError(GetDrawingDataError::TreatedFolderAsDrawing)
+                UiError(SaveDrawingError::TreatedFolderAsDrawing)
             }
             DocumentUpdateError::CouldNotFindParents(_)
             | DocumentUpdateError::FileCryptoError(_)
@@ -1062,24 +974,80 @@ pub fn get_drawing_data(
             | DocumentUpdateError::AccessInfoCreationError(_)
             | DocumentUpdateError::FailedToRecordChange(_) => unexpected!("{:#?}", err),
         },
-        DrawingError::FailedToRetrieveDrawing(err) => match err {
-            FSReadDocumentError::TreatedFolderAsDocument => {
-                UiError(GetDrawingDataError::TreatedFolderAsDrawing)
-            }
-            FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
-                AccountRepoError::NoAccount => UiError(GetDrawingDataError::NoAccount),
-                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                    unexpected!("{:#?}", account_error)
-                }
-            },
-            FSReadDocumentError::CouldNotFindFile => UiError(GetDrawingDataError::FileDoesNotExist),
-            FSReadDocumentError::DbError(_)
-            | FSReadDocumentError::DocumentReadError(_)
-            | FSReadDocumentError::CouldNotFindParents(_)
-            | FSReadDocumentError::FileCryptoError(_)
-            | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
-        },
+        DrawingError::FailedToCreateBufferImage
+        | DrawingError::FailedToRetrieveDrawing(_)
+        | DrawingError::FailedToCreateLocalImage(_)
+        | DrawingError::FailedToGetDrawingName(_)
+        | DrawingError::FailedToSaveImage(_)
+        | DrawingError::UnableToStripDrawingExtension => unexpected!("{:#?}", drawing_err),
     })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ExportDrawing {
+    TreatedFolderAsDrawing,
+    NoAccount,
+    FileDoesNotExist,
+    DestinationIsDocument,
+    DestinationDoesNotExist
+}
+
+pub fn export_drawing(
+    config: &Config,
+    id: Uuid,
+    destination: String,
+    format: SupportedImageFormats,
+) -> Result<(), Error<ExportDrawing>> {
+    let backend = connect_to_db!(config)?;
+
+    DefaultDrawingService::export_drawing(&backend, id, destination, format).map_err(
+        |drawing_err| match drawing_err {
+            DrawingError::FailedToRetrieveDrawing(err) => match err {
+                FSReadDocumentError::TreatedFolderAsDocument => {
+                    UiError(ExportDrawing::TreatedFolderAsDrawing)
+                }
+                FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
+                    AccountRepoError::NoAccount => UiError(ExportDrawing::NoAccount),
+                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                        unexpected!("{:#?}", account_error)
+                    }
+                },
+                FSReadDocumentError::CouldNotFindFile => UiError(ExportDrawing::FileDoesNotExist),
+                FSReadDocumentError::DbError(_)
+                | FSReadDocumentError::DocumentReadError(_)
+                | FSReadDocumentError::CouldNotFindParents(_)
+                | FSReadDocumentError::FileCryptoError(_)
+                | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
+            },
+            DrawingError::FailedToCreateLocalImage(err) => match err.kind() {
+                ErrorKind::AlreadyExists => UiError(ExportDrawing::DestinationIsDocument),
+                ErrorKind::AddrNotAvailable
+                | ErrorKind::NotFound => UiError(ExportDrawing::DestinationDoesNotExist),
+                ErrorKind::BrokenPipe
+                | ErrorKind::WouldBlock
+                | ErrorKind::InvalidInput
+                | ErrorKind::InvalidData
+                | ErrorKind::TimedOut
+                | ErrorKind::WriteZero
+                | ErrorKind::Interrupted
+                | ErrorKind::Other
+                | ErrorKind::NotConnected
+                | ErrorKind::AddrInUse
+                | ErrorKind::ConnectionAborted
+                | ErrorKind::PermissionDenied
+                | ErrorKind::ConnectionRefused
+                | ErrorKind::ConnectionReset
+                | ErrorKind::UnexpectedEof
+                | _ => unexpected!("{:#?}", err),
+
+            },
+            DrawingError::FailedToSaveDrawing(_)
+            | DrawingError::InvalidDrawingError(_)
+            | DrawingError::FailedToCreateBufferImage
+            | DrawingError::FailedToGetDrawingName(_)
+            | DrawingError::FailedToSaveImage(_)
+            | DrawingError::UnableToStripDrawingExtension => unexpected!("{:#?}", drawing_err),
+        })
 }
 
 // This basically generates a function called `get_all_error_variants`,
@@ -1149,7 +1117,8 @@ pub type DefaultCodeVersion = CodeVersionImpl;
 pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl<DefaultBackend>;
 pub type DefaultUsageService = UsageServiceImpl<DefaultBackend, DefaultAccountRepo, DefaultClient>;
-pub type DefaultDrawingService = DrawingServiceImpl<DefaultBackend, DefaultFileService>;
+pub type DefaultDrawingService =
+    DrawingServiceImpl<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl<DefaultBackend>;
 pub type DefaultDbStateService = DbStateServiceImpl<
     DefaultAccountRepo,

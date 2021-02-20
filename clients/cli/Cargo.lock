@@ -1266,6 +1266,7 @@ dependencies = [
  "diffy",
  "fern",
  "flate2",
+ "image",
  "jni",
  "log",
  "rand",

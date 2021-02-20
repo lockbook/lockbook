@@ -1,40 +1,70 @@
 use crate::model::drawing::Drawing;
+use crate::repo::file_metadata_repo::{FileMetadataRepo, GetError};
 use crate::service::file_service::{DocumentUpdateError, FileService, ReadDocumentError};
 use crate::storage::db_provider::Backend;
+use image::{ImageBuffer, ImageError, ImageFormat, Rgba};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
+use std::fs::File;
 use uuid::Uuid;
 
-pub type DrawingData = Vec<u8>;
+pub enum SupportedImageFormats {
+    Png,
+    Jpeg,
+    Bmp,
+    Tga,
+}
+
 
 #[derive(Debug)]
 pub enum DrawingError<MyBackend: Backend> {
     InvalidDrawingError(serde_json::error::Error),
     FailedToSaveDrawing(DocumentUpdateError<MyBackend>),
     FailedToRetrieveDrawing(ReadDocumentError<MyBackend>),
+    FailedToCreateBufferImage,
+    UnableToStripDrawingExtension,
+    FailedToSaveImage(ImageError),
+    FailedToCreateLocalImage(std::io::Error),
+    FailedToGetDrawingName(GetError<MyBackend>),
 }
 
-pub trait DrawingService<MyBackend: Backend, MyFileService: FileService<MyBackend>> {
+pub trait DrawingService<
+    MyBackend: Backend,
+    MyFileService: FileService<MyBackend>,
+    FileMetadataDb: FileMetadataRepo<MyBackend>,
+>
+{
     fn save_drawing(
         backend: &MyBackend::Db,
         id: Uuid,
         serialized_drawing: &str,
     ) -> Result<(), DrawingError<MyBackend>>;
     fn get_drawing(backend: &MyBackend::Db, id: Uuid) -> Result<Drawing, DrawingError<MyBackend>>;
-    fn get_drawing_data(
+    fn export_drawing(
         backend: &MyBackend::Db,
         id: Uuid,
-    ) -> Result<DrawingData, DrawingError<MyBackend>>;
+        destination: String,
+        format: SupportedImageFormats,
+    ) -> Result<(), DrawingError<MyBackend>>;
 }
 
-pub struct DrawingServiceImpl<MyBackend: Backend, MyFileService: FileService<MyBackend>> {
+pub struct DrawingServiceImpl<
+    MyBackend: Backend,
+    MyFileService: FileService<MyBackend>,
+    FileMetadataDb: FileMetadataRepo<MyBackend>,
+> {
     _backend: MyBackend,
     _file_service: MyFileService,
+    _file_metadata_db: FileMetadataDb,
 }
 
-impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
-    DrawingService<MyBackend, MyFileService> for DrawingServiceImpl<MyBackend, MyFileService>
+impl<
+        MyBackend: Backend,
+        MyFileService: FileService<MyBackend>,
+        FileMetadataDb: FileMetadataRepo<MyBackend>,
+    > DrawingService<MyBackend, MyFileService, FileMetadataDb>
+    for DrawingServiceImpl<MyBackend, MyFileService, FileMetadataDb>
 {
     fn save_drawing(
         backend: &MyBackend::Db,
@@ -58,10 +88,12 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
             .map_err(DrawingError::InvalidDrawingError)
     }
 
-    fn get_drawing_data(
+    fn export_drawing(
         backend: &MyBackend::Db,
         id: Uuid,
-    ) -> Result<DrawingData, DrawingError<MyBackend>> {
+        destination: String,
+        format: SupportedImageFormats,
+    ) -> Result<(), DrawingError<MyBackend>> {
         let drawing = Self::get_drawing(backend, id)?;
 
         let mut draw_target = DrawTarget::new(2125, 2750);
@@ -99,12 +131,7 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
 
                         draw_target.stroke(
                             &path,
-                            &Source::Solid(SolidSource {
-                                r: r,
-                                g: g,
-                                b: b,
-                                a: a,
-                            }),
+                            &Source::Solid(SolidSource { r, g, b, a }),
                             &StrokeStyle {
                                 cap: LineCap::Round,
                                 join: LineJoin::Round,
@@ -143,6 +170,32 @@ impl<MyBackend: Backend, MyFileService: FileService<MyBackend>>
             drawing_bytes.push(a as u8);
         });
 
-        Ok(drawing_bytes)
+        let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
+            match ImageBuffer::from_vec(2125, 2750, drawing_bytes) {
+                Some(image_buffer) => image_buffer,
+                None => Err(DrawingError::FailedToCreateBufferImage)?,
+            };
+
+        let file_metadata =
+            FileMetadataDb::get(backend, id).map_err(DrawingError::FailedToGetDrawingName)?;
+
+        let drawing_true_name = match file_metadata.name.strip_suffix(".draw") {
+            Some(name) => name,
+            None => Err(DrawingError::UnableToStripDrawingExtension)?,
+        };
+
+        let image_format = match format {
+            SupportedImageFormats::Png => ImageFormat::Png,
+            SupportedImageFormats::Jpeg => ImageFormat::Jpeg,
+            SupportedImageFormats::Bmp => ImageFormat::Bmp,
+            SupportedImageFormats::Tga => ImageFormat::Tga,
+        };
+
+        let new_drawing_path = format!("{}/{}.{}", destination, drawing_true_name, image_format.extensions_str()[0]);
+
+        File::create(new_drawing_path.clone()).map_err(DrawingError::FailedToCreateLocalImage)?;
+
+        img.save_with_format(new_drawing_path, image_format)
+            .map_err(DrawingError::FailedToSaveImage)
     }
 }
