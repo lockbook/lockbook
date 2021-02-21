@@ -3,25 +3,15 @@ import PencilKit
 import SwiftLockbookCore
 import Combine
 
-struct Drawing: UIViewRepresentable {
+struct DrawingView: UIViewRepresentable {
     
-    @ObservedObject var core: GlobalState
-    let meta: FileMetadata
     @State var drawing: PKDrawing = PKDrawing()
     @State var zoom: CGFloat = 1
     
-    init(core: GlobalState, meta: FileMetadata) {
-        self.core = core
-        self.meta = meta
-        
-        let lbDrawing = core.api.readDrawing(id: meta.id)
-        print(lbDrawing)
-        self.drawing = PKDrawing()
-    }
     
     // How you'll ultimately replace the PKToolPicker
     // https://sarunw.com/posts/move-view-around-with-drag-gesture-in-swiftui/
-    let toolPicker: PKToolPicker = PKToolPicker()
+    let toolPicker: PKToolPicker
     
     func makeUIView(context: Context) -> PKCanvasView {
         let view = PKCanvasView()
@@ -34,6 +24,7 @@ struct Drawing: UIViewRepresentable {
         
         view.minimumZoomScale = 1.0
         view.maximumZoomScale = 10.0
+        view.contentSize = CGSize(width: 2125, height: 2750)
         
         toolPicker.setVisible(true, forFirstResponder: view)
         toolPicker.addObserver(view)

@@ -64,7 +64,11 @@ public struct CoreApi: LockbookApi {
     }
     
     public func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError> {
-        fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
+        getFile(id: id).map(transform: { input in
+            print("input")
+            print(input)
+            return (try? deserialize(data: input.data(using: .utf8)!).get())!
+        })
     }
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError> {
@@ -83,11 +87,11 @@ public struct CoreApi: LockbookApi {
     public func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError> {
         fromPrimitiveResult(result: rename_file(documentsDirectory, id.uuidString, name))
     }
-
+    
     public func getState() -> FfiResult<DbState, GetStateError> {
         fromPrimitiveResult(result: get_db_state(documentsDirectory))
     }
-
+    
     public func migrateState() -> FfiResult<Empty, MigrationError> {
         fromPrimitiveResult(result: migrate_db(documentsDirectory))
     }
