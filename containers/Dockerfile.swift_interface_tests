@@ -7,6 +7,9 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN cargo install cbindgen
 RUN cargo install cargo-lipo
 RUN rustup target add aarch64-apple-ios x86_64-apple-ios
+RUN apt-get install -y cmake 
+RUN apt-get install -y libfreetype6-dev
+RUN apt-get install -y libexpat1-dev
 
 # Build corelib for iOS
 COPY core core
