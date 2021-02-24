@@ -65,7 +65,6 @@ use crate::service::drawing_service::{
     DrawingError, DrawingService, DrawingServiceImpl, SupportedImageFormats,
 };
 use serde_json::error::Category;
-use std::io::ErrorKind;
 use Error::UiError;
 
 macro_rules! unexpected {
@@ -920,11 +919,8 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
         },
         DrawingError::FailedToSaveDrawing(_)
         | DrawingError::InvalidDrawingError(_)
-        | DrawingError::FailedToCreateBufferImage
-        | DrawingError::FailedToCreateLocalImage(_)
-        | DrawingError::FailedToGetDrawingName(_)
-        | DrawingError::FailedToSaveImage(_)
-        | DrawingError::UnableToStripDrawingExtension => unexpected!("{:#?}", drawing_err),
+        | DrawingError::CorruptedDrawing
+        | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
     })
 }
 
@@ -939,11 +935,11 @@ pub enum SaveDrawingError {
 pub fn save_drawing(
     config: &Config,
     id: Uuid,
-    serialized_drawing: &str,
+    drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
     let backend = connect_to_db!(config)?;
 
-    DefaultDrawingService::save_drawing(&backend, id, serialized_drawing).map_err(|drawing_err| {
+    DefaultDrawingService::save_drawing(&backend, id, drawing_bytes).map_err(|drawing_err| {
         match drawing_err {
             DrawingError::InvalidDrawingError(err) => match err.classify() {
                 Category::Io => unexpected!("{:#?}", err),
@@ -975,12 +971,9 @@ pub fn save_drawing(
                 | DocumentUpdateError::AccessInfoCreationError(_)
                 | DocumentUpdateError::FailedToRecordChange(_) => unexpected!("{:#?}", err),
             },
-            DrawingError::FailedToCreateBufferImage
-            | DrawingError::FailedToRetrieveDrawing(_)
-            | DrawingError::FailedToCreateLocalImage(_)
-            | DrawingError::FailedToGetDrawingName(_)
-            | DrawingError::FailedToSaveImage(_)
-            | DrawingError::UnableToStripDrawingExtension => unexpected!("{:#?}", drawing_err),
+            DrawingError::FailedToRetrieveDrawing(_)
+            | DrawingError::CorruptedDrawing
+            | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
         }
     })
 }
@@ -997,13 +990,12 @@ pub enum ExportDrawing {
 pub fn export_drawing(
     config: &Config,
     id: Uuid,
-    destination: String,
     format: SupportedImageFormats,
-) -> Result<(), Error<ExportDrawing>> {
+) -> Result<Vec<u8>, Error<ExportDrawing>> {
     let backend = connect_to_db!(config)?;
 
-    DefaultDrawingService::export_drawing(&backend, id, destination, format).map_err(
-        |drawing_err| match drawing_err {
+    DefaultDrawingService::export_drawing(&backend, id, format).map_err(|drawing_err| {
+        match drawing_err {
             DrawingError::FailedToRetrieveDrawing(err) => match err {
                 FSReadDocumentError::TreatedFolderAsDocument => {
                     UiError(ExportDrawing::TreatedFolderAsDrawing)
@@ -1021,21 +1013,12 @@ pub fn export_drawing(
                 | FSReadDocumentError::FileCryptoError(_)
                 | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
             },
-            DrawingError::FailedToCreateLocalImage(err) => match err.kind() {
-                ErrorKind::AlreadyExists => UiError(ExportDrawing::DestinationIsDocument),
-                ErrorKind::AddrNotAvailable | ErrorKind::NotFound => {
-                    UiError(ExportDrawing::DestinationDoesNotExist)
-                }
-                _ => unexpected!("{:#?}", err),
-            },
             DrawingError::FailedToSaveDrawing(_)
             | DrawingError::InvalidDrawingError(_)
-            | DrawingError::FailedToCreateBufferImage
-            | DrawingError::FailedToGetDrawingName(_)
-            | DrawingError::FailedToSaveImage(_)
-            | DrawingError::UnableToStripDrawingExtension => unexpected!("{:#?}", drawing_err),
-        },
-    )
+            | DrawingError::CorruptedDrawing
+            | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
+        }
+    })
 }
 
 // This basically generates a function called `get_all_error_variants`,
