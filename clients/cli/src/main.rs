@@ -110,10 +110,7 @@ enum Lockbook {
     },
 
     /// Export a drawing from your Lockbook to a specified image format
-    ExportDrawing {
-        drawing: String,
-        format: String,
-    },
+    ExportDrawing { drawing: String, format: String },
 
     /// Print out what each error code means
     Errors,
@@ -151,10 +148,9 @@ fn main() {
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Backup => backup::backup(),
         Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact),
-        Lockbook::ExportDrawing {
-            drawing,
-            format,
-        } => export_drawing::export_drawing(&drawing, &format),
+        Lockbook::ExportDrawing { drawing, format } => {
+            export_drawing::export_drawing(&drawing, &format)
+        }
         Lockbook::Errors => error::ErrorKind::print_table(),
     } {
         err.exit()

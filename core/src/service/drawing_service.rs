@@ -3,19 +3,19 @@ use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::file_service::{DocumentUpdateError, FileService, ReadDocumentError};
 use crate::storage::db_provider::Backend;
 
+use image::codecs::bmp::BmpEncoder;
 use image::codecs::farbfeld::FarbfeldEncoder;
+use image::codecs::hdr::HdrEncoder;
+use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
 use image::codecs::tga::TgaEncoder;
-use image::codecs::hdr::HdrEncoder;
-use image::codecs::jpeg::JpegEncoder;
 use image::{ColorType, ImageError, Rgb};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
 use std::io::BufWriter;
 use uuid::Uuid;
-use image::codecs::bmp::BmpEncoder;
 
 pub enum SupportedImageFormats {
     Png,
@@ -34,6 +34,7 @@ pub enum DrawingError<MyBackend: Backend> {
     FailedToRetrieveDrawing(ReadDocumentError<MyBackend>),
     FailedToEncodeImage(ImageError),
     CorruptedDrawing,
+    UnreachableHdrFormatMatch,
 }
 
 pub trait DrawingService<
@@ -112,7 +113,6 @@ impl<
                     let mut index = 3;
 
                     while index < stroke.points.len() {
-                        let mut pb = PathBuilder::new();
                         let x1 = stroke
                             .points
                             .get(index - 2)
@@ -237,7 +237,13 @@ impl<
                     drawing_bytes.push(Rgb([r as f32, g as f32, b as f32]));
                 }
 
-                HdrEncoder::new(&mut buf_writer).encode(drawing_bytes.as_slice(), greatest_width as usize, greatest_height as usize).map_err(DrawingError::FailedToEncodeImage)?;
+                HdrEncoder::new(&mut buf_writer)
+                    .encode(
+                        drawing_bytes.as_slice(),
+                        greatest_width as usize,
+                        greatest_height as usize,
+                    )
+                    .map_err(DrawingError::FailedToEncodeImage)?;
             }
             _ => {
                 let mut drawing_bytes: Vec<u8> = Vec::new();
@@ -252,14 +258,43 @@ impl<
                 }
 
                 match format {
-                    SupportedImageFormats::Png => PngEncoder::new(&mut buf_writer).encode(drawing_bytes.as_slice(), greatest_width, greatest_height, ColorType::Rgba8),
-                    SupportedImageFormats::Pnm => PnmEncoder::new(&mut buf_writer).encode(drawing_bytes.as_slice(), greatest_width, greatest_height, ColorType::Rgba8),
-                    SupportedImageFormats::Jpeg => JpegEncoder::new(&mut buf_writer).encode(drawing_bytes.as_slice(), greatest_width, greatest_height, ColorType::Rgba8),
-                    SupportedImageFormats::Tga => TgaEncoder::new(&mut buf_writer).encode(drawing_bytes.as_slice(), greatest_width, greatest_height, ColorType::Rgba8),
-                    SupportedImageFormats::Farbfeld => FarbfeldEncoder::new(&mut buf_writer).encode(drawing_bytes.as_slice(), greatest_width, greatest_height),
-                    SupportedImageFormats::Bmp => BmpEncoder::new(&mut buf_writer).encode(drawing_bytes.as_slice(), greatest_width, greatest_height, ColorType::Rgba8),
-                    SupportedImageFormats::Hdr => BmpEncoder::new(&mut buf_writer).encode(drawing_bytes.as_slice(), greatest_width, greatest_height, ColorType::Rgba8),
-                }.map_err(DrawingError::FailedToEncodeImage)?;
+                    SupportedImageFormats::Png => PngEncoder::new(&mut buf_writer).encode(
+                        drawing_bytes.as_slice(),
+                        greatest_width,
+                        greatest_height,
+                        ColorType::Rgba8,
+                    ),
+                    SupportedImageFormats::Pnm => PnmEncoder::new(&mut buf_writer).encode(
+                        drawing_bytes.as_slice(),
+                        greatest_width,
+                        greatest_height,
+                        ColorType::Rgba8,
+                    ),
+                    SupportedImageFormats::Jpeg => JpegEncoder::new(&mut buf_writer).encode(
+                        drawing_bytes.as_slice(),
+                        greatest_width,
+                        greatest_height,
+                        ColorType::Rgba8,
+                    ),
+                    SupportedImageFormats::Tga => TgaEncoder::new(&mut buf_writer).encode(
+                        drawing_bytes.as_slice(),
+                        greatest_width,
+                        greatest_height,
+                        ColorType::Rgba8,
+                    ),
+                    SupportedImageFormats::Farbfeld => FarbfeldEncoder::new(&mut buf_writer)
+                        .encode(drawing_bytes.as_slice(), greatest_width, greatest_height),
+                    SupportedImageFormats::Bmp => BmpEncoder::new(&mut buf_writer).encode(
+                        drawing_bytes.as_slice(),
+                        greatest_width,
+                        greatest_height,
+                        ColorType::Rgba8,
+                    ),
+                    SupportedImageFormats::Hdr => {
+                        return Err(DrawingError::UnreachableHdrFormatMatch)
+                    }
+                }
+                .map_err(DrawingError::FailedToEncodeImage)?;
             }
         }
 

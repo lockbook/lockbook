@@ -15,7 +15,9 @@ use lockbook_core::model::account::Account;
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
 use lockbook_core::service::drawing_service::SupportedImageFormats;
-use lockbook_core::service::drawing_service::SupportedImageFormats::{Png, Tga, Jpeg, Bmp, Pnm, Farbfeld, Hdr};
+use lockbook_core::service::drawing_service::SupportedImageFormats::{
+    Bmp, Farbfeld, Hdr, Jpeg, Png, Pnm, Tga,
+};
 use std::path::Path;
 
 #[macro_export]
