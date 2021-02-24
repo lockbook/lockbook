@@ -15,7 +15,7 @@ use lockbook_core::model::account::Account;
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
 use lockbook_core::service::drawing_service::SupportedImageFormats;
-use lockbook_core::service::drawing_service::SupportedImageFormats::{Bmp, Jpeg, Png, Tga};
+use lockbook_core::service::drawing_service::SupportedImageFormats::{Png, Tga, Jpeg, Bmp, Pnm, Farbfeld, Hdr};
 use std::path::Path;
 
 #[macro_export]
@@ -131,19 +131,22 @@ pub fn get_editor() -> SupportedEditors {
     }
 }
 
-pub fn get_image_format(image_format: &str) -> (SupportedImageFormats, String) {
+pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
     let corrected_format = image_format.to_lowercase();
     match corrected_format.as_str() {
-        "png" => (Png, corrected_format),
-        "jpeg" | "jpg" => (Jpeg, String::from("jpg")),
-        "bmp" => (Bmp, corrected_format),
-        "tga" => (Tga, corrected_format),
+        "png" => Png,
+        "jpeg" | "jpg" => Jpeg,
+        "bmp" => Bmp,
+        "tga" => Tga,
+        "pnm" => Pnm,
+        "hdr" => Hdr,
+        "farbfeld" => Farbfeld,
         _ => {
             eprintln!(
                 "{} is not yet supported, make a github issue! Falling back to png.",
                 image_format
             );
-            (Png, String::from("png"))
+            Png
         }
     }
 }

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Drawing {
+    #[serde(rename = "currentView")]
     pub current_view: CurrentView,
     pub events: Vec<Event>,
 }
