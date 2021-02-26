@@ -114,7 +114,7 @@ enum Lockbook {
 
 fn main() {
     init_logger_or_print();
-    let args: Lockbook = Lockbook::from_args();
+    let args = Lockbook::from_args();
 
     if let Err(err) = check_and_perform_migrations() {
         err.exit()
