@@ -34,7 +34,9 @@ impl Error {
 }
 
 macro_rules! underscore {
-    ($t:ty) => { _ };
+    ($t:ty) => {
+        _
+    };
 }
 
 macro_rules! make_errkind_enum {
