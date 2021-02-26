@@ -13,6 +13,7 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
+import timber.log.Timber
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -36,6 +37,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private val lastPoint = PointF()
     private var rollingAveragePressure = Float.NaN
     private val strokePath = Path()
+    private val strokesBounds = mutableListOf<RectF>()
 
     // Scaling and Viewport state
     private val viewPort = Rect()
@@ -169,19 +171,28 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         for (event in drawingModel.events) {
             if (event.stroke is Stroke) {
+                strokesBounds.add(RectF())
                 currentPaint.color = event.stroke.color
 
                 var pointIndex = 3
                 while (pointIndex < event.stroke.points.size) {
+                    val x1 = event.stroke.points[pointIndex - 2]
+                    val y1 = event.stroke.points[pointIndex - 1]
+
+                    val x2 = event.stroke.points[pointIndex + 1]
+                    val y2 = event.stroke.points[pointIndex + 2]
+
+                    if(pointIndex == 3) {
+                        strokesBounds.last().set(x1, y1, x1, y1)
+                    }
+
+                    updateLastStrokeBounds(x2, y2)
+
                     currentPaint.strokeWidth = event.stroke.points[pointIndex]
-                    strokePath.moveTo(
-                        event.stroke.points[pointIndex - 2],
-                        event.stroke.points[pointIndex - 1]
-                    )
-                    strokePath.lineTo(
-                        event.stroke.points[pointIndex + 1],
-                        event.stroke.points[pointIndex + 2]
-                    )
+
+                    strokePath.moveTo(x1, y1)
+                    strokePath.lineTo(x2, y2)
+
                     tempCanvas.drawPath(strokePath, currentPaint)
                     strokePath.reset()
                     pointIndex += 3
@@ -199,6 +210,71 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         viewPort.top = -drawingModel.currentView.transformation.translation.y.toInt()
         viewPort.right = (viewPort.left + currentViewPortWidth).toInt()
         viewPort.bottom = (viewPort.top + currentViewPortHeight).toInt()
+    }
+
+    private fun updateLastStrokeBounds(x: Float, y: Float) {
+        val currentStrokeBounds = strokesBounds.last()
+
+        if(x > currentStrokeBounds.right) {
+            currentStrokeBounds.right = x
+        }
+
+        if(x < currentStrokeBounds.left) {
+            currentStrokeBounds.left = x
+        }
+
+        if(y < currentStrokeBounds.top) {
+            currentStrokeBounds.top = y
+        }
+
+        if(y > currentStrokeBounds.bottom) {
+            currentStrokeBounds.bottom = y
+        }
+    }
+
+    private fun isLineWithinBounds(strokeIndex: Int, x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
+        val currentStrokeBounds = strokesBounds[strokeIndex]
+        val eraseBounds = RectF()
+
+        if(x1 > x2) {
+            eraseBounds.right = x1
+            eraseBounds.left = x2
+        } else {
+            eraseBounds.right = x2
+            eraseBounds.left = x1
+        }
+
+        if(y1 > y2) {
+            eraseBounds.bottom = y1
+            eraseBounds.top = y2
+        } else {
+            eraseBounds.bottom = y2
+            eraseBounds.top = y1
+        }
+
+        if(currentStrokeBounds.left > eraseBounds.right || currentStrokeBounds.right < eraseBounds.left) {
+            return false
+        }
+
+        if(currentStrokeBounds.top < eraseBounds.top || currentStrokeBounds.bottom > eraseBounds.bottom) {
+            return false
+        }
+
+        val slope = (y2 - y1) / (x2 - x1)
+
+
+        val yAtStrokeBoundLeft = slope * (currentStrokeBounds.left - x1) + y1
+        val yAtStrokeBoundRight = slope * (currentStrokeBounds.right - x1) + y1
+
+        if(currentStrokeBounds.bottom > yAtStrokeBoundLeft && currentStrokeBounds.bottom > yAtStrokeBoundRight) {
+            return false
+        }
+
+        if(currentStrokeBounds.top < yAtStrokeBoundLeft && currentStrokeBounds.top < yAtStrokeBoundRight) {
+            return false
+        }
+
+        return false
     }
 
     private fun screenToModel(screen: PointF): PointF {
@@ -286,6 +362,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point)
+        strokesBounds.add(RectF(point.x, point.y, point.x, point.y))
 
         rollingAveragePressure = getAdjustedPressure(pressure)
 
@@ -309,6 +386,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun lineTo(point: PointF, pressure: Float) {
         val adjustedCurrentPressure = getAdjustedPressure(pressure)
         rollingAveragePressure = approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
+        updateLastStrokeBounds(point.x, point.y)
 
         strokePaint.strokeWidth = rollingAveragePressure
 
@@ -339,6 +417,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun eraseAtPoint(point: PointF) {
+        Timber.e("CHECKED: ${strokesBounds.size}")
         val roundedPressure = 20
 
         when {
@@ -383,6 +462,10 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 var deleteStroke = false
                 var pointIndex = 3
 
+                if(!isLineWithinBounds(eventIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y)) {
+                    continue
+                }
+
                 pointLoop@ while (pointIndex < stroke.points.size) {
                     for (pixel in 1..roundedPressure) {
                         val roundedPoint1 =
@@ -423,6 +506,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
 
         if (refreshScreen) {
+            strokesBounds.clear()
             drawingModel = drawing
             tempCanvas.drawColor(
                 Color.TRANSPARENT,
