@@ -242,9 +242,10 @@ pub fn save_temp_file_contents(
             if !silent {
                 match err {
                     CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
-                    CoreError::UiError(WriteToDocumentError::NoAccount) => {
-                        err_unexpected!("No account! Run init or import to get started!").exit()
-                    }
+                    CoreError::UiError(WriteToDocumentError::NoAccount) => err_unexpected!(
+                        "No account! Run 'new-account' or 'import-private-key' to get started!"
+                    )
+                    .exit(),
                     CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
                         err_unexpected!("FileDoesNotExist").exit()
                     }

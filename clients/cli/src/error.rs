@@ -118,7 +118,7 @@ impl ErrorKind {
             Self::NoCliLocation => "Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your `.lockbook` folder".to_string(),
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
 
-            Self::NoAccount => "No account! Run init or import to get started!".to_string(),
+            Self::NoAccount => "No account! Run 'new-account' or 'import-private-key' to get started!".to_string(),
             Self::AccountAlreadyExists => "Account already exists. Run `lockbook erase-everything` to erase your local state.".to_string(),
             Self::AccountDoesNotExist => "An account with this username was not found on the server.".to_string(),
             Self::AccountStringCorrupted => "Account string corrupted, not imported".to_string(),
