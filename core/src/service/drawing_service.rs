@@ -1,4 +1,4 @@
-use crate::model::drawing::Drawing;
+use crate::model::drawing::{Drawing, Event};
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::file_service::{DocumentUpdateError, FileService, ReadDocumentError};
 use crate::storage::db_provider::Backend;
@@ -91,9 +91,9 @@ impl<
         let drawing_bytes = MyFileService::read_document(backend, id)
             .map_err(DrawingError::FailedToRetrieveDrawing)?;
 
-        let serialized_drawing = String::from(String::from_utf8_lossy(&drawing_bytes));
+        let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
-        serde_json::from_str::<Drawing>(serialized_drawing.as_str())
+        serde_json::from_str::<Drawing>(drawing_string.as_str())
             .map_err(DrawingError::InvalidDrawingError)
     }
 
@@ -104,65 +104,9 @@ impl<
     ) -> Result<Vec<u8>, DrawingError<MyBackend>> {
         let drawing = Self::get_drawing(backend, id)?;
 
-        let mut greatest_width = 1;
-        let mut greatest_height = 1;
+        let (width, height) = Self::get_drawing_bounds(drawing.events.as_slice())?;
 
-        for event in drawing.events.as_slice() {
-            match event.stroke.as_ref() {
-                Some(stroke) => {
-                    let mut index = 3;
-
-                    while index < stroke.points.len() {
-                        let x1 = stroke
-                            .points
-                            .get(index - 2)
-                            .ok_or(DrawingError::CorruptedDrawing)?
-                            .to_owned() as u32;
-
-                        let y1 = stroke
-                            .points
-                            .get(index - 1)
-                            .ok_or(DrawingError::CorruptedDrawing)?
-                            .to_owned() as u32;
-
-                        let x2 = stroke
-                            .points
-                            .get(index + 1)
-                            .ok_or(DrawingError::CorruptedDrawing)?
-                            .to_owned() as u32;
-                        let y2 = stroke
-                            .points
-                            .get(index + 2)
-                            .ok_or(DrawingError::CorruptedDrawing)?
-                            .to_owned() as u32;
-
-                        if x1 > greatest_width {
-                            greatest_width = x1;
-                        }
-
-                        if x2 > greatest_width {
-                            greatest_width = x2;
-                        }
-
-                        if y1 > greatest_height {
-                            greatest_height = y1;
-                        }
-
-                        if y2 > greatest_height {
-                            greatest_height = y2;
-                        }
-
-                        index += 3;
-                    }
-                }
-                None => continue,
-            }
-        }
-
-        greatest_width += 20;
-        greatest_height += 20;
-
-        let mut draw_target = DrawTarget::new(greatest_width as i32, greatest_height as i32);
+        let mut draw_target = DrawTarget::new(width as i32, height as i32);
 
         for event in drawing.events {
             match event.stroke {
@@ -238,11 +182,7 @@ impl<
                 }
 
                 HdrEncoder::new(&mut buf_writer)
-                    .encode(
-                        drawing_bytes.as_slice(),
-                        greatest_width as usize,
-                        greatest_height as usize,
-                    )
+                    .encode(drawing_bytes.as_slice(), width as usize, height as usize)
                     .map_err(DrawingError::FailedToEncodeImage)?;
             }
             _ => {
@@ -260,34 +200,34 @@ impl<
                 match format {
                     SupportedImageFormats::Png => PngEncoder::new(&mut buf_writer).encode(
                         drawing_bytes.as_slice(),
-                        greatest_width,
-                        greatest_height,
+                        width,
+                        height,
                         ColorType::Rgba8,
                     ),
                     SupportedImageFormats::Pnm => PnmEncoder::new(&mut buf_writer).encode(
                         drawing_bytes.as_slice(),
-                        greatest_width,
-                        greatest_height,
+                        width,
+                        height,
                         ColorType::Rgba8,
                     ),
                     SupportedImageFormats::Jpeg => JpegEncoder::new(&mut buf_writer).encode(
                         drawing_bytes.as_slice(),
-                        greatest_width,
-                        greatest_height,
+                        width,
+                        height,
                         ColorType::Rgba8,
                     ),
                     SupportedImageFormats::Tga => TgaEncoder::new(&mut buf_writer).encode(
                         drawing_bytes.as_slice(),
-                        greatest_width,
-                        greatest_height,
+                        width,
+                        height,
                         ColorType::Rgba8,
                     ),
                     SupportedImageFormats::Farbfeld => FarbfeldEncoder::new(&mut buf_writer)
-                        .encode(drawing_bytes.as_slice(), greatest_width, greatest_height),
+                        .encode(drawing_bytes.as_slice(), width, height),
                     SupportedImageFormats::Bmp => BmpEncoder::new(&mut buf_writer).encode(
                         drawing_bytes.as_slice(),
-                        greatest_width,
-                        greatest_height,
+                        width,
+                        height,
                         ColorType::Rgba8,
                     ),
                     SupportedImageFormats::Hdr => {
@@ -323,5 +263,67 @@ impl<
         }
 
         (byte_1 as u8, byte_2 as u8, byte_3 as u8, byte_4 as u8)
+    }
+
+    fn get_drawing_bounds(events: &[Event]) -> Result<(u32, u32), DrawingError<MyBackend>> {
+        let mut greatest_width = 1;
+        let mut greatest_height = 1;
+
+        for event in events {
+            match event.stroke.as_ref() {
+                Some(stroke) => {
+                    let mut index = 3;
+
+                    while index < stroke.points.len() {
+                        let x1 = stroke
+                            .points
+                            .get(index - 2)
+                            .ok_or(DrawingError::CorruptedDrawing)?
+                            .to_owned() as u32;
+
+                        let y1 = stroke
+                            .points
+                            .get(index - 1)
+                            .ok_or(DrawingError::CorruptedDrawing)?
+                            .to_owned() as u32;
+
+                        let x2 = stroke
+                            .points
+                            .get(index + 1)
+                            .ok_or(DrawingError::CorruptedDrawing)?
+                            .to_owned() as u32;
+                        let y2 = stroke
+                            .points
+                            .get(index + 2)
+                            .ok_or(DrawingError::CorruptedDrawing)?
+                            .to_owned() as u32;
+
+                        if x1 > greatest_width {
+                            greatest_width = x1;
+                        }
+
+                        if x2 > greatest_width {
+                            greatest_width = x2;
+                        }
+
+                        if y1 > greatest_height {
+                            greatest_height = y1;
+                        }
+
+                        if y2 > greatest_height {
+                            greatest_height = y2;
+                        }
+
+                        index += 3;
+                    }
+                }
+                None => continue,
+            }
+        }
+
+        greatest_width += 20;
+        greatest_height += 20;
+
+        Ok((greatest_width, greatest_height))
     }
 }
