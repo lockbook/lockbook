@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
-use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use structopt::StructOpt;
+
+use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 use crate::utils::{check_and_perform_migrations, init_logger_or_print};
 
