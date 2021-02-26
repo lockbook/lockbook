@@ -51,16 +51,15 @@ pub fn backup() -> CliResult<()> {
         leaf_nodes.len()
     );
 
+    let index_file_content = leaf_nodes.join("\n");
     let index_path = {
         let mut dir = backup_directory.clone();
         dir.push("lockbook.index");
         dir
     };
-    let mut index_file = File::create(&index_path)
-        .map_err(|err| err!(OsCouldNotCreateFile(path_string!(index_path), err)))?;
 
-    let index_file_content: String = leaf_nodes.join("\n");
-    index_file
+    File::create(&index_path)
+        .map_err(|err| err!(OsCouldNotCreateFile(path_string!(index_path), err)))?
         .write_all(index_file_content.as_bytes())
         .map_err(|err| err!(OsCouldNotWriteFile(path_string!(index_path), err)))?;
 
