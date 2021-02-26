@@ -253,10 +253,11 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         }
 
         if(currentStrokeBounds.left > eraseBounds.right || currentStrokeBounds.right < eraseBounds.left) {
+            Timber.e("STOP: 1")
             return false
         }
 
-        if(currentStrokeBounds.top < eraseBounds.top || currentStrokeBounds.bottom > eraseBounds.bottom) {
+        if(currentStrokeBounds.top > eraseBounds.bottom || currentStrokeBounds.bottom < eraseBounds.top) {
             return false
         }
 
@@ -266,15 +267,20 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val yAtStrokeBoundLeft = slope * (currentStrokeBounds.left - x1) + y1
         val yAtStrokeBoundRight = slope * (currentStrokeBounds.right - x1) + y1
 
+        Timber.e("PROGRESSION through Ys: $x1, $y1 | $x2, $y2 | ${currentStrokeBounds.left}, $yAtStrokeBoundLeft | ${currentStrokeBounds.right}, $yAtStrokeBoundRight")
+
         if(currentStrokeBounds.bottom > yAtStrokeBoundLeft && currentStrokeBounds.bottom > yAtStrokeBoundRight) {
+            Timber.e("STOP: 3")
             return false
         }
 
         if(currentStrokeBounds.top < yAtStrokeBoundLeft && currentStrokeBounds.top < yAtStrokeBoundRight) {
+            Timber.e("STOP: 4")
             return false
         }
 
-        return false
+
+        return true
     }
 
     private fun screenToModel(screen: PointF): PointF {
