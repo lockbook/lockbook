@@ -1,6 +1,12 @@
+use std::path::Path;
 use std::{env, fs};
 
+use hotwatch::{Event, Hotwatch};
+
+use lockbook_core::model::account::Account;
+use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::state::Config;
+use lockbook_core::service::db_state_service::State;
 use lockbook_core::{
     get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
     GetAccountError, GetStateError, MigrationError,
@@ -10,11 +16,6 @@ use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{err, err_extra, err_unexpected};
-use hotwatch::{Event, Hotwatch};
-use lockbook_core::model::account::Account;
-use lockbook_core::model::file_metadata::FileMetadata;
-use lockbook_core::service::db_state_service::State;
-use std::path::Path;
 
 #[macro_export]
 macro_rules! path_string {

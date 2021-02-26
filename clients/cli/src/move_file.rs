@@ -1,7 +1,8 @@
+use lockbook_core::{get_file_by_path, Error as CoreError, GetFileByPathError, MoveFileError};
+
 use crate::error::CliResult;
 use crate::utils::get_config;
 use crate::{err, err_extra, err_unexpected};
-use lockbook_core::{get_file_by_path, Error as CoreError, GetFileByPathError, MoveFileError};
 
 pub fn move_file(path1: &str, path2: &str) -> CliResult<()> {
     let cfg = get_config();
