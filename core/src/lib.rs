@@ -926,7 +926,6 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
         },
         DrawingError::FailedToSaveDrawing(_)
         | DrawingError::CorruptedDrawing
-        | DrawingError::UnreachableHdrFormatMatch
         | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
     })
 }
@@ -980,7 +979,6 @@ pub fn save_drawing(
             },
             DrawingError::FailedToRetrieveDrawing(_)
             | DrawingError::CorruptedDrawing
-            | DrawingError::UnreachableHdrFormatMatch
             | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
         }
     })
@@ -1030,7 +1028,6 @@ pub fn export_drawing(
             },
             DrawingError::FailedToSaveDrawing(_)
             | DrawingError::CorruptedDrawing
-            | DrawingError::UnreachableHdrFormatMatch
             | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
         }
     })

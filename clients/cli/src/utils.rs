@@ -16,7 +16,7 @@ use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
 use lockbook_core::service::drawing_service::SupportedImageFormats;
 use lockbook_core::service::drawing_service::SupportedImageFormats::{
-    Bmp, Farbfeld, Hdr, Jpeg, Png, Pnm, Tga,
+    Bmp, Farbfeld, Jpeg, Png, Pnm, Tga,
 };
 use std::path::Path;
 
@@ -141,7 +141,6 @@ pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
         "bmp" => Bmp,
         "tga" => Tga,
         "pnm" => Pnm,
-        "hdr" => Hdr,
         "farbfeld" => Farbfeld,
         _ => {
             eprintln!(

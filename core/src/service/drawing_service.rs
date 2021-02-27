@@ -5,12 +5,12 @@ use crate::storage::db_provider::Backend;
 
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::farbfeld::FarbfeldEncoder;
-use image::codecs::hdr::HdrEncoder;
+
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
 use image::codecs::tga::TgaEncoder;
-use image::{ColorType, ImageError, Rgb};
+use image::{ColorType, ImageError};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
@@ -22,7 +22,6 @@ pub enum SupportedImageFormats {
     Jpeg,
     Pnm,
     Tga,
-    Hdr,
     Farbfeld,
     Bmp,
 }
@@ -34,7 +33,6 @@ pub enum DrawingError<MyBackend: Backend> {
     FailedToRetrieveDrawing(ReadDocumentError<MyBackend>),
     FailedToEncodeImage(ImageError),
     CorruptedDrawing,
-    UnreachableHdrFormatMatch,
 }
 
 pub trait DrawingService<
@@ -171,72 +169,55 @@ impl<
         let mut buffer = Vec::<u8>::new();
         let mut buf_writer = BufWriter::new(&mut buffer);
 
-        match format {
-            SupportedImageFormats::Hdr => {
-                let mut drawing_bytes: Vec<Rgb<f32>> = Vec::new();
+        let mut drawing_bytes: Vec<u8> = Vec::new();
 
-                for pixel in draw_target.into_vec().iter() {
-                    let (r, g, b, _) = Self::i32_byte_to_u8_byte(pixel.to_owned() as i32);
+        for pixel in draw_target.into_vec().iter() {
+            let (r, g, b, a) = Self::i32_byte_to_u8_byte(pixel.to_owned() as i32);
 
-                    drawing_bytes.push(Rgb([r as f32, g as f32, b as f32]));
-                }
-
-                HdrEncoder::new(&mut buf_writer)
-                    .encode(drawing_bytes.as_slice(), width as usize, height as usize)
-                    .map_err(DrawingError::FailedToEncodeImage)?;
-            }
-            _ => {
-                let mut drawing_bytes: Vec<u8> = Vec::new();
-
-                for pixel in draw_target.into_vec().iter() {
-                    let (r, g, b, a) = Self::i32_byte_to_u8_byte(pixel.to_owned() as i32);
-
-                    drawing_bytes.push(r);
-                    drawing_bytes.push(g);
-                    drawing_bytes.push(b);
-                    drawing_bytes.push(a);
-                }
-
-                match format {
-                    SupportedImageFormats::Png => PngEncoder::new(&mut buf_writer).encode(
-                        drawing_bytes.as_slice(),
-                        width,
-                        height,
-                        ColorType::Rgba8,
-                    ),
-                    SupportedImageFormats::Pnm => PnmEncoder::new(&mut buf_writer).encode(
-                        drawing_bytes.as_slice(),
-                        width,
-                        height,
-                        ColorType::Rgba8,
-                    ),
-                    SupportedImageFormats::Jpeg => JpegEncoder::new(&mut buf_writer).encode(
-                        drawing_bytes.as_slice(),
-                        width,
-                        height,
-                        ColorType::Rgba8,
-                    ),
-                    SupportedImageFormats::Tga => TgaEncoder::new(&mut buf_writer).encode(
-                        drawing_bytes.as_slice(),
-                        width,
-                        height,
-                        ColorType::Rgba8,
-                    ),
-                    SupportedImageFormats::Farbfeld => FarbfeldEncoder::new(&mut buf_writer)
-                        .encode(drawing_bytes.as_slice(), width, height),
-                    SupportedImageFormats::Bmp => BmpEncoder::new(&mut buf_writer).encode(
-                        drawing_bytes.as_slice(),
-                        width,
-                        height,
-                        ColorType::Rgba8,
-                    ),
-                    SupportedImageFormats::Hdr => {
-                        return Err(DrawingError::UnreachableHdrFormatMatch)
-                    }
-                }
-                .map_err(DrawingError::FailedToEncodeImage)?;
-            }
+            drawing_bytes.push(r);
+            drawing_bytes.push(g);
+            drawing_bytes.push(b);
+            drawing_bytes.push(a);
         }
+
+        match format {
+            SupportedImageFormats::Png => PngEncoder::new(&mut buf_writer).encode(
+                drawing_bytes.as_slice(),
+                width,
+                height,
+                ColorType::Rgba8,
+            ),
+            SupportedImageFormats::Pnm => PnmEncoder::new(&mut buf_writer).encode(
+                drawing_bytes.as_slice(),
+                width,
+                height,
+                ColorType::Rgba8,
+            ),
+            SupportedImageFormats::Jpeg => JpegEncoder::new(&mut buf_writer).encode(
+                drawing_bytes.as_slice(),
+                width,
+                height,
+                ColorType::Rgba8,
+            ),
+            SupportedImageFormats::Tga => TgaEncoder::new(&mut buf_writer).encode(
+                drawing_bytes.as_slice(),
+                width,
+                height,
+                ColorType::Rgba8,
+            ),
+            SupportedImageFormats::Farbfeld => FarbfeldEncoder::new(&mut buf_writer).encode(
+                drawing_bytes.as_slice(),
+                width,
+                height,
+            ),
+            SupportedImageFormats::Bmp => BmpEncoder::new(&mut buf_writer).encode(
+                drawing_bytes.as_slice(),
+                width,
+                height,
+                ColorType::Rgba8,
+            ),
+        }
+        .map_err(DrawingError::FailedToEncodeImage)?;
 
         std::mem::drop(buf_writer);
 
