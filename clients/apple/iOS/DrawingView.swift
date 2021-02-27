@@ -7,11 +7,12 @@ struct DrawingView: UIViewRepresentable {
     
     @State var drawing: PKDrawing = PKDrawing()
     @State var zoom: CGFloat = 1
-    
-    
+        
     // How you'll ultimately replace the PKToolPicker
     // https://sarunw.com/posts/move-view-around-with-drag-gesture-in-swiftui/
     let toolPicker: PKToolPicker
+    
+    let onChange: (PKDrawing) -> Void
     
     func makeUIView(context: Context) -> PKCanvasView {
         let view = PKCanvasView()
@@ -45,15 +46,18 @@ struct DrawingView: UIViewRepresentable {
         @Binding var drawing: PKDrawing
         @Binding var scaleFactor: CGFloat
         var toolPicker: PKToolPicker
+        let onChange: (PKDrawing) -> ()
         
-        init(drawing: Binding<PKDrawing>, scaleFactor: Binding<CGFloat>, toolPicker: PKToolPicker) {
+        init(drawing: Binding<PKDrawing>, scaleFactor: Binding<CGFloat>, toolPicker: PKToolPicker, onChange: @escaping (PKDrawing) -> Void) {
             _drawing = drawing
             _scaleFactor = scaleFactor
             self.toolPicker = toolPicker
+            self.onChange = onChange
         }
         
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             self.drawing = canvasView.drawing
+            onChange(self.drawing)
         }
         
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -66,7 +70,7 @@ struct DrawingView: UIViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        return Coordinator(drawing: $drawing, scaleFactor: $zoom, toolPicker: toolPicker)
+        return Coordinator(drawing: $drawing, scaleFactor: $zoom, toolPicker: toolPicker, onChange: onChange)
     }
     
 }

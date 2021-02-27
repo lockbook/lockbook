@@ -79,7 +79,7 @@ class Content: ObservableObject {
         self.core = core
         self.meta = meta
         
-        // TODO this is actually a horrible place to do this as it laods all docs 
+        // TODO this is actually a horrible place to do this as it laods all docs
         // Load
         DispatchQueue.main.async { [weak self] in
             if !core.files.filter({$0.id == meta.id}).isEmpty {
