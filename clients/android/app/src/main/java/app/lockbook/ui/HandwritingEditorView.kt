@@ -14,6 +14,7 @@ import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
 import timber.log.Timber
+import kotlin.math.absoluteValue
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -182,7 +183,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                     val x2 = event.stroke.points[pointIndex + 1]
                     val y2 = event.stroke.points[pointIndex + 2]
 
-                    if(pointIndex == 3) {
+                    if (pointIndex == 3) {
                         strokesBounds.last().set(x1, y1, x1, y1)
                         updateLastStrokeBounds(x2, y2)
                     } else {
@@ -217,28 +218,28 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     private fun updateLastStrokeBounds(x: Float, y: Float) {
         val currentStrokeBounds = strokesBounds.last()
 
-        if(x > currentStrokeBounds.right) {
+        if (x > currentStrokeBounds.right) {
             currentStrokeBounds.right = x
         }
 
-        if(x < currentStrokeBounds.left) {
+        if (x < currentStrokeBounds.left) {
             currentStrokeBounds.left = x
         }
 
-        if(y < currentStrokeBounds.top) {
+        if (y < currentStrokeBounds.top) {
             currentStrokeBounds.top = y
         }
 
-        if(y > currentStrokeBounds.bottom) {
+        if (y > currentStrokeBounds.bottom) {
             currentStrokeBounds.bottom = y
         }
     }
 
-    private fun isLineWithinBounds(strokeIndex: Int, x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
+    private fun doesEraserSegmentIntersectStroke(strokeIndex: Int, x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
         val currentStrokeBounds = strokesBounds[strokeIndex]
         val eraseBounds = RectF()
 
-        if(x1 > x2) {
+        if (x1 > x2) {
             eraseBounds.right = x1
             eraseBounds.left = x2
         } else {
@@ -246,7 +247,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             eraseBounds.left = x1
         }
 
-        if(y1 > y2) {
+        if (y1 > y2) {
             eraseBounds.bottom = y1
             eraseBounds.top = y2
         } else {
@@ -254,29 +255,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             eraseBounds.top = y1
         }
 
-        if(currentStrokeBounds.left > eraseBounds.right || currentStrokeBounds.right < eraseBounds.left) {
-            return false
-        }
-
-        if(currentStrokeBounds.top > eraseBounds.bottom || currentStrokeBounds.bottom < eraseBounds.top) {
-            return false
-        }
-
-        val slope = (y2 - y1) / (x2 - x1)
-
-        val yAtStrokeBoundLeft = slope * (currentStrokeBounds.left - x1) + y1
-        val yAtStrokeBoundRight = slope * (currentStrokeBounds.right - x1) + y1
-
-
-        if(currentStrokeBounds.bottom > yAtStrokeBoundLeft && currentStrokeBounds.bottom > yAtStrokeBoundRight) {
-            return false
-        }
-
-        if(currentStrokeBounds.top < yAtStrokeBoundLeft && currentStrokeBounds.top < yAtStrokeBoundRight) {
-            return false
-        }
-
-        return true
+        return RectF.intersects(currentStrokeBounds, eraseBounds)
     }
 
     private fun screenToModel(screen: PointF): PointF {
@@ -464,7 +443,9 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 var deleteStroke = false
                 var pointIndex = 3
 
-                if(!isLineWithinBounds(eventIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y)) {
+                val size = (strokesBounds[eventIndex].top - strokesBounds[eventIndex].bottom).absoluteValue * (strokesBounds[eventIndex].left - strokesBounds[eventIndex].right).absoluteValue
+
+                if (!doesEraserSegmentIntersectStroke(eventIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y) && size > 20) {
                     continue
                 }
 
@@ -475,23 +456,36 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                         val roundedPoint2 =
                             PointF(stroke.points[pointIndex + 1].roundToInt().toFloat(), stroke.points[pointIndex + 2].roundToInt().toFloat())
 
+                        val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
                         val distToFromRoundedPoint1 = distanceBetweenPoints(erasePoints.first, roundedPoint1) +
                             distanceBetweenPoints(roundedPoint1, erasePoints.second)
+
+                        if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(distBetweenErasePoints)) {
+                            deleteStroke = true
+                            break@pointLoop
+                        }
+
                         val distToFromRoundedPoint2 = distanceBetweenPoints(erasePoints.first, roundedPoint2) +
                             distanceBetweenPoints(roundedPoint2, erasePoints.second)
+
+                        if (((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(distBetweenErasePoints)) {
+                            deleteStroke = true
+                            break@pointLoop
+                        }
+
+                        val distBetweenRoundedPoints = distanceBetweenPoints(roundedPoint1, roundedPoint2)
                         val distToFromErasePoint1 = distanceBetweenPoints(roundedPoint1, erasePoints.first) +
                             distanceBetweenPoints(erasePoints.first, roundedPoint2)
+
+                        if (((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(distBetweenRoundedPoints)) {
+                            deleteStroke = true
+                            break@pointLoop
+                        }
+
                         val distToFromErasePoint2 = distanceBetweenPoints(roundedPoint1, erasePoints.second) +
                             distanceBetweenPoints(erasePoints.second, roundedPoint2)
 
-                        val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
-                        val distBetweenRoundedPoints = distanceBetweenPoints(roundedPoint1, roundedPoint2)
-
-                        if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(distBetweenErasePoints) ||
-                            ((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(distBetweenErasePoints) ||
-                            ((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(distBetweenRoundedPoints) ||
-                            ((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(distBetweenRoundedPoints)
-                        ) {
+                        if (((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(distBetweenRoundedPoints)) {
                             deleteStroke = true
                             break@pointLoop
                         }
