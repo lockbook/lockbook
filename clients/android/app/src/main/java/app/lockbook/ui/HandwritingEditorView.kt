@@ -14,7 +14,6 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
-import timber.log.Timber
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -220,17 +219,13 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         if (x > currentStrokeBounds.right) {
             currentStrokeBounds.right = x
-        }
-
-        if (x < currentStrokeBounds.left) {
+        } else if (x < currentStrokeBounds.left) {
             currentStrokeBounds.left = x
         }
 
         if (y < currentStrokeBounds.top) {
             currentStrokeBounds.top = y
-        }
-
-        if (y > currentStrokeBounds.bottom) {
+        } else if (y > currentStrokeBounds.bottom) {
             currentStrokeBounds.bottom = y
         }
     }
@@ -404,7 +399,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun eraseAtPoint(point: PointF) {
-        Timber.e("CHECKED: ${strokesBounds.size}")
         val roundedPressure = 20
 
         when {
