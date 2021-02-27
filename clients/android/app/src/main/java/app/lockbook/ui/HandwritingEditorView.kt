@@ -9,12 +9,12 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.plus
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import app.lockbook.util.Point
 import timber.log.Timber
-import kotlin.math.absoluteValue
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -255,6 +255,12 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             eraseBounds.top = y1
         }
 
+        // expand the erasing bounds to catch the small strokes (like dots) that would not be caught otherwise
+        eraseBounds.top -= 20
+        eraseBounds.bottom += 20
+        eraseBounds.left -= 20
+        eraseBounds.right += 20
+
         return RectF.intersects(currentStrokeBounds, eraseBounds)
     }
 
@@ -443,9 +449,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                 var deleteStroke = false
                 var pointIndex = 3
 
-                val size = (strokesBounds[eventIndex].top - strokesBounds[eventIndex].bottom).absoluteValue * (strokesBounds[eventIndex].left - strokesBounds[eventIndex].right).absoluteValue
-
-                if (!doesEraserSegmentIntersectStroke(eventIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y) && size > 20) {
+                if (!doesEraserSegmentIntersectStroke(eventIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y)) {
                     continue
                 }
 
