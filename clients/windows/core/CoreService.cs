@@ -25,91 +25,91 @@ namespace lockbook {
 
         private static Mutex coreMutex = new Mutex();
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern void init_logger_safely(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_db_state(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr migrate_db(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr create_account(IntPtr writeable_path, IntPtr username, IntPtr api_url);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr import_account(IntPtr writeable_path, IntPtr account_string);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr export_account(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_account(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr create_file_at_path(IntPtr writeable_path, IntPtr path_and_name);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr write_document(IntPtr writeable_path, IntPtr id, IntPtr content);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr create_file(IntPtr writeable_path, IntPtr name, IntPtr parent, IntPtr file_type);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_root(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_children(IntPtr writeable_path, IntPtr id);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_file_by_path(IntPtr writeable_path, IntPtr path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr read_document(IntPtr writeable_path, IntPtr id);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr delete_file(IntPtr writeable_path, IntPtr id);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr list_paths(IntPtr writeable_path, IntPtr filter);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr rename_file(IntPtr writeable_path, IntPtr id, IntPtr new_name);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr list_metadatas(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr move_file(IntPtr writeable_path, IntPtr id, IntPtr new_parent);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr calculate_work(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr execute_work(IntPtr writeable_path, IntPtr work_unit);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr sync_all(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr set_last_synced(IntPtr writeable_path, ulong last_sync);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_last_synced(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_last_synced_human_string(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_usage(IntPtr writeable_path);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_usage_human_string(IntPtr writeable_path, bool exact);
 
-        [DllImport("lockbook_core")]
+        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_variants();
 
         private static string CopyToManagedAndRelease(IntPtr ptr) {
@@ -235,7 +235,7 @@ namespace lockbook {
             var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.CreateFileAtPath.IResult, Core.CreateFileAtPath.ExpectedError, Core.CreateFileAtPath.PossibleErrors, Core.CreateFileAtPath.UnexpectedError>(
                 () => create_file_at_path(path, pathWithNamePtr),
-                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s)});
+                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s) });
             Marshal.FreeHGlobal(pathWithNamePtr);
             return result;
         }
