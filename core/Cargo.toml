@@ -24,7 +24,7 @@ flate2 = "1.0"
 jni = { version = "0.13.1", default-features = false }
 log = "0.4.8"
 rand = "0.7"
-reqwest = { version = "0.11.1", default-features = false, features = ["native-tls", "blocking", "json"] }
+reqwest = { version = "0.11.1", default-features = false, features = ["native-tls-vendored", "blocking", "json"] }
 rsa = { version = "^0.2", features = ["serde1"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
