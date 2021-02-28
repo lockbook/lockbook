@@ -27,7 +27,6 @@ class DrawingModel: ObservableObject {
     @Published var originalDrawing: PKDrawing? = .none
     var errors: String? = .none
     let meta: FileMetadata
-    var shouldLoadDrawing: Bool = true
     
     init(core: GlobalState, meta: FileMetadata) {
         self.core = core
@@ -35,25 +34,22 @@ class DrawingModel: ObservableObject {
     }
     
     func drawingModelChanged(updatedDrawing: PKDrawing) {
-        shouldLoadDrawing = false
-        self.originalDrawing = .none
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: {
-            self.originalDrawing = Drawing(from: updatedDrawing).getPKDrawing()
-        })
+        DispatchQueue.global(qos: .userInitiated).async {
+            print(self.core.api.writeDrawing(id: self.meta.id, content: Drawing(from: updatedDrawing)))
+        }
     }
     
     func loadDrawing() {
-        if shouldLoadDrawing {
-            DispatchQueue.global(qos: .userInitiated).async {
-                switch self.core.api.readDrawing(id: self.meta.id) {
-                case .success(let drawing):
-                    DispatchQueue.main.async {
-                        self.originalDrawing = drawing.getPKDrawing()
-                    }
-                case .failure(let drawingError):
-                    self.errors = drawingError.message
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch self.core.api.readDrawing(id: self.meta.id) {
+            case .success(let drawing):
+                DispatchQueue.main.async {
+                    self.originalDrawing = drawing.getPKDrawing()
                 }
+            case .failure(let drawingError):
+                self.errors = drawingError.message
             }
         }
+        
     }
 }

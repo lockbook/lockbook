@@ -65,10 +65,17 @@ public struct CoreApi: LockbookApi {
     
     public func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError> {
         getFile(id: id).map(transform: { input in
-            print("input")
-            print(input)
-            return (try? deserialize(data: input.data(using: .utf8)!).get())!
+            (try? deserialize(data: input.data(using: .utf8)!).get())! // TODO
         })
+    }
+    
+    public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {
+        switch serialize(obj: content) {
+        case .success(let serializedDrawing):
+            return fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, serializedDrawing))
+        case .failure(let err):
+            return .failure(.init(unexpected: err.localizedDescription))
+        }
     }
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError> {

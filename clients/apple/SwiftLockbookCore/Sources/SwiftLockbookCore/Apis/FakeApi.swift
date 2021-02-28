@@ -1,9 +1,6 @@
 import Foundation
 
 public struct FakeApi: LockbookApi {
-    public func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError> {
-        .failure(.init(unexpected: "LAZY"))
-    }
     
     public init() {
     }
@@ -69,6 +66,13 @@ Fusce ac risus ut sem vulputate euismod vitae ac massa.
 Quisque feugiat, risus in posuere varius, metus metus cursus lorem, at sollicitudin odio libero vel elit.
 Vestibulum ante ipsum primis in vel.
 """)
+    }
+    
+    public func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {
+        .failure(.init(unexpected: "LAZY"))
     }
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError> {

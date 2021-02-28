@@ -142,6 +142,10 @@ extension UIColor {
             let iBlue = Int(fBlue * 255.0)
             let iAlpha = Int(fAlpha * 255.0)
             
+            if iRed == 0 && iGreen == 0 && iBlue == 0 {
+                return -1
+            }
+            
             //  (Bits 24-31 are alpha, 16-23 are red, 8-15 are green, 0-7 are blue).
             let rgb = (iAlpha << 24) + (iRed << 16) + (iGreen << 8) + iBlue
             return rgb
