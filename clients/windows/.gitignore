@@ -7,3 +7,4 @@ windows.csproj.user
 *.pfx
 packages/
 TestResults/
+*.user
