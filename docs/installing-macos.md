@@ -1,4 +1,4 @@
-# iOS / iPadOS
+# macOS
 
 ## Build from source
 
