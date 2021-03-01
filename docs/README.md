@@ -59,15 +59,21 @@ Native support for: Linux, macOS, iOS, iPadOS, Android, and Windows. We capture 
 | Move                  |   ✅     |    📆     |     ✅      |     ✅       |      🏗        |    🏗     |
 | Delete                |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Sync                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
+| Export file to host   |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Import file from host |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Sharing               |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+
+### Document Types
+
+|                       |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
+|-----------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
 | Text                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Markdown              |   ✅     |    📆     |     ✅      |     📆       |      🏗        |    🏗     |
 | Drawings              |   🏗     |    🏗     |     ✅      |     🏗       |      🏗        |    🏗     |
-| Multimedia            |   📆     |    📆     |     ✅      |     🏗       |      🏗        |    🏗     |
-| Export file to host   |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
-| Import file from host |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Images                |   ✅     |    🏗     |     ✅      |     🏗       |      🏗        |    🏗     |
+| PDFs                  |   ✅     |    📆     |     ✅      |     🏗       |      🏗        |    🏗     |
 | Todo lists            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 | Document Linking      |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
-| Sharing               |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 
 # Further Reading
 
