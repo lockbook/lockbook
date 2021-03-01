@@ -11,23 +11,14 @@ struct EditorView: View {
     let changeCallback: (String) -> Void
 
     var body: some View {
-        SourceCodeTextEditor(
-            text: $text,
-            customization: SourceCodeTextEditor.Customization(
-                didChangeText: { _ in changeCallback(text) },
-                insertionPointColor: { .systemPink },
-                lexerForSource: { _ in
-                    if meta.name.hasSuffix(".md") {
-                        return LockbookMarkdownLexer()
-                    } else {
-                        return EmptyMarkdownLexer()
-                    }
-                },
-                textViewDidBeginEditing: { _ in () },
-                theme: { LockbookSourceCodeTheme(isDark: colorScheme == .dark) }
+        GeometryReader { geo in
+            NotepadView(
+                text: $text,
+                frame: geo.frame(in: .local),
+                theme: LockbookTheme,
+                onTextChange: changeCallback
             )
-        )
-        .disableAutocorrection(false)
+        }
     }
 }
 
@@ -104,7 +95,9 @@ class Content: ObservableObject {
         $text
             .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
             .sink(receiveValue: {
-                self.save(content: $0!)
+                if let c = $0 {
+                    self.save(content: c)
+                }
             })
             .store(in: &cancellables)
     }

@@ -41,18 +41,18 @@
 		EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
 		EA5C7D7F2516606100F7F358 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA5C7D6A2516606000F7F358 /* Assets.xcassets */; };
 		EA5C7D802516606100F7F358 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA5C7D6A2516606000F7F358 /* Assets.xcassets */; };
+		EA5C9F4D25E4C4D500DA7C6D /* NotepadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD401CC25E311320083A236 /* NotepadView.swift */; };
 		EA831A552534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A562534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A5A2534E5020048CE26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A592534E5020048CE26 /* SettingsView.swift */; };
 		EA831A5B2534E5020048CE26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A592534E5020048CE26 /* SettingsView.swift */; };
+		EA8C626D25EBE9FF00330E27 /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA8C626C25EBE9FF00330E27 /* NotepadSwift */; };
+		EA8C626F25EBEA0500330E27 /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA8C626E25EBEA0500330E27 /* NotepadSwift */; };
 		EA9079C32569960A00E04F5D /* FileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* FileCell.swift */; };
 		EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
-		EAB1D96125DAF85000632E4D /* Sourceful in Frameworks */ = {isa = PBXBuildFile; productRef = EAB1D96025DAF85000632E4D /* Sourceful */; };
-		EAB1D96525DAF85900632E4D /* Sourceful in Frameworks */ = {isa = PBXBuildFile; productRef = EAB1D96425DAF85900632E4D /* Sourceful */; };
-		EAB1D97125DAFD0400632E4D /* SourceCodeTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB1D97025DAFD0400632E4D /* SourceCodeTextEditor.swift */; };
-		EAB1D97225DAFD0400632E4D /* SourceCodeTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB1D97025DAFD0400632E4D /* SourceCodeTextEditor.swift */; };
 		EAB4B50025167AF50071D1CD /* GlobalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* GlobalState.swift */; };
 		EAB4B50125167AF50071D1CD /* GlobalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* GlobalState.swift */; };
+		EAD401CD25E311320083A236 /* NotepadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD401CC25E311320083A236 /* NotepadView.swift */; };
 		EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
 		EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
 		EAEDCD122517193500EBE313 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD112517193500EBE313 /* EditorView.swift */; };
@@ -90,9 +90,10 @@
 		EA831A542534E3C80048CE26 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		EA831A592534E5020048CE26 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		EA9079C22569960A00E04F5D /* FileCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCell.swift; sourceTree = "<group>"; };
-		EAB1D97025DAFD0400632E4D /* SourceCodeTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceCodeTextEditor.swift; sourceTree = "<group>"; };
 		EAB4B4FF25167AF50071D1CD /* GlobalState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalState.swift; sourceTree = "<group>"; };
 		EAB4B5062516924F0071D1CD /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		EAD401CC25E311320083A236 /* NotepadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotepadView.swift; sourceTree = "<group>"; };
+		EAD401DB25E32CD50083A236 /* Notepad */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Notepad; path = "/Users/raayanpillai/Library/Developer/Xcode/DerivedData/Lockbook-asqnugeyohispqhixjzcyqkvmhjn/SourcePackages/checkouts/Notepad"; sourceTree = "<absolute>"; };
 		EADA116125336BA1005F69DB /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Development.xcconfig; sourceTree = "<group>"; };
 		EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD0A2516FC1C00EBE313 /* BookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookView.swift; sourceTree = "<group>"; };
@@ -107,8 +108,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA8C626F25EBEA0500330E27 /* NotepadSwift in Frameworks */,
 				EA14E8192516643400B9158C /* SwiftLockbookCore in Frameworks */,
-				EAB1D96125DAF85000632E4D /* Sourceful in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -116,8 +117,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA8C626D25EBE9FF00330E27 /* NotepadSwift in Frameworks */,
 				EA14E81F2516655B00B9158C /* SwiftLockbookCore in Frameworks */,
-				EAB1D96525DAF85900632E4D /* Sourceful in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -136,6 +137,7 @@
 		EA14E8172516643400B9158C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				EAD401DB25E32CD50083A236 /* Notepad */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -210,6 +212,7 @@
 				EA9079C22569960A00E04F5D /* FileCell.swift */,
 				EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */,
 				EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */,
+				EAD401CC25E311320083A236 /* NotepadView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -222,7 +225,6 @@
 				EAEDCD112517193500EBE313 /* EditorView.swift */,
 				EA831A542534E3C80048CE26 /* AppView.swift */,
 				EA831A592534E5020048CE26 /* SettingsView.swift */,
-				EAB1D97025DAFD0400632E4D /* SourceCodeTextEditor.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -258,7 +260,7 @@
 			name = "Lockbook (iOS)";
 			packageProductDependencies = (
 				EA14E8182516643400B9158C /* SwiftLockbookCore */,
-				EAB1D96025DAF85000632E4D /* Sourceful */,
+				EA8C626E25EBEA0500330E27 /* NotepadSwift */,
 			);
 			productName = "Lockbook (iOS)";
 			productReference = EA5C7D6F2516606000F7F358 /* Lockbook.app */;
@@ -279,7 +281,7 @@
 			name = "Lockbook (macOS)";
 			packageProductDependencies = (
 				EA14E81E2516655B00B9158C /* SwiftLockbookCore */,
-				EAB1D96425DAF85900632E4D /* Sourceful */,
+				EA8C626C25EBE9FF00330E27 /* NotepadSwift */,
 			);
 			productName = "Lockbook (macOS)";
 			productReference = EA5C7D772516606000F7F358 /* Lockbook.app */;
@@ -312,7 +314,6 @@
 			);
 			mainGroup = EA5C7D622516605F00F7F358;
 			packageReferences = (
-				EAB1D95F25DAF85000632E4D /* XCRemoteSwiftPackageReference "Sourceful" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
 			projectDirPath = "";
@@ -357,6 +358,7 @@
 				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
 				EA831A5A2534E5020048CE26 /* SettingsView.swift in Sources */,
 				B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */,
+				EAD401CD25E311320083A236 /* NotepadView.swift in Sources */,
 				EA9079C32569960A00E04F5D /* FileCell.swift in Sources */,
 				8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
@@ -368,7 +370,6 @@
 				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				B2B7E2EB25C669C400B9EFAD /* NotificationButton.swift in Sources */,
-				EAB1D97125DAFD0400632E4D /* SourceCodeTextEditor.swift in Sources */,
 				EA380B202561FA2C0021C4FA /* AccountView.swift in Sources */,
 				8741E93625AD9F9C005B7B01 /* LockbookMarkdownConfig.swift in Sources */,
 			);
@@ -382,6 +383,7 @@
 				B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				EAB4B50125167AF50071D1CD /* GlobalState.swift in Sources */,
 				EA831A562534E3C80048CE26 /* AppView.swift in Sources */,
+				EA5C9F4D25E4C4D500DA7C6D /* NotepadView.swift in Sources */,
 				B2B7E2EC25C669C400B9EFAD /* NotificationButton.swift in Sources */,
 				EA380B212561FA2C0021C4FA /* AccountView.swift in Sources */,
 				EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
@@ -396,7 +398,6 @@
 				EA349F0C25BE6BD80016241E /* ActivityIndicator.swift in Sources */,
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
 				8741E92825AD9B02005B7B01 /* LockbookMarkdownConfig.swift in Sources */,
-				EAB1D97225DAFD0400632E4D /* SourceCodeTextEditor.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				EA349F0725BC7C360016241E /* OutlineRow.swift in Sources */,
 				EA831A5B2534E5020048CE26 /* SettingsView.swift in Sources */,
@@ -775,17 +776,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		EAB1D95F25DAF85000632E4D /* XCRemoteSwiftPackageReference "Sourceful" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/twostraws/Sourceful";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.3.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
 		EA14E8182516643400B9158C /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -795,15 +785,13 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftLockbookCore;
 		};
-		EAB1D96025DAF85000632E4D /* Sourceful */ = {
+		EA8C626C25EBE9FF00330E27 /* NotepadSwift */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EAB1D95F25DAF85000632E4D /* XCRemoteSwiftPackageReference "Sourceful" */;
-			productName = Sourceful;
+			productName = NotepadSwift;
 		};
-		EAB1D96425DAF85900632E4D /* Sourceful */ = {
+		EA8C626E25EBEA0500330E27 /* NotepadSwift */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EAB1D95F25DAF85000632E4D /* XCRemoteSwiftPackageReference "Sourceful" */;
-			productName = Sourceful;
+			productName = NotepadSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
