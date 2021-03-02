@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.UI;
+using Windows.UI.Input.Inking;
 using Windows.UI.Popups;
 using Windows.UI.Text;
 using Windows.UI.Xaml;
@@ -60,6 +61,15 @@ namespace lockbook {
                 Refresh();
             }
         }
+        public bool Drawing {
+            get {
+                return editor.Visibility != Visibility.Collapsed;
+            }
+            set {
+                inkCanvas.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+                editor.Visibility = value ? Visibility.Collapsed : Visibility.Visible;
+            }
+        }
 
         public const string checkGlyph = "\uE73E";
         public const string syncGlyph = "\uE895";
@@ -71,6 +81,15 @@ namespace lockbook {
         public FileExplorer() {
             InitializeComponent();
             Files.Add(App.UIFiles.FirstOrDefault(kvp => kvp.Value.IsRoot).Value);
+            inkCanvas.InkPresenter.InputDeviceTypes =
+                Windows.UI.Core.CoreInputDeviceTypes.Mouse |
+                Windows.UI.Core.CoreInputDeviceTypes.Pen |
+                Windows.UI.Core.CoreInputDeviceTypes.Touch;
+            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes();
+            drawingAttributes.Color = Colors.White;
+            drawingAttributes.IgnorePressure = false;
+            drawingAttributes.FitToCurve = true;
+            inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
         }
 
         private async void SignOutClicked(object sender, RoutedEventArgs e) {
@@ -131,18 +150,18 @@ namespace lockbook {
         }
 
         public void Refresh() {
-            if(!App.IsOnline) {
+            if (!App.IsOnline) {
                 syncIcon.Glyph = offlineGlyph;
                 syncText.Text = "Offline";
             }
-            if(SyncWorking) {
+            if (SyncWorking) {
                 syncIcon.Glyph = syncGlyph;
                 syncText.Text = "Syncing...";
             }
-            if(ItemsToSync == 0) {
+            if (ItemsToSync == 0) {
                 syncIcon.Glyph = checkGlyph;
                 syncText.Text = "Up to date";
-            } else if(ItemsToSync == 1) {
+            } else if (ItemsToSync == 1) {
                 syncIcon.Glyph = syncGlyph;
                 syncText.Text = ItemsToSync + " item need to be synced";
             } else {
@@ -194,7 +213,7 @@ namespace lockbook {
             if (file.Id != file.Parent) {
                 tree[file.Parent].Children.Add(tree[file.Id]);
             }
-            foreach(var f in files.Where(f => f.Parent == file.Id && f.Id != file.Id)) {
+            foreach (var f in files.Where(f => f.Parent == file.Id && f.Id != file.Id)) {
                 PopulateTreeRecursive(files, tree, f);
             }
         }
@@ -414,9 +433,15 @@ namespace lockbook {
 
                 switch (result) {
                     case Core.ReadDocument.Success content:
-                        editor.TextDocument.SetText(TextSetOptions.None, content.content);
-                        editor.TextDocument.ClearUndoRedoHistory();
-                        keyStrokeCount[tag] = 0;
+                        if (file.Name.EndsWith(".draw")) {
+                            Drawing = true;
+                            // todo: load drawing
+                        } else {
+                            Drawing = false;
+                            editor.TextDocument.SetText(TextSetOptions.None, content.content);
+                            editor.TextDocument.ClearUndoRedoHistory();
+                            keyStrokeCount[tag] = 0;
+                        }
                         break;
                     case Core.ReadDocument.UnexpectedError uhOh:
                         await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();

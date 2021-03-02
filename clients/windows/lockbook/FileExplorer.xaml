@@ -115,17 +115,18 @@
             </Grid>
         </SplitView.Pane>
         <SplitView.Content>
-            <RichEditBox
-                x:Name="editor"
-                IsEnabled="True"
-                TextChanged="TextChanged"
-                Paste="Pasted"
-                FontFamily="Consolas"
-                BorderThickness="0"
-                DisabledFormattingAccelerators="All"
-                Background="Black">
-            </RichEditBox>
+            <Grid Background="Black">
+                <InkCanvas
+                    x:Name="inkCanvas"/>
+                <RichEditBox
+                    x:Name="editor"
+                    IsEnabled="True"
+                    TextChanged="TextChanged"
+                    Paste="Pasted"
+                    FontFamily="Consolas"
+                    BorderThickness="0"
+                    DisabledFormattingAccelerators="All"/>
+            </Grid>
         </SplitView.Content>
     </SplitView>
-
 </Page>
