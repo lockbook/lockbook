@@ -11,12 +11,13 @@ struct NotepadView: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextView {
         let np = Notepad(frame: frame, theme: theme)
         np.onTextChange = onTextChange
+        np.text = text
 
         return np
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
-        uiView.text = text
+
     }
 }
 #else
@@ -34,12 +35,13 @@ struct NotepadView: NSViewRepresentable {
         np.insertionPointColor = theme.tintColor
         np.layoutManager?.replaceTextStorage(np.storage)
         scrollView.documentView = np
+        np.string = text
 
         return scrollView
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        (nsView.documentView as? NSTextView)?.string = text
+
     }
 }
 
