@@ -1,0 +1,16 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "NotepadSwift",
+        "repositoryURL": "https://github.com/raayan/Notepad.git",
+        "state": {
+          "branch": "raayan/spm",
+          "revision": "e6bad0b52f420f92efe0f0222fa339106eed45f4",
+          "version": null
+        }
+      }
+    ]
+  },
+  "version": 1
+}
