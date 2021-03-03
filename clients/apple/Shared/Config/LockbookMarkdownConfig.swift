@@ -57,7 +57,7 @@ func systemFontWithTraits(_ traits: UIFontDescriptor.SymbolicTraits, _ size: CGF
 #endif
 let LockbookTheme: Theme = {
     var t = Theme()
-    t.backgroundColor = .white
+    t.backgroundColor = .init(white: 0, alpha: 0)
     t.tintColor = .systemPink
     t.body = Style(element: .body, attributes: [
         NSAttributedString.Key.font : systemFont,
