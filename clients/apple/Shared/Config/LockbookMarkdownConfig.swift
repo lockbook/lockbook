@@ -3,7 +3,7 @@ import Foundation
 import NotepadSwift
 
 fileprivate let inlineCodeRegex = try! NSRegularExpression(pattern: "`[^`]*`", options: [])
-fileprivate let codeBlockRegex = try! NSRegularExpression(pattern: "(`){3}((?!\\1).)+\\1{3}", options: [.dotMatchesLineSeparators])
+fileprivate let codeBlockRegex = try! NSRegularExpression(pattern: "```\n.+\n```", options: [.dotMatchesLineSeparators])
 fileprivate let headingRegex = try! NSRegularExpression(pattern: "^#{1,6}\\s.*$", options: [.anchorsMatchLines])
 fileprivate let linkOrImageRegex = try! NSRegularExpression(pattern: "!?\\[([^\\[\\]]*)\\]\\((.*?)\\)", options: [])
 fileprivate let linkOrImageTagRegex = try! NSRegularExpression(pattern: "!?\\[([^\\[\\]]*)\\]\\[(.*?)\\]", options: [])
@@ -57,7 +57,7 @@ func systemFontWithTraits(_ traits: UIFontDescriptor.SymbolicTraits, _ size: CGF
 #endif
 let LockbookTheme: Theme = {
     var t = Theme()
-    t.backgroundColor = .init(white: 0, alpha: 0)
+//    t.backgroundColor = .init(white: 0, alpha: 0)
     t.tintColor = .systemPink
     t.body = Style(element: .body, attributes: [
         NSAttributedString.Key.font : systemFont,
@@ -84,6 +84,9 @@ let LockbookTheme: Theme = {
         Style(element: .h3, attributes: [
             NSAttributedString.Key.font : systemFontWithTraits(headingTraits),
             NSAttributedString.Key.foregroundColor : headingColor
+        ]),
+        Style(element: .code, attributes: [
+            NSAttributedString.Key.font : codeFont,
         ]),
     ]
     return t

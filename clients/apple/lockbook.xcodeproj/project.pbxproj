@@ -27,7 +27,6 @@
 		B2B7E2EB25C669C400B9EFAD /* NotificationButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2EA25C669C400B9EFAD /* NotificationButton.swift */; };
 		B2B7E2EC25C669C400B9EFAD /* NotificationButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2EA25C669C400B9EFAD /* NotificationButton.swift */; };
 		EA14E81F2516655B00B9158C /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
-		EA1C9D0525EF099D0079479E /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA1C9D0425EF099D0079479E /* NotepadSwift */; };
 		EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
 		EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
 		EA349F0725BC7C360016241E /* OutlineRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA349F0125BC7C110016241E /* OutlineRow.swift */; };
@@ -42,12 +41,13 @@
 		EA5C7D7F2516606100F7F358 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA5C7D6A2516606000F7F358 /* Assets.xcassets */; };
 		EA5C7D802516606100F7F358 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA5C7D6A2516606000F7F358 /* Assets.xcassets */; };
 		EA5C9F4D25E4C4D500DA7C6D /* NotepadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD401CC25E311320083A236 /* NotepadView.swift */; };
+		EA6F42F425EF53AC00B6EC57 /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA6F42F325EF53AC00B6EC57 /* NotepadSwift */; };
+		EA6F42F625EF53B100B6EC57 /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA6F42F525EF53B100B6EC57 /* NotepadSwift */; };
 		EA831A552534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A562534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A5A2534E5020048CE26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A592534E5020048CE26 /* SettingsView.swift */; };
 		EA831A5B2534E5020048CE26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A592534E5020048CE26 /* SettingsView.swift */; };
 		EA8C627C25EF091900330E27 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA8C627B25EF091900330E27 /* SwiftLockbookCore */; };
-		EA8C628325EF096E00330E27 /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA8C628225EF096E00330E27 /* NotepadSwift */; };
 		EA9079C32569960A00E04F5D /* FileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* FileCell.swift */; };
 		EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		EAB4B50025167AF50071D1CD /* GlobalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* GlobalState.swift */; };
@@ -108,7 +108,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EA1C9D0525EF099D0079479E /* NotepadSwift in Frameworks */,
+				EA6F42F425EF53AC00B6EC57 /* NotepadSwift in Frameworks */,
 				EA8C627C25EF091900330E27 /* SwiftLockbookCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -117,7 +117,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EA8C628325EF096E00330E27 /* NotepadSwift in Frameworks */,
+				EA6F42F625EF53B100B6EC57 /* NotepadSwift in Frameworks */,
 				EA14E81F2516655B00B9158C /* SwiftLockbookCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -260,7 +260,7 @@
 			name = "Lockbook (iOS)";
 			packageProductDependencies = (
 				EA8C627B25EF091900330E27 /* SwiftLockbookCore */,
-				EA1C9D0425EF099D0079479E /* NotepadSwift */,
+				EA6F42F325EF53AC00B6EC57 /* NotepadSwift */,
 			);
 			productName = "Lockbook (iOS)";
 			productReference = EA5C7D6F2516606000F7F358 /* Lockbook.app */;
@@ -281,7 +281,7 @@
 			name = "Lockbook (macOS)";
 			packageProductDependencies = (
 				EA14E81E2516655B00B9158C /* SwiftLockbookCore */,
-				EA8C628225EF096E00330E27 /* NotepadSwift */,
+				EA6F42F525EF53B100B6EC57 /* NotepadSwift */,
 			);
 			productName = "Lockbook (macOS)";
 			productReference = EA5C7D772516606000F7F358 /* Lockbook.app */;
@@ -314,7 +314,6 @@
 			);
 			mainGroup = EA5C7D622516605F00F7F358;
 			packageReferences = (
-				EA8C628125EF096E00330E27 /* XCRemoteSwiftPackageReference "Notepad" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
 			projectDirPath = "";
@@ -777,35 +776,22 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		EA8C628125EF096E00330E27 /* XCRemoteSwiftPackageReference "Notepad" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/raayan/Notepad.git";
-			requirement = {
-				branch = raayan/spm;
-				kind = branch;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
 		EA14E81E2516655B00B9158C /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftLockbookCore;
 		};
-		EA1C9D0425EF099D0079479E /* NotepadSwift */ = {
+		EA6F42F325EF53AC00B6EC57 /* NotepadSwift */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EA8C628125EF096E00330E27 /* XCRemoteSwiftPackageReference "Notepad" */;
+			productName = NotepadSwift;
+		};
+		EA6F42F525EF53B100B6EC57 /* NotepadSwift */ = {
+			isa = XCSwiftPackageProductDependency;
 			productName = NotepadSwift;
 		};
 		EA8C627B25EF091900330E27 /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftLockbookCore;
-		};
-		EA8C628225EF096E00330E27 /* NotepadSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = EA8C628125EF096E00330E27 /* XCRemoteSwiftPackageReference "Notepad" */;
-			productName = NotepadSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
