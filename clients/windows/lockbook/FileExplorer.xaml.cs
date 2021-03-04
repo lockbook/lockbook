@@ -1,4 +1,5 @@
 ﻿using Core;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -76,7 +77,7 @@ namespace lockbook {
         public const string offlineGlyph = "\uF384";
 
         ObservableCollection<UIFile> Files = new ObservableCollection<UIFile>();
-        Dictionary<string, int> keyStrokeCount = new Dictionary<string, int>();
+        Dictionary<string, int> editCount = new Dictionary<string, int>();
 
         public FileExplorer() {
             InitializeComponent();
@@ -85,11 +86,12 @@ namespace lockbook {
                 Windows.UI.Core.CoreInputDeviceTypes.Mouse |
                 Windows.UI.Core.CoreInputDeviceTypes.Pen |
                 Windows.UI.Core.CoreInputDeviceTypes.Touch;
-            InkDrawingAttributes drawingAttributes = new InkDrawingAttributes();
-            drawingAttributes.Color = Colors.White;
-            drawingAttributes.IgnorePressure = false;
-            drawingAttributes.FitToCurve = true;
-            inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(drawingAttributes);
+            inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
+                Color = Colors.White,
+                IgnorePressure = false,
+                FitToCurve = true
+            });
+            inkCanvas.InkPresenter.StrokesCollected += DrawingChanged;
         }
 
         private async void SignOutClicked(object sender, RoutedEventArgs e) {
@@ -435,12 +437,16 @@ namespace lockbook {
                     case Core.ReadDocument.Success content:
                         if (file.Name.EndsWith(".draw")) {
                             Drawing = true;
-                            // todo: load drawing
+                            if(string.IsNullOrWhiteSpace(content.content)) {
+                                // don't put anything on the canvas
+                            } else {
+                                // json-parse the drawing, put things on the canvas
+                            }
                         } else {
                             Drawing = false;
                             editor.TextDocument.SetText(TextSetOptions.None, content.content);
                             editor.TextDocument.ClearUndoRedoHistory();
-                            keyStrokeCount[tag] = 0;
+                            editCount[tag] = 0;
                         }
                         break;
                     case Core.ReadDocument.UnexpectedError uhOh:
@@ -470,36 +476,78 @@ namespace lockbook {
                 editor.TextDocument.GetText(TextGetOptions.UseLf, out text);
 
                 // Only save the document if no keystrokes have happened in the last .5 seconds
-                keyStrokeCount[docID]++;
-                var current = keyStrokeCount[docID];
+                editCount[docID]++;
+                var current = editCount[docID];
                 await Task.Delay(500);
-                if (current != keyStrokeCount[docID]) {
+                if (current != editCount[docID]) {
                     return;
                 }
 
-                var result = await App.CoreService.WriteDocument(docID, text);
+                await SaveContent(docID, text);
+            }
+        }
 
-                switch (result) {
-                    case Core.WriteDocument.Success:
-                        await ReloadCalculatedWork();
-                        break;
-                    case Core.WriteDocument.UnexpectedError uhOh:
-                        await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
-                        break;
-                    case Core.WriteDocument.ExpectedError error:
-                        switch (error.Error) {
-                            case Core.WriteDocument.PossibleErrors.NoAccount:
-                                await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                                break;
-                            case Core.WriteDocument.PossibleErrors.FolderTreatedAsDocument:
-                                await new MessageDialog("You cannot read a folder, please file a bug report!", "Bad read target!").ShowAsync();
-                                break;
-                            case Core.WriteDocument.PossibleErrors.FileDoesNotExist:
-                                await new MessageDialog("Could not locate the file you're trying to edit! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                                break;
-                        }
-                        break;
+        private async void DrawingChanged(InkPresenter sender, InkStrokesCollectedEventArgs args) {
+            string docID = SelectedDocumentId;
+
+            // Only save the document if no strokes have happened in the last .5 seconds
+            editCount[docID]++;
+            var current = editCount[docID];
+            await Task.Delay(500);
+            if (current != editCount[docID]) {
+                return;
+            }
+
+            var drawing = new Drawing {
+                scale = 1,
+                translationX = 0,
+                translationY = 0,
+                strokes = new List<Stroke>(),
+                theme = null,
+            };
+            foreach(var stroke in inkCanvas.InkPresenter.StrokeContainer.GetStrokes()) {
+                var newStroke = new Stroke {
+                    pointsX = new List<float>(),
+                    pointsY = new List<float>(),
+                    pointsGirth = new List<float>(),
+                    color = ColorAlias.White,
+                    alpha = 0xFF,
+                };
+                foreach(var point in stroke.GetInkPoints()) {
+                    newStroke.pointsX.Add((float)point.Position.X);
+                    newStroke.pointsY.Add((float)point.Position.Y);
+                    newStroke.pointsGirth.Add(point.Pressure);
                 }
+                drawing.strokes.Add(newStroke);
+            }
+
+            var drawingJSON = JsonConvert.SerializeObject(drawing);
+            await SaveContent(docID, drawingJSON);
+        }
+
+        private async Task SaveContent(string docID, string text) {
+            var result = await App.CoreService.WriteDocument(docID, text);
+
+            switch (result) {
+                case Core.WriteDocument.Success:
+                    await ReloadCalculatedWork();
+                    break;
+                case Core.WriteDocument.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+                case Core.WriteDocument.ExpectedError error:
+                    switch (error.Error) {
+                        case Core.WriteDocument.PossibleErrors.NoAccount:
+                            await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                            break;
+                        case Core.WriteDocument.PossibleErrors.FolderTreatedAsDocument:
+                            await new MessageDialog("You cannot read a folder, please file a bug report!", "Bad read target!").ShowAsync();
+                            break;
+                        case Core.WriteDocument.PossibleErrors.FileDoesNotExist:
+                            await new MessageDialog("Could not locate the file you're trying to edit! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                            break;
+                    }
+                    break;
             }
         }
 

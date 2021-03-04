@@ -83,6 +83,44 @@ namespace Core {
         public ulong mostRecentUpdateFromServer;
     }
 
+    public class Drawing {
+        public float scale;
+        [JsonProperty("translation_x")]
+        public float translationX;
+        [JsonProperty("translation_y")]
+        public float translationY;
+        public List<Stroke> strokes;
+        public Dictionary<ColorAlias, ColorRGB> theme;
+    }
+
+    public class Stroke {
+        [JsonProperty("points_x")]
+        public List<float> pointsX;
+        [JsonProperty("points_y")]
+        public List<float> pointsY;
+        [JsonProperty("points_girth")]
+        public List<float> pointsGirth;
+        public ColorAlias color;
+        public byte alpha;
+    }
+
+    public enum ColorAlias {
+        Black,
+        Red,
+        Green,
+        Yellow,
+        Blue,
+        Magenta,
+        Cyan,
+        White,
+    }
+
+    public class ColorRGB {
+        public byte r;
+        public byte g;
+        public byte b;
+    }
+
     namespace GetDbState {
         public interface IResult { }
         public class Success : IResult {
