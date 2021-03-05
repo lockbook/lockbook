@@ -5,6 +5,10 @@ import PackageDescription
 
 let package = Package(
     name: "NotepadSwift",
+//    platforms: [
+//        .macOS("10.11"),
+//        .iOS("9.0")
+//    ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
@@ -14,24 +18,16 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
+//        .package(
+//            url: "https://github.com/johnxnguyen/Down.git",
+//            from: "0.10.0"
+//        )
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
             name: "NotepadSwift",
-            dependencies: [],
-            resources: [
-                .process("themes/base16-tomorrow-dark.json"),
-                .process("themes/base16-tomorrow-light.json"),
-                .process("themes/blues-clues.json"),
-                .process("themes/one-dark-custom.json"),
-                .process("themes/one-dark.json"),
-                .process("themes/one-light-custom.json"),
-                .process("themes/one-light.json"),
-                .process("themes/solarized-dark.json"),
-                .process("themes/solarized-light.json"),
-                .process("themes/system-minimal.json")
-            ]),
+            dependencies: []),
     ]
 )

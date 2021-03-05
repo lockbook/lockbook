@@ -1,0 +1,16 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "Down",
+        "repositoryURL": "https://github.com/johnxnguyen/Down.git",
+        "state": {
+          "branch": "master",
+          "revision": "3ac921e3a9c33b0e60dcf762acd9718dd76ba758",
+          "version": null
+        }
+      }
+    ]
+  },
+  "version": 1
+}

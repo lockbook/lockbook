@@ -11,6 +11,7 @@
 #elseif os(macOS)
     import AppKit
 #endif
+//import Down
 
 public class Storage: NSTextStorage {
     /// The Theme for the Notepad.
@@ -24,6 +25,7 @@ public class Storage: NSTextStorage {
             self.endEditing()
         }
     }
+    public var markdowner: (String) -> NSAttributedString = { _ in NSAttributedString() }
 
     /// The underlying text storage implementation.
     var backingStore = NSTextStorage()
@@ -120,16 +122,6 @@ public class Storage: NSTextStorage {
     ///
     /// - parameter range: The range in which to apply styles.
     func applyStyles(_ range: NSRange) {
-        guard let theme = self.theme else { return }
-
-        let backingString = backingStore.string
-        backingStore.setAttributes(theme.body.attributes, range: range)
-
-        for (style) in theme.styles {
-            style.regex.enumerateMatches(in: backingString, options: .withoutAnchoringBounds, range: range, using: { (match, flags, stop) in
-                guard let match = match else { return }
-                backingStore.addAttributes(style.attributes, range: match.range(at: 0))
-            })
-        }
+        backingStore.setAttributedString(markdowner(self.string))
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import NotepadSwift
+import Down
 
 #if os(iOS)
 struct NotepadView: UIViewRepresentable {
@@ -26,11 +27,15 @@ struct NotepadView: NSViewRepresentable {
     var frame: CGRect
     let theme: Theme
     let onTextChange: (String) -> Void
+    let engine = MarkdownEngine()
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
         let np = Notepad(frame: frame)
         np.onTextChange = onTextChange
+        np.storage.markdowner = { s in
+            engine.render(s)
+        }
         np.storage.theme = theme
         np.insertionPointColor = theme.tintColor
         np.layoutManager?.replaceTextStorage(np.storage)
