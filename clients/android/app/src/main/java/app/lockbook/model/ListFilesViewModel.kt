@@ -7,7 +7,12 @@ import androidx.lifecycle.LiveData
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.R
+import app.lockbook.util.FileMetadata
+import app.lockbook.util.FileType
 import app.lockbook.ui.BreadCrumb
+import app.lockbook.ui.CreateFileInfo
+import app.lockbook.ui.MoveFileInfo
+import app.lockbook.ui.RenameFileInfo
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
@@ -35,6 +40,17 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
+
+data class EditableFile(
+        val name: String,
+        val id: String,
+)
+
+data class SyncingStatus(
+        var isSyncing: Boolean = false,
+        var maxProgress: Int = 0,
+        var currentProgress: Int = 0
+)
 
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),

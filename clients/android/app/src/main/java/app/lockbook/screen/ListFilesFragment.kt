@@ -473,7 +473,7 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun navigateToHandwritingEditor(editableFile: EditableFile) {
-        val intent = Intent(context, HandwritingEditorActivity::class.java)
+        val intent = Intent(context, DrawingActivity::class.java)
         intent.putExtra("id", editableFile.id)
         startActivityForResult(intent, HANDWRITING_EDITOR_REQUEST_CODE)
     }

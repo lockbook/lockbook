@@ -5,7 +5,11 @@ import android.view.View
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import app.lockbook.ui.HandwritingEditorView
+import app.lockbook.util.ColorAlias
+import app.lockbook.util.ColorRGB
+import app.lockbook.util.Config
+import app.lockbook.util.Drawing
+import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
@@ -13,7 +17,7 @@ import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
 
-class HandwritingEditorViewModel(
+class DrawingViewModel(
     application: Application,
     private val id: String
 ) : AndroidViewModel(application) {
@@ -22,14 +26,14 @@ class HandwritingEditorViewModel(
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
     var backupDrawing: Drawing? = null
 
-    private var selectedColor = android.R.color.white
-    private var selectedTool = HandwritingEditorView.Tool.PEN
-    private var selectedPenSize = HandwritingEditorView.PenSize.SMALL
+    private var selectedColor = ColorAlias.White
+    private var selectedTool = DrawingView.Tool.PEN
+    private var selectedPenSize = DrawingView.PenSize.SMALL
 
     private val _setToolsVisibility = MutableLiveData<Int>()
-    private val _selectNewColor = MutableLiveData<Pair<Int?, Int>>()
-    private val _selectNewTool = MutableLiveData<Pair<HandwritingEditorView.Tool?, HandwritingEditorView.Tool>>()
-    private val _selectedNewPenSize = MutableLiveData<Pair<HandwritingEditorView.PenSize?, HandwritingEditorView.PenSize>>()
+    private val _selectNewColor = MutableLiveData<Pair<ColorAlias?, ColorAlias>>()
+    private val _selectNewTool = MutableLiveData<Pair<DrawingView.Tool?, DrawingView.Tool>>()
+    private val _selectedNewPenSize = MutableLiveData<Pair<DrawingView.PenSize?, DrawingView.PenSize>>()
     private val _drawableReady = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
@@ -37,13 +41,13 @@ class HandwritingEditorViewModel(
     val setToolsVisibility: LiveData<Int>
         get() = _setToolsVisibility
 
-    val selectNewColor: LiveData<Pair<Int?, Int>>
+    val selectNewColor: LiveData<Pair<ColorAlias?, ColorAlias>>
         get() = _selectNewColor
 
-    val selectNewTool: LiveData<Pair<HandwritingEditorView.Tool?, HandwritingEditorView.Tool>>
+    val selectNewTool: LiveData<Pair<DrawingView.Tool?, DrawingView.Tool>>
         get() = _selectNewTool
 
-    val selectedNewPenSize: LiveData<Pair<HandwritingEditorView.PenSize?, HandwritingEditorView.PenSize>>
+    val selectedNewPenSize: LiveData<Pair<DrawingView.PenSize?, DrawingView.PenSize>>
         get() = _selectedNewPenSize
 
     val errorHasOccurred: LiveData<String>
@@ -56,9 +60,9 @@ class HandwritingEditorViewModel(
         get() = _drawableReady
 
     init {
-        _selectNewColor.postValue(Pair(null, android.R.color.white))
-        _selectNewTool.postValue(Pair(null, HandwritingEditorView.Tool.PEN))
-        _selectedNewPenSize.postValue(Pair(null, HandwritingEditorView.PenSize.SMALL))
+        _selectNewColor.postValue(Pair(null, ColorAlias.White))
+        _selectNewTool.postValue(Pair(null, DrawingView.Tool.PEN))
+        _selectedNewPenSize.postValue(Pair(null, DrawingView.PenSize.SMALL))
     }
 
     fun handleTouchEvent(toolsVisibility: Int) {
@@ -74,7 +78,19 @@ class HandwritingEditorViewModel(
             withContext(Dispatchers.IO) {
                 val contents = readDocument(id)
                 if (contents != null && contents.isEmpty()) {
-                    backupDrawing = Drawing()
+
+                    backupDrawing = Drawing(
+                        theme = linkedMapOf(
+                            Pair(ColorAlias.Black, ColorRGB(0x00, 0x00, 0x00)),
+                            Pair(ColorAlias.Red, ColorRGB(0xFF, 0x00, 0x00)),
+                            Pair(ColorAlias.Green, ColorRGB(0x00, 0xFF, 0x00)),
+                            Pair(ColorAlias.Yellow, ColorRGB(0xFF, 0xFF, 0x00)),
+                            Pair(ColorAlias.Blue, ColorRGB(0x00, 0x00, 0xFF)),
+                            Pair(ColorAlias.Magenta, ColorRGB(0xFF, 0x00, 0xFF)),
+                            Pair(ColorAlias.Cyan, ColorRGB(0x00, 0xFF, 0xFF)),
+                            Pair(ColorAlias.White, ColorRGB(0xFF, 0xFF, 0xFF))
+                        )
+                    )
                 } else if (contents != null) {
                     backupDrawing = Klaxon().parse<Drawing>(contents)
                 }
@@ -133,17 +149,17 @@ class HandwritingEditorViewModel(
         }
     }
 
-    fun handleNewColorSelected(newColor: Int) {
+    fun handleNewColorSelected(newColor: ColorAlias) {
         _selectNewColor.postValue(Pair(selectedColor, newColor))
         selectedColor = newColor
     }
 
-    fun handleNewToolSelected(newTool: HandwritingEditorView.Tool) {
+    fun handleNewToolSelected(newTool: DrawingView.Tool) {
         _selectNewTool.postValue(Pair(selectedTool, newTool))
         selectedTool = newTool
     }
 
-    fun handleNewPenSizeSelected(newPenSize: HandwritingEditorView.PenSize) {
+    fun handleNewPenSizeSelected(newPenSize: DrawingView.PenSize) {
         _selectedNewPenSize.postValue(Pair(selectedPenSize, newPenSize))
         selectedPenSize = newPenSize
     }

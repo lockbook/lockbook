@@ -19,7 +19,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <app.lockbook.ui.HandwritingEditorView
+    <app.lockbook.ui.DrawingView
         android:id="@+id/handwriting_editor"
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -68,33 +68,36 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_white"
-                    style="@style/Main.Widget.DrawingButton"
-                    app:backgroundTint="@android:color/white" />
+                    style="@style/Main.Widget.DrawingButton" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/drawing_color_black"
+                    style="@style/Main.Widget.DrawingButton" />
+
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_blue"
-                    style="@style/Main.Widget.DrawingButton"
-                    app:backgroundTint="@android:color/holo_blue_light" />
+                    style="@style/Main.Widget.DrawingButton" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_red"
-                    style="@style/Main.Widget.DrawingButton"
-                    app:backgroundTint="@android:color/holo_red_light" />
+                    style="@style/Main.Widget.DrawingButton" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/drawing_color_green"
-                    style="@style/Main.Widget.DrawingButton"
-                    app:backgroundTint="@android:color/holo_green_light" />
+                    style="@style/Main.Widget.DrawingButton" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_orange"
-                    style="@style/Main.Widget.DrawingButton"
-                    app:backgroundTint="@android:color/holo_orange_light" />
+                    android:id="@+id/drawing_color_yellow"
+                    style="@style/Main.Widget.DrawingButton" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_purple"
-                    style="@style/Main.Widget.DrawingButton"
-                    app:backgroundTint="@android:color/holo_purple" />
+                    android:id="@+id/drawing_color_magenta"
+                    style="@style/Main.Widget.DrawingButton" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/drawing_color_cyan"
+                    style="@style/Main.Widget.DrawingButton" />
 
                 <TextView
                     android:id="@+id/handwriting_editor_pen_small"

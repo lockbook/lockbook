@@ -24,6 +24,11 @@ import kotlinx.android.synthetic.main.dialog_rename_file.rename_file
 import kotlinx.coroutines.*
 import timber.log.Timber
 
+data class RenameFileInfo(
+        val id: String,
+        val name: String
+)
+
 class RenameFileDialogFragment : DialogFragment() {
 
     private var job = Job()

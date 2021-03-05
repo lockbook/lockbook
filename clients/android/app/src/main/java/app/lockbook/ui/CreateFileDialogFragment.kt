@@ -20,6 +20,12 @@ import kotlinx.coroutines.*
 import timber.log.Timber
 import kotlin.properties.Delegates
 
+data class CreateFileInfo(
+        val parentId: String,
+        val fileType: String,
+        val isDrawing: Boolean
+)
+
 class CreateFileDialogFragment : DialogFragment() {
 
     private var job = Job()
