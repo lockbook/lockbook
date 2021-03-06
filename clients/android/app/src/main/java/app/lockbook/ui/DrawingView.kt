@@ -11,6 +11,7 @@ import android.view.SurfaceView
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
@@ -26,7 +27,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
 
-    private var erasePoints = Pair(PointF(-1f, -1f), PointF(-1f, -1f)) // Shouldn't these be NAN
+    private var erasePoints = Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
     private var thread = Thread(this)
     private var isThreadRunning = false
     private var penSizeMultiplier = 7
@@ -176,7 +177,14 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private fun restoreFromModel() {
         for (stroke in drawing.strokes) {
-            strokePaint.color = colorAliasInARGB[stroke.color]!!
+            val strokeColor = colorAliasInARGB[stroke.color]
+
+            if(strokeColor == null) {
+                (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
+                return
+            }
+
+            strokePaint.color = strokeColor
 
             for (pointIndex in 0..(stroke.pointsX.size - 2)) {
                 strokePaint.strokeWidth = stroke.pointsGirth[pointIndex]
@@ -195,7 +203,14 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             strokePath.reset()
         }
 
-        strokePaint.color = colorAliasInARGB[ColorAlias.White]!!
+        val strokeColor = colorAliasInARGB[ColorAlias.White]
+
+        if(strokeColor == null) {
+            (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
+            return
+        }
+
+        strokePaint.color = strokeColor
 
         val currentViewPortWidth =
             tempCanvas.clipBounds.width() / drawing.scale
@@ -274,7 +289,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val modelPoint = screenToModel(PointF(event.x, event.y))
 
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-            if (event.action == SPEN_ACTION_DOWN && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
+            if ((event.action == SPEN_ACTION_DOWN || isErasing) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
                 erasePoints.first.set(PointF(Float.NaN, Float.NaN))
                 erasePoints.second.set(PointF(Float.NaN, Float.NaN))
             }
@@ -294,7 +309,15 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         lastPoint.set(point)
 
         rollingAveragePressure = getAdjustedPressure(pressure)
-        strokePaint.color = colorAliasInARGB[currentColor]!!
+
+        val strokeColor = colorAliasInARGB[currentColor]
+
+        if(strokeColor == null) {
+            (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
+            return
+        }
+
+        strokePaint.color = strokeColor
 
         val stroke = Stroke(
             mutableListOf(point.x),

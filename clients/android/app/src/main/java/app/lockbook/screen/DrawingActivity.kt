@@ -245,16 +245,36 @@ class DrawingActivity : AppCompatActivity() {
         drawing_progress_bar.visibility = View.GONE
         isFirstLaunch = false
 
-        drawing_view.colorAliasInARGB = EnumMap(drawingViewModel.backupDrawing!!.themeToARGBColors())
+        val drawing = drawingViewModel.backupDrawing
 
-        drawing_color_white.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.White]!!))
-        drawing_color_black.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Black]!!))
-        drawing_color_red.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Red]!!))
-        drawing_color_green.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Green]!!))
-        drawing_color_cyan.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Cyan]!!))
-        drawing_color_magenta.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Magenta]!!))
-        drawing_color_blue.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Blue]!!))
-        drawing_color_yellow.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Yellow]!!))
+        if(drawing == null) {
+            unexpectedErrorHasOccurred("Unable to get color from theme.")
+            return
+        }
+
+        drawing_view.colorAliasInARGB = EnumMap(drawing.themeToARGBColors())
+        val white = drawing_view.colorAliasInARGB[ColorAlias.White]
+        val black = drawing_view.colorAliasInARGB[ColorAlias.Black]
+        val red = drawing_view.colorAliasInARGB[ColorAlias.Red]
+        val green = drawing_view.colorAliasInARGB[ColorAlias.Green]
+        val cyan = drawing_view.colorAliasInARGB[ColorAlias.Cyan]
+        val magenta = drawing_view.colorAliasInARGB[ColorAlias.Magenta]
+        val blue = drawing_view.colorAliasInARGB[ColorAlias.Blue]
+        val yellow = drawing_view.colorAliasInARGB[ColorAlias.Yellow]
+
+        if(white == null || black == null || red == null || green == null || cyan == null || magenta == null || blue == null || yellow == null) {
+            unexpectedErrorHasOccurred("Unable to get 1 or more colors from theme.")
+            return
+        }
+
+        drawing_color_white.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(white))
+        drawing_color_black.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(black))
+        drawing_color_red.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(red))
+        drawing_color_green.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(green))
+        drawing_color_cyan.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(cyan))
+        drawing_color_magenta.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(magenta))
+        drawing_color_blue.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(blue))
+        drawing_color_yellow.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(yellow))
 
         drawing_tools_menu.visibility = View.VISIBLE
 
@@ -392,7 +412,7 @@ class DrawingActivity : AppCompatActivity() {
             }).show()
     }
 
-    private fun unexpectedErrorHasOccurred(error: String) {
+    fun unexpectedErrorHasOccurred(error: String) {
         AlertDialog.Builder(this, R.style.Main_Widget_Dialog)
             .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
