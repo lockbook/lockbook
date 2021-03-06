@@ -179,7 +179,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         for (stroke in drawing.strokes) {
             val strokeColor = colorAliasInARGB[stroke.color]
 
-            if(strokeColor == null) {
+            if (strokeColor == null) {
                 (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
                 return
             }
@@ -205,7 +205,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         val strokeColor = colorAliasInARGB[ColorAlias.White]
 
-        if(strokeColor == null) {
+        if (strokeColor == null) {
             (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
             return
         }
@@ -312,7 +312,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         val strokeColor = colorAliasInARGB[currentColor]
 
-        if(strokeColor == null) {
+        if (strokeColor == null) {
             (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
             return
         }

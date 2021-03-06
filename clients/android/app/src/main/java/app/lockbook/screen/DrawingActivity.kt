@@ -243,11 +243,10 @@ class DrawingActivity : AppCompatActivity() {
     private fun addDrawingToView() {
         drawing_view.isTouchable = true
         drawing_progress_bar.visibility = View.GONE
-        isFirstLaunch = false
 
         val drawing = drawingViewModel.backupDrawing
 
-        if(drawing == null) {
+        if (drawing == null) {
             unexpectedErrorHasOccurred("Unable to get color from theme.")
             return
         }
@@ -262,7 +261,7 @@ class DrawingActivity : AppCompatActivity() {
         val blue = drawing_view.colorAliasInARGB[ColorAlias.Blue]
         val yellow = drawing_view.colorAliasInARGB[ColorAlias.Yellow]
 
-        if(white == null || black == null || red == null || green == null || cyan == null || magenta == null || blue == null || yellow == null) {
+        if (white == null || black == null || red == null || green == null || cyan == null || magenta == null || blue == null || yellow == null) {
             unexpectedErrorHasOccurred("Unable to get 1 or more colors from theme.")
             return
         }
@@ -278,7 +277,8 @@ class DrawingActivity : AppCompatActivity() {
 
         drawing_tools_menu.visibility = View.VISIBLE
 
-        drawing_view.initializeWithDrawing(drawingViewModel.backupDrawing)
+        isFirstLaunch = false
+        drawing_view.initializeWithDrawing(drawing)
     }
 
     private fun startDrawing() {
