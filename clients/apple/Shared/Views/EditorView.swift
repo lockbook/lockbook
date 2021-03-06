@@ -1,31 +1,24 @@
 import SwiftUI
 import SwiftLockbookCore
-import HighlightedTextEditor
 import Combine
 
 struct EditorView: View {
-
+    @Environment(\.colorScheme) var colorScheme
     @ObservedObject var core: GlobalState
     let meta: FileMetadata
     @State var text: String
     
     let changeCallback: (String) -> Void
-    
-    var highlightRules: [HighlightRule] {
-        if meta.name.hasSuffix(".md") {
-            return .lockbookMarkdown
-        } else {
-            return []
-        }
-    }
-    
+
     var body: some View {
-        #if os(iOS)
-        HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
-        #else
-        HighlightedTextEditor(text: $text, highlightRules: highlightRules, onTextChange: changeCallback)
-        #endif
-        
+        GeometryReader { geo in
+            NotepadView(
+                text: $text,
+                frame: geo.frame(in: .local),
+                theme: LockbookTheme,
+                onTextChange: changeCallback
+            )
+        }
     }
 }
 
@@ -102,7 +95,9 @@ class Content: ObservableObject {
         $text
             .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
             .sink(receiveValue: {
-                self.save(content: $0!)
+                if let c = $0 {
+                    self.save(content: c)
+                }
             })
             .store(in: &cancellables)
     }
