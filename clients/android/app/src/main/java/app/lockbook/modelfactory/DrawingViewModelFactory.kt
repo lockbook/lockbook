@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.model.DrawingViewModel
 
-class HandwritingEditorViewModelFactory(
+class DrawingViewModelFactory(
     private val application: Application,
     private val id: String,
 ) : ViewModelProvider.Factory {

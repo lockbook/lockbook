@@ -2,6 +2,7 @@ package app.lockbook.screen
 
 import android.animation.Animator
 import android.annotation.SuppressLint
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -14,7 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.model.DrawingViewModel
-import app.lockbook.modelfactory.HandwritingEditorViewModelFactory
+import app.lockbook.modelfactory.DrawingViewModelFactory
 import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
@@ -28,7 +29,7 @@ class DrawingActivity : AppCompatActivity() {
     private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
             if (!isFirstLaunch) {
-                handwriting_editor.startThread()
+                drawing_view.startThread()
             } else {
                 addDrawingToView()
             }
@@ -69,7 +70,7 @@ class DrawingActivity : AppCompatActivity() {
         drawingViewModel =
             ViewModelProvider(
                 this,
-                HandwritingEditorViewModelFactory(application, id)
+                DrawingViewModelFactory(application, id)
             ).get(DrawingViewModel::class.java)
 
         drawingViewModel.errorHasOccurred.observe(
@@ -87,9 +88,9 @@ class DrawingActivity : AppCompatActivity() {
         drawingViewModel.drawableReady.observe(
             this
         ) {
-            handwriting_editor.holder.addCallback(surfaceViewReadyCallback)
+            drawing_view.holder.addCallback(surfaceViewReadyCallback)
 
-            if (!handwriting_editor.holder.isCreating) {
+            if (!drawing_view.holder.isCreating) {
                 addDrawingToView()
             }
         }
@@ -126,21 +127,21 @@ class DrawingActivity : AppCompatActivity() {
 
     override fun onRestart() {
         super.onRestart()
-        handwriting_editor.restartThread()
+        drawing_view.restartThread()
     }
 
     override fun onPause() {
         super.onPause()
-        handwriting_editor.endThread()
+        drawing_view.endThread()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        handwriting_editor.endThread()
+        drawing_view.endThread()
         autoSaveTimer.cancel()
         if (!isFirstLaunch) {
-            drawingViewModel.backupDrawing = handwriting_editor.drawingModel
-            drawingViewModel.saveDrawing(handwriting_editor.drawingModel)
+            drawingViewModel.backupDrawing = drawing_view.drawingModel
+            drawingViewModel.saveDrawing(drawing_view.drawingModel)
         }
     }
 
@@ -172,18 +173,18 @@ class DrawingActivity : AppCompatActivity() {
         }.exhaustive
 
         newButton.strokeWidth = 4
-        handwriting_editor.currentColor = newColor
+        drawing_view.currentColor = newColor
     }
 
     private fun selectNewTool(newTool: DrawingView.Tool) {
         if (newTool == DrawingView.Tool.PEN) {
             drawing_pen.setImageResource(R.drawable.ic_pencil_filled)
             drawing_erase.setImageResource(R.drawable.ic_eraser_outline)
-            handwriting_editor.isErasing = false
+            drawing_view.isErasing = false
         } else {
             drawing_erase.setImageResource(R.drawable.ic_eraser_filled)
             drawing_pen.setImageResource(R.drawable.ic_pencil_outline)
-            handwriting_editor.isErasing = true
+            drawing_view.isErasing = true
         }
     }
 
@@ -193,26 +194,26 @@ class DrawingActivity : AppCompatActivity() {
     ) {
         if (oldPenSize != null) {
             val previousButton = when (oldPenSize) {
-                DrawingView.PenSize.SMALL -> handwriting_editor_pen_small
-                DrawingView.PenSize.MEDIUM -> handwriting_editor_pen_medium
-                DrawingView.PenSize.LARGE -> handwriting_editor_pen_large
+                DrawingView.PenSize.SMALL -> drawing_pen_small
+                DrawingView.PenSize.MEDIUM -> drawing_pen_medium
+                DrawingView.PenSize.LARGE -> drawing_pen_large
             }.exhaustive
 
             previousButton.setBackgroundResource(0)
         }
 
         val newButton = when (newPenSize) {
-            DrawingView.PenSize.SMALL -> handwriting_editor_pen_small
-            DrawingView.PenSize.MEDIUM -> handwriting_editor_pen_medium
-            DrawingView.PenSize.LARGE -> handwriting_editor_pen_large
+            DrawingView.PenSize.SMALL -> drawing_pen_small
+            DrawingView.PenSize.MEDIUM -> drawing_pen_medium
+            DrawingView.PenSize.LARGE -> drawing_pen_large
         }.exhaustive
 
         newButton.setBackgroundResource(R.drawable.item_border)
-        handwriting_editor.setPenSize(newPenSize)
+        drawing_view.setPenSize(newPenSize)
     }
 
     private fun setUpToolbarDefaults() {
-        val colorButtons = listOf(drawing_color_white, drawing_color_blue, drawing_color_green, drawing_color_yellow, drawing_color_magenta, drawing_color_red)
+        val colorButtons = listOf(drawing_color_white, drawing_color_black, drawing_color_blue, drawing_color_green, drawing_color_yellow, drawing_color_magenta, drawing_color_red, drawing_color_cyan)
         colorButtons.forEach { button ->
             button.setStrokeColorResource(R.color.blue)
         }
@@ -222,12 +223,12 @@ class DrawingActivity : AppCompatActivity() {
         val onAnimationEnd = object : Animator.AnimatorListener {
             override fun onAnimationStart(animation: Animator?) {
                 if (newVisibility == View.VISIBLE) {
-                    handwriting_editor_tools_menu.visibility = newVisibility
+                    drawing_tools_menu.visibility = newVisibility
                 }
             }
             override fun onAnimationEnd(animation: Animator?) {
                 if (newVisibility == View.GONE) {
-                    handwriting_editor_tools_menu.visibility = newVisibility
+                    drawing_tools_menu.visibility = newVisibility
                 }
             }
 
@@ -235,23 +236,36 @@ class DrawingActivity : AppCompatActivity() {
             override fun onAnimationRepeat(animation: Animator?) {}
         }
 
-        handwriting_editor_tools_menu.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f).setListener(onAnimationEnd).start()
+        drawing_tools_menu.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f).setListener(onAnimationEnd).start()
     }
 
     private fun addDrawingToView() {
-        handwriting_editor.isTouchable = true
-        handwriting_editor_progress_bar.visibility = View.GONE
+        drawing_view.isTouchable = true
+        drawing_progress_bar.visibility = View.GONE
         isFirstLaunch = false
-        handwriting_editor.initializeWithDrawing(drawingViewModel.backupDrawing)
+
+        val drawing = drawingViewModel.backupDrawing
+            drawing_color_white.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing!!.getColorFromAlias(ColorAlias.White, 255)))
+            drawing_color_black.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Black, 255)))
+            drawing_color_red.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Red, 255)))
+            drawing_color_green.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Green, 255)))
+            drawing_color_cyan.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Cyan, 255)))
+            drawing_color_magenta.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Magenta, 255)))
+            drawing_color_blue.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Blue, 255)))
+            drawing_color_yellow.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Yellow, 255)))
+
+        drawing_tools_menu.visibility = View.VISIBLE
+
+        drawing_view.initializeWithDrawing(drawing)
     }
 
     private fun startDrawing() {
-        handwriting_editor_progress_bar.visibility = View.VISIBLE
+        drawing_progress_bar.visibility = View.VISIBLE
 
         if (drawingViewModel.backupDrawing == null) {
             drawingViewModel.getDrawing(id)
         } else {
-            handwriting_editor.holder.addCallback(surfaceViewReadyCallback)
+            drawing_view.holder.addCallback(surfaceViewReadyCallback)
         }
     }
 
@@ -260,6 +274,11 @@ class DrawingActivity : AppCompatActivity() {
         drawing_color_white.setOnClickListener {
             drawingViewModel.handleNewColorSelected(ColorAlias.White)
         }
+
+        drawing_color_black.setOnClickListener {
+            drawingViewModel.handleNewColorSelected(ColorAlias.Cyan)
+        }
+
         drawing_color_blue.setOnClickListener {
             drawingViewModel.handleNewColorSelected(ColorAlias.Blue)
         }
@@ -280,6 +299,10 @@ class DrawingActivity : AppCompatActivity() {
             drawingViewModel.handleNewColorSelected(ColorAlias.Red)
         }
 
+        drawing_color_cyan.setOnClickListener {
+            drawingViewModel.handleNewColorSelected(ColorAlias.Cyan)
+        }
+
         drawing_erase.setOnClickListener {
             drawingViewModel.handleNewToolSelected(DrawingView.Tool.ERASER)
         }
@@ -288,15 +311,15 @@ class DrawingActivity : AppCompatActivity() {
             drawingViewModel.handleNewToolSelected(DrawingView.Tool.PEN)
         }
 
-        handwriting_editor_pen_small.setOnClickListener {
+        drawing_pen_small.setOnClickListener {
             drawingViewModel.handleNewPenSizeSelected(DrawingView.PenSize.SMALL)
         }
 
-        handwriting_editor_pen_medium.setOnClickListener {
+        drawing_pen_medium.setOnClickListener {
             drawingViewModel.handleNewPenSizeSelected(DrawingView.PenSize.MEDIUM)
         }
 
-        handwriting_editor_pen_large.setOnClickListener {
+        drawing_pen_large.setOnClickListener {
             drawingViewModel.handleNewPenSizeSelected(DrawingView.PenSize.LARGE)
         }
 
@@ -308,7 +331,7 @@ class DrawingActivity : AppCompatActivity() {
                 override fun onShowPress(e: MotionEvent?) {}
 
                 override fun onSingleTapUp(e: MotionEvent?): Boolean {
-                    drawingViewModel.handleTouchEvent(handwriting_editor_tools_menu.visibility)
+                    drawingViewModel.handleTouchEvent(drawing_tools_menu.visibility)
                     return true
                 }
 
@@ -330,7 +353,7 @@ class DrawingActivity : AppCompatActivity() {
             }
         )
 
-        handwriting_editor.setOnTouchListener { _, event ->
+        drawing_view.setOnTouchListener { _, event ->
             if (event != null && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
                 gestureDetector.onTouchEvent(event)
             }
@@ -347,10 +370,10 @@ class DrawingActivity : AppCompatActivity() {
                         if (!isFirstLaunch) {
                             drawingViewModel.saveDrawing(
                                 Drawing(
-                                    handwriting_editor.drawingModel.scale,
-                                    handwriting_editor.drawingModel.translationX,
-                                    handwriting_editor.drawingModel.translationY,
-                                    handwriting_editor.drawingModel.strokes.map { stroke ->
+                                    drawing_view.drawingModel.scale,
+                                    drawing_view.drawingModel.translationX,
+                                    drawing_view.drawingModel.translationY,
+                                    drawing_view.drawingModel.strokes.map { stroke ->
                                         Stroke(
                                             stroke.pointsX.toMutableList(),
                                             stroke.pointsY.toMutableList(),
@@ -359,7 +382,7 @@ class DrawingActivity : AppCompatActivity() {
                                             stroke.alpha
                                         )
                                     }.toMutableList(),
-                                    handwriting_editor.drawingModel.theme
+                                    drawing_view.drawingModel.theme
                                 )
                             )
                         }
@@ -372,7 +395,7 @@ class DrawingActivity : AppCompatActivity() {
     }
 
     private fun errorHasOccurred(error: String) {
-        Snackbar.make(handwriting_editor_layout, error, Snackbar.LENGTH_SHORT)
+        Snackbar.make(drawing_layout, error, Snackbar.LENGTH_SHORT)
             .addCallback(object : Snackbar.Callback() {
                 override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                     super.onDismissed(transientBottomBar, event)

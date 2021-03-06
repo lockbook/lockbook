@@ -15,7 +15,7 @@ import app.lockbook.ui.MoveFileInfo
 import app.lockbook.ui.RenameFileInfo
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
+import app.lockbook.util.RequestResultCodes.DRAWING_REQUEST_CODE
 import app.lockbook.util.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
@@ -69,7 +69,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showOfflineSnackBar = SingleMutableLiveData<Unit>()
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
-    private val _navigateToHandwritingEditor = SingleMutableLiveData<EditableFile>()
+    private val _navigateToDrawing = SingleMutableLiveData<EditableFile>()
     private val _switchFileLayout = SingleMutableLiveData<Unit>()
     private val _switchMenu = SingleMutableLiveData<Unit>()
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
@@ -106,8 +106,8 @@ class ListFilesViewModel(path: String, application: Application) :
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
 
-    val navigateToHandwritingEditor: LiveData<EditableFile>
-        get() = _navigateToHandwritingEditor
+    val navigateToDrawing: LiveData<EditableFile>
+        get() = _navigateToDrawing
 
     val switchFileLayout: LiveData<Unit>
         get() = _switchFileLayout
@@ -239,7 +239,7 @@ class ListFilesViewModel(path: String, application: Application) :
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 when (requestCode) {
-                    TEXT_EDITOR_REQUEST_CODE, HANDWRITING_EDITOR_REQUEST_CODE -> {
+                    TEXT_EDITOR_REQUEST_CODE, DRAWING_REQUEST_CODE -> {
                         syncBasedOnPreferences()
                     }
                     else -> {
@@ -550,7 +550,7 @@ class ListFilesViewModel(path: String, application: Application) :
             EditableFile(fileMetadata.name, fileMetadata.id)
         fileModel.lastDocumentAccessed = fileMetadata
         if (fileMetadata.name.endsWith(".draw")) {
-            _navigateToHandwritingEditor.postValue(editableFileResult)
+            _navigateToDrawing.postValue(editableFileResult)
         } else {
             _navigateToFileEditor.postValue(editableFileResult)
         }

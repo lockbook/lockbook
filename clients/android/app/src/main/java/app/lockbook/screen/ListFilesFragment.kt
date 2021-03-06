@@ -27,7 +27,7 @@ import app.lockbook.ui.*
 import app.lockbook.util.*
 import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.Messages.UNEXPECTED_ERROR
-import app.lockbook.util.RequestResultCodes.HANDWRITING_EDITOR_REQUEST_CODE
+import app.lockbook.util.RequestResultCodes.DRAWING_REQUEST_CODE
 import app.lockbook.util.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
@@ -155,10 +155,10 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.navigateToHandwritingEditor.observe(
+        listFilesViewModel.navigateToDrawing.observe(
             viewLifecycleOwner,
             { editableFile ->
-                navigateToHandwritingEditor(editableFile)
+                navigateToDrawing(editableFile)
             }
         )
 
@@ -472,10 +472,10 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-    private fun navigateToHandwritingEditor(editableFile: EditableFile) {
+    private fun navigateToDrawing(editableFile: EditableFile) {
         val intent = Intent(context, DrawingActivity::class.java)
         intent.putExtra("id", editableFile.id)
-        startActivityForResult(intent, HANDWRITING_EDITOR_REQUEST_CODE)
+        startActivityForResult(intent, DRAWING_REQUEST_CODE)
     }
 
     private fun errorHasOccurred(view: ViewGroup, error: String) {

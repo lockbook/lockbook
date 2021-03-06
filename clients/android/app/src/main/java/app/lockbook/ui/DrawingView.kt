@@ -166,7 +166,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private fun restoreFromModel() {
         for (stroke in drawingModel.strokes) {
-            strokePaint.color = getColorFromAlias(stroke.color, stroke.alpha)
+            strokePaint.color = drawingModel.getColorFromAlias(stroke.color, stroke.alpha)
 
             for (pointIndex in 0..stroke.pointsX.size step 2) {
                 strokePaint.strokeWidth = stroke.pointsGirth[pointIndex]
@@ -185,7 +185,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             strokePath.reset()
         }
 
-        strokePaint.color = getColorFromAlias(ColorAlias.White, 255)
+        strokePaint.color = drawingModel.getColorFromAlias(ColorAlias.White, 255)
 
         val currentViewPortWidth =
             tempCanvas.clipBounds.width() / drawingModel.scale
@@ -284,7 +284,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         lastPoint.set(point)
 
         rollingAveragePressure = getAdjustedPressure(pressure)
-        strokePaint.color = getColorFromAlias(currentColor, currentOpacity)
+        strokePaint.color = drawingModel.getColorFromAlias(currentColor, currentOpacity)
 
         val stroke = Stroke(
             mutableListOf(point.x),

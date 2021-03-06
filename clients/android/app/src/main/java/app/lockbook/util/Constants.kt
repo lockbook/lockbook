@@ -39,7 +39,7 @@ object SharedPreferences {
 
 object RequestResultCodes {
     const val TEXT_EDITOR_REQUEST_CODE: Int = 102
-    const val HANDWRITING_EDITOR_REQUEST_CODE: Int = 104
+    const val DRAWING_REQUEST_CODE: Int = 104
 }
 
 object Messages {

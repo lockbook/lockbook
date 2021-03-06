@@ -79,18 +79,7 @@ class DrawingViewModel(
                 val contents = readDocument(id)
                 if (contents != null && contents.isEmpty()) {
 
-                    backupDrawing = Drawing(
-                        theme = linkedMapOf(
-                            Pair(ColorAlias.Black, ColorRGB(0x00, 0x00, 0x00)),
-                            Pair(ColorAlias.Red, ColorRGB(0xFF, 0x00, 0x00)),
-                            Pair(ColorAlias.Green, ColorRGB(0x00, 0xFF, 0x00)),
-                            Pair(ColorAlias.Yellow, ColorRGB(0xFF, 0xFF, 0x00)),
-                            Pair(ColorAlias.Blue, ColorRGB(0x00, 0x00, 0xFF)),
-                            Pair(ColorAlias.Magenta, ColorRGB(0xFF, 0x00, 0xFF)),
-                            Pair(ColorAlias.Cyan, ColorRGB(0x00, 0xFF, 0xFF)),
-                            Pair(ColorAlias.White, ColorRGB(0xFF, 0xFF, 0xFF))
-                        )
-                    )
+                    backupDrawing = Drawing()
                 } else if (contents != null) {
                     backupDrawing = Klaxon().parse<Drawing>(contents)
                 }
