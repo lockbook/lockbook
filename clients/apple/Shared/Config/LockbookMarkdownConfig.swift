@@ -2,26 +2,6 @@ import SwiftUI
 import Foundation
 import NotepadSwift
 
-fileprivate let inlineCodeRegex = try! NSRegularExpression(pattern: "`[^`]*`", options: [])
-fileprivate let codeBlockRegex = try! NSRegularExpression(pattern: "```\n.+\n```", options: [.dotMatchesLineSeparators])
-fileprivate let headingRegex = try! NSRegularExpression(pattern: "^#{1,6}\\s.*$", options: [.anchorsMatchLines])
-fileprivate let linkOrImageRegex = try! NSRegularExpression(pattern: "!?\\[([^\\[\\]]*)\\]\\((.*?)\\)", options: [])
-fileprivate let linkOrImageTagRegex = try! NSRegularExpression(pattern: "!?\\[([^\\[\\]]*)\\]\\[(.*?)\\]", options: [])
-fileprivate let boldRegex = try! NSRegularExpression(pattern: "((\\*|_){2})((?!\\1).)+\\1", options: [])
-fileprivate let underscoreEmphasisRegex = try! NSRegularExpression(pattern: "(?<!_)_[^_]+_(?!\\*)", options: [])
-fileprivate let asteriskEmphasisRegex = try! NSRegularExpression(pattern: "(?<!\\*)(\\*)((?!\\1).)+\\1(?!\\*)", options: [])
-fileprivate let boldEmphasisAsteriskRegex = try! NSRegularExpression(pattern: "(\\*){3}((?!\\1).)+\\1{3}", options: [])
-fileprivate let blockquoteRegex = try! NSRegularExpression(pattern: "^>.*", options: [.anchorsMatchLines])
-fileprivate let horizontalRuleRegex = try! NSRegularExpression(pattern: "\n\n(-{3}|\\*{3})\n", options: [])
-fileprivate let unorderedListRegex = try! NSRegularExpression(pattern: "^(\\-|\\*)\\s", options: [.anchorsMatchLines])
-fileprivate let orderedListRegex = try! NSRegularExpression(pattern: "^\\d*\\.\\s", options: [.anchorsMatchLines])
-fileprivate let buttonRegex = try! NSRegularExpression(pattern: "<\\s*button[^>]*>(.*?)<\\s*/\\s*button>", options: [])
-fileprivate let strikethroughRegex = try! NSRegularExpression(pattern: "(~)((?!\\1).)+\\1", options: [])
-fileprivate let tagRegex = try! NSRegularExpression(pattern: "^\\[([^\\[\\]]*)\\]:", options: [.anchorsMatchLines])
-fileprivate let footnoteRegex = try! NSRegularExpression(pattern: "\\[\\^(.*?)\\]", options: [])
-// courtesy https://www.regular-expressions.info/examples.html
-fileprivate let htmlRegex = try! NSRegularExpression(pattern: "<([A-Z][A-Z0-9]*)\\b[^>]*>(.*?)</\\1>", options: [.dotMatchesLineSeparators, .caseInsensitive])
-
 #if os(macOS)
 let fontSize = NSFont.systemFontSize
 let systemFont = NSFont.systemFont(ofSize: fontSize)
@@ -65,36 +45,41 @@ func applyMarkdown(_ attr: NSMutableAttributedString, markdown: MarkdownNode) {
     switch markdown.type {
     case .header:
         attr.addAttributes([
-            NSAttributedString.Key.font : systemFontWithTraits(headingTraits, fontSize*(10.0-CGFloat(markdown.headingLevel))/3),
-            NSAttributedString.Key.foregroundColor : headingColor
+            .font : systemFontWithTraits(headingTraits, fontSize*(10.0-CGFloat(markdown.headingLevel))/3),
+            .foregroundColor : headingColor
         ], range: markdown.range)
     case .italic:
         attr.addAttributes([
-            NSAttributedString.Key.font : systemFontWithTraits(emphasisTraits)
+            .font : systemFontWithTraits(emphasisTraits)
         ], range: markdown.range)
     case .bold:
         attr.addAttributes([
-            NSAttributedString.Key.font : systemFontWithTraits(boldTraits)
+            .font : systemFontWithTraits(boldTraits)
         ], range: markdown.range)
     case .codeFence, .code:
         attr.addAttributes([
-            NSAttributedString.Key.font : codeFont,
+            .font : codeFont,
         ], range: markdown.range)
     case .list:
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = 2.0
         attr.addAttributes([
-            NSAttributedString.Key.foregroundColor : lighterColor
+            .foregroundColor : lighterColor,
+            .paragraphStyle : paragraphStyle
         ], range: markdown.range)
     case .quote:
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.firstLineHeadIndent = 5.0
         attr.addAttributes([
-            NSAttributedString.Key.foregroundColor : lighterColor
+            .foregroundColor : lighterColor,
+            .paragraphStyle : paragraphStyle
         ], range: markdown.range)
     }
 }
 
-func applyBody(_ attr: NSMutableAttributedString, _ range: NSRange) -> Void {
+func applyBody(_ attr: NSMutableAttributedString, _ range: NSRange) {
     attr.setAttributes([
         NSAttributedString.Key.font : systemFont,
         NSAttributedString.Key.foregroundColor : textColor
     ], range: range)
-//    return attr
 }
