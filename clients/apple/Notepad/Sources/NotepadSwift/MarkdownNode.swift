@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MarkdownNode {
+public struct MarkdownNode: Equatable {
     public let range: NSRange
     public let rawType: Int
     public let type: MarkdownType
@@ -17,6 +17,13 @@ public struct MarkdownNode {
         } else {
             return nil
         }
+    }
+
+    public init(range: NSRange, type: MarkdownType, headingLevel: Int = 0) {
+        self.range = range
+        self.rawType = type.rawValue
+        self.type = type
+        self.headingLevel = headingLevel
     }
 
     public enum MarkdownType: Int {

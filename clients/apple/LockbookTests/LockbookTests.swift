@@ -1,5 +1,6 @@
 import XCTest
 import Lockbook
+import NotepadSwift
 
 class LockbookTests: XCTestCase {
     let engine = MarkdownEngine()
@@ -12,7 +13,7 @@ class LockbookTests: XCTestCase {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
-    func testExample() throws {
+    func testMarkdownAnalyzePerformance() throws {
         let md = """
 # You are good
 ## You are great
@@ -34,21 +35,29 @@ __I love it__
 *I hate it*
 
 ```
-if (isAwesome){
+if (isAwesome) {
   return true
 }
 ```
 """
-        let attr = engine.render(md)
+        let expectedNodes = [
+            MarkdownNode(range: NSRange(location: 0, length: 14), type: .header, headingLevel: 1),
+            MarkdownNode(range: NSRange(location: 15, length: 16), type: .header, headingLevel: 2),
+            MarkdownNode(range: NSRange(location: 32, length: 21), type: .header, headingLevel: 3),
+            MarkdownNode(range: NSRange(location: 55, length: 6), type: .list),
+            MarkdownNode(range: NSRange(location: 62, length: 10), type: .list),
+            MarkdownNode(range: NSRange(location: 73, length: 64), type: .list),
+            MarkdownNode(range: NSRange(location: 93, length: 22), type: .list),
+            MarkdownNode(range: NSRange(location: 118, length: 19), type: .list),
+            MarkdownNode(range: NSRange(location: 138, length: 37), type: .quote),
+            MarkdownNode(range: NSRange(location: 177, length: 13), type: .bold),
+            MarkdownNode(range: NSRange(location: 193, length: 8), type: .code),
+            MarkdownNode(range: NSRange(location: 204, length: 11), type: .italic),
+            MarkdownNode(range: NSRange(location: 217, length: 40), type: .codeFence)
+        ]
 
-        print(attr)
-
-    }
-
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
         measure {
-            // Put the code you want to measure the time of here.
+            XCTAssertEqual(engine.render(md), expectedNodes)
         }
     }
 
