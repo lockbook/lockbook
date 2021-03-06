@@ -25,8 +25,8 @@ import kotlinx.coroutines.*
 import timber.log.Timber
 
 data class RenameFileInfo(
-        val id: String,
-        val name: String
+    val id: String,
+    val name: String
 )
 
 class RenameFileDialogFragment : DialogFragment() {

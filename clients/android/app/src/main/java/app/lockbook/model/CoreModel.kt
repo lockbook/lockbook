@@ -108,9 +108,9 @@ object CoreModel {
     }
 
     fun writeContentToDocument(
-            config: Config,
-            id: String,
-            content: String
+        config: Config,
+        id: String,
+        content: String
     ): Result<Unit, WriteToDocumentError> {
         val writeResult: Result<Unit, WriteToDocumentError>? =
             Klaxon().converter(writeDocumentConverter).parse(
@@ -152,8 +152,8 @@ object CoreModel {
     }
 
     fun setLastSynced(
-            config: Config,
-            lastSyncedDuration: Long
+        config: Config,
+        lastSyncedDuration: Long
     ): Result<Unit, SetLastSyncedError> {
         val setLastSyncedResult: Result<Unit, SetLastSyncedError>? =
             Klaxon().converter(setLastSyncedConverter)
@@ -171,7 +171,7 @@ object CoreModel {
     ): String = app.lockbook.core.convertToHumanDuration(metadataVersion)
 
     fun getLastSyncedHumanString(
-            config: Config,
+        config: Config,
     ): Result<String, GetLastSynced> {
         val getLastSyncedHumanString: Result<String, GetLastSynced>? =
             Klaxon().converter(getLastSyncedHumanStringConverter)
@@ -185,8 +185,8 @@ object CoreModel {
     }
 
     fun getUsageHumanString(
-            config: Config,
-            exact: Boolean
+        config: Config,
+        exact: Boolean
     ): Result<String, GetUsageError> {
         val getUsageHumanString: Result<String, GetUsageError>? =
             Klaxon().converter(getUsageHumanStringConverter)
@@ -200,8 +200,8 @@ object CoreModel {
     }
 
     fun getChildren(
-            config: Config,
-            parentId: String
+        config: Config,
+        parentId: String
     ): Result<List<FileMetadata>, GetChildrenError> {
         val getChildrenResult: Result<List<FileMetadata>, GetChildrenError>? =
             Klaxon().converter(getChildrenConverter)
@@ -215,8 +215,8 @@ object CoreModel {
     }
 
     fun getFileById(
-            config: Config,
-            fileId: String
+        config: Config,
+        fileId: String
     ): Result<FileMetadata, GetFileByIdError> {
         val getFileByIdResult: Result<FileMetadata, GetFileByIdError>? =
             Klaxon().converter(
@@ -231,8 +231,8 @@ object CoreModel {
     }
 
     fun getDocumentContent(
-            config: Config,
-            fileId: String
+        config: Config,
+        fileId: String
     ): Result<String, ReadDocumentError> {
         val getDocumentResult: Result<String, ReadDocumentError>? =
             Klaxon().converter(readDocumentConverter)
@@ -246,10 +246,10 @@ object CoreModel {
     }
 
     fun createFile(
-            config: Config,
-            parentId: String,
-            name: String,
-            fileType: String
+        config: Config,
+        parentId: String,
+        name: String,
+        fileType: String
     ): Result<FileMetadata, CreateFileError> {
         val createFileResult: Result<FileMetadata, CreateFileError>? =
             Klaxon().converter(createFileConverter)
@@ -263,8 +263,8 @@ object CoreModel {
     }
 
     fun insertFile(
-            config: Config,
-            fileMetadata: FileMetadata
+        config: Config,
+        fileMetadata: FileMetadata
     ): Result<Unit, InsertFileError> {
         val insertResult: Result<Unit, InsertFileError>? =
             Klaxon().converter(insertFileConverter)
@@ -283,8 +283,8 @@ object CoreModel {
     }
 
     fun deleteFile(
-            config: Config,
-            id: String
+        config: Config,
+        id: String
     ): Result<Unit, FileDeleteError> {
         val fileDelete: Result<Unit, FileDeleteError>? =
             Klaxon().converter(deleteFileConverter)
@@ -298,9 +298,9 @@ object CoreModel {
     }
 
     fun renameFile(
-            config: Config,
-            id: String,
-            name: String
+        config: Config,
+        id: String,
+        name: String
     ): Result<Unit, RenameFileError> {
         val renameResult: Result<Unit, RenameFileError>? =
             Klaxon().converter(renameFileConverter)
@@ -314,9 +314,9 @@ object CoreModel {
     }
 
     fun moveFile(
-            config: Config,
-            id: String,
-            parentId: String
+        config: Config,
+        id: String,
+        parentId: String
     ): Result<Unit, MoveFileError> {
         val moveResult: Result<Unit, MoveFileError>? =
             Klaxon().converter(moveFileConverter)
@@ -342,9 +342,9 @@ object CoreModel {
     }
 
     fun executeWork(
-            config: Config,
-            account: Account,
-            workUnit: WorkUnit
+        config: Config,
+        account: Account,
+        workUnit: WorkUnit
     ): Result<Unit, ExecuteWorkError> {
         val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
             Klaxon().converter(executeWorkConverter).parse(

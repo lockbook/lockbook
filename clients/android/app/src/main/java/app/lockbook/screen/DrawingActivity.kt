@@ -140,8 +140,8 @@ class DrawingActivity : AppCompatActivity() {
         drawing_view.endThread()
         autoSaveTimer.cancel()
         if (!isFirstLaunch) {
-            drawingViewModel.backupDrawing = drawing_view.drawingModel
-            drawingViewModel.saveDrawing(drawing_view.drawingModel)
+            drawingViewModel.backupDrawing = drawing_view.drawing
+            drawingViewModel.saveDrawing(drawing_view.drawing)
         }
     }
 
@@ -189,8 +189,8 @@ class DrawingActivity : AppCompatActivity() {
     }
 
     private fun selectedNewPenSize(
-            oldPenSize: DrawingView.PenSize?,
-            newPenSize: DrawingView.PenSize
+        oldPenSize: DrawingView.PenSize?,
+        newPenSize: DrawingView.PenSize
     ) {
         if (oldPenSize != null) {
             val previousButton = when (oldPenSize) {
@@ -222,12 +222,12 @@ class DrawingActivity : AppCompatActivity() {
     private fun changeToolsVisibility(newVisibility: Int) {
         val onAnimationEnd = object : Animator.AnimatorListener {
             override fun onAnimationStart(animation: Animator?) {
-                if (newVisibility == View.VISIBLE) {
+                if (newVisibility == View.VISIBLE && drawing_view.isTouchable) {
                     drawing_tools_menu.visibility = newVisibility
                 }
             }
             override fun onAnimationEnd(animation: Animator?) {
-                if (newVisibility == View.GONE) {
+                if (newVisibility == View.GONE && drawing_view.isTouchable) {
                     drawing_tools_menu.visibility = newVisibility
                 }
             }
@@ -244,19 +244,20 @@ class DrawingActivity : AppCompatActivity() {
         drawing_progress_bar.visibility = View.GONE
         isFirstLaunch = false
 
-        val drawing = drawingViewModel.backupDrawing
-            drawing_color_white.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing!!.getColorFromAlias(ColorAlias.White, 255)))
-            drawing_color_black.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Black, 255)))
-            drawing_color_red.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Red, 255)))
-            drawing_color_green.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Green, 255)))
-            drawing_color_cyan.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Cyan, 255)))
-            drawing_color_magenta.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Magenta, 255)))
-            drawing_color_blue.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Blue, 255)))
-            drawing_color_yellow.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing.getColorFromAlias(ColorAlias.Yellow, 255)))
+        drawing_view.colorAliasInARGB = EnumMap(drawingViewModel.backupDrawing!!.themeToARGBColors())
+
+        drawing_color_white.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.White]!!))
+        drawing_color_black.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Black]!!))
+        drawing_color_red.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Red]!!))
+        drawing_color_green.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Green]!!))
+        drawing_color_cyan.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Cyan]!!))
+        drawing_color_magenta.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Magenta]!!))
+        drawing_color_blue.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Blue]!!))
+        drawing_color_yellow.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(drawing_view.colorAliasInARGB[ColorAlias.Yellow]!!))
 
         drawing_tools_menu.visibility = View.VISIBLE
 
-        drawing_view.initializeWithDrawing(drawing)
+        drawing_view.initializeWithDrawing(drawingViewModel.backupDrawing)
     }
 
     private fun startDrawing() {
@@ -276,7 +277,7 @@ class DrawingActivity : AppCompatActivity() {
         }
 
         drawing_color_black.setOnClickListener {
-            drawingViewModel.handleNewColorSelected(ColorAlias.Cyan)
+            drawingViewModel.handleNewColorSelected(ColorAlias.Black)
         }
 
         drawing_color_blue.setOnClickListener {
@@ -369,21 +370,7 @@ class DrawingActivity : AppCompatActivity() {
                     handler.post {
                         if (!isFirstLaunch) {
                             drawingViewModel.saveDrawing(
-                                Drawing(
-                                    drawing_view.drawingModel.scale,
-                                    drawing_view.drawingModel.translationX,
-                                    drawing_view.drawingModel.translationY,
-                                    drawing_view.drawingModel.strokes.map { stroke ->
-                                        Stroke(
-                                            stroke.pointsX.toMutableList(),
-                                            stroke.pointsY.toMutableList(),
-                                            stroke.pointsGirth.toMutableList(),
-                                            stroke.color,
-                                            stroke.alpha
-                                        )
-                                    }.toMutableList(),
-                                    drawing_view.drawingModel.theme
-                                )
+                                drawing_view.drawing.clone()
                             )
                         }
                     }

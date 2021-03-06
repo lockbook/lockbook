@@ -19,8 +19,8 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.dialog_move_file.*
 
 data class MoveFileInfo(
-        val ids: Array<String>,
-        val names: Array<String>
+    val ids: Array<String>,
+    val names: Array<String>
 )
 
 class MoveFileDialogFragment : DialogFragment() {

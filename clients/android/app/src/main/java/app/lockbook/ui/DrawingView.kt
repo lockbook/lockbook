@@ -11,17 +11,18 @@ import android.view.SurfaceView
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import app.lockbook.util.Stroke
-import app.lockbook.util.*
+import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 class DrawingView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable {
-    var drawingModel: Drawing = Drawing()
+    var drawing: Drawing = Drawing()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
 
@@ -33,6 +34,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     var isErasing = false
     var isTouchable = false
     var currentColor = ColorAlias.White
+    lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int>
 
     // Current drawing stroke state
     private val strokePaint = Paint()
@@ -74,7 +76,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     if (isTouchable) {
-                        drawingModel.scale *= detector.scaleFactor
+                        drawing.scale *= detector.scaleFactor
 
                         val screenLocationNormalized = PointF(
                             onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
@@ -82,14 +84,14 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                         )
 
                         val currentViewPortWidth =
-                            tempCanvas.clipBounds.width() / drawingModel.scale
+                            tempCanvas.clipBounds.width() / drawing.scale
                         val currentViewPortHeight =
-                            tempCanvas.clipBounds.height() / drawingModel.scale
+                            tempCanvas.clipBounds.height() / drawing.scale
 
                         driftWhileScalingX =
-                            (onScreenFocusPoint.x - detector.focusX) / drawingModel.scale
+                            (onScreenFocusPoint.x - detector.focusX) / drawing.scale
                         driftWhileScalingY =
-                            (onScreenFocusPoint.y - detector.focusY) / drawingModel.scale
+                            (onScreenFocusPoint.y - detector.focusY) / drawing.scale
 
                         val left =
                             ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
@@ -100,8 +102,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
                         viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
 
-                        drawingModel.translationX = -left
-                        drawingModel.translationY = -top
+                        drawing.translationX = -left
+                        drawing.translationY = -top
                     }
 
                     return true
@@ -137,13 +139,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private fun render(canvas: Canvas) {
         canvas.save()
         canvas.scale(
-            drawingModel.scale,
-            drawingModel.scale,
+            drawing.scale,
+            drawing.scale,
         )
 
         canvas.translate(
-            drawingModel.translationX,
-            drawingModel.translationY
+            drawing.translationX,
+            drawing.translationY
         )
 
         backgroundPaint.color = ResourcesCompat.getColor(
@@ -165,10 +167,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun restoreFromModel() {
-        for (stroke in drawingModel.strokes) {
-            strokePaint.color = drawingModel.getColorFromAlias(stroke.color, stroke.alpha)
+        for (stroke in drawing.strokes) {
+            strokePaint.color = colorAliasInARGB[stroke.color]!!
 
-            for (pointIndex in 0..stroke.pointsX.size step 2) {
+            for (pointIndex in 0..(stroke.pointsX.size - 2)) {
                 strokePaint.strokeWidth = stroke.pointsGirth[pointIndex]
                 strokePath.moveTo(
                     stroke.pointsX[pointIndex],
@@ -185,14 +187,14 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             strokePath.reset()
         }
 
-        strokePaint.color = drawingModel.getColorFromAlias(ColorAlias.White, 255)
+        strokePaint.color = colorAliasInARGB[ColorAlias.White]!!
 
         val currentViewPortWidth =
-            tempCanvas.clipBounds.width() / drawingModel.scale
+            tempCanvas.clipBounds.width() / drawing.scale
         val currentViewPortHeight =
-            tempCanvas.clipBounds.height() / drawingModel.scale
-        viewPort.left = -drawingModel.translationX.toInt()
-        viewPort.top = -drawingModel.translationY.toInt()
+            tempCanvas.clipBounds.height() / drawing.scale
+        viewPort.left = -drawing.translationX.toInt()
+        viewPort.top = -drawing.translationY.toInt()
         viewPort.right = (viewPort.left + currentViewPortWidth).toInt()
         viewPort.bottom = (viewPort.top + currentViewPortHeight).toInt()
     }
@@ -232,7 +234,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     fun initializeWithDrawing(maybeDrawing: Drawing?) {
         initializeCanvasesAndBitmaps()
         if (maybeDrawing != null) {
-            this.drawingModel = maybeDrawing
+            this.drawing = maybeDrawing
         }
         restoreFromModel()
         startThread()
@@ -284,7 +286,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         lastPoint.set(point)
 
         rollingAveragePressure = getAdjustedPressure(pressure)
-        strokePaint.color = drawingModel.getColorFromAlias(currentColor, currentOpacity)
+        strokePaint.color = colorAliasInARGB[currentColor]!!
 
         val stroke = Stroke(
             mutableListOf(point.x),
@@ -294,7 +296,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             currentOpacity
         )
 
-        drawingModel.strokes.add(stroke)
+        drawing.strokes.add(stroke)
     }
 
     private fun approximateRollingAveragePressure(previousRollingAverage: Float, newPressure: Float): Float {
@@ -327,7 +329,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         strokePath.reset()
         lastPoint.set(point)
 
-        drawingModel.strokes.last { stroke ->
+        drawing.strokes.last { stroke ->
             stroke.pointsX.add(point.x)
             stroke.pointsY.add(point.y)
             stroke.pointsGirth.add(rollingAveragePressure)
@@ -351,66 +353,53 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             }
         }
 
-        val drawing = Drawing(
-            drawingModel.scale,
-            drawingModel.translationX,
-            drawingModel.translationY,
-            drawingModel.strokes.map { stroke ->
-                Stroke(
-                    stroke.pointsX.toMutableList(),
-                    stroke.pointsY.toMutableList(),
-                    stroke.pointsGirth.toMutableList(),
-                    stroke.color,
-                    stroke.alpha
-                )
-            }.toMutableList(),
-            drawingModel.theme
-        )
-
+        val drawingClone = drawing.clone()
         var refreshScreen = false
 
-        for (strokeIndex in drawing.strokes.size - 1 downTo 0) {
-            val stroke = drawing.strokes[strokeIndex]
+        for (strokeIndex in drawingClone.strokes.size - 1 downTo 0) {
+            val stroke = drawingClone.strokes[strokeIndex]
             var deleteStroke = false
 
-            pointLoop@ for (pointIndex in 0..stroke.pointsX.size step 2) {
-                for (pixel in 1..roundedPressure) {
-                    val roundedPoint1 =
-                        PointF(stroke.pointsX[pointIndex].roundToInt().toFloat(), stroke.pointsY[pointIndex].roundToInt().toFloat())
-                    val roundedPoint2 =
-                        PointF(stroke.pointsX[pointIndex + 1].roundToInt().toFloat(), stroke.pointsY[pointIndex + 1].roundToInt().toFloat())
+            pointLoop@ for (pointIndex in 0..(stroke.pointsX.size - 2)) {
+                if (pointIndex < stroke.pointsX.size - 1) {
+                    for (pixel in 1..roundedPressure) {
+                        val roundedPoint1 =
+                            PointF(stroke.pointsX[pointIndex].roundToInt().toFloat(), stroke.pointsY[pointIndex].roundToInt().toFloat())
+                        val roundedPoint2 =
+                            PointF(stroke.pointsX[pointIndex + 1].roundToInt().toFloat(), stroke.pointsY[pointIndex + 1].roundToInt().toFloat())
 
-                    val distToFromRoundedPoint1 = distanceBetweenPoints(erasePoints.first, roundedPoint1) +
-                        distanceBetweenPoints(roundedPoint1, erasePoints.second)
-                    val distToFromRoundedPoint2 = distanceBetweenPoints(erasePoints.first, roundedPoint2) +
-                        distanceBetweenPoints(roundedPoint2, erasePoints.second)
-                    val distToFromErasePoint1 = distanceBetweenPoints(roundedPoint1, erasePoints.first) +
-                        distanceBetweenPoints(erasePoints.first, roundedPoint2)
-                    val distToFromErasePoint2 = distanceBetweenPoints(roundedPoint1, erasePoints.second) +
-                        distanceBetweenPoints(erasePoints.second, roundedPoint2)
+                        val distToFromRoundedPoint1 = distanceBetweenPoints(erasePoints.first, roundedPoint1) +
+                            distanceBetweenPoints(roundedPoint1, erasePoints.second)
+                        val distToFromRoundedPoint2 = distanceBetweenPoints(erasePoints.first, roundedPoint2) +
+                            distanceBetweenPoints(roundedPoint2, erasePoints.second)
+                        val distToFromErasePoint1 = distanceBetweenPoints(roundedPoint1, erasePoints.first) +
+                            distanceBetweenPoints(erasePoints.first, roundedPoint2)
+                        val distToFromErasePoint2 = distanceBetweenPoints(roundedPoint1, erasePoints.second) +
+                            distanceBetweenPoints(erasePoints.second, roundedPoint2)
 
-                    val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
-                    val distBetweenRoundedPoints = distanceBetweenPoints(roundedPoint1, roundedPoint2)
+                        val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
+                        val distBetweenRoundedPoints = distanceBetweenPoints(roundedPoint1, roundedPoint2)
 
-                    if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(distBetweenErasePoints) ||
-                        ((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(distBetweenErasePoints) ||
-                        ((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(distBetweenRoundedPoints) ||
-                        ((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(distBetweenRoundedPoints)
-                    ) {
-                        deleteStroke = true
-                        break@pointLoop
+                        if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(distBetweenErasePoints) ||
+                            ((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(distBetweenErasePoints) ||
+                            ((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(distBetweenRoundedPoints) ||
+                            ((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(distBetweenRoundedPoints)
+                        ) {
+                            deleteStroke = true
+                            break@pointLoop
+                        }
                     }
                 }
             }
 
             if (deleteStroke) {
-                drawingModel.strokes.removeAt(strokeIndex)
+                drawingClone.strokes.removeAt(strokeIndex)
                 refreshScreen = true
             }
         }
 
         if (refreshScreen) {
-            drawingModel = drawing
+            drawing = drawingClone
             tempCanvas.drawColor(
                 Color.TRANSPARENT,
                 PorterDuff.Mode.CLEAR

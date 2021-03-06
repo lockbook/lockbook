@@ -5,12 +5,11 @@ import android.view.View
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import app.lockbook.util.ColorAlias
-import app.lockbook.util.ColorRGB
-import app.lockbook.util.Config
-import app.lockbook.util.Drawing
 import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
+import app.lockbook.util.ColorAlias
+import app.lockbook.util.Config
+import app.lockbook.util.Drawing
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -78,7 +77,6 @@ class DrawingViewModel(
             withContext(Dispatchers.IO) {
                 val contents = readDocument(id)
                 if (contents != null && contents.isEmpty()) {
-
                     backupDrawing = Drawing()
                 } else if (contents != null) {
                     backupDrawing = Klaxon().parse<Drawing>(contents)
