@@ -133,7 +133,6 @@ struct BottomBar: View {
 
     func checkForNewWork() {
         DispatchQueue.global(qos: .background).async {
-            print("Checking")
             switch core.api.calculateWork() {
             case .success(let work):
                 self.work = work.workUnits.count

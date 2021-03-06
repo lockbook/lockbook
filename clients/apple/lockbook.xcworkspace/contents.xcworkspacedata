@@ -2,6 +2,9 @@
 <Workspace
    version = "1.0">
    <FileRef
+      location = "group:Notepad">
+   </FileRef>
+   <FileRef
       location = "group:SwiftLockbookCore">
    </FileRef>
    <FileRef
