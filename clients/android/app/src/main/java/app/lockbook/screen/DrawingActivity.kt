@@ -13,12 +13,13 @@ import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
+import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.DrawingViewModel
 import app.lockbook.modelfactory.DrawingViewModelFactory
+import app.lockbook.screen.TextEditorActivity.Companion.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
-import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_drawing.*
 import java.util.*

@@ -36,27 +36,3 @@ object SharedPreferences {
 
     const val OPEN_NEW_DOC_AUTOMATICALLY_KEY = "open_new_doc_automatically"
 }
-
-object RequestResultCodes {
-    const val TEXT_EDITOR_REQUEST_CODE: Int = 102
-    const val DRAWING_REQUEST_CODE: Int = 104
-}
-
-object Messages {
-    const val UNEXPECTED_ERROR = "An unexpected error has occurred!"
-    const val UNEXPECTED_CLIENT_ERROR = "An error has occurred."
-}
-
-object WorkManagerTags {
-    const val PERIODIC_SYNC_TAG = "periodic_sync"
-}
-
-const val CANVAS_WIDTH = 2125
-const val CANVAS_HEIGHT = 2750
-
-const val PRESSURE_SAMPLES_AVERAGED = 5
-const val SPEN_ACTION_DOWN = 211
-
-const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
-
-const val LOG_FILE_NAME = "lockbook.log"

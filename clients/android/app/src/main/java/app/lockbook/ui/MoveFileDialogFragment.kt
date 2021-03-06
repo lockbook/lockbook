@@ -9,12 +9,12 @@ import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
+import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.MoveFileAdapter
 import app.lockbook.model.MoveFileViewModel
 import app.lockbook.modelfactory.MoveFileViewModelFactory
-import app.lockbook.util.Messages
-import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.dialog_move_file.*
 
@@ -138,7 +138,7 @@ class MoveFileDialogFragment : DialogFragment() {
 
     private fun unexpectedErrorHasOccurred(error: String) {
         AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-            .setTitle(Messages.UNEXPECTED_ERROR)
+            .setTitle(UNEXPECTED_ERROR)
             .setMessage(error)
             .setOnCancelListener {
                 dismiss()

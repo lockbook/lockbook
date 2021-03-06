@@ -19,16 +19,16 @@ import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
+import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.model.*
 import app.lockbook.modelfactory.ListFilesViewModelFactory
+import app.lockbook.screen.RequestResultCodes.DRAWING_REQUEST_CODE
+import app.lockbook.screen.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.util.Messages.UNEXPECTED_ERROR
-import app.lockbook.util.RequestResultCodes.DRAWING_REQUEST_CODE
-import app.lockbook.util.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
@@ -538,6 +538,6 @@ class ListFilesFragment : Fragment() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        listFilesViewModel.handleActivityResult(requestCode)
+        listFilesViewModel.handleActivityResult()
     }
 }
