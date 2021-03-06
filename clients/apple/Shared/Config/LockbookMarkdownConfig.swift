@@ -57,37 +57,44 @@ func systemFontWithTraits(_ traits: UIFontDescriptor.SymbolicTraits, _ size: CGF
 #endif
 let LockbookTheme: Theme = {
     var t = Theme()
-//    t.backgroundColor = .init(white: 0, alpha: 0)
     t.tintColor = .systemPink
-    t.body = Style(element: .body, attributes: [
-        NSAttributedString.Key.font : systemFont,
-        NSAttributedString.Key.foregroundColor : textColor
-    ])
-    t.styles = [
-        Style(element: .bold, attributes: [
-            NSAttributedString.Key.font : systemFontWithTraits(boldTraits)
-        ]),
-        Style(element: .italic, attributes: [
-            NSAttributedString.Key.font : systemFontWithTraits(emphasisTraits)
-        ]),
-        Style(element: .boldItalic, attributes: [
-            NSAttributedString.Key.font : systemFontWithTraits(boldEmphasisTraits)
-        ]),
-        Style(element: .h1, attributes: [
-            NSAttributedString.Key.font : systemFontWithTraits(headingTraits, fontSize*5/3),
-            NSAttributedString.Key.foregroundColor : headingColor
-        ]),
-        Style(element: .h2, attributes: [
-            NSAttributedString.Key.font : systemFontWithTraits(headingTraits, fontSize*4/3),
-            NSAttributedString.Key.foregroundColor : headingColor
-        ]),
-        Style(element: .h3, attributes: [
-            NSAttributedString.Key.font : systemFontWithTraits(headingTraits),
-            NSAttributedString.Key.foregroundColor : headingColor
-        ]),
-        Style(element: .code, attributes: [
-            NSAttributedString.Key.font : codeFont,
-        ]),
-    ]
     return t
 } ()
+
+func applyMarkdown(_ attr: NSMutableAttributedString, markdown: MarkdownNode) {
+    switch markdown.type {
+    case .header:
+        attr.addAttributes([
+            NSAttributedString.Key.font : systemFontWithTraits(headingTraits, fontSize*(10.0-CGFloat(markdown.headingLevel))/3),
+            NSAttributedString.Key.foregroundColor : headingColor
+        ], range: markdown.range)
+    case .italic:
+        attr.addAttributes([
+            NSAttributedString.Key.font : systemFontWithTraits(emphasisTraits)
+        ], range: markdown.range)
+    case .bold:
+        attr.addAttributes([
+            NSAttributedString.Key.font : systemFontWithTraits(boldTraits)
+        ], range: markdown.range)
+    case .codeFence, .code:
+        attr.addAttributes([
+            NSAttributedString.Key.font : codeFont,
+        ], range: markdown.range)
+    case .list:
+        attr.addAttributes([
+            NSAttributedString.Key.foregroundColor : lighterColor
+        ], range: markdown.range)
+    case .quote:
+        attr.addAttributes([
+            NSAttributedString.Key.foregroundColor : lighterColor
+        ], range: markdown.range)
+    }
+}
+
+func applyBody(_ attr: NSMutableAttributedString, _ range: NSRange) -> Void {
+    attr.setAttributes([
+        NSAttributedString.Key.font : systemFont,
+        NSAttributedString.Key.foregroundColor : textColor
+    ], range: range)
+//    return attr
+}

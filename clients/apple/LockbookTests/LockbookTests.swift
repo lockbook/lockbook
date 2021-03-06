@@ -29,6 +29,8 @@ class LockbookTests: XCTestCase {
 
 __I love it__
 
+`who am I`
+
 *I hate it*
 
 ```

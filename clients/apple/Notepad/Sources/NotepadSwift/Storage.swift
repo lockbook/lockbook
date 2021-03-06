@@ -25,7 +25,9 @@ public class Storage: NSTextStorage {
             self.endEditing()
         }
     }
-    public var markdowner: (String) -> NSAttributedString = { _ in NSAttributedString() }
+    public var markdowner: (String) -> [MarkdownNode] = { _ in [] }
+    public var applyMarkdown: (NSMutableAttributedString, MarkdownNode) -> Void = { _,_ in }
+    public var applyBody: (NSMutableAttributedString, NSRange) -> Void = { _,_ in }
 
     /// The underlying text storage implementation.
     var backingStore = NSTextStorage()
@@ -104,8 +106,7 @@ public class Storage: NSTextStorage {
     public override func attributes(at location: Int, effectiveRange range: NSRangePointer?) -> [NSAttributedString.Key : Any] {
         return backingStore.attributes(at: location, effectiveRange: range)
     }
-    
-    /// Processes any edits made to the text in the editor.
+
     override public func processEditing() {
         let backingString = backingStore.string
         if let nsRange = backingString.range(from: NSMakeRange(NSMaxRange(editedRange), 0)) {
@@ -118,10 +119,13 @@ public class Storage: NSTextStorage {
         super.processEditing()
     }
 
-    /// Applies styles to a range on the backingString.
-    ///
-    /// - parameter range: The range in which to apply styles.
     func applyStyles(_ range: NSRange) {
-        backingStore.setAttributedString(markdowner(self.string))
+        let md = markdowner(self.string)
+        let attr = NSMutableAttributedString(string: self.string)
+        applyBody(attr, NSRange(location: 0, length: self.string.count))
+        md.forEach {
+            applyMarkdown(attr, $0)
+        }
+        backingStore.setAttributedString(attr)
     }
 }

@@ -8,10 +8,14 @@ struct NotepadView: UIViewRepresentable {
     var frame: CGRect
     let theme: Theme
     let onTextChange: (String) -> Void
+    let engine = MarkdownEngine()
 
     func makeUIView(context: Context) -> UITextView {
         let np = Notepad(frame: frame, theme: theme)
         np.onTextChange = onTextChange
+        np.storage.markdowner = { engine.render($0) }
+        np.storage.applyMarkdown = { a, m in applyMarkdown(a, markdown: m) }
+        np.storage.applyBody = { a, r in applyBody(a, r) }
         np.text = text
 
         return np
@@ -33,9 +37,9 @@ struct NotepadView: NSViewRepresentable {
         let scrollView = NSTextView.scrollableTextView()
         let np = Notepad(frame: frame)
         np.onTextChange = onTextChange
-        np.storage.markdowner = { s in
-            engine.render(s)
-        }
+        np.storage.markdowner = { engine.render($0) }
+        np.storage.applyMarkdown = { a, m in applyMarkdown(a, markdown: m) }
+        np.storage.applyBody = { a, r in applyBody(a, r) }
         np.storage.theme = theme
         np.insertionPointColor = theme.tintColor
         np.layoutManager?.replaceTextStorage(np.storage)
