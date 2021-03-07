@@ -19,7 +19,6 @@ struct DrawingLoader: View {
             }
         }
     }
-    
 }
 
 class DrawingModel: ObservableObject {
@@ -35,8 +34,8 @@ class DrawingModel: ObservableObject {
     
     func drawingModelChanged(updatedDrawing: PKDrawing) {
         DispatchQueue.global(qos: .userInitiated).async {
-//            print(self.core.api.writeDrawing(id: self.meta.id, content: Drawing(from: updatedDrawing)))
-        }
+            print(self.core.api.writeDrawing(id: self.meta.id, content: Drawing(from: updatedDrawing)))
+        }   
     }
     
     func loadDrawing() {

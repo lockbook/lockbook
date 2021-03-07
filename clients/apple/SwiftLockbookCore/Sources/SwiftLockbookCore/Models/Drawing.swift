@@ -3,6 +3,13 @@ public struct Drawing: Codable {
     public let translationX: Float
     public let translationY: Float
     public let strokes: [Stroke]
+
+    public init(scale: Float, translationX: Float, translationY: Float, strokes: [Stroke]) {
+        self.scale = scale
+        self.translationX = translationX
+        self.translationY = translationY
+        self.strokes = strokes
+    }
 }
 
 public struct Stroke: Codable {
@@ -11,6 +18,14 @@ public struct Stroke: Codable {
     public let pointsGirth: [Float]
     public let color: ColorAlias
     public let alpha: Float
+
+    public init(pointsX: [Float], pointsY: [Float], pointsGirth: [Float], color: ColorAlias, alpha: Float) {
+        self.pointsX = pointsX
+        self.pointsY = pointsY
+        self.pointsGirth = pointsGirth
+        self.color = color
+        self.alpha = alpha
+    }
 }
 
 public enum ColorAlias: String, Codable {
