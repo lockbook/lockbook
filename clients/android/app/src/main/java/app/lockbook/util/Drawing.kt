@@ -11,23 +11,29 @@ data class Drawing(
     @Json(name = "translation_y")
     var translationY: Float = 0f,
     val strokes: MutableList<Stroke> = mutableListOf(),
-    val theme: LinkedHashMap<String, ColorRGB> = DEFAULT_THEME
+    var theme: LinkedHashMap<String, ColorRGB>? = DEFAULT_THEME
 ) {
     private fun getARGBColor(colorAlias: ColorAlias): Int? {
-        val colorRGB = theme[colorAlias.name] ?: return null
+        val colorRGB = theme?.get(colorAlias.name) ?: return null
         return Color.argb(255, colorRGB.r, colorRGB.g, colorRGB.b)
     }
 
-    fun themeToARGBColors(): LinkedHashMap<ColorAlias, Int?> = linkedMapOf(
-        Pair(ColorAlias.White, getARGBColor(ColorAlias.White)),
-        Pair(ColorAlias.Black, getARGBColor(ColorAlias.Black)),
-        Pair(ColorAlias.Red, getARGBColor(ColorAlias.Red)),
-        Pair(ColorAlias.Green, getARGBColor(ColorAlias.Green)),
-        Pair(ColorAlias.Yellow, getARGBColor(ColorAlias.Yellow)),
-        Pair(ColorAlias.Blue, getARGBColor(ColorAlias.Blue)),
-        Pair(ColorAlias.Magenta, getARGBColor(ColorAlias.Magenta)),
-        Pair(ColorAlias.Cyan, getARGBColor(ColorAlias.Cyan)),
-    )
+    fun themeToARGBColors(): LinkedHashMap<ColorAlias, Int?> {
+        if (theme == null) {
+            theme = DEFAULT_THEME
+        }
+
+        return linkedMapOf(
+            Pair(ColorAlias.White, getARGBColor(ColorAlias.White)),
+            Pair(ColorAlias.Black, getARGBColor(ColorAlias.Black)),
+            Pair(ColorAlias.Red, getARGBColor(ColorAlias.Red)),
+            Pair(ColorAlias.Green, getARGBColor(ColorAlias.Green)),
+            Pair(ColorAlias.Yellow, getARGBColor(ColorAlias.Yellow)),
+            Pair(ColorAlias.Blue, getARGBColor(ColorAlias.Blue)),
+            Pair(ColorAlias.Magenta, getARGBColor(ColorAlias.Magenta)),
+            Pair(ColorAlias.Cyan, getARGBColor(ColorAlias.Cyan))
+        )
+    }
 
     fun clone(): Drawing {
         return Drawing(
