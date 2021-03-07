@@ -9,16 +9,7 @@ data class Drawing(
     var translationX: Float = 0f,
     var translationY: Float = 0f,
     val strokes: MutableList<Stroke> = mutableListOf(),
-    val theme: LinkedHashMap<String, ColorRGB> = linkedMapOf(
-        Pair(ColorAlias.White.name, ColorRGB(0xFF, 0xFF, 0xFF)),
-        Pair(ColorAlias.Black.name, ColorRGB(0x88, 0x88, 0x88)),
-        Pair(ColorAlias.Red.name, ColorRGB(0xFF, 0x00, 0x00)),
-        Pair(ColorAlias.Green.name, ColorRGB(0x00, 0xFF, 0x00)),
-        Pair(ColorAlias.Yellow.name, ColorRGB(0xFF, 0xFF, 0x00)),
-        Pair(ColorAlias.Blue.name, ColorRGB(0x00, 0x00, 0xFF)),
-        Pair(ColorAlias.Magenta.name, ColorRGB(0xFF, 0x00, 0xFF)),
-        Pair(ColorAlias.Cyan.name, ColorRGB(0x00, 0xFF, 0xFF)),
-    )
+    val theme: LinkedHashMap<String, ColorRGB> = DEFAULT_THEME
 ) {
     private fun getARGBColor(colorAlias: ColorAlias): Int? {
         val colorRGB = theme[colorAlias.name] ?: return null
@@ -81,4 +72,15 @@ data class ColorRGB(
     val r: Int,
     val g: Int,
     val b: Int,
+)
+
+val DEFAULT_THEME = linkedMapOf(
+    Pair(ColorAlias.White.name, ColorRGB(0xFF, 0xFF, 0xFF)),
+    Pair(ColorAlias.Black.name, ColorRGB(0x88, 0x88, 0x88)),
+    Pair(ColorAlias.Red.name, ColorRGB(0xFF, 0x00, 0x00)),
+    Pair(ColorAlias.Green.name, ColorRGB(0x00, 0xFF, 0x00)),
+    Pair(ColorAlias.Yellow.name, ColorRGB(0xFF, 0xFF, 0x00)),
+    Pair(ColorAlias.Blue.name, ColorRGB(0x00, 0x00, 0xFF)),
+    Pair(ColorAlias.Magenta.name, ColorRGB(0xFF, 0x00, 0xFF)),
+    Pair(ColorAlias.Cyan.name, ColorRGB(0x00, 0xFF, 0xFF)),
 )
