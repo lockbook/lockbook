@@ -6,7 +6,9 @@ import java.util.LinkedHashMap
 
 data class Drawing(
     var scale: Float = 1f,
+    @Json(name = "translation_x")
     var translationX: Float = 0f,
+    @Json(name = "translation_y")
     var translationY: Float = 0f,
     val strokes: MutableList<Stroke> = mutableListOf(),
     val theme: LinkedHashMap<String, ColorRGB> = DEFAULT_THEME
