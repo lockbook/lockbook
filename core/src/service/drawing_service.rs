@@ -1,4 +1,4 @@
-use crate::model::drawing::{Drawing, Stroke, DEFAULT_THEME};
+use crate::model::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::file_service::{DocumentUpdateError, FileService, ReadDocumentError};
 use crate::storage::db_provider::Backend;
@@ -33,7 +33,16 @@ pub enum DrawingError<MyBackend: Backend> {
     FailedToRetrieveDrawing(ReadDocumentError<MyBackend>),
     FailedToEncodeImage(ImageError),
     UnequalPointsAndGirthMetrics,
+    UnableToGetColorFromAlias,
     CorruptedDrawing,
+}
+
+macro_rules! hashmap {
+    ($( $key: expr => $val: expr ),*) => {{
+         let mut map = ::std::collections::HashMap::new();
+         $( map.insert($key, $val); )*
+         map
+    }}
 }
 
 pub trait DrawingService<
@@ -103,39 +112,54 @@ impl<
     ) -> Result<Vec<u8>, DrawingError<MyBackend>> {
         let drawing = Self::get_drawing(backend, id)?;
 
-        let theme = drawing.theme.unwrap_or(DEFAULT_THEME);
+        let theme = drawing.theme.unwrap_or_else(|| {
+            hashmap![
+                ColorAlias::White => ColorRGB{r: 0xFF, g: 0xFF, b: 0xFF},
+                ColorAlias::Black => ColorRGB{r: 0x88, g: 0x88, b: 0x88},
+                ColorAlias::Red => ColorRGB{r: 0xFF, g: 0x00, b: 0x00},
+                ColorAlias::Green => ColorRGB{r: 0x00, g: 0xFF, b: 0x00},
+                ColorAlias::Yellow => ColorRGB{r: 0xFF, g: 0xFF, b: 0x00},
+                ColorAlias::Blue => ColorRGB{r: 0x00, g: 0x00, b: 0xFF},
+                ColorAlias::Magenta => ColorRGB{r: 0xFF, g: 0x00, b: 0xFF},
+                ColorAlias::Cyan => ColorRGB{r: 0x00, g: 0xFF, b: 0xFF}
+            ]
+        });
 
-        let (width, height) = Self::get_drawing_bounds(drawing.events.as_slice())?;
+        let (width, height) = Self::get_drawing_bounds(drawing.strokes.as_slice())?;
 
         let mut draw_target = DrawTarget::new(width as i32, height as i32);
 
         for stroke in drawing.strokes {
-            let color_rgb = theme.get(&stroke.color).ok_or(DrawingError::UnableToGetColorFromAlias)?;
+            let color_rgb = theme
+                .get(&stroke.color)
+                .ok_or(DrawingError::UnableToGetColorFromAlias)?;
 
-            if stroke.points_x.len() != stroke.points_y.len() || stroke.points_y.len() != stroke.points_girth.len() {
-                return Err(DrawingError::UnequalPointsAndGirthMetrics)
+            if stroke.points_x.len() != stroke.points_y.len()
+                || stroke.points_y.len() != stroke.points_girth.len()
+            {
+                return Err(DrawingError::UnequalPointsAndGirthMetrics);
             }
 
-            for pointIndex in 0..stroke.points_x.len() - 2 {
+            for point_index in 0..stroke.points_x.len() - 2 {
                 let mut pb = PathBuilder::new();
                 let x1 = stroke
                     .points_x
-                    .get(pointIndex)
+                    .get(point_index)
                     .ok_or(DrawingError::CorruptedDrawing)?
                     .to_owned();
                 let y1 = stroke
                     .points_y
-                    .get(pointIndex)
+                    .get(point_index)
                     .ok_or(DrawingError::CorruptedDrawing)?
                     .to_owned();
                 let x2 = stroke
                     .points_x
-                    .get(pointIndex + 1)
+                    .get(point_index + 1)
                     .ok_or(DrawingError::CorruptedDrawing)?
                     .to_owned();
                 let y2 = stroke
                     .points_y
-                    .get(pointIndex + 1)
+                    .get(point_index + 1)
                     .ok_or(DrawingError::CorruptedDrawing)?
                     .to_owned();
 
@@ -147,13 +171,18 @@ impl<
 
                 draw_target.stroke(
                     &path,
-                    &Source::Solid(SolidSource { r: color_rgb.r, g: color_rgb.g, b: color_rgb.b, a: stroke.alpha }),
+                    &Source::Solid(SolidSource {
+                        r: color_rgb.r,
+                        g: color_rgb.g,
+                        b: color_rgb.b,
+                        a: stroke.alpha,
+                    }),
                     &StrokeStyle {
                         cap: LineCap::Round,
                         join: LineJoin::Round,
                         width: stroke
                             .points_girth
-                            .get(pointIndex)
+                            .get(point_index)
                             .ok_or(DrawingError::CorruptedDrawing)?
                             .to_owned(),
                         miter_limit: 10.0,
@@ -250,29 +279,31 @@ impl<
         let mut greatest_height = 1;
 
         for stroke in strokes {
-            if stroke.points_x.len() != stroke.points_y.len() || stroke.points_y.len() != stroke.points_girth.len() {
-                return Err(DrawingError::UnequalPointsAndGirthMetrics)
+            if stroke.points_x.len() != stroke.points_y.len()
+                || stroke.points_y.len() != stroke.points_girth.len()
+            {
+                return Err(DrawingError::UnequalPointsAndGirthMetrics);
             }
 
-            for pointIndex in 0..stroke.points_x.len() - 2 {
+            for point_index in 0..stroke.points_x.len() - 2 {
                 let x1 = stroke
                     .points_x
-                    .get(pointIndex)
+                    .get(point_index)
                     .ok_or(DrawingError::CorruptedDrawing)?
                     .to_owned() as u32;
                 let y1 = stroke
                     .points_y
-                    .get(pointIndex)
+                    .get(point_index)
                     .ok_or(DrawingError::CorruptedDrawing)?
                     .to_owned() as u32;
                 let x2 = stroke
                     .points_x
-                    .get(pointIndex + 1)
+                    .get(point_index + 1)
                     .ok_or(DrawingError::CorruptedDrawing)?
                     .to_owned() as u32;
                 let y2 = stroke
                     .points_y
-                    .get(pointIndex + 1)
+                    .get(point_index + 1)
                     .ok_or(DrawingError::CorruptedDrawing)?
                     .to_owned() as u32;
 
