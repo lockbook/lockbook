@@ -35,7 +35,7 @@ class DrawingModel: ObservableObject {
     
     func drawingModelChanged(updatedDrawing: PKDrawing) {
         DispatchQueue.global(qos: .userInitiated).async {
-            print(self.core.api.writeDrawing(id: self.meta.id, content: Drawing(from: updatedDrawing)))
+//            print(self.core.api.writeDrawing(id: self.meta.id, content: Drawing(from: updatedDrawing)))
         }
     }
     
@@ -44,7 +44,7 @@ class DrawingModel: ObservableObject {
             switch self.core.api.readDrawing(id: self.meta.id) {
             case .success(let drawing):
                 DispatchQueue.main.async {
-                    self.originalDrawing = drawing.getPKDrawing()
+                    self.originalDrawing = PKDrawing(from: drawing)
                 }
             case .failure(let drawingError):
                 self.errors = drawingError.message
