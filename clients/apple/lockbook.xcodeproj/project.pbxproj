@@ -59,22 +59,9 @@
 		EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
 		EAEDCD122517193500EBE313 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD112517193500EBE313 /* EditorView.swift */; };
 		EAEDCD132517193500EBE313 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD112517193500EBE313 /* EditorView.swift */; };
-		EAEFDFD925F1BDD300EBDABC /* LockbookTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEFDFD825F1BDD300EBDABC /* LockbookTests.swift */; };
-		EAEFDFF125F1BE7400EBDABC /* MarkdownEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEFDFF025F1BE7400EBDABC /* MarkdownEngine.swift */; };
-		EAEFDFF225F1BE7400EBDABC /* MarkdownEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEFDFF025F1BE7400EBDABC /* MarkdownEngine.swift */; };
 		EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
 		EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		EAEFDFE225F1BE1E00EBDABC /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = EA5C7D632516605F00F7F358 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = EA5C7D762516606000F7F358;
-			remoteInfo = "Lockbook (macOS)";
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
@@ -113,10 +100,6 @@
 		EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD0A2516FC1C00EBE313 /* BookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookView.swift; sourceTree = "<group>"; };
 		EAEDCD112517193500EBE313 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
-		EAEFDFD625F1BDD300EBDABC /* LockbookTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LockbookTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		EAEFDFD825F1BDD300EBDABC /* LockbookTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookTests.swift; sourceTree = "<group>"; };
-		EAEFDFDA25F1BDD300EBDABC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		EAEFDFF025F1BE7400EBDABC /* MarkdownEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEngine.swift; sourceTree = "<group>"; };
 		EAF96D05252E8E6900AA1A14 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Shared/Config/Debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigHelper.swift; sourceTree = "<group>"; };
 		EAF96D12252E8F3000AA1A14 /* Production.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Production.xcconfig; sourceTree = "<group>"; };
@@ -143,13 +126,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		EAEFDFD325F1BDD300EBDABC /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -158,7 +134,6 @@
 			children = (
 				EAB4B4FF25167AF50071D1CD /* GlobalState.swift */,
 				B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */,
-				EAEFDFF025F1BE7400EBDABC /* MarkdownEngine.swift */,
 			);
 			path = "Stateful Logic";
 			sourceTree = "<group>";
@@ -177,7 +152,6 @@
 				EA5C7D672516605F00F7F358 /* Shared */,
 				EA5C7D712516606000F7F358 /* iOS */,
 				EA5C7D782516606100F7F358 /* macOS */,
-				EAEFDFD725F1BDD300EBDABC /* LockbookTests */,
 				EA5C7D702516606000F7F358 /* Products */,
 				EA14E8172516643400B9158C /* Frameworks */,
 			);
@@ -201,7 +175,6 @@
 			children = (
 				EA5C7D6F2516606000F7F358 /* Lockbook.app */,
 				EA5C7D772516606000F7F358 /* Lockbook.app */,
-				EAEFDFD625F1BDD300EBDABC /* LockbookTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -258,15 +231,6 @@
 				EA831A592534E5020048CE26 /* SettingsView.swift */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		EAEFDFD725F1BDD300EBDABC /* LockbookTests */ = {
-			isa = PBXGroup;
-			children = (
-				EAEFDFD825F1BDD300EBDABC /* LockbookTests.swift */,
-				EAEFDFDA25F1BDD300EBDABC /* Info.plist */,
-			);
-			path = LockbookTests;
 			sourceTree = "<group>";
 		};
 		EAF96D0A252E8EB200AA1A14 /* Config */ = {
@@ -329,24 +293,6 @@
 			productReference = EA5C7D772516606000F7F358 /* Lockbook.app */;
 			productType = "com.apple.product-type.application";
 		};
-		EAEFDFD525F1BDD300EBDABC /* LockbookTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = EAEFDFDE25F1BDD300EBDABC /* Build configuration list for PBXNativeTarget "LockbookTests" */;
-			buildPhases = (
-				EAEFDFD225F1BDD300EBDABC /* Sources */,
-				EAEFDFD325F1BDD300EBDABC /* Frameworks */,
-				EAEFDFD425F1BDD300EBDABC /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				EAEFDFE325F1BE1E00EBDABC /* PBXTargetDependency */,
-			);
-			name = LockbookTests;
-			productName = LockbookTests;
-			productReference = EAEFDFD625F1BDD300EBDABC /* LockbookTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -361,10 +307,6 @@
 					};
 					EA5C7D762516606000F7F358 = {
 						CreatedOnToolsVersion = 12.2;
-					};
-					EAEFDFD525F1BDD300EBDABC = {
-						CreatedOnToolsVersion = 12.4;
-						TestTargetID = EA5C7D762516606000F7F358;
 					};
 				};
 			};
@@ -386,7 +328,6 @@
 			targets = (
 				EA5C7D6E2516606000F7F358 /* Lockbook (iOS) */,
 				EA5C7D762516606000F7F358 /* Lockbook (macOS) */,
-				EAEFDFD525F1BDD300EBDABC /* LockbookTests */,
 			);
 		};
 /* End PBXProject section */
@@ -406,13 +347,6 @@
 			files = (
 				EA5C7D802516606100F7F358 /* Assets.xcassets in Resources */,
 				8741E91925AD188C005B7B01 /* Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EAEFDFD425F1BDD300EBDABC /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -444,7 +378,6 @@
 				EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				B2B7E2EB25C669C400B9EFAD /* NotificationButton.swift in Sources */,
 				EA380B202561FA2C0021C4FA /* AccountView.swift in Sources */,
-				EAEFDFF125F1BE7400EBDABC /* MarkdownEngine.swift in Sources */,
 				8741E93625AD9F9C005B7B01 /* LockbookMarkdownConfig.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -461,7 +394,6 @@
 				B2B7E2EC25C669C400B9EFAD /* NotificationButton.swift in Sources */,
 				EA380B212561FA2C0021C4FA /* AccountView.swift in Sources */,
 				EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
-				EAEFDFF225F1BE7400EBDABC /* MarkdownEngine.swift in Sources */,
 				EAEDCD132517193500EBE313 /* EditorView.swift in Sources */,
 				1F7E4FC02521297D0045F606 /* Colors.swift in Sources */,
 				8741E8EC25ACBB21005B7B01 /* FileCell.swift in Sources */,
@@ -480,23 +412,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		EAEFDFD225F1BDD300EBDABC /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				EAEFDFD925F1BDD300EBDABC /* LockbookTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		EAEFDFE325F1BE1E00EBDABC /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = EA5C7D762516606000F7F358 /* Lockbook (macOS) */;
-			targetProxy = EAEFDFE225F1BE1E00EBDABC /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		EA5C7D812516606100F7F358 /* Debug */ = {
@@ -832,72 +748,6 @@
 			};
 			name = Development;
 		};
-		EAEFDFDB25F1BDD300EBDABC /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 39ZS78S25U;
-				INFOPLIST_FILE = LockbookTests/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 11.1;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.LockbookTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lockbook.app/Contents/MacOS/Lockbook";
-			};
-			name = Debug;
-		};
-		EAEFDFDC25F1BDD300EBDABC /* Development */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 39ZS78S25U;
-				INFOPLIST_FILE = LockbookTests/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 11.1;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.LockbookTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lockbook.app/Contents/MacOS/Lockbook";
-			};
-			name = Development;
-		};
-		EAEFDFDD25F1BDD300EBDABC /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 39ZS78S25U;
-				INFOPLIST_FILE = LockbookTests/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 11.1;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.LockbookTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Lockbook.app/Contents/MacOS/Lockbook";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -927,16 +777,6 @@
 				EA5C7D872516606100F7F358 /* Debug */,
 				EADA116025336B97005F69DB /* Development */,
 				EA5C7D882516606100F7F358 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		EAEFDFDE25F1BDD300EBDABC /* Build configuration list for PBXNativeTarget "LockbookTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				EAEFDFDB25F1BDD300EBDABC /* Debug */,
-				EAEFDFDC25F1BDD300EBDABC /* Development */,
-				EAEFDFDD25F1BDD300EBDABC /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
