@@ -3,10 +3,15 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Numerics;
+using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage.Streams;
 using Windows.UI;
+using Windows.UI.Input;
 using Windows.UI.Input.Inking;
 using Windows.UI.Popups;
 using Windows.UI.Text;
@@ -88,8 +93,6 @@ namespace lockbook {
                 Windows.UI.Core.CoreInputDeviceTypes.Touch;
             inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
                 Color = Colors.White,
-                IgnorePressure = false,
-                FitToCurve = true
             });
             inkCanvas.InkPresenter.StrokesCollected += DrawingChanged;
         }
@@ -437,17 +440,27 @@ namespace lockbook {
                     case Core.ReadDocument.Success content:
                         if (file.Name.EndsWith(".draw")) {
                             Drawing = true;
-                            if(string.IsNullOrWhiteSpace(content.content)) {
-                                // don't put anything on the canvas
-                            } else {
-                                // json-parse the drawing, put things on the canvas
+                            if(!string.IsNullOrWhiteSpace(content.content)) {
+                                var drawing = JsonConvert.DeserializeObject<Drawing>(content.content);
+                                var builder = new InkStrokeBuilder();
+                                builder.SetDefaultDrawingAttributes(new InkDrawingAttributes {
+                                    Color = Colors.White,
+                                });
+                                foreach (var stroke in drawing.strokes) {
+                                    var inkPoints = new List<InkPoint>();
+                                    for (var i = 0; i < stroke.pointsX.Count; i++) {
+                                        var point = new Windows.Foundation.Point(stroke.pointsX[i], stroke.pointsY[i]);
+                                        inkPoints.Add(new InkPoint(point, stroke.pointsGirth[i], 0, 0, 0));
+                                    }
+                                    inkCanvas.InkPresenter.StrokeContainer.AddStroke(builder.CreateStrokeFromInkPoints(inkPoints, Matrix3x2.Identity));
+                                }
                             }
                         } else {
                             Drawing = false;
                             editor.TextDocument.SetText(TextSetOptions.None, content.content);
                             editor.TextDocument.ClearUndoRedoHistory();
-                            editCount[tag] = 0;
                         }
+                        editCount[tag] = 0;
                         break;
                     case Core.ReadDocument.UnexpectedError uhOh:
                         await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
