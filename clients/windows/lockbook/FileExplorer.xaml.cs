@@ -452,7 +452,8 @@ namespace lockbook {
                                         var point = new Windows.Foundation.Point(stroke.pointsX[i], stroke.pointsY[i]);
                                         inkPoints.Add(new InkPoint(point, stroke.pointsGirth[i], 0, 0, 0));
                                     }
-                                    inkCanvas.InkPresenter.StrokeContainer.AddStroke(builder.CreateStrokeFromInkPoints(inkPoints, Matrix3x2.Identity));
+                                    var inkStroke = builder.CreateStrokeFromInkPoints(inkPoints, Matrix3x2.Identity);
+                                    inkCanvas.InkPresenter.StrokeContainer.AddStroke(inkStroke);
                                 }
                             }
                         } else {
