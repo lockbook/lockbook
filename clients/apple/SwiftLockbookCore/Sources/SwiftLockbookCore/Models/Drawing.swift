@@ -4,6 +4,13 @@ public struct Drawing: Codable {
     public let translationY: Float
     public let strokes: [Stroke]
 
+    public init() {
+        scale = 1.0
+        translationX = 1.0
+        translationY = 1.0
+        strokes = []
+    }
+
     public init(scale: Float, translationX: Float, translationY: Float, strokes: [Stroke]) {
         self.scale = scale
         self.translationX = translationX

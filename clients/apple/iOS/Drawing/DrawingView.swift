@@ -7,18 +7,15 @@ struct DrawingView: UIViewRepresentable {
     
     @State var drawing: PKDrawing = PKDrawing()
     @State var zoom: CGFloat = 1
-        
-    // How you'll ultimately replace the PKToolPicker
-    // https://sarunw.com/posts/move-view-around-with-drag-gesture-in-swiftui/
-    let toolPicker: PKToolPicker
-    
+    @ObservedObject var toolPicker: ToolbarModel
+
     let onChange: (PKDrawing) -> Void
     
     func makeUIView(context: Context) -> PKCanvasView {
         let view = PKCanvasView()
         view.drawing = drawing
-        view.tool = toolPicker.selectedTool
-        
+        view.tool = toolPicker.currentTool
+
         view.isOpaque = false
         view.backgroundColor = .clear
         view.delegate = context.coordinator
@@ -26,32 +23,24 @@ struct DrawingView: UIViewRepresentable {
         view.minimumZoomScale = 1.0
         view.maximumZoomScale = 10.0
         view.contentSize = CGSize(width: 2125, height: 2750)
-        
-        toolPicker.setVisible(true, forFirstResponder: view)
-        toolPicker.addObserver(view)
         view.becomeFirstResponder()
-        
+
         return view
     }
     
     func updateUIView(_ view: PKCanvasView, context: Context) {
-        view.tool = toolPicker.selectedTool
-    }
-    
-    static func dismantleUIView(_ uiView: PKCanvasView, coordinator: Coordinator) {
-        coordinator.toolPicker.setVisible(false, forFirstResponder: uiView)
+        view.tool = toolPicker.currentTool
+        view.isRulerActive = toolPicker.isRulerShowing
     }
     
     class Coordinator: NSObject, PKCanvasViewDelegate {
         @Binding var drawing: PKDrawing
         @Binding var scaleFactor: CGFloat
-        var toolPicker: PKToolPicker
         let onChange: (PKDrawing) -> ()
         
-        init(drawing: Binding<PKDrawing>, scaleFactor: Binding<CGFloat>, toolPicker: PKToolPicker, onChange: @escaping (PKDrawing) -> Void) {
+        init(drawing: Binding<PKDrawing>, scaleFactor: Binding<CGFloat>, onChange: @escaping (PKDrawing) -> Void) {
             _drawing = drawing
             _scaleFactor = scaleFactor
-            self.toolPicker = toolPicker
             self.onChange = onChange
         }
         
@@ -70,7 +59,7 @@ struct DrawingView: UIViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        return Coordinator(drawing: $drawing, scaleFactor: $zoom, toolPicker: toolPicker, onChange: onChange)
+        return Coordinator(drawing: $drawing, scaleFactor: $zoom, onChange: onChange)
     }
     
 }
