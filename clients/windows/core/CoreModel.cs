@@ -106,7 +106,7 @@ namespace Core {
         public byte alpha;
     }
 
-    [JsonConverter(typeof(StringEnumConverter), typeof(SnakeCaseNamingStrategy))]
+    [JsonConverter(typeof(StringEnumConverter))]
     public enum ColorAlias {
         Black,
         Red,
