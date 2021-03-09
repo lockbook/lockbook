@@ -11,18 +11,18 @@ struct DrawingToolbar: View {
     var lasso: some View {
         selectableButton(
                 imageName: "lasso",
-                selected: type(of: toolPicker.currentTool) == PKLassoTool.self,
+                selected: toolPicker.lassoSelected,
                 onSelect: { toolPicker.currentTool = PKLassoTool() },
-                onUnSelect: { toolPicker.currentTool = PKInkingTool(.pen, color: UIColor(from: toolPicker.selectedColor)) }
+                onUnSelect: toolPicker.backToDrawing
         )
     }
 
     var eraser: some View {
         selectableButton(
                 imageName: "square.righthalf.fill",
-                selected: type(of: toolPicker.currentTool) == PKEraserTool.self,
+                selected: toolPicker.eraserSelected,
                 onSelect: { toolPicker.currentTool = PKEraserTool(.vector) },
-                onUnSelect: { toolPicker.currentTool = PKInkingTool(.pen, color: UIColor(from: toolPicker.selectedColor)) }
+                onUnSelect: toolPicker.backToDrawing
         )
     }
 
@@ -33,6 +33,19 @@ struct DrawingToolbar: View {
                 onSelect: { toolPicker.isRulerShowing.toggle() },
                 onUnSelect: { toolPicker.isRulerShowing.toggle() }
         )
+    }
+
+    var colors: some View {
+        Group {
+            colorCircle(.White)
+            colorCircle(.Black)
+            colorCircle(.Red)
+            colorCircle(.Green)
+            colorCircle(.Blue)
+            colorCircle(.Cyan)
+            colorCircle(.Magenta)
+            colorCircle(.Yellow)
+        }
     }
 
     var undo: some View {
@@ -50,30 +63,27 @@ struct DrawingToolbar: View {
                 .foregroundColor(Color.gray)
                 .cornerRadius(3.0)
     }
+    
+    var slider: some View {
+        let formattedFloat = String(format: "%.1f", toolPicker.width)
+
+        return HStack {
+            Slider(value: $toolPicker.width, in: 0.8...20)
+                .frame(width: 100)
+            Text("\(formattedFloat)")
+        }
+
+    }
 
     var body: some View {
         HStack {
-            HStack {
-                lasso
-                eraser
-                ruler
-            }
-
-            HStack {
-                colorCircle(.White)
-                colorCircle(.Black)
-                colorCircle(.Red)
-                colorCircle(.Green)
-                colorCircle(.Blue)
-                colorCircle(.Cyan)
-                colorCircle(.Magenta)
-                colorCircle(.Yellow)
-            }
-
-            HStack {
-                undo
-                redo
-            }
+            lasso
+            eraser
+            ruler
+            colors
+            undo
+            redo
+            slider
         }
     }
 
@@ -95,7 +105,7 @@ struct DrawingToolbar: View {
                         .foregroundColor(Color(UIColor(from: preDarkModeConversion)))
                         .frame(width: 30, height: 30, alignment: .center)
                         .onTapGesture {
-                            toolPicker.currentTool = PKInkingTool(.pen, color: UIColor(from: postDarkModeConversion))
+                            toolPicker.currentTool = PKInkingTool(.pen, color: UIColor(from: postDarkModeConversion), width: CGFloat(toolPicker.width))
                             toolPicker.selectedColor = postDarkModeConversion
                         }
         )
@@ -126,11 +136,39 @@ struct DrawingToolbar: View {
 
 }
 
-class ToolbarModel: ObservableObject {
-    var selectedColor: ColorAlias = .Black
+class ToolbarModel: NSObject, ObservableObject, UIPencilInteractionDelegate {
+    static let initialColor: ColorAlias = .Red
+    static let initialWidth: Float = 1
+    
+    var selectedColor: ColorAlias = initialColor
 
-    @Published var currentTool: PKTool = PKInkingTool(.pen)
+    @Published var currentTool: PKTool = PKInkingTool(.pen, color: UIColor(from: initialColor), width: CGFloat(initialWidth))
     @Published var isRulerShowing: Bool = false
+    @Published var width: Float = initialWidth {      // Setting this to true kicks off a sync
+        didSet {
+            backToDrawing()
+        }
+    }
+
+    var lassoSelected: Bool {
+        type(of: currentTool) == PKLassoTool.self
+    }
+
+    var eraserSelected: Bool {
+        type(of: currentTool) == PKEraserTool.self
+    }
+
+    func backToDrawing() {
+        currentTool = PKInkingTool(.pen, color: UIColor(from: selectedColor), width: CGFloat(width))
+    }
+
+    func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+        if eraserSelected {
+            backToDrawing()
+        } else {
+            currentTool = PKEraserTool(.vector)
+        }
+    }
 }
 
 

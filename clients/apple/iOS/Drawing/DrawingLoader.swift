@@ -6,7 +6,7 @@ import PencilKit
 struct DrawingLoader: View {
 
     @ObservedObject var model: DrawingModel
-    @ObservedObject var toolbar = ToolbarModel()
+    @ObservedObject var toolbar: ToolbarModel
 
     var body: some View {
         switch model.originalDrawing {
