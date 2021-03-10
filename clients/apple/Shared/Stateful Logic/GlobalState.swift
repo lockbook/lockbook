@@ -22,6 +22,7 @@ class GlobalState: ObservableObject {
     }
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
+    @Published var openDrawing: DrawingModel
     
     private var syncChannel = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
@@ -84,6 +85,15 @@ class GlobalState: ObservableObject {
                 switch api.listFiles() {
                 case .success(let metas):
                     self.files = metas
+                    metas.forEach { meta in
+                        if let openDrawingMeta = openDrawing.meta, meta.id == openDrawingMeta.id, meta.contentVersion != openDrawingMeta.contentVersion {
+                            DispatchQueue.main.async {
+                                self.openDrawing.closeDrawing(meta: openDrawingMeta)
+                                self.openDrawing.loadDrawing(meta: openDrawingMeta)
+                            }
+                        }
+                    }
+
                 case .failure(let err):
                     handleError(err)
                 }
@@ -99,6 +109,7 @@ class GlobalState: ObservableObject {
         self.api = CoreApi(documentsDirectory: documenstDirectory)
         self.state = (try? self.api.getState().get())!
         self.account = (try? self.api.getAccount().get())
+        self.openDrawing = DrawingModel(write: api.writeDrawing, read: api.readDrawing)
         updateFiles()
         
         syncChannel
@@ -129,6 +140,7 @@ class GlobalState: ObservableObject {
         self.api = FakeApi()
         self.state = .ReadyToUse
         self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: .empty)
+        self.openDrawing = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
         if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {
             self.files = metas
             self.root = root

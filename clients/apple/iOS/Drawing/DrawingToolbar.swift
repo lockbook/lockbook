@@ -175,13 +175,13 @@ class ToolbarModel: NSObject, ObservableObject, UIPencilInteractionDelegate {
 struct Toolbar_Preview: PreviewProvider {
     static let core = GlobalState()
     static let toolbar = ToolbarModel()
-    static let dm = DrawingModel(core: core, meta: core.files[0])
+    static let dm = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
 
     static var previews: some View {
         NavigationView {
             HStack {
             }
-            DrawingLoader(model: dm, toolbar: toolbar)
+            DrawingLoader(model: dm, toolbar: toolbar, meta: core.files[0])
                     .onAppear {
                         dm.originalDrawing = PKDrawing()
                         toolbar.selectedColor = .Red

@@ -33,6 +33,20 @@ struct EditorLoader: View {
     var deleted: Bool {
         core.files.filter({$0.id == meta.id}).isEmpty
     }
+
+    func loadContent() {
+        // Load
+        DispatchQueue.main.async {
+            if !core.files.filter({$0.id == meta.id}).isEmpty {
+                switch core.api.getFile(id: meta.id) {
+                case .success(let decrypted):
+                    content.text = decrypted
+                case .failure(let err):
+                    core.handleError(err)
+                }
+            }
+        }
+    }
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -79,20 +93,6 @@ class Content: ObservableObject {
         self.core = core
         self.meta = meta
         
-        // TODO this is actually a horrible place to do this as it laods all docs
-        // Load
-        DispatchQueue.main.async { [weak self] in
-            if !core.files.filter({$0.id == meta.id}).isEmpty {
-                switch core.api.getFile(id: meta.id) {
-                case .success(let decrypted):
-                    self?.text = decrypted
-                case .failure(let err):
-                    core.handleError(err)
-                }
-            }
-        }
-        
-        // Save
         $text
             .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
             .sink(receiveValue: {
