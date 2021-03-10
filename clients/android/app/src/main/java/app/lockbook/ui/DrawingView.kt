@@ -310,7 +310,11 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         rollingAveragePressure = getAdjustedPressure(pressure)
 
-        val strokeColor = colorAliasInARGB[currentColor]
+        val strokeColor = if (currentOpacity == 255) {
+            colorAliasInARGB[currentColor]
+        } else {
+            drawing.getARGBColor(currentColor, currentOpacity)
+        }
 
         if (strokeColor == null) {
             (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
@@ -324,7 +328,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             mutableListOf(point.y),
             mutableListOf(rollingAveragePressure),
             currentColor,
-            currentOpacity
+            currentOpacity.toFloat() / 255
         )
 
         drawing.strokes.add(stroke)

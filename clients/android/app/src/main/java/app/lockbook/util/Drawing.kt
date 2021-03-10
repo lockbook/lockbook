@@ -13,9 +13,9 @@ data class Drawing(
     val strokes: MutableList<Stroke> = mutableListOf(),
     var theme: LinkedHashMap<String, ColorRGB>? = DEFAULT_THEME
 ) {
-    private fun getARGBColor(colorAlias: ColorAlias): Int? {
+    fun getARGBColor(colorAlias: ColorAlias, alpha: Int): Int? {
         val colorRGB = theme?.get(colorAlias.name) ?: return null
-        return Color.argb(255, colorRGB.r, colorRGB.g, colorRGB.b)
+        return Color.argb(alpha, colorRGB.r, colorRGB.g, colorRGB.b)
     }
 
     fun themeToARGBColors(): LinkedHashMap<ColorAlias, Int?> {
@@ -24,14 +24,14 @@ data class Drawing(
         }
 
         return linkedMapOf(
-            Pair(ColorAlias.White, getARGBColor(ColorAlias.White)),
-            Pair(ColorAlias.Black, getARGBColor(ColorAlias.Black)),
-            Pair(ColorAlias.Red, getARGBColor(ColorAlias.Red)),
-            Pair(ColorAlias.Green, getARGBColor(ColorAlias.Green)),
-            Pair(ColorAlias.Yellow, getARGBColor(ColorAlias.Yellow)),
-            Pair(ColorAlias.Blue, getARGBColor(ColorAlias.Blue)),
-            Pair(ColorAlias.Magenta, getARGBColor(ColorAlias.Magenta)),
-            Pair(ColorAlias.Cyan, getARGBColor(ColorAlias.Cyan))
+            Pair(ColorAlias.White, getARGBColor(ColorAlias.White, 255)),
+            Pair(ColorAlias.Black, getARGBColor(ColorAlias.Black, 255)),
+            Pair(ColorAlias.Red, getARGBColor(ColorAlias.Red, 255)),
+            Pair(ColorAlias.Green, getARGBColor(ColorAlias.Green, 255)),
+            Pair(ColorAlias.Yellow, getARGBColor(ColorAlias.Yellow, 255)),
+            Pair(ColorAlias.Blue, getARGBColor(ColorAlias.Blue, 255)),
+            Pair(ColorAlias.Magenta, getARGBColor(ColorAlias.Magenta, 255)),
+            Pair(ColorAlias.Cyan, getARGBColor(ColorAlias.Cyan, 255))
         )
     }
 
@@ -62,7 +62,7 @@ data class Stroke(
     @Json(name = "points_girth")
     val pointsGirth: MutableList<Float>,
     val color: ColorAlias,
-    val alpha: Int
+    val alpha: Float
 )
 
 enum class ColorAlias {
