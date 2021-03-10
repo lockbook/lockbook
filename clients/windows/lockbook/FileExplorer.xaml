@@ -116,9 +116,30 @@
         </SplitView.Pane>
         <SplitView.Content>
             <Grid Background="Black">
-                <InkCanvas
-                    x:Name="inkCanvas"/>
+                <Grid
+                    Background="Black"
+                    x:Name="inkCanvasGrid"
+                    Visibility="Visible">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <InkCanvas
+                        Grid.Row="0"
+                        x:Name="inkCanvas"/>
+                    <StackPanel
+                        Grid.Row="1"
+                        Height="auto"
+                        x:Name="inkCanvasToolbar">
+                        <Button
+                            Height="50"
+                            Click="NextColor">
+                            next color
+                        </Button>
+                    </StackPanel>
+                </Grid>
                 <RichEditBox
+                    Visibility="Collapsed"
                     x:Name="editor"
                     IsEnabled="True"
                     TextChanged="TextChanged"
