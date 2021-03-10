@@ -16,7 +16,7 @@ pub struct Stroke {
     pub points_y: Vec<f32>,
     pub points_girth: Vec<f32>,
     pub color: ColorAlias,
-    pub alpha: u8,
+    pub alpha: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]

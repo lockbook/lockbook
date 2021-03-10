@@ -115,7 +115,7 @@ impl<
         let theme = drawing.theme.unwrap_or_else(|| {
             hashmap![
                 ColorAlias::White => ColorRGB{r: 0xFF, g: 0xFF, b: 0xFF},
-                ColorAlias::Black => ColorRGB{r: 0x88, g: 0x88, b: 0x88},
+                ColorAlias::Black => ColorRGB{r: 0x00, g: 0x00, b: 0x00},
                 ColorAlias::Red => ColorRGB{r: 0xFF, g: 0x00, b: 0x00},
                 ColorAlias::Green => ColorRGB{r: 0x00, g: 0xFF, b: 0x00},
                 ColorAlias::Yellow => ColorRGB{r: 0xFF, g: 0xFF, b: 0x00},
@@ -138,6 +138,10 @@ impl<
                 || stroke.points_y.len() != stroke.points_girth.len()
             {
                 return Err(DrawingError::UnequalPointsAndGirthMetrics);
+            }
+
+            if stroke.alpha > 1.0 || stroke.alpha < 0.0 {
+                return Err(DrawingError::CorruptedDrawing);
             }
 
             for point_index in 0..stroke.points_x.len() - 2 {
@@ -175,7 +179,7 @@ impl<
                         r: color_rgb.r,
                         g: color_rgb.g,
                         b: color_rgb.b,
-                        a: stroke.alpha,
+                        a: (stroke.alpha * 255.0) as u8,
                     }),
                     &StrokeStyle {
                         cap: LineCap::Round,

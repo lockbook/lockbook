@@ -2,12 +2,12 @@
   "object": {
     "pins": [
       {
-        "package": "HighlightedTextEditor",
-        "repositoryURL": "https://github.com/kyle-n/HighlightedTextEditor",
+        "package": "Down",
+        "repositoryURL": "https://github.com/johnxnguyen/Down.git",
         "state": {
-          "branch": null,
-          "revision": "d51cf90b040fb6773e778ebf489383656b764823",
-          "version": "1.5.7"
+          "branch": "master",
+          "revision": "3ac921e3a9c33b0e60dcf762acd9718dd76ba758",
+          "version": null
         }
       }
     ]
