@@ -84,7 +84,7 @@ data class ColorRGB(
 
 val DEFAULT_THEME = linkedMapOf(
     Pair(ColorAlias.White.name, ColorRGB(0xFF, 0xFF, 0xFF)),
-    Pair(ColorAlias.Black.name, ColorRGB(0x88, 0x88, 0x88)),
+    Pair(ColorAlias.Black.name, ColorRGB(0x00, 0x00, 0x00)),
     Pair(ColorAlias.Red.name, ColorRGB(0xFF, 0x00, 0x00)),
     Pair(ColorAlias.Green.name, ColorRGB(0x00, 0xFF, 0x00)),
     Pair(ColorAlias.Yellow.name, ColorRGB(0xFF, 0xFF, 0x00)),
