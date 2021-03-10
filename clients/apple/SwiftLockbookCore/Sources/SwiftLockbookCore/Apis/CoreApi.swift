@@ -63,6 +63,24 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
     }
     
+    public func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError> {
+        getFile(id: id).map(transform: { input in
+            if input.isEmpty {
+                return Drawing()
+            }
+            return (try? deserialize(data: input.data(using: .utf8)!).get())! // TODO
+        })
+    }
+    
+    public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {
+        switch serialize(obj: content) {
+        case .success(let serializedDrawing):
+            return fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, serializedDrawing))
+        case .failure(let err):
+            return .failure(.init(unexpected: err.localizedDescription))
+        }
+    }
+    
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError> {
         let fileType = isFolder ? "Folder" : "Document"
         return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))
@@ -79,11 +97,11 @@ public struct CoreApi: LockbookApi {
     public func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError> {
         fromPrimitiveResult(result: rename_file(documentsDirectory, id.uuidString, name))
     }
-
+    
     public func getState() -> FfiResult<DbState, GetStateError> {
         fromPrimitiveResult(result: get_db_state(documentsDirectory))
     }
-
+    
     public func migrateState() -> FfiResult<Empty, MigrationError> {
         fromPrimitiveResult(result: migrate_db(documentsDirectory))
     }
