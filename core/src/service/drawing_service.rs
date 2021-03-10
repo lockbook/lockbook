@@ -144,7 +144,7 @@ impl<
                 return Err(DrawingError::CorruptedDrawing);
             }
 
-            for point_index in 0..stroke.points_x.len() - 2 {
+            for point_index in 0..stroke.points_x.len() - 1 {
                 let mut pb = PathBuilder::new();
                 let x1 = stroke
                     .points_x
@@ -289,7 +289,7 @@ impl<
                 return Err(DrawingError::UnequalPointsAndGirthMetrics);
             }
 
-            for point_index in 0..stroke.points_x.len() - 2 {
+            for point_index in 0..stroke.points_x.len() - 1 {
                 let x1 = stroke
                     .points_x
                     .get(point_index)
