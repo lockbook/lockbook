@@ -31,10 +31,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private var thread = Thread(this)
     private var isThreadRunning = false
     private var penSizeMultiplier = 7
-    private var currentOpacity = 255
+    private var strokeAlpha = 255
+    var strokeColor = ColorAlias.White
+
     var isErasing = false
     var isTouchable = false
-    var currentColor = ColorAlias.White
+
+    var theme = DEFAULT_THEME
     lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int>
 
     // Current drawing stroke state
@@ -142,7 +145,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         backgroundPaint.style = Paint.Style.FILL
 
-        currentColor = ColorAlias.White
+        strokeColor = ColorAlias.White
     }
 
     private fun render(canvas: Canvas) {
@@ -177,7 +180,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private fun restoreFromModel() {
         for (stroke in drawing.strokes) {
-            val strokeColor = colorAliasInARGB[stroke.color]
+            val alpha = (stroke.alpha * 255).toInt()
+
+            val strokeColor = if (alpha == 255) {
+                colorAliasInARGB[stroke.color]
+            } else {
+                Drawing.getARGBColor(theme, stroke.color, alpha)
+            }
 
             if (strokeColor == null) {
                 (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
@@ -310,10 +319,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         rollingAveragePressure = getAdjustedPressure(pressure)
 
-        val strokeColor = if (currentOpacity == 255) {
-            colorAliasInARGB[currentColor]
+        val strokeColor = if (strokeAlpha == 255) {
+            colorAliasInARGB[strokeColor]
         } else {
-            drawing.getARGBColor(currentColor, currentOpacity)
+            Drawing.getARGBColor(theme, strokeColor, strokeAlpha)
         }
 
         if (strokeColor == null) {
@@ -327,8 +336,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             mutableListOf(point.x),
             mutableListOf(point.y),
             mutableListOf(rollingAveragePressure),
-            currentColor,
-            currentOpacity.toFloat() / 255
+            this.strokeColor,
+            strokeAlpha.toFloat() / 255
         )
 
         drawing.strokes.add(stroke)

@@ -11,28 +11,28 @@ data class Drawing(
     @Json(name = "translation_y")
     var translationY: Float = 0f,
     val strokes: MutableList<Stroke> = mutableListOf(),
-    var theme: LinkedHashMap<String, ColorRGB>? = DEFAULT_THEME
+    var theme: LinkedHashMap<String, ColorRGB>? = null
 ) {
-    fun getARGBColor(colorAlias: ColorAlias, alpha: Int): Int? {
-        val colorRGB = theme?.get(colorAlias.name) ?: return null
-        return Color.argb(alpha, colorRGB.r, colorRGB.g, colorRGB.b)
-    }
 
-    fun themeToARGBColors(): LinkedHashMap<ColorAlias, Int?> {
-        if (theme == null) {
-            theme = DEFAULT_THEME
+    companion object {
+        fun getARGBColor(theme: LinkedHashMap<String, ColorRGB>, colorAlias: ColorAlias, alpha: Int): Int? {
+            val colorRGB = theme.get(colorAlias.name) ?: return null
+            return Color.argb(alpha, colorRGB.r, colorRGB.g, colorRGB.b)
         }
 
-        return linkedMapOf(
-            Pair(ColorAlias.White, getARGBColor(ColorAlias.White, 255)),
-            Pair(ColorAlias.Black, getARGBColor(ColorAlias.Black, 255)),
-            Pair(ColorAlias.Red, getARGBColor(ColorAlias.Red, 255)),
-            Pair(ColorAlias.Green, getARGBColor(ColorAlias.Green, 255)),
-            Pair(ColorAlias.Yellow, getARGBColor(ColorAlias.Yellow, 255)),
-            Pair(ColorAlias.Blue, getARGBColor(ColorAlias.Blue, 255)),
-            Pair(ColorAlias.Magenta, getARGBColor(ColorAlias.Magenta, 255)),
-            Pair(ColorAlias.Cyan, getARGBColor(ColorAlias.Cyan, 255))
-        )
+        fun themeToARGBColors(theme: LinkedHashMap<String, ColorRGB>): LinkedHashMap<ColorAlias, Int?> {
+
+            return linkedMapOf(
+                Pair(ColorAlias.White, getARGBColor(theme, ColorAlias.White, 255)),
+                Pair(ColorAlias.Black, getARGBColor(theme, ColorAlias.Black, 255)),
+                Pair(ColorAlias.Red, getARGBColor(theme, ColorAlias.Red, 255)),
+                Pair(ColorAlias.Green, getARGBColor(theme, ColorAlias.Green, 255)),
+                Pair(ColorAlias.Yellow, getARGBColor(theme, ColorAlias.Yellow, 255)),
+                Pair(ColorAlias.Blue, getARGBColor(theme, ColorAlias.Blue, 255)),
+                Pair(ColorAlias.Magenta, getARGBColor(theme, ColorAlias.Magenta, 255)),
+                Pair(ColorAlias.Cyan, getARGBColor(theme, ColorAlias.Cyan, 255))
+            )
+        }
     }
 
     fun clone(): Drawing {

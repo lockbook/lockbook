@@ -174,7 +174,7 @@ class DrawingActivity : AppCompatActivity() {
         }.exhaustive
 
         newButton.strokeWidth = 4
-        drawing_view.currentColor = newColor
+        drawing_view.strokeColor = newColor
     }
 
     private fun selectNewTool(newTool: DrawingView.Tool) {
@@ -251,7 +251,9 @@ class DrawingActivity : AppCompatActivity() {
             return
         }
 
-        drawing_view.colorAliasInARGB = EnumMap(drawing.themeToARGBColors())
+        drawing_view.theme = drawing.theme ?: DEFAULT_THEME
+        drawing_view.colorAliasInARGB = EnumMap(Drawing.themeToARGBColors(drawing_view.theme))
+
         val white = drawing_view.colorAliasInARGB[ColorAlias.White]
         val black = drawing_view.colorAliasInARGB[ColorAlias.Black]
         val red = drawing_view.colorAliasInARGB[ColorAlias.Red]
