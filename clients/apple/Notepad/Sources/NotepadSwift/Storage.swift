@@ -122,10 +122,12 @@ public class Storage: NSTextStorage {
     func applyStyles(_ range: NSRange) {
         let md = markdowner(self.string)
         let attr = NSMutableAttributedString(string: self.string)
-        applyBody(attr, NSRange(location: 0, length: self.string.count))
+        let wholeDocument = NSRange(location: 0, length: self.string.count)
+        applyBody(attr, wholeDocument)
         md.forEach {
             applyMarkdown(attr, $0)
         }
         backingStore.setAttributedString(attr)
+        self.edited(.editedAttributes, range: wholeDocument, changeInLength: 0)
     }
 }
