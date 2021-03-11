@@ -126,8 +126,8 @@ public class Storage: NSTextStorage {
         applyBody(attr, wholeDocument)
         md.forEach {
             applyMarkdown(attr, $0)
+            self.edited(.editedAttributes, range: $0.range, changeInLength: 0)
         }
         backingStore.setAttributedString(attr)
-        self.edited(.editedAttributes, range: wholeDocument, changeInLength: 0)
     }
 }
