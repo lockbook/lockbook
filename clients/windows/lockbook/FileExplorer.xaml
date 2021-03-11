@@ -118,8 +118,8 @@
             <Grid Background="Black">
                 <Grid
                     Background="Black"
-                    x:Name="inkCanvasGrid"
-                    Visibility="Visible">
+                    x:Name="drawEditor"
+                    Visibility="Collapsed">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
@@ -139,8 +139,7 @@
                     </StackPanel>
                 </Grid>
                 <RichEditBox
-                    Visibility="Collapsed"
-                    x:Name="editor"
+                    x:Name="textEditor"
                     IsEnabled="True"
                     TextChanged="TextChanged"
                     Paste="Pasted"

@@ -3,15 +3,12 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
-using Windows.Storage.Streams;
+using Windows.Foundation;
 using Windows.UI;
-using Windows.UI.Input;
 using Windows.UI.Input.Inking;
 using Windows.UI.Popups;
 using Windows.UI.Text;
@@ -67,13 +64,19 @@ namespace lockbook {
                 Refresh();
             }
         }
-        public bool Drawing {
+        public enum EditMode {
+            None,
+            Text,
+            Draw
+        }
+        private EditMode currentEditMode;
+        public EditMode CurrentEditMode {
             get {
-                return editor.Visibility != Visibility.Collapsed;
+                return currentEditMode;
             }
             set {
-                inkCanvas.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
-                editor.Visibility = value ? Visibility.Collapsed : Visibility.Visible;
+                currentEditMode = value;
+                Refresh();
             }
         }
         public ColorAlias DrawingColor {
@@ -165,6 +168,20 @@ namespace lockbook {
         }
 
         public void Refresh() {
+            switch (currentEditMode) {
+                case EditMode.None:
+                    textEditor.Visibility = Visibility.Collapsed;
+                    drawEditor.Visibility = Visibility.Collapsed;
+                    break;
+                case EditMode.Text:
+                    textEditor.Visibility = Visibility.Visible;
+                    drawEditor.Visibility = Visibility.Collapsed;
+                    break;
+                case EditMode.Draw:
+                    textEditor.Visibility = Visibility.Collapsed;
+                    drawEditor.Visibility = Visibility.Visible;
+                    break;
+            }
             if (!App.IsOnline) {
                 syncIcon.Glyph = offlineGlyph;
                 syncText.Text = "Offline";
@@ -335,6 +352,7 @@ namespace lockbook {
             switch (result) {
                 case Core.RenameFile.Success:
                     await ReloadFiles();
+                    // todo: re-open file
                     break;
                 case Core.RenameFile.UnexpectedError uhOh:
                     await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
@@ -470,30 +488,30 @@ namespace lockbook {
                 switch (result) {
                     case Core.ReadDocument.Success content:
                         if (file.Name.EndsWith(".draw")) {
-                            Drawing = true;
+                            CurrentEditMode = EditMode.Draw;
                             if(!string.IsNullOrWhiteSpace(content.content)) {
                                 var drawing = JsonConvert.DeserializeObject<Drawing>(content.content);
                                 var builder = new InkStrokeBuilder();
-                                builder.SetDefaultDrawingAttributes(new InkDrawingAttributes {
-                                    Color = Colors.White,
-                                });
                                 foreach (var stroke in drawing.strokes) {
-                                    builder.SetDefaultDrawingAttributes(new InkDrawingAttributes {
-                                        Color = theme[stroke.color],
-                                    });
+                                    //var attributes = InkDrawingAttributes.CreateForPencil();
+                                    var attributes = new InkDrawingAttributes();
+                                    attributes.Size = new Size(5, 5);
+                                    attributes.Color = theme[stroke.color];
+                                    //attributes.PencilProperties.Opacity = stroke.alpha * 5;
+                                    builder.SetDefaultDrawingAttributes(attributes);
                                     var inkPoints = new List<InkPoint>();
                                     for (var i = 0; i < stroke.pointsX.Count; i++) {
-                                        var point = new Windows.Foundation.Point(stroke.pointsX[i], stroke.pointsY[i]);
-                                        inkPoints.Add(new InkPoint(point, stroke.pointsGirth[i], 0, 0, 0));
+                                        var point = new Point(stroke.pointsX[i], stroke.pointsY[i]);
+                                        inkPoints.Add(new InkPoint(point, stroke.pointsGirth[i]/10f, 0, 0, 0));
                                     }
                                     var inkStroke = builder.CreateStrokeFromInkPoints(inkPoints, Matrix3x2.Identity);
                                     inkCanvas.InkPresenter.StrokeContainer.AddStroke(inkStroke);
                                 }
                             }
                         } else {
-                            Drawing = false;
-                            editor.TextDocument.SetText(TextSetOptions.None, content.content);
-                            editor.TextDocument.ClearUndoRedoHistory();
+                            CurrentEditMode = EditMode.Text;
+                            textEditor.TextDocument.SetText(TextSetOptions.None, content.content);
+                            textEditor.TextDocument.ClearUndoRedoHistory();
                         }
                         editCount[tag] = 0;
                         break;
@@ -518,10 +536,10 @@ namespace lockbook {
         }
 
         private async void TextChanged(object sender, RoutedEventArgs e) {
-            if (SelectedDocumentId != "" && editor.FocusState != FocusState.Unfocused) {
+            if (SelectedDocumentId != "" && textEditor.FocusState != FocusState.Unfocused) {
                 string docID = SelectedDocumentId;
                 string text;
-                editor.TextDocument.GetText(TextGetOptions.UseLf, out text);
+                textEditor.TextDocument.GetText(TextGetOptions.UseLf, out text);
 
                 // Only save the document if no keystrokes have happened in the last .5 seconds
                 editCount[docID]++;

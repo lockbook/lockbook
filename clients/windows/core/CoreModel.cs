@@ -103,7 +103,7 @@ namespace Core {
         [JsonProperty("points_girth")]
         public List<float> pointsGirth;
         public ColorAlias color;
-        public byte alpha;
+        public float alpha;
     }
 
     [JsonConverter(typeof(StringEnumConverter))]
