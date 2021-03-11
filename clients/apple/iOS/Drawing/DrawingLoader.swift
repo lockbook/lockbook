@@ -13,7 +13,6 @@ struct DrawingLoader: View {
         self.model = model
         self.toolbar = toolbar
         self.meta = meta
-//        print("8======> Init \(model.originalDrawing == nil)")
     }
 
     var body: some View {
@@ -29,17 +28,14 @@ struct DrawingLoader: View {
                     }
                 }
                 .onDisappear {
-//                    print("8======> Disappear \(model.originalDrawing == nil)")
                     model.closeDrawing(meta: meta)
                 }
         case .none:
             ProgressView()
                 .onAppear {
-//                    print("8======> Appear \(model.originalDrawing == nil)")
                     model.loadDrawing(meta: meta)
                 }
         }
-//        print("8======> Body \(model.originalDrawing == nil)")
     }
 }
 
@@ -63,7 +59,6 @@ class DrawingModel: ObservableObject {
     }
 
     func loadDrawing(meta: FileMetadata) {
-        print("Loading drawing!")
         DispatchQueue.main.async {
             switch self.read(meta.id) {
             case .success(let drawing):

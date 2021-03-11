@@ -4,14 +4,13 @@ import Combine
 
 struct EditorView: View {
     @Environment(\.colorScheme) var colorScheme
-    @ObservedObject var core: GlobalState
     let meta: FileMetadata
     @State var text: String
     
     let changeCallback: (String) -> Void
 
     var body: some View {
-        GeometryReader { geo in
+        return GeometryReader { geo in
             NotepadView(
                 text: $text,
                 frame: geo.frame(in: .local),
@@ -24,28 +23,14 @@ struct EditorView: View {
 
 struct EditorLoader: View {
 
-    @ObservedObject var core: GlobalState
-    let meta: FileMetadata
     @ObservedObject var content: Content
+    let meta: FileMetadata
+    let files: [FileMetadata]
     @State var editorContent: String = ""
     @State var title: String = ""
     
     var deleted: Bool {
-        core.files.filter({$0.id == meta.id}).isEmpty
-    }
-
-    func loadContent() {
-        // Load
-        DispatchQueue.main.async {
-            if !core.files.filter({$0.id == meta.id}).isEmpty {
-                switch core.api.getFile(id: meta.id) {
-                case .success(let decrypted):
-                    content.text = decrypted
-                case .failure(let err):
-                    core.handleError(err)
-                }
-            }
-        }
+        files.filter({$0.id == meta.id}).isEmpty
     }
     
     var body: some View {
@@ -54,64 +39,89 @@ struct EditorLoader: View {
             case .some(let c):
                 if deleted {
                     Text("\(meta.name) file has been deleted")
+                        .onDisappear {
+                            content.closeDocument(meta: meta)
+                        }
                 } else {
-                    EditorView(core: core, meta: meta, text: c, changeCallback: content.updateText)
+                    EditorView(meta: meta, text: c, changeCallback: content.updateText)
+                        .onDisappear {
+                            content.closeDocument(meta: meta)
+                        }
+                }
+                if content.status == .WriteSuccess {
+                    ActivityIndicator(status: $content.status)
                 }
             case .none:
                 ProgressView()
-            }
-
-            if content.status == .WriteSuccess {
-                ActivityIndicator(status: $content.status)
+                    .onAppear {
+                        content.openDocument(meta: meta)
+                    }
             }
         }
         .navigationTitle(meta.name)
     }
     
     
-    init (core: GlobalState, meta: FileMetadata) {
-        self.core = core
+    init (content: Content, meta: FileMetadata, files: [FileMetadata]) {
+        self.content = content
         self.meta = meta
-        self.content = Content(core: core, meta: meta)
+        self.files = files
     }
 }
 
 class Content: ObservableObject {
-    @ObservedObject var core: GlobalState
     @Published var text: String?
+    @Published var meta: FileMetadata?
     var cancellables = Set<AnyCancellable>()
-    @Published var succeeded: Bool = false
     @Published var status: Status = .Inactive
-    
-    let meta: FileMetadata
-    
-    func updateText(text: String) {
-        self.text = text
-        self.status = .Inactive
-    }
-    init(core: GlobalState, meta: FileMetadata) {
-        self.core = core
-        self.meta = meta
+    let write: (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
+    let read: (UUID) -> FfiResult<String, ReadDocumentError>
+
+    init(write: @escaping (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<String, ReadDocumentError>) {
+        self.read = read
+        self.write = write
         
         $text
             .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
             .sink(receiveValue: {
-                if let c = $0 {
-                    self.save(content: c)
+                if let c = $0, let m = self.meta {
+                    self.writeDocument(meta: m, content: c)
                 }
             })
             .store(in: &cancellables)
     }
+
+    func updateText(text: String) {
+        self.text = text
+        self.status = .Inactive
+    }
     
-    func save(content: String) {
-        switch core.api.updateFile(id: meta.id, content: content) {
+    func writeDocument(meta: FileMetadata, content: String) {
+        switch write(meta.id, content) {
         case .success(_):
             withAnimation {
                 self.status = .WriteSuccess
             }
         case .failure(let err):
-            core.handleError(err)
+            print(err)
         }
+    }
+
+    func openDocument(meta: FileMetadata) {
+        DispatchQueue.main.async {
+            switch self.read(meta.id) {
+            case .success(let txt):
+                self.meta = meta
+                self.text = txt
+            case .failure(let err):
+                print(err)
+            }
+        }
+    }
+
+    func closeDocument(meta: FileMetadata) {
+        self.meta = .none
+        self.text = .none
     }
 }
 
@@ -134,7 +144,7 @@ extension NSTextField {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorLoader(core: GlobalState(), meta: FakeApi().fileMetas[0])
+            EditorLoader(content: GlobalState().openDocument, meta: FakeApi().fileMetas[0], files: FakeApi().fileMetas)
         }
         .preferredColorScheme(.dark)
     }

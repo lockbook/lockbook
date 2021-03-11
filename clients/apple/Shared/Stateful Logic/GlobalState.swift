@@ -23,6 +23,7 @@ class GlobalState: ObservableObject {
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
     @Published var openDrawing: DrawingModel
+    @Published var openDocument: Content
     
     private var syncChannel = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
@@ -92,6 +93,12 @@ class GlobalState: ObservableObject {
                                 self.openDrawing.loadDrawing(meta: openDrawingMeta)
                             }
                         }
+                        if let openDocumentMeta = openDocument.meta, meta.id == openDocumentMeta.id, meta.contentVersion != openDocumentMeta.contentVersion {
+                            DispatchQueue.main.async {
+                                self.openDocument.closeDocument(meta: openDocumentMeta)
+                                self.openDocument.openDocument(meta: openDocumentMeta)
+                            }
+                        }
                     }
 
                 case .failure(let err):
@@ -110,6 +117,7 @@ class GlobalState: ObservableObject {
         self.state = (try? self.api.getState().get())!
         self.account = (try? self.api.getAccount().get())
         self.openDrawing = DrawingModel(write: api.writeDrawing, read: api.readDrawing)
+        self.openDocument = Content(write: api.updateFile, read: api.getFile)
         updateFiles()
         
         syncChannel
@@ -141,6 +149,7 @@ class GlobalState: ObservableObject {
         self.state = .ReadyToUse
         self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: .empty)
         self.openDrawing = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
+        self.openDocument = Content(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
         if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {
             self.files = metas
             self.root = root

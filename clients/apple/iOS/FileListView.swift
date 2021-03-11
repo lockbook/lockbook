@@ -73,10 +73,8 @@ struct FileListView: View {
                     FileCell(meta: meta)
                 })
             } else {
-                let el = EditorLoader(core: core, meta: meta)
-                return AnyView (NavigationLink(destination: el.onAppear {
-                    el.loadContent()
-                }) {
+                let el = EditorLoader(content: core.openDocument, meta: meta, files: core.files)
+                return AnyView (NavigationLink(destination: el) {
                     FileCell(meta: meta)
                 })
             }
