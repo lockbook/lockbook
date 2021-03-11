@@ -1,6 +1,7 @@
 import SwiftUI
 import NotepadSwift
 import Down
+import Combine
 
 #if os(iOS)
 struct NotepadView: UIViewRepresentable {
@@ -14,8 +15,12 @@ struct NotepadView: UIViewRepresentable {
         let np = Notepad(frame: frame, theme: theme)
         np.onTextChange = onTextChange
         np.storage.markdowner = { engine.render($0) }
-        np.storage.applyMarkdown = { a, m in applyMarkdown(a, markdown: m) }
-        np.storage.applyBody = { a, r in applyBody(a, r) }
+        np.storage.applyMarkdown = { a, m in
+            np.storage.setAttributes(applyMarkdown(a, markdown: m), range: m.range)
+        }
+        np.storage.applyBody = { a, r in
+            np.storage.setAttributes(applyBody(a), range: r)
+        }
         np.text = text
 
         return np
@@ -38,8 +43,12 @@ struct NotepadView: NSViewRepresentable {
         let np = Notepad(frame: frame)
         np.onTextChange = onTextChange
         np.storage.markdowner = { engine.render($0) }
-        np.storage.applyMarkdown = { a, m in applyMarkdown(a, markdown: m) }
-        np.storage.applyBody = { a, r in applyBody(a, r) }
+        np.storage.applyMarkdown = { a, m in
+            np.storage.setAttributes(applyMarkdown(a, markdown: m), range: m.range)
+        }
+        np.storage.applyBody = { a, r in
+            np.storage.setAttributes(applyBody(a), range: r)
+        }
         np.storage.theme = theme
         np.insertionPointColor = theme.tintColor
         np.layoutManager?.replaceTextStorage(np.storage)

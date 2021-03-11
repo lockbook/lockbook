@@ -23,7 +23,7 @@ struct FileListView: View {
             }
         }
         if selectedItem != nil {
-            EditorLoader(core: core, meta: selectedItem!)
+            EditorLoader(content: core.openDocument, meta: selectedItem!, files: core.files)
         }
     }
 }

@@ -41,45 +41,45 @@ let LockbookTheme: Theme = {
     return t
 } ()
 
-func applyMarkdown(_ attr: NSMutableAttributedString, markdown: MarkdownNode) {
+func applyMarkdown(_ attr: NSMutableAttributedString, markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
     switch markdown.type {
     case .header:
-        attr.addAttributes([
+        return [
             .font : systemFontWithTraits(headingTraits, fontSize*(10.0-CGFloat(markdown.headingLevel))/3),
             .foregroundColor : headingColor
-        ], range: markdown.range)
+        ]
     case .italic:
-        attr.addAttributes([
+        return [
             .font : systemFontWithTraits(emphasisTraits)
-        ], range: markdown.range)
+        ]
     case .bold:
-        attr.addAttributes([
+        return [
             .font : systemFontWithTraits(boldTraits)
-        ], range: markdown.range)
+        ]
     case .codeFence, .code:
-        attr.addAttributes([
+        return [
             .font : codeFont,
-        ], range: markdown.range)
+        ]
     case .list:
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = 2.0
-        attr.addAttributes([
+        return [
             .foregroundColor : lighterColor,
             .paragraphStyle : paragraphStyle
-        ], range: markdown.range)
+        ]
     case .quote:
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.firstLineHeadIndent = 5.0
-        attr.addAttributes([
+        return [
             .foregroundColor : lighterColor,
             .paragraphStyle : paragraphStyle
-        ], range: markdown.range)
+        ]
     }
 }
 
-func applyBody(_ attr: NSMutableAttributedString, _ range: NSRange) {
-    attr.setAttributes([
+func applyBody(_ attr: NSMutableAttributedString) -> [NSAttributedString.Key : Any] {
+    return [
         NSAttributedString.Key.font : systemFont,
         NSAttributedString.Key.foregroundColor : textColor
-    ], range: range)
+    ]
 }

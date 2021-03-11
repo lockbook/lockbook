@@ -6,12 +6,13 @@
 //  Copyright © 2016 Rudd Fawcett. All rights reserved.
 //
 
+import Combine
 #if os(iOS)
     import UIKit
 #elseif os(macOS)
     import AppKit
 #endif
-//import Down
+
 
 public class Storage: NSTextStorage {
     /// The Theme for the Notepad.
@@ -20,7 +21,7 @@ public class Storage: NSTextStorage {
             let wholeRange = NSRange(location: 0, length: (self.string as NSString).length)
 
             self.beginEditing()
-            self.applyStyles(wholeRange)
+            self.applyStyles()
             self.edited(.editedAttributes, range: wholeRange, changeInLength: 0)
             self.endEditing()
         }
@@ -28,7 +29,9 @@ public class Storage: NSTextStorage {
     public var markdowner: (String) -> [MarkdownNode] = { _ in [] }
     public var applyMarkdown: (NSMutableAttributedString, MarkdownNode) -> Void = { _,_ in }
     public var applyBody: (NSMutableAttributedString, NSRange) -> Void = { _,_ in }
-
+    var cancellables = Set<AnyCancellable>()
+    let subj = PassthroughSubject<String, Never>()
+    
     /// The underlying text storage implementation.
     var backingStore = NSTextStorage()
 
@@ -40,6 +43,15 @@ public class Storage: NSTextStorage {
 
     override public init() {
         super.init()
+
+        subj
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .removeDuplicates()
+            .sink(receiveValue: { s in
+                self.applyStyles()
+            })
+            .store(in: &cancellables)
+
     }
     
     override public init(attributedString attrStr: NSAttributedString) {
@@ -108,18 +120,11 @@ public class Storage: NSTextStorage {
     }
 
     override public func processEditing() {
-        let backingString = backingStore.string
-        if let nsRange = backingString.range(from: NSMakeRange(NSMaxRange(editedRange), 0)) {
-            let indexRange = backingString.lineRange(for: nsRange)
-            let lineRange = backingString.nsRange(from: indexRange)
-            let extendedRange: NSRange = NSUnionRange(editedRange, lineRange)
-
-            applyStyles(extendedRange)
-        }
+        subj.send(backingStore.string)
         super.processEditing()
     }
 
-    func applyStyles(_ range: NSRange) {
+    func applyStyles() {
         let md = markdowner(self.string)
         let attr = NSMutableAttributedString(string: self.string)
         let wholeDocument = NSRange(location: 0, length: self.string.count)
@@ -128,6 +133,5 @@ public class Storage: NSTextStorage {
             applyMarkdown(attr, $0)
             self.edited(.editedAttributes, range: $0.range, changeInLength: 0)
         }
-        backingStore.setAttributedString(attr)
     }
 }
