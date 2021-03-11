@@ -57,9 +57,15 @@ func applyMarkdown(_ attr: NSMutableAttributedString, markdown: MarkdownNode) ->
             .font : systemFontWithTraits(boldTraits)
         ]
     case .codeFence, .code:
+        #if os(iOS)
+        return [
+            .font : systemFontWithTraits(.traitMonoSpace),
+        ]
+        #else
         return [
             .font : codeFont,
         ]
+        #endif
     case .list:
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = 2.0
