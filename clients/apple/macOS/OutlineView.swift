@@ -45,10 +45,7 @@ struct OutlineBranch: View {
                                     }
                                 } else {
                                     // Animating this causes editor to load weirdly
-                                    self.selectedItem = nil
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1)) {
-                                        self.selectedItem = self.file
-                                    }
+                                    self.selectedItem = self.file
                                 }
                             }
                     }

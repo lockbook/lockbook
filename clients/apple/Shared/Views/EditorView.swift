@@ -36,7 +36,8 @@ struct EditorLoader: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             switch content.text {
-            case .some(let c):
+            /// We are forcing this view to hit the default case when it is in a transitionary stage!
+            case .some(let c) where content.meta?.id == meta.id:
                 if deleted {
                     Text("\(meta.name) file has been deleted")
                         .onDisappear {
@@ -51,14 +52,13 @@ struct EditorLoader: View {
                 if content.status == .WriteSuccess {
                     ActivityIndicator(status: $content.status)
                 }
-            case .none:
+            default:
                 ProgressView()
                     .onAppear {
                         content.openDocument(meta: meta)
                     }
             }
         }
-        .navigationTitle(meta.name)
     }
     
     
