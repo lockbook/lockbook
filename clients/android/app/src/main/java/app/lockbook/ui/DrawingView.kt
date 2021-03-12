@@ -17,6 +17,7 @@ import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import app.lockbook.util.Stroke
 import java.util.*
+import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -196,7 +197,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             strokePaint.color = strokeColor
 
             for (pointIndex in 0..(stroke.pointsX.size - 2)) {
-                strokePaint.strokeWidth = stroke.pointsGirth[pointIndex]
+                strokePaint.strokeWidth = normalizePressure(stroke.pointsGirth[pointIndex + 1])
                 strokePath.moveTo(
                     stroke.pointsX[pointIndex],
                     stroke.pointsY[pointIndex]
@@ -312,7 +313,9 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    private fun getAdjustedPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
+    private fun getAdjustedPressure(pressure: Float): Float = (pressure * penSizeMultiplier * 100).roundToInt() / 100f
+
+    private fun normalizePressure(pressure: Float): Float = max((pressure * 0.98039099f) - 6.59567504f, 0f)
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point)
@@ -356,7 +359,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val adjustedCurrentPressure = getAdjustedPressure(pressure)
         rollingAveragePressure = approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
 
-        strokePaint.strokeWidth = rollingAveragePressure
+        strokePaint.strokeWidth = normalizePressure(rollingAveragePressure)
 
         strokePath.moveTo(
             lastPoint.x,
