@@ -33,7 +33,7 @@ let LockbookTheme: Theme = {
     return t
 } ()
 
-func applyMarkdown(_ attr: NSMutableAttributedString, markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
+func applyMarkdown(markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
     switch markdown.type {
     case .header:
         return [
@@ -70,7 +70,7 @@ func applyMarkdown(_ attr: NSMutableAttributedString, markdown: MarkdownNode) ->
     }
 }
 
-func applyBody(_ attr: NSMutableAttributedString) -> [NSAttributedString.Key : Any] {
+func applyBody() -> [NSAttributedString.Key : Any] {
     return [
         .foregroundColor : UniversalColor.label,
         .font : systemFont,

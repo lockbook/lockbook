@@ -1,16 +1,8 @@
-//
-//  Storage.swift
-//  Notepad
-//
-//  Created by Rudd Fawcett on 10/14/16.
-//  Copyright © 2016 Rudd Fawcett. All rights reserved.
-//
-
 import Combine
 #if os(iOS)
-    import UIKit
+import UIKit
 #elseif os(macOS)
-    import AppKit
+import AppKit
 #endif
 
 
@@ -18,17 +10,14 @@ public class Storage: NSTextStorage {
     /// The Theme for the Notepad.
     public var theme: Theme? {
         didSet {
-            let wholeRange = NSRange(location: 0, length: (self.string as NSString).length)
-
             self.beginEditing()
             self.applyStyles()
-            self.edited(.editedAttributes, range: wholeRange, changeInLength: 0)
             self.endEditing()
         }
     }
     public var markdowner: (String) -> [MarkdownNode] = { _ in [] }
-    public var applyMarkdown: (NSMutableAttributedString, MarkdownNode) -> Void = { _,_ in }
-    public var applyBody: (NSMutableAttributedString, NSRange) -> Void = { _,_ in }
+    public var applyMarkdown: (MarkdownNode) -> [NSAttributedString.Key : Any] = { _ in [:] }
+    public var applyBody: () -> [NSAttributedString.Key : Any] = { [:] }
     var cancellables = Set<AnyCancellable>()
     let subj = PassthroughSubject<String, Never>()
     
@@ -126,12 +115,11 @@ public class Storage: NSTextStorage {
 
     func applyStyles() {
         let md = markdowner(self.string)
-        let attr = NSMutableAttributedString(string: self.string)
         let wholeDocument = NSRange(location: 0, length: self.string.count)
-        applyBody(attr, wholeDocument)
+        setAttributes(applyBody(), range: wholeDocument)
         md.forEach {
-            applyMarkdown(attr, $0)
-            self.edited(.editedAttributes, range: $0.range, changeInLength: 0)
+            addAttributes(applyMarkdown($0), range: $0.range)
         }
+        self.edited(.editedAttributes, range: wholeDocument, changeInLength: 0)
     }
 }

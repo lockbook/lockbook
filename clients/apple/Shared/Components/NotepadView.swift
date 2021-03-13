@@ -15,12 +15,8 @@ struct NotepadView: UIViewRepresentable {
         let np = Notepad(frame: frame, theme: theme)
         np.onTextChange = onTextChange
         np.storage.markdowner = { engine.render($0) }
-        np.storage.applyMarkdown = { a, m in
-            np.storage.addAttributes(applyMarkdown(a, markdown: m), range: m.range)
-        }
-        np.storage.applyBody = { a, r in
-            np.storage.setAttributes(applyBody(a), range: r)
-        }
+        np.storage.applyMarkdown = { m in applyMarkdown(markdown: m) }
+        np.storage.applyBody = { applyBody() }
         np.text = text
 
         return np
@@ -43,12 +39,8 @@ struct NotepadView: NSViewRepresentable {
         let np = Notepad(frame: frame)
         np.onTextChange = onTextChange
         np.storage.markdowner = { engine.render($0) }
-        np.storage.applyMarkdown = { a, m in
-            np.storage.addAttributes(applyMarkdown(a, markdown: m), range: m.range)
-        }
-        np.storage.applyBody = { a, r in
-            np.storage.setAttributes(applyBody(a), range: r)
-        }
+        np.storage.applyMarkdown = { m in applyMarkdown(markdown: m) }
+        np.storage.applyBody = { applyBody() }
         np.storage.theme = theme
         np.insertionPointColor = theme.tintColor
         np.layoutManager?.replaceTextStorage(np.storage)
