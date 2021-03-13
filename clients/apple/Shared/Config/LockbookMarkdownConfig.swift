@@ -29,7 +29,7 @@ func systemFontWithTraits(_ traits: UIFontDescriptor.SymbolicTraits, _ size: CGF
 #endif
 let LockbookTheme: Theme = {
     var t = Theme()
-    t.tintColor = .systemPink
+    t.tintColor = UniversalColor.fromColorAlias(from: .Red)
     return t
 } ()
 
@@ -37,7 +37,7 @@ func applyMarkdown(markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
     switch markdown.type {
     case .header:
         return [
-            .foregroundColor : UniversalColor.systemPink,
+            .foregroundColor : UniversalColor.fromColorAlias(from: .Red),
             .font : systemFontWithTraits(headingTraits, fontSize*(10.0-CGFloat(markdown.headingLevel))/3),
         ]
     case .italic:
@@ -64,7 +64,7 @@ func applyMarkdown(markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.firstLineHeadIndent = 5.0
         return [
-            .foregroundColor : UniversalColor.systemPurple,
+            .foregroundColor : UniversalColor.fromColorAlias(from: .Magenta),
             .paragraphStyle : paragraphStyle,
         ]
     }
