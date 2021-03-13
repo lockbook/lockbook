@@ -16,7 +16,7 @@ struct NotepadView: UIViewRepresentable {
         np.onTextChange = onTextChange
         np.storage.markdowner = { engine.render($0) }
         np.storage.applyMarkdown = { a, m in
-            np.storage.setAttributes(applyMarkdown(a, markdown: m), range: m.range)
+            np.storage.addAttributes(applyMarkdown(a, markdown: m), range: m.range)
         }
         np.storage.applyBody = { a, r in
             np.storage.setAttributes(applyBody(a), range: r)
@@ -44,7 +44,7 @@ struct NotepadView: NSViewRepresentable {
         np.onTextChange = onTextChange
         np.storage.markdowner = { engine.render($0) }
         np.storage.applyMarkdown = { a, m in
-            np.storage.setAttributes(applyMarkdown(a, markdown: m), range: m.range)
+            np.storage.addAttributes(applyMarkdown(a, markdown: m), range: m.range)
         }
         np.storage.applyBody = { a, r in
             np.storage.setAttributes(applyBody(a), range: r)
