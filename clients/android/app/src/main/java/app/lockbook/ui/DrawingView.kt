@@ -58,7 +58,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     abstract class Tool
 
     data class Pen(val colorAlias: ColorAlias): Tool()
-    class Eraser: Tool()
+    object Eraser: Tool()
 
 
     companion object {
@@ -450,12 +450,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private fun distanceBetweenPoints(initialPoint: PointF, endPoint: PointF): Float =
         sqrt((initialPoint.x - endPoint.x).pow(2) + (initialPoint.y - endPoint.y).pow(2))
 
-    fun setPenSize(penSize: PenSize) {
-        when (penSize) {
-            PenSize.SMALL -> penSizeMultiplier = 7
-            PenSize.MEDIUM -> penSizeMultiplier = 20
-            PenSize.LARGE -> penSizeMultiplier = 40
-        }.exhaustive
+    fun setPenSize(penSize: Int) {
+        penSizeMultiplier = penSize
     }
 
     fun endThread() {

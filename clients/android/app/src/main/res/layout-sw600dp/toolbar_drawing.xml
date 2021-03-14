@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout android:id="@+id/drawing_tools_menu"
-    android:layout_width="match_parent"
+    android:visibility="gone"
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_gravity="center_horizontal|bottom"
     android:background="@color/colorPrimaryDark"
