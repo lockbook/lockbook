@@ -57,9 +57,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     abstract class Tool
 
-    data class Pen(val colorAlias: ColorAlias): Tool()
-    object Eraser: Tool()
-
+    data class Pen(val colorAlias: ColorAlias) : Tool()
+    object Eraser : Tool()
 
     companion object {
         const val CANVAS_WIDTH = 2125

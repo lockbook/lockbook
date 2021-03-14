@@ -21,12 +21,10 @@ import app.lockbook.model.DrawingViewModel
 import app.lockbook.modelfactory.DrawingViewModelFactory
 import app.lockbook.screen.TextEditorActivity.Companion.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import app.lockbook.ui.DrawingView
-import app.lockbook.ui.VerticalSeekBar
 import app.lockbook.util.*
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_drawing.*
 import kotlinx.android.synthetic.main.toolbar_drawing.*
-import timber.log.Timber
 import java.util.*
 
 class DrawingActivity : AppCompatActivity() {
@@ -146,7 +144,7 @@ class DrawingActivity : AppCompatActivity() {
     }
 
     private fun selectNewTool(oldTool: DrawingView.Tool?, newTool: DrawingView.Tool) {
-        when(oldTool) {
+        when (oldTool) {
             is DrawingView.Pen -> {
                 val previousButton = when (oldTool.colorAlias) {
                     ColorAlias.White -> drawing_color_white
@@ -188,7 +186,6 @@ class DrawingActivity : AppCompatActivity() {
                 drawing_erase.setImageResource(R.drawable.ic_eraser_filled)
             }
             else -> unexpectedErrorHasOccurred("Tried to use unknown tool.")
-
         }.exhaustive
     }
 
@@ -196,7 +193,7 @@ class DrawingActivity : AppCompatActivity() {
         newPenSize: Int
     ) {
         val penSizeSeekBar = drawing_pen_size as AppCompatSeekBar
-        if(penSizeSeekBar.progress != newPenSize) {
+        if (penSizeSeekBar.progress + 1 != newPenSize) {
             penSizeSeekBar.progress = newPenSize
         }
 
@@ -323,13 +320,12 @@ class DrawingActivity : AppCompatActivity() {
 
         (drawing_pen_size as AppCompatSeekBar).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                drawingViewModel.handleNewPenSizeSelected(progress)
+                drawingViewModel.handleNewPenSizeSelected(progress + 1)
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
 
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-
         })
 
         gestureDetector = GestureDetector(
