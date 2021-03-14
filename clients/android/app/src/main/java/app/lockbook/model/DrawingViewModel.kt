@@ -25,14 +25,11 @@ class DrawingViewModel(
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
     var backupDrawing: Drawing? = null
 
-    private var selectedColor = ColorAlias.White
-    private var selectedTool = DrawingView.Tool.PEN
-    private var selectedPenSize = DrawingView.PenSize.SMALL
+    private var selectedTool: DrawingView.Tool = DrawingView.Pen(ColorAlias.White)
 
     private val _setToolsVisibility = MutableLiveData<Int>()
-    private val _selectNewColor = MutableLiveData<Pair<ColorAlias?, ColorAlias>>()
     private val _selectNewTool = MutableLiveData<Pair<DrawingView.Tool?, DrawingView.Tool>>()
-    private val _selectedNewPenSize = MutableLiveData<Pair<DrawingView.PenSize?, DrawingView.PenSize>>()
+    private val _selectedNewPenSize = MutableLiveData<Int>()
     private val _drawableReady = SingleMutableLiveData<Unit>()
     private val _errorHasOccurred = MutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
@@ -40,13 +37,10 @@ class DrawingViewModel(
     val setToolsVisibility: LiveData<Int>
         get() = _setToolsVisibility
 
-    val selectNewColor: LiveData<Pair<ColorAlias?, ColorAlias>>
-        get() = _selectNewColor
-
     val selectNewTool: LiveData<Pair<DrawingView.Tool?, DrawingView.Tool>>
         get() = _selectNewTool
 
-    val selectedNewPenSize: LiveData<Pair<DrawingView.PenSize?, DrawingView.PenSize>>
+    val selectedNewPenSize: LiveData<Int>
         get() = _selectedNewPenSize
 
     val errorHasOccurred: LiveData<String>
@@ -59,9 +53,8 @@ class DrawingViewModel(
         get() = _drawableReady
 
     init {
-        _selectNewColor.postValue(Pair(null, ColorAlias.White))
-        _selectNewTool.postValue(Pair(null, DrawingView.Tool.PEN))
-        _selectedNewPenSize.postValue(Pair(null, DrawingView.PenSize.SMALL))
+        _selectNewTool.postValue(Pair(null, selectedTool))
+        _selectedNewPenSize.postValue(7)
     }
 
     fun handleTouchEvent(toolsVisibility: Int) {
@@ -138,18 +131,12 @@ class DrawingViewModel(
         }
     }
 
-    fun handleNewColorSelected(newColor: ColorAlias) {
-        _selectNewColor.postValue(Pair(selectedColor, newColor))
-        selectedColor = newColor
-    }
-
     fun handleNewToolSelected(newTool: DrawingView.Tool) {
         _selectNewTool.postValue(Pair(selectedTool, newTool))
         selectedTool = newTool
     }
 
-    fun handleNewPenSizeSelected(newPenSize: DrawingView.PenSize) {
-        _selectedNewPenSize.postValue(Pair(selectedPenSize, newPenSize))
-        selectedPenSize = newPenSize
+    fun handleNewPenSizeSelected(newPenSize: Int) {
+        _selectedNewPenSize.postValue(newPenSize)
     }
 }

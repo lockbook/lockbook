@@ -55,16 +55,11 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private var driftWhileScalingX = 0f
     private var driftWhileScalingY = 0f
 
-    enum class PenSize {
-        SMALL,
-        MEDIUM,
-        LARGE
-    }
+    abstract class Tool
 
-    enum class Tool {
-        PEN,
-        ERASER
-    }
+    data class Pen(val colorAlias: ColorAlias): Tool()
+    class Eraser: Tool()
+
 
     companion object {
         const val CANVAS_WIDTH = 2125

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout android:id="@+id/drawing_tools_menu"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center_vertical|start"
+    android:background="@color/colorPrimaryDark"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <ImageButton
+        android:id="@+id/drawing_erase"
+        style="@style/Main.Widget.DrawingImageButton"
+        android:src="@drawable/ic_eraser_outline"
+        android:contentDescription="@string/drawing_eraser_description" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/drawing_color_white"
+        style="@style/Main.Widget.DrawingButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/drawing_color_black"
+        style="@style/Main.Widget.DrawingButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/drawing_color_blue"
+        style="@style/Main.Widget.DrawingButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/drawing_color_red"
+        style="@style/Main.Widget.DrawingButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/drawing_color_green"
+        style="@style/Main.Widget.DrawingButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/drawing_color_yellow"
+        style="@style/Main.Widget.DrawingButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/drawing_color_magenta"
+        style="@style/Main.Widget.DrawingButton" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/drawing_color_cyan"
+        style="@style/Main.Widget.DrawingButton" />
+
+
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="200dp">
+
+        <SeekBar
+            android:id="@+id/drawing_pen_size"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:rotation="270"
+            android:max="100"
+            android:layout_gravity="center_vertical"
+            android:layout_margin="10dp"/>
+
+    </FrameLayout>
+
+
+
+</LinearLayout>

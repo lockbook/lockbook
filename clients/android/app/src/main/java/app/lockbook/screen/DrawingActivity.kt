@@ -10,6 +10,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.View
+import android.widget.SeekBar
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
@@ -22,6 +23,7 @@ import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_drawing.*
+import kotlinx.android.synthetic.main.toolbar_drawing.*
 import java.util.*
 
 class DrawingActivity : AppCompatActivity() {
@@ -96,12 +98,6 @@ class DrawingActivity : AppCompatActivity() {
             }
         }
 
-        drawingViewModel.selectNewColor.observe(
-            this
-        ) { colors ->
-            selectNewColor(colors.first, colors.second)
-        }
-
         drawingViewModel.setToolsVisibility.observe(
             this
         ) { newVisibility ->
@@ -111,13 +107,13 @@ class DrawingActivity : AppCompatActivity() {
         drawingViewModel.selectNewTool.observe(
             this
         ) { tools ->
-            selectNewTool(tools.second)
+            selectNewTool(tools.first, tools.second)
         }
 
         drawingViewModel.selectedNewPenSize.observe(
             this
-        ) { penSizes ->
-            selectedNewPenSize(penSizes.first, penSizes.second)
+        ) { penSize ->
+            selectedNewPenSize(penSize)
         }
 
         startDrawing()
@@ -177,39 +173,34 @@ class DrawingActivity : AppCompatActivity() {
         drawing_view.strokeColor = newColor
     }
 
-    private fun selectNewTool(newTool: DrawingView.Tool) {
-        if (newTool == DrawingView.Tool.PEN) {
-            drawing_pen.setImageResource(R.drawable.ic_pencil_filled)
+    private fun selectNewTool(oldTool: DrawingView.Tool, newTool: DrawingView.Tool) {
+        when (newTool) {
+            is DrawingView.Pen -> {
+
+            }
+            is DrawingView.Eraser -> {
+
+            }
+            else -> unexpectedErrorHasOccurred("Tried to use unknown tool")
+
+        }.exhaustive
+
+        if (tool == DrawingView.Tool.PEN) {
             drawing_erase.setImageResource(R.drawable.ic_eraser_outline)
             drawing_view.isErasing = false
         } else {
             drawing_erase.setImageResource(R.drawable.ic_eraser_filled)
-            drawing_pen.setImageResource(R.drawable.ic_pencil_outline)
             drawing_view.isErasing = true
         }
     }
 
     private fun selectedNewPenSize(
-        oldPenSize: DrawingView.PenSize?,
-        newPenSize: DrawingView.PenSize
+        newPenSize: Int
     ) {
-        if (oldPenSize != null) {
-            val previousButton = when (oldPenSize) {
-                DrawingView.PenSize.SMALL -> drawing_pen_small
-                DrawingView.PenSize.MEDIUM -> drawing_pen_medium
-                DrawingView.PenSize.LARGE -> drawing_pen_large
-            }.exhaustive
-
-            previousButton.setBackgroundResource(0)
+        if(drawing_pen_size.progress != newPenSize) {
+            drawing_pen_size.progress = newPenSize
         }
 
-        val newButton = when (newPenSize) {
-            DrawingView.PenSize.SMALL -> drawing_pen_small
-            DrawingView.PenSize.MEDIUM -> drawing_pen_medium
-            DrawingView.PenSize.LARGE -> drawing_pen_large
-        }.exhaustive
-
-        newButton.setBackgroundResource(R.drawable.item_border)
         drawing_view.setPenSize(newPenSize)
     }
 
@@ -331,20 +322,10 @@ class DrawingActivity : AppCompatActivity() {
             drawingViewModel.handleNewToolSelected(DrawingView.Tool.ERASER)
         }
 
-        drawing_pen.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Tool.PEN)
-        }
+        drawing_pen_size.setOnDragListener { v, event ->
+            drawingViewModel.handleNewPenSizeSelected((v as SeekBar).progress)
 
-        drawing_pen_small.setOnClickListener {
-            drawingViewModel.handleNewPenSizeSelected(DrawingView.PenSize.SMALL)
-        }
-
-        drawing_pen_medium.setOnClickListener {
-            drawingViewModel.handleNewPenSizeSelected(DrawingView.PenSize.MEDIUM)
-        }
-
-        drawing_pen_large.setOnClickListener {
-            drawingViewModel.handleNewPenSizeSelected(DrawingView.PenSize.LARGE)
+            true
         }
 
         gestureDetector = GestureDetector(
