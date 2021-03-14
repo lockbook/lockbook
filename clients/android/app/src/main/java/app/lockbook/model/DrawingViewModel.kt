@@ -79,7 +79,6 @@ class DrawingViewModel(
                 if (contents != null && contents.isEmpty()) {
                     backupDrawing = Drawing()
                 } else if (contents != null) {
-                    Timber.e(contents)
                     backupDrawing = Klaxon().parse<Drawing>(contents)
                 }
 
@@ -112,7 +111,6 @@ class DrawingViewModel(
     fun saveDrawing(drawing: Drawing) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                Timber.e("SAVING: ${Klaxon().toJsonString(drawing)}")
                 val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
                 if (writeToDocumentResult is Err) {
