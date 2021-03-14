@@ -9,7 +9,9 @@
     android:orientation="horizontal"
     android:clickable="true"
     android:focusable="true"
-    xmlns:android="http://schemas.android.com/apk/res/android">
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="Overdraw">
 
     <ImageButton
         android:id="@+id/drawing_erase"
