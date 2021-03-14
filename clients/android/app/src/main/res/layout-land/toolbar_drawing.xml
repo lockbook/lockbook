@@ -3,10 +3,10 @@
     android:visibility="gone"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:layout_gravity="center_vertical|start"
+    android:layout_gravity="bottom|center_horizontal"
     android:background="@color/colorPrimaryDark"
     android:gravity="center_horizontal"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <ImageButton
@@ -47,12 +47,12 @@
         android:id="@+id/drawing_color_cyan"
         style="@style/Main.Widget.DrawingButton" />
 
-        <app.lockbook.ui.VerticalSeekBar
-            android:id="@+id/drawing_pen_size"
-            android:layout_width="wrap_content"
-            android:layout_height="100dp"
-            android:max="100"
-            android:layout_gravity="center_horizontal"
-            android:layout_margin="10dp"/>
+    <androidx.appcompat.widget.AppCompatSeekBar
+        android:id="@+id/drawing_pen_size"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:max="100"
+        android:layout_gravity="center_vertical"
+        android:layout_margin="10dp"/>
 
 </LinearLayout>

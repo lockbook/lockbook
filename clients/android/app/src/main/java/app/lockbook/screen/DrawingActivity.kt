@@ -13,6 +13,7 @@ import android.view.View
 import android.widget.SeekBar
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
@@ -20,6 +21,7 @@ import app.lockbook.model.DrawingViewModel
 import app.lockbook.modelfactory.DrawingViewModelFactory
 import app.lockbook.screen.TextEditorActivity.Companion.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import app.lockbook.ui.DrawingView
+import app.lockbook.ui.VerticalSeekBar
 import app.lockbook.util.*
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_drawing.*
@@ -193,8 +195,9 @@ class DrawingActivity : AppCompatActivity() {
     private fun selectedNewPenSize(
         newPenSize: Int
     ) {
-        if(drawing_pen_size.progress != newPenSize) {
-            drawing_pen_size.progress = newPenSize
+        val penSizeSeekBar = drawing_pen_size as AppCompatSeekBar
+        if(penSizeSeekBar.progress != newPenSize) {
+            penSizeSeekBar.progress = newPenSize
         }
 
         drawing_view.setPenSize(newPenSize)
@@ -318,7 +321,7 @@ class DrawingActivity : AppCompatActivity() {
             drawingViewModel.handleNewToolSelected(DrawingView.Eraser)
         }
 
-        drawing_pen_size.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        (drawing_pen_size as AppCompatSeekBar).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 drawingViewModel.handleNewPenSizeSelected(progress)
             }

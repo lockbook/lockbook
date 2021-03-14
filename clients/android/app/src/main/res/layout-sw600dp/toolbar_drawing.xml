@@ -47,7 +47,7 @@
         android:id="@+id/drawing_color_cyan"
         style="@style/Main.Widget.DrawingButton" />
 
-    <SeekBar
+    <androidx.appcompat.widget.AppCompatSeekBar
         android:id="@+id/drawing_pen_size"
         android:layout_width="200dp"
         android:layout_height="wrap_content"
