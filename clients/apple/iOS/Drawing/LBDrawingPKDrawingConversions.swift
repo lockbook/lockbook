@@ -2,8 +2,8 @@ import SwiftLockbookCore
 import NotepadSwift
 import PencilKit
 
-var force_multiplier: Float = 1
-var force_constant: Float = 0
+var force_multiplier: Float = 0.5
+var force_constant: Float = 1.1 + 0.6
 var interpolationDistance: Float = 0.5
 
 extension PKDrawing {
