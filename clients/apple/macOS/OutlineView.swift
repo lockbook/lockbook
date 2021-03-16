@@ -4,6 +4,7 @@
 import SwiftUI
 import Combine
 import SwiftLockbookCore
+import UniformTypeIdentifiers
 
 struct OutlineBranch: View {
     @ObservedObject var core: GlobalState
@@ -13,6 +14,7 @@ struct OutlineBranch: View {
     var level: CGFloat
     @State var open: Bool = false
     @State var creating: FileType?
+    @Binding var dragging: FileMetadata?
     
     var children: [FileMetadata] {
         core.files.filter {
@@ -32,12 +34,12 @@ struct OutlineBranch: View {
             } else {
                 Group {
                     if file == selectedItem {
-                        OutlineRow(core: core, file: file, level: level, open: $open)
+                        OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
                             .background(Color.accentColor)
                             .foregroundColor(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                     } else {
-                        OutlineRow(core: core, file: file, level: level, open: $open)
+                        OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
                             .onTapGesture {
                                 if file.fileType == .Folder {
                                     withAnimation {
@@ -53,7 +55,7 @@ struct OutlineBranch: View {
             }
             if isLeaf == false && (open == true || level == -1) {
                 ForEach(children) { child in
-                    OutlineBranch(core: core, file: child, selectedItem: self.$selectedItem, level: self.level + 1)
+                    OutlineBranch(core: core, file: child, selectedItem: self.$selectedItem, level: self.level + 1, dragging: self.$dragging)
                 }
             }
             creating.map { c in
@@ -75,6 +77,15 @@ struct OutlineBranch: View {
                 Label("Delete", systemImage: "trash.fill")
             }
         })
+        .onDrop(of: [UTType.text], delegate: DragDropper(file: file, current: $dragging, open: $open, moveFile: { drag in
+            if case .failure(let err) = core.api.moveFile(id: drag.id, newParent: self.file.id) {
+                core.handleError(err)
+            } else {
+                withAnimation {
+                    core.updateFiles()
+                }
+            }
+        }))
     }
     
     func handleDelete(meta: FileMetadata) -> () -> Void {
@@ -108,12 +119,45 @@ struct OutlineBranch: View {
 }
 
 
+struct DragDropper: DropDelegate {
+    let file: FileMetadata
+    @Binding var current: FileMetadata?
+    @Binding var open: Bool
+    let moveFile: (FileMetadata) -> Void
+
+    init(file: FileMetadata, current: Binding<FileMetadata?>, open: Binding<Bool>, moveFile: @escaping (FileMetadata) -> Void) {
+        self.file = file
+        self._current = current
+        self._open = open
+        self.moveFile = moveFile
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        file.fileType == .Folder && current?.parent != file.id && current?.id != file.id
+    }
+
+    func dropEntered(info: DropInfo) {
+        withAnimation {
+            open = true
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        if let toMove = current {
+            moveFile(toMove)
+        }
+        current = nil
+        return true
+    }
+}
+
 struct OutlineSection: View {
     
     @ObservedObject var core: GlobalState
     
     var root: FileMetadata
     @Binding var selectedItem: FileMetadata?
+    @State var dragging: FileMetadata?
     
     var children: [FileMetadata] {
         core.files.filter {
@@ -129,7 +173,7 @@ struct OutlineSection: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 // The padding in the section header is there to adjust for the inset hack.
-                OutlineBranch(core: core, file: root, selectedItem: self.$selectedItem, level: -1)
+                OutlineBranch(core: core, file: root, selectedItem: self.$selectedItem, level: -1, dragging: self.$dragging)
                 Spacer()
             }
             .listStyle(SidebarListStyle())

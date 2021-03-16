@@ -91,6 +91,10 @@ Vestibulum ante ipsum primis in vel.
     public func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError> {
         .failure(.init(unexpected: "LAZY"))
     }
+
+    public func moveFile(id: UUID, newParent: UUID) -> FfiResult<Empty, MoveFileError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
     
     public func getState() -> FfiResult<DbState, GetStateError> {
         .failure(.init(unexpected: "LAZY"))
