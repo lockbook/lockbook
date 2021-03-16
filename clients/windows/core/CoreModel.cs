@@ -122,6 +122,18 @@ namespace Core {
         public byte r;
         public byte g;
         public byte b;
+
+
+        public override bool Equals(object obj) {
+            if(obj is ColorRGB other) {
+                return r == other.r && g == other.g && b == other.b;
+            }
+            return false;
+        }
+
+        public override int GetHashCode() {
+            return r << 16 | g << 8 | b;
+        }
     }
 
     namespace GetDbState {

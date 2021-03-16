@@ -79,13 +79,14 @@ namespace lockbook {
                 Refresh();
             }
         }
+        private Dictionary<ColorAlias, ColorRGB> theme;
         public ColorAlias DrawingColor {
             get {
-                return themeReverse[inkCanvas.InkPresenter.CopyDefaultDrawingAttributes().Color];
+                return theme.GetColorAlias(inkCanvas.InkPresenter.CopyDefaultDrawingAttributes().Color);
             }
             set {
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
-                    Color = theme[value],
+                    Color = theme.GetUIColor(value, 0xFF),
                 });
             }
         }
@@ -456,30 +457,12 @@ namespace lockbook {
             await ReloadFiles();
         }
 
-        private static Dictionary<ColorAlias, Color> theme = new Dictionary<ColorAlias, Color> {
-            { ColorAlias.Black, Colors.Black },
-            { ColorAlias.Red, Colors.Red },
-            { ColorAlias.Green, Colors.Green },
-            { ColorAlias.Yellow, Colors.Yellow },
-            { ColorAlias.Blue, Colors.Blue },
-            { ColorAlias.Magenta, Colors.Magenta },
-            { ColorAlias.Cyan, Colors.Cyan },
-            { ColorAlias.White, Colors.White },
-        };
-        private static Dictionary<Color, ColorAlias> themeReverse = new Dictionary<Color, ColorAlias> {
-            { Colors.Black, ColorAlias.Black },
-            { Colors.Red, ColorAlias.Red },
-            { Colors.Green, ColorAlias.Green },
-            { Colors.Yellow, ColorAlias.Yellow },
-            { Colors.Blue, ColorAlias.Blue },
-            { Colors.Magenta, ColorAlias.Magenta },
-            { Colors.Cyan, ColorAlias.Cyan },
-            { Colors.White, ColorAlias.White },
-        };
-
         private async void DocumentSelected(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e) {
             string tag = (string)((FrameworkElement)sender).Tag;
             var file = App.UIFiles[tag];
+
+            inkCanvas.InkPresenter.StrokeContainer.Clear();
+            textEditor.TextDocument.SetText(TextSetOptions.None, "");
 
             if (file.IsDocument) {
                 SelectedDocumentId = tag;
@@ -493,16 +476,15 @@ namespace lockbook {
                                 var drawing = JsonConvert.DeserializeObject<Drawing>(content.content);
                                 var builder = new InkStrokeBuilder();
                                 foreach (var stroke in drawing.strokes) {
-                                    //var attributes = InkDrawingAttributes.CreateForPencil();
                                     var attributes = new InkDrawingAttributes();
                                     attributes.Size = new Size(5, 5);
-                                    attributes.Color = theme[stroke.color];
-                                    //attributes.PencilProperties.Opacity = stroke.alpha * 5;
+                                    attributes.Color = drawing.theme.GetUIColor(stroke.color, 1f);
                                     builder.SetDefaultDrawingAttributes(attributes);
                                     var inkPoints = new List<InkPoint>();
                                     for (var i = 0; i < stroke.pointsX.Count; i++) {
                                         var point = new Point(stroke.pointsX[i], stroke.pointsY[i]);
-                                        inkPoints.Add(new InkPoint(point, stroke.pointsGirth[i]/10f, 0, 0, 0));
+                                        var pressure = ((stroke.pointsGirth[i] / 10.00f) - 7.00f) / 1.49f; // determined empirically
+                                        inkPoints.Add(new InkPoint(point, pressure, 0, 0, 0));
                                     }
                                     var inkStroke = builder.CreateStrokeFromInkPoints(inkPoints, Matrix3x2.Identity);
                                     inkCanvas.InkPresenter.StrokeContainer.AddStroke(inkStroke);
@@ -532,6 +514,8 @@ namespace lockbook {
                         }
                         break;
                 }
+            } else {
+                CurrentEditMode = EditMode.None;
             }
         }
 
@@ -576,10 +560,10 @@ namespace lockbook {
                     pointsX = new List<float>(),
                     pointsY = new List<float>(),
                     pointsGirth = new List<float>(),
-                    color = themeReverse[stroke.DrawingAttributes.Color],
+                    color = drawing.theme.GetColorAlias(stroke.DrawingAttributes.Color),
                     alpha = 0xFF,
                 };
-                foreach(var point in stroke.GetInkPoints()) {
+                foreach (var point in stroke.GetInkPoints()) {
                     newStroke.pointsX.Add((float)point.Position.X);
                     newStroke.pointsY.Add((float)point.Position.Y);
                     newStroke.pointsGirth.Add(point.Pressure);
