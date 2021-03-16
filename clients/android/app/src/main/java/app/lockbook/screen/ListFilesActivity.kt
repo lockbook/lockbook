@@ -7,8 +7,8 @@ import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
+import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.R
-import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
 import app.lockbook.util.SharedPreferences.GRID_LAYOUT
 import app.lockbook.util.SharedPreferences.LINEAR_LAYOUT
@@ -207,4 +207,9 @@ class ListFilesActivity : AppCompatActivity() {
             }
         }.exhaustive
     }
+}
+
+object RequestResultCodes {
+    const val TEXT_EDITOR_REQUEST_CODE: Int = 102
+    const val DRAWING_REQUEST_CODE: Int = 104
 }

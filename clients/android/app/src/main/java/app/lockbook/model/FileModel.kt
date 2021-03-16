@@ -7,9 +7,9 @@ import androidx.preference.PreferenceManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import app.lockbook.App
+import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.ui.BreadCrumb
 import app.lockbook.util.*
-import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import timber.log.Timber

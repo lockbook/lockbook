@@ -15,13 +15,13 @@ import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricPrompt.*
 import androidx.core.content.ContextCompat
 import androidx.preference.*
+import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
 import app.lockbook.util.*
-import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.util.SharedPreferences.BIOMETRIC_NONE

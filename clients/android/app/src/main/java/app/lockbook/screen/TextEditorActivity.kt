@@ -12,12 +12,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
+import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.TextEditorViewModel
 import app.lockbook.modelfactory.TextEditorViewModelFactory
-import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.util.Messages.UNEXPECTED_ERROR
-import app.lockbook.util.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import app.lockbook.util.exhaustive
 import com.google.android.material.snackbar.Snackbar
 import io.noties.markwon.Markwon
@@ -33,6 +32,10 @@ class TextEditorActivity : AppCompatActivity() {
     private var timer: Timer = Timer()
     private val handler = Handler(requireNotNull(Looper.myLooper()))
     private var menu: Menu? = null
+
+    companion object {
+        const val TEXT_EDITOR_BACKGROUND_SAVE_PERIOD: Long = 5000
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,7 +93,7 @@ class TextEditorActivity : AppCompatActivity() {
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-                        textEditorViewModel.writeNewTextToDocument(text_editor_text_field.text.toString())
+                        textEditorViewModel.saveText(text_editor_text_field.text.toString())
                     }
                 }
             },
@@ -155,7 +158,7 @@ class TextEditorActivity : AppCompatActivity() {
             )
         }
 
-        val contents = textEditorViewModel.handleReadDocument(id)
+        val contents = textEditorViewModel.readDocument(id)
         if (contents != null) {
             text_editor_text_field.setText(contents)
             text_editor_text_field.addTextChangedListener(textEditorViewModel)
@@ -299,7 +302,7 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         timer.cancel()
-        textEditorViewModel.writeNewTextToDocument(text_editor_text_field.text.toString())
+        textEditorViewModel.saveText(text_editor_text_field.text.toString())
     }
 }
 

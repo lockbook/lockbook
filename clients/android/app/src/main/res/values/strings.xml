@@ -116,29 +116,29 @@
     <string name="dialog_duration_days_label">Days</string>
     <string name="dialog_duration_error">Your duration cannot be less than 15 minutes.</string>
 
-    <string name="handwriting_editor_pallete_red">Red</string>
-    <string name="handwriting_editor_pallete_blue">Blue</string>
-    <string name="handwriting_editor_pallete_white">White</string>
-    <string name="handwriting_editor_pallete_yellow">Yellow</string>
+    <string name="drawing_pallete_red">Red</string>
+    <string name="drawing_pallete_blue">Blue</string>
+    <string name="drawing_pallete_white">White</string>
+    <string name="drawing_pallete_yellow">Yellow</string>
 
-    <array name="handwriting_editor_pallete_colors">
-        <item>@string/handwriting_editor_pallete_white</item>
-        <item>@string/handwriting_editor_pallete_yellow</item>
-        <item>@string/handwriting_editor_pallete_red</item>
-        <item>@string/handwriting_editor_pallete_blue</item>
+    <array name="drawing_pallete_colors">
+        <item>@string/drawing_pallete_white</item>
+        <item>@string/drawing_pallete_yellow</item>
+        <item>@string/drawing_pallete_red</item>
+        <item>@string/drawing_pallete_blue</item>
     </array>
 
-    <string name="handwriting_editor_pen_1">1dp</string>
-    <string name="handwriting_editor_pen_2">5dp</string>
-    <string name="handwriting_editor_pen_3">15dp</string>
-    <string name="handwriting_editor_pen_4">20dp</string>
+    <string name="drawing_pen_1">1dp</string>
+    <string name="drawing_pen_2">5dp</string>
+    <string name="drawing_pen_3">15dp</string>
+    <string name="drawing_pen_4">20dp</string>
     <string name="list_files_create_folder">Create a new folder.</string>
     <string name="list_files_create_document">Create a new document.</string>
     <string name="list_files_create_file">Create a new file.</string>
     <string name="settings_preference_debug">Debug</string>
     <string name="settings_preference_usage">Usage</string>
     <string name="settings_bytes_usage">Bytes used</string>
-    <string name="handwriting_editor_erase">Erase</string>
+    <string name="drawing_erase">Erase</string>
     <string name="menu_list_files_rename">Rename file</string>
     <string name="menu_list_files_delete">Delete file</string>
     <string name="menu_list_files_info">File info</string>
@@ -179,17 +179,17 @@
     <string name="create_file_hint_document_extension">Document Ext.</string>
     <string name="create_file_hint_drawing_extension">Drawing Ext.</string>
 
-    <string name="handwriting_editor_eraser_description">Eraser</string>
-    <string name="handwriting_editor_pen_description">Pen</string>
-    <string name="handwriting_editor_pen_small_description">Small</string>
-    <string name="handwriting_editor_pen_medium_description">Medium</string>
-    <string name="handwriting_editor_pen_large_description">Large</string>
+    <string name="drawing_eraser_description">Eraser</string>
+    <string name="drawing_pen_description">Pen</string>
+    <string name="drawing_pen_small_description">Small</string>
+    <string name="drawing_pen_medium_description">Medium</string>
+    <string name="drawing_pen_large_description">Large</string>
     <string name="settings_open_new_document_automatically">Automatically open new documents</string>
 
-    <array name="handwriting_editor_pen_size">
-        <item>@string/handwriting_editor_pen_1</item>
-        <item>@string/handwriting_editor_pen_2</item>
-        <item>@string/handwriting_editor_pen_3</item>
-        <item>@string/handwriting_editor_pen_4</item>
+    <array name="drawing_pen_size">
+        <item>@string/drawing_pen_1</item>
+        <item>@string/drawing_pen_2</item>
+        <item>@string/drawing_pen_3</item>
+        <item>@string/drawing_pen_4</item>
     </array>
 </resources>

@@ -11,13 +11,13 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.model.CoreModel
 import app.lockbook.model.FileModel
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
-import app.lockbook.util.WorkManagerTags.PERIODIC_SYNC_TAG
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
@@ -34,6 +34,10 @@ class App : Application() {
     companion object {
         lateinit var instance: App
             private set
+
+        const val PERIODIC_SYNC_TAG = "periodic_sync"
+        const val UNEXPECTED_ERROR = "An unexpected error has occurred!"
+        const val UNEXPECTED_CLIENT_ERROR = "An error has occurred."
     }
 
     private fun loadLockbookCore() {
