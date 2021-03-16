@@ -50,8 +50,8 @@ func applyMarkdown(markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
         ]
     case .codeFence, .code:
         return [
-            .foregroundColor : UniversalColor.fromColorAlias(from: .Green),
             .font : codeFont,
+            .backgroundColor : UniversalColor.secondarySystemBackground,
         ]
     case .list:
         let paragraphStyle = NSMutableParagraphStyle()
