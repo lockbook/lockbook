@@ -50,7 +50,7 @@ func applyMarkdown(markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
         ]
     case .codeFence, .code:
         return [
-            .foregroundColor : UniversalColor.secondaryLabel,
+            .foregroundColor : UniversalColor.fromColorAlias(from: .Green),
             .font : codeFont,
         ]
     case .list:

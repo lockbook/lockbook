@@ -8,7 +8,7 @@ struct EditorView: View {
     @State var text: String
     
     let changeCallback: (String) -> Void
-
+    
     var body: some View {
         return GeometryReader { geo in
             NotepadView(
@@ -22,7 +22,7 @@ struct EditorView: View {
 }
 
 struct EditorLoader: View {
-
+    
     @ObservedObject var content: Content
     let meta: FileMetadata
     let files: [FileMetadata]
@@ -49,9 +49,8 @@ struct EditorLoader: View {
                             content.closeDocument(meta: meta)
                         }
                 }
-                if content.status == .WriteSuccess {
-                    ActivityIndicator(status: $content.status)
-                }
+                ActivityIndicator(status: $content.status)
+                    .opacity(content.status == .WriteSuccess ? 1 : 0)
             default:
                 ProgressView()
                     .onAppear {
@@ -76,7 +75,7 @@ class Content: ObservableObject {
     @Published var status: Status = .Inactive
     let write: (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
     let read: (UUID) -> FfiResult<String, ReadDocumentError>
-
+    
     init(write: @escaping (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<String, ReadDocumentError>) {
         self.read = read
         self.write = write
@@ -90,7 +89,7 @@ class Content: ObservableObject {
             })
             .store(in: &cancellables)
     }
-
+    
     func updateText(text: String) {
         self.text = text
         self.status = .Inactive
@@ -106,7 +105,7 @@ class Content: ObservableObject {
             print(err)
         }
     }
-
+    
     func openDocument(meta: FileMetadata) {
         DispatchQueue.main.async {
             switch self.read(meta.id) {
@@ -118,7 +117,7 @@ class Content: ObservableObject {
             }
         }
     }
-
+    
     func closeDocument(meta: FileMetadata) {
         self.meta = .none
         self.text = .none

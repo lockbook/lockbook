@@ -34,13 +34,12 @@ public class Storage: NSTextStorage {
         super.init()
 
         subj
-            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .debounce(for: .milliseconds(1000), scheduler: DispatchQueue.main)
             .removeDuplicates()
             .sink(receiveValue: { s in
                 self.applyStyles()
             })
             .store(in: &cancellables)
-
     }
     
     override public init(attributedString attrStr: NSAttributedString) {
