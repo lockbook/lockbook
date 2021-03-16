@@ -18,19 +18,6 @@ use crate::{err, err_unexpected, path_string};
 pub fn backup() -> CliResult<()> {
     get_account_or_exit();
 
-    let now: DateTime<Utc> = Utc::now();
-
-    let backup_directory = match env::current_dir() {
-        Ok(mut path) => {
-            path.push(format!("LOCKBOOK_BACKUP_{}", now.format("%Y-%m-%d")));
-            path
-        }
-        Err(err) => return Err(err!(OsPwdMissing(err))),
-    };
-
-    fs::create_dir(&backup_directory)
-        .map_err(|err| err!(OsCouldNotCreateDir(path_string!(backup_directory), err)))?;
-
     let leaf_nodes = list_paths(&get_config(), Some(LeafNodesOnly)).map_err(|err| match err {
         CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible"),
         CoreError::Unexpected(msg) => err_unexpected!("listing leaf nodes: {}", msg),
@@ -51,16 +38,28 @@ pub fn backup() -> CliResult<()> {
         leaf_nodes.len()
     );
 
+    let now: DateTime<Utc> = Utc::now();
+
+    let backup_directory = match env::current_dir() {
+        Ok(mut path) => {
+            path.push(format!("LOCKBOOK_BACKUP_{}", now.format("%Y-%m-%d")));
+            path
+        }
+        Err(err) => return Err(err!(OsPwdMissing(err))),
+    };
+
+    fs::create_dir(&backup_directory)
+        .map_err(|err| err!(OsCouldNotCreateDir(path_string!(backup_directory), err)))?;
+
+    let index_file_content = leaf_nodes.join("\n");
     let index_path = {
         let mut dir = backup_directory.clone();
         dir.push("lockbook.index");
         dir
     };
-    let mut index_file = File::create(&index_path)
-        .map_err(|err| err!(OsCouldNotCreateFile(path_string!(index_path), err)))?;
 
-    let index_file_content: String = leaf_nodes.join("\n");
-    index_file
+    File::create(&index_path)
+        .map_err(|err| err!(OsCouldNotCreateFile(path_string!(index_path), err)))?
         .write_all(index_file_content.as_bytes())
         .map_err(|err| err!(OsCouldNotWriteFile(path_string!(index_path), err)))?;
 
