@@ -467,10 +467,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             var deleteStroke = false
 
             if (!doesEraserSegmentIntersectStroke(strokeIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y)) {
-                    continue
-                }
+                continue
+            }
 
-                pointLoop@ for (pointIndex in 0..(stroke.pointsX.size - 2)) {
+            pointLoop@ for (pointIndex in 0..(stroke.pointsX.size - 2)) {
                 if (pointIndex < stroke.pointsX.size - 1) {
                     for (pixel in 1..roundedPressure) {
                         val roundedPoint1 =
