@@ -28,15 +28,62 @@ Secure software cannot be closed source. This is free and unencumbered software 
 
 Native support for: Linux, macOS, iOS, iPadOS, Android, and Windows. We capture the essence of each device / platform. This means a scriptable CLI on Linux and Apple Pencil support for our iPad app.
 
-## Install a client
 
-+ [CLI](installing-cli.md)
-+ [Linux](installing-linux.md)
-+ [Android](installing-android.md)
-+ [Windows](installing-windows.md)
+## Feature Matrix
 
-# Index
+<details> 
+<summary>Legend</summary>
+
++ ✅ Done
++ 🏗 In Progress
++ 📆 Planned
++ ⛔️ Not Planned
+
+</details>
+
+### Account Management
+
+|                    |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
+|--------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
+| New Account        |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
+| QR Import          |   ⛔️     |    📆     |     ✅      |     📆       |      ✅        |    📆     |
+| Import Account     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
+| Space Utilized     |   ✅     |    🏗     |     ✅      |     ✅       |      🏗        |    🏗     |
+| Billing            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+
+### File Operations
+
+|                       |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
+|-----------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
+| Rename                |   ✅     |    ✅     |     ✅      |     ✅       |      🏗        |    🏗     |
+| Move                  |   ✅     |    📆     |     ✅      |     ✅       |      🏗        |    🏗     |
+| Delete                |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
+| Sync                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
+| Export file to host   |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Import file from host |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Sharing               |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+
+### Document Types
+
+|                       |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
+|-----------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
+| Text                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
+| Markdown              |   ✅     |    📆     |     ✅      |     📆       |      🏗        |    🏗     |
+| Drawings              |   🏗     |    🏗     |     ✅      |     🏗       |      ✅        |    🏗     |
+| Images                |   ✅     |    🏗     |     ✅      |     📆       |      📆        |    📆     |
+| PDFs                  |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Todo lists            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Document Linking      |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+
+# Further Reading
 
 + [System Architecture](system-architecture.md)
 + [Data Model and Procedures](data_model.md)
 + [Building](building.md)
+
+[Cli]: installing-cli.md
+[Linux]: installing-linux.md
+[Android]: installing-android.md
+[Windows]: installing-windows.md
+[MacOS]: installing-macos.md
+[iOS/iPadOS]: installing-iOS-iPadOS.md

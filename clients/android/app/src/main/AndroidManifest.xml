@@ -38,7 +38,7 @@
         <activity
             android:name=".screen.ImportAccountActivity" />
         <activity
-            android:name=".screen.HandwritingEditorActivity"
+            android:name=".screen.DrawingActivity"
             android:theme="@style/Main.FullScreen" />
         <activity android:name=".screen.ListFilesActivity" />
         <activity android:name=".screen.SettingsActivity" />

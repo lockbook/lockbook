@@ -1,11 +1,13 @@
 import SwiftUI
 import SwiftLockbookCore
+import PencilKit
 
 struct FileListView: View {
     @ObservedObject var core: GlobalState
     @State var showingAccount: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
+    @State var creatingFileExtension = ""
     let currentFolder: FileMetadata
     let account: Account
     
@@ -19,7 +21,7 @@ struct FileListView: View {
         ScrollView {
             VStack {
                 creating.map { type in
-                    SyntheticFileCell(params: (currentFolder, type), nameField: $creatingName, onCreate: {
+                    SyntheticFileCell(parent: currentFolder, type: type, nameField: $creatingName, fileExtension: $creatingFileExtension, onCreate: {
                         handleCreate(meta: currentFolder, type: type)
                     }, onCancel: doneCreating)
                 }
@@ -38,7 +40,6 @@ struct FileListView: View {
             }
             .padding(.leading, 20)
         }
-        
         .sheet(isPresented: $showingAccount, content: {
             AccountView(core: core, account: account)
         })
@@ -49,7 +50,7 @@ struct FileListView: View {
                 }
             }
             ToolbarItemGroup(placement: .bottomBar) {
-                BottomBar(core: core, onNewDocument: newDocument, onNewFolder: newFolder)
+                BottomBar(core: core, onNewDocument: newDocument, onNewDrawing: newDrawing, onNewFolder: newFolder)
             }
         }
         .navigationBarTitle(currentFolder.name)
@@ -64,10 +65,19 @@ struct FileListView: View {
                 }.isDetailLink(false)
             )
         } else {
-            return AnyView (NavigationLink(destination: EditorLoader(core: core, meta: meta)) {
-                FileCell(meta: meta)
-                
-            })
+            if meta.name.hasSuffix(".draw") {
+                // This is how you can pop without the navigation bar
+                // https://stackoverflow.com/questions/56513568/ios-swiftui-pop-or-dismiss-view-programmatically
+                let dl = DrawingLoader(model: core.openDrawing, toolbar: ToolbarModel(), meta: meta)
+                return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline)) {
+                    FileCell(meta: meta)
+                })
+            } else {
+                let el = EditorLoader(content: core.openDocument, meta: meta, files: core.files)
+                return AnyView (NavigationLink(destination: el) {
+                    FileCell(meta: meta)
+                })
+            }
         }
     }
 
@@ -81,7 +91,7 @@ struct FileListView: View {
     }
     
     func handleCreate(meta: FileMetadata, type: FileType) {
-        switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
+        switch core.api.createFile(name: creatingName + creatingFileExtension, dirId: meta.id, isFolder: type == .Folder) {
         case .success(_):
             doneCreating()
             core.updateFiles()
@@ -101,6 +111,15 @@ struct FileListView: View {
         withAnimation {
             creating = .Document
             creatingName = ""
+            creatingFileExtension = ".md"
+        }
+    }
+    
+    func newDrawing() {
+        withAnimation {
+            creating = .Document
+            creatingName = ""
+            creatingFileExtension = ".draw"
         }
     }
     

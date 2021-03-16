@@ -9,26 +9,36 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import androidx.core.content.res.ResourcesCompat
-import androidx.core.graphics.plus
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
-import app.lockbook.util.Point
+import app.lockbook.util.ColorAlias
+import app.lockbook.util.Drawing
+import app.lockbook.util.Stroke
+import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
+class DrawingView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable {
-    var drawingModel: Drawing = Drawing()
+    var drawing: Drawing = Drawing()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
-    private var erasePoints = Pair(PointF(-1f, -1f), PointF(-1f, -1f))
+
+    private var erasePoints = Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
     private var thread = Thread(this)
     private var isThreadRunning = false
     private var penSizeMultiplier = 7
+    private var strokeAlpha = 255
+    var strokeColor = ColorAlias.White
+
     var isErasing = false
     var isTouchable = false
+
+    var theme = DEFAULT_THEME
+    lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int>
 
     // Current drawing stroke state
     private val strokePaint = Paint()
@@ -57,6 +67,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         ERASER
     }
 
+    companion object {
+        const val CANVAS_WIDTH = 2125
+        const val CANVAS_HEIGHT = 2750
+
+        const val PRESSURE_SAMPLES_AVERAGED = 5
+        const val SPEN_ACTION_DOWN = 211
+    }
+
     private val scaleGestureDetector =
         ScaleGestureDetector(
             context,
@@ -71,7 +89,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     if (isTouchable) {
-                        drawingModel.currentView.transformation.scale *= detector.scaleFactor
+                        drawing.scale *= detector.scaleFactor
 
                         val screenLocationNormalized = PointF(
                             onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
@@ -79,14 +97,14 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                         )
 
                         val currentViewPortWidth =
-                            tempCanvas.clipBounds.width() / drawingModel.currentView.transformation.scale
+                            tempCanvas.clipBounds.width() / drawing.scale
                         val currentViewPortHeight =
-                            tempCanvas.clipBounds.height() / drawingModel.currentView.transformation.scale
+                            tempCanvas.clipBounds.height() / drawing.scale
 
                         driftWhileScalingX =
-                            (onScreenFocusPoint.x - detector.focusX) / drawingModel.currentView.transformation.scale
+                            (onScreenFocusPoint.x - detector.focusX) / drawing.scale
                         driftWhileScalingY =
-                            (onScreenFocusPoint.y - detector.focusY) / drawingModel.currentView.transformation.scale
+                            (onScreenFocusPoint.y - detector.focusY) / drawing.scale
 
                         val left =
                             ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
@@ -97,8 +115,8 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
                         viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
 
-                        drawingModel.currentView.transformation.translation.x = -left
-                        drawingModel.currentView.transformation.translation.y = -top
+                        drawing.translationX = -left
+                        drawing.translationY = -top
                     }
 
                     return true
@@ -127,18 +145,20 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         bitmapPaint.strokeJoin = Paint.Join.ROUND
 
         backgroundPaint.style = Paint.Style.FILL
+
+        strokeColor = ColorAlias.White
     }
 
     private fun render(canvas: Canvas) {
         canvas.save()
         canvas.scale(
-            drawingModel.currentView.transformation.scale,
-            drawingModel.currentView.transformation.scale,
+            drawing.scale,
+            drawing.scale,
         )
 
         canvas.translate(
-            drawingModel.currentView.transformation.translation.x,
-            drawingModel.currentView.transformation.translation.y
+            drawing.translationX,
+            drawing.translationY
         )
 
         backgroundPaint.color = ResourcesCompat.getColor(
@@ -160,56 +180,68 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun restoreFromModel() {
-        val currentPaint = Paint()
-        currentPaint.color = Color.WHITE
-        currentPaint.strokeWidth = 10f
-        currentPaint.style = Paint.Style.STROKE
+        for (stroke in drawing.strokes) {
+            val alpha = (stroke.alpha * 255).toInt()
+            val strokeColor = if (alpha == 255) {
+                colorAliasInARGB[stroke.color]
+            } else {
+                Drawing.getARGBColor(theme, stroke.color, alpha)
+            }
 
-        currentPaint.isAntiAlias = true
-        currentPaint.strokeJoin = Paint.Join.ROUND
-        currentPaint.strokeCap = Paint.Cap.ROUND
+            if (strokeColor == null) {
+                (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
+                return
+            }
 
-        for (event in drawingModel.events) {
-            if (event.stroke is Stroke) {
-                strokesBounds.add(RectF())
-                currentPaint.color = event.stroke.color
+            strokesBounds.add(RectF())
+            strokePaint.color = strokeColor
 
-                var pointIndex = 3
-                while (pointIndex < event.stroke.points.size) {
-                    val x1 = event.stroke.points[pointIndex - 2]
-                    val y1 = event.stroke.points[pointIndex - 1]
+            for (pointIndex in 0..(stroke.pointsX.size - 2)) {
+                val x1 = stroke.pointsX[pointIndex]
+                val y1 = stroke.pointsY[pointIndex]
 
-                    val x2 = event.stroke.points[pointIndex + 1]
-                    val y2 = event.stroke.points[pointIndex + 2]
+                val x2 = stroke.pointsX[pointIndex + 1]
+                val y2 = stroke.pointsY[pointIndex + 1]
 
-                    if (pointIndex == 3) {
-                        strokesBounds.last().set(x1, y1, x1, y1)
-                        updateLastStrokeBounds(x2, y2)
-                    } else {
-                        updateLastStrokeBounds(x1, y1)
-                        updateLastStrokeBounds(x2, y2)
-                    }
-
-                    currentPaint.strokeWidth = event.stroke.points[pointIndex]
-
-                    strokePath.moveTo(x1, y1)
-                    strokePath.lineTo(x2, y2)
-
-                    tempCanvas.drawPath(strokePath, currentPaint)
-                    strokePath.reset()
-                    pointIndex += 3
+                if (pointIndex == 3) {
+                    strokesBounds.last().set(x1, y1, x1, y1)
+                    updateLastStrokeBounds(x2, y2)
+                } else {
+                    updateLastStrokeBounds(x1, y1)
+                    updateLastStrokeBounds(x2, y2)
                 }
 
+                strokePaint.strokeWidth = stroke.pointsGirth[pointIndex]
+                strokePath.moveTo(
+                    x1,
+                    y1
+                )
+                strokePath.lineTo(
+                    x2,
+                    y2
+                )
+                tempCanvas.drawPath(strokePath, strokePaint)
                 strokePath.reset()
             }
+
+            strokePath.reset()
         }
 
+        val strokeColor = colorAliasInARGB[ColorAlias.White]
+
+        if (strokeColor == null) {
+            (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
+            return
+        }
+
+        strokePaint.color = strokeColor
+
         val currentViewPortWidth =
-            tempCanvas.clipBounds.width() / drawingModel.currentView.transformation.scale
+            tempCanvas.clipBounds.width() / drawing.scale
         val currentViewPortHeight =
-            tempCanvas.clipBounds.height() / drawingModel.currentView.transformation.scale
-        viewPort.left = -drawingModel.currentView.transformation.translation.x.toInt()
-        viewPort.top = -drawingModel.currentView.transformation.translation.y.toInt()
+            tempCanvas.clipBounds.height() / drawing.scale
+        viewPort.left = -drawing.translationX.toInt()
+        viewPort.top = -drawing.translationY.toInt()
         viewPort.right = (viewPort.left + currentViewPortWidth).toInt()
         viewPort.bottom = (viewPort.top + currentViewPortHeight).toInt()
     }
@@ -294,7 +326,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
     fun initializeWithDrawing(maybeDrawing: Drawing?) {
         initializeCanvasesAndBitmaps()
         if (maybeDrawing != null) {
-            this.drawingModel = maybeDrawing
+            this.drawing = maybeDrawing
         }
         restoreFromModel()
         startThread()
@@ -326,7 +358,7 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         val modelPoint = screenToModel(PointF(event.x, event.y))
 
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-            if (event.action == SPEN_ACTION_DOWN && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
+            if ((event.action == SPEN_ACTION_DOWN || isErasing) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
                 erasePoints.first.set(PointF(Float.NaN, Float.NaN))
                 erasePoints.second.set(PointF(Float.NaN, Float.NaN))
             }
@@ -348,12 +380,28 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
 
         rollingAveragePressure = getAdjustedPressure(pressure)
 
-        val penPath = Stroke(strokePaint.color)
+        val strokeColor = if (strokeAlpha == 255) {
+            colorAliasInARGB[strokeColor]
+        } else {
+            Drawing.getARGBColor(theme, strokeColor, strokeAlpha)
+        }
 
-        penPath.points.add(rollingAveragePressure)
-        penPath.points.add(point.x)
-        penPath.points.add(point.y)
-        drawingModel.events.add(Event(penPath))
+        if (strokeColor == null) {
+            (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
+            return
+        }
+
+        strokePaint.color = strokeColor
+
+        val stroke = Stroke(
+            mutableListOf(point.x),
+            mutableListOf(point.y),
+            mutableListOf(rollingAveragePressure),
+            this.strokeColor,
+            strokeAlpha.toFloat() / 255
+        )
+
+        drawing.strokes.add(stroke)
     }
 
     private fun approximateRollingAveragePressure(previousRollingAverage: Float, newPressure: Float): Float {
@@ -387,14 +435,10 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
         strokePath.reset()
         lastPoint.set(point)
 
-        for (eventIndex in drawingModel.events.size - 1 downTo 0) {
-            val currentEvent = drawingModel.events[eventIndex].stroke
-            if (currentEvent is Stroke) {
-                currentEvent.points.add(rollingAveragePressure)
-                currentEvent.points.add(point.x)
-                currentEvent.points.add(point.y)
-                break
-            }
+        drawing.strokes.last { stroke ->
+            stroke.pointsX.add(point.x)
+            stroke.pointsY.add(point.y)
+            stroke.pointsGirth.add(rollingAveragePressure)
         }
     }
 
@@ -415,44 +459,24 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             }
         }
 
-        val drawing = Drawing(
-            Page(
-                Transformation(
-                    Point(
-                        drawingModel.currentView.transformation.translation.x,
-                        drawingModel.currentView.transformation.translation.y
-                    ),
-                    drawingModel.currentView.transformation.scale,
-                )
-            ),
-            drawingModel.events.map { event ->
-                Event(
-                    if (event.stroke == null) null else Stroke(
-                        event.stroke.color,
-                        event.stroke.points.toMutableList()
-                    )
-                )
-            }.toMutableList()
-        )
-
+        val drawingClone = drawing.clone()
         var refreshScreen = false
 
-        for (eventIndex in drawing.events.size - 1 downTo 0) {
-            val stroke = drawing.events[eventIndex].stroke
-            if (stroke != null) {
-                var deleteStroke = false
-                var pointIndex = 3
+        for (strokeIndex in drawingClone.strokes.size - 1 downTo 0) {
+            val stroke = drawingClone.strokes[strokeIndex]
+            var deleteStroke = false
 
-                if (!doesEraserSegmentIntersectStroke(eventIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y)) {
+            if (!doesEraserSegmentIntersectStroke(strokeIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y)) {
                     continue
                 }
 
-                pointLoop@ while (pointIndex < stroke.points.size) {
+                pointLoop@ for (pointIndex in 0..(stroke.pointsX.size - 2)) {
+                if (pointIndex < stroke.pointsX.size - 1) {
                     for (pixel in 1..roundedPressure) {
                         val roundedPoint1 =
-                            PointF(stroke.points[pointIndex - 2].roundToInt().toFloat(), stroke.points[pointIndex - 1].roundToInt().toFloat())
+                            PointF(stroke.pointsX[pointIndex].roundToInt().toFloat(), stroke.pointsY[pointIndex].roundToInt().toFloat())
                         val roundedPoint2 =
-                            PointF(stroke.points[pointIndex + 1].roundToInt().toFloat(), stroke.points[pointIndex + 2].roundToInt().toFloat())
+                            PointF(stroke.pointsX[pointIndex + 1].roundToInt().toFloat(), stroke.pointsY[pointIndex + 1].roundToInt().toFloat())
 
                         val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
                         val distToFromRoundedPoint1 = distanceBetweenPoints(erasePoints.first, roundedPoint1) +
@@ -488,20 +512,18 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
                             break@pointLoop
                         }
                     }
-
-                    pointIndex += 3
                 }
+            }
 
-                if (deleteStroke) {
-                    drawing.events.removeAt(eventIndex)
-                    refreshScreen = true
-                }
+            if (deleteStroke) {
+                drawingClone.strokes.removeAt(strokeIndex)
+                refreshScreen = true
             }
         }
 
         if (refreshScreen) {
+            drawing = drawingClone
             strokesBounds.clear()
-            drawingModel = drawing
             tempCanvas.drawColor(
                 Color.TRANSPARENT,
                 PorterDuff.Mode.CLEAR
@@ -519,15 +541,6 @@ class HandwritingEditorView(context: Context, attributeSet: AttributeSet?) :
             PenSize.MEDIUM -> penSizeMultiplier = 20
             PenSize.LARGE -> penSizeMultiplier = 40
         }.exhaustive
-    }
-
-    fun setColor(colorId: Int) {
-        val color = ResourcesCompat.getColor(
-            App.instance.resources,
-            colorId,
-            App.instance.theme
-        )
-        strokePaint.color = color
     }
 
     fun endThread() {

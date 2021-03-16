@@ -12,11 +12,11 @@ import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricPrompt.*
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
+import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
-import app.lockbook.util.Messages.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import app.lockbook.util.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
 import app.lockbook.util.SharedPreferences.BIOMETRIC_RECOMMENDED
