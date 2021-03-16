@@ -28,15 +28,18 @@ extension ColorAlias {
 
 extension UniversalColor {
     static func fromColorAlias(from color: ColorAlias) -> UniversalColor {
-        switch color {
-        case .Black: return .black
-        case .Blue: return .systemBlue
-        case .Cyan: return .systemTeal
-        case .Yellow: return .systemYellow
-        case .Magenta: return .systemPurple
-        case .Red: return .systemPink
-        case .White: return .white
-        case .Green: return .systemGreen
-        }
+        let x: UniversalColor = {
+            switch color {
+                case .Black: return .black
+                case .Blue: return .systemBlue
+                case .Cyan: return .systemTeal
+                case .Yellow: return .systemYellow
+                case .Magenta: return .systemPurple
+                case .Red: return .systemPink
+                case .White: return .white
+                case .Green: return .systemGreen
+            }
+        } ()
+        return x.resolvedColor(with: .current)
     }
 }
