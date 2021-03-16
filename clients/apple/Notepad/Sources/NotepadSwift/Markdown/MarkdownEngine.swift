@@ -18,7 +18,9 @@ public class MarkdownEngine {
             let fromIdx = text.index(text.startIndex, offsetBy: s)
             let range = text
                 .index(text.startIndex, offsetBy: e, limitedBy: text.endIndex)
-                .map { NSRange(fromIdx...$0, in: text) } ?? NSRange(fromIdx..<text.endIndex, in: text)
+                .flatMap {
+                    if ($0 < text.endIndex) { return NSRange(fromIdx...$0, in: text) } else { return nil }
+                } ?? NSRange(fromIdx..<text.endIndex, in: text)
             return MarkdownNode(range: range, type: type, headingLevel: node.cmarkNode.headingLevel)
         } else {
             return nil

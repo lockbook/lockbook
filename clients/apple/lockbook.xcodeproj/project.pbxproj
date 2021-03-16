@@ -49,9 +49,15 @@
 		EA831A5A2534E5020048CE26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A592534E5020048CE26 /* SettingsView.swift */; };
 		EA831A5B2534E5020048CE26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A592534E5020048CE26 /* SettingsView.swift */; };
 		EA9079C32569960A00E04F5D /* FileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* FileCell.swift */; };
+		EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA8C627B25EF091900330E27 /* SwiftLockbookCore */; };
+		EA9EEFD325FC058100E8C790 /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA6F42F325EF53AC00B6EC57 /* NotepadSwift */; };
+		EA9EEFD425FC058100E8C790 /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = EAA64F7F25F08E59007B9250 /* Down */; };
+		EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
+		EA9EEFD625FC058200E8C790 /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA6F42F525EF53B100B6EC57 /* NotepadSwift */; };
+		EA9EEFD725FC058200E8C790 /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = EA71418A25F08D0F00631F2B /* Down */; };
+		EA9EEFE025FC06FC00E8C790 /* GlobalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* GlobalState.swift */; };
 		EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		EAB4B50025167AF50071D1CD /* GlobalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* GlobalState.swift */; };
-		EAB4B50125167AF50071D1CD /* GlobalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B4FF25167AF50071D1CD /* GlobalState.swift */; };
 		EAD401CD25E311320083A236 /* NotepadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD401CC25E311320083A236 /* NotepadView.swift */; };
 		EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
 		EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
@@ -112,6 +118,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA9EEFD325FC058100E8C790 /* NotepadSwift in Frameworks */,
+				EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */,
+				EA9EEFD425FC058100E8C790 /* Down in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -119,6 +128,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA9EEFD625FC058200E8C790 /* NotepadSwift in Frameworks */,
+				EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */,
+				EA9EEFD725FC058200E8C790 /* Down in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -271,9 +283,9 @@
 			);
 			name = "Lockbook (iOS)";
 			packageProductDependencies = (
-				EA8C627B25EF091900330E27,
-				EA6F42F325EF53AC00B6EC57,
-				EAA64F7F25F08E59007B9250,
+				EA8C627B25EF091900330E27 /* SwiftLockbookCore */,
+				EA6F42F325EF53AC00B6EC57 /* NotepadSwift */,
+				EAA64F7F25F08E59007B9250 /* Down */,
 			);
 			productName = "Lockbook (iOS)";
 			productReference = EA5C7D6F2516606000F7F358 /* Lockbook.app */;
@@ -293,9 +305,9 @@
 			);
 			name = "Lockbook (macOS)";
 			packageProductDependencies = (
-				EA14E81E2516655B00B9158C,
-				EA6F42F525EF53B100B6EC57,
-				EA71418A25F08D0F00631F2B,
+				EA14E81E2516655B00B9158C /* SwiftLockbookCore */,
+				EA6F42F525EF53B100B6EC57 /* NotepadSwift */,
+				EA71418A25F08D0F00631F2B /* Down */,
 			);
 			productName = "Lockbook (macOS)";
 			productReference = EA5C7D772516606000F7F358 /* Lockbook.app */;
@@ -318,7 +330,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "lockbook" */;
+			buildConfigurationList = EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "Lockbook" */;
 			compatibilityVersion = "Xcode 9.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -328,7 +340,7 @@
 			);
 			mainGroup = EA5C7D622516605F00F7F358;
 			packageReferences = (
-				EA71418925F08D0F00631F2B,
+				EA71418925F08D0F00631F2B /* XCRemoteSwiftPackageReference "Down" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
 			projectDirPath = "";
@@ -400,11 +412,11 @@
 			files = (
 				87206EBD25C61DF300870A42 /* CreateAccountView.swift in Sources */,
 				B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */,
-				EAB4B50125167AF50071D1CD /* GlobalState.swift in Sources */,
 				EA831A562534E3C80048CE26 /* AppView.swift in Sources */,
 				EA5C9F4D25E4C4D500DA7C6D /* NotepadView.swift in Sources */,
 				B2B7E2EC25C669C400B9EFAD /* NotificationButton.swift in Sources */,
 				EA380B212561FA2C0021C4FA /* AccountView.swift in Sources */,
+				EA9EEFE025FC06FC00E8C790 /* GlobalState.swift in Sources */,
 				EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
 				EAEDCD132517193500EBE313 /* EditorView.swift in Sources */,
 				1F7E4FC02521297D0045F606 /* Colors.swift in Sources */,
@@ -763,7 +775,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "lockbook" */ = {
+		EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "Lockbook" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EA5C7D812516606100F7F358 /* Debug */,
@@ -796,7 +808,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		EA71418925F08D0F00631F2B = {
+		EA71418925F08D0F00631F2B /* XCRemoteSwiftPackageReference "Down" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/johnxnguyen/Down.git";
 			requirement = {
@@ -807,30 +819,30 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		EA14E81E2516655B00B9158C = {
+		EA14E81E2516655B00B9158C /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftLockbookCore;
 		};
-		EA6F42F325EF53AC00B6EC57 = {
+		EA6F42F325EF53AC00B6EC57 /* NotepadSwift */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NotepadSwift;
 		};
-		EA6F42F525EF53B100B6EC57 = {
+		EA6F42F525EF53B100B6EC57 /* NotepadSwift */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NotepadSwift;
 		};
-		EA71418A25F08D0F00631F2B = {
+		EA71418A25F08D0F00631F2B /* Down */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EA71418925F08D0F00631F2B;
+			package = EA71418925F08D0F00631F2B /* XCRemoteSwiftPackageReference "Down" */;
 			productName = Down;
 		};
-		EA8C627B25EF091900330E27 = {
+		EA8C627B25EF091900330E27 /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftLockbookCore;
 		};
-		EAA64F7F25F08E59007B9250 = {
+		EAA64F7F25F08E59007B9250 /* Down */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EA71418925F08D0F00631F2B;
+			package = EA71418925F08D0F00631F2B /* XCRemoteSwiftPackageReference "Down" */;
 			productName = Down;
 		};
 /* End XCSwiftPackageProductDependency section */

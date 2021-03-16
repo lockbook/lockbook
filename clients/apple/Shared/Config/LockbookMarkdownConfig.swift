@@ -10,10 +10,6 @@ let headingTraits: NSFontDescriptor.SymbolicTraits = [.bold, .expanded]
 let boldTraits: NSFontDescriptor.SymbolicTraits = [.bold]
 let emphasisTraits: NSFontDescriptor.SymbolicTraits = [.italic]
 let boldEmphasisTraits: NSFontDescriptor.SymbolicTraits = [.bold, .italic]
-let secondaryBackground = NSColor.windowBackgroundColor
-let lighterColor = NSColor.lightGray
-let textColor = NSColor.labelColor
-let headingColor = NSColor(red: 0.94, green: 0.51, blue: 0.69, alpha: 1)
 func systemFontWithTraits(_ traits: NSFontDescriptor.SymbolicTraits, _ size: CGFloat = fontSize) -> NSFont {
     NSFont(descriptor: NSFont.systemFont(ofSize: size).fontDescriptor.withSymbolicTraits(traits), size: size)!
 }
@@ -21,15 +17,11 @@ func systemFontWithTraits(_ traits: NSFontDescriptor.SymbolicTraits, _ size: CGF
 #else
 let fontSize = UIFont.systemFontSize
 let systemFont = UIFont.systemFont(ofSize: fontSize)
-let codeFont = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .thin)
+let codeFont = systemFontWithTraits(.traitMonoSpace)
 let headingTraits: UIFontDescriptor.SymbolicTraits = [.traitBold, .traitExpanded]
 let boldTraits: UIFontDescriptor.SymbolicTraits = [.traitBold]
 let emphasisTraits: UIFontDescriptor.SymbolicTraits = [.traitItalic]
 let boldEmphasisTraits: UIFontDescriptor.SymbolicTraits = [.traitBold, .traitItalic]
-let secondaryBackground = UIColor.secondarySystemBackground
-let lighterColor = UIColor.lightGray
-let textColor = UIColor.label
-let headingColor = UIColor(red: 0.94, green: 0.51, blue: 0.69, alpha: 1)
 func systemFontWithTraits(_ traits: UIFontDescriptor.SymbolicTraits, _ size: CGFloat = fontSize) -> UIFont {
     UIFont(descriptor: UIFont.systemFont(ofSize: size).fontDescriptor.withSymbolicTraits(traits)!, size: size)
 }
@@ -37,49 +29,50 @@ func systemFontWithTraits(_ traits: UIFontDescriptor.SymbolicTraits, _ size: CGF
 #endif
 let LockbookTheme: Theme = {
     var t = Theme()
-    t.tintColor = .systemPink
+    t.tintColor = UniversalColor.fromColorAlias(from: .Red)
     return t
 } ()
 
-func applyMarkdown(_ attr: NSMutableAttributedString, markdown: MarkdownNode) {
+func applyMarkdown(markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
     switch markdown.type {
     case .header:
-        attr.addAttributes([
+        return [
+            .foregroundColor : UniversalColor.fromColorAlias(from: .Red),
             .font : systemFontWithTraits(headingTraits, fontSize*(10.0-CGFloat(markdown.headingLevel))/3),
-            .foregroundColor : headingColor
-        ], range: markdown.range)
+        ]
     case .italic:
-        attr.addAttributes([
-            .font : systemFontWithTraits(emphasisTraits)
-        ], range: markdown.range)
+        return [
+            .font : systemFontWithTraits(emphasisTraits),
+        ]
     case .bold:
-        attr.addAttributes([
-            .font : systemFontWithTraits(boldTraits)
-        ], range: markdown.range)
+        return [
+            .font : systemFontWithTraits(boldTraits),
+        ]
     case .codeFence, .code:
-        attr.addAttributes([
+        return [
+            .foregroundColor : UniversalColor.fromColorAlias(from: .Green),
             .font : codeFont,
-        ], range: markdown.range)
+        ]
     case .list:
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = 2.0
-        attr.addAttributes([
-            .foregroundColor : lighterColor,
-            .paragraphStyle : paragraphStyle
-        ], range: markdown.range)
+        return [
+            .foregroundColor : UniversalColor.systemGray,
+            .paragraphStyle : paragraphStyle,
+        ]
     case .quote:
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.firstLineHeadIndent = 5.0
-        attr.addAttributes([
-            .foregroundColor : lighterColor,
-            .paragraphStyle : paragraphStyle
-        ], range: markdown.range)
+        return [
+            .foregroundColor : UniversalColor.fromColorAlias(from: .Magenta),
+            .paragraphStyle : paragraphStyle,
+        ]
     }
 }
 
-func applyBody(_ attr: NSMutableAttributedString, _ range: NSRange) {
-    attr.setAttributes([
-        NSAttributedString.Key.font : systemFont,
-        NSAttributedString.Key.foregroundColor : textColor
-    ], range: range)
+func applyBody() -> [NSAttributedString.Key : Any] {
+    return [
+        .foregroundColor : UniversalColor.label,
+        .font : systemFont,
+    ]
 }
