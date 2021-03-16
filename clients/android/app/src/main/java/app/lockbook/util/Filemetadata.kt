@@ -1,7 +1,7 @@
 package app.lockbook.util
 
 import com.beust.klaxon.Json
-import java.util.*
+import java.util.LinkedHashMap
 
 data class FileMetadata(
     val id: String = "",
@@ -99,58 +99,3 @@ enum class State {
     MigrationRequired,
     StateRequiresClearing
 }
-
-data class EditableFile(
-    val name: String,
-    val id: String,
-)
-
-data class SyncingStatus(
-    var isSyncing: Boolean = false,
-    var maxProgress: Int = 0,
-    var currentProgress: Int = 0
-)
-
-data class MoveFileInfo(
-    val ids: Array<String>,
-    val names: Array<String>
-)
-
-data class RenameFileInfo(
-    val id: String,
-    val name: String
-)
-
-data class CreateFileInfo(
-    val parentId: String,
-    val fileType: String,
-    val isDrawing: Boolean
-)
-
-data class Drawing(
-    val currentView: Page = Page(),
-    val events: MutableList<Event> = mutableListOf()
-)
-
-data class Event(
-    val stroke: Stroke? = null
-)
-
-data class Stroke(
-    val color: Int,
-    val points: MutableList<Float> = mutableListOf()
-)
-
-data class Page(
-    var transformation: Transformation = Transformation(),
-)
-
-data class Transformation(
-    var translation: Point = Point(0f, 0f),
-    var scale: Float = 1f,
-)
-
-data class Point(
-    var x: Float,
-    var y: Float
-)
