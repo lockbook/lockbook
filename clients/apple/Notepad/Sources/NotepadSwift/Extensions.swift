@@ -1,17 +1,9 @@
-//
-//  Extensions.swift
-//  Notepad
-//
-//  Created by Rudd Fawcett on 10/14/16.
-//  Copyright © 2016 Rudd Fawcett. All rights reserved.
-//
-
 import Foundation
 
 #if os(iOS)
-    import struct UIKit.CGFloat
+import struct UIKit.CGFloat
 #elseif os(macOS)
-    import struct AppKit.CGFloat
+import struct AppKit.CGFloat
 #endif
 
 extension UniversalColor {
@@ -89,7 +81,11 @@ extension UniversalFont {
         guard let traits = getTraits(from: traits) else {
             return self
         }
+        #if os(iOS)
         let descriptor = fontDescriptor.withSymbolicTraits(traits) ?? UniversalFontDescriptor(fontAttributes: [:])
+        #else
+        let descriptor = fontDescriptor.withSymbolicTraits(traits)
+        #endif
         return UniversalFont(descriptor: descriptor, size: size)
     }
     
