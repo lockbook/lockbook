@@ -102,10 +102,10 @@ struct DrawingToolbar: View {
         return AnyView(
                 Image(systemName: toolPicker.selectedColor == postDarkModeConversion ? "largecircle.fill.circle" : "circle.fill")
                         .imageScale(.large)
-                        .foregroundColor(Color(UIColor(from: preDarkModeConversion)))
+                        .foregroundColor(Color(.fromColorAlias(from: preDarkModeConversion)))
                         .frame(width: 30, height: 30, alignment: .center)
                         .onTapGesture {
-                            toolPicker.currentTool = PKInkingTool(.pen, color: UIColor(from: postDarkModeConversion), width: CGFloat(toolPicker.width))
+                            toolPicker.currentTool = PKInkingTool(.pen, color: .fromColorAlias(from: postDarkModeConversion), width: CGFloat(toolPicker.width))
                             toolPicker.selectedColor = postDarkModeConversion
                         }
         )
@@ -142,7 +142,7 @@ class ToolbarModel: NSObject, ObservableObject, UIPencilInteractionDelegate {
     
     var selectedColor: ColorAlias = initialColor
 
-    @Published var currentTool: PKTool = PKInkingTool(.pen, color: UIColor(from: initialColor), width: CGFloat(initialWidth))
+    @Published var currentTool: PKTool = PKInkingTool(.pen, color: .fromColorAlias(from: initialColor), width: CGFloat(initialWidth))
     @Published var isRulerShowing: Bool = false
     @Published var width: Float = initialWidth {      // Setting this to true kicks off a sync
         didSet {
@@ -159,7 +159,7 @@ class ToolbarModel: NSObject, ObservableObject, UIPencilInteractionDelegate {
     }
 
     func backToDrawing() {
-        currentTool = PKInkingTool(.pen, color: UIColor(from: selectedColor), width: CGFloat(width))
+        currentTool = PKInkingTool(.pen, color: .fromColorAlias(from: selectedColor), width: CGFloat(width))
     }
 
     func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
@@ -175,13 +175,13 @@ class ToolbarModel: NSObject, ObservableObject, UIPencilInteractionDelegate {
 struct Toolbar_Preview: PreviewProvider {
     static let core = GlobalState()
     static let toolbar = ToolbarModel()
-    static let dm = DrawingModel(core: core, meta: core.files[0])
+    static let dm = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
 
     static var previews: some View {
         NavigationView {
             HStack {
             }
-            DrawingLoader(model: dm, toolbar: toolbar)
+            DrawingLoader(model: dm, toolbar: toolbar, meta: core.files[0])
                     .onAppear {
                         dm.originalDrawing = PKDrawing()
                         toolbar.selectedColor = .Red

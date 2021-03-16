@@ -22,8 +22,8 @@ struct FileListView: View {
                 BottomBar(core: core)
             }
         }
-        if selectedItem != nil {
-            EditorLoader(core: core, meta: selectedItem!)
+        if let item = selectedItem {
+            EditorLoader(content: core.openDocument, meta: item, files: core.files)
         }
     }
 }
