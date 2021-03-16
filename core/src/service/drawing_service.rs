@@ -289,58 +289,17 @@ impl<
                 return Err(DrawingError::UnequalPointsAndGirthMetrics);
             }
 
-            for point_index in 0..stroke.points_x.len() - 1 {
-                let point_girth_1 = stroke
-                    .points_girth
-                    .get(point_index)
-                    .ok_or(DrawingError::CorruptedDrawing)?
-                    .to_owned() as u32;
-                let point_girth_2 = stroke
-                    .points_girth
-                    .get(point_index + 1)
-                    .ok_or(DrawingError::CorruptedDrawing)?
-                    .to_owned() as u32;
-                let x1 = stroke
-                    .points_x
-                    .get(point_index)
-                    .ok_or(DrawingError::CorruptedDrawing)?
-                    .to_owned() as u32
-                    + point_girth_1;
-                let y1 = stroke
-                    .points_y
-                    .get(point_index)
-                    .ok_or(DrawingError::CorruptedDrawing)?
-                    .to_owned() as u32
-                    + point_girth_1;
-                let x2 = stroke
-                    .points_x
-                    .get(point_index + 1)
-                    .ok_or(DrawingError::CorruptedDrawing)?
-                    .to_owned() as u32
-                    + point_girth_2;
-                let y2 = stroke
-                    .points_y
-                    .get(point_index + 1)
-                    .ok_or(DrawingError::CorruptedDrawing)?
-                    .to_owned() as u32
-                    + point_girth_2;
+            let stroke_max_x = stroke.points_x.iter().zip(&stroke.points_girth).map(|(x, girth)| x + girth).fold(0f32, f32::max) as u32;
+            let stroke_max_y = stroke.points_y.iter().zip(&stroke.points_girth).map(|(y, girth)| y + girth).fold(0f32, f32::max) as u32;
 
-                if x1 > greatest_width {
-                    greatest_width = x1;
-                }
-
-                if y1 > greatest_height {
-                    greatest_height = y1;
-                }
-
-                if x2 > greatest_width {
-                    greatest_width = x2;
-                }
-
-                if y2 > greatest_height {
-                    greatest_height = y2;
-                }
+            if stroke_max_x > greatest_width {
+                greatest_width = stroke_max_x;
             }
+
+            if stroke_max_y > greatest_height {
+                greatest_height = stroke_max_y;
+            }
+
         }
 
         greatest_width += 20;
@@ -348,4 +307,5 @@ impl<
 
         Ok((greatest_width, greatest_height))
     }
+
 }
