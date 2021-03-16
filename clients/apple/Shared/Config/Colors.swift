@@ -40,6 +40,10 @@ extension UniversalColor {
                 case .Green: return .systemGreen
             }
         } ()
+        #if os(iOS)
         return x.resolvedColor(with: .current)
+        #else
+        return x
+        #endif
     }
 }
