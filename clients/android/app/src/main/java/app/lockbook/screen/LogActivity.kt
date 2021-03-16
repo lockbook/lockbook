@@ -3,9 +3,10 @@ package app.lockbook.screen
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
-import app.lockbook.util.LOG_FILE_NAME
 import kotlinx.android.synthetic.main.activity_debug.*
 import java.io.File
+
+const val LOG_FILE_NAME = "lockbook.log"
 
 class LogActivity : AppCompatActivity() {
 

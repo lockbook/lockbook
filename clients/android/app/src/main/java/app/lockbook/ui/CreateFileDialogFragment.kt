@@ -8,6 +8,8 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
+import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
@@ -19,6 +21,12 @@ import kotlinx.android.synthetic.main.dialog_create_file.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 import kotlin.properties.Delegates
+
+data class CreateFileInfo(
+    val parentId: String,
+    val fileType: String,
+    val isDrawing: Boolean
+)
 
 class CreateFileDialogFragment : DialogFragment() {
 
@@ -70,7 +78,7 @@ class CreateFileDialogFragment : DialogFragment() {
             fileType = nullableFileType
             isDrawing = nullableIsDrawing
         } else {
-            Snackbar.make(create_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
+            Snackbar.make(create_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
                 .addCallback(object : Snackbar.Callback() {
                     override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                         super.onDismissed(transientBottomBar, event)
@@ -86,7 +94,7 @@ class CreateFileDialogFragment : DialogFragment() {
         }
 
         dialog?.setCanceledOnTouchOutside(false)
-            ?: Snackbar.make(create_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+            ?: Snackbar.make(create_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
 
         when (fileType) {
             Klaxon().toJsonString(FileType.Folder) -> {
@@ -154,7 +162,7 @@ class CreateFileDialogFragment : DialogFragment() {
                 }
             }
             else -> {
-                Snackbar.make(create_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
+                Snackbar.make(create_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
                     .addCallback(object : Snackbar.Callback() {
                         override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                             super.onDismissed(transientBottomBar, event)
@@ -230,7 +238,7 @@ class CreateFileDialogFragment : DialogFragment() {
     private suspend fun unexpectedErrorHasOccurred(error: String) {
         withContext(Dispatchers.Main) {
             AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-                .setTitle(Messages.UNEXPECTED_ERROR)
+                .setTitle(UNEXPECTED_ERROR)
                 .setMessage(error)
                 .setOnCancelListener {
                     dismiss()
