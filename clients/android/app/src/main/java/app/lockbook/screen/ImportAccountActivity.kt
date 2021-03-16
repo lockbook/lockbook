@@ -7,11 +7,11 @@ import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
+import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
 import app.lockbook.util.ImportError
-import app.lockbook.util.Messages.UNEXPECTED_ERROR
 import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
 import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.util.exhaustive
