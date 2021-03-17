@@ -1017,7 +1017,7 @@ fn usage(usage_string: String) -> LbResult<GtkBox> {
     let title = GtkLabel::new(Some("Total Usage"));
     let attr_list = pango::AttrList::new();
     let attr = pango::Attribute::new_weight(pango::Weight::Bold)
-        .ok_or(progerr!("Unable to apply bold attribute to title."))?;
+        .ok_or_else(|| progerr!("Unable to apply bold attribute to title."))?;
 
     attr_list.change(attr);
     title.set_attributes(Some(&attr_list));
