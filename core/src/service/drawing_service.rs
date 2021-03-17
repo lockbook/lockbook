@@ -279,41 +279,40 @@ impl<
     }
 
     fn get_drawing_bounds(strokes: &[Stroke]) -> Result<(u32, u32), DrawingError<MyBackend>> {
-        let mut greatest_width = 1;
-        let mut greatest_height = 1;
-
-        for stroke in strokes {
-            if stroke.points_x.len() != stroke.points_y.len()
-                || stroke.points_y.len() != stroke.points_girth.len()
-            {
-                return Err(DrawingError::UnequalPointsAndGirthMetrics);
-            }
-
-            let stroke_max_x = stroke
+        let stroke_to_max_x = |stroke: &Stroke| {
+            stroke
                 .points_x
                 .iter()
-                .zip(&stroke.points_girth)
+                .zip(stroke.points_girth.clone())
                 .map(|(x, girth)| x + girth)
-                .fold(0f32, f32::max) as u32;
-            let stroke_max_y = stroke
+                .map(|num| num as u32)
+                .max()
+                .unwrap_or(0)
+        };
+
+        let stroke_to_max_y = |stroke: &Stroke| {
+            stroke
                 .points_y
                 .iter()
-                .zip(&stroke.points_girth)
+                .zip(stroke.points_girth.clone())
                 .map(|(y, girth)| y + girth)
-                .fold(0f32, f32::max) as u32;
+                .map(|num| num as u32)
+                .max()
+                .unwrap_or(0)
+        };
 
-            if stroke_max_x > greatest_width {
-                greatest_width = stroke_max_x;
-            }
+        let max_x_and_girth = strokes
+            .iter()
+            .map(|stroke| stroke_to_max_x(stroke))
+            .max()
+            .unwrap_or(0);
 
-            if stroke_max_y > greatest_height {
-                greatest_height = stroke_max_y;
-            }
-        }
+        let max_y_and_girth = strokes
+            .iter()
+            .map(|stroke| stroke_to_max_y(stroke))
+            .max()
+            .unwrap_or(0);
 
-        greatest_width += 20;
-        greatest_height += 20;
-
-        Ok((greatest_width, greatest_height))
+        Ok((max_x_and_girth + 20, max_y_and_girth + 20))
     }
 }
