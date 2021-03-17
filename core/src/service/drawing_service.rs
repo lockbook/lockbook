@@ -289,8 +289,18 @@ impl<
                 return Err(DrawingError::UnequalPointsAndGirthMetrics);
             }
 
-            let stroke_max_x = stroke.points_x.iter().zip(&stroke.points_girth).map(|(x, girth)| x + girth).fold(0f32, f32::max) as u32;
-            let stroke_max_y = stroke.points_y.iter().zip(&stroke.points_girth).map(|(y, girth)| y + girth).fold(0f32, f32::max) as u32;
+            let stroke_max_x = stroke
+                .points_x
+                .iter()
+                .zip(&stroke.points_girth)
+                .map(|(x, girth)| x + girth)
+                .fold(0f32, f32::max) as u32;
+            let stroke_max_y = stroke
+                .points_y
+                .iter()
+                .zip(&stroke.points_girth)
+                .map(|(y, girth)| y + girth)
+                .fold(0f32, f32::max) as u32;
 
             if stroke_max_x > greatest_width {
                 greatest_width = stroke_max_x;
@@ -299,7 +309,6 @@ impl<
             if stroke_max_y > greatest_height {
                 greatest_height = stroke_max_y;
             }
-
         }
 
         greatest_width += 20;
@@ -307,5 +316,4 @@ impl<
 
         Ok((greatest_width, greatest_height))
     }
-
 }
