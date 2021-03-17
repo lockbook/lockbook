@@ -10,8 +10,10 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.View
+import android.widget.SeekBar
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
@@ -22,6 +24,7 @@ import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_drawing.*
+import kotlinx.android.synthetic.main.toolbar_drawing.*
 import java.util.*
 
 class DrawingActivity : AppCompatActivity() {
@@ -96,12 +99,6 @@ class DrawingActivity : AppCompatActivity() {
             }
         }
 
-        drawingViewModel.selectNewColor.observe(
-            this
-        ) { colors ->
-            selectNewColor(colors.first, colors.second)
-        }
-
         drawingViewModel.setToolsVisibility.observe(
             this
         ) { newVisibility ->
@@ -111,13 +108,13 @@ class DrawingActivity : AppCompatActivity() {
         drawingViewModel.selectNewTool.observe(
             this
         ) { tools ->
-            selectNewTool(tools.second)
+            selectNewTool(tools.first, tools.second)
         }
 
         drawingViewModel.selectedNewPenSize.observe(
             this
-        ) { penSizes ->
-            selectedNewPenSize(penSizes.first, penSizes.second)
+        ) { penSize ->
+            selectedNewPenSize(penSize)
         }
 
         startDrawing()
@@ -146,70 +143,60 @@ class DrawingActivity : AppCompatActivity() {
         }
     }
 
-    private fun selectNewColor(oldColor: ColorAlias?, newColor: ColorAlias) {
-        if (oldColor != null) {
-            val previousButton = when (oldColor) {
-                ColorAlias.White -> drawing_color_white
-                ColorAlias.Blue -> drawing_color_blue
-                ColorAlias.Green -> drawing_color_green
-                ColorAlias.Yellow -> drawing_color_yellow
-                ColorAlias.Magenta -> drawing_color_magenta
-                ColorAlias.Red -> drawing_color_red
-                ColorAlias.Black -> drawing_color_black
-                ColorAlias.Cyan -> drawing_color_cyan
-            }.exhaustive
+    private fun selectNewTool(oldTool: DrawingView.Tool?, newTool: DrawingView.Tool) {
+        when (oldTool) {
+            is DrawingView.Pen -> {
+                val previousButton = when (oldTool.colorAlias) {
+                    ColorAlias.White -> drawing_color_white
+                    ColorAlias.Blue -> drawing_color_blue
+                    ColorAlias.Green -> drawing_color_green
+                    ColorAlias.Yellow -> drawing_color_yellow
+                    ColorAlias.Magenta -> drawing_color_magenta
+                    ColorAlias.Red -> drawing_color_red
+                    ColorAlias.Black -> drawing_color_black
+                    ColorAlias.Cyan -> drawing_color_cyan
+                }.exhaustive
 
-            previousButton.strokeWidth = 0
+                previousButton.strokeWidth = 0
+            }
+            is DrawingView.Eraser -> {
+                drawing_erase.setImageResource(R.drawable.ic_eraser_outline)
+            }
+            null -> {}
+            else -> unexpectedErrorHasOccurred("A tool previously used is unrecognized.")
         }
 
-        val newButton = when (newColor) {
-            ColorAlias.White -> drawing_color_white
-            ColorAlias.Blue -> drawing_color_blue
-            ColorAlias.Green -> drawing_color_green
-            ColorAlias.Yellow -> drawing_color_yellow
-            ColorAlias.Magenta -> drawing_color_magenta
-            ColorAlias.Red -> drawing_color_red
-            ColorAlias.Black -> drawing_color_black
-            ColorAlias.Cyan -> drawing_color_cyan
+        when (newTool) {
+            is DrawingView.Pen -> {
+                val newButton = when (newTool.colorAlias) {
+                    ColorAlias.White -> drawing_color_white
+                    ColorAlias.Blue -> drawing_color_blue
+                    ColorAlias.Green -> drawing_color_green
+                    ColorAlias.Yellow -> drawing_color_yellow
+                    ColorAlias.Magenta -> drawing_color_magenta
+                    ColorAlias.Red -> drawing_color_red
+                    ColorAlias.Black -> drawing_color_black
+                    ColorAlias.Cyan -> drawing_color_cyan
+                }.exhaustive
+
+                newButton.strokeWidth = 4
+                drawing_view.strokeColor = newTool.colorAlias
+            }
+            is DrawingView.Eraser -> {
+                drawing_erase.setImageResource(R.drawable.ic_eraser_filled)
+            }
+            else -> unexpectedErrorHasOccurred("Tried to use unknown tool.")
         }.exhaustive
-
-        newButton.strokeWidth = 4
-        drawing_view.strokeColor = newColor
-    }
-
-    private fun selectNewTool(newTool: DrawingView.Tool) {
-        if (newTool == DrawingView.Tool.PEN) {
-            drawing_pen.setImageResource(R.drawable.ic_pencil_filled)
-            drawing_erase.setImageResource(R.drawable.ic_eraser_outline)
-            drawing_view.isErasing = false
-        } else {
-            drawing_erase.setImageResource(R.drawable.ic_eraser_filled)
-            drawing_pen.setImageResource(R.drawable.ic_pencil_outline)
-            drawing_view.isErasing = true
-        }
     }
 
     private fun selectedNewPenSize(
-        oldPenSize: DrawingView.PenSize?,
-        newPenSize: DrawingView.PenSize
+        newPenSize: Int
     ) {
-        if (oldPenSize != null) {
-            val previousButton = when (oldPenSize) {
-                DrawingView.PenSize.SMALL -> drawing_pen_small
-                DrawingView.PenSize.MEDIUM -> drawing_pen_medium
-                DrawingView.PenSize.LARGE -> drawing_pen_large
-            }.exhaustive
-
-            previousButton.setBackgroundResource(0)
+        val penSizeSeekBar = drawing_pen_size as AppCompatSeekBar
+        if (penSizeSeekBar.progress + 1 != newPenSize) {
+            penSizeSeekBar.progress = newPenSize
         }
 
-        val newButton = when (newPenSize) {
-            DrawingView.PenSize.SMALL -> drawing_pen_small
-            DrawingView.PenSize.MEDIUM -> drawing_pen_medium
-            DrawingView.PenSize.LARGE -> drawing_pen_large
-        }.exhaustive
-
-        newButton.setBackgroundResource(R.drawable.item_border)
         drawing_view.setPenSize(newPenSize)
     }
 
@@ -296,56 +283,52 @@ class DrawingActivity : AppCompatActivity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun setUpToolbarListeners() {
         drawing_color_white.setOnClickListener {
-            drawingViewModel.handleNewColorSelected(ColorAlias.White)
+            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.White))
         }
 
         drawing_color_black.setOnClickListener {
-            drawingViewModel.handleNewColorSelected(ColorAlias.Black)
+            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Black))
         }
 
         drawing_color_blue.setOnClickListener {
-            drawingViewModel.handleNewColorSelected(ColorAlias.Blue)
+            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Blue))
         }
 
         drawing_color_green.setOnClickListener {
-            drawingViewModel.handleNewColorSelected(ColorAlias.Green)
+            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Green))
         }
 
         drawing_color_yellow.setOnClickListener {
-            drawingViewModel.handleNewColorSelected(ColorAlias.Yellow)
+            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Yellow))
         }
 
         drawing_color_magenta.setOnClickListener {
-            drawingViewModel.handleNewColorSelected(ColorAlias.Magenta)
+            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Magenta))
         }
 
         drawing_color_red.setOnClickListener {
-            drawingViewModel.handleNewColorSelected(ColorAlias.Red)
+            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Red))
         }
 
         drawing_color_cyan.setOnClickListener {
-            drawingViewModel.handleNewColorSelected(ColorAlias.Cyan)
+            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Cyan))
         }
 
         drawing_erase.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Tool.ERASER)
+            drawingViewModel.handleNewToolSelected(DrawingView.Eraser)
         }
 
-        drawing_pen.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Tool.PEN)
-        }
+        (drawing_pen_size as AppCompatSeekBar).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val adjustedProgress = progress + 1
+                drawing_pen_size_marker.text = adjustedProgress.toString()
+                drawingViewModel.handleNewPenSizeSelected(adjustedProgress)
+            }
 
-        drawing_pen_small.setOnClickListener {
-            drawingViewModel.handleNewPenSizeSelected(DrawingView.PenSize.SMALL)
-        }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
 
-        drawing_pen_medium.setOnClickListener {
-            drawingViewModel.handleNewPenSizeSelected(DrawingView.PenSize.MEDIUM)
-        }
-
-        drawing_pen_large.setOnClickListener {
-            drawingViewModel.handleNewPenSizeSelected(DrawingView.PenSize.LARGE)
-        }
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         gestureDetector = GestureDetector(
             applicationContext,
