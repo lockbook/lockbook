@@ -1,11 +1,10 @@
-use std::{env, fs};
-
 use lockbook_core::model::state::Config;
 use lockbook_core::{
     get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
     GetAccountError, GetStateError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
+use std::{env, fs};
 
 use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
@@ -264,9 +263,10 @@ pub fn save_temp_file_contents(
             if !silent {
                 match err {
                     CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
-                    CoreError::UiError(WriteToDocumentError::NoAccount) => {
-                        err_unexpected!("No account! Run init or import to get started!").exit()
-                    }
+                    CoreError::UiError(WriteToDocumentError::NoAccount) => err_unexpected!(
+                        "No account! Run 'new-account' or 'import-private-key' to get started!"
+                    )
+                    .exit(),
                     CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
                         err_unexpected!("FileDoesNotExist").exit()
                     }

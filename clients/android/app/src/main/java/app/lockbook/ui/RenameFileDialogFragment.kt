@@ -8,10 +8,11 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
+import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
+import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
-import app.lockbook.util.Messages
 import app.lockbook.util.RenameFileError
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
@@ -23,6 +24,11 @@ import kotlinx.android.synthetic.main.dialog_rename_file.*
 import kotlinx.android.synthetic.main.dialog_rename_file.rename_file
 import kotlinx.coroutines.*
 import timber.log.Timber
+
+data class RenameFileInfo(
+    val id: String,
+    val name: String
+)
 
 class RenameFileDialogFragment : DialogFragment() {
 
@@ -68,7 +74,7 @@ class RenameFileDialogFragment : DialogFragment() {
             id = nullableId
             name = nullableName
         } else {
-            Snackbar.make(rename_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
+            Snackbar.make(rename_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
                 .addCallback(object : Snackbar.Callback() {
                     override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                         super.onDismissed(transientBottomBar, event)
@@ -77,7 +83,7 @@ class RenameFileDialogFragment : DialogFragment() {
                 }).show()
         }
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
-        dialog?.setCanceledOnTouchOutside(false) ?: Snackbar.make(rename_file_layout, Messages.UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+        dialog?.setCanceledOnTouchOutside(false) ?: Snackbar.make(rename_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
 
         rename_file_cancel.setOnClickListener {
             dismiss()
@@ -147,7 +153,7 @@ class RenameFileDialogFragment : DialogFragment() {
     private suspend fun unexpectedErrorHasOccurred(error: String) {
         withContext(Dispatchers.Main) {
             AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-                .setTitle(Messages.UNEXPECTED_ERROR)
+                .setTitle(UNEXPECTED_ERROR)
                 .setMessage(error)
                 .setOnCancelListener {
                     dismiss()

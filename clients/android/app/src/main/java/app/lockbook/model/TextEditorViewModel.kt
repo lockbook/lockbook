@@ -38,13 +38,13 @@ class TextEditorViewModel(application: Application, private val id: String) :
         get() = _unexpectedErrorHasOccurred
 
     init {
-        val contents = handleReadDocument(id)
+        val contents = readDocument(id)
         if (contents != null) {
             history.add(history.lastIndex + 1, contents)
         }
     }
 
-    fun handleReadDocument(id: String): String? {
+    fun readDocument(id: String): String? {
         when (val documentResult = CoreModel.getDocumentContent(config, id)) {
             is Ok -> {
                 return documentResult.value
@@ -108,7 +108,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
 
     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
-    fun writeNewTextToDocument(content: String) {
+    fun saveText(content: String) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, content)

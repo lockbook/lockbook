@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
-use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use structopt::StructOpt;
+
+use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 use crate::utils::{check_and_perform_migrations, init_logger_or_print};
 
@@ -118,7 +119,7 @@ enum Lockbook {
 
 fn main() {
     init_logger_or_print();
-    let args: Lockbook = Lockbook::from_args();
+    let args = Lockbook::from_args();
 
     if let Err(err) = check_and_perform_migrations() {
         err.exit()
