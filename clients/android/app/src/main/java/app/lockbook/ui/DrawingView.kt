@@ -47,6 +47,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private val lastPoint = PointF()
     private var rollingAveragePressure = Float.NaN
     private val strokePath = Path()
+    private val strokesBounds = mutableListOf<RectF>()
 
     // Scaling and Viewport state
     private val viewPort = Rect()
@@ -175,7 +176,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private fun restoreFromModel() {
         for (stroke in drawing.strokes) {
             val alpha = (stroke.alpha * 255).toInt()
-
             val strokeColor = if (alpha == 255) {
                 colorAliasInARGB[stroke.color]
             } else {
@@ -187,17 +187,32 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 return
             }
 
+            strokesBounds.add(RectF())
             strokePaint.color = strokeColor
 
             for (pointIndex in 0..(stroke.pointsX.size - 2)) {
+                val x1 = stroke.pointsX[pointIndex]
+                val y1 = stroke.pointsY[pointIndex]
+
+                val x2 = stroke.pointsX[pointIndex + 1]
+                val y2 = stroke.pointsY[pointIndex + 1]
+
+                if (pointIndex == 3) {
+                    strokesBounds.last().set(x1, y1, x1, y1)
+                    updateLastStrokeBounds(x2, y2)
+                } else {
+                    updateLastStrokeBounds(x1, y1)
+                    updateLastStrokeBounds(x2, y2)
+                }
+
                 strokePaint.strokeWidth = stroke.pointsGirth[pointIndex]
                 strokePath.moveTo(
-                    stroke.pointsX[pointIndex],
-                    stroke.pointsY[pointIndex]
+                    x1,
+                    y1
                 )
                 strokePath.lineTo(
-                    stroke.pointsX[pointIndex + 1],
-                    stroke.pointsY[pointIndex + 1]
+                    x2,
+                    y2
                 )
                 tempCanvas.drawPath(strokePath, strokePaint)
                 strokePath.reset()
@@ -223,6 +238,51 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         viewPort.top = -drawing.translationY.toInt()
         viewPort.right = (viewPort.left + currentViewPortWidth).toInt()
         viewPort.bottom = (viewPort.top + currentViewPortHeight).toInt()
+    }
+
+    private fun updateLastStrokeBounds(x: Float, y: Float) {
+        val currentStrokeBounds = strokesBounds.last()
+
+        if (x > currentStrokeBounds.right) {
+            currentStrokeBounds.right = x
+        } else if (x < currentStrokeBounds.left) {
+            currentStrokeBounds.left = x
+        }
+
+        if (y < currentStrokeBounds.top) {
+            currentStrokeBounds.top = y
+        } else if (y > currentStrokeBounds.bottom) {
+            currentStrokeBounds.bottom = y
+        }
+    }
+
+    private fun doesEraserSegmentIntersectStroke(strokeIndex: Int, x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
+        val currentStrokeBounds = strokesBounds[strokeIndex]
+        val eraseBounds = RectF()
+
+        if (x1 > x2) {
+            eraseBounds.right = x1
+            eraseBounds.left = x2
+        } else {
+            eraseBounds.right = x2
+            eraseBounds.left = x1
+        }
+
+        if (y1 > y2) {
+            eraseBounds.bottom = y1
+            eraseBounds.top = y2
+        } else {
+            eraseBounds.bottom = y2
+            eraseBounds.top = y1
+        }
+
+        // expand the erasing bounds to catch the small strokes (like dots) that would not be caught otherwise
+        eraseBounds.top -= 20
+        eraseBounds.bottom += 20
+        eraseBounds.left -= 20
+        eraseBounds.right += 20
+
+        return RectF.intersects(currentStrokeBounds, eraseBounds)
     }
 
     private fun screenToModel(screen: PointF): PointF {
@@ -310,6 +370,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point)
+        strokesBounds.add(RectF(point.x, point.y, point.x, point.y))
 
         rollingAveragePressure = getAdjustedPressure(pressure)
 
@@ -349,6 +410,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private fun lineTo(point: PointF, pressure: Float) {
         val adjustedCurrentPressure = getAdjustedPressure(pressure)
         rollingAveragePressure = approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
+        updateLastStrokeBounds(point.x, point.y)
 
         strokePaint.strokeWidth = rollingAveragePressure
 
@@ -398,6 +460,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             val stroke = drawingClone.strokes[strokeIndex]
             var deleteStroke = false
 
+            if (!doesEraserSegmentIntersectStroke(strokeIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y)) {
+                continue
+            }
+
             pointLoop@ for (pointIndex in 0..(stroke.pointsX.size - 2)) {
                 if (pointIndex < stroke.pointsX.size - 1) {
                     for (pixel in 1..roundedPressure) {
@@ -406,23 +472,36 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                         val roundedPoint2 =
                             PointF(stroke.pointsX[pointIndex + 1].roundToInt().toFloat(), stroke.pointsY[pointIndex + 1].roundToInt().toFloat())
 
+                        val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
                         val distToFromRoundedPoint1 = distanceBetweenPoints(erasePoints.first, roundedPoint1) +
                             distanceBetweenPoints(roundedPoint1, erasePoints.second)
+
+                        if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(distBetweenErasePoints)) {
+                            deleteStroke = true
+                            break@pointLoop
+                        }
+
                         val distToFromRoundedPoint2 = distanceBetweenPoints(erasePoints.first, roundedPoint2) +
                             distanceBetweenPoints(roundedPoint2, erasePoints.second)
+
+                        if (((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(distBetweenErasePoints)) {
+                            deleteStroke = true
+                            break@pointLoop
+                        }
+
+                        val distBetweenRoundedPoints = distanceBetweenPoints(roundedPoint1, roundedPoint2)
                         val distToFromErasePoint1 = distanceBetweenPoints(roundedPoint1, erasePoints.first) +
                             distanceBetweenPoints(erasePoints.first, roundedPoint2)
+
+                        if (((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(distBetweenRoundedPoints)) {
+                            deleteStroke = true
+                            break@pointLoop
+                        }
+
                         val distToFromErasePoint2 = distanceBetweenPoints(roundedPoint1, erasePoints.second) +
                             distanceBetweenPoints(erasePoints.second, roundedPoint2)
 
-                        val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
-                        val distBetweenRoundedPoints = distanceBetweenPoints(roundedPoint1, roundedPoint2)
-
-                        if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(distBetweenErasePoints) ||
-                            ((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(distBetweenErasePoints) ||
-                            ((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(distBetweenRoundedPoints) ||
-                            ((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(distBetweenRoundedPoints)
-                        ) {
+                        if (((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(distBetweenRoundedPoints)) {
                             deleteStroke = true
                             break@pointLoop
                         }
@@ -438,6 +517,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         if (refreshScreen) {
             drawing = drawingClone
+            strokesBounds.clear()
             tempCanvas.drawColor(
                 Color.TRANSPARENT,
                 PorterDuff.Mode.CLEAR
