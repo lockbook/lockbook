@@ -148,7 +148,7 @@ impl ErrorKind {
             Self::CannotDeleteRoot(path) => format!("Cannot delete '{}' since it is the root folder.", path),
             Self::NoRootOps(op) => format!("cannot {} your root directory!", op),
             Self::InvalidDrawing(name) => format!("drawing '{}' not found", name),
-            Self::FolderTreatedAsDoc(path) => format!("the path '{}' is a folder being treated as a document", path),
+            Self::FolderTreatedAsDoc(path) => format!("a file in path '{}' is a folder being treated as a document", path),
         }
     }
 }
