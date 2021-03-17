@@ -44,87 +44,8 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-            <LinearLayout
-                android:id="@+id/drawing_tools_menu"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="start|center_vertical"
-                android:background="@color/colorPrimaryDark"
-                android:gravity="center_horizontal"
-                android:orientation="vertical"
-                android:visibility="gone"
-                tools:ignore="UselessParent">
-
-                <ImageButton
-                    android:id="@+id/drawing_erase"
-                    style="@style/Main.Widget.DrawingImageButton"
-                    android:src="@drawable/ic_eraser_outline"
-                    android:contentDescription="@string/drawing_eraser_description" />
-
-                <ImageButton
-                    android:id="@+id/drawing_pen"
-                    style="@style/Main.Widget.DrawingImageButton"
-                    android:src="@drawable/ic_pencil_outline"
-                    android:contentDescription="@string/drawing_pen_description" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_white"
-                    style="@style/Main.Widget.DrawingButton" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_black"
-                    style="@style/Main.Widget.DrawingButton" />
-
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_blue"
-                    style="@style/Main.Widget.DrawingButton" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_red"
-                    style="@style/Main.Widget.DrawingButton" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_green"
-                    style="@style/Main.Widget.DrawingButton" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_yellow"
-                    style="@style/Main.Widget.DrawingButton" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_magenta"
-                    style="@style/Main.Widget.DrawingButton" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/drawing_color_cyan"
-                    style="@style/Main.Widget.DrawingButton" />
-
-                <TextView
-                    android:id="@+id/drawing_pen_small"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:padding="10dp"
-                    android:text="@string/drawing_pen_small_description" />
-
-                <TextView
-                    android:id="@+id/drawing_pen_medium"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:padding="10dp"
-                    android:layout_marginHorizontal="5dp"
-                    android:text="@string/drawing_pen_medium_description" />
-
-                <TextView
-                    android:id="@+id/drawing_pen_large"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:padding="10dp"
-                    android:layout_marginBottom="10dp"
-                    android:text="@string/drawing_pen_large_description" />
-
-
-            </LinearLayout>
+        <include
+            layout="@layout/toolbar_drawing" />
 
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
