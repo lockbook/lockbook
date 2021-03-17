@@ -55,16 +55,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private var driftWhileScalingX = 0f
     private var driftWhileScalingY = 0f
 
-    enum class PenSize {
-        SMALL,
-        MEDIUM,
-        LARGE
-    }
+    abstract class Tool
 
-    enum class Tool {
-        PEN,
-        ERASER
-    }
+    data class Pen(val colorAlias: ColorAlias) : Tool()
+    object Eraser : Tool()
 
     companion object {
         const val CANVAS_WIDTH = 2125
@@ -455,12 +449,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private fun distanceBetweenPoints(initialPoint: PointF, endPoint: PointF): Float =
         sqrt((initialPoint.x - endPoint.x).pow(2) + (initialPoint.y - endPoint.y).pow(2))
 
-    fun setPenSize(penSize: PenSize) {
-        when (penSize) {
-            PenSize.SMALL -> penSizeMultiplier = 7
-            PenSize.MEDIUM -> penSizeMultiplier = 20
-            PenSize.LARGE -> penSizeMultiplier = 40
-        }.exhaustive
+    fun setPenSize(penSize: Int) {
+        penSizeMultiplier = penSize
     }
 
     fun endThread() {
