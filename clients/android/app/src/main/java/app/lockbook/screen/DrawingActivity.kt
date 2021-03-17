@@ -320,7 +320,9 @@ class DrawingActivity : AppCompatActivity() {
 
         (drawing_pen_size as AppCompatSeekBar).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                drawingViewModel.handleNewPenSizeSelected(progress + 1)
+                val adjustedProgress = progress + 1
+                drawing_pen_size_marker.text = adjustedProgress.toString()
+                drawingViewModel.handleNewPenSizeSelected(adjustedProgress)
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}

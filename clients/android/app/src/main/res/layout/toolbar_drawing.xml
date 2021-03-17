@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout android:id="@+id/drawing_tools_menu"
-    android:visibility="gone"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_gravity="center_vertical|start"
@@ -58,5 +57,17 @@
             android:max="99"
             android:layout_gravity="center_horizontal"
             android:layout_margin="10dp"/>
+
+    <TextView
+        android:id="@+id/drawing_pen_size_marker"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/textColor"
+        android:textSize="17sp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginEnd="10dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginBottom="10dp"
+        />
 
 </LinearLayout>

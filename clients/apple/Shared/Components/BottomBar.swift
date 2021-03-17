@@ -11,6 +11,7 @@ struct BottomBar: View {
 
     #if os(iOS)
     var onNewDocument: () -> Void = {}
+    var onNewDrawing: () -> Void = {}
     var onNewFolder: () -> Void = {}
     #endif
 
@@ -30,6 +31,10 @@ struct BottomBar: View {
                     Label("Create a document", systemImage: "doc")
                 }
 
+                Button(action: onNewDrawing) {
+                    Label("Create a drawing", systemImage: "scribble.variable")
+                }
+                
                 Button(action: onNewFolder) {
                     Label("Create a folder", systemImage: "folder")
                 }
@@ -133,7 +138,6 @@ struct BottomBar: View {
 
     func checkForNewWork() {
         DispatchQueue.global(qos: .background).async {
-            print("Checking")
             switch core.api.calculateWork() {
             case .success(let work):
                 self.work = work.workUnits.count
@@ -151,7 +155,7 @@ struct BottomBar: View {
     }
 }
 
-#if(iOS)
+#if os(iOS)
 struct SyncingPreview: PreviewProvider {
 
     static let core = GlobalState()

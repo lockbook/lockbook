@@ -44,8 +44,8 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-            <include
-                layout="@layout/toolbar_drawing" />
+        <include
+            layout="@layout/toolbar_drawing" />
 
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
