@@ -684,7 +684,7 @@ impl LbApp {
 
     fn show_dialog_usage(&self) -> LbResult<()> {
         let usage_string = self.core.usage_human_string()?;
-        let usage = usage(usage_string);
+        let usage = usage(usage_string)?;
         let d = self.gui.new_dialog("My Lockbook Usage");
         d.get_content_area().add(&usage);
         d.show_all();
@@ -1013,15 +1013,25 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
     Ok(cntr)
 }
 
-fn usage(usage_string: String) -> GtkBox {
+fn usage(usage_string: String) -> LbResult<GtkBox> {
+    let title = GtkLabel::new(Some("Total Usage"));
+    let attr_list = pango::AttrList::new();
+    let attr = pango::Attribute::new_weight(pango::Weight::Bold)
+        .ok_or(progerr!("Unable to apply bold attribute to title."))?;
+
+    attr_list.change(attr);
+    title.set_attributes(Some(&attr_list));
+    title.set_margin_bottom(20);
+
     let lbl = GtkLabel::new(Some(&usage_string));
     lbl.set_margin_bottom(24);
 
     let cntr = GtkBox::new(Vertical, 0);
     util::gui::set_marginy(&cntr, 36);
-    util::gui::set_marginx(&cntr, 120);
+    util::gui::set_marginx(&cntr, 100);
+    cntr.add(&title);
     cntr.add(&lbl);
-    cntr
+    Ok(cntr)
 }
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
