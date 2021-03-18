@@ -16,12 +16,11 @@ use lockbook_core::service::sync_service::WorkCalculated;
 use lockbook_core::{
     calculate_work, create_account, create_file_at_path, delete_file, execute_work, export_account,
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
-    get_file_by_path, get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db,
-    read_document, rename_file, set_last_synced, write_document,
+    get_file_by_path, get_last_synced, get_root, get_usage_human_string, import_account,
+    list_paths, migrate_db, read_document, rename_file, set_last_synced, write_document,
 };
 
 use crate::error::{LbError, LbResult};
-use crate::util::KILOBYTE;
 use crate::{progerr, uerr};
 
 macro_rules! match_core_err {
@@ -283,14 +282,12 @@ impl LbCore {
         ))
     }
 
-    pub fn usage(&self) -> LbResult<(u64, f64)> {
-        let u = get_usage(&self.config).map_err(map_core_err!(GetUsageError,
+    pub fn usage_human_string(&self) -> LbResult<String> {
+        get_usage_human_string(&self.config, false).map_err(map_core_err!(GetUsageError,
             NoAccount => uerr!("No account found."),
             CouldNotReachServer => uerr!("Unable to connect to the server."),
             ClientUpdateRequired => uerr!("Client upgrade required."),
-        ))?;
-        let total = u.into_iter().map(|usage| usage.byte_secs).sum();
-        Ok((total, FAKE_LIMIT))
+        ))
     }
 
     pub fn has_account(&self) -> LbResult<bool> {
@@ -369,6 +366,5 @@ impl LbCore {
 }
 
 const UNAME_REQS: &str = "letters and numbers only";
-const FAKE_LIMIT: f64 = KILOBYTE as f64 * 20.0;
 const STATE_REQ_CLEAN_MSG: &str =
     "Your local state cannot be migrated, please re-sync with a fresh client.";
