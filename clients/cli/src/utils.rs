@@ -1,21 +1,23 @@
-use std::path::Path;
-use std::{env, fs};
-
-use hotwatch::{Event, Hotwatch};
-
-use lockbook_core::model::account::Account;
-use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::state::Config;
-use lockbook_core::service::db_state_service::State;
 use lockbook_core::{
     get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
     GetAccountError, GetStateError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
+use std::{env, fs};
 
 use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{err, err_extra, err_unexpected};
+use hotwatch::{Event, Hotwatch};
+use lockbook_core::model::account::Account;
+use lockbook_core::model::file_metadata::FileMetadata;
+use lockbook_core::service::db_state_service::State;
+use lockbook_core::service::drawing_service::SupportedImageFormats;
+use lockbook_core::service::drawing_service::SupportedImageFormats::{
+    Bmp, Farbfeld, Jpeg, Png, Pnm, Tga,
+};
+use std::path::Path;
 
 #[macro_export]
 macro_rules! path_string {
@@ -117,7 +119,7 @@ pub fn get_editor() -> SupportedEditors {
             "code" => Code,
             _ => {
                 eprintln!(
-                    "{} is not yet supported, make a github issue! Falling back to vim",
+                    "{} is not yet supported, make a github issue! Falling back to vim.",
                     editor
                 );
                 Vim
@@ -126,6 +128,25 @@ pub fn get_editor() -> SupportedEditors {
         Err(_) => {
             eprintln!("LOCKBOOK_EDITOR not set, assuming vim");
             Vim
+        }
+    }
+}
+
+pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
+    let corrected_format = image_format.to_lowercase();
+    match corrected_format.as_str() {
+        "png" => Png,
+        "jpeg" | "jpg" => Jpeg,
+        "bmp" => Bmp,
+        "tga" => Tga,
+        "pnm" => Pnm,
+        "farbfeld" => Farbfeld,
+        _ => {
+            eprintln!(
+                "{} is not yet supported, make a github issue! Falling back to png.",
+                image_format
+            );
+            Png
         }
     }
 }

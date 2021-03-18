@@ -93,7 +93,7 @@ make_errkind_enum!(
     37 => OsCouldNotWriteFile(String, IoError),
     38 => OsCouldNotDeleteFile(String, IoError),
 
-    // Lockbook file ops (40s)
+    // Lockbook file ops (40-50)
     40 => FileNotFound(String),
     41 => FileAlreadyExists(String),
     42 => FileNameEmpty,
@@ -105,6 +105,8 @@ make_errkind_enum!(
     48 => CannotMoveFolderIntoItself,
     49 => CannotDeleteRoot(String),
     50 => NoRootOps(&'static str),
+    51 => InvalidDrawing(String),
+    52 => FolderTreatedAsDoc(String),
 );
 
 impl ErrorKind {
@@ -147,6 +149,8 @@ impl ErrorKind {
             Self::CannotMoveFolderIntoItself => "Cannot move file into its self or children.".to_string(),
             Self::CannotDeleteRoot(path) => format!("Cannot delete '{}' since it is the root folder.", path),
             Self::NoRootOps(op) => format!("cannot {} your root directory!", op),
+            Self::InvalidDrawing(name) => format!("'{}' is an invalid drawing", name),
+            Self::FolderTreatedAsDoc(path) => format!("a file in path '{}' is a folder being treated as a document", path),
         }
     }
 }
