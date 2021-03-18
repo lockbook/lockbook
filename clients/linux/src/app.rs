@@ -14,12 +14,12 @@ use gtk::{
     Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox,
     CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, Image as GtkImage, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
-    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode,
-    SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
-    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
-    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
-    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
+    ListStore as GtkListStore, Notebook as GtkNotebook, ResponseType as GtkResponseType,
+    SelectionMode as GtkSelectionMode, SortColumn as GtkSortColumn, SortType as GtkSortType,
+    Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter, TreeModel as GtkTreeModel,
+    TreeModelSort as GtkTreeModelSort, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
+    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
+    WindowPosition as GtkWindowPosition,
 };
 use uuid::Uuid;
 
@@ -683,8 +683,8 @@ impl LbApp {
     }
 
     fn show_dialog_usage(&self) -> LbResult<()> {
-        let (n_bytes, limit) = self.core.usage()?;
-        let usage = usage(n_bytes, limit);
+        let usage_string = self.core.usage_human_string()?;
+        let usage = usage(usage_string)?;
         let d = self.gui.new_dialog("My Lockbook Usage");
         d.get_content_area().add(&usage);
         d.show_all();
@@ -1013,23 +1013,25 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
     Ok(cntr)
 }
 
-fn usage(usage: u64, limit: f64) -> GtkBox {
-    let human_limit = util::human_readable_bytes(limit as u64);
-    let human_usage = util::human_readable_bytes(usage);
+fn usage(usage_string: String) -> LbResult<GtkBox> {
+    let title = GtkLabel::new(Some("Total Usage"));
+    let attr_list = pango::AttrList::new();
+    let attr = pango::Attribute::new_weight(pango::Weight::Bold)
+        .ok_or_else(|| progerr!("Unable to apply bold attribute to title."))?;
 
-    let lbl = GtkLabel::new(Some(&format!("{} / {}", human_usage, human_limit)));
+    attr_list.change(attr);
+    title.set_attributes(Some(&attr_list));
+    title.set_margin_bottom(20);
+
+    let lbl = GtkLabel::new(Some(&usage_string));
     lbl.set_margin_bottom(24);
-
-    let pbar = GtkProgressBar::new();
-    util::gui::set_marginx(&pbar, 16);
-    pbar.set_size_request(300, -1);
-    pbar.set_fraction(usage as f64 / limit);
 
     let cntr = GtkBox::new(Vertical, 0);
     util::gui::set_marginy(&cntr, 36);
+    util::gui::set_marginx(&cntr, 100);
+    cntr.add(&title);
     cntr.add(&lbl);
-    cntr.add(&pbar);
-    cntr
+    Ok(cntr)
 }
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
