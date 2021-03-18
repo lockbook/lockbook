@@ -125,7 +125,7 @@ impl<
             ]
         });
 
-        let (width, height) = Self::get_drawing_bounds(drawing.strokes.as_slice())?;
+        let (width, height) = Self::get_drawing_bounds(drawing.strokes.as_slice());
 
         let mut draw_target = DrawTarget::new(width as i32, height as i32);
 
@@ -278,7 +278,7 @@ impl<
         (byte_1 as u8, byte_2 as u8, byte_3 as u8, byte_4 as u8)
     }
 
-    fn get_drawing_bounds(strokes: &[Stroke]) -> Result<(u32, u32), DrawingError<MyBackend>> {
+    fn get_drawing_bounds(strokes: &[Stroke]) -> (u32, u32) {
         let stroke_to_max_x = |stroke: &Stroke| {
             stroke
                 .points_x
@@ -313,6 +313,158 @@ impl<
             .max()
             .unwrap_or(0);
 
-        Ok((max_x_and_girth + 20, max_y_and_girth + 20))
+        (max_x_and_girth + 20, max_y_and_girth + 20)
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use crate::model::account::Account;
+    use crate::model::drawing::{ColorAlias, Drawing, Stroke};
+    use crate::model::file_metadata::FileType::{Document, Folder};
+    use crate::model::state::temp_config;
+    use crate::repo::account_repo::AccountRepo;
+    use crate::repo::file_metadata_repo::FileMetadataRepo;
+    use crate::service::crypto_service::PubKeyCryptoService;
+    use crate::service::drawing_service::{
+        DrawingService, DrawingServiceImpl, SupportedImageFormats,
+    };
+    use crate::service::file_encryption_service::FileEncryptionService;
+    use crate::service::file_service::FileService;
+    use crate::storage::db_provider::Backend;
+    use crate::{
+        DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
+        DefaultFileMetadataRepo, DefaultFileService,
+    };
+
+    #[test]
+    fn test_drawing_bounds() {
+        let empty_drawing = Drawing {
+            scale: 0.0,
+            translation_x: 0.0,
+            translation_y: 0.0,
+            strokes: vec![],
+            theme: None,
+        };
+
+        assert_eq!(DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::get_drawing_bounds(empty_drawing.strokes.as_slice()), (20, 20));
+
+        let small_drawing = Drawing {
+            scale: 0.0,
+            translation_x: 0.0,
+            translation_y: 0.0,
+            strokes: vec![Stroke {
+                points_x: vec![100f32],
+                points_y: vec![100f32],
+                points_girth: vec![1f32],
+                color: ColorAlias::Black,
+                alpha: 0.0,
+            }],
+            theme: None,
+        };
+
+        assert_eq!(DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::get_drawing_bounds(small_drawing.strokes.as_slice()), (121, 121));
+
+        let large_drawing = Drawing {
+            scale: 0.0,
+            translation_x: 0.0,
+            translation_y: 0.0,
+            strokes: vec![Stroke {
+                points_x: vec![2000f32],
+                points_y: vec![2000f32],
+                points_girth: vec![1f32],
+                color: ColorAlias::Black,
+                alpha: 0.0,
+            }],
+            theme: None,
+        };
+
+        assert_eq!(DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::get_drawing_bounds(large_drawing.strokes.as_slice()), (2021, 2021));
+    }
+
+    #[test]
+    fn test_create_png_sanity_check() {
+        let db = &temp_config();
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
+
+        let keys = DefaultCrypto::generate_key().unwrap();
+        let account = Account {
+            username: String::from("username"),
+            api_url: "ftp://uranus.net".to_string(),
+            private_key: keys,
+        };
+
+        DefaultAccountRepo::insert_account(backend, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(backend, &root).unwrap();
+
+        let folder = DefaultFileService::create(backend, "folder", root.id, Folder).unwrap();
+        let document = DefaultFileService::create(backend, "doc", folder.id, Document).unwrap();
+
+        let drawing = Drawing {
+            scale: 0.0,
+            translation_x: 0.0,
+            translation_y: 0.0,
+            strokes: vec![Stroke {
+                points_x: vec![10f32, 50f32, 60f32],
+                points_y: vec![10f32, 50f32, 1000f32],
+                points_girth: vec![5f32, 7f32, 91f32],
+                color: ColorAlias::Black,
+                alpha: 0.0,
+            }],
+            theme: None,
+        };
+
+        DefaultFileService::write_document(
+            backend,
+            document.id,
+            serde_json::to_string(&drawing).unwrap().as_bytes(),
+        )
+        .unwrap();
+
+        DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::export_drawing(backend, document.id, SupportedImageFormats::Png).unwrap();
+    }
+
+    #[test]
+    fn test_create_png_unequal_points_data_sanity_check() {
+        let db = &temp_config();
+        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
+
+        let keys = DefaultCrypto::generate_key().unwrap();
+        let account = Account {
+            username: String::from("username"),
+            api_url: "ftp://uranus.net".to_string(),
+            private_key: keys,
+        };
+
+        DefaultAccountRepo::insert_account(backend, &account).unwrap();
+        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        DefaultFileMetadataRepo::insert(backend, &root).unwrap();
+
+        let folder = DefaultFileService::create(backend, "folder", root.id, Folder).unwrap();
+        let document = DefaultFileService::create(backend, "doc", folder.id, Document).unwrap();
+
+        let drawing = Drawing {
+            scale: 0.0,
+            translation_x: 0.0,
+            translation_y: 0.0,
+            strokes: vec![Stroke {
+                points_x: vec![10f32, 50f32, 60f32],
+                points_y: vec![10f32, 50f32, 1000f32],
+                points_girth: vec![5f32, 7f32],
+                color: ColorAlias::Black,
+                alpha: 0.0,
+            }],
+            theme: None,
+        };
+
+        DefaultFileService::write_document(
+            backend,
+            document.id,
+            serde_json::to_string(&drawing).unwrap().as_bytes(),
+        )
+        .unwrap();
+
+        DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::export_drawing(backend, document.id, SupportedImageFormats::Png).unwrap_err();
     }
 }
