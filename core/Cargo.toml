@@ -26,9 +26,11 @@ chrono = "0.4.15"
 diffy = "0.2.0"
 fern = { version = "0.6.0", features = ["colored"]}
 flate2 = "1.0"
+image = "0.23.13" 
 jni = { version = "0.13.1", default-features = false }
 log = "0.4.8"
 rand = "0.7"
+raqote = { version = "0.8.0", default-features = false }
 reqwest = { version = "0.11.1", default-features = false, features = ["blocking", "json"] }
 rsa = { version = "^0.2", features = ["serde1"] }
 serde = { version = "1.0", features = ["derive"] }
