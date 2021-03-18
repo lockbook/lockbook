@@ -46,7 +46,7 @@ public struct FakeApi: LockbookApi {
     }
     
     public func listFiles() -> FfiResult<[FileMetadata], ListMetadatasError> {
-        return .success(fileMetas)
+        return .success(FakeApi.fileMetas)
     }
     
     public func getFile(id: UUID) -> FfiResult<String, ReadDocumentError> {
@@ -106,7 +106,7 @@ Vestibulum ante ipsum primis in vel.
     
     public let username: Account.Username = "jeff"
     public static let root = FileMetadata(fileType: .Folder, id: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "jeff", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false)
-    public let fileMetas = [
+    public static let fileMetas = [
         root,
         FileMetadata(fileType: .Document, id: UUID(uuidString: "e956c7a2-db7f-4f9d-98c3-217847acf23a").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "first_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
         FileMetadata(fileType: .Document, id: UUID(uuidString: "644d1d56-8e24-4a32-8304-e906435f95db").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "another_file.md", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
