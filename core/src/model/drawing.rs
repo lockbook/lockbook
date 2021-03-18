@@ -1,8 +1,5 @@
-# Drawing Data Format
-
-Data definiton:
-```rust
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Drawing {
@@ -22,7 +19,7 @@ pub struct Stroke {
     pub alpha: f32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub enum ColorAlias {
     Black,
     Red,
@@ -34,10 +31,9 @@ pub enum ColorAlias {
     White,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct ColorRGB {
     pub r: u8,
     pub g: u8,
     pub b: u8,
 }
-```

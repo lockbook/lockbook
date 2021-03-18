@@ -28,7 +28,7 @@ pub fn edit(file_name: &str) -> CliResult<()> {
 
     let file_content = read_document(&get_config(), file_metadata.id).map_err(|err| match err {
         CoreError::UiError(ReadDocumentError::TreatedFolderAsDocument) => {
-            err!(DocTreatedAsFolder(file_name.to_string()))
+            err!(FolderTreatedAsDoc(file_name.to_string()))
         }
         CoreError::UiError(ReadDocumentError::NoAccount)
         | CoreError::UiError(ReadDocumentError::FileDoesNotExist)
