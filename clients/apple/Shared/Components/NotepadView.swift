@@ -18,6 +18,7 @@ struct NotepadView: UIViewRepresentable {
         np.storage.applyMarkdown = { m in applyMarkdown(markdown: m) }
         np.storage.applyBody = { applyBody() }
         np.text = text
+        np.styleNow()
 
         return np
     }
@@ -46,6 +47,7 @@ struct NotepadView: NSViewRepresentable {
         np.layoutManager?.replaceTextStorage(np.storage)
         scrollView.documentView = np
         np.string = text
+        np.styleNow()
 
         return scrollView
     }
