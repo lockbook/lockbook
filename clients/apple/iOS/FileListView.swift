@@ -62,6 +62,9 @@ struct FileListView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             core.syncing = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            core.syncing = true
+        }
         .sheet(isPresented: $showingAccount, content: {
             AccountView(core: core, account: account)
         })

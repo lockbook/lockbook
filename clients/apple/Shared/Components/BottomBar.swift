@@ -10,9 +10,12 @@ struct BottomBar: View {
     @State var lastSynced = "moments ago"
 
     #if os(iOS)
-    var onNewDocument: () -> Void = {}
-    var onNewDrawing: () -> Void = {}
-    var onNewFolder: () -> Void = {}
+    var onNewDocument: () -> Void = {
+    }
+    var onNewDrawing: () -> Void = {
+    }
+    var onNewFolder: () -> Void = {
+    }
     #endif
 
     let calculateWorkTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
@@ -20,36 +23,25 @@ struct BottomBar: View {
 
     #if os(iOS)
     var menu: AnyView {
-        if core.syncing {
-            return AnyView(Label("Add", systemImage: "plus.circle.fill")
-                            .imageScale(.large)
-                            .frame(width: 40, height: 40)
-                            .foregroundColor(Color.gray))
-        } else {
-            return AnyView(Menu {
-                Button(action: onNewDocument) {
-                    Label("Create a document", systemImage: "doc")
-                }
-
-                Button(action: onNewDrawing) {
-                    Label("Create a drawing", systemImage: "scribble.variable")
-                }
-                
-                Button(action: onNewFolder) {
-                    Label("Create a folder", systemImage: "folder")
-                }
+        AnyView(Menu {
+            Button(action: onNewDocument) {
+                Label("Create a document", systemImage: "doc")
             }
-            label: {
-                Label("Add", systemImage: "plus.circle.fill")
+
+            Button(action: onNewDrawing) {
+                Label("Create a drawing", systemImage: "scribble.variable")
+            }
+
+            Button(action: onNewFolder) {
+                Label("Create a folder", systemImage: "folder")
+            }
+        } label: {
+            Label("Add", systemImage: "plus.circle.fill")
                     .imageScale(.large)
                     .frame(width: 40, height: 40)
-            }
-            )
-        }
+        })
     }
     #endif
-
-    /// TODO: Consider syncing onAppear here
 
     #if os(iOS)
     var syncButton: AnyView {
@@ -58,7 +50,7 @@ struct BottomBar: View {
         } else {
             if offline {
                 return AnyView(Image(systemName: "xmark.icloud.fill")
-                                .foregroundColor(Color.gray))
+                        .foregroundColor(Color.gray))
             } else {
                 return AnyView(Button(action: {
                     core.syncing = true
@@ -74,9 +66,9 @@ struct BottomBar: View {
         if core.syncing || offline {
 
             return AnyView(
-                Text("")
-                    .font(.callout)
-                    .foregroundColor(Color.gray)
+                    Text("")
+                            .font(.callout)
+                            .foregroundColor(Color.gray)
             )
 
         } else {
@@ -85,8 +77,8 @@ struct BottomBar: View {
                 work = 0
             }) {
                 Text("Sync now")
-                    .font(.callout)
-                    .foregroundColor(Color.init(red: 0.3, green: 0.45, blue: 0.79))
+                        .font(.callout)
+                        .foregroundColor(Color.init(red: 0.3, green: 0.45, blue: 0.79))
             })
         }
     }
@@ -95,26 +87,26 @@ struct BottomBar: View {
     var statusText: AnyView {
         if core.syncing {
             return AnyView(Text("Syncing...")
-                            .foregroundColor(.secondary))
+                    .foregroundColor(.secondary))
         } else {
             if offline {
                 return AnyView(Text("Offline")
-                                .foregroundColor(.secondary)
-                                .onReceive(calculateWorkTimer) { _ in
-                                    checkForNewWork()
-                                })
-            } else {
-                return AnyView(
-                    Text(work == 0 ? "Last synced: \(lastSynced)" : "\(work) items pending sync")
-                        .font(.callout)
                         .foregroundColor(.secondary)
-                        .bold()
                         .onReceive(calculateWorkTimer) { _ in
                             checkForNewWork()
-                        }
-                        .onReceive(syncTimer) { _ in
-                            core.syncing = true
-                        }
+                        })
+            } else {
+                return AnyView(
+                        Text(work == 0 ? "Last synced: \(lastSynced)" : "\(work) items pending sync")
+                                .font(.callout)
+                                .foregroundColor(.secondary)
+                                .bold()
+                                .onReceive(calculateWorkTimer) { _ in
+                                    checkForNewWork()
+                                }
+                                .onReceive(syncTimer) { _ in
+                                    core.syncing = true
+                                }
                 )
             }
         }
@@ -130,9 +122,9 @@ struct BottomBar: View {
         #else
         Divider()
         statusText
-            .padding(4)
+                .padding(4)
         syncButton
-            .padding(.bottom, 7)
+                .padding(.bottom, 7)
         #endif
     }
 
@@ -199,7 +191,7 @@ struct NonSyncingPreview: PreviewProvider {
 struct OfflinePreview: PreviewProvider {
 
     static let core = GlobalState()
-    
+
     static var previews: some View {
         NavigationView {
             HStack {
