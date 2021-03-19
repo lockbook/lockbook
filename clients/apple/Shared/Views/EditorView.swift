@@ -143,7 +143,7 @@ extension NSTextField {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorLoader(content: GlobalState().openDocument, meta: FakeApi().fileMetas[0], files: FakeApi().fileMetas)
+            EditorLoader(content: GlobalState().openDocument, meta: FakeApi.fileMetas[0], files: FakeApi.fileMetas)
         }
         .preferredColorScheme(.dark)
     }
