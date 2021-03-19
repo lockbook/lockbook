@@ -80,7 +80,6 @@ class GlobalState: ObservableObject {
     }
     
     func updateFiles() {
-        print("Updating files!")
         if (account != nil) {
             switch api.getRoot() {
             case .success(let root):
