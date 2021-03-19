@@ -59,6 +59,9 @@ struct FileListView: View {
             }
             .padding(.leading, 20)
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            core.syncing = true
+        }
         .sheet(isPresented: $showingAccount, content: {
             AccountView(core: core, account: account)
         })
