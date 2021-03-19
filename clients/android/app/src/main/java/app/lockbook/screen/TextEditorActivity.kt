@@ -29,6 +29,7 @@ import java.util.concurrent.Executors
 
 class TextEditorActivity : AppCompatActivity() {
     private lateinit var textEditorViewModel: TextEditorViewModel
+    private var isFirstLaunch = true
     private var timer: Timer = Timer()
     private val handler = Handler(requireNotNull(Looper.myLooper()))
     private var menu: Menu? = null
@@ -162,6 +163,8 @@ class TextEditorActivity : AppCompatActivity() {
         if (contents != null) {
             text_editor_text_field.setText(contents)
             text_editor_text_field.addTextChangedListener(textEditorViewModel)
+
+            isFirstLaunch = false
             startBackgroundSave()
         }
     }
@@ -302,7 +305,9 @@ class TextEditorActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         timer.cancel()
-        textEditorViewModel.saveText(text_editor_text_field.text.toString())
+        if (!isFirstLaunch) {
+            textEditorViewModel.saveText(text_editor_text_field.text.toString())
+        }
     }
 }
 
