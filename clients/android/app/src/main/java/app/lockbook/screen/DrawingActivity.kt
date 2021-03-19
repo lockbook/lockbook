@@ -33,6 +33,7 @@ class DrawingActivity : AppCompatActivity() {
     private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
             if (!isFirstLaunch) {
+                drawing_view.visibility = View.VISIBLE
                 drawing_view.startThread()
             } else {
                 addDrawingToView()
@@ -210,12 +211,12 @@ class DrawingActivity : AppCompatActivity() {
     private fun changeToolsVisibility(newVisibility: Int) {
         val onAnimationEnd = object : Animator.AnimatorListener {
             override fun onAnimationStart(animation: Animator?) {
-                if (newVisibility == View.VISIBLE && drawing_view.isTouchable) {
+                if (newVisibility == View.VISIBLE) {
                     drawing_tools_menu.visibility = newVisibility
                 }
             }
             override fun onAnimationEnd(animation: Animator?) {
-                if (newVisibility == View.GONE && drawing_view.isTouchable) {
+                if (newVisibility == View.GONE) {
                     drawing_tools_menu.visibility = newVisibility
                 }
             }
@@ -228,7 +229,6 @@ class DrawingActivity : AppCompatActivity() {
     }
 
     private fun addDrawingToView() {
-        drawing_view.isTouchable = true
         drawing_progress_bar.visibility = View.GONE
 
         val drawing = drawingViewModel.backupDrawing

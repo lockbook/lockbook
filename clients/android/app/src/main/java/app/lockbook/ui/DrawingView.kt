@@ -8,6 +8,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
+import android.view.View
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
@@ -35,7 +36,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     var strokeColor = ColorAlias.White
 
     var isErasing = false
-    var isTouchable = false
 
     var theme = DEFAULT_THEME
     lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int>
@@ -74,7 +74,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             context,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    if (detector != null && isTouchable) {
+                    if (detector != null) {
                         onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
                         modelFocusPoint = screenToModel(onScreenFocusPoint)
                     }
@@ -82,7 +82,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 }
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    if (isTouchable) {
                         drawing.scale *= detector.scaleFactor
 
                         val screenLocationNormalized = PointF(
@@ -111,7 +110,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
                         drawing.translationX = -left
                         drawing.translationY = -top
-                    }
 
                     return true
                 }
@@ -162,7 +160,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         )
 
         canvas.drawPaint(backgroundPaint)
-        backgroundPaint.color = Color.BLACK
+
+        backgroundPaint.color = ResourcesCompat.getColor(
+            App.instance.resources,
+            R.color.drawingTouchableBackground,
+            App.instance.theme
+        )
+
         canvas.drawRect(Rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT), backgroundPaint)
         canvas.drawBitmap(canvasBitmap, 0f, 0f, bitmapPaint)
         canvas.restore()
@@ -318,6 +322,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     fun initializeWithDrawing(maybeDrawing: Drawing?) {
+        visibility = View.VISIBLE
+
         initializeCanvasesAndBitmaps()
         if (maybeDrawing != null) {
             this.drawing = maybeDrawing
@@ -328,7 +334,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        if (event != null && isTouchable) {
+        if (event != null) {
             if (event.pointerCount > 0) {
                 if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
                     event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER
