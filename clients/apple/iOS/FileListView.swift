@@ -7,7 +7,6 @@ struct FileListView: View {
     @State var showingAccount: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
-    @State var creatingFileExtension = ""
     let currentFolder: FileMetadata
     let account: Account
     @Binding var moving: FileMetadata?
@@ -22,7 +21,7 @@ struct FileListView: View {
         ScrollView {
             VStack {
                 creating.map { type in
-                    SyntheticFileCell(parent: currentFolder, type: type, nameField: $creatingName, fileExtension: $creatingFileExtension, onCommit: {
+                    SyntheticFileCell(parent: currentFolder, type: type, name: $creatingName, onCommit: {
                         handleCreate(meta: currentFolder, type: type)
                     }, onCancel: doneCreating)
                 }
@@ -128,7 +127,7 @@ struct FileListView: View {
     }
     
     func handleCreate(meta: FileMetadata, type: FileType) {
-        switch core.api.createFile(name: creatingName + creatingFileExtension, dirId: meta.id, isFolder: type == .Folder) {
+        switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
         case .success(_):
             doneCreating()
             core.updateFiles()
@@ -147,16 +146,14 @@ struct FileListView: View {
     func newDocument() {
         withAnimation {
             creating = .Document
-            creatingName = ""
-            creatingFileExtension = ".md"
+            creatingName = ".md"
         }
     }
     
     func newDrawing() {
         withAnimation {
             creating = .Document
-            creatingName = ""
-            creatingFileExtension = ".draw"
+            creatingName = ".draw"
         }
     }
     
