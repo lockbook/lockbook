@@ -32,10 +32,11 @@ struct AccountView: View {
                     DisclosureGroup(
                         isExpanded: $showingUsage,
                         content: { () -> AnyView in
-                            let usages = (try? core.api.getUsage().get()) ?? []
-                            let bytes = usages.map { $0.byteSecs }.reduce(0, +)
-                            return AnyView(UsageIndicator(numerator: bytes*8/10, denominator: bytes, suffix: "Bytes")
-                                            .foregroundColor(.accentColor))
+                            if case .success(let usage) = core.api.getUsageHumanReadable() {
+                                return AnyView(Text(usage).foregroundColor(.accentColor))
+                            } else {
+                                return AnyView(Text("Failed to retreive usage!"))
+                            }
                         },
                         label: {
                             HStack {

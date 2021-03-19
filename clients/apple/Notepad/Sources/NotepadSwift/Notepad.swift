@@ -42,6 +42,10 @@ public class Notepad: UITextView, UITextViewDelegate {
     public func textViewDidChange(_ textView: UITextView) {
         onTextChange(textView.text)
     }
+
+    public func styleNow() {
+        self.storage.applyStyles()
+    }
 }
 #else
 import AppKit
@@ -58,6 +62,10 @@ public class Notepad: NSTextView {
 
     override public func didChangeText() {
         self.onTextChange(self.storage.string)
+    }
+
+    public func styleNow() {
+        self.storage.applyStyles()
     }
 }
 #endif

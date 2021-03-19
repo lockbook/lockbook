@@ -48,15 +48,15 @@ Native support for: Linux, macOS, iOS, iPadOS, Android, and Windows. We capture 
 | New Account        |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | QR Import          |   ⛔️     |    📆     |     ✅      |     📆       |      ✅        |    📆     |
 | Import Account     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Space Utilized     |   ✅     |    🏗     |     ✅      |     ✅       |      🏗        |    🏗     |
+| Space Utilized     |   ✅     |    🏗     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Billing            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 
 ### File Operations
 
 |                       |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
 |-----------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
-| Rename                |   ✅     |    ✅     |     ✅      |     ✅       |      🏗        |    🏗     |
-| Move                  |   ✅     |    📆     |     ✅      |     ✅       |      🏗        |    🏗     |
+| Rename                |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
+| Move                  |   ✅     |    📆     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Delete                |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Sync                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Export file to host   |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
