@@ -7,7 +7,7 @@ struct BookView: View {
     let currentFolder: FileMetadata
     let account: Account
     @State var moving: FileMetadata?
-    
+
     var body: some View {
         NavigationView {
             #if os(iOS)

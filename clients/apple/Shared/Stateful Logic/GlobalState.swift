@@ -20,7 +20,6 @@ class GlobalState: ObservableObject {
             }
         }
     }
-    let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     let serialQueue = DispatchQueue(label: "syncQueue")
     #if os(iOS)
     @Published var openDrawing: DrawingModel
@@ -30,7 +29,7 @@ class GlobalState: ObservableObject {
     private var syncChannel = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
     
-    func load() {
+    func loadAccount() {
         switch api.getAccount() {
         case .success(let acc):
             account = acc
@@ -46,7 +45,7 @@ class GlobalState: ObservableObject {
         switch res {
         case .success(let newState):
             state = newState
-            load()
+            loadAccount()
             switch newState {
             case .ReadyToUse:
                 break
@@ -162,10 +161,4 @@ class GlobalState: ObservableObject {
             self.root = root
         }
     }
-}
-
-struct Message {
-    let words: String
-    let icon: String?
-    let color: Color
 }
