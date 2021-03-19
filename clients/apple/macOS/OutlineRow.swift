@@ -7,6 +7,7 @@ struct OutlineRow: View {
     var file: FileMetadata
     var level: CGFloat
     @Binding var open: Bool
+    @Binding var dragging: FileMetadata?
 
     var children: [FileMetadata] {
         core.files.filter {
@@ -52,21 +53,26 @@ struct OutlineRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .padding(.leading, level * 20)
+        .onDrag {
+            self.dragging = file
+            return NSItemProvider(object: self.file.id.uuidString as NSString)
+        }
     }
 }
 
 struct SyntheticOutlineRow: View {
     let fileType: FileType
     var level: CGFloat
-    let onCreate: (String) -> Void
+    let onCommit: (String) -> Void
     let onCancel: () -> Void
+    let pendingImage: Image
 
     @State var nameField: String = ""
 
     var body: some View {
         HStack {
             Group {
-                Image(systemName: "plus")
+                pendingImage
             }
             .frame(width: 16, height: 16)
             Image(systemName: fileType == .Folder ? "folder" : "doc")
@@ -76,7 +82,7 @@ struct SyntheticOutlineRow: View {
 
             TextField("\(fileType.rawValue.lowercased()) name", text: $nameField, onCommit: {
                 if (!nameField.isEmpty) {
-                    onCreate(nameField)
+                    onCommit(nameField)
                 } else {
                     onCancel()
                 }
