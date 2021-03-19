@@ -15,7 +15,8 @@ struct OutlineBranch: View {
     @State var open: Bool = false
     @State var creating: FileType?
     @Binding var dragging: FileMetadata?
-    
+    @Binding var renaming: FileMetadata?
+
     var children: [FileMetadata] {
         core.files.filter {
             $0.parent == file.id && $0.id != file.id
@@ -32,7 +33,34 @@ struct OutlineBranch: View {
             if level == -1 {
                 Text(file.name).opacity(0.4)
             } else {
-                Group {
+                if let isRenaming = renaming, isRenaming == file {
+                    SyntheticOutlineRow(
+                        fileType: file.fileType,
+                        level: level,
+                        onCommit: { s in
+                            renaming = nil
+                            let r = self.core.api.renameFile(id: isRenaming.id, name: s)
+                            if case .failure(let err) = r {
+                                core.handleError(err)
+                            } else {
+                                withAnimation {
+                                    self.core.updateFiles()
+                                }
+                            }
+                        },
+                        onCancel: {
+                            withAnimation {
+                                renaming = nil
+                            }
+                        },
+                        pendingImage: Image(systemName: "pencil"),
+                        nameField: file.name
+                    ).onDisappear {
+                        withAnimation {
+                            self.core.updateFiles()
+                        }
+                    }
+                } else {
                     if file == selectedItem {
                         OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
                             .background(Color.accentColor)
@@ -55,24 +83,25 @@ struct OutlineBranch: View {
             }
             if isLeaf == false && (open == true || level == -1) {
                 ForEach(children) { child in
-                    OutlineBranch(core: core, file: child, selectedItem: self.$selectedItem, level: self.level + 1, dragging: self.$dragging)
+                    OutlineBranch(core: core, file: child, selectedItem: self.$selectedItem, level: self.level + 1, dragging: self.$dragging, renaming: self.$renaming)
                 }
             }
             creating.map { c in
                 SyntheticOutlineRow(
                     fileType: c,
                     level: self.level + 1,
-                    onCreate: handleCreate(meta: file, type: c),
+                    onCommit: handleCreate(meta: file, type: c),
                     onCancel: {
                         withAnimation {
                             creating = nil
                         }
-                    }
+                    },
+                    pendingImage: Image(systemName: "plus")
                 )
             }
         }
         .contextMenu(menuItems: {
-            makeContextActions(parent: file, creating: $creating)
+            makeContextActions(parent: file, creating: $creating, renaming: $renaming)
             Button(action: handleDelete(meta: file)) {
                 Label("Delete", systemImage: "trash.fill")
             }
@@ -158,7 +187,8 @@ struct OutlineSection: View {
     var root: FileMetadata
     @Binding var selectedItem: FileMetadata?
     @State var dragging: FileMetadata?
-    
+    @State var renaming: FileMetadata?
+
     var children: [FileMetadata] {
         core.files.filter {
             $0.parent == root.id && $0.id != root.id
@@ -173,7 +203,7 @@ struct OutlineSection: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 // The padding in the section header is there to adjust for the inset hack.
-                OutlineBranch(core: core, file: root, selectedItem: self.$selectedItem, level: -1, dragging: self.$dragging)
+                OutlineBranch(core: core, file: root, selectedItem: self.$selectedItem, level: -1, dragging: self.$dragging, renaming: self.$renaming)
                 Spacer()
             }
             .listStyle(SidebarListStyle())
@@ -184,7 +214,7 @@ struct OutlineSection: View {
     }
 }
 
-func makeContextActions(parent: FileMetadata, creating: Binding<FileType?>) -> TupleView<(Text, Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
+func makeContextActions(parent: FileMetadata, creating: Binding<FileType?>, renaming: Binding<FileMetadata?>) -> TupleView<(Text, Button<Label<Text, Image>>, Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
     TupleView((
         Text(parent.name),
         Button(action: { creating.wrappedValue = .Document }) {
@@ -192,7 +222,10 @@ func makeContextActions(parent: FileMetadata, creating: Binding<FileType?>) -> T
         },
         Button(action: { creating.wrappedValue = .Folder }) {
             Label("Create a folder", systemImage: "folder")
-        }
+        },
+        Button(action: { renaming.wrappedValue = parent }, label: {
+            Label("Rename", systemImage: "pencil")
+        })
     ))
 }
 

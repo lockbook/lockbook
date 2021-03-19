@@ -22,7 +22,7 @@ struct FileListView: View {
         ScrollView {
             VStack {
                 creating.map { type in
-                    SyntheticFileCell(parent: currentFolder, type: type, nameField: $creatingName, fileExtension: $creatingFileExtension, onCreate: {
+                    SyntheticFileCell(parent: currentFolder, type: type, nameField: $creatingName, fileExtension: $creatingFileExtension, onCommit: {
                         handleCreate(meta: currentFolder, type: type)
                     }, onCancel: doneCreating)
                 }

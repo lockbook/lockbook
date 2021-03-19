@@ -35,7 +35,7 @@ struct SyntheticFileCell: View {
     let type: FileType
     @Binding var nameField: String
     @Binding var fileExtension: String
-    let onCreate: () -> Void
+    let onCommit: () -> Void
     let onCancel: () -> Void
     
     var newWhat: String {
@@ -51,12 +51,12 @@ struct SyntheticFileCell: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
                     TextField(type == .Folder ? "folder name" : "document name", text: $nameField,
-                              onCommit: onCreate)
+                              onCommit: onCommit)
                         .autocapitalization(.none)
                         .font(.title3)
                     if type == .Document {
                         TextField("File Extension", text: $fileExtension,
-                                  onCommit: onCreate)
+                                  onCommit: onCommit)
                             .autocapitalization(.none)
                             .font(.title3)
                             .frame(width: 50)
@@ -83,13 +83,13 @@ struct FileCell_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             FileCell(meta: GlobalState().files[0])
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, nameField: .constant(""), fileExtension: .constant(".md"), onCreate: {}, onCancel: {})
+            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, nameField: .constant(""), fileExtension: .constant(".md"), onCommit: {}, onCancel: {})
             
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, nameField: .constant(""), fileExtension: .constant(".text"), onCreate: {}, onCancel: {})
+            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, nameField: .constant(""), fileExtension: .constant(".text"), onCommit: {}, onCancel: {})
             
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, nameField: .constant(""), fileExtension: .constant(".draw"), onCreate: {}, onCancel: {})
+            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, nameField: .constant(""), fileExtension: .constant(".draw"), onCommit: {}, onCancel: {})
             
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Folder, nameField: .constant(""), fileExtension: .constant(".md"), onCreate: {}, onCancel: {})
+            SyntheticFileCell(parent: GlobalState().files[0], type: .Folder, nameField: .constant(""), fileExtension: .constant(".md"), onCommit: {}, onCancel: {})
             
         }
         .previewLayout(.fixed(width: 300, height: 50))

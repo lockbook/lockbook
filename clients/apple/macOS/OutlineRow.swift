@@ -63,15 +63,16 @@ struct OutlineRow: View {
 struct SyntheticOutlineRow: View {
     let fileType: FileType
     var level: CGFloat
-    let onCreate: (String) -> Void
+    let onCommit: (String) -> Void
     let onCancel: () -> Void
+    let pendingImage: Image
 
     @State var nameField: String = ""
 
     var body: some View {
         HStack {
             Group {
-                Image(systemName: "plus")
+                pendingImage
             }
             .frame(width: 16, height: 16)
             Image(systemName: fileType == .Folder ? "folder" : "doc")
@@ -81,7 +82,7 @@ struct SyntheticOutlineRow: View {
 
             TextField("\(fileType.rawValue.lowercased()) name", text: $nameField, onCommit: {
                 if (!nameField.isEmpty) {
-                    onCreate(nameField)
+                    onCommit(nameField)
                 } else {
                     onCancel()
                 }

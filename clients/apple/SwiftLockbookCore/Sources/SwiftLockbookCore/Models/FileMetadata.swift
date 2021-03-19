@@ -19,7 +19,8 @@ public struct FileMetadata: Codable, Identifiable, Equatable {
             lhs.contentVersion == rhs.contentVersion &&
             lhs.parent == rhs.parent &&
             lhs.owner == rhs.owner &&
-            lhs.deleted == rhs.deleted
+            lhs.deleted == rhs.deleted &&
+            lhs.name == rhs.name
     }
 }
 
