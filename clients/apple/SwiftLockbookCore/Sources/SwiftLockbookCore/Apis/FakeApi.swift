@@ -115,5 +115,6 @@ Vestibulum ante ipsum primis in vel.
         FileMetadata(fileType: .Document, id: UUID(uuidString: "7578bedd-6429-47ad-b03d-a8d9eebaec0c").unsafelyUnwrapped, parent: UUID(uuidString: "53470907-5628-49eb-a8b0-8212cf9c8a91").unsafelyUnwrapped, name: "nice_1.txt", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
         FileMetadata(fileType: .Document, id: UUID(uuidString: "c27e3c81-a2cb-4638-8ab5-c395bc119b92").unsafelyUnwrapped, parent: UUID(uuidString: "53470907-5628-49eb-a8b0-8212cf9c8a91").unsafelyUnwrapped, name: "nice_2.txt", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
         FileMetadata(fileType: .Folder, id: UUID(uuidString: "7ca0d23a-4d17-478c-9152-c37683761ce2").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "other_stuff", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
+        FileMetadata(fileType: .Folder, id: UUID(uuidString: "5e828f37-4695-477d-8157-7434cea29474").unsafelyUnwrapped, parent: UUID(uuidString: "7ca0d23a-4d17-478c-9152-c37683761ce2").unsafelyUnwrapped, name: "deep_other_stuff", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false),
     ]
 }

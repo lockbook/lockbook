@@ -10,7 +10,8 @@ struct FileListView: View {
     @State var creatingFileExtension = ""
     let currentFolder: FileMetadata
     let account: Account
-    
+    @Binding var moving: FileMetadata?
+
     var files: [FileMetadata] {
         core.files.filter {
             $0.parent == currentFolder.id && $0.id != currentFolder.id
@@ -25,7 +26,7 @@ struct FileListView: View {
                         handleCreate(meta: currentFolder, type: type)
                     }, onCancel: doneCreating)
                 }
-                
+
                 ForEach(files) { meta in
                     renderCell(meta: meta)
                         .contextMenu(menuItems: {
@@ -34,8 +35,13 @@ struct FileListView: View {
                             }) {
                                 Label("Delete", systemImage: "trash.fill")
                             }
+                            Button(action: {
+                                moving = meta
+                            }, label: {
+                                Label("Move", systemImage: "folder")
+                            })
                         })
-                    
+
                 }
             }
             .padding(.leading, 20)
@@ -43,6 +49,7 @@ struct FileListView: View {
         .sheet(isPresented: $showingAccount, content: {
             AccountView(core: core, account: account)
         })
+        .sheet(item: $moving, content: renderMoveDialog)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: { showingAccount.toggle() }) {
@@ -56,11 +63,41 @@ struct FileListView: View {
         .navigationBarTitle(currentFolder.name)
         
     }
+
+    func renderMoveDialog(meta: FileMetadata) -> some View {
+        let root = core.files.first(where: { $0.parent == $0.id })!
+        let wc = WithChild(root, core.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
+
+        return VStack {
+            Text("Moving \(meta.name)").font(.headline)
+            NestedList(
+                node: wc,
+                row: { dest in
+                    Button(action: {
+                        moving = nil
+                        if case .failure(let err) = core.api.moveFile(id: meta.id, newParent: dest.id) {
+                            // Delaying this because the sheet has to go away before an alert can show up!
+                            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+                                core.handleError(err)
+                            }
+                        } else {
+                            withAnimation {
+                                core.updateFiles()
+                            }
+                        }
+                    }, label: {
+                        Label(dest.name, systemImage: "folder")
+                    })
+                }
+            )
+            Spacer()
+        }.padding()
+    }
     
     func renderCell(meta: FileMetadata) -> AnyView {
         if meta.fileType == .Folder {
             return AnyView (
-                NavigationLink(destination: FileListView(core: core, currentFolder: meta, account: account)) {
+                NavigationLink(destination: FileListView(core: core, currentFolder: meta, account: account, moving: $moving)) {
                     FileCell(meta: meta)
                 }.isDetailLink(false)
             )
@@ -136,9 +173,7 @@ struct FileListView_Previews: PreviewProvider {
     
     static var previews: some View {
         NavigationView {
-            FileListView(core: core,
-                         showingAccount: false, currentFolder: core.root!,
-                         account: core.account!)
+            FileListView(core: core, showingAccount: false, currentFolder: core.root!, account: core.account!, moving: .constant(.none))
         }
     }
 }
