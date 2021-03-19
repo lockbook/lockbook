@@ -10,6 +10,7 @@ struct FileListView: View {
     let currentFolder: FileMetadata
     let account: Account
     @Binding var moving: FileMetadata?
+    @State var renaming: FileMetadata?
 
     var files: [FileMetadata] {
         core.files.filter {
@@ -21,9 +22,16 @@ struct FileListView: View {
         ScrollView {
             VStack {
                 creating.map { type in
-                    SyntheticFileCell(parent: currentFolder, type: type, name: $creatingName, onCommit: {
-                        handleCreate(meta: currentFolder, type: type)
-                    }, onCancel: doneCreating)
+                    SyntheticFileCell(
+                        parent: currentFolder,
+                        type: type,
+                        name: $creatingName,
+                        onCommit: {
+                            handleCreate(meta: currentFolder, type: type)
+                        },
+                        onCancel: doneCreating,
+                        renaming: false
+                    )
                 }
 
                 ForEach(files) { meta in
@@ -38,6 +46,12 @@ struct FileListView: View {
                                 moving = meta
                             }, label: {
                                 Label("Move", systemImage: "folder")
+                            })
+                            Button(action: {
+                                renaming = meta
+                                creatingName = meta.name
+                            }, label: {
+                                Label("Rename", systemImage: "pencil")
                             })
                         })
 
@@ -94,25 +108,51 @@ struct FileListView: View {
     }
     
     func renderCell(meta: FileMetadata) -> AnyView {
-        if meta.fileType == .Folder {
-            return AnyView (
-                NavigationLink(destination: FileListView(core: core, currentFolder: meta, account: account, moving: $moving)) {
-                    FileCell(meta: meta)
-                }.isDetailLink(false)
+        if let isRenaming = renaming, isRenaming == meta {
+            return AnyView(
+                SyntheticFileCell(
+                    parent: meta,
+                    type: meta.fileType,
+                    name: $creatingName,
+                    onCommit: {
+                        if case .failure(let err) = core.api.renameFile(id: meta.id, name: creatingName) {
+                            core.handleError(err)
+                        } else {
+                            withAnimation {
+                                core.updateFiles()
+                            }
+                        }
+                    },
+                    onCancel: {
+                        withAnimation {
+                            renaming = nil
+                            creatingName = ""
+                        }
+                    },
+                    renaming: true
+                )
             )
         } else {
-            if meta.name.hasSuffix(".draw") {
-                // This is how you can pop without the navigation bar
-                // https://stackoverflow.com/questions/56513568/ios-swiftui-pop-or-dismiss-view-programmatically
-                let dl = DrawingLoader(model: core.openDrawing, toolbar: ToolbarModel(), meta: meta)
-                return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline)) {
-                    FileCell(meta: meta)
-                })
+            if meta.fileType == .Folder {
+                return AnyView (
+                    NavigationLink(destination: FileListView(core: core, currentFolder: meta, account: account, moving: $moving)) {
+                        FileCell(meta: meta)
+                    }.isDetailLink(false)
+                )
             } else {
-                let el = EditorLoader(content: core.openDocument, meta: meta, files: core.files)
-                return AnyView (NavigationLink(destination: el) {
-                    FileCell(meta: meta)
-                })
+                if meta.name.hasSuffix(".draw") {
+                    // This is how you can pop without the navigation bar
+                    // https://stackoverflow.com/questions/56513568/ios-swiftui-pop-or-dismiss-view-programmatically
+                    let dl = DrawingLoader(model: core.openDrawing, toolbar: ToolbarModel(), meta: meta)
+                    return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline)) {
+                        FileCell(meta: meta)
+                    })
+                } else {
+                    let el = EditorLoader(content: core.openDocument, meta: meta, files: core.files)
+                    return AnyView (NavigationLink(destination: el) {
+                        FileCell(meta: meta)
+                    })
+                }
             }
         }
     }

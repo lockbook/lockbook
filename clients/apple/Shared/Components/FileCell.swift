@@ -36,6 +36,7 @@ struct SyntheticFileCell: View {
     @Binding var name: String
     let onCommit: () -> Void
     let onCancel: () -> Void
+    let renaming: Bool
     
     var newWhat: String {
         if name.hasSuffix(".draw") && type == .Document {
@@ -56,7 +57,7 @@ struct SyntheticFileCell: View {
                 HStack {
                     Image(systemName: type == .Folder ? "folder" : "doc")
                         .foregroundColor(type == .Folder ? .blue : .secondary)
-                    Text("New \(newWhat) in \(parent.name)")
+                    Text(renaming ? "Renaming \(parent.name)" : "New \(newWhat) in \(parent.name)")
                         .foregroundColor(.gray)
                 }.font(.footnote)
             }
@@ -73,13 +74,13 @@ struct FileCell_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             FileCell(meta: GlobalState().files[0])
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {})
+            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
             
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {})
+            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
             
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {})
+            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
             
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Folder, name: .constant(""), onCommit: {}, onCancel: {})
+            SyntheticFileCell(parent: GlobalState().files[0], type: .Folder, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
             
         }
         .previewLayout(.fixed(width: 300, height: 50))
