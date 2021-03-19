@@ -11,6 +11,7 @@ public struct FileMetadata: Codable, Identifiable, Equatable {
     public var deleted: Bool
     public var userAccessKeys: [Account.Username : UserAccessInfo] = .init()
     public var folderAccessKeys: FolderAccessInfo = FolderAccessInfo(folderId: .init(), accessKey: .init(value: [], nonce: []))
+    public var isRoot: Bool { parent == id }
     
     public static func == (lhs: FileMetadata, rhs: FileMetadata) -> Bool {
         return lhs.fileType == rhs.fileType &&
