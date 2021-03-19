@@ -101,9 +101,16 @@ struct OutlineBranch: View {
             }
         }
         .contextMenu(menuItems: {
-            makeContextActions(parent: file, creating: $creating, renaming: $renaming)
-            Button(action: handleDelete(meta: file)) {
-                Label("Delete", systemImage: "trash.fill")
+            makeContextActions(
+                meta: file,
+                creating: { creating = $0 }
+            )
+            if (!file.isRoot) {
+                makeNonRootActions(
+                    meta: file,
+                    renaming: { renaming = file },
+                    delete: handleDelete(meta: file)
+                )
             }
         })
         .onDrop(of: [UTType.text], delegate: DragDropper(file: file, current: $dragging, open: $open, moveFile: { drag in
@@ -214,18 +221,26 @@ struct OutlineSection: View {
     }
 }
 
-func makeContextActions(parent: FileMetadata, creating: Binding<FileType?>, renaming: Binding<FileMetadata?>) -> TupleView<(Text, Button<Label<Text, Image>>, Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
+func makeContextActions(meta: FileMetadata, creating: @escaping (FileType) -> Void) -> TupleView<(Text, Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
     TupleView((
-        Text(parent.name),
-        Button(action: { creating.wrappedValue = .Document }) {
+        Text(meta.name),
+        Button(action: { creating(.Document) }) {
             Label("Create a document", systemImage: "doc")
         },
-        Button(action: { creating.wrappedValue = .Folder }) {
+        Button(action: { creating(.Folder) }) {
             Label("Create a folder", systemImage: "folder")
-        },
-        Button(action: { renaming.wrappedValue = parent }, label: {
+        }
+    ))
+}
+
+func makeNonRootActions(meta: FileMetadata, renaming: @escaping () -> Void, delete: @escaping () -> Void) -> TupleView<(Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
+    TupleView((
+        Button(action: renaming) {
             Label("Rename", systemImage: "pencil")
-        })
+        },
+        Button(action: delete) {
+            Label("Delete", systemImage: "trash.fill")
+        }
     ))
 }
 
