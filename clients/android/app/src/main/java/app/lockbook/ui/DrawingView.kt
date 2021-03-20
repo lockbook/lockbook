@@ -8,6 +8,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
+import android.view.View
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
@@ -16,6 +17,7 @@ import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import app.lockbook.util.Stroke
+import kotlinx.android.synthetic.main.activity_drawing.*
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -35,7 +37,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     var strokeColor = ColorAlias.White
 
     var isErasing = false
-    var isTouchable = false
 
     var theme = DEFAULT_THEME
     lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int>
@@ -74,7 +75,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             context,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    if (detector != null && isTouchable) {
+                    if (detector != null) {
                         onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
                         modelFocusPoint = screenToModel(onScreenFocusPoint)
                     }
@@ -82,36 +83,34 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 }
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    if (isTouchable) {
-                        drawing.scale *= detector.scaleFactor
+                    drawing.scale *= detector.scaleFactor
 
-                        val screenLocationNormalized = PointF(
-                            onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
-                            onScreenFocusPoint.y / tempCanvas.clipBounds.height()
-                        )
+                    val screenLocationNormalized = PointF(
+                        onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
+                        onScreenFocusPoint.y / tempCanvas.clipBounds.height()
+                    )
 
-                        val currentViewPortWidth =
-                            tempCanvas.clipBounds.width() / drawing.scale
-                        val currentViewPortHeight =
-                            tempCanvas.clipBounds.height() / drawing.scale
+                    val currentViewPortWidth =
+                        tempCanvas.clipBounds.width() / drawing.scale
+                    val currentViewPortHeight =
+                        tempCanvas.clipBounds.height() / drawing.scale
 
-                        driftWhileScalingX =
-                            (onScreenFocusPoint.x - detector.focusX) / drawing.scale
-                        driftWhileScalingY =
-                            (onScreenFocusPoint.y - detector.focusY) / drawing.scale
+                    driftWhileScalingX =
+                        (onScreenFocusPoint.x - detector.focusX) / drawing.scale
+                    driftWhileScalingY =
+                        (onScreenFocusPoint.y - detector.focusY) / drawing.scale
 
-                        val left =
-                            ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
-                        val top =
-                            ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftWhileScalingY
-                        val right = left + currentViewPortWidth
-                        val bottom = top + currentViewPortHeight
+                    val left =
+                        ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
+                    val top =
+                        ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftWhileScalingY
+                    val right = left + currentViewPortWidth
+                    val bottom = top + currentViewPortHeight
 
-                        viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
+                    viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
 
-                        drawing.translationX = -left
-                        drawing.translationY = -top
-                    }
+                    drawing.translationX = -left
+                    drawing.translationY = -top
 
                     return true
                 }
@@ -162,7 +161,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         )
 
         canvas.drawPaint(backgroundPaint)
-        backgroundPaint.color = Color.BLACK
+
+        backgroundPaint.color = ResourcesCompat.getColor(
+            App.instance.resources,
+            R.color.drawingTouchableBackground,
+            App.instance.theme
+        )
+
         canvas.drawRect(Rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT), backgroundPaint)
         canvas.drawBitmap(canvasBitmap, 0f, 0f, bitmapPaint)
         canvas.restore()
@@ -318,6 +323,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     fun initializeWithDrawing(maybeDrawing: Drawing?) {
+        visibility = View.VISIBLE
+
         initializeCanvasesAndBitmaps()
         if (maybeDrawing != null) {
             this.drawing = maybeDrawing
@@ -328,7 +335,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        if (event != null && isTouchable) {
+        if (event != null) {
             if (event.pointerCount > 0) {
                 if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
                     event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER

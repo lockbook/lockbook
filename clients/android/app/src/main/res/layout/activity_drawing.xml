@@ -1,23 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/drawing_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-
-    <ProgressBar
-        android:id="@+id/drawing_progress_bar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:minHeight="20dp"
-        android:visibility="gone"
-        android:background="@color/black"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
 
     <app.lockbook.ui.DrawingView
         android:id="@+id/drawing_view"
@@ -26,13 +13,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/drawing_progress_bar" />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:translationZ="-1dp"
-        android:background="@color/drawingUntouchableBackground" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <FrameLayout
         android:id="@+id/drawing_frame_layout"
@@ -43,6 +24,23 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
+
+        <ProgressBar
+            android:id="@+id/drawing_progress_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:indeterminate="true"
+            android:minHeight="20dp"
+            android:background="@color/colorPrimaryDark"
+            android:translationZ="2dp"/>
+
+        <View
+            android:id="@+id/drawing_loading_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/colorPrimaryDark"
+            android:translationZ="1dp" />
 
         <include
             layout="@layout/toolbar_drawing" />
