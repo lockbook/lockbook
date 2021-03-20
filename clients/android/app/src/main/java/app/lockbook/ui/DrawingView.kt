@@ -17,6 +17,7 @@ import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import app.lockbook.util.Stroke
+import kotlinx.android.synthetic.main.activity_drawing.*
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -82,34 +83,34 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 }
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
-                        drawing.scale *= detector.scaleFactor
+                    drawing.scale *= detector.scaleFactor
 
-                        val screenLocationNormalized = PointF(
-                            onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
-                            onScreenFocusPoint.y / tempCanvas.clipBounds.height()
-                        )
+                    val screenLocationNormalized = PointF(
+                        onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
+                        onScreenFocusPoint.y / tempCanvas.clipBounds.height()
+                    )
 
-                        val currentViewPortWidth =
-                            tempCanvas.clipBounds.width() / drawing.scale
-                        val currentViewPortHeight =
-                            tempCanvas.clipBounds.height() / drawing.scale
+                    val currentViewPortWidth =
+                        tempCanvas.clipBounds.width() / drawing.scale
+                    val currentViewPortHeight =
+                        tempCanvas.clipBounds.height() / drawing.scale
 
-                        driftWhileScalingX =
-                            (onScreenFocusPoint.x - detector.focusX) / drawing.scale
-                        driftWhileScalingY =
-                            (onScreenFocusPoint.y - detector.focusY) / drawing.scale
+                    driftWhileScalingX =
+                        (onScreenFocusPoint.x - detector.focusX) / drawing.scale
+                    driftWhileScalingY =
+                        (onScreenFocusPoint.y - detector.focusY) / drawing.scale
 
-                        val left =
-                            ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
-                        val top =
-                            ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftWhileScalingY
-                        val right = left + currentViewPortWidth
-                        val bottom = top + currentViewPortHeight
+                    val left =
+                        ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
+                    val top =
+                        ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftWhileScalingY
+                    val right = left + currentViewPortWidth
+                    val bottom = top + currentViewPortHeight
 
-                        viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
+                    viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
 
-                        drawing.translationX = -left
-                        drawing.translationY = -top
+                    drawing.translationX = -left
+                    drawing.translationY = -top
 
                     return true
                 }

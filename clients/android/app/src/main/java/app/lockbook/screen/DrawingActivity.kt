@@ -33,7 +33,7 @@ class DrawingActivity : AppCompatActivity() {
     private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
             if (!isFirstLaunch) {
-                drawing_view.visibility = View.VISIBLE
+                drawing_loading_view.visibility = View.GONE
                 drawing_view.startThread()
             } else {
                 addDrawingToView()
@@ -267,6 +267,7 @@ class DrawingActivity : AppCompatActivity() {
         drawing_tools_menu.visibility = View.VISIBLE
 
         isFirstLaunch = false
+        drawing_loading_view.visibility = View.GONE
         drawing_view.initializeWithDrawing(drawing)
     }
 
