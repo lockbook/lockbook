@@ -5,7 +5,6 @@ struct BottomBar: View {
 
     @ObservedObject var core: GlobalState
 
-    @State var work: Int = 0
     @State var offline: Bool = false
     @State var lastSynced = "moments ago"
 
@@ -17,9 +16,6 @@ struct BottomBar: View {
     var onNewFolder: () -> Void = {
     }
     #endif
-
-    let calculateWorkTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
-    let syncTimer = Timer.publish(every: 300, on: .main, in: .common).autoconnect()
 
     #if os(iOS)
     var menu: AnyView {
@@ -54,7 +50,7 @@ struct BottomBar: View {
             } else {
                 return AnyView(Button(action: {
                     core.syncing = true
-                    work = 0
+                    core.work = 0
                 }) {
                     Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                 })
@@ -74,7 +70,7 @@ struct BottomBar: View {
         } else {
             return AnyView(Button(action: {
                 core.syncing = true
-                work = 0
+                core.work = 0
             }) {
                 Text("Sync now")
                         .font(.callout)
@@ -92,21 +88,13 @@ struct BottomBar: View {
             if offline {
                 return AnyView(Text("Offline")
                         .foregroundColor(.secondary)
-                        .onReceive(calculateWorkTimer) { _ in
-                            checkForNewWork()
-                        })
+                )
             } else {
                 return AnyView(
-                        Text(work == 0 ? "Last synced: \(lastSynced)" : "\(work) items pending sync")
+                        Text(core.work == 0 ? "Last synced: \(lastSynced)" : "\(core.work) items pending sync")
                                 .font(.callout)
                                 .foregroundColor(.secondary)
                                 .bold()
-                                .onReceive(calculateWorkTimer) { _ in
-                                    checkForNewWork()
-                                }
-                                .onReceive(syncTimer) { _ in
-                                    core.syncing = true
-                                }
                 )
             }
         }
@@ -126,24 +114,6 @@ struct BottomBar: View {
         syncButton
                 .padding(.bottom, 7)
         #endif
-    }
-
-    func checkForNewWork() {
-        DispatchQueue.global(qos: .background).async {
-            switch core.api.calculateWork() {
-            case .success(let work):
-                self.work = work.workUnits.count
-            case .failure(let err):
-                switch err.kind {
-                case .UiError(let error):
-                    if error == .CouldNotReachServer {
-                        offline = true
-                    }
-                case .Unexpected(_):
-                    core.handleError(err)
-                }
-            }
-        }
     }
 }
 
@@ -215,7 +185,10 @@ struct WorkItemsPreview: PreviewProvider {
             HStack {
             }.toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar(core: core, work: 5)
+                    BottomBar(core: core)
+                        .onAppear {
+                            core.work = 5
+                        }
                 }
             }
         }

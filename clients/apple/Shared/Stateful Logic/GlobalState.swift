@@ -20,15 +20,30 @@ class GlobalState: ObservableObject {
             }
         }
     }
+    var syncTimer: Timer? = nil
+    @Published var work: Int = 0
     let serialQueue = DispatchQueue(label: "syncQueue")
     #if os(iOS)
     @Published var openDrawing: DrawingModel
     #endif
     @Published var openDocument: Content
-    
+
     private var syncChannel = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
-    
+
+    func startOrRestartTimer() {
+        syncTimer?.invalidate()
+        syncTimer = Timer.scheduledTimer(timeInterval: 30*60, target: self, selector: #selector(syncTimerTick), userInfo: nil, repeats: true)
+    }
+
+    @objc func syncTimerTick() {
+        syncing = true
+    }
+
+    func stopTimer() {
+        syncTimer?.invalidate()
+    }
+
     func loadAccount() {
         switch api.getAccount() {
         case .success(let acc):
@@ -37,11 +52,11 @@ class GlobalState: ObservableObject {
             handleError(err)
         }
     }
-    
+
     func migrate() {
         let res = api.migrateState()
-            .eraseError()
-            .flatMap(transform: { _ in api.getState().eraseError() })
+                .eraseError()
+                .flatMap(transform: { _ in api.getState().eraseError() })
         switch res {
         case .success(let newState):
             state = newState
@@ -56,7 +71,7 @@ class GlobalState: ObservableObject {
             handleError(err)
         }
     }
-    
+
     func purge() {
         let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
@@ -71,13 +86,35 @@ class GlobalState: ObservableObject {
             }
         }
     }
-    
+
     func handleError(_ error: AnyFfiError) {
         DispatchQueue.main.async {
             self.globalError = error
         }
     }
-    
+
+    func checkForLocalWork() {
+        DispatchQueue.main.async {
+            switch self.api.calculateWork() {
+            case .success(let work):
+                self.work = work.workUnits.count
+            case .failure(let err):
+                switch err.kind {
+                case .UiError(let error):
+                    // TODO handle error
+                    break
+                case .Unexpected(_):
+                    self.handleError(err)
+                }
+            }
+        }
+    }
+
+    func documentChangeHappened() {
+        startOrRestartTimer()
+        checkForLocalWork()
+    }
+
     func updateFiles() {
         if (account != nil) {
             switch api.getRoot() {
@@ -111,51 +148,57 @@ class GlobalState: ObservableObject {
             }
         }
     }
-    
+
     init(documenstDirectory: String) {
         print("Initializing core...")
+
         self.documenstDirectory = documenstDirectory
         self.api = CoreApi(documentsDirectory: documenstDirectory)
         self.state = (try? self.api.getState().get())!
         self.account = (try? self.api.getAccount().get())
+        self.openDocument = Content(write: api.updateFile, read: api.getFile)
         #if os(iOS)
         self.openDrawing = DrawingModel(write: api.writeDrawing, read: api.readDrawing)
+        openDrawing.writeListener = documentChangeHappened
         #endif
-        self.openDocument = Content(write: api.updateFile, read: api.getFile)
+        openDocument.writeListener = documentChangeHappened
         updateFiles()
-        
+
+        print("Starting")
+        startOrRestartTimer()
         syncChannel
-            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
-            .removeDuplicates(by: {
-                switch ($0, $1) {
-                case (.failure(let e1), .failure(let e2)):
-                    return e1 == e2
-                default:
-                    return false
-                }
-            })
-            .receive(on: RunLoop.main)
-            .sink(receiveValue: { res in
-                self.syncing = false
-                switch res {
-                case .success(_):
-                    self.updateFiles()
-                case .failure(let err):
-                    self.handleError(err)
-                }
-            })
-            .store(in: &cancellableSet)
+                .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+                .removeDuplicates(by: {
+                    switch ($0, $1) {
+                    case (.failure(let e1), .failure(let e2)):
+                        return e1 == e2
+                    default:
+                        return false
+                    }
+                })
+                .receive(on: RunLoop.main)
+                .sink(receiveValue: { res in
+                    self.syncing = false
+                    switch res {
+                    case .success(_):
+                        self.updateFiles()
+                        self.checkForLocalWork()
+                    case .failure(let err):
+                        self.handleError(err)
+                    }
+                })
+                .store(in: &cancellableSet)
     }
-    
+
     init() {
         self.documenstDirectory = "<USING-FAKE-API>"
         self.api = FakeApi()
         self.state = .ReadyToUse
         self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: .empty)
         #if os(iOS)
-        self.openDrawing = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
+        self.openDrawing = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY")) }, read: { _ in .failure(.init(unexpected: "LAZY")) })
         #endif
-        self.openDocument = Content(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
+        self.openDocument = Content(write: { _, _ in .failure(.init(unexpected: "LAZY")) }, read: { _ in .failure(.init(unexpected: "LAZY")) })
         if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {
             self.files = metas
             self.root = root

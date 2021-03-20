@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 @main
-struct LockbookApp: App {
+struct  LockbookApp: App {
     @StateObject var core = GlobalState(documenstDirectory: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location)
 
     var body: some Scene {
@@ -10,9 +10,6 @@ struct LockbookApp: App {
             AppView(core: core)
                     .buttonStyle(PlainButtonStyle())
                     .ignoresSafeArea()
-                    .onAppear {
-                        core.syncing = true
-                    }
         }.commands {
             CommandMenu("Lockbook") {
                 Button("Sync", action: { core.syncing = true }).keyboardShortcut("S", modifiers: .command)
