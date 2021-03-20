@@ -95,9 +95,9 @@ class GlobalState: ObservableObject {
 
     func checkForLocalWork() {
         DispatchQueue.main.async {
-            switch self.api.calculateWork() {
-            case .success(let work):
-                self.work = work.workUnits.count
+            switch self.api.getLocalChanges() {
+            case .success(let local):
+                self.work = local.count
             case .failure(let err):
                 switch err.kind {
                 case .UiError(let error):

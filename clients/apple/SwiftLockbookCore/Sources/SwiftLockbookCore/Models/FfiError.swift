@@ -198,3 +198,6 @@ public enum FileDeleteError: String, UiError {
     case CannotDeleteRoot
     case FileDoesNotExist
 }
+public enum GetLocalChangesError: String, UiError {
+    case Stub
+}

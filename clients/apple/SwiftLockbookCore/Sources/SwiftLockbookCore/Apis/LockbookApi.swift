@@ -14,6 +14,7 @@ public protocol LockbookApi {
     func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError>
     func executeWork(work: WorkUnit) -> FfiResult<Empty, ExecuteWorkError>
     func setLastSynced(lastSync: UInt64) -> FfiResult<Empty, SetLastSyncedError>
+    func getLocalChanges() -> FfiResult<[UUID], GetLocalChangesError>
     
     // Directory
     func getRoot() -> FfiResult<FileMetadata, GetRootError>

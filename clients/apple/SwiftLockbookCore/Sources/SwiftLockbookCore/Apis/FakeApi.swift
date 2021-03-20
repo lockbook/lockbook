@@ -108,6 +108,10 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
+    public func getLocalChanges() -> FfiResult<[UUID], GetLocalChangesError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public let username: Account.Username = "jeff"
     public static let root = FileMetadata(fileType: .Folder, id: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "jeff", owner: "jeff", contentVersion: 1587384000000, metadataVersion: 1587384000000, deleted: false)
     public static let fileMetas = [

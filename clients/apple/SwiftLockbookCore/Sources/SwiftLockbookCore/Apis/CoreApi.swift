@@ -113,4 +113,8 @@ public struct CoreApi: LockbookApi {
     public func migrateState() -> FfiResult<Empty, MigrationError> {
         fromPrimitiveResult(result: migrate_db(documentsDirectory))
     }
+    
+    public func getLocalChanges() -> FfiResult<[UUID], GetLocalChangesError> {
+        fromPrimitiveResult(result: get_local_changes(documentsDirectory))
+    }
 }
