@@ -6,7 +6,6 @@ struct BottomBar: View {
     @ObservedObject var core: GlobalState
 
     @State var offline: Bool = false
-    @State var lastSynced = "moments ago"
 
     #if os(iOS)
     var onNewDocument: () -> Void = {
@@ -79,6 +78,16 @@ struct BottomBar: View {
         }
     }
     #endif
+    
+    var localChangeText: String {
+        if core.work == 0 { // not shown in this situation
+            return ""
+        } else if core.work == 1 {
+            return "1 unsynced change"
+        } else {
+            return "\(core.work) unsynced changes"
+        }
+    }
 
     var statusText: AnyView {
         if core.syncing {
@@ -91,7 +100,7 @@ struct BottomBar: View {
                 )
             } else {
                 return AnyView(
-                        Text(core.work == 0 ? "Last synced: \(lastSynced)" : "\(core.work) items pending sync")
+                    Text(core.work == 0 ? "Last update: \(core.lastSynced)" : localChangeText)
                                 .font(.callout)
                                 .foregroundColor(.secondary)
                                 .bold()

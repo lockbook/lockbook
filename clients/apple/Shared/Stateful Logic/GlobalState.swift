@@ -21,7 +21,9 @@ class GlobalState: ObservableObject {
         }
     }
     var syncTimer: Timer? = nil
+    var lastSyncedTimer: Timer? = nil
     @Published var work: Int = 0
+    @Published var lastSynced: String = ""
     let serialQueue = DispatchQueue(label: "syncQueue")
     #if os(iOS)
     @Published var openDrawing: DrawingModel
@@ -31,7 +33,11 @@ class GlobalState: ObservableObject {
     private var syncChannel = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
 
-    func startOrRestartTimer() {
+    func startLastSyncedTimer() {
+        lastSyncedTimer = Timer.scheduledTimer(timeInterval: 60, target: self, selector: #selector(setLastSynced), userInfo: nil, repeats: true)
+    }
+    
+    func startOrRestartSyncTimer() {
         syncTimer?.invalidate()
         syncTimer = Timer.scheduledTimer(timeInterval: 30*60, target: self, selector: #selector(syncTimerTick), userInfo: nil, repeats: true)
     }
@@ -111,7 +117,7 @@ class GlobalState: ObservableObject {
     }
 
     func documentChangeHappened() {
-        startOrRestartTimer()
+        startOrRestartSyncTimer()
         checkForLocalWork()
     }
 
@@ -148,6 +154,10 @@ class GlobalState: ObservableObject {
             }
         }
     }
+    
+    @objc func setLastSynced() {
+        self.lastSynced = (try? self.api.getLastSyncedHumanString().get())!
+    }
 
     init(documenstDirectory: String) {
         print("Initializing core...")
@@ -156,6 +166,7 @@ class GlobalState: ObservableObject {
         self.api = CoreApi(documentsDirectory: documenstDirectory)
         self.state = (try? self.api.getState().get())!
         self.account = (try? self.api.getAccount().get())
+        self.lastSynced = (try? self.api.getLastSyncedHumanString().get())!
         self.openDocument = Content(write: api.updateFile, read: api.getFile)
         #if os(iOS)
         self.openDrawing = DrawingModel(write: api.writeDrawing, read: api.readDrawing)
@@ -165,7 +176,8 @@ class GlobalState: ObservableObject {
         updateFiles()
 
         print("Starting")
-        startOrRestartTimer()
+        startOrRestartSyncTimer()
+        startLastSyncedTimer()
         syncChannel
                 .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
                 .removeDuplicates(by: {
@@ -182,6 +194,7 @@ class GlobalState: ObservableObject {
                     switch res {
                     case .success(_):
                         self.updateFiles()
+                        self.setLastSynced()
                         self.checkForLocalWork()
                     case .failure(let err):
                         self.handleError(err)
