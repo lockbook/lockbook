@@ -124,14 +124,14 @@
     </style>
 
     <style name="Main.File.Title" parent="TextAppearance.AppCompat">
-        <item name="android:textColor">@color/documentNameTextColor</item>
+        <item name="android:textColor">@color/textColor</item>
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:fontFamily">monospace</item>
     </style>
 
     <style name="Main.File.TitleGrid" parent="TextAppearance.AppCompat">
-        <item name="android:textColor">@color/documentNameTextColor</item>
+        <item name="android:textColor">@color/textColor</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:fontFamily">monospace</item>

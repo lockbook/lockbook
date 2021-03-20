@@ -16,6 +16,7 @@
   <color name="grey">#787878</color>
 
   <color name="drawingUntouchableBackground">@color/grey</color>
+  <color name="drawingTouchableBackground">@color/colorPrimaryDark</color>
 
   <color name="selectedFileBackground">#64B5F6</color>
   <color name="navigationBarColor">@color/white</color>
@@ -26,7 +27,6 @@
   <color name="windowBackground">@color/white</color>
   <color name="textColor">@color/black</color>
   <color name="iconColor">@color/black</color>
-  <color name="documentNameTextColor">@color/black</color>
 
   <bool name="windowLightStatusBar">true</bool>
 </resources>
