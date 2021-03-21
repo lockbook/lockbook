@@ -27,7 +27,7 @@ namespace lockbook {
             get {
                 return IsRoot ? rootGlyph : (IsDocument ? documentGlyph : folderGlyph);
             }
-            set {} // required for Xaml
+            set { } // required for Xaml
         }
         public string Name { get; set; }
         public bool IsDocument { get; set; }
@@ -87,6 +87,7 @@ namespace lockbook {
             set {
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
                     Color = theme.GetUIColor(value, 0xFF),
+                    Size = new Size(.5, .5),
                 });
             }
         }
@@ -106,7 +107,8 @@ namespace lockbook {
                 Windows.UI.Core.CoreInputDeviceTypes.Pen |
                 Windows.UI.Core.CoreInputDeviceTypes.Touch;
             inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
-                Color = Colors.White,
+                Color = theme.GetUIColor(ColorAlias.Black, 0xFF),
+                Size = new Size(.5, .5),
             });
             inkCanvas.InkPresenter.StrokesCollected += DrawingChanged;
         }
@@ -472,19 +474,17 @@ namespace lockbook {
                     case Core.ReadDocument.Success content:
                         if (file.Name.EndsWith(".draw")) {
                             CurrentEditMode = EditMode.Draw;
-                            if(!string.IsNullOrWhiteSpace(content.content)) {
+                            if (!string.IsNullOrWhiteSpace(content.content)) {
                                 var drawing = JsonConvert.DeserializeObject<Drawing>(content.content);
                                 var builder = new InkStrokeBuilder();
                                 foreach (var stroke in drawing.strokes) {
                                     var attributes = new InkDrawingAttributes();
-                                    attributes.Size = new Size(5, 5);
+                                    attributes.Size = new Size(.5, .5);
                                     attributes.Color = drawing.theme.GetUIColor(stroke.color, 1f);
                                     builder.SetDefaultDrawingAttributes(attributes);
                                     var inkPoints = new List<InkPoint>();
                                     for (var i = 0; i < stroke.pointsX.Count; i++) {
-                                        var point = new Point(stroke.pointsX[i], stroke.pointsY[i]);
-                                        var pressure = ((stroke.pointsGirth[i] / 10.00f) - 7.00f) / 1.49f; // determined empirically
-                                        inkPoints.Add(new InkPoint(point, pressure, 0, 0, 0));
+                                        inkPoints.Add(new InkPoint(new Point(stroke.pointsX[i], stroke.pointsY[i]), Draw.GirthToPressure(stroke.pointsGirth[i]), 0, 0, 0));
                                     }
                                     var inkStroke = builder.CreateStrokeFromInkPoints(inkPoints, Matrix3x2.Identity);
                                     inkCanvas.InkPresenter.StrokeContainer.AddStroke(inkStroke);
@@ -555,7 +555,7 @@ namespace lockbook {
                 strokes = new List<Stroke>(),
                 theme = null,
             };
-            foreach(var stroke in inkCanvas.InkPresenter.StrokeContainer.GetStrokes()) {
+            foreach (var stroke in inkCanvas.InkPresenter.StrokeContainer.GetStrokes()) {
                 var newStroke = new Stroke {
                     pointsX = new List<float>(),
                     pointsY = new List<float>(),
@@ -566,7 +566,7 @@ namespace lockbook {
                 foreach (var point in stroke.GetInkPoints()) {
                     newStroke.pointsX.Add((float)point.Position.X);
                     newStroke.pointsY.Add((float)point.Position.Y);
-                    newStroke.pointsGirth.Add(point.Pressure);
+                    newStroke.pointsGirth.Add(Draw.PressureToGirth(point.Pressure));
                 }
                 drawing.strokes.Add(newStroke);
             }

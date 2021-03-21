@@ -7,14 +7,14 @@ using System.Linq;
 namespace lockbook {
     public static class Draw {
         private static Dictionary<ColorAlias, ColorRGB> defaultTheme = new Dictionary<ColorAlias, ColorRGB> {
-            { ColorAlias.Black, new ColorRGB{r = 0x00, g = 0x00, b = 0x00} },
+            { ColorAlias.Black, new ColorRGB{r = 0xFF, g = 0xFF, b = 0xFF} }, // todo: reverse for light mode
             { ColorAlias.Red, new ColorRGB{r = 0xE8, g = 0x11, b = 0x23} },
             { ColorAlias.Green, new ColorRGB{r = 0x16, g = 0xC6, b = 0x0C} },
             { ColorAlias.Yellow, new ColorRGB{r = 0xFC, g = 0xE1, b = 0x00} },
             { ColorAlias.Blue, new ColorRGB{r = 0x00, g = 0x78, b = 0xD7} },
             { ColorAlias.Magenta, new ColorRGB{r = 0xE3, g = 0x00, b = 0x8C} },
             { ColorAlias.Cyan, new ColorRGB{r = 0x00, g = 0xB7, b = 0xC3} },
-            { ColorAlias.White, new ColorRGB{r = 0xFF, g = 0xFF, b = 0xFF} },
+            { ColorAlias.White, new ColorRGB{r = 0x00, g = 0x00, b = 0x00} },
         };
 
         public static Color GetUIColor(this Dictionary<ColorAlias, ColorRGB> theme, ColorAlias color, float alpha) {
@@ -36,6 +36,14 @@ namespace lockbook {
 
         public static Dictionary<V, K> Invert<K, V>(this Dictionary<K, V> dict) {
             return dict.Keys.ToDictionary(key => dict.First(kvp => kvp.Key.Equals(key)).Value);
+        }
+
+        public static float GirthToPressure(float girth) {
+            return girth / .75f;
+        }
+
+        public static float PressureToGirth(float pressure) {
+            return pressure * .75f;
         }
     }
 }
