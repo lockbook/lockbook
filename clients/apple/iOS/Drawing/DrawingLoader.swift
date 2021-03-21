@@ -9,12 +9,6 @@ struct DrawingLoader: View {
     @ObservedObject var toolbar: ToolbarModel
     let meta: FileMetadata
 
-    init(model: DrawingModel, toolbar: ToolbarModel, meta: FileMetadata) {
-        self.model = model
-        self.toolbar = toolbar
-        self.meta = meta
-    }
-
     var body: some View {
         switch model.originalDrawing {
         case .some(let drawing):
@@ -45,6 +39,7 @@ class DrawingModel: ObservableObject {
     var errors: String? = .none
     let write: (UUID, Drawing) -> FfiResult<Empty, WriteToDocumentError>
     let read: (UUID) -> FfiResult<Drawing, ReadDocumentError>
+    var writeListener: () -> Void = {}
 
     init(write: @escaping (UUID, Drawing) -> FfiResult<Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<Drawing, ReadDocumentError>) {
         self.write = write
@@ -54,7 +49,8 @@ class DrawingModel: ObservableObject {
     func drawingModelChanged(meta: FileMetadata, updatedDrawing: PKDrawing) {
         originalDrawing = updatedDrawing
         DispatchQueue.global(qos: .userInitiated).async {
-            print(self.write(meta.id, Drawing(from: updatedDrawing)))
+            print(self.write(meta.id, Drawing(from: updatedDrawing))) // TODO handle
+            self.writeListener()
         }
     }
 
