@@ -15,3 +15,7 @@ Then run the following
 `swift build`
 
 `swift test`
+
+## Generate linux manifest
+
+`swift test --generate-linuxmain`

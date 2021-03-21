@@ -39,12 +39,13 @@ struct OutlineBranch: View {
                         level: level,
                         onCommit: { s in
                             renaming = nil
-                            let r = self.core.api.renameFile(id: isRenaming.id, name: s)
+                            let r = core.api.renameFile(id: isRenaming.id, name: s)
                             if case .failure(let err) = r {
                                 core.handleError(err)
                             } else {
                                 withAnimation {
-                                    self.core.updateFiles()
+                                    core.updateFiles()
+                                    core.checkForLocalWork()
                                 }
                             }
                         },
@@ -120,6 +121,7 @@ struct OutlineBranch: View {
                 withAnimation {
                     core.updateFiles()
                 }
+                core.checkForLocalWork()
             }
         }))
     }
@@ -129,6 +131,7 @@ struct OutlineBranch: View {
             switch core.api.deleteFile(id: meta.id) {
             case .success(_):
                 core.updateFiles()
+                core.checkForLocalWork()
             case .failure(let err):
                 core.handleError(err)
             }
@@ -141,6 +144,7 @@ struct OutlineBranch: View {
             case .success(_):
                 doneCreating()
                 core.updateFiles()
+                core.checkForLocalWork()
             case .failure(let err):
                 core.handleError(err)
             }
