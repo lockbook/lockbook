@@ -87,32 +87,35 @@ struct FileListView: View {
     func renderMoveDialog(meta: FileMetadata) -> some View {
         let root = core.files.first(where: { $0.parent == $0.id })!
         let wc = WithChild(root, core.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
-
-        return VStack {
-            Text("Moving \(meta.name)").font(.headline)
-            NestedList(
-                node: wc,
-                row: { dest in
-                    Button(action: {
-                        moving = nil
-                        if case .failure(let err) = core.api.moveFile(id: meta.id, newParent: dest.id) {
-                            // Delaying this because the sheet has to go away before an alert can show up!
-                            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
-                                core.handleError(err)
-                            }
-                        } else {
-                            withAnimation {
-                                core.updateFiles()
-                                core.checkForLocalWork()
-                            }
+        
+        return
+            ScrollView {
+                VStack {
+                    Text("Moving \(meta.name)").font(.headline)
+                    NestedList(
+                        node: wc,
+                        row: { dest in
+                            Button(action: {
+                                moving = nil
+                                if case .failure(let err) = core.api.moveFile(id: meta.id, newParent: dest.id) {
+                                    // Delaying this because the sheet has to go away before an alert can show up!
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+                                        core.handleError(err)
+                                    }
+                                } else {
+                                    withAnimation {
+                                        core.updateFiles()
+                                        core.checkForLocalWork()
+                                    }
+                                }
+                            }, label: {
+                                Label(dest.name, systemImage: "folder")
+                            })
                         }
-                    }, label: {
-                        Label(dest.name, systemImage: "folder")
-                    })
-                }
-            )
-            Spacer()
-        }.padding()
+                    )
+                    Spacer()
+                }.padding()
+            }
     }
     
     func renderCell(meta: FileMetadata) -> AnyView {
