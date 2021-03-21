@@ -11,6 +11,7 @@ struct FileListView: View {
     let account: Account
     @Binding var moving: FileMetadata?
     @State var renaming: FileMetadata?
+    static var toolbar = ToolbarModel()
 
     var files: [FileMetadata] {
         core.files.filter {
@@ -59,6 +60,12 @@ struct FileListView: View {
             }
             .padding(.leading, 20)
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            core.syncing = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            core.syncing = true
+        }
         .sheet(isPresented: $showingAccount, content: {
             AccountView(core: core, account: account)
         })
@@ -96,6 +103,7 @@ struct FileListView: View {
                         } else {
                             withAnimation {
                                 core.updateFiles()
+                                core.checkForLocalWork()
                             }
                         }
                     }, label: {
@@ -120,6 +128,7 @@ struct FileListView: View {
                         } else {
                             withAnimation {
                                 core.updateFiles()
+                                core.checkForLocalWork()
                             }
                         }
                     },
@@ -143,7 +152,7 @@ struct FileListView: View {
                 if meta.name.hasSuffix(".draw") {
                     // This is how you can pop without the navigation bar
                     // https://stackoverflow.com/questions/56513568/ios-swiftui-pop-or-dismiss-view-programmatically
-                    let dl = DrawingLoader(model: core.openDrawing, toolbar: ToolbarModel(), meta: meta)
+                    let dl = DrawingLoader(model: core.openDrawing, toolbar: FileListView.toolbar, meta: meta)
                     return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline)) {
                         FileCell(meta: meta)
                     })
@@ -161,6 +170,7 @@ struct FileListView: View {
         switch core.api.deleteFile(id: meta.id) {
         case .success(_):
             core.updateFiles()
+            core.checkForLocalWork()
         case .failure(let err):
             core.handleError(err)
         }
@@ -171,6 +181,7 @@ struct FileListView: View {
         case .success(_):
             doneCreating()
             core.updateFiles()
+            core.checkForLocalWork()
         case .failure(let err):
             core.handleError(err)
         }

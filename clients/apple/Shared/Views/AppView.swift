@@ -14,6 +14,11 @@ struct AppView: View {
                     switch core.root {
                     case .some(let root):
                         AnyView(BookView(core: core, currentFolder: root, account: account))
+                            .onAppear {
+                                if core.account != nil {
+                                    core.syncing = true
+                                }
+                            }
                     case .none:
                         Label("Please sync!", systemImage: "arrow.right.arrow.left.circle.fill")
                     }
@@ -61,10 +66,10 @@ struct AppView: View {
                 )
             }
         }
-        
+
         return view
     }
-    
+
     let updateAlert: Alert = Alert(
         title: Text("Update Required!"),
         message: Text("It seems like you're using an out-date client. Please update to perform sync operations."),

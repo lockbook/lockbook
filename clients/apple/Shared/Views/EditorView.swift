@@ -10,7 +10,7 @@ struct EditorView: View {
     let changeCallback: (String) -> Void
     
     var body: some View {
-        return GeometryReader { geo in
+        GeometryReader { geo in
             NotepadView(
                 text: $text,
                 frame: geo.frame(in: .local),
@@ -75,6 +75,7 @@ class Content: ObservableObject {
     @Published var status: Status = .Inactive
     let write: (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
     let read: (UUID) -> FfiResult<String, ReadDocumentError>
+    var writeListener: () -> Void = {}
     
     init(write: @escaping (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<String, ReadDocumentError>) {
         self.read = read
@@ -92,14 +93,16 @@ class Content: ObservableObject {
     
     func updateText(text: String) {
         self.text = text
-        self.status = .Inactive
+        status = .Inactive
     }
-    
+
     func writeDocument(meta: FileMetadata, content: String) {
         switch write(meta.id, content) {
         case .success(_):
+            writeListener()
+            print("writeDocument happened")
             withAnimation {
-                self.status = .WriteSuccess
+                status = .WriteSuccess
             }
         case .failure(let err):
             print(err)
@@ -120,7 +123,7 @@ class Content: ObservableObject {
     
     func closeDocument(meta: FileMetadata) {
         self.meta = .none
-        self.text = .none
+        text = .none
     }
 }
 

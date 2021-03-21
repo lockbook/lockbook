@@ -326,7 +326,14 @@ pub unsafe extern "C" fn get_usage_human_string(
     )))
 }
 
-//// FOR INTEGRATION TESTS ONLY
+#[no_mangle]
+pub unsafe extern "C" fn get_local_changes(writeable_path: *const c_char) -> *const c_char {
+    c_string(translate(crate::get_local_changes(&Config {
+        writeable_path: str_from_ptr(writeable_path),
+    })))
+}
+
+// FOR INTEGRATION TESTS ONLY
 #[no_mangle]
 pub unsafe extern "C" fn get_variants() -> *const c_char {
     json_c_string(get_all_error_variants())

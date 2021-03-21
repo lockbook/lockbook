@@ -30,7 +30,7 @@ use crate::repo::file_metadata_repo::{
     DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingChildrenFailed,
     FindingParentsFailed, GetError as FileMetadataRepoError,
 };
-use crate::repo::local_changes_repo::LocalChangesRepoImpl;
+use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
 use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
     AccountService, AccountServiceImpl,
@@ -61,6 +61,7 @@ pub enum Error<U: Serialize> {
     Unexpected(String),
 }
 use crate::model::drawing::Drawing;
+use crate::repo::local_changes_repo;
 use crate::service::drawing_service::{
     DrawingError, DrawingService, DrawingServiceImpl, SupportedImageFormats,
 };
@@ -694,6 +695,27 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
         SyncError::WorkExecutionError(_) => UiError(SyncAllError::ExecuteWorkError),
         SyncError::MetadataUpdateError(err) => unexpected!("{:#?}", err),
     })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetLocalChangesError {
+    Stub,
+}
+
+pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, Error<GetLocalChangesError>> {
+    let backend = connect_to_db!(config)?;
+
+    Ok(DefaultLocalChangesRepo::get_all_local_changes(&backend)
+        .map_err(|err| match err {
+            local_changes_repo::DbError::TimeError(_)
+            | local_changes_repo::DbError::BackendError(_)
+            | local_changes_repo::DbError::SerdeError(_) => {
+                unexpected!("{:#?}", err)
+            }
+        })?
+        .iter()
+        .map(|change| change.id)
+        .collect())
 }
 
 #[derive(Debug, Serialize, EnumIter)]
