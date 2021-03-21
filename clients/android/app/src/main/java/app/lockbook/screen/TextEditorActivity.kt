@@ -17,6 +17,7 @@ import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.TextEditorViewModel
 import app.lockbook.modelfactory.TextEditorViewModelFactory
+import app.lockbook.util.ErrorHandler
 import app.lockbook.util.exhaustive
 import com.google.android.material.snackbar.Snackbar
 import io.noties.markwon.Markwon
@@ -45,7 +46,7 @@ class TextEditorActivity : AppCompatActivity() {
         val id = intent.getStringExtra("id")
 
         if (id == null) {
-            errorHasOccurred("Unable to retrieve id.")
+            ErrorHandler.unexpectedErrorHasOccurredAndExit(this, this, "Unable to retrieve id.")
             return
         }
 
@@ -75,14 +76,14 @@ class TextEditorActivity : AppCompatActivity() {
         textEditorViewModel.errorHasOccurred.observe(
             this,
             { errorText ->
-                errorHasOccurred(errorText)
+                ErrorHandler.errorHasOccurred(text_editor_layout, errorText)
             }
         )
 
         textEditorViewModel.unexpectedErrorHasOccurred.observe(
             this,
             { errorText ->
-                unexpectedErrorHasOccurred(errorText)
+                ErrorHandler.unexpectedErrorHasOccurredAndExit(this, this, errorText)
             }
         )
 
@@ -103,29 +104,10 @@ class TextEditorActivity : AppCompatActivity() {
         )
     }
 
-    private fun errorHasOccurred(error: String) {
-        Snackbar.make(text_editor_layout, error, Snackbar.LENGTH_SHORT).addCallback(object : Snackbar.Callback() {
-            override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                super.onDismissed(transientBottomBar, event)
-                finish()
-            }
-        }).show()
-    }
-
-    private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(this, R.style.Main_Widget_Dialog)
-            .setTitle(UNEXPECTED_ERROR)
-            .setMessage(error)
-            .setOnCancelListener {
-                finish()
-            }
-            .show()
-    }
-
     private fun setUpView(id: String) {
         val name = intent.getStringExtra("name")
         if (name == null) {
-            errorHasOccurred("Unable to retrieve file name.")
+            ErrorHandler.errorHasOccurred(text_editor_layout, "Unable to retrieve file name.")
             return
         }
 

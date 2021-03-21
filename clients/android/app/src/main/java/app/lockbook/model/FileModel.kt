@@ -7,7 +7,6 @@ import androidx.preference.PreferenceManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import app.lockbook.App
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.ui.BreadCrumb
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -227,7 +226,7 @@ class FileModel(path: String) {
             SharedPreferences.SORT_FILES_TYPE -> sortFilesType(files)
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
-                _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                _errorHasOccurred.postValue(BASIC_ERROR)
             }
         }.exhaustive
     }

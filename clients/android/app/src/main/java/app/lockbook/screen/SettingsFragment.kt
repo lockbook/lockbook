@@ -15,8 +15,6 @@ import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricPrompt.*
 import androidx.core.content.ContextCompat
 import androidx.preference.*
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.ui.NumberPickerPreference
@@ -80,37 +78,22 @@ class SettingsFragment : PreferenceFragmentCompat() {
             is Ok -> findPreference<Preference>(BYTE_USAGE_KEY)?.summary = getUsageHumanStringResult.value
             is Err -> when (val error = getUsageHumanStringResult.error) {
                 GetUsageError.NoAccount -> {
-                    Snackbar.make(
-                        requireActivity().findViewById(android.R.id.content),
-                        "Error! No account.",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    ErrorHandler.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Error! No account.")
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
                         "Error! No account."
                 }
                 GetUsageError.CouldNotReachServer -> {
-                    Snackbar.make(
-                        requireActivity().findViewById(android.R.id.content),
-                        "You are offline.",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    ErrorHandler.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "You are offline.")
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
                         "You are offline."
                 }
                 GetUsageError.ClientUpdateRequired -> {
-                    Snackbar.make(
-                        requireActivity().findViewById(android.R.id.content),
-                        "Update required.",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    ErrorHandler.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Update required.")
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
                         "Update required."
                 }
                 is GetUsageError.Unexpected -> {
-                    AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-                        .setTitle(UNEXPECTED_ERROR)
-                        .setMessage(error.error)
-                        .show()
+                    ErrorHandler.unexpectedErrorHasOccurred(requireContext(), error.error)
                     Timber.e("Unable to get usage: ${error.error}")
                 }
             }
@@ -156,11 +139,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     .canAuthenticate(BIOMETRIC_WEAK) != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
-                    Snackbar.make(
-                        requireActivity().findViewById(android.R.id.content),
-                        UNEXPECTED_CLIENT_ERROR,
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    ErrorHandler.basicErrorHasOccurred(requireActivity().findViewById(android.R.id.content))
                     return
                 }
 
@@ -177,18 +156,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                             when (errorCode) {
                                 ERROR_HW_UNAVAILABLE, ERROR_UNABLE_TO_PROCESS, ERROR_NO_BIOMETRICS, ERROR_HW_NOT_PRESENT -> {
                                     Timber.e("Biometric authentication error: $errString")
-                                    Snackbar.make(
-                                        requireActivity().findViewById(android.R.id.content),
-                                        UNEXPECTED_CLIENT_ERROR,
-                                        Snackbar.LENGTH_SHORT
-                                    ).show()
+                                    ErrorHandler.basicErrorHasOccurred(requireActivity().findViewById(android.R.id.content))
                                 }
                                 ERROR_LOCKOUT, ERROR_LOCKOUT_PERMANENT -> {
-                                    Snackbar.make(
-                                        requireActivity().findViewById(android.R.id.content),
-                                        "Too many tries, try again later!",
-                                        Snackbar.LENGTH_SHORT
-                                    ).show()
+                                    ErrorHandler.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Too many tries, try again later!")
                                 }
                                 else -> {}
                             }.exhaustive
@@ -215,11 +186,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             BIOMETRIC_NONE -> matchKey(key, newValue)
             else -> {
                 Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
-                Snackbar.make(
-                    requireActivity().findViewById(android.R.id.content),
-                    UNEXPECTED_CLIENT_ERROR,
-                    Snackbar.LENGTH_SHORT
-                ).show()
+                ErrorHandler.basicErrorHasOccurred(requireActivity().findViewById(android.R.id.content))
             }
         }.exhaustive
     }
@@ -231,11 +198,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValue)
             else -> {
                 Timber.e("Shared preference key not matched: $key")
-                Snackbar.make(
-                    requireActivity().findViewById(android.R.id.content),
-                    UNEXPECTED_CLIENT_ERROR,
-                    Snackbar.LENGTH_SHORT
-                ).show()
+                ErrorHandler.basicErrorHasOccurred(requireActivity().findViewById(android.R.id.content))
             }
         }.exhaustive
     }
@@ -265,16 +228,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
             }
             is Err -> {
                 when (val error = exportResult.error) {
-                    is AccountExportError.NoAccount -> Snackbar.make(
+                    is AccountExportError.NoAccount -> ErrorHandler.errorHasOccurred(
                         requireActivity().findViewById(android.R.id.content),
                         "Error! No account!",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
+                    )
                     is AccountExportError.Unexpected -> {
-                        AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-                            .setTitle(UNEXPECTED_ERROR)
-                            .setMessage(error.error)
-                            .show()
+                        ErrorHandler.unexpectedErrorHasOccurred(requireContext(), error.error)
                         Timber.e("Unable to export account: ${error.error}")
                     }
                 }

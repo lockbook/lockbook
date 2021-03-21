@@ -19,8 +19,6 @@ import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.model.*
@@ -468,7 +466,7 @@ class ListFilesFragment : Fragment() {
         if (activity is ListFilesActivity) {
             (activity as ListFilesActivity).switchMenu()
         } else {
-            errorHasOccurred(fragment_list_files, UNEXPECTED_CLIENT_ERROR)
+            errorHasOccurred(fragment_list_files, BASIC_ERROR)
         }
     }
 

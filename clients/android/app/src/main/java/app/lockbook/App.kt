@@ -36,8 +36,6 @@ class App : Application() {
             private set
 
         const val PERIODIC_SYNC_TAG = "periodic_sync"
-        const val UNEXPECTED_ERROR = "An unexpected error has occurred!"
-        const val UNEXPECTED_CLIENT_ERROR = "An error has occurred."
     }
 
     private fun loadLockbookCore() {

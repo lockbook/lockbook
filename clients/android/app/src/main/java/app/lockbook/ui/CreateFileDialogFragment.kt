@@ -8,8 +8,6 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
@@ -78,7 +76,7 @@ class CreateFileDialogFragment : DialogFragment() {
             fileType = nullableFileType
             isDrawing = nullableIsDrawing
         } else {
-            Snackbar.make(create_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
+            Snackbar.make(create_file_layout, BASIC_ERROR, Snackbar.LENGTH_SHORT)
                 .addCallback(object : Snackbar.Callback() {
                     override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                         super.onDismissed(transientBottomBar, event)
@@ -94,7 +92,7 @@ class CreateFileDialogFragment : DialogFragment() {
         }
 
         dialog?.setCanceledOnTouchOutside(false)
-            ?: Snackbar.make(create_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+            ?: Snackbar.make(create_file_layout, BASIC_ERROR, Snackbar.LENGTH_SHORT).show()
 
         when (fileType) {
             Klaxon().toJsonString(FileType.Folder) -> {
@@ -162,7 +160,7 @@ class CreateFileDialogFragment : DialogFragment() {
                 }
             }
             else -> {
-                Snackbar.make(create_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
+                Snackbar.make(create_file_layout, BASIC_ERROR, Snackbar.LENGTH_SHORT)
                     .addCallback(object : Snackbar.Callback() {
                         override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                             super.onDismissed(transientBottomBar, event)

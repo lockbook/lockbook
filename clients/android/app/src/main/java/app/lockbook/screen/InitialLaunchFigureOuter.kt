@@ -12,8 +12,6 @@ import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricPrompt.*
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
@@ -188,7 +186,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
                     Snackbar.make(
                         splash_screen,
-                        UNEXPECTED_CLIENT_ERROR,
+                        BASIC_ERROR,
                         Snackbar.LENGTH_LONG
                     ).addCallback(object : Snackbar.Callback() {
                         override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
@@ -213,7 +211,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                     Timber.e("Biometric authentication error: $errString")
                                     Snackbar.make(
                                         splash_screen,
-                                        UNEXPECTED_CLIENT_ERROR,
+                                        BASIC_ERROR,
                                         Snackbar.LENGTH_LONG
                                     ).addCallback(object : Snackbar.Callback() {
                                         override fun onDismissed(
@@ -258,7 +256,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
                 Snackbar.make(
                     splash_screen,
-                    UNEXPECTED_CLIENT_ERROR,
+                    BASIC_ERROR,
                     Snackbar.LENGTH_SHORT
                 ).show()
             }

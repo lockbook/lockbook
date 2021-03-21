@@ -7,7 +7,6 @@ import androidx.lifecycle.LiveData
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.R
 import app.lockbook.ui.BreadCrumb
 import app.lockbook.ui.CreateFileInfo
@@ -195,7 +194,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
                 SYNC_AUTOMATICALLY_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY, FILE_LAYOUT_KEY -> Unit
                 else -> {
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                    _errorHasOccurred.postValue(BASIC_ERROR)
                     Timber.e("Unable to recognize preference key: $key")
                 }
             }.exhaustive
@@ -343,7 +342,7 @@ class ListFilesViewModel(path: String, application: Application) :
                             if (checkedFiles.size == 1) {
                                 _showRenameFileDialog.postValue(RenameFileInfo(checkedFiles[0].id, checkedFiles[0].name))
                             } else {
-                                _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                                _errorHasOccurred.postValue(BASIC_ERROR)
                             }
                         }
                     }
@@ -365,7 +364,7 @@ class ListFilesViewModel(path: String, application: Application) :
                                 collapseMoreOptionsMenu()
                                 _showFileInfoDialog.postValue(checkedFiles[0])
                             } else {
-                                _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                                _errorHasOccurred.postValue(BASIC_ERROR)
                             }
                         }
                     }
@@ -383,7 +382,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                     else -> {
                         Timber.e("Unrecognized sort item id.")
-                        _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                        _errorHasOccurred.postValue(BASIC_ERROR)
                     }
                 }.exhaustive
             }
@@ -468,7 +467,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     )
                 if (setLastSyncedResult is Err) {
                     Timber.e("Unable to set most recent sync date: ${setLastSyncedResult.error}")
-                    _errorHasOccurred.postValue(UNEXPECTED_CLIENT_ERROR)
+                    _errorHasOccurred.postValue(BASIC_ERROR)
                 }
             }
 
