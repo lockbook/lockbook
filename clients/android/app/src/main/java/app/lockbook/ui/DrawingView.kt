@@ -12,6 +12,8 @@ import android.view.View
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.model.AlertModel
+import app.lockbook.model.OnFinishAlert
 import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
@@ -188,7 +190,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             }
 
             if (strokeColor == null) {
-                (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
+                AlertModel.unexpectedCoreErrorHasOccurred(context, "Unable to get color from theme.", OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish))
                 return
             }
 
@@ -229,7 +231,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val strokeColor = colorAliasInARGB[ColorAlias.White]
 
         if (strokeColor == null) {
-            (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
+            AlertModel.unexpectedCoreErrorHasOccurred(context, "Unable to get color from theme.", OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish))
             return
         }
 
@@ -388,7 +390,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         }
 
         if (strokeColor == null) {
-            (context as DrawingActivity).unexpectedErrorHasOccurred("Unable to get color from theme.")
+            AlertModel.unexpectedCoreErrorHasOccurred(context, "Unable to get color from theme.", OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish))
             return
         }
 

@@ -8,24 +8,22 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.PopupWindow
-import androidx.appcompat.app.AlertDialog
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
-import androidx.biometric.BiometricPrompt
 import androidx.biometric.BiometricPrompt.*
-import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.preference.*
 import app.lockbook.R
+import app.lockbook.model.AlertModel
+import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
+import app.lockbook.model.OnFinishAlert
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
 import app.lockbook.util.*
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
-import app.lockbook.util.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
-import app.lockbook.util.SharedPreferences.BIOMETRIC_RECOMMENDED
-import app.lockbook.util.SharedPreferences.BIOMETRIC_STRICT
 import app.lockbook.util.SharedPreferences.BYTE_USAGE_KEY
 import app.lockbook.util.SharedPreferences.CLEAR_LOGS_KEY
 import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
@@ -33,7 +31,6 @@ import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
 import app.lockbook.util.SharedPreferences.VIEW_LOGS_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.google.android.material.snackbar.Snackbar
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
@@ -42,6 +39,8 @@ import java.io.File
 
 class SettingsFragment : PreferenceFragmentCompat() {
     lateinit var config: Config
+    private lateinit var selectedKey: String
+    private lateinit var newValueForPref: String
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
@@ -52,7 +51,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private fun setUpPreferences() {
         findPreference<Preference>(BIOMETRIC_OPTION_KEY)?.setOnPreferenceChangeListener { preference, newValue ->
             if (newValue is String) {
-                performBiometricFlow(preference.key, newValue)
+                newValueForPref = newValue
+
+                BiometricModel.verify(requireContext(), requireActivity().findViewById(android.R.id.content), activity as FragmentActivity, ::matchKey)
             }
 
             false
@@ -78,22 +79,22 @@ class SettingsFragment : PreferenceFragmentCompat() {
             is Ok -> findPreference<Preference>(BYTE_USAGE_KEY)?.summary = getUsageHumanStringResult.value
             is Err -> when (val error = getUsageHumanStringResult.error) {
                 GetUsageError.NoAccount -> {
-                    ErrorHandler.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Error! No account.")
+                    AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Error! No account.", OnFinishAlert.DoNothingOnFinishAlert)
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
                         "Error! No account."
                 }
                 GetUsageError.CouldNotReachServer -> {
-                    ErrorHandler.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "You are offline.")
+                    AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "You are offline.", OnFinishAlert.DoNothingOnFinishAlert)
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
                         "You are offline."
                 }
                 GetUsageError.ClientUpdateRequired -> {
-                    ErrorHandler.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Update required.")
+                    AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Update required.", OnFinishAlert.DoNothingOnFinishAlert)
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
                         "Update required."
                 }
                 is GetUsageError.Unexpected -> {
-                    ErrorHandler.unexpectedErrorHasOccurred(requireContext(), error.error)
+                    AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), error.error, OnFinishAlert.DoNothingOnFinishAlert)
                     Timber.e("Unable to get usage: ${error.error}")
                 }
             }
@@ -112,8 +113,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
+        selectedKey = preference?.key ?: ""
+
         when (preference?.key) {
-            EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> performBiometricFlow(preference.key)
+            EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> {
+                BiometricModel.verify(requireContext(), requireActivity().findViewById(android.R.id.content), activity as FragmentActivity, ::matchKey)
+            }
             VIEW_LOGS_KEY -> startActivity(Intent(context, LogActivity::class.java))
             CLEAR_LOGS_KEY -> File("${config.writeable_path}/$LOG_FILE_NAME").writeText("")
             BACKGROUND_SYNC_ENABLED_KEY ->
@@ -125,80 +130,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
         return true
     }
 
-    private fun performBiometricFlow(key: String, newValue: String = "") {
-        when (
-            val optionValue = PreferenceManager.getDefaultSharedPreferences(
-                requireContext()
-            ).getString(
-                BIOMETRIC_OPTION_KEY,
-                BIOMETRIC_NONE
-            )
-        ) {
-            BIOMETRIC_RECOMMENDED, BIOMETRIC_STRICT -> {
-                if (BiometricManager.from(requireContext())
-                    .canAuthenticate(BIOMETRIC_WEAK) != BiometricManager.BIOMETRIC_SUCCESS
-                ) {
-                    Timber.e("Biometric shared preference is strict despite no biometrics.")
-                    ErrorHandler.basicErrorHasOccurred(requireActivity().findViewById(android.R.id.content))
-                    return
-                }
-
-                val executor = ContextCompat.getMainExecutor(requireContext())
-                val biometricPrompt = BiometricPrompt(
-                    this,
-                    executor,
-                    object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationError(
-                            errorCode: Int,
-                            errString: CharSequence
-                        ) {
-                            super.onAuthenticationError(errorCode, errString)
-                            when (errorCode) {
-                                ERROR_HW_UNAVAILABLE, ERROR_UNABLE_TO_PROCESS, ERROR_NO_BIOMETRICS, ERROR_HW_NOT_PRESENT -> {
-                                    Timber.e("Biometric authentication error: $errString")
-                                    ErrorHandler.basicErrorHasOccurred(requireActivity().findViewById(android.R.id.content))
-                                }
-                                ERROR_LOCKOUT, ERROR_LOCKOUT_PERMANENT -> {
-                                    ErrorHandler.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Too many tries, try again later!")
-                                }
-                                else -> {}
-                            }.exhaustive
-                        }
-
-                        override fun onAuthenticationSucceeded(
-                            result: BiometricPrompt.AuthenticationResult
-                        ) {
-                            super.onAuthenticationSucceeded(result)
-                            matchKey(key, newValue)
-                        }
-                    }
-                )
-
-                val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Verify your identity to access this setting.")
-                    .setAllowedAuthenticators(BIOMETRIC_WEAK)
-                    .setNegativeButtonText("Cancel")
-                    .build()
-
-                biometricPrompt.authenticate(promptInfo)
-            }
-            BIOMETRIC_NONE -> matchKey(key, newValue)
-            else -> {
-                Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
-                ErrorHandler.basicErrorHasOccurred(requireActivity().findViewById(android.R.id.content))
-            }
-        }.exhaustive
-    }
-
-    private fun matchKey(key: String, newValue: String) {
-        when (key) {
+    private fun matchKey() {
+        when (selectedKey) {
             EXPORT_ACCOUNT_RAW_KEY -> exportAccountRaw()
             EXPORT_ACCOUNT_QR_KEY -> exportAccountQR()
-            BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValue)
+            BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValueForPref)
             else -> {
-                Timber.e("Shared preference key not matched: $key")
-                ErrorHandler.basicErrorHasOccurred(requireActivity().findViewById(android.R.id.content))
+                Timber.e("Shared preference key not matched: $selectedKey")
+                AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
             }
         }.exhaustive
     }
@@ -228,12 +167,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
             }
             is Err -> {
                 when (val error = exportResult.error) {
-                    is AccountExportError.NoAccount -> ErrorHandler.errorHasOccurred(
+                    is AccountExportError.NoAccount -> AlertModel.errorHasOccurred(
                         requireActivity().findViewById(android.R.id.content),
                         "Error! No account!",
+                        OnFinishAlert.DoNothingOnFinishAlert
                     )
                     is AccountExportError.Unexpected -> {
-                        ErrorHandler.unexpectedErrorHasOccurred(requireContext(), error.error)
+                        AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), error.error, OnFinishAlert.DoNothingOnFinishAlert)
                         Timber.e("Unable to export account: ${error.error}")
                     }
                 }
@@ -248,23 +188,18 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clipBoardData = ClipData.newPlainText("account string", exportResult.value)
                 clipBoard.setPrimaryClip(clipBoardData)
-                Snackbar.make(
+                AlertModel.notify(
                     requireActivity().findViewById(android.R.id.content),
-                    "Account string copied!",
-                    Snackbar.LENGTH_SHORT
-                ).show()
+                    "Account string copied!", OnFinishAlert.DoNothingOnFinishAlert
+                )
             }
             is Err -> when (val error = exportResult.error) {
-                is AccountExportError.NoAccount -> Snackbar.make(
+                is AccountExportError.NoAccount -> AlertModel.errorHasOccurred(
                     requireActivity().findViewById(android.R.id.content),
-                    "Error! No account!",
-                    Snackbar.LENGTH_SHORT
-                ).show()
+                    "Error! No account!", OnFinishAlert.DoNothingOnFinishAlert
+                )
                 is AccountExportError.Unexpected -> {
-                    AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-                        .setTitle(UNEXPECTED_ERROR)
-                        .setMessage(error.error)
-                        .show()
+                    AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), error.error, OnFinishAlert.DoNothingOnFinishAlert)
                     Timber.e("Unable to export account: ${error.error}")
                 }
             }

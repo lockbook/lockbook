@@ -5,17 +5,16 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
+import app.lockbook.model.AlertModel
 import app.lockbook.model.MoveFileAdapter
 import app.lockbook.model.MoveFileViewModel
+import app.lockbook.model.OnFinishAlert
 import app.lockbook.modelfactory.MoveFileViewModelFactory
-import com.google.android.material.snackbar.Snackbar
+import app.lockbook.util.BASIC_ERROR
 import kotlinx.android.synthetic.main.dialog_move_file.*
 
 data class MoveFileInfo(
@@ -66,13 +65,7 @@ class MoveFileDialogFragment : DialogFragment() {
             ids = nullableIds
             names = nullableNames
         } else {
-            Snackbar.make(move_file_dialog, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
-                .addCallback(object : Snackbar.Callback() {
-                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                        super.onDismissed(transientBottomBar, event)
-                        dismiss()
-                    }
-                }).show()
+            AlertModel.errorHasOccurred(move_file_dialog, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
         }
 
         val application = requireNotNull(this.activity).application
@@ -93,7 +86,7 @@ class MoveFileDialogFragment : DialogFragment() {
             moveFileViewModel.moveFilesToFolder()
         }
 
-        dialog?.setCanceledOnTouchOutside(false) ?: errorHasOccurred(UNEXPECTED_CLIENT_ERROR)
+        dialog?.setCanceledOnTouchOutside(false) ?: AlertModel.errorHasOccurred(move_file_dialog, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
 
         moveFileViewModel.ids = ids
         moveFileViewModel.names = names
@@ -114,13 +107,13 @@ class MoveFileDialogFragment : DialogFragment() {
         moveFileViewModel.errorHasOccurred.observe(
             viewLifecycleOwner
         ) { errorText ->
-            errorHasOccurred(errorText)
+            AlertModel.errorHasOccurred(move_file_dialog, errorText, OnFinishAlert.DoNothingOnFinishAlert)
         }
 
         moveFileViewModel.unexpectedErrorHasOccurred.observe(
             viewLifecycleOwner
         ) { errorText ->
-            unexpectedErrorHasOccurred(errorText)
+            AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), errorText, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
         }
     }
 
@@ -130,19 +123,5 @@ class MoveFileDialogFragment : DialogFragment() {
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT
         )
-    }
-
-    private fun errorHasOccurred(error: String) {
-        Snackbar.make(move_file_dialog, error, Snackbar.LENGTH_SHORT).show()
-    }
-
-    private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-            .setTitle(UNEXPECTED_ERROR)
-            .setMessage(error)
-            .setOnCancelListener {
-                dismiss()
-            }
-            .show()
     }
 }

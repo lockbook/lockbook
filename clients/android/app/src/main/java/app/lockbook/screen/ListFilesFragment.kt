@@ -10,7 +10,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout.HORIZONTAL
-import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
@@ -27,7 +26,6 @@ import app.lockbook.screen.RequestResultCodes.DRAWING_REQUEST_CODE
 import app.lockbook.screen.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
@@ -244,7 +242,7 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             { errorText ->
                 if (container != null) {
-                    errorHasOccurred(container, errorText)
+                    AlertModel.errorHasOccurred(container, errorText, OnFinishAlert.DoNothingOnFinishAlert)
                 }
             }
         )
@@ -253,7 +251,7 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             { errorText ->
                 if (container != null) {
-                    errorHasOccurred(container, errorText)
+                    AlertModel.errorHasOccurred(container, errorText, OnFinishAlert.DoNothingOnFinishAlert)
                 }
             }
         )
@@ -261,14 +259,14 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.unexpectedErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                unexpectedErrorHasOccurred(errorText)
+                AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), errorText, OnFinishAlert.DoNothingOnFinishAlert)
             }
         )
 
         listFilesViewModel.fileModeUnexpectedErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                unexpectedErrorHasOccurred(errorText)
+                AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), errorText, OnFinishAlert.DoNothingOnFinishAlert)
             }
         )
 
@@ -377,30 +375,28 @@ class ListFilesFragment : Fragment() {
     private fun showPreSyncSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
         if (amountToSync == 0) {
-            Snackbar.make(
+            AlertModel.notify(
                 fragment_list_files,
-                resources.getString(R.string.list_files_sync_finished_snackbar),
-                Snackbar.LENGTH_SHORT
-            ).show()
+                resources.getString(R.string.list_files_sync_finished_snackbar), OnFinishAlert.DoNothingOnFinishAlert
+            )
         } else {
-            Snackbar.make(
+            AlertModel.notify(
                 fragment_list_files,
                 resources.getString(
                     R.string.list_files_presync_snackbar,
                     amountToSync.toString()
                 ),
-                Snackbar.LENGTH_SHORT
-            ).show()
+                OnFinishAlert.DoNothingOnFinishAlert
+            )
         }
     }
 
     private fun showOfflineSnackBar() {
         snackProgressBarManager.dismiss()
-        Snackbar.make(
+        AlertModel.notify(
             fragment_list_files,
-            resources.getString(R.string.list_files_offline_snackbar),
-            Snackbar.LENGTH_SHORT
-        ).show()
+            resources.getString(R.string.list_files_offline_snackbar), OnFinishAlert.DoNothingOnFinishAlert
+        )
     }
 
     private fun collapseExpandFAB(isFABOpen: Boolean) {
@@ -434,7 +430,7 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun showSuccessfulDeletionSnackBar(view: ViewGroup) {
-        Snackbar.make(view, "Successfully deleted the file(s)", Snackbar.LENGTH_SHORT).show()
+        AlertModel.notify(view, "Successfully deleted the file(s)", OnFinishAlert.DoNothingOnFinishAlert)
     }
 
     private fun updateRecyclerView(
@@ -466,7 +462,7 @@ class ListFilesFragment : Fragment() {
         if (activity is ListFilesActivity) {
             (activity as ListFilesActivity).switchMenu()
         } else {
-            errorHasOccurred(fragment_list_files, BASIC_ERROR)
+            AlertModel.errorHasOccurred(fragment_list_files, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
         }
     }
 
@@ -474,17 +470,6 @@ class ListFilesFragment : Fragment() {
         val intent = Intent(context, DrawingActivity::class.java)
         intent.putExtra("id", editableFile.id)
         startActivityForResult(intent, DRAWING_REQUEST_CODE)
-    }
-
-    private fun errorHasOccurred(view: ViewGroup, error: String) {
-        Snackbar.make(view, error, Snackbar.LENGTH_SHORT).show()
-    }
-
-    private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-            .setTitle(UNEXPECTED_ERROR)
-            .setMessage(error)
-            .show()
     }
 
     private fun showMoreInfoDialog(fileMetadata: FileMetadata) {

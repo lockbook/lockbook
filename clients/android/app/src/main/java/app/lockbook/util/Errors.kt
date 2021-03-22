@@ -1,12 +1,5 @@
 package app.lockbook.util
 
-import android.app.Activity
-import android.content.Context
-import android.view.View
-import androidx.appcompat.app.AlertDialog
-import app.lockbook.R
-import com.google.android.material.snackbar.Snackbar
-
 val <T> T.exhaustive: T
     get() = this
 
@@ -161,32 +154,3 @@ sealed class ExecuteWorkError : CoreError() {
 
 const val UNEXPECTED_ERROR = "An unexpected error has occurred!"
 const val BASIC_ERROR = "An error has occurred."
-
-object ErrorHandler {
-    fun errorHasOccurred(view: View, msg: String) {
-        Snackbar.make(view, msg, Snackbar.LENGTH_SHORT).show()
-    }
-
-    fun basicErrorHasOccurred(view: View) {
-        Snackbar.make(view, BASIC_ERROR, Snackbar.LENGTH_SHORT).show()
-    }
-
-    fun unexpectedErrorHasOccurred(context: Context, error: String) {
-        AlertDialog.Builder(context, R.style.Main_Widget_Dialog)
-            .setTitle(UNEXPECTED_ERROR)
-            .setMessage(error)
-            .show()
-    }
-
-    fun unexpectedErrorHasOccurredAndExit(context: Context, activity: Activity, error: String) {
-        AlertDialog.Builder(context, R.style.Main_Widget_Dialog)
-                .setTitle(UNEXPECTED_ERROR)
-                .setMessage(error)
-                .setOnCancelListener {
-                    activity.finish()
-                }
-                .show()
-    }
-}
-
-
