@@ -39,11 +39,11 @@ namespace lockbook {
         }
 
         public static float GirthToPressure(float girth) {
-            return girth / .75f;
+            return girth / 15f;
         }
 
         public static float PressureToGirth(float pressure) {
-            return pressure * .75f;
+            return pressure * 15f;
         }
     }
 }

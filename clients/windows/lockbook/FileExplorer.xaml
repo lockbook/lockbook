@@ -116,27 +116,72 @@
         </SplitView.Pane>
         <SplitView.Content>
             <Grid Background="Black">
+                <!--Visibility="Collapsed">-->
                 <Grid
                     Background="Black"
                     x:Name="drawEditor"
-                    Visibility="Collapsed">
+                    Visibility="Visible">
+                    <Grid.Resources>
+                        <Style x:Key="ColorButtonStyle"  TargetType="Button">
+                            <Setter Property="MinWidth" Value="30"/>
+                            <Setter Property="MinHeight" Value="30"/>
+                            <Setter Property="Width" Value="30"/>
+                            <Setter Property="Height" Value="30"/>
+                            <Setter Property="CornerRadius" Value="15,15,15,15"/>
+                            <Setter Property="Margin" Value="0,0,10,0"/>
+                            <Setter Property="FontSize" Value="0"/>
+                            <Setter Property="Padding" Value="0,0,0,0"/>
+                        </Style>
+                    </Grid.Resources>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <InkCanvas
+                    <ScrollViewer
                         Grid.Row="0"
-                        x:Name="inkCanvas"/>
-                    <StackPanel
+                        ZoomMode="Enabled"
+                        MinZoomFactor=".2"
+                        MaxZoomFactor="5"
+                        VerticalScrollMode="Enabled"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Enabled"
+                        HorizontalScrollBarVisibility="Auto">
+                        <InkCanvas x:Name="inkCanvas"/>
+                    </ScrollViewer>
+                    <InkToolbar
                         Grid.Row="1"
-                        Height="auto"
-                        x:Name="inkCanvasToolbar">
-                        <Button
-                            Height="50"
-                            Click="NextColor">
-                            next color
-                        </Button>
-                    </StackPanel>
+                        HorizontalAlignment="Center"
+                        TargetInkCanvas="{x:Bind inkCanvas}"
+                        InitialControls="None">
+                        <InkToolbar.Resources>
+                            <BrushCollection x:Key="PenPalette">
+                                <SolidColorBrush x:Name="PenPaletteBlack"/>
+                                <SolidColorBrush x:Name="PenPaletteRed"/>
+                                <SolidColorBrush x:Name="PenPaletteGreen"/>
+                                <SolidColorBrush x:Name="PenPaletteBlue"/>
+                                <SolidColorBrush x:Name="PenPaletteYellow"/>
+                                <SolidColorBrush x:Name="PenPaletteMagenta"/>
+                                <SolidColorBrush x:Name="PenPaletteCyan"/>
+                                <SolidColorBrush x:Name="PenPaletteWhite"/>
+                            </BrushCollection>
+                        </InkToolbar.Resources>
+                        <InkToolbarBallpointPenButton  
+                            MinStrokeWidth="1"
+                            MaxStrokeWidth="20"
+                            SelectedStrokeWidth="5"
+                            Palette="{StaticResource PenPalette}"/>
+                        <InkToolbarEraserButton/>
+                        <InkToolbarStencilButton/>
+                        <InkToolbarCustomToolButton Name="undoButton" Click="Undo" ToolTipService.ToolTip="Undo">
+                            <SymbolIcon Symbol="Undo"/>
+                        </InkToolbarCustomToolButton>
+                        <InkToolbarCustomToolButton Name="redoButton" Click="Redo" ToolTipService.ToolTip="Redo">
+                            <SymbolIcon Symbol="Redo"/>
+                        </InkToolbarCustomToolButton>
+                        <InkToolbarCustomToggleButton x:Name="toggleButton" Click="ToggleTouchDrawing" ToolTipService.ToolTip="Touch Writing">
+                            <SymbolIcon Symbol="{x:Bind TouchWriting}"/>
+                        </InkToolbarCustomToggleButton>
+                    </InkToolbar>
                 </Grid>
                 <RichEditBox
                     x:Name="textEditor"

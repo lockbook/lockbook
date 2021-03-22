@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.UI;
+using Windows.UI.Core;
 using Windows.UI.Input.Inking;
 using Windows.UI.Popups;
 using Windows.UI.Text;
@@ -44,6 +45,8 @@ namespace lockbook {
     }
 
     public sealed partial class FileExplorer : Page {
+        Symbol TouchWriting = (Symbol)0xED5F;
+
         public string SelectedDocumentId { get; set; } = "";
         private int itemsToSync;
         public int ItemsToSync {
@@ -87,7 +90,7 @@ namespace lockbook {
             set {
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
                     Color = theme.GetUIColor(value, 0xFF),
-                    Size = new Size(.5, .5),
+                    Size = new Size(5, 5),
                 });
             }
         }
@@ -103,14 +106,22 @@ namespace lockbook {
             InitializeComponent();
             Files.Add(App.UIFiles.FirstOrDefault(kvp => kvp.Value.IsRoot).Value);
             inkCanvas.InkPresenter.InputDeviceTypes =
-                Windows.UI.Core.CoreInputDeviceTypes.Mouse |
-                Windows.UI.Core.CoreInputDeviceTypes.Pen |
-                Windows.UI.Core.CoreInputDeviceTypes.Touch;
+                CoreInputDeviceTypes.Mouse |
+                CoreInputDeviceTypes.Pen |
+                CoreInputDeviceTypes.Touch;
             inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
                 Color = theme.GetUIColor(ColorAlias.Black, 0xFF),
-                Size = new Size(.5, .5),
+                Size = new Size(5, 5),
             });
             inkCanvas.InkPresenter.StrokesCollected += DrawingChanged;
+            PenPaletteBlack.Color = theme.GetUIColor(ColorAlias.Black, 1f);
+            PenPaletteRed.Color = theme.GetUIColor(ColorAlias.Red, 1f);
+            PenPaletteGreen.Color = theme.GetUIColor(ColorAlias.Green, 1f);
+            PenPaletteBlue.Color = theme.GetUIColor(ColorAlias.Blue, 1f);
+            PenPaletteYellow.Color = theme.GetUIColor(ColorAlias.Yellow, 1f);
+            PenPaletteMagenta.Color = theme.GetUIColor(ColorAlias.Magenta, 1f);
+            PenPaletteCyan.Color = theme.GetUIColor(ColorAlias.Cyan, 1f);
+            PenPaletteWhite.Color = theme.GetUIColor(ColorAlias.White, 1f);
         }
 
         private async void SignOutClicked(object sender, RoutedEventArgs e) {
@@ -479,7 +490,7 @@ namespace lockbook {
                                 var builder = new InkStrokeBuilder();
                                 foreach (var stroke in drawing.strokes) {
                                     var attributes = new InkDrawingAttributes();
-                                    attributes.Size = new Size(.5, .5);
+                                    attributes.Size = new Size(5, 5);
                                     attributes.Color = drawing.theme.GetUIColor(stroke.color, 1f);
                                     builder.SetDefaultDrawingAttributes(attributes);
                                     var inkPoints = new List<InkPoint>();
@@ -616,8 +627,20 @@ namespace lockbook {
             }
         }
 
-        private void NextColor(object sender, RoutedEventArgs e) {
-            DrawingColor = (ColorAlias)(((int)DrawingColor + 1) % 8);
+        private void Undo(object sender, RoutedEventArgs e) {
+
+        }
+
+        private void Redo(object sender, RoutedEventArgs e) {
+
+        }
+
+        private void ToggleTouchDrawing(object sender, RoutedEventArgs e) {
+            if (toggleButton.IsChecked == true) {
+                inkCanvas.InkPresenter.InputDeviceTypes |= CoreInputDeviceTypes.Touch;
+            } else {
+                inkCanvas.InkPresenter.InputDeviceTypes &= ~CoreInputDeviceTypes.Touch;
+            }
         }
     }
 }
