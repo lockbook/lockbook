@@ -140,13 +140,13 @@
                     <ScrollViewer
                         Grid.Row="0"
                         ZoomMode="Enabled"
-                        MinZoomFactor=".2"
-                        MaxZoomFactor="5"
+                        MinZoomFactor=".1"
+                        MaxZoomFactor="20"
                         VerticalScrollMode="Enabled"
-                        VerticalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Visible"
                         HorizontalScrollMode="Enabled"
-                        HorizontalScrollBarVisibility="Auto">
-                        <InkCanvas x:Name="inkCanvas"/>
+                        HorizontalScrollBarVisibility="Visible">
+                        <InkCanvas x:Name="inkCanvas" Width="2125" Height="2750"/>
                     </ScrollViewer>
                     <InkToolbar
                         Grid.Row="1"

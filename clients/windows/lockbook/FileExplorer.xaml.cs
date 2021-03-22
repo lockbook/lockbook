@@ -628,11 +628,11 @@ namespace lockbook {
         }
 
         private void Undo(object sender, RoutedEventArgs e) {
-
+            // todo
         }
 
         private void Redo(object sender, RoutedEventArgs e) {
-
+            // todo
         }
 
         private void ToggleTouchDrawing(object sender, RoutedEventArgs e) {
