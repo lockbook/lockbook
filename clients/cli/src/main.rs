@@ -29,32 +29,40 @@ mod whoami;
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
 enum Lockbook {
-    /// Bring a file from your computer into a target destination inside your Lockbook. If your
-    /// Lockbook target destination is a Folder, the file name will be taken from the file-system
-    /// file.
+    /// Backup your Lockbook files and structure to the current directory
+    Backup,
+
+    /// Copy a file from your file system into your Lockbook
     Copy {
-        /// Edit the file if it exists already
+        /// Overwrite the file if it exists already
         #[structopt(long)]
         edit: bool,
 
-        /// File on your local filesystem to be copied into Lockbook
+        /// Filesystem location, a folder or individual file
         file: PathBuf,
 
-        /// Destination within your Lockbook to put the file
+        /// Lockbook location
         destination: String,
     },
 
     /// Open a document for editing
     Edit { path: String },
 
+    /// Export a drawing from your Lockbook to a specified image format
+    ExportDrawing { drawing: String, format: String },
+
     /// Export your private key
     ExportPrivateKey,
 
+    /// Calculate how much space your Lockbook is occupying
+    GetUsage {
+        /// Show the amount in bytes, don't show a human readable interpretation
+        #[structopt(long)]
+        exact: bool,
+    },
+
     /// Import an existing Lockbook
     ImportPrivateKey,
-
-    /// Create a new Lockbook account
-    NewAccount,
 
     /// List all your paths
     List,
@@ -76,11 +84,11 @@ enum Lockbook {
     /// Create a new document or folder
     New { path: String },
 
+    /// Create a new Lockbook account
+    NewAccount,
+
     /// Print the contents of a file
     Print { path: String },
-
-    /// Rename a file at a path to a target value
-    Rename { path: String, name: String },
 
     /// Move a file to trash TODO
     Remove {
@@ -89,6 +97,9 @@ enum Lockbook {
         #[structopt(short, long)]
         force: bool,
     },
+
+    /// Rename a file at a path to a target value
+    Rename { path: String, name: String },
 
     /// What operations a sync would perform
     Status,
@@ -99,19 +110,6 @@ enum Lockbook {
     /// Display Lockbook username
     #[structopt(name = "whoami")]
     WhoAmI,
-
-    /// Backup your Lockbook files and structure to the current directory
-    Backup,
-
-    /// Calculate how much space your Lockbook is occupying
-    GetUsage {
-        /// Show the amount in bytes, don't show a human readable interpretation
-        #[structopt(long)]
-        exact: bool,
-    },
-
-    /// Export a drawing from your Lockbook to a specified image format
-    ExportDrawing { drawing: String, format: String },
 
     /// Print out what each error code means
     Errors,
