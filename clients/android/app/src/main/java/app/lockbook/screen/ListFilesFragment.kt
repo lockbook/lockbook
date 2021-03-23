@@ -38,9 +38,9 @@ class ListFilesFragment : Fragment() {
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
             if (f is CreateFileDialogFragment) {
-                listFilesViewModel.refreshAndAssessChanges(f.newDocument)
+                listFilesViewModel.refreshFiles(f.newDocument)
             } else {
-                listFilesViewModel.refreshAndAssessChanges(null)
+                listFilesViewModel.refreshFiles(null)
             }
         }
     }
@@ -104,8 +104,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.files.observe(
             viewLifecycleOwner,
             { files ->
-
-                updateRecyclerView(files, adapter)
+                updateFilesList(files, adapter)
             }
         )
 
@@ -168,7 +167,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.switchFileLayout.observe(
             viewLifecycleOwner,
             {
-                listFilesViewModel.refreshAndAssessChanges(null)
+                listFilesViewModel.refreshFiles(null)
                 adapter = setFileAdapter(binding, filesDir)
             }
         )
@@ -285,6 +284,28 @@ class ListFilesFragment : Fragment() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
+    }
+
+    fun onBackPressed(): Boolean {
+        return listFilesViewModel.onBackPress()
+    }
+
+    fun onMenuItemPressed(id: Int) {
+        listFilesViewModel.onMenuItemPressed(id)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        listFilesViewModel.onOpenedActivityEnd()
+    }
+
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+        setUpAfterConfigChange()
+    }
+
     private fun setFileAdapter(binding: FragmentListFilesBinding, filesDir: String): GeneralViewAdapter {
         val config = resources.configuration
 
@@ -325,16 +346,11 @@ class ListFilesFragment : Fragment() {
         adapter.selectedFiles = MutableList(listFilesViewModel.files.value?.size ?: 0) { false }
     }
 
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
-        setUpAfterConfigChange()
-    }
-
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
 
-        if (listFilesViewModel.syncingStatus.isSyncing) {
-            showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
+        if (listFilesViewModel.syncStatus is SyncStatus.IsSyncing) {
+            showSyncSnackBar((listFilesViewModel.syncStatus as SyncStatus.IsSyncing).maxProgress)
         }
 
         parentFragmentManager.registerFragmentLifecycleCallbacks(
@@ -343,10 +359,7 @@ class ListFilesFragment : Fragment() {
         )
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
-    }
+
 
     private fun earlyStopSyncSnackBar() {
         snackProgressBarManager.dismiss()
@@ -433,11 +446,12 @@ class ListFilesFragment : Fragment() {
         AlertModel.notify(view, "Successfully deleted the file(s)", OnFinishAlert.DoNothingOnFinishAlert)
     }
 
-    private fun updateRecyclerView(
+    private fun updateFilesList(
         files: List<FileMetadata>,
         adapter: GeneralViewAdapter
     ) {
-        listFilesViewModel.handleUpdateBreadcrumbWithLatest()
+        listFilesViewModel.updateBreadcrumbWithLatest()
+
         adapter.files = files
         if (!listFilesViewModel.selectedFiles.contains(true)) {
             listFilesViewModel.selectedFiles = MutableList(files.size) { false }
@@ -510,17 +524,5 @@ class ListFilesFragment : Fragment() {
         )
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
-    }
-
-    fun onBackPressed(): Boolean {
-        return listFilesViewModel.quitOrNot()
-    }
-
-    fun onMenuItemPressed(id: Int) {
-        listFilesViewModel.onMenuItemPressed(id)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        listFilesViewModel.handleActivityResult()
     }
 }

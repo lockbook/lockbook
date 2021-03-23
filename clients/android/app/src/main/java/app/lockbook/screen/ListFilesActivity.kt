@@ -141,24 +141,9 @@ class ListFilesActivity : AppCompatActivity() {
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
             if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
-                menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
-                menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
-                menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = false
-                if (fragment.listFilesViewModel.selectedFiles.filter { selectedFile -> selectedFile }.size == 1) {
-                    menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
-                    menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
-                } else {
-                    menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
-                    menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
-                }
+                openFileMenu(fragment.listFilesViewModel.selectedFiles)
             } else {
-                menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = true
-                menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
+                closeFileMenu()
             }
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")
@@ -178,6 +163,15 @@ class ListFilesActivity : AppCompatActivity() {
             menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
             menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
         }
+    }
+
+    private fun closeFileMenu() {
+        menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = true
+        menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
     }
 
     private fun getFragment(): Result<ListFilesFragment, Unit> {

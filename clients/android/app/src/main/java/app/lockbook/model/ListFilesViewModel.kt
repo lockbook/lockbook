@@ -43,11 +43,10 @@ data class EditableFile(
     val id: String,
 )
 
-data class SyncingStatus(
-    var isSyncing: Boolean = false,
-    var maxProgress: Int = 0,
-    var currentProgress: Int = 0
-)
+sealed class SyncStatus() {
+    object IsNotSyncing: SyncStatus()
+    data class IsSyncing(var maxProgress: Int, var progress: Int): SyncStatus()
+}
 
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
@@ -56,7 +55,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val fileModel = FileModel(path)
     var selectedFiles = listOf<Boolean>()
-    val syncingStatus = SyncingStatus()
+    var syncStatus: SyncStatus = SyncStatus.IsNotSyncing
     var isFABOpen = false
 
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
@@ -149,6 +148,10 @@ class ListFilesViewModel(path: String, application: Application) :
         get() = _unexpectedErrorHasOccurred
 
     init {
+        init()
+    }
+
+    private fun init() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 setUpPreferenceChangeListener()
@@ -158,53 +161,7 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    private fun isThisAnImport() {
-        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-            .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
-        ) {
-            incrementalSync()
-            PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(
-                IS_THIS_AN_IMPORT_KEY,
-                false
-            ).apply()
-            syncingStatus.isSyncing = false
-            syncingStatus.maxProgress = 0
-        }
-    }
-
-    private fun incrementalSyncIfNotRunning() {
-        if (!syncingStatus.isSyncing) {
-            incrementalSync()
-            fileModel.refreshFiles()
-            syncingStatus.isSyncing = false
-            syncingStatus.maxProgress = 0
-        }
-    }
-
-    private fun setUpPreferenceChangeListener() {
-        val listener = OnSharedPreferenceChangeListener { _, key ->
-            when (key) {
-                BACKGROUND_SYNC_ENABLED_KEY -> {
-                    WorkManager.getInstance(getApplication())
-                        .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
-                    Unit
-                }
-                SORT_FILES_KEY -> {
-                    fileModel.refreshFiles()
-                }
-                SYNC_AUTOMATICALLY_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY, FILE_LAYOUT_KEY -> Unit
-                else -> {
-                    _errorHasOccurred.postValue(BASIC_ERROR)
-                    Timber.e("Unable to recognize preference key: $key")
-                }
-            }.exhaustive
-        }
-
-        PreferenceManager.getDefaultSharedPreferences(getApplication())
-            .registerOnSharedPreferenceChangeListener(listener)
-    }
-
-    fun quitOrNot(): Boolean {
+    fun onBackPress(): Boolean {
         if (selectedFiles.contains(true)) {
             collapseMoreOptionsMenu()
             return true
@@ -216,35 +173,11 @@ class ListFilesViewModel(path: String, application: Application) :
         return true
     }
 
-    fun handleRefreshAtParent(position: Int) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                fileModel.refreshAtParent(position)
-            }
-        }
-    }
-
-    fun handleUpdateBreadcrumbWithLatest() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                fileModel.updateBreadCrumbWithLatest()
-            }
-        }
-    }
-
-    fun handleActivityResult() {
+    fun onOpenedActivityEnd() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 syncBasedOnPreferences()
             }
-        }
-    }
-
-    private fun syncBasedOnPreferences() {
-        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-            .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
-        ) {
-            incrementalSyncIfNotRunning()
         }
     }
 
@@ -277,15 +210,6 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun collapseExpandFAB() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                isFABOpen = !isFABOpen
-                _collapseExpandFAB.postValue(isFABOpen)
-            }
-        }
-    }
-
     fun onMenuItemPressed(id: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
@@ -293,46 +217,46 @@ class ListFilesViewModel(path: String, application: Application) :
                 when (id) {
                     R.id.menu_list_files_sort_last_changed -> {
                         pref.putString(
-                            SORT_FILES_KEY,
-                            SORT_FILES_LAST_CHANGED
+                                SORT_FILES_KEY,
+                                SORT_FILES_LAST_CHANGED
                         ).apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_sort_a_z -> {
                         pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
-                            .apply()
+                                .apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_sort_z_a -> {
                         pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
-                            .apply()
+                                .apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_sort_first_changed -> {
                         pref.putString(
-                            SORT_FILES_KEY,
-                            SORT_FILES_FIRST_CHANGED
+                                SORT_FILES_KEY,
+                                SORT_FILES_FIRST_CHANGED
                         ).apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_sort_type -> {
                         pref.putString(
-                            SORT_FILES_KEY,
-                            SORT_FILES_TYPE
+                                SORT_FILES_KEY,
+                                SORT_FILES_TYPE
                         ).apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_linear_view -> {
                         pref.putString(
-                            FILE_LAYOUT_KEY,
-                            LINEAR_LAYOUT
+                                FILE_LAYOUT_KEY,
+                                LINEAR_LAYOUT
                         ).apply()
                         _switchFileLayout.postValue(Unit)
                     }
                     R.id.menu_list_files_grid_view -> {
                         pref.putString(
-                            FILE_LAYOUT_KEY,
-                            GRID_LAYOUT
+                                FILE_LAYOUT_KEY,
+                                GRID_LAYOUT
                         ).apply()
                         _switchFileLayout.postValue(Unit)
                     }
@@ -371,12 +295,12 @@ class ListFilesViewModel(path: String, application: Application) :
                     R.id.menu_list_files_move -> {
                         files.value?.let { files ->
                             _showMoveFileDialog.postValue(
-                                MoveFileInfo(
-                                    getSelectedFiles(files)
-                                        .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
-                                    getSelectedFiles(files)
-                                        .map { fileMetadata -> fileMetadata.name }.toTypedArray()
-                                )
+                                    MoveFileInfo(
+                                            getSelectedFiles(files)
+                                                    .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
+                                            getSelectedFiles(files)
+                                                    .map { fileMetadata -> fileMetadata.name }.toTypedArray()
+                                    )
                             )
                         }
                     }
@@ -389,6 +313,138 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
+    override fun onItemClick(position: Int, isSelecting: Boolean, selection: List<Boolean>) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                when (isSelecting) {
+                    true -> {
+                        selectedFiles = selection
+                        _switchMenu.postValue(Unit)
+                    }
+                    false -> {
+                        fileModel.files.value?.let { files ->
+                            val fileMetadata = files[position]
+
+                            if (fileMetadata.fileType == FileType.Folder) {
+                                fileModel.intoFolder(fileMetadata)
+                                selectedFiles = MutableList(files.size) {
+                                    false
+                                }
+                            } else {
+                                enterDocument(fileMetadata)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onLongClick(position: Int, selection: List<Boolean>) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                selectedFiles = selection
+                _switchMenu.postValue(Unit)
+            }
+        }
+    }
+
+    fun refreshFiles(newDocument: FileMetadata?) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                collapseMoreOptionsMenu()
+                fileModel.refreshFiles()
+
+                if (newDocument != null && PreferenceManager.getDefaultSharedPreferences(getApplication())
+                                .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
+                ) {
+                    enterDocument(newDocument)
+                }
+            }
+        }
+    }
+
+    fun updateBreadcrumbWithLatest() {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                fileModel.updateBreadCrumbWithLatest()
+            }
+        }
+    }
+
+    private fun isThisAnImport() {
+        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
+            .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
+        ) {
+            incrementalSync()
+            PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(
+                IS_THIS_AN_IMPORT_KEY,
+                false
+            ).apply()
+            syncStatus = SyncStatus.IsNotSyncing
+        }
+    }
+
+    private fun incrementalSyncIfNotRunning() {
+        if (syncStatus is SyncStatus.IsNotSyncing) {
+            incrementalSync()
+            fileModel.refreshFiles()
+            syncStatus = SyncStatus.IsNotSyncing
+        }
+    }
+
+    private fun setUpPreferenceChangeListener() {
+        val listener = OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                BACKGROUND_SYNC_ENABLED_KEY -> {
+                    WorkManager.getInstance(getApplication())
+                        .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
+                    Unit
+                }
+                SORT_FILES_KEY -> {
+                    fileModel.refreshFiles()
+                }
+                SYNC_AUTOMATICALLY_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY, FILE_LAYOUT_KEY -> Unit
+                else -> {
+                    _errorHasOccurred.postValue(BASIC_ERROR)
+                    Timber.e("Unable to recognize preference key: $key")
+                }
+            }.exhaustive
+        }
+
+        PreferenceManager.getDefaultSharedPreferences(getApplication())
+            .registerOnSharedPreferenceChangeListener(listener)
+    }
+
+
+
+    fun handleRefreshAtParent(position: Int) {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                fileModel.refreshAtParent(position)
+            }
+        }
+    }
+
+    private fun syncBasedOnPreferences() {
+        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
+            .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+        ) {
+            incrementalSyncIfNotRunning()
+        }
+    }
+
+    fun collapseExpandFAB() {
+        uiScope.launch {
+            withContext(Dispatchers.IO) {
+                isFABOpen = !isFABOpen
+                _collapseExpandFAB.postValue(isFABOpen)
+            }
+        }
+    }
+
+
+
     private fun getSelectedFiles(files: List<FileMetadata>): List<FileMetadata> = files.filterIndexed { index, _ ->
         selectedFiles[index]
     }
@@ -400,7 +456,7 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun incrementalSync() {
-        syncingStatus.isSyncing = true
+        val tempSyncStatus = SyncStatus.IsSyncing(0, 0)
 
         val account = when (val accountResult = CoreModel.getAccount(fileModel.config)) {
             is Ok -> accountResult.value
@@ -437,21 +493,21 @@ class ListFilesViewModel(path: String, application: Application) :
 
         _showSyncSnackBar.postValue(workCalculated.workUnits.size)
 
-        syncingStatus.currentProgress = 0
-        syncingStatus.maxProgress = workCalculated.workUnits.size
+        tempSyncStatus.progress = 0
+        tempSyncStatus.maxProgress = workCalculated.workUnits.size
+
+        syncStatus = tempSyncStatus
 
         for (test in 0..10) {
-            Timber.e("Before: ${syncingStatus.currentProgress}")
             for (workUnit in workCalculated.workUnits) {
                 when (
                     val executeFileSyncWorkResult =
                         CoreModel.executeWork(fileModel.config, account, workUnit)
                 ) {
                     is Ok -> {
-                        syncingStatus.currentProgress++
-                        Timber.e("Success: ${syncingStatus.currentProgress}")
+                        (syncStatus as SyncStatus.IsSyncing).progress++
                         syncErrors.remove(workUnit.content.metadata.id)
-                        _updateProgressSnackBar.postValue(syncingStatus.currentProgress)
+                        _updateProgressSnackBar.postValue((syncStatus as SyncStatus.IsSyncing).progress)
                     }
                     is Err ->
                         syncErrors[workUnit.content.metadata.id] =
@@ -494,10 +550,9 @@ class ListFilesViewModel(path: String, application: Application) :
             if (workCalculated.workUnits.isEmpty()) {
                 break
             } else {
-                syncingStatus.maxProgress = workCalculated.workUnits.size
-                _showSyncSnackBar.postValue(syncingStatus.maxProgress)
-                syncingStatus.currentProgress = 0
-                Timber.e("WORKCALCULATED: ${syncingStatus.maxProgress}")
+                (syncStatus as SyncStatus.IsSyncing).maxProgress = workCalculated.workUnits.size
+                _showSyncSnackBar.postValue((syncStatus as SyncStatus.IsSyncing).maxProgress)
+                (syncStatus as SyncStatus.IsSyncing).progress = 0
             }
         }
 
@@ -510,29 +565,6 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    override fun onItemClick(position: Int, isSelecting: Boolean, selection: List<Boolean>) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                if (isSelecting) {
-                    selectedFiles = selection
-                    _switchMenu.postValue(Unit)
-                } else {
-                    fileModel.files.value?.let { files ->
-                        val fileMetadata = files[position]
-
-                        if (fileMetadata.fileType == FileType.Folder) {
-                            fileModel.intoFolder(fileMetadata)
-                            selectedFiles = MutableList(files.size) {
-                                false
-                            }
-                        } else {
-                            enterDocument(fileMetadata)
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     private fun enterDocument(fileMetadata: FileMetadata) {
         val editableFileResult =
@@ -545,27 +577,5 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun refreshAndAssessChanges(newDocument: FileMetadata?) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                collapseMoreOptionsMenu()
-                fileModel.refreshFiles()
 
-                if (newDocument != null && PreferenceManager.getDefaultSharedPreferences(getApplication())
-                    .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
-                ) {
-                    enterDocument(newDocument)
-                }
-            }
-        }
-    }
-
-    override fun onLongClick(position: Int, selection: List<Boolean>) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                selectedFiles = selection
-                _switchMenu.postValue(Unit)
-            }
-        }
-    }
 }

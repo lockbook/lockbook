@@ -230,34 +230,4 @@ class FileModel(path: String) {
             }
         }.exhaustive
     }
-
-    class SyncWork(appContext: Context, workerParams: WorkerParameters) :
-        Worker(appContext, workerParams) {
-        override fun doWork(): Result {
-            val syncAllResult =
-                CoreModel.syncAll(Config(applicationContext.filesDir.absolutePath))
-            return if (syncAllResult is Err) {
-                when (val error = syncAllResult.error) {
-                    is SyncAllError.NoAccount -> {
-                        Timber.e("No account.")
-                    }
-                    is SyncAllError.CouldNotReachServer -> {
-                        Timber.e("Could not reach server.")
-                    }
-                    is SyncAllError.ExecuteWorkError -> {
-                        Timber.e("Could not execute some work.")
-                    }
-                    is SyncAllError.ClientUpdateRequired -> {
-                        Timber.e("Client update required.")
-                    }
-                    is SyncAllError.Unexpected -> {
-                        Timber.e("Unable to sync all files: ${error.error}")
-                    }
-                }.exhaustive
-                Result.failure()
-            } else {
-                Result.success()
-            }
-        }
-    }
 }
