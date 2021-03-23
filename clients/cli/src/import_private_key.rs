@@ -25,7 +25,7 @@ pub fn import_private_key() -> CliResult<()> {
             CoreError::UiError(err) => match err {
                 ImportError::AccountStringCorrupted => err!(AccountStringCorrupted),
                 ImportError::AccountExistsAlready => err!(AccountAlreadyExists),
-                ImportError::AccountDoesNotExist => err!(AccountDoesNotExist),
+                ImportError::AccountDoesNotExist => err!(AccountDoesNotExistOnServer),
                 ImportError::UsernamePKMismatch => err!(UsernamePkMismatch),
                 ImportError::CouldNotReachServer => err!(NetworkIssue),
                 ImportError::ClientUpdateRequired => err!(UpdateRequired),
