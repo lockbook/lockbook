@@ -1,11 +1,8 @@
 package app.lockbook.model
 
-import android.content.Context
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.preference.PreferenceManager
-import androidx.work.Worker
-import androidx.work.WorkerParameters
 import app.lockbook.App
 import app.lockbook.ui.BreadCrumb
 import app.lockbook.util.*
@@ -13,27 +10,18 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import timber.log.Timber
 
-class FileModel(path: String) {
+class FileModel(private val config: Config, private val _errorHasOccurred: SingleMutableLiveData<String>, private val _unexpectedErrorHasOccurred: SingleMutableLiveData<String>) {
     private val _files = MutableLiveData<List<FileMetadata>>()
     private val _updateBreadcrumbBar = SingleMutableLiveData<List<BreadCrumb>>()
-    private val _errorHasOccurred = SingleMutableLiveData<String>()
-    private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
     private val filePath: MutableList<FileMetadata> = mutableListOf()
-    val config = Config(path)
 
     val files: LiveData<List<FileMetadata>>
         get() = _files
 
     val updateBreadcrumbBar: LiveData<List<BreadCrumb>>
         get() = _updateBreadcrumbBar
-
-    val errorHasOccurred: LiveData<String>
-        get() = _errorHasOccurred
-
-    val unexpectedErrorHasOccurred: LiveData<String>
-        get() = _unexpectedErrorHasOccurred
 
     fun isAtRoot(): Boolean = parentFileMetadata.id == parentFileMetadata.parent
 
@@ -53,7 +41,7 @@ class FileModel(path: String) {
                             filePath.remove(filePath.last())
                         }
                         updateBreadCrumbWithLatest()
-                        matchToDefaultSortOption(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+                        sortChildren(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
                     }
                     is Err -> when (val error = getParentOfParentResult.error) {
                         is GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
@@ -109,7 +97,7 @@ class FileModel(path: String) {
         when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
             is Ok -> {
                 updateBreadCrumbWithLatest()
-                matchToDefaultSortOption(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+                sortChildren(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
             }
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.Unexpected -> {
@@ -159,63 +147,54 @@ class FileModel(path: String) {
         }.exhaustive
     }
 
-    private fun sortFilesAlpha(files: List<FileMetadata>, inReverse: Boolean) {
-        if (inReverse) {
-            _files.postValue(
-                files.sortedByDescending { fileMetadata ->
-                    fileMetadata.name
-                }
-            )
+    private fun sortFilesAlpha(files: List<FileMetadata>, inReverse: Boolean): List<FileMetadata> {
+        return if (inReverse) {
+            files.sortedByDescending { fileMetadata ->
+                fileMetadata.name
+            }
         } else {
-            _files.postValue(
-                files.sortedBy { fileMetadata ->
-                    fileMetadata.name
-                }
-            )
+            files.sortedBy { fileMetadata ->
+                fileMetadata.name
+            }
         }
     }
 
-    private fun sortFilesChanged(files: List<FileMetadata>, inReverse: Boolean) {
-        if (inReverse) {
-            _files.postValue(
-                files.sortedByDescending { fileMetadata ->
-                    fileMetadata.metadataVersion
-                }
-            )
+    private fun sortFilesChanged(files: List<FileMetadata>, inReverse: Boolean): List<FileMetadata> {
+        return if (inReverse) {
+            files.sortedByDescending { fileMetadata ->
+                fileMetadata.metadataVersion
+            }
         } else {
-            _files.postValue(
-                files.sortedBy { fileMetadata ->
-                    fileMetadata.metadataVersion
-                }
-            )
+            files.sortedBy { fileMetadata ->
+                fileMetadata.metadataVersion
+            }
         }
     }
 
-    private fun sortFilesType(files: List<FileMetadata>) {
+    private fun sortFilesType(files: List<FileMetadata>): List<FileMetadata> {
         val tempFolders = files.filter { fileMetadata ->
             fileMetadata.fileType.name == FileType.Folder.name
         }
         val tempDocuments = files.filter { fileMetadata ->
             fileMetadata.fileType.name == FileType.Document.name
         }
-        _files.postValue(
-            tempFolders.union(
-                tempDocuments.sortedWith(
-                    compareBy(
-                        { fileMetadata ->
-                            Regex(".[^.]+\$").find(fileMetadata.name)?.value
-                        },
-                        { fileMetaData ->
-                            fileMetaData.name
-                        }
-                    )
+
+        return tempFolders.union(
+            tempDocuments.sortedWith(
+                compareBy(
+                    { fileMetadata ->
+                        Regex(".[^.]+\$").find(fileMetadata.name)?.value
+                    },
+                    { fileMetaData ->
+                        fileMetaData.name
+                    }
                 )
-            ).toList()
-        )
+            )
+        ).toList()
     }
 
-    private fun matchToDefaultSortOption(files: List<FileMetadata>) {
-        when (
+    private fun sortChildren(files: List<FileMetadata>) {
+        val sortedFiles = when (
             val optionValue = PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getString(SharedPreferences.SORT_FILES_KEY, SharedPreferences.SORT_FILES_A_Z)
         ) {
@@ -227,7 +206,10 @@ class FileModel(path: String) {
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
                 _errorHasOccurred.postValue(BASIC_ERROR)
+                return
             }
         }.exhaustive
+
+        _files.postValue(sortedFiles)
     }
 }

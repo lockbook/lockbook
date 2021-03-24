@@ -33,8 +33,6 @@ import app.lockbook.util.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.util.SharedPreferences.SORT_FILES_Z_A
 import app.lockbook.util.SharedPreferences.SYNC_AUTOMATICALLY_KEY
 import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
 
@@ -44,8 +42,8 @@ data class EditableFile(
 )
 
 sealed class SyncStatus() {
-    object IsNotSyncing: SyncStatus()
-    data class IsSyncing(var maxProgress: Int, var progress: Int): SyncStatus()
+    object IsNotSyncing : SyncStatus()
+    data class IsSyncing(var maxProgress: Int, var progress: Int) : SyncStatus()
 }
 
 class ListFilesViewModel(path: String, application: Application) :
@@ -53,17 +51,12 @@ class ListFilesViewModel(path: String, application: Application) :
     ListFilesClickInterface {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
-    private val fileModel = FileModel(path)
+    private val config = Config(path)
     var selectedFiles = listOf<Boolean>()
-    var syncStatus: SyncStatus = SyncStatus.IsNotSyncing
+
     var isFABOpen = false
 
-    private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _stopProgressSpinner = SingleMutableLiveData<Unit>()
-    private val _showSyncSnackBar = SingleMutableLiveData<Int>()
-    private val _showPreSyncSnackBar = SingleMutableLiveData<Int>()
-    private val _showOfflineSnackBar = SingleMutableLiveData<Unit>()
-    private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
     private val _navigateToFileEditor = SingleMutableLiveData<EditableFile>()
     private val _navigateToDrawing = SingleMutableLiveData<EditableFile>()
     private val _switchFileLayout = SingleMutableLiveData<Unit>()
@@ -74,30 +67,27 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showFileInfoDialog = SingleMutableLiveData<FileMetadata>()
     private val _showRenameFileDialog = SingleMutableLiveData<RenameFileInfo>()
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
-    private val _showSuccessfulDeletion = SingleMutableLiveData<Unit>()
+    private val _showSnackBar = SingleMutableLiveData<String>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
+
+    val stopProgressSpinner: LiveData<Unit>
+        get() = _stopProgressSpinner
 
     val files: LiveData<List<FileMetadata>>
         get() = fileModel.files
 
     val stopSyncSnackBar: LiveData<Unit>
-        get() = _stopSyncSnackBar
-
-    val stopProgressSpinner: LiveData<Unit>
-        get() = _stopProgressSpinner
+        get() = syncModel.stopSyncSnackBar
 
     val showSyncSnackBar: LiveData<Int>
-        get() = _showSyncSnackBar
+        get() = syncModel.showSyncSnackBar
 
     val showPreSyncSnackBar: LiveData<Int>
-        get() = _showPreSyncSnackBar
-
-    val showOfflineSnackBar: LiveData<Unit>
-        get() = _showOfflineSnackBar
+        get() = syncModel.showPreSyncSnackBar
 
     val updateProgressSnackBar: LiveData<Int>
-        get() = _updateProgressSnackBar
+        get() = syncModel.updateProgressSnackBar
 
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
@@ -132,20 +122,17 @@ class ListFilesViewModel(path: String, application: Application) :
     val updateBreadcrumbBar: LiveData<List<BreadCrumb>>
         get() = fileModel.updateBreadcrumbBar
 
-    val showSuccessfulDeletion: LiveData<Unit>
-        get() = _showSuccessfulDeletion
+    val showSnackBar: LiveData<String>
+        get() = _showSnackBar
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
 
-    val fileModelErrorHasOccurred: LiveData<String>
-        get() = fileModel.errorHasOccurred
-
-    val fileModeUnexpectedErrorHasOccurred: LiveData<String>
-        get() = fileModel.unexpectedErrorHasOccurred
-
     val unexpectedErrorHasOccurred: LiveData<String>
         get() = _unexpectedErrorHasOccurred
+
+    private val fileModel = FileModel(config, _errorHasOccurred, _unexpectedErrorHasOccurred)
+    val syncModel = SyncModel(config, _showSnackBar, _errorHasOccurred, _unexpectedErrorHasOccurred)
 
     init {
         init()
@@ -161,22 +148,22 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun onBackPress(): Boolean {
-        if (selectedFiles.contains(true)) {
+    fun onBackPress(): Boolean = when {
+        selectedFiles.contains(true) -> {
             collapseMoreOptionsMenu()
-            return true
-        } else if (fileModel.isAtRoot()) {
-            return false
+            true
         }
-        fileModel.upADirectory()
-
-        return true
+        !fileModel.isAtRoot() -> {
+            fileModel.upADirectory()
+            true
+        }
+        else -> false
     }
 
     fun onOpenedActivityEnd() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                syncBasedOnPreferences()
+                syncModel.syncBasedOnPreferences(getApplication())
             }
         }
     }
@@ -184,7 +171,8 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onSwipeToRefresh() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                incrementalSyncIfNotRunning()
+                syncModel.startSync()
+                fileModel.refreshFiles()
                 _stopProgressSpinner.postValue(Unit)
             }
         }
@@ -217,46 +205,46 @@ class ListFilesViewModel(path: String, application: Application) :
                 when (id) {
                     R.id.menu_list_files_sort_last_changed -> {
                         pref.putString(
-                                SORT_FILES_KEY,
-                                SORT_FILES_LAST_CHANGED
+                            SORT_FILES_KEY,
+                            SORT_FILES_LAST_CHANGED
                         ).apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_sort_a_z -> {
                         pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
-                                .apply()
+                            .apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_sort_z_a -> {
                         pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
-                                .apply()
+                            .apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_sort_first_changed -> {
                         pref.putString(
-                                SORT_FILES_KEY,
-                                SORT_FILES_FIRST_CHANGED
+                            SORT_FILES_KEY,
+                            SORT_FILES_FIRST_CHANGED
                         ).apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_sort_type -> {
                         pref.putString(
-                                SORT_FILES_KEY,
-                                SORT_FILES_TYPE
+                            SORT_FILES_KEY,
+                            SORT_FILES_TYPE
                         ).apply()
                         fileModel.refreshFiles()
                     }
                     R.id.menu_list_files_linear_view -> {
                         pref.putString(
-                                FILE_LAYOUT_KEY,
-                                LINEAR_LAYOUT
+                            FILE_LAYOUT_KEY,
+                            LINEAR_LAYOUT
                         ).apply()
                         _switchFileLayout.postValue(Unit)
                     }
                     R.id.menu_list_files_grid_view -> {
                         pref.putString(
-                                FILE_LAYOUT_KEY,
-                                GRID_LAYOUT
+                            FILE_LAYOUT_KEY,
+                            GRID_LAYOUT
                         ).apply()
                         _switchFileLayout.postValue(Unit)
                     }
@@ -275,7 +263,7 @@ class ListFilesViewModel(path: String, application: Application) :
                             val checkedIds = getSelectedFiles(files).map { file -> file.id }
                             collapseMoreOptionsMenu()
                             if (fileModel.deleteFiles(checkedIds)) {
-                                _showSuccessfulDeletion.postValue(Unit)
+                                _showSnackBar.postValue("Successfully deleted the file(s)")
                             }
 
                             fileModel.refreshFiles()
@@ -295,12 +283,12 @@ class ListFilesViewModel(path: String, application: Application) :
                     R.id.menu_list_files_move -> {
                         files.value?.let { files ->
                             _showMoveFileDialog.postValue(
-                                    MoveFileInfo(
-                                            getSelectedFiles(files)
-                                                    .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
-                                            getSelectedFiles(files)
-                                                    .map { fileMetadata -> fileMetadata.name }.toTypedArray()
-                                    )
+                                MoveFileInfo(
+                                    getSelectedFiles(files)
+                                        .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
+                                    getSelectedFiles(files)
+                                        .map { fileMetadata -> fileMetadata.name }.toTypedArray()
+                                )
                             )
                         }
                     }
@@ -356,7 +344,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 fileModel.refreshFiles()
 
                 if (newDocument != null && PreferenceManager.getDefaultSharedPreferences(getApplication())
-                                .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
+                    .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
                 ) {
                     enterDocument(newDocument)
                 }
@@ -376,20 +364,11 @@ class ListFilesViewModel(path: String, application: Application) :
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
             .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
         ) {
-            incrementalSync()
+            syncModel.startSync()
             PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(
                 IS_THIS_AN_IMPORT_KEY,
                 false
             ).apply()
-            syncStatus = SyncStatus.IsNotSyncing
-        }
-    }
-
-    private fun incrementalSyncIfNotRunning() {
-        if (syncStatus is SyncStatus.IsNotSyncing) {
-            incrementalSync()
-            fileModel.refreshFiles()
-            syncStatus = SyncStatus.IsNotSyncing
         }
     }
 
@@ -416,21 +395,11 @@ class ListFilesViewModel(path: String, application: Application) :
             .registerOnSharedPreferenceChangeListener(listener)
     }
 
-
-
     fun handleRefreshAtParent(position: Int) {
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 fileModel.refreshAtParent(position)
             }
-        }
-    }
-
-    private fun syncBasedOnPreferences() {
-        if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-            .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
-        ) {
-            incrementalSyncIfNotRunning()
         }
     }
 
@@ -443,8 +412,6 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-
-
     private fun getSelectedFiles(files: List<FileMetadata>): List<FileMetadata> = files.filterIndexed { index, _ ->
         selectedFiles[index]
     }
@@ -454,117 +421,6 @@ class ListFilesViewModel(path: String, application: Application) :
         _switchMenu.postValue(Unit)
         _uncheckAllFiles.postValue(Unit)
     }
-
-    private fun incrementalSync() {
-        val tempSyncStatus = SyncStatus.IsSyncing(0, 0)
-
-        val account = when (val accountResult = CoreModel.getAccount(fileModel.config)) {
-            is Ok -> accountResult.value
-            is Err -> return when (val error = accountResult.error) {
-                is GetAccountError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is GetAccountError.Unexpected -> {
-                    Timber.e("Unable to get account: ${error.error}")
-                }
-            }
-        }.exhaustive
-
-        val syncErrors = hashMapOf<String, ExecuteWorkError>()
-
-        var workCalculated =
-            when (val syncWorkResult = CoreModel.calculateWork(fileModel.config)) {
-                is Ok -> syncWorkResult.value
-                is Err -> return when (val error = syncWorkResult.error) {
-                    is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                    is CalculateWorkError.CouldNotReachServer -> _showOfflineSnackBar.postValue(Unit)
-                    is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
-                    is CalculateWorkError.Unexpected -> {
-                        Timber.e("Unable to calculate syncWork: ${error.error}")
-                        _unexpectedErrorHasOccurred.postValue(
-                            error.error
-                        )
-                    }
-                }
-            }.exhaustive
-
-        if (workCalculated.workUnits.isEmpty()) {
-            _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
-            return
-        }
-
-        _showSyncSnackBar.postValue(workCalculated.workUnits.size)
-
-        tempSyncStatus.progress = 0
-        tempSyncStatus.maxProgress = workCalculated.workUnits.size
-
-        syncStatus = tempSyncStatus
-
-        for (test in 0..10) {
-            for (workUnit in workCalculated.workUnits) {
-                when (
-                    val executeFileSyncWorkResult =
-                        CoreModel.executeWork(fileModel.config, account, workUnit)
-                ) {
-                    is Ok -> {
-                        (syncStatus as SyncStatus.IsSyncing).progress++
-                        syncErrors.remove(workUnit.content.metadata.id)
-                        _updateProgressSnackBar.postValue((syncStatus as SyncStatus.IsSyncing).progress)
-                    }
-                    is Err ->
-                        syncErrors[workUnit.content.metadata.id] =
-                            executeFileSyncWorkResult.error
-                }.exhaustive
-            }
-
-            if (syncErrors.isEmpty()) {
-                val setLastSyncedResult =
-                    CoreModel.setLastSynced(
-                        fileModel.config,
-                        workCalculated.mostRecentUpdateFromServer
-                    )
-                if (setLastSyncedResult is Err) {
-                    Timber.e("Unable to set most recent sync date: ${setLastSyncedResult.error}")
-                    _errorHasOccurred.postValue(BASIC_ERROR)
-                }
-            }
-
-            workCalculated =
-                when (val syncWorkResult = CoreModel.calculateWork(fileModel.config)) {
-                    is Ok -> syncWorkResult.value
-                    is Err -> return when (val error = syncWorkResult.error) {
-                        is CalculateWorkError.NoAccount -> {
-                            _stopSyncSnackBar.postValue(Unit)
-                            _errorHasOccurred.postValue("Error! No account!")
-                        }
-                        is CalculateWorkError.CouldNotReachServer -> _showOfflineSnackBar.postValue(Unit)
-                        is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
-                        is CalculateWorkError.Unexpected -> {
-                            Timber.e("Unable to calculate syncWork: ${error.error}")
-                            _stopSyncSnackBar.postValue(Unit)
-                            _unexpectedErrorHasOccurred.postValue(
-                                error.error
-                            )
-                        }
-                    }
-                }.exhaustive
-
-            if (workCalculated.workUnits.isEmpty()) {
-                break
-            } else {
-                (syncStatus as SyncStatus.IsSyncing).maxProgress = workCalculated.workUnits.size
-                _showSyncSnackBar.postValue((syncStatus as SyncStatus.IsSyncing).maxProgress)
-                (syncStatus as SyncStatus.IsSyncing).progress = 0
-            }
-        }
-
-        if (syncErrors.isNotEmpty()) {
-            Timber.e("Couldn't resolve all syncErrors: ${Klaxon().toJsonString(syncErrors)}")
-            _stopSyncSnackBar.postValue(Unit)
-            _errorHasOccurred.postValue("Couldn't sync all files.")
-        } else {
-            _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
-        }
-    }
-
 
     private fun enterDocument(fileMetadata: FileMetadata) {
         val editableFileResult =
@@ -576,6 +432,4 @@ class ListFilesViewModel(path: String, application: Application) :
             _navigateToFileEditor.postValue(editableFileResult)
         }
     }
-
-
 }

@@ -44,8 +44,9 @@ class ListFilesActivity : AppCompatActivity() {
 
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
-            if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
-                openFileMenu(fragment.listFilesViewModel.selectedFiles)
+            val selectedFiles = fragment.listFilesViewModel.selectedFiles
+            if (selectedFiles.contains(true)) {
+                openFileMenu(selectedFiles)
             }
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")

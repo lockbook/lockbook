@@ -11,7 +11,6 @@ import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.model.CoreModel
-import app.lockbook.model.FileModel
 import app.lockbook.util.Config
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
@@ -89,10 +88,10 @@ class ForegroundBackgroundObserver : LifecycleObserver {
 }
 
 class SyncWork(appContext: Context, workerParams: WorkerParameters) :
-        Worker(appContext, workerParams) {
+    Worker(appContext, workerParams) {
     override fun doWork(): Result {
         val syncAllResult =
-                CoreModel.syncAll(Config(applicationContext.filesDir.absolutePath))
+            CoreModel.syncAll(Config(applicationContext.filesDir.absolutePath))
         return if (syncAllResult is Err) {
             when (val error = syncAllResult.error) {
                 is SyncAllError.NoAccount -> {
@@ -117,4 +116,3 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
         }
     }
 }
-

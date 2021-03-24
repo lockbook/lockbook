@@ -20,12 +20,14 @@ import kotlinx.android.synthetic.main.splash_screen.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 
-const val STATE_REQUIRES_CLEANING =
-    "This lockbook version is incompatible with your data, please clear your data or downgrade your lockbook."
-
 class InitialLaunchFigureOuter : AppCompatActivity() {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
+
+    companion object {
+        private const val STATE_REQUIRES_CLEANING =
+            "This lockbook version is incompatible with your data, please clear your data or downgrade your lockbook."
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,7 +59,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         Timber.e("DB state requires cleaning!")
                         AlertModel.errorHasOccurred(
                             splash_screen,
-                            STATE_REQUIRES_CLEANING, OnFinishAlert.DoNothingOnFinishAlert
+                            Companion.STATE_REQUIRES_CLEANING, OnFinishAlert.DoNothingOnFinishAlert
                         )
                     }
                 }
@@ -91,7 +93,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                                 migrate_progress_bar.visibility = View.GONE
                                 AlertModel.errorHasOccurred(
                                     splash_screen,
-                                    STATE_REQUIRES_CLEANING,
+                                    Companion.STATE_REQUIRES_CLEANING,
                                     OnFinishAlert.DoSomethingOnFinishAlert(::finish)
                                 )
                             }

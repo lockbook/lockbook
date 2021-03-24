@@ -1,7 +1,6 @@
 package app.lockbook.screen
 
 import android.content.Intent
-import android.content.res.Configuration
 import android.content.res.Configuration.*
 import android.os.Bundle
 import android.os.Handler
@@ -136,13 +135,6 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.showOfflineSnackBar.observe(
-            viewLifecycleOwner,
-            {
-                showOfflineSnackBar()
-            }
-        )
-
         listFilesViewModel.updateProgressSnackBar.observe(
             viewLifecycleOwner,
             { progress ->
@@ -228,20 +220,12 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.showSuccessfulDeletion.observe(
+        listFilesViewModel.showSnackBar.observe(
             viewLifecycleOwner,
-            {
+            { msg ->
                 if (container != null) {
-                    showSuccessfulDeletionSnackBar(container)
-                }
-            }
-        )
-
-        listFilesViewModel.fileModelErrorHasOccurred.observe(
-            viewLifecycleOwner,
-            { errorText ->
-                if (container != null) {
-                    AlertModel.errorHasOccurred(container, errorText, OnFinishAlert.DoNothingOnFinishAlert)
+                    snackProgressBarManager.dismiss()
+                    AlertModel.notify(container, msg, OnFinishAlert.DoNothingOnFinishAlert)
                 }
             }
         )
@@ -256,13 +240,6 @@ class ListFilesFragment : Fragment() {
         )
 
         listFilesViewModel.unexpectedErrorHasOccurred.observe(
-            viewLifecycleOwner,
-            { errorText ->
-                AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), errorText, OnFinishAlert.DoNothingOnFinishAlert)
-            }
-        )
-
-        listFilesViewModel.fileModeUnexpectedErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
                 AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), errorText, OnFinishAlert.DoNothingOnFinishAlert)
@@ -312,7 +289,7 @@ class ListFilesFragment : Fragment() {
         val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
             .getString(
                 SharedPreferences.FILE_LAYOUT_KEY,
-                if (config.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
+                if (config.isLayoutSizeAtLeast(SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
                     SharedPreferences.GRID_LAYOUT
                 } else {
                     SharedPreferences.LINEAR_LAYOUT
@@ -349,8 +326,8 @@ class ListFilesFragment : Fragment() {
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
 
-        if (listFilesViewModel.syncStatus is SyncStatus.IsSyncing) {
-            showSyncSnackBar((listFilesViewModel.syncStatus as SyncStatus.IsSyncing).maxProgress)
+        if (listFilesViewModel.syncModel.syncStatus is SyncStatus.IsSyncing) {
+            showSyncSnackBar((listFilesViewModel.syncModel.syncStatus as SyncStatus.IsSyncing).maxProgress)
         }
 
         parentFragmentManager.registerFragmentLifecycleCallbacks(
@@ -358,8 +335,6 @@ class ListFilesFragment : Fragment() {
             false
         )
     }
-
-
 
     private fun earlyStopSyncSnackBar() {
         snackProgressBarManager.dismiss()
@@ -404,14 +379,6 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-    private fun showOfflineSnackBar() {
-        snackProgressBarManager.dismiss()
-        AlertModel.notify(
-            fragment_list_files,
-            resources.getString(R.string.list_files_offline_snackbar), OnFinishAlert.DoNothingOnFinishAlert
-        )
-    }
-
     private fun collapseExpandFAB(isFABOpen: Boolean) {
         if (isFABOpen) {
             showFABMenu()
@@ -440,10 +407,6 @@ class ListFilesFragment : Fragment() {
         list_files_frame_layout.setOnClickListener {
             listFilesViewModel.collapseExpandFAB()
         }
-    }
-
-    private fun showSuccessfulDeletionSnackBar(view: ViewGroup) {
-        AlertModel.notify(view, "Successfully deleted the file(s)", OnFinishAlert.DoNothingOnFinishAlert)
     }
 
     private fun updateFilesList(

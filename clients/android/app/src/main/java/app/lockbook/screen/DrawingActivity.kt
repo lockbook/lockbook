@@ -35,7 +35,7 @@ class DrawingActivity : AppCompatActivity() {
                 drawing_loading_view.visibility = View.GONE
                 drawing_view.startThread()
             } else {
-                addDrawingToView()
+                initializeDrawing()
             }
         }
 
@@ -94,7 +94,7 @@ class DrawingActivity : AppCompatActivity() {
             drawing_view.holder.addCallback(surfaceViewReadyCallback)
 
             if (!drawing_view.holder.isCreating) {
-                addDrawingToView()
+                initializeDrawing()
             }
         }
 
@@ -160,6 +160,7 @@ class DrawingActivity : AppCompatActivity() {
             }
             is DrawingView.Eraser -> {
                 drawing_erase.setImageResource(R.drawable.ic_eraser_outline)
+                drawing_view.isErasing = false
             }
             null -> {}
             else -> AlertModel.errorHasOccurred(drawing_layout, "Unable to recognize previous tool.", OnFinishAlert.DoNothingOnFinishAlert)
@@ -183,6 +184,7 @@ class DrawingActivity : AppCompatActivity() {
             }
             is DrawingView.Eraser -> {
                 drawing_erase.setImageResource(R.drawable.ic_eraser_filled)
+                drawing_view.isErasing = true
             }
             else -> AlertModel.errorHasOccurred(drawing_layout, "Unable to recognize new tool.", OnFinishAlert.DoNothingOnFinishAlert)
         }.exhaustive
@@ -226,7 +228,7 @@ class DrawingActivity : AppCompatActivity() {
         drawing_tools_menu.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f).setListener(onAnimationEnd).start()
     }
 
-    private fun addDrawingToView() {
+    private fun initializeDrawing() {
         drawing_progress_bar.visibility = View.GONE
 
         val drawing = drawingViewModel.backupDrawing
@@ -237,21 +239,23 @@ class DrawingActivity : AppCompatActivity() {
         }
 
         drawing_view.theme = drawing.theme ?: DEFAULT_THEME
-        drawing_view.colorAliasInARGB = EnumMap(Drawing.themeToARGBColors(drawing_view.theme))
+        val colorAliasInARGB = EnumMap(Drawing.themeToARGBColors(drawing_view.theme))
 
-        val white = drawing_view.colorAliasInARGB[ColorAlias.White]
-        val black = drawing_view.colorAliasInARGB[ColorAlias.Black]
-        val red = drawing_view.colorAliasInARGB[ColorAlias.Red]
-        val green = drawing_view.colorAliasInARGB[ColorAlias.Green]
-        val cyan = drawing_view.colorAliasInARGB[ColorAlias.Cyan]
-        val magenta = drawing_view.colorAliasInARGB[ColorAlias.Magenta]
-        val blue = drawing_view.colorAliasInARGB[ColorAlias.Blue]
-        val yellow = drawing_view.colorAliasInARGB[ColorAlias.Yellow]
+        val white = colorAliasInARGB[ColorAlias.White]
+        val black = colorAliasInARGB[ColorAlias.Black]
+        val red = colorAliasInARGB[ColorAlias.Red]
+        val green = colorAliasInARGB[ColorAlias.Green]
+        val cyan = colorAliasInARGB[ColorAlias.Cyan]
+        val magenta = colorAliasInARGB[ColorAlias.Magenta]
+        val blue = colorAliasInARGB[ColorAlias.Blue]
+        val yellow = colorAliasInARGB[ColorAlias.Yellow]
 
         if (white == null || black == null || red == null || green == null || cyan == null || magenta == null || blue == null || yellow == null) {
             AlertModel.errorHasOccurred(drawing_layout, "Unable to get 1 or more colors from theme.", OnFinishAlert.DoNothingOnFinishAlert)
             return
         }
+
+        drawing_view.colorAliasInARGB = colorAliasInARGB
 
         drawing_color_white.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(white))
         drawing_color_black.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(black))

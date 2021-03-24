@@ -36,12 +36,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private var isThreadRunning = false
     private var penSizeMultiplier = 7
     private var strokeAlpha = 255
-    var strokeColor = ColorAlias.White
-
     var isErasing = false
-
+    var strokeColor = ColorAlias.White
     var theme = DEFAULT_THEME
-    lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int>
+    lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int?>
 
     // Current drawing stroke state
     private val strokePaint = Paint()
@@ -180,14 +178,19 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         tempCanvas = Canvas(canvasBitmap)
     }
 
+    private fun getColor(colorAlias: ColorAlias, alpha: Float): Int? {
+        val alphaAsInt = (alpha * 255).toInt()
+
+        return if (alphaAsInt == 255) {
+            colorAliasInARGB[colorAlias]
+        } else {
+            Drawing.getARGBColor(theme, colorAlias, alphaAsInt)
+        }
+    }
+
     private fun restoreFromModel() {
         for (stroke in drawing.strokes) {
-            val alpha = (stroke.alpha * 255).toInt()
-            val strokeColor = if (alpha == 255) {
-                colorAliasInARGB[stroke.color]
-            } else {
-                Drawing.getARGBColor(theme, stroke.color, alpha)
-            }
+            val strokeColor = getColor(stroke.color, stroke.alpha)
 
             if (strokeColor == null) {
                 AlertModel.unexpectedCoreErrorHasOccurred(context, "Unable to get color from theme.", OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish))
@@ -383,11 +386,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         rollingAveragePressure = getAdjustedPressure(pressure)
 
-        val strokeColor = if (strokeAlpha == 255) {
-            colorAliasInARGB[strokeColor]
-        } else {
-            Drawing.getARGBColor(theme, strokeColor, strokeAlpha)
-        }
+        val strokeColor = getColor(strokeColor, alpha)
 
         if (strokeColor == null) {
             AlertModel.unexpectedCoreErrorHasOccurred(context, "Unable to get color from theme.", OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish))

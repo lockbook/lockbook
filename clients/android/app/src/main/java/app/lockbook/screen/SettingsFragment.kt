@@ -86,7 +86,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 GetUsageError.CouldNotReachServer -> {
                     AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "You are offline.", OnFinishAlert.DoNothingOnFinishAlert)
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
-                        "You are offline."
+                        resources.getString(R.string.list_files_offline_snackbar)
                 }
                 GetUsageError.ClientUpdateRequired -> {
                     AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Update required.", OnFinishAlert.DoNothingOnFinishAlert)
