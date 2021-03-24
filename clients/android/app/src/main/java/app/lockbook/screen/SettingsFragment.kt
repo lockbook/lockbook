@@ -120,7 +120,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 BiometricModel.verify(requireContext(), requireActivity().findViewById(android.R.id.content), activity as FragmentActivity, ::matchKey)
             }
             VIEW_LOGS_KEY -> startActivity(Intent(context, LogActivity::class.java))
-            CLEAR_LOGS_KEY -> File("${config.writeable_path}/$LOG_FILE_NAME").writeText("")
+            CLEAR_LOGS_KEY -> File("${config.writeable_path}/${LogActivity.LOG_FILE_NAME}").writeText("")
             BACKGROUND_SYNC_ENABLED_KEY ->
                 findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
                     (preference as SwitchPreference).isChecked

@@ -9,7 +9,7 @@ import java.io.File
 class LogActivity : AppCompatActivity() {
 
     companion object {
-        private const val LOG_FILE_NAME = "lockbook.log"
+        const val LOG_FILE_NAME = "lockbook.log"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
