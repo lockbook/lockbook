@@ -76,7 +76,7 @@ make_errkind_enum!(
     // Account (20s)
     20 => NoAccount,
     21 => AccountAlreadyExists,
-    22 => AccountDoesNotExist,
+    22 => AccountDoesNotExistOnServer,
     23 => AccountStringCorrupted,
     24 => UsernameTaken(String),
     25 => UsernameInvalid(String),
@@ -103,10 +103,9 @@ make_errkind_enum!(
     46 => PathContainsEmptyFile(String),
     47 => DocTreatedAsFolder(String),
     48 => CannotMoveFolderIntoItself,
-    49 => CannotDeleteRoot(String),
-    50 => NoRootOps(&'static str),
-    51 => InvalidDrawing(String),
-    52 => FolderTreatedAsDoc(String),
+    49 => NoRootOps(&'static str),
+    50 => InvalidDrawing(String),
+    51 => FolderTreatedAsDoc(String),
 );
 
 impl ErrorKind {
@@ -122,7 +121,7 @@ impl ErrorKind {
 
             Self::NoAccount => "No account! Run 'new-account' or 'import-private-key' to get started!".to_string(),
             Self::AccountAlreadyExists => "Account already exists. Run `lockbook erase-everything` to erase your local state.".to_string(),
-            Self::AccountDoesNotExist => "An account with this username was not found on the server.".to_string(),
+            Self::AccountDoesNotExistOnServer => "An account with this username was not found on the server.".to_string(),
             Self::AccountStringCorrupted => "Account string corrupted, not imported".to_string(),
             Self::UsernameTaken(uname) => format!("username '{}' is already taken.", uname),
             Self::UsernameInvalid(uname) => format!("username '{}' invalid (a-z || 0-9).", uname),
@@ -147,7 +146,6 @@ impl ErrorKind {
             Self::PathContainsEmptyFile(path) => format!("the path '{}' contains an empty file name", path),
             Self::DocTreatedAsFolder(path) => format!("a file in path '{}' is a document being treated as a folder", path),
             Self::CannotMoveFolderIntoItself => "Cannot move file into its self or children.".to_string(),
-            Self::CannotDeleteRoot(path) => format!("Cannot delete '{}' since it is the root folder.", path),
             Self::NoRootOps(op) => format!("cannot {} your root directory!", op),
             Self::InvalidDrawing(name) => format!("'{}' is an invalid drawing", name),
             Self::FolderTreatedAsDoc(path) => format!("a file in path '{}' is a folder being treated as a document", path),

@@ -29,65 +29,110 @@ mod whoami;
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
 enum Lockbook {
-    /// Bring a file from your computer into a target destination inside your Lockbook. If your
-    /// Lockbook target destination is a Folder, the file name will be taken from the file-system
-    /// file.
+    /// Backup your Lockbook files and structure to the current directory
+    Backup,
+
+    /// Copy a file from your file system into your Lockbook
     Copy {
-        /// Edit the file if it exists already
+        /// Overwrite the file if it exists already
         #[structopt(long)]
         edit: bool,
 
-        /// File on your local filesystem to be copied into Lockbook
+        /// Filesystem location, a folder or individual file
         file: PathBuf,
 
-        /// Destination within your Lockbook to put the file
+        /// Lockbook location, for files this can be the parent, or the intended file name within
+        /// the parent. For folders, this specifies the parent.
         destination: String,
     },
 
     /// Open a document for editing
-    Edit { path: String },
+    Edit {
+        /// The lockbook location of the file you want to edit. Will use the LOCKBOOK_EDITOR env var
+        /// to select an editor. In the absence of this variable, it will default to vim. Editor
+        /// options are: Vim, Emacs, Nano, Sublime, Code
+        path: String,
+    },
 
-    /// Export your private key
+    /// Print out what each error code means
+    Errors,
+
+    /// Export a drawing as an image
+    ExportDrawing {
+        /// Path of the drawing within lockbook
+        path: String,
+
+        /// Format for export format, options are: png, jpeg, bmp, tga, pnm, farbfeld
+        format: String,
+    },
+
+    /// Export your private key, if piped, account string, otherwise qr code
     ExportPrivateKey,
 
-    /// Import an existing Lockbook
+    /// How much space does your Lockbook occupy on the server
+    GetUsage {
+        /// Show the amount in bytes, don't show a human readable interpretation
+        #[structopt(long)]
+        exact: bool,
+    },
+
+    /// Import an account string via stdin
     ImportPrivateKey,
+
+    /// List the absolute path of all Lockbook leaf nodes
+    List,
+
+    /// List the absolute path of all lockbook files and folders
+    #[structopt(name = "list-all")]
+    ListAll,
+
+    /// List the absolute path of your documents
+    ListDocs,
+
+    /// List the absolute path of your folders
+    ListFolders,
+
+    /// Change the parent of a file or folder
+    Move {
+        /// File you are moving (lockbook list-all)
+        target: String,
+
+        /// New location (lockbook list-folders)
+        new_parent: String,
+    },
+
+    /// Create a new document or folder
+    New {
+        /// Absolute path of the file you're creating. Will create folders that do not exist.
+        path: String,
+    },
 
     /// Create a new Lockbook account
     NewAccount,
 
-    /// List all your paths
-    List,
-
-    /// List all your files (the things you can filter for rename and move)
-    #[structopt(name = "list-all")]
-    ListAll,
-
-    /// List only documents (the things you can filter for edit)
-    ListDocs,
-
-    /// List all your folders (the things you can filter for the start of new)
-    ListFolders,
-
-    /// Move a specified file such that it has the target parent (list-all for first parameter
-    /// list-folders for second parameter)
-    Move { target: String, new_parent: String },
-
-    /// Create a new document or folder
-    New { path: String },
-
-    /// Print the contents of a file
-    Print { path: String },
-
-    /// Rename a file at a path to a target value
-    Rename { path: String, name: String },
-
-    /// Move a file to trash TODO
-    Remove {
+    /// Print the contents of a file to stdout
+    Print {
+        /// Absolute path of a document (lockbook list-docs)
         path: String,
+    },
+
+    /// Delete a file
+    Remove {
+        /// Absolute path of a file (lockbook list-all)
+        path: String,
+
         /// Skip the confirmation check for a folder
         #[structopt(short, long)]
         force: bool,
+    },
+
+    /// Rename a file at a path to a target value
+    Rename {
+        /// Absolute path of a file (lockbook list-all)
+        path: String,
+
+        /// New name
+        name: String,
     },
 
     /// What operations a sync would perform
@@ -99,22 +144,6 @@ enum Lockbook {
     /// Display Lockbook username
     #[structopt(name = "whoami")]
     WhoAmI,
-
-    /// Backup your Lockbook files and structure to the current directory
-    Backup,
-
-    /// Calculate how much space your Lockbook is occupying
-    GetUsage {
-        /// Show the amount in bytes, don't show a human readable interpretation
-        #[structopt(long)]
-        exact: bool,
-    },
-
-    /// Export a drawing from your Lockbook to a specified image format
-    ExportDrawing { drawing: String, format: String },
-
-    /// Print out what each error code means
-    Errors,
 }
 
 fn main() {
@@ -149,9 +178,7 @@ fn main() {
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Backup => backup::backup(),
         Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact),
-        Lockbook::ExportDrawing { drawing, format } => {
-            export_drawing::export_drawing(&drawing, &format)
-        }
+        Lockbook::ExportDrawing { path, format } => export_drawing::export_drawing(&path, &format),
         Lockbook::Errors => error::ErrorKind::print_table(),
     } {
         err.exit()

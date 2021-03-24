@@ -55,7 +55,7 @@ pub fn remove(path: &str, force: bool) -> CliResult<()> {
 
     delete_file(&config, meta.id).map_err(|err| match err {
         UiError(FileDeleteError::FileDoesNotExist) => err!(FileNotFound(path.to_string())),
-        UiError(FileDeleteError::CannotDeleteRoot) => err!(CannotDeleteRoot(path.to_string())),
+        UiError(FileDeleteError::CannotDeleteRoot) => err!(NoRootOps("delete")),
         UnexpectedError(msg) => err_unexpected!("{}", msg),
     })
 }
