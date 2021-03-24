@@ -163,7 +163,7 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onOpenedActivityEnd() {
         uiScope.launch {
             withContext(Dispatchers.IO) {
-                syncModel.syncBasedOnPreferences(getApplication())
+                syncModel.syncBasedOnPreferences()
             }
         }
     }

@@ -1,6 +1,5 @@
 package app.lockbook.model
 
-import android.app.Activity
 import androidx.lifecycle.LiveData
 import androidx.preference.PreferenceManager
 import app.lockbook.App
@@ -39,8 +38,8 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
         }
     }
 
-    fun syncBasedOnPreferences(activity: Activity) {
-        if (PreferenceManager.getDefaultSharedPreferences(activity)
+    fun syncBasedOnPreferences() {
+        if (PreferenceManager.getDefaultSharedPreferences(App.instance)
             .getBoolean(SharedPreferences.SYNC_AUTOMATICALLY_KEY, false)
         ) {
             startSync()
