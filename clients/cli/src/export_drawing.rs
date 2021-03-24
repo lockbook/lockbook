@@ -4,10 +4,10 @@ use crate::{err, err_unexpected};
 use lockbook_core::{get_file_by_path, Error as CoreError, ExportDrawingError, GetFileByPathError};
 use std::io::{stdout, Write};
 
-pub fn export_drawing(drawing: &str, format: &str) -> CliResult<()> {
-    let file_metadata = get_file_by_path(&get_config(), drawing).map_err(|err| match err {
+pub fn export_drawing(lb_path: &str, format: &str) -> CliResult<()> {
+    let file_metadata = get_file_by_path(&get_config(), lb_path).map_err(|err| match err {
         CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-            err!(FileNotFound(drawing.to_string()))
+            err!(FileNotFound(lb_path.to_string()))
         }
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
@@ -19,7 +19,7 @@ pub fn export_drawing(drawing: &str, format: &str) -> CliResult<()> {
             |err| match err {
                 CoreError::UiError(ui_err) => match ui_err {
                     ExportDrawingError::FolderTreatedAsDrawing => {
-                        err!(FolderTreatedAsDoc(drawing.to_string()))
+                        err!(FolderTreatedAsDoc(lb_path.to_string()))
                     }
                     ExportDrawingError::NoAccount => err!(NoAccount),
                     ExportDrawingError::InvalidDrawing => err!(InvalidDrawing(file_metadata.name)),
