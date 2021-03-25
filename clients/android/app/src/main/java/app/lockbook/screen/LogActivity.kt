@@ -6,9 +6,11 @@ import app.lockbook.R
 import kotlinx.android.synthetic.main.activity_debug.*
 import java.io.File
 
-const val LOG_FILE_NAME = "lockbook.log"
-
 class LogActivity : AppCompatActivity() {
+
+    companion object {
+        const val LOG_FILE_NAME = "lockbook.log"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
