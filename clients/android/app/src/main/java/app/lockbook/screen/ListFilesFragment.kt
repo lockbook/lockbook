@@ -1,7 +1,6 @@
 package app.lockbook.screen
 
 import android.content.Intent
-import android.content.res.Configuration
 import android.content.res.Configuration.*
 import android.os.Bundle
 import android.os.Handler
@@ -10,7 +9,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout.HORIZONTAL
-import androidx.appcompat.app.AlertDialog
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
@@ -19,8 +17,6 @@ import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.model.*
@@ -29,7 +25,6 @@ import app.lockbook.screen.RequestResultCodes.DRAWING_REQUEST_CODE
 import app.lockbook.screen.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
@@ -42,9 +37,9 @@ class ListFilesFragment : Fragment() {
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
             if (f is CreateFileDialogFragment) {
-                listFilesViewModel.refreshAndAssessChanges(f.newDocument)
+                listFilesViewModel.refreshFiles(f.newDocument)
             } else {
-                listFilesViewModel.refreshAndAssessChanges(null)
+                listFilesViewModel.refreshFiles(null)
             }
         }
     }
@@ -108,8 +103,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.files.observe(
             viewLifecycleOwner,
             { files ->
-
-                updateRecyclerView(files, adapter)
+                updateFilesList(files, adapter)
             }
         )
 
@@ -141,13 +135,6 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.showOfflineSnackBar.observe(
-            viewLifecycleOwner,
-            {
-                showOfflineSnackBar()
-            }
-        )
-
         listFilesViewModel.updateProgressSnackBar.observe(
             viewLifecycleOwner,
             { progress ->
@@ -172,7 +159,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.switchFileLayout.observe(
             viewLifecycleOwner,
             {
-                listFilesViewModel.refreshAndAssessChanges(null)
+                listFilesViewModel.refreshFiles(null)
                 adapter = setFileAdapter(binding, filesDir)
             }
         )
@@ -233,20 +220,12 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.showSuccessfulDeletion.observe(
+        listFilesViewModel.showSnackBar.observe(
             viewLifecycleOwner,
-            {
+            { msg ->
                 if (container != null) {
-                    showSuccessfulDeletionSnackBar(container)
-                }
-            }
-        )
-
-        listFilesViewModel.fileModelErrorHasOccurred.observe(
-            viewLifecycleOwner,
-            { errorText ->
-                if (container != null) {
-                    errorHasOccurred(container, errorText)
+                    snackProgressBarManager.dismiss()
+                    AlertModel.notify(container, msg, OnFinishAlert.DoNothingOnFinishAlert)
                 }
             }
         )
@@ -255,7 +234,7 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             { errorText ->
                 if (container != null) {
-                    errorHasOccurred(container, errorText)
+                    AlertModel.errorHasOccurred(container, errorText, OnFinishAlert.DoNothingOnFinishAlert)
                 }
             }
         )
@@ -263,14 +242,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.unexpectedErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                unexpectedErrorHasOccurred(errorText)
-            }
-        )
-
-        listFilesViewModel.fileModeUnexpectedErrorHasOccurred.observe(
-            viewLifecycleOwner,
-            { errorText ->
-                unexpectedErrorHasOccurred(errorText)
+                AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), errorText, OnFinishAlert.DoNothingOnFinishAlert)
             }
         )
 
@@ -289,13 +261,35 @@ class ListFilesFragment : Fragment() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
+    }
+
+    fun onBackPressed(): Boolean {
+        return listFilesViewModel.onBackPress()
+    }
+
+    fun onMenuItemPressed(id: Int) {
+        listFilesViewModel.onMenuItemPressed(id)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        listFilesViewModel.onOpenedActivityEnd()
+    }
+
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+        setUpAfterConfigChange()
+    }
+
     private fun setFileAdapter(binding: FragmentListFilesBinding, filesDir: String): GeneralViewAdapter {
         val config = resources.configuration
 
         val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
             .getString(
                 SharedPreferences.FILE_LAYOUT_KEY,
-                if (config.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
+                if (config.isLayoutSizeAtLeast(SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
                     SharedPreferences.GRID_LAYOUT
                 } else {
                     SharedPreferences.LINEAR_LAYOUT
@@ -329,27 +323,17 @@ class ListFilesFragment : Fragment() {
         adapter.selectedFiles = MutableList(listFilesViewModel.files.value?.size ?: 0) { false }
     }
 
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
-        setUpAfterConfigChange()
-    }
-
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
 
-        if (listFilesViewModel.syncingStatus.isSyncing) {
-            showSyncSnackBar(listFilesViewModel.syncingStatus.maxProgress)
+        if (listFilesViewModel.syncModel.syncStatus is SyncStatus.IsSyncing) {
+            showSyncSnackBar((listFilesViewModel.syncModel.syncStatus as SyncStatus.IsSyncing).maxProgress)
         }
 
         parentFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
             false
         )
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
 
     private fun earlyStopSyncSnackBar() {
@@ -379,30 +363,20 @@ class ListFilesFragment : Fragment() {
     private fun showPreSyncSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
         if (amountToSync == 0) {
-            Snackbar.make(
+            AlertModel.notify(
                 fragment_list_files,
-                resources.getString(R.string.list_files_sync_finished_snackbar),
-                Snackbar.LENGTH_SHORT
-            ).show()
+                resources.getString(R.string.list_files_sync_finished_snackbar), OnFinishAlert.DoNothingOnFinishAlert
+            )
         } else {
-            Snackbar.make(
+            AlertModel.notify(
                 fragment_list_files,
                 resources.getString(
                     R.string.list_files_presync_snackbar,
                     amountToSync.toString()
                 ),
-                Snackbar.LENGTH_SHORT
-            ).show()
+                OnFinishAlert.DoNothingOnFinishAlert
+            )
         }
-    }
-
-    private fun showOfflineSnackBar() {
-        snackProgressBarManager.dismiss()
-        Snackbar.make(
-            fragment_list_files,
-            resources.getString(R.string.list_files_offline_snackbar),
-            Snackbar.LENGTH_SHORT
-        ).show()
     }
 
     private fun collapseExpandFAB(isFABOpen: Boolean) {
@@ -435,15 +409,12 @@ class ListFilesFragment : Fragment() {
         }
     }
 
-    private fun showSuccessfulDeletionSnackBar(view: ViewGroup) {
-        Snackbar.make(view, "Successfully deleted the file(s)", Snackbar.LENGTH_SHORT).show()
-    }
-
-    private fun updateRecyclerView(
+    private fun updateFilesList(
         files: List<FileMetadata>,
         adapter: GeneralViewAdapter
     ) {
-        listFilesViewModel.handleUpdateBreadcrumbWithLatest()
+        listFilesViewModel.updateBreadcrumbWithLatest()
+
         adapter.files = files
         if (!listFilesViewModel.selectedFiles.contains(true)) {
             listFilesViewModel.selectedFiles = MutableList(files.size) { false }
@@ -468,7 +439,7 @@ class ListFilesFragment : Fragment() {
         if (activity is ListFilesActivity) {
             (activity as ListFilesActivity).switchMenu()
         } else {
-            errorHasOccurred(fragment_list_files, UNEXPECTED_CLIENT_ERROR)
+            AlertModel.errorHasOccurred(fragment_list_files, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
         }
     }
 
@@ -476,17 +447,6 @@ class ListFilesFragment : Fragment() {
         val intent = Intent(context, DrawingActivity::class.java)
         intent.putExtra("id", editableFile.id)
         startActivityForResult(intent, DRAWING_REQUEST_CODE)
-    }
-
-    private fun errorHasOccurred(view: ViewGroup, error: String) {
-        Snackbar.make(view, error, Snackbar.LENGTH_SHORT).show()
-    }
-
-    private fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-            .setTitle(UNEXPECTED_ERROR)
-            .setMessage(error)
-            .show()
     }
 
     private fun showMoreInfoDialog(fileMetadata: FileMetadata) {
@@ -527,17 +487,5 @@ class ListFilesFragment : Fragment() {
         )
 
         dialogFragment.show(parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
-    }
-
-    fun onBackPressed(): Boolean {
-        return listFilesViewModel.quitOrNot()
-    }
-
-    fun onMenuItemPressed(id: Int) {
-        listFilesViewModel.onMenuItemPressed(id)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        listFilesViewModel.handleActivityResult()
     }
 }
