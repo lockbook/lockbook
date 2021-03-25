@@ -21,7 +21,7 @@ abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInt
         init {
             cardView.setOnClickListener {
                 if (selectedFiles.contains(true)) {
-                    setImageResourceBasedOnSelection()
+                    changeItemBasedOnSelection()
                     listFilesClickInterface.onItemClick(adapterPosition, true, selectedFiles)
                 } else {
                     listFilesClickInterface.onItemClick(adapterPosition, false, selectedFiles)
@@ -30,14 +30,14 @@ abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInt
 
             cardView.setOnLongClickListener {
                 if (!selectedFiles.contains(true)) {
-                    setImageResourceBasedOnSelection()
+                    changeItemBasedOnSelection()
                     listFilesClickInterface.onLongClick(adapterPosition, selectedFiles)
                 }
                 true
             }
         }
 
-        private fun setImageResourceBasedOnSelection() {
+        private fun changeItemBasedOnSelection() {
             selectedFiles[adapterPosition] = !selectedFiles[adapterPosition]
 
             if (selectedFiles[adapterPosition]) {

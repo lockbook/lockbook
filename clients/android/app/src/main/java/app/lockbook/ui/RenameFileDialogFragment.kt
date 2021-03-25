@@ -6,18 +6,17 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
+import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
+import app.lockbook.model.OnFinishAlert
+import app.lockbook.util.BASIC_ERROR
 import app.lockbook.util.Config
 import app.lockbook.util.RenameFileError
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.dialog_create_file.*
 import kotlinx.android.synthetic.main.dialog_move_file.*
 import kotlinx.android.synthetic.main.dialog_rename_file.*
@@ -74,16 +73,10 @@ class RenameFileDialogFragment : DialogFragment() {
             id = nullableId
             name = nullableName
         } else {
-            Snackbar.make(rename_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
-                .addCallback(object : Snackbar.Callback() {
-                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                        super.onDismissed(transientBottomBar, event)
-                        dismiss()
-                    }
-                }).show()
+            AlertModel.errorHasOccurred(rename_file_layout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
         }
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
-        dialog?.setCanceledOnTouchOutside(false) ?: Snackbar.make(rename_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+        dialog?.setCanceledOnTouchOutside(false) ?: AlertModel.errorHasOccurred(rename_file_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
 
         rename_file_cancel.setOnClickListener {
             dismiss()
@@ -121,16 +114,20 @@ class RenameFileDialogFragment : DialogFragment() {
                 return
             }
             is Err -> when (val error = renameFileResult.error) {
-                is RenameFileError.FileDoesNotExist -> errorHasOccurred("Error! File does not exist!")
-                is RenameFileError.NewNameContainsSlash -> errorHasOccurred("Error! New name contains slash!")
-                is RenameFileError.FileNameNotAvailable -> errorHasOccurred("Error! File name not available!")
-                is RenameFileError.NewNameEmpty -> errorHasOccurred("Error! New file name cannot be empty!")
-                is RenameFileError.CannotRenameRoot -> errorHasOccurred("Error! Cannot rename root!")
+                is RenameFileError.FileDoesNotExist -> AlertModel.errorHasOccurred(rename_file_layout, "Error! File does not exist!", OnFinishAlert.DoNothingOnFinishAlert)
+                is RenameFileError.NewNameContainsSlash -> AlertModel.errorHasOccurred(rename_file_layout, "Error! New name contains slash!", OnFinishAlert.DoNothingOnFinishAlert)
+                is RenameFileError.FileNameNotAvailable -> AlertModel.errorHasOccurred(rename_file_layout, "Error! File name not available!", OnFinishAlert.DoNothingOnFinishAlert)
+                is RenameFileError.NewNameEmpty -> AlertModel.errorHasOccurred(rename_file_layout, "Error! New file name cannot be empty!", OnFinishAlert.DoNothingOnFinishAlert)
+                is RenameFileError.CannotRenameRoot -> AlertModel.errorHasOccurred(rename_file_layout, "Error! Cannot rename root!", OnFinishAlert.DoNothingOnFinishAlert)
                 is RenameFileError.Unexpected -> {
                     Timber.e("Unable to rename file: ${error.error}")
-                    unexpectedErrorHasOccurred(
-                        error.error
-                    )
+                    withContext(Dispatchers.Main) {
+                        AlertModel.unexpectedCoreErrorHasOccurred(
+                            requireContext(),
+                            error.error,
+                            OnFinishAlert.DoSomethingOnFinishAlert(::dismiss)
+                        )
+                    }
                 }
             }
         }.exhaustive
@@ -142,23 +139,5 @@ class RenameFileDialogFragment : DialogFragment() {
             (resources.displayMetrics.widthPixels * 0.9).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT
         )
-    }
-
-    private suspend fun errorHasOccurred(error: String) {
-        withContext(Dispatchers.Main) {
-            Snackbar.make(rename_file_layout, error, Snackbar.LENGTH_SHORT).show()
-        }
-    }
-
-    private suspend fun unexpectedErrorHasOccurred(error: String) {
-        withContext(Dispatchers.Main) {
-            AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-                .setTitle(UNEXPECTED_ERROR)
-                .setMessage(error)
-                .setOnCancelListener {
-                    dismiss()
-                }
-                .show()
-        }
     }
 }

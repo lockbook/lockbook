@@ -4,12 +4,12 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
+import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
+import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.Config
 import app.lockbook.util.ImportError
 import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
@@ -18,7 +18,6 @@ import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import com.google.android.material.snackbar.Snackbar
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.activity_import_account.*
 import kotlinx.coroutines.*
@@ -81,41 +80,32 @@ class ImportAccountActivity : AppCompatActivity() {
                 is Err -> {
                     import_account_progress_bar.visibility = View.GONE
                     when (val error = importAccountResult.error) {
-                        is ImportError.AccountStringCorrupted -> Snackbar.make(
+                        is ImportError.AccountStringCorrupted -> AlertModel.errorHasOccurred(
                             import_account_layout,
-                            "Invalid account string!",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
-                        is ImportError.AccountExistsAlready -> Snackbar.make(
+                            "Invalid account string!", OnFinishAlert.DoNothingOnFinishAlert
+                        )
+                        is ImportError.AccountExistsAlready -> AlertModel.errorHasOccurred(
                             import_account_layout,
-                            "Account already exists!",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
-                        is ImportError.AccountDoesNotExist -> Snackbar.make(
+                            "Account already exists!", OnFinishAlert.DoNothingOnFinishAlert
+                        )
+                        is ImportError.AccountDoesNotExist -> AlertModel.errorHasOccurred(
                             import_account_layout,
-                            "That account does not exist on this server!",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
-                        is ImportError.UsernamePKMismatch -> Snackbar.make(
+                            "That account does not exist on this server!", OnFinishAlert.DoNothingOnFinishAlert
+                        )
+                        is ImportError.UsernamePKMismatch -> AlertModel.errorHasOccurred(
                             import_account_layout,
-                            "That username does not correspond with that public_key on this server!",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
-                        is ImportError.CouldNotReachServer -> Snackbar.make(
+                            "That username does not correspond with that public_key on this server!", OnFinishAlert.DoNothingOnFinishAlert
+                        )
+                        is ImportError.CouldNotReachServer -> AlertModel.errorHasOccurred(
                             import_account_layout,
-                            "Could not access server to ensure this!",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
-                        is ImportError.ClientUpdateRequired -> Snackbar.make(
+                            "Could not reach server!", OnFinishAlert.DoNothingOnFinishAlert
+                        )
+                        is ImportError.ClientUpdateRequired -> AlertModel.errorHasOccurred(
                             import_account_layout,
-                            "Update required.",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
+                            "Update required!", OnFinishAlert.DoNothingOnFinishAlert
+                        )
                         is ImportError.Unexpected -> {
-                            AlertDialog.Builder(this@ImportAccountActivity, R.style.Main_Widget_Dialog)
-                                .setTitle(UNEXPECTED_ERROR)
-                                .setMessage(error.error)
-                                .show()
+                            AlertModel.unexpectedCoreErrorHasOccurred(this@ImportAccountActivity, error.error, OnFinishAlert.DoNothingOnFinishAlert)
                             Timber.e("Unable to import an account.")
                         }
                     }

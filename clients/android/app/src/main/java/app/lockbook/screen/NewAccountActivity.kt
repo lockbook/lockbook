@@ -4,17 +4,16 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
+import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
+import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.*
 import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_new_account.*
 import kotlinx.android.synthetic.main.splash_screen.*
 import kotlinx.coroutines.*
@@ -74,26 +73,23 @@ class NewAccountActivity : AppCompatActivity() {
                         is CreateAccountError.InvalidUsername ->
                             new_account_username.error =
                                 "Invalid username!"
-                        is CreateAccountError.CouldNotReachServer -> Snackbar.make(
+                        is CreateAccountError.CouldNotReachServer -> AlertModel.errorHasOccurred(
                             new_account_layout,
                             "Network unavailable.",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
-                        is CreateAccountError.AccountExistsAlready -> Snackbar.make(
+                            OnFinishAlert.DoNothingOnFinishAlert
+                        )
+                        is CreateAccountError.AccountExistsAlready -> AlertModel.errorHasOccurred(
                             new_account_layout,
                             "Account already exists.",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
-                        is CreateAccountError.ClientUpdateRequired -> Snackbar.make(
-                            splash_screen,
+                            OnFinishAlert.DoNothingOnFinishAlert
+                        )
+                        is CreateAccountError.ClientUpdateRequired -> AlertModel.errorHasOccurred(
+                            new_account_layout,
                             "Update required.",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
+                            OnFinishAlert.DoNothingOnFinishAlert
+                        )
                         is CreateAccountError.Unexpected -> {
-                            AlertDialog.Builder(this@NewAccountActivity, R.style.Main_Widget_Dialog)
-                                .setTitle(UNEXPECTED_ERROR)
-                                .setMessage(error.error)
-                                .show()
+                            AlertModel.unexpectedCoreErrorHasOccurred(this@NewAccountActivity, error.error, OnFinishAlert.DoNothingOnFinishAlert)
                             Timber.e("Unable to create account.")
                         }
                     }
