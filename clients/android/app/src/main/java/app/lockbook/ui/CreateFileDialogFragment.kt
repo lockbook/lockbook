@@ -6,17 +6,15 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
+import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
+import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.dialog_create_file.*
 import kotlinx.coroutines.*
 import timber.log.Timber
@@ -78,13 +76,7 @@ class CreateFileDialogFragment : DialogFragment() {
             fileType = nullableFileType
             isDrawing = nullableIsDrawing
         } else {
-            Snackbar.make(create_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
-                .addCallback(object : Snackbar.Callback() {
-                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                        super.onDismissed(transientBottomBar, event)
-                        dismiss()
-                    }
-                }).show()
+            AlertModel.errorHasOccurred(create_file_layout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
         }
 
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
@@ -94,7 +86,7 @@ class CreateFileDialogFragment : DialogFragment() {
         }
 
         dialog?.setCanceledOnTouchOutside(false)
-            ?: Snackbar.make(create_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+            ?: AlertModel.errorHasOccurred(create_file_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
 
         when (fileType) {
             Klaxon().toJsonString(FileType.Folder) -> {
@@ -162,13 +154,7 @@ class CreateFileDialogFragment : DialogFragment() {
                 }
             }
             else -> {
-                Snackbar.make(create_file_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT)
-                    .addCallback(object : Snackbar.Callback() {
-                        override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                            super.onDismissed(transientBottomBar, event)
-                            dismiss()
-                        }
-                    }).show()
+                AlertModel.errorHasOccurred(create_file_layout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
             }
         }.exhaustive
     }
@@ -199,23 +185,33 @@ class CreateFileDialogFragment : DialogFragment() {
                     is Err -> when (val error = insertFileResult.error) {
                         is InsertFileError.Unexpected -> {
                             Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
-                            unexpectedErrorHasOccurred(error.error)
+                            withContext(Dispatchers.Main) {
+                                AlertModel.unexpectedCoreErrorHasOccurred(
+                                    requireContext(),
+                                    error.error,
+                                    OnFinishAlert.DoSomethingOnFinishAlert(::dismiss)
+                                )
+                            }
                         }
                     }
                 }
             }
             is Err -> when (val error = createFileResult.error) {
-                is CreateFileError.NoAccount -> errorHasOccurred("Error! No account!")
-                is CreateFileError.DocumentTreatedAsFolder -> errorHasOccurred("Error! Document is treated as folder!")
-                is CreateFileError.CouldNotFindAParent -> errorHasOccurred("Error! Could not find file parent!")
-                is CreateFileError.FileNameNotAvailable -> errorHasOccurred("Error! File name not available!")
-                is CreateFileError.FileNameContainsSlash -> errorHasOccurred("Error! File contains a slash!")
-                is CreateFileError.FileNameEmpty -> errorHasOccurred("Error! File cannot be empty!")
+                is CreateFileError.NoAccount -> AlertModel.errorHasOccurred(create_file_layout, "Error! No account!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.DocumentTreatedAsFolder -> AlertModel.errorHasOccurred(create_file_layout, "Error! Document is treated as folder!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.CouldNotFindAParent -> AlertModel.errorHasOccurred(create_file_layout, "Error! Could not find file parent!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.FileNameNotAvailable -> AlertModel.errorHasOccurred(create_file_layout, "Error! File name not available!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.FileNameContainsSlash -> AlertModel.errorHasOccurred(create_file_layout, "Error! File contains a slash!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.FileNameEmpty -> AlertModel.errorHasOccurred(create_file_layout, "Error! File cannot be empty!", OnFinishAlert.DoNothingOnFinishAlert)
                 is CreateFileError.Unexpected -> {
                     Timber.e("Unable to create a file: ${error.error}")
-                    unexpectedErrorHasOccurred(
-                        error.error
-                    )
+                    withContext(Dispatchers.Main) {
+                        AlertModel.unexpectedCoreErrorHasOccurred(
+                            requireContext(),
+                            error.error,
+                            OnFinishAlert.DoSomethingOnFinishAlert(::dismiss)
+                        )
+                    }
                 }
             }
         }.exhaustive
@@ -227,23 +223,5 @@ class CreateFileDialogFragment : DialogFragment() {
             (resources.displayMetrics.widthPixels * 0.9).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT
         )
-    }
-
-    private suspend fun errorHasOccurred(error: String) {
-        withContext(Dispatchers.Main) {
-            Snackbar.make(create_file_layout, error, Snackbar.LENGTH_SHORT).show()
-        }
-    }
-
-    private suspend fun unexpectedErrorHasOccurred(error: String) {
-        withContext(Dispatchers.Main) {
-            AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
-                .setTitle(UNEXPECTED_ERROR)
-                .setMessage(error)
-                .setOnCancelListener {
-                    dismiss()
-                }
-                .show()
-        }
     }
 }

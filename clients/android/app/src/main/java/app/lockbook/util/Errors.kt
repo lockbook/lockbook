@@ -151,3 +151,6 @@ sealed class ExecuteWorkError : CoreError() {
     object BadAccount : ExecuteWorkError()
     data class Unexpected(val error: String) : ExecuteWorkError()
 }
+
+const val UNEXPECTED_ERROR = "An unexpected error has occurred!"
+const val BASIC_ERROR = "An error has occurred."
