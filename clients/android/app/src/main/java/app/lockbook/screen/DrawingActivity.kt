@@ -11,18 +11,17 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.View
 import android.widget.SeekBar
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.lifecycle.ViewModelProvider
-import app.lockbook.App.Companion.UNEXPECTED_ERROR
 import app.lockbook.R
+import app.lockbook.model.AlertModel
 import app.lockbook.model.DrawingViewModel
+import app.lockbook.model.OnFinishAlert
 import app.lockbook.modelfactory.DrawingViewModelFactory
 import app.lockbook.screen.TextEditorActivity.Companion.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_drawing.*
 import kotlinx.android.synthetic.main.toolbar_drawing.*
 import java.util.*
@@ -36,7 +35,7 @@ class DrawingActivity : AppCompatActivity() {
                 drawing_loading_view.visibility = View.GONE
                 drawing_view.startThread()
             } else {
-                addDrawingToView()
+                initializeDrawing()
             }
         }
 
@@ -65,8 +64,7 @@ class DrawingActivity : AppCompatActivity() {
         val maybeId = intent.getStringExtra("id")
 
         if (maybeId == null) {
-            errorHasOccurred("Unable to retrieve id.")
-            finish()
+            AlertModel.errorHasOccurred(drawing_layout, "Unable to get get file id.", OnFinishAlert.DoSomethingOnFinishAlert(::finish))
             return
         }
 
@@ -81,13 +79,13 @@ class DrawingActivity : AppCompatActivity() {
         drawingViewModel.errorHasOccurred.observe(
             this
         ) { errorText ->
-            errorHasOccurred(errorText)
+            AlertModel.errorHasOccurred(drawing_layout, errorText, OnFinishAlert.DoSomethingOnFinishAlert(::finish))
         }
 
         drawingViewModel.unexpectedErrorHasOccurred.observe(
             this
         ) { errorText ->
-            unexpectedErrorHasOccurred(errorText)
+            AlertModel.unexpectedCoreErrorHasOccurred(this, errorText, OnFinishAlert.DoSomethingOnFinishAlert(::finish))
         }
 
         drawingViewModel.drawableReady.observe(
@@ -96,7 +94,7 @@ class DrawingActivity : AppCompatActivity() {
             drawing_view.holder.addCallback(surfaceViewReadyCallback)
 
             if (!drawing_view.holder.isCreating) {
-                addDrawingToView()
+                initializeDrawing()
             }
         }
 
@@ -162,9 +160,10 @@ class DrawingActivity : AppCompatActivity() {
             }
             is DrawingView.Eraser -> {
                 drawing_erase.setImageResource(R.drawable.ic_eraser_outline)
+                drawing_view.isErasing = false
             }
             null -> {}
-            else -> unexpectedErrorHasOccurred("A tool previously used is unrecognized.")
+            else -> AlertModel.errorHasOccurred(drawing_layout, "Unable to recognize previous tool.", OnFinishAlert.DoNothingOnFinishAlert)
         }
 
         when (newTool) {
@@ -185,8 +184,9 @@ class DrawingActivity : AppCompatActivity() {
             }
             is DrawingView.Eraser -> {
                 drawing_erase.setImageResource(R.drawable.ic_eraser_filled)
+                drawing_view.isErasing = true
             }
-            else -> unexpectedErrorHasOccurred("Tried to use unknown tool.")
+            else -> AlertModel.errorHasOccurred(drawing_layout, "Unable to recognize new tool.", OnFinishAlert.DoNothingOnFinishAlert)
         }.exhaustive
     }
 
@@ -228,32 +228,34 @@ class DrawingActivity : AppCompatActivity() {
         drawing_tools_menu.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f).setListener(onAnimationEnd).start()
     }
 
-    private fun addDrawingToView() {
+    private fun initializeDrawing() {
         drawing_progress_bar.visibility = View.GONE
 
         val drawing = drawingViewModel.backupDrawing
 
         if (drawing == null) {
-            unexpectedErrorHasOccurred("Unable to get color from theme.")
+            AlertModel.errorHasOccurred(drawing_layout, "Unable to get backup drawing.", OnFinishAlert.DoNothingOnFinishAlert)
             return
         }
 
         drawing_view.theme = drawing.theme ?: DEFAULT_THEME
-        drawing_view.colorAliasInARGB = EnumMap(Drawing.themeToARGBColors(drawing_view.theme))
+        val colorAliasInARGB = EnumMap(Drawing.themeToARGBColors(drawing_view.theme))
 
-        val white = drawing_view.colorAliasInARGB[ColorAlias.White]
-        val black = drawing_view.colorAliasInARGB[ColorAlias.Black]
-        val red = drawing_view.colorAliasInARGB[ColorAlias.Red]
-        val green = drawing_view.colorAliasInARGB[ColorAlias.Green]
-        val cyan = drawing_view.colorAliasInARGB[ColorAlias.Cyan]
-        val magenta = drawing_view.colorAliasInARGB[ColorAlias.Magenta]
-        val blue = drawing_view.colorAliasInARGB[ColorAlias.Blue]
-        val yellow = drawing_view.colorAliasInARGB[ColorAlias.Yellow]
+        val white = colorAliasInARGB[ColorAlias.White]
+        val black = colorAliasInARGB[ColorAlias.Black]
+        val red = colorAliasInARGB[ColorAlias.Red]
+        val green = colorAliasInARGB[ColorAlias.Green]
+        val cyan = colorAliasInARGB[ColorAlias.Cyan]
+        val magenta = colorAliasInARGB[ColorAlias.Magenta]
+        val blue = colorAliasInARGB[ColorAlias.Blue]
+        val yellow = colorAliasInARGB[ColorAlias.Yellow]
 
         if (white == null || black == null || red == null || green == null || cyan == null || magenta == null || blue == null || yellow == null) {
-            unexpectedErrorHasOccurred("Unable to get 1 or more colors from theme.")
+            AlertModel.errorHasOccurred(drawing_layout, "Unable to get 1 or more colors from theme.", OnFinishAlert.DoNothingOnFinishAlert)
             return
         }
+
+        drawing_view.colorAliasInARGB = colorAliasInARGB
 
         drawing_color_white.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(white))
         drawing_color_black.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(black))
@@ -386,25 +388,5 @@ class DrawingActivity : AppCompatActivity() {
             1000,
             TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
         )
-    }
-
-    private fun errorHasOccurred(error: String) {
-        Snackbar.make(drawing_layout, error, Snackbar.LENGTH_SHORT)
-            .addCallback(object : Snackbar.Callback() {
-                override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                    super.onDismissed(transientBottomBar, event)
-                    finish()
-                }
-            }).show()
-    }
-
-    fun unexpectedErrorHasOccurred(error: String) {
-        AlertDialog.Builder(this, R.style.Main_Widget_Dialog)
-            .setTitle(UNEXPECTED_ERROR)
-            .setMessage(error)
-            .setOnCancelListener {
-                finish()
-            }
-            .show()
     }
 }

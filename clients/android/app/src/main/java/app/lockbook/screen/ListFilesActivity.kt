@@ -7,8 +7,10 @@ import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
-import app.lockbook.App.Companion.UNEXPECTED_CLIENT_ERROR
 import app.lockbook.R
+import app.lockbook.model.AlertModel
+import app.lockbook.model.OnFinishAlert
+import app.lockbook.util.BASIC_ERROR
 import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
 import app.lockbook.util.SharedPreferences.GRID_LAYOUT
 import app.lockbook.util.SharedPreferences.LINEAR_LAYOUT
@@ -22,8 +24,8 @@ import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.activity_list_files.*
+import kotlinx.android.synthetic.main.dialog_create_file.*
 import timber.log.Timber
 
 class ListFilesActivity : AppCompatActivity() {
@@ -42,12 +44,13 @@ class ListFilesActivity : AppCompatActivity() {
 
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
-            if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
-                openFileMenu(fragment.listFilesViewModel.selectedFiles)
+            val selectedFiles = fragment.listFilesViewModel.selectedFiles
+            if (selectedFiles.contains(true)) {
+                openFileMenu(selectedFiles)
             }
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")
-            Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+            AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
         }
 
         return true
@@ -73,11 +76,7 @@ class ListFilesActivity : AppCompatActivity() {
             SORT_FILES_TYPE -> menu?.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
-                Snackbar.make(
-                    list_files_activity_layout,
-                    UNEXPECTED_CLIENT_ERROR,
-                    Snackbar.LENGTH_SHORT
-                ).show()
+                AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
             }
         }.exhaustive
 
@@ -97,11 +96,7 @@ class ListFilesActivity : AppCompatActivity() {
             GRID_LAYOUT -> menu?.findItem(R.id.menu_list_files_grid_view)?.isChecked = true
             else -> {
                 Timber.e("File layout shared preference does not match every supposed option: $optionValue")
-                Snackbar.make(
-                    list_files_activity_layout,
-                    UNEXPECTED_CLIENT_ERROR,
-                    Snackbar.LENGTH_SHORT
-                ).show()
+                AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
             }
         }
     }
@@ -125,7 +120,7 @@ class ListFilesActivity : AppCompatActivity() {
                     fragment.onMenuItemPressed(item.itemId)
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
-                    Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+                    AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
                 }
                 true
             }
@@ -135,7 +130,7 @@ class ListFilesActivity : AppCompatActivity() {
                     fragment.onMenuItemPressed(item.itemId)
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
-                    Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+                    AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
                 }
                 true
             }
@@ -147,28 +142,13 @@ class ListFilesActivity : AppCompatActivity() {
         val fragment = getFragment().component1()
         if (fragment is ListFilesFragment) {
             if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
-                menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
-                menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
-                menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = false
-                if (fragment.listFilesViewModel.selectedFiles.filter { selectedFile -> selectedFile }.size == 1) {
-                    menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
-                    menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
-                } else {
-                    menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
-                    menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
-                }
+                openFileMenu(fragment.listFilesViewModel.selectedFiles)
             } else {
-                menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
-                menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = true
-                menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
+                closeFileMenu()
             }
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")
-            Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+            AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
         }
     }
 
@@ -184,6 +164,15 @@ class ListFilesActivity : AppCompatActivity() {
             menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
             menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
         }
+    }
+
+    private fun closeFileMenu() {
+        menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
+        menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = true
+        menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
     }
 
     private fun getFragment(): Result<ListFilesFragment, Unit> {
@@ -203,7 +192,7 @@ class ListFilesActivity : AppCompatActivity() {
             }
             null -> {
                 Timber.e("Unable to get result of back press.")
-                Snackbar.make(list_files_activity_layout, UNEXPECTED_CLIENT_ERROR, Snackbar.LENGTH_SHORT).show()
+                AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
             }
         }.exhaustive
     }
