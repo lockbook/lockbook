@@ -1,18 +1,25 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Main" parent="Theme.MaterialComponents.DayNight">
-        <item name="android:windowBackground">@color/colorPrimaryDark</item>
-        <item name="android:navigationBarColor">@color/navigationBarColor</item>
-        <item name="snackbarStyle">@style/Main.Widget.SnackBar</item>
-        <item name="snackbarTextViewStyle">@style/Main.Widget.SnackBar.TextView</item>
         <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="23">@bool/windowLightStatusBar</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="windowActionBar">false</item>
+
+        <item name="android:windowBackground">@color/colorPrimaryDark</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">@bool/windowLightStatusBar</item>
         <item name="windowNoTitle">true</item>
+        <item name="windowActionBar">false</item>
+
         <item name="android:actionBarStyle">@style/Main.Widget.Actionbar</item>
-        <item name="titleTextStyle">@style/Main.Title</item>
         <item name="android:actionOverflowButtonStyle">@style/Main.Overflow</item>
+
+        <item name="android:navigationBarColor">@color/navigationBarColor</item>
+        <item name="titleTextStyle">@style/Main.Title</item>
+
+        <item name="snackbarStyle">@style/Main.Widget.SnackBar</item>
+        <item name="snackbarTextViewStyle">@style/Main.Widget.SnackBar.TextView</item>
+
+        <item name="dialogTheme">@style/Main.Widget.Dialog</item>
+        <item name="alertDialogTheme">@style/Main.Widget.Dialog.Alert</item>
     </style>
 
     <style name="Main.FullScreen" parent="Main">
@@ -21,6 +28,13 @@
     </style>
 
     <style name="Main.Widget.Dialog" parent="Theme.AppCompat.DayNight.Dialog">
+        <item name="android:background">@color/windowBackground</item>
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+    </style>
+
+    <style name="Main.Widget.Dialog.Alert" parent="Theme.AppCompat.DayNight.Dialog.Alert">
         <item name="android:background">@color/windowBackground</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorAccent">@color/colorAccent</item>
