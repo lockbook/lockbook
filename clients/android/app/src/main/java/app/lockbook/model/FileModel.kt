@@ -63,10 +63,6 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         }.exhaustive
     }
 
-    fun updateBreadCrumbWithLatest() {
-        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumb(file.name) })
-    }
-
     fun intoFolder(fileMetadata: FileMetadata) {
         parentFileMetadata = fileMetadata
         filePath.add(fileMetadata)
@@ -94,6 +90,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
     }
 
     fun refreshFiles() {
+        Timber.e("REFRESHING")
         when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
             is Ok -> {
                 updateBreadCrumbWithLatest()
@@ -127,6 +124,10 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         refreshFiles()
     }
 
+    private fun updateBreadCrumbWithLatest() {
+        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumb(file.name) })
+    }
+
     private fun deleteFile(id: String): Boolean {
         return when (val deleteFileResult = CoreModel.deleteFile(config, id)) {
             is Ok -> true
@@ -147,7 +148,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         }.exhaustive
     }
 
-    private fun sortFilesAlpha(files: List<FileMetadata>, inReverse: Boolean): List<FileMetadata> {
+    private fun sortFilesAlpha(files: List<FileMetadata>, inReverse: Boolean): List<FileMetadata> { // TODO: write less code by just reversing the original
         return if (inReverse) {
             files.sortedByDescending { fileMetadata ->
                 fileMetadata.name
@@ -193,7 +194,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         ).toList()
     }
 
-    private fun sortChildren(files: List<FileMetadata>) {
+    private fun sortChildren(files: List<FileMetadata>, isREFRESH: Boolean) {
         val sortedFiles = when (
             val optionValue = PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getString(SharedPreferences.SORT_FILES_KEY, SharedPreferences.SORT_FILES_A_Z)
@@ -210,6 +211,9 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
             }
         }.exhaustive
 
+        if(!isREFRESH) {
+
+        }
         _files.postValue(sortedFiles)
     }
 }

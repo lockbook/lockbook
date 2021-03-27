@@ -25,14 +25,17 @@ import app.lockbook.screen.RequestResultCodes.DRAWING_REQUEST_CODE
 import app.lockbook.screen.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.ui.*
 import app.lockbook.util.*
+import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
+import timber.log.Timber
 import java.util.*
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
     private var updatedLastSyncedDescription = Timer()
+    var value = 1
     private val handler = Handler(requireNotNull(Looper.myLooper()))
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
@@ -85,6 +88,8 @@ class ListFilesFragment : Fragment() {
         binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
+            Timber.e("----------------------------")
+            Timber.e("$value: FIRST STEP")
             listFilesViewModel.onSwipeToRefresh()
         }
 
@@ -131,6 +136,7 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.showPreSyncSnackBar.observe(
             viewLifecycleOwner,
             { amountToSync ->
+                Timber.e("STEP 9")
                 showPreSyncSnackBar(amountToSync)
             }
         )
@@ -256,6 +262,8 @@ class ListFilesFragment : Fragment() {
             }
         })
 
+        snackProgressBarManager.useRoundedCornerBackground(true)
+
         if (resources.configuration.orientation == ORIENTATION_LANDSCAPE && resources.configuration.screenLayout == SCREENLAYOUT_SIZE_SMALL) {
             list_files_fab_holder.orientation = HORIZONTAL
         }
@@ -361,12 +369,16 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun showPreSyncSnackBar(amountToSync: Int) {
+        Timber.e("STEP 10")
         snackProgressBarManager.dismiss()
+        Timber.e("STEP 11")
         if (amountToSync == 0) {
+            Timber.e("STEP 12")
             AlertModel.notify(
                 fragment_list_files,
-                resources.getString(R.string.list_files_sync_finished_snackbar), OnFinishAlert.DoNothingOnFinishAlert
+                value.toString(),  OnFinishAlert.DoNothingOnFinishAlert
             )
+            value += 1
         } else {
             AlertModel.notify(
                 fragment_list_files,
@@ -413,8 +425,6 @@ class ListFilesFragment : Fragment() {
         files: List<FileMetadata>,
         adapter: GeneralViewAdapter
     ) {
-        listFilesViewModel.updateBreadcrumbWithLatest()
-
         adapter.files = files
         if (!listFilesViewModel.selectedFiles.contains(true)) {
             listFilesViewModel.selectedFiles = MutableList(files.size) { false }

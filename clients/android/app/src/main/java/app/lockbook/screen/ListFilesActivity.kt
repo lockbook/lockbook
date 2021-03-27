@@ -26,6 +26,7 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import kotlinx.android.synthetic.main.activity_list_files.*
 import kotlinx.android.synthetic.main.dialog_create_file.*
+import kotlinx.android.synthetic.main.fragment_list_files.*
 import timber.log.Timber
 
 class ListFilesActivity : AppCompatActivity() {

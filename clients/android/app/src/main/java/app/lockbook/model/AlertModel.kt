@@ -6,11 +6,13 @@ import androidx.appcompat.app.AlertDialog
 import app.lockbook.R
 import app.lockbook.util.UNEXPECTED_ERROR
 import com.google.android.material.snackbar.Snackbar
+import timber.log.Timber
 
 object AlertModel {
     fun notify(view: View, msg: String, onFinishAlert: OnFinishAlert) {
+        Timber.e("STEP 13")
         val snackBar = Snackbar.make(view, msg, Snackbar.LENGTH_SHORT)
-
+        Timber.e("STEP 14")
         if (onFinishAlert is OnFinishAlert.DoSomethingOnFinishAlert) {
             snackBar.addCallback(object : Snackbar.Callback() {
                 override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
@@ -19,7 +21,7 @@ object AlertModel {
                 }
             })
         }
-
+        Timber.e("STEP 15")
         snackBar.show()
     }
 

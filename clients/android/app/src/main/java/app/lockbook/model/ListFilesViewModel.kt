@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
@@ -41,16 +42,9 @@ data class EditableFile(
     val id: String,
 )
 
-sealed class SyncStatus() {
-    object IsNotSyncing : SyncStatus()
-    data class IsSyncing(var maxProgress: Int, var progress: Int) : SyncStatus()
-}
-
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
     ListFilesClickInterface {
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val config = Config(path)
     var selectedFiles = listOf<Boolean>()
 
@@ -139,12 +133,10 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun init() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 setUpPreferenceChangeListener()
                 isThisAnImport()
                 fileModel.startUpInRoot()
-            }
         }
     }
 
@@ -161,46 +153,39 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     fun onOpenedActivityEnd() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 syncModel.syncBasedOnPreferences()
-            }
+
         }
     }
 
     fun onSwipeToRefresh() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
+                Timber.e("STEP 2")
                 syncModel.startSync()
                 fileModel.refreshFiles()
                 _stopProgressSpinner.postValue(Unit)
-            }
         }
     }
 
     fun onNewDocumentFABClicked(isDrawing: Boolean) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
                 _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document), isDrawing))
-            }
         }
     }
 
     fun onNewFolderFABClicked() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 isFABOpen = !isFABOpen
                 _collapseExpandFAB.postValue(false)
                 _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Folder), false))
-            }
         }
     }
 
     fun onMenuItemPressed(id: Int) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
                 when (id) {
                     R.id.menu_list_files_sort_last_changed -> {
@@ -298,12 +283,10 @@ class ListFilesViewModel(path: String, application: Application) :
                     }
                 }.exhaustive
             }
-        }
     }
 
     override fun onItemClick(position: Int, isSelecting: Boolean, selection: List<Boolean>) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 when (isSelecting) {
                     true -> {
                         selectedFiles = selection
@@ -323,23 +306,20 @@ class ListFilesViewModel(path: String, application: Application) :
                             }
                         }
                     }
-                }
             }
         }
     }
 
     override fun onLongClick(position: Int, selection: List<Boolean>) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 selectedFiles = selection
                 _switchMenu.postValue(Unit)
-            }
+
         }
     }
 
     fun refreshFiles(newDocument: FileMetadata?) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 collapseMoreOptionsMenu()
                 fileModel.refreshFiles()
 
@@ -349,14 +329,18 @@ class ListFilesViewModel(path: String, application: Application) :
                     enterDocument(newDocument)
                 }
             }
+    }
+
+    fun handleRefreshAtParent(position: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            fileModel.refreshAtParent(position)
         }
     }
 
-    fun updateBreadcrumbWithLatest() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                fileModel.updateBreadCrumbWithLatest()
-            }
+    fun collapseExpandFAB() {
+        viewModelScope.launch(Dispatchers.IO) {
+            isFABOpen = !isFABOpen
+            _collapseExpandFAB.postValue(isFABOpen)
         }
     }
 
@@ -393,23 +377,6 @@ class ListFilesViewModel(path: String, application: Application) :
 
         PreferenceManager.getDefaultSharedPreferences(getApplication())
             .registerOnSharedPreferenceChangeListener(listener)
-    }
-
-    fun handleRefreshAtParent(position: Int) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                fileModel.refreshAtParent(position)
-            }
-        }
-    }
-
-    fun collapseExpandFAB() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                isFABOpen = !isFABOpen
-                _collapseExpandFAB.postValue(isFABOpen)
-            }
-        }
     }
 
     private fun getSelectedFiles(files: List<FileMetadata>): List<FileMetadata> = files.filterIndexed { index, _ ->

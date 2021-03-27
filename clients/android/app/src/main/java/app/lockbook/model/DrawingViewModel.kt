@@ -5,6 +5,7 @@ import android.view.View
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
@@ -66,8 +67,7 @@ class DrawingViewModel(
     }
 
     fun getDrawing(id: String) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 val contents = readDocument(id)
                 if (contents != null && contents.isEmpty()) {
                     backupDrawing = Drawing()
@@ -76,7 +76,6 @@ class DrawingViewModel(
                 }
 
                 _drawableReady.postValue(Unit)
-            }
         }
     }
 
@@ -102,8 +101,7 @@ class DrawingViewModel(
     }
 
     fun saveDrawing(drawing: Drawing) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
                 val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
                 if (writeToDocumentResult is Err) {
@@ -125,7 +123,6 @@ class DrawingViewModel(
                         }
                     }.exhaustive
                 }
-            }
         }
     }
 
