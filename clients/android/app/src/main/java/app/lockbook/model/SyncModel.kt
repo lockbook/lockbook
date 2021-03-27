@@ -33,7 +33,6 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
 
     fun startSync() {
         if (syncStatus is SyncStatus.IsNotSyncing) {
-            Timber.e("STEP 3")
             incrementalSync()
             syncStatus = SyncStatus.IsNotSyncing
         }
@@ -48,7 +47,6 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
     }
 
     private fun incrementalSync() {
-        Timber.e("STEP 4")
         val tempSyncStatus = SyncStatus.IsSyncing(0, 0)
 
         val account = when (val accountResult = CoreModel.getAccount(config)) {
@@ -63,9 +61,9 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
                 }
             }
         }.exhaustive
-        Timber.e("STEP 5")
+
         val syncErrors = hashMapOf<String, ExecuteWorkError>()
-        Timber.e("STEP 6")
+
         var workCalculated =
             when (val syncWorkResult = CoreModel.calculateWork(config)) {
                 is Ok -> syncWorkResult.value
@@ -81,12 +79,10 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
                     }
                 }
             }.exhaustive
-        Timber.e("STEP 7")
+
         if (workCalculated.workUnits.isEmpty()) {
-            Timber.e("STEP 8")
             return _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
         }
-        Timber.e("SHOULDNT HAPPEN")
 
         _showSyncSnackBar.postValue(workCalculated.workUnits.size)
 

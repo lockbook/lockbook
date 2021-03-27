@@ -21,7 +21,7 @@ object AlertModel {
                 }
             })
         }
-        Timber.e("STEP 15")
+
         snackBar.show()
     }
 

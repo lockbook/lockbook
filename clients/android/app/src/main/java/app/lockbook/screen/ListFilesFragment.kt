@@ -35,7 +35,6 @@ import java.util.*
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
     private var updatedLastSyncedDescription = Timer()
-    var value = 1
     private val handler = Handler(requireNotNull(Looper.myLooper()))
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
@@ -63,6 +62,16 @@ class ListFilesFragment : Fragment() {
             .setAllowUserInput(true)
     }
 
+    private val syncInfoSnackBar by lazy {
+        SnackProgressBar(
+                SnackProgressBar.TYPE_NORMAL,
+                ""
+        )
+                .setSwipeToDismiss(true)
+                .setAllowUserInput(true)
+
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -88,8 +97,6 @@ class ListFilesFragment : Fragment() {
         binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
-            Timber.e("----------------------------")
-            Timber.e("$value: FIRST STEP")
             listFilesViewModel.onSwipeToRefresh()
         }
 
@@ -136,7 +143,6 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.showPreSyncSnackBar.observe(
             viewLifecycleOwner,
             { amountToSync ->
-                Timber.e("STEP 9")
                 showPreSyncSnackBar(amountToSync)
             }
         )
@@ -369,25 +375,16 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun showPreSyncSnackBar(amountToSync: Int) {
-        Timber.e("STEP 10")
         snackProgressBarManager.dismiss()
-        Timber.e("STEP 11")
         if (amountToSync == 0) {
-            Timber.e("STEP 12")
-            AlertModel.notify(
-                fragment_list_files,
-                value.toString(),  OnFinishAlert.DoNothingOnFinishAlert
-            )
-            value += 1
+            syncInfoSnackBar.setMessage(resources.getString(R.string.list_files_sync_finished_snackbar))
+            snackProgressBarManager.show(syncInfoSnackBar, SnackProgressBarManager.LENGTH_SHORT)
         } else {
-            AlertModel.notify(
-                fragment_list_files,
-                resources.getString(
+            syncInfoSnackBar.setMessage(resources.getString(
                     R.string.list_files_presync_snackbar,
                     amountToSync.toString()
-                ),
-                OnFinishAlert.DoNothingOnFinishAlert
-            )
+            ))
+            snackProgressBarManager.show(syncInfoSnackBar, SnackProgressBarManager.LENGTH_SHORT)
         }
     }
 

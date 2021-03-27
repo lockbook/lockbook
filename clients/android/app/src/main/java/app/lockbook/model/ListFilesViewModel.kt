@@ -161,7 +161,6 @@ class ListFilesViewModel(path: String, application: Application) :
 
     fun onSwipeToRefresh() {
         viewModelScope.launch(Dispatchers.IO) {
-                Timber.e("STEP 2")
                 syncModel.startSync()
                 fileModel.refreshFiles()
                 _stopProgressSpinner.postValue(Unit)

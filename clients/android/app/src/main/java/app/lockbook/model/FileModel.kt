@@ -90,7 +90,6 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
     }
 
     fun refreshFiles() {
-        Timber.e("REFRESHING")
         when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
             is Ok -> {
                 updateBreadCrumbWithLatest()
@@ -194,7 +193,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         ).toList()
     }
 
-    private fun sortChildren(files: List<FileMetadata>, isREFRESH: Boolean) {
+    private fun sortChildren(files: List<FileMetadata>) {
         val sortedFiles = when (
             val optionValue = PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getString(SharedPreferences.SORT_FILES_KEY, SharedPreferences.SORT_FILES_A_Z)
@@ -211,9 +210,6 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
             }
         }.exhaustive
 
-        if(!isREFRESH) {
-
-        }
         _files.postValue(sortedFiles)
     }
 }
