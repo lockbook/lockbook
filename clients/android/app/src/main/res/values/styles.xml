@@ -32,6 +32,10 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Main.Button.Borderless.Colored</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/Main.Button.Borderless.Colored</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Main.Button.Borderless.Colored</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/Main.Button.Borderless.Colored</item>
     </style>
 
     <style name="Main.Widget.Dialog.Alert" parent="Theme.AppCompat.DayNight.Dialog.Alert">
@@ -39,6 +43,10 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Main.Button.Borderless.Colored</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/Main.Button.Borderless.Colored</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Main.Button.Borderless.Colored</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/Main.Button.Borderless.Colored</item>
     </style>
 
     <style name="Main.Widget.SnackBar" parent="Widget.MaterialComponents.Snackbar">
