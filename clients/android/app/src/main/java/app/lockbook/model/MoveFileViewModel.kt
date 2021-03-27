@@ -37,39 +37,39 @@ class MoveFileViewModel(path: String) :
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-                startInRoot()
+            startInRoot()
         }
     }
 
     private fun startInRoot() {
         viewModelScope.launch(Dispatchers.IO) {
-                when (val rootResult = CoreModel.getRoot(config)) {
-                    is Ok -> {
-                        currentParent = rootResult.value
-                        refreshOverFolder()
-                    }
-                    is Err -> when (val error = rootResult.error) {
-                        is GetRootError.NoRoot -> _errorHasOccurred.postValue("Error! No root!")
-                        is GetRootError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
-                    }
-                }.exhaustive
+            when (val rootResult = CoreModel.getRoot(config)) {
+                is Ok -> {
+                    currentParent = rootResult.value
+                    refreshOverFolder()
+                }
+                is Err -> when (val error = rootResult.error) {
+                    is GetRootError.NoRoot -> _errorHasOccurred.postValue("Error! No root!")
+                    is GetRootError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
+                }
+            }.exhaustive
         }
     }
 
     fun moveFilesToFolder() {
         viewModelScope.launch(Dispatchers.IO) {
-                var hasErrorOccurred = false
-                for (id in ids) {
-                    val moveFileResult = moveFileIfSuccessful(id)
-                    if (!moveFileResult) {
-                        hasErrorOccurred = !moveFileResult
-                        break
-                    }
+            var hasErrorOccurred = false
+            for (id in ids) {
+                val moveFileResult = moveFileIfSuccessful(id)
+                if (!moveFileResult) {
+                    hasErrorOccurred = !moveFileResult
+                    break
                 }
+            }
 
-                if (!hasErrorOccurred) {
-                    _closeDialog.postValue(Unit)
-                }
+            if (!hasErrorOccurred) {
+                _closeDialog.postValue(Unit)
+            }
         }
     }
 
@@ -120,15 +120,15 @@ class MoveFileViewModel(path: String) :
 
     override fun onItemClick(position: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-                _files.value?.let { files ->
-                    if (position == 0) {
-                        setParentAsParent()
-                        refreshOverFolder()
-                    } else {
-                        currentParent = files[position]
-                        refreshOverFolder()
-                    }
+            _files.value?.let { files ->
+                if (position == 0) {
+                    setParentAsParent()
+                    refreshOverFolder()
+                } else {
+                    currentParent = files[position]
+                    refreshOverFolder()
                 }
+            }
         }
     }
 }

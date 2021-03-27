@@ -77,8 +77,8 @@ class ListFilesViewModel(path: String, application: Application) :
     val showSyncSnackBar: LiveData<Int>
         get() = syncModel.showSyncSnackBar
 
-    val showPreSyncSnackBar: LiveData<Int>
-        get() = syncModel.showPreSyncSnackBar
+    val showSyncInfoSnackBar: LiveData<Int>
+        get() = syncModel.showSyncInfoSnackBar
 
     val updateProgressSnackBar: LiveData<Int>
         get() = syncModel.updateProgressSnackBar
@@ -134,9 +134,9 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun init() {
         viewModelScope.launch(Dispatchers.IO) {
-                setUpPreferenceChangeListener()
-                isThisAnImport()
-                fileModel.startUpInRoot()
+            setUpPreferenceChangeListener()
+            isThisAnImport()
+            fileModel.startUpInRoot()
         }
     }
 
@@ -154,180 +154,178 @@ class ListFilesViewModel(path: String, application: Application) :
 
     fun onOpenedActivityEnd() {
         viewModelScope.launch(Dispatchers.IO) {
-                syncModel.syncBasedOnPreferences()
-
+            syncModel.syncBasedOnPreferences()
         }
     }
 
     fun onSwipeToRefresh() {
         viewModelScope.launch(Dispatchers.IO) {
-                syncModel.startSync()
-                fileModel.refreshFiles()
-                _stopProgressSpinner.postValue(Unit)
+            syncModel.startSync()
+            fileModel.refreshFiles()
+            _stopProgressSpinner.postValue(Unit)
         }
     }
 
     fun onNewDocumentFABClicked(isDrawing: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-                isFABOpen = !isFABOpen
-                _collapseExpandFAB.postValue(false)
-                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document), isDrawing))
+            isFABOpen = !isFABOpen
+            _collapseExpandFAB.postValue(false)
+            _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document), isDrawing))
         }
     }
 
     fun onNewFolderFABClicked() {
         viewModelScope.launch(Dispatchers.IO) {
-                isFABOpen = !isFABOpen
-                _collapseExpandFAB.postValue(false)
-                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Folder), false))
+            isFABOpen = !isFABOpen
+            _collapseExpandFAB.postValue(false)
+            _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Folder), false))
         }
     }
 
     fun onMenuItemPressed(id: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-                val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
-                when (id) {
-                    R.id.menu_list_files_sort_last_changed -> {
-                        pref.putString(
-                            SORT_FILES_KEY,
-                            SORT_FILES_LAST_CHANGED
-                        ).apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_sort_a_z -> {
-                        pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
-                            .apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_sort_z_a -> {
-                        pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
-                            .apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_sort_first_changed -> {
-                        pref.putString(
-                            SORT_FILES_KEY,
-                            SORT_FILES_FIRST_CHANGED
-                        ).apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_sort_type -> {
-                        pref.putString(
-                            SORT_FILES_KEY,
-                            SORT_FILES_TYPE
-                        ).apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_linear_view -> {
-                        pref.putString(
-                            FILE_LAYOUT_KEY,
-                            LINEAR_LAYOUT
-                        ).apply()
-                        _switchFileLayout.postValue(Unit)
-                    }
-                    R.id.menu_list_files_grid_view -> {
-                        pref.putString(
-                            FILE_LAYOUT_KEY,
-                            GRID_LAYOUT
-                        ).apply()
-                        _switchFileLayout.postValue(Unit)
-                    }
-                    R.id.menu_list_files_rename -> {
-                        files.value?.let { files ->
-                            val checkedFiles = getSelectedFiles(files)
-                            if (checkedFiles.size == 1) {
-                                _showRenameFileDialog.postValue(RenameFileInfo(checkedFiles[0].id, checkedFiles[0].name))
-                            } else {
-                                _errorHasOccurred.postValue(BASIC_ERROR)
-                            }
+            val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
+            when (id) {
+                R.id.menu_list_files_sort_last_changed -> {
+                    pref.putString(
+                        SORT_FILES_KEY,
+                        SORT_FILES_LAST_CHANGED
+                    ).apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_sort_a_z -> {
+                    pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
+                        .apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_sort_z_a -> {
+                    pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
+                        .apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_sort_first_changed -> {
+                    pref.putString(
+                        SORT_FILES_KEY,
+                        SORT_FILES_FIRST_CHANGED
+                    ).apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_sort_type -> {
+                    pref.putString(
+                        SORT_FILES_KEY,
+                        SORT_FILES_TYPE
+                    ).apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_linear_view -> {
+                    pref.putString(
+                        FILE_LAYOUT_KEY,
+                        LINEAR_LAYOUT
+                    ).apply()
+                    _switchFileLayout.postValue(Unit)
+                }
+                R.id.menu_list_files_grid_view -> {
+                    pref.putString(
+                        FILE_LAYOUT_KEY,
+                        GRID_LAYOUT
+                    ).apply()
+                    _switchFileLayout.postValue(Unit)
+                }
+                R.id.menu_list_files_rename -> {
+                    files.value?.let { files ->
+                        val checkedFiles = getSelectedFiles(files)
+                        if (checkedFiles.size == 1) {
+                            _showRenameFileDialog.postValue(RenameFileInfo(checkedFiles[0].id, checkedFiles[0].name))
+                        } else {
+                            _errorHasOccurred.postValue(BASIC_ERROR)
                         }
                     }
-                    R.id.menu_list_files_delete -> {
-                        files.value?.let { files ->
-                            val checkedIds = getSelectedFiles(files).map { file -> file.id }
-                            collapseMoreOptionsMenu()
-                            if (fileModel.deleteFiles(checkedIds)) {
-                                _showSnackBar.postValue("Successfully deleted the file(s)")
-                            }
+                }
+                R.id.menu_list_files_delete -> {
+                    files.value?.let { files ->
+                        val checkedIds = getSelectedFiles(files).map { file -> file.id }
+                        collapseMoreOptionsMenu()
+                        if (fileModel.deleteFiles(checkedIds)) {
+                            _showSnackBar.postValue("Successfully deleted the file(s)")
+                        }
 
-                            fileModel.refreshFiles()
+                        fileModel.refreshFiles()
+                    }
+                }
+                R.id.menu_list_files_info -> {
+                    files.value?.let { files ->
+                        val checkedFiles = getSelectedFiles(files)
+                        if (checkedFiles.size == 1) {
+                            collapseMoreOptionsMenu()
+                            _showFileInfoDialog.postValue(checkedFiles[0])
+                        } else {
+                            _errorHasOccurred.postValue(BASIC_ERROR)
                         }
                     }
-                    R.id.menu_list_files_info -> {
-                        files.value?.let { files ->
-                            val checkedFiles = getSelectedFiles(files)
-                            if (checkedFiles.size == 1) {
-                                collapseMoreOptionsMenu()
-                                _showFileInfoDialog.postValue(checkedFiles[0])
-                            } else {
-                                _errorHasOccurred.postValue(BASIC_ERROR)
-                            }
-                        }
-                    }
-                    R.id.menu_list_files_move -> {
-                        files.value?.let { files ->
-                            _showMoveFileDialog.postValue(
-                                MoveFileInfo(
-                                    getSelectedFiles(files)
-                                        .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
-                                    getSelectedFiles(files)
-                                        .map { fileMetadata -> fileMetadata.name }.toTypedArray()
-                                )
+                }
+                R.id.menu_list_files_move -> {
+                    files.value?.let { files ->
+                        _showMoveFileDialog.postValue(
+                            MoveFileInfo(
+                                getSelectedFiles(files)
+                                    .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
+                                getSelectedFiles(files)
+                                    .map { fileMetadata -> fileMetadata.name }.toTypedArray()
                             )
-                        }
+                        )
                     }
-                    else -> {
-                        Timber.e("Unrecognized sort item id.")
-                        _errorHasOccurred.postValue(BASIC_ERROR)
-                    }
-                }.exhaustive
-            }
+                }
+                else -> {
+                    Timber.e("Unrecognized sort item id.")
+                    _errorHasOccurred.postValue(BASIC_ERROR)
+                }
+            }.exhaustive
+        }
     }
 
     override fun onItemClick(position: Int, isSelecting: Boolean, selection: List<Boolean>) {
         viewModelScope.launch(Dispatchers.IO) {
-                when (isSelecting) {
-                    true -> {
-                        selectedFiles = selection
-                        _switchMenu.postValue(Unit)
-                    }
-                    false -> {
-                        fileModel.files.value?.let { files ->
-                            val fileMetadata = files[position]
+            when (isSelecting) {
+                true -> {
+                    selectedFiles = selection
+                    _switchMenu.postValue(Unit)
+                }
+                false -> {
+                    fileModel.files.value?.let { files ->
+                        val fileMetadata = files[position]
 
-                            if (fileMetadata.fileType == FileType.Folder) {
-                                fileModel.intoFolder(fileMetadata)
-                                selectedFiles = MutableList(files.size) {
-                                    false
-                                }
-                            } else {
-                                enterDocument(fileMetadata)
+                        if (fileMetadata.fileType == FileType.Folder) {
+                            fileModel.intoFolder(fileMetadata)
+                            selectedFiles = MutableList(files.size) {
+                                false
                             }
+                        } else {
+                            enterDocument(fileMetadata)
                         }
                     }
+                }
             }
         }
     }
 
     override fun onLongClick(position: Int, selection: List<Boolean>) {
         viewModelScope.launch(Dispatchers.IO) {
-                selectedFiles = selection
-                _switchMenu.postValue(Unit)
-
+            selectedFiles = selection
+            _switchMenu.postValue(Unit)
         }
     }
 
     fun refreshFiles(newDocument: FileMetadata?) {
         viewModelScope.launch(Dispatchers.IO) {
-                collapseMoreOptionsMenu()
-                fileModel.refreshFiles()
+            collapseMoreOptionsMenu()
+            fileModel.refreshFiles()
 
-                if (newDocument != null && PreferenceManager.getDefaultSharedPreferences(getApplication())
-                    .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
-                ) {
-                    enterDocument(newDocument)
-                }
+            if (newDocument != null && PreferenceManager.getDefaultSharedPreferences(getApplication())
+                .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
+            ) {
+                enterDocument(newDocument)
             }
+        }
     }
 
     fun handleRefreshAtParent(position: Int) {

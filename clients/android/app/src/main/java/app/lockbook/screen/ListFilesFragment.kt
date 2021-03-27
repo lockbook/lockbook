@@ -25,11 +25,9 @@ import app.lockbook.screen.RequestResultCodes.DRAWING_REQUEST_CODE
 import app.lockbook.screen.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import com.google.android.material.snackbar.Snackbar
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import kotlinx.android.synthetic.main.fragment_list_files.*
-import timber.log.Timber
 import java.util.*
 
 class ListFilesFragment : Fragment() {
@@ -64,12 +62,11 @@ class ListFilesFragment : Fragment() {
 
     private val syncInfoSnackBar by lazy {
         SnackProgressBar(
-                SnackProgressBar.TYPE_NORMAL,
-                ""
+            SnackProgressBar.TYPE_NORMAL,
+            ""
         )
-                .setSwipeToDismiss(true)
-                .setAllowUserInput(true)
-
+            .setSwipeToDismiss(true)
+            .setAllowUserInput(true)
     }
 
     override fun onCreateView(
@@ -140,10 +137,10 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.showPreSyncSnackBar.observe(
+        listFilesViewModel.showSyncInfoSnackBar.observe(
             viewLifecycleOwner,
             { amountToSync ->
-                showPreSyncSnackBar(amountToSync)
+                showSyncInfoSnackBar(amountToSync)
             }
         )
 
@@ -374,16 +371,18 @@ class ListFilesFragment : Fragment() {
         )
     }
 
-    private fun showPreSyncSnackBar(amountToSync: Int) {
+    private fun showSyncInfoSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
         if (amountToSync == 0) {
             syncInfoSnackBar.setMessage(resources.getString(R.string.list_files_sync_finished_snackbar))
             snackProgressBarManager.show(syncInfoSnackBar, SnackProgressBarManager.LENGTH_SHORT)
         } else {
-            syncInfoSnackBar.setMessage(resources.getString(
-                    R.string.list_files_presync_snackbar,
+            syncInfoSnackBar.setMessage(
+                resources.getString(
+                    R.string.list_files_sync_info_snackbar,
                     amountToSync.toString()
-            ))
+                )
+            )
             snackProgressBarManager.show(syncInfoSnackBar, SnackProgressBarManager.LENGTH_SHORT)
         }
     }

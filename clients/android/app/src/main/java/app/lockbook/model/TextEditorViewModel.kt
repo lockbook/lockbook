@@ -109,26 +109,26 @@ class TextEditorViewModel(application: Application, private val id: String) :
 
     fun saveText(content: String) {
         viewModelScope.launch(Dispatchers.IO) {
-                val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, content)
-                if (writeToDocumentResult is Err) {
-                    when (val error = writeToDocumentResult.error) {
-                        is WriteToDocumentError.FolderTreatedAsDocument -> {
-                            _errorHasOccurred.postValue("Error! Folder is treated as document!")
-                        }
-                        is WriteToDocumentError.FileDoesNotExist -> {
-                            _errorHasOccurred.postValue("Error! File does not exist!")
-                        }
-                        is WriteToDocumentError.NoAccount -> {
-                            _errorHasOccurred.postValue("Error! No account!")
-                        }
-                        is WriteToDocumentError.Unexpected -> {
-                            Timber.e("Unable to write document changes: ${error.error}")
-                            _unexpectedErrorHasOccurred.postValue(
-                                error.error
-                            )
-                        }
-                    }.exhaustive
-                }
+            val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, content)
+            if (writeToDocumentResult is Err) {
+                when (val error = writeToDocumentResult.error) {
+                    is WriteToDocumentError.FolderTreatedAsDocument -> {
+                        _errorHasOccurred.postValue("Error! Folder is treated as document!")
+                    }
+                    is WriteToDocumentError.FileDoesNotExist -> {
+                        _errorHasOccurred.postValue("Error! File does not exist!")
+                    }
+                    is WriteToDocumentError.NoAccount -> {
+                        _errorHasOccurred.postValue("Error! No account!")
+                    }
+                    is WriteToDocumentError.Unexpected -> {
+                        Timber.e("Unable to write document changes: ${error.error}")
+                        _unexpectedErrorHasOccurred.postValue(
+                            error.error
+                        )
+                    }
+                }.exhaustive
             }
+        }
     }
 }

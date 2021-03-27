@@ -16,7 +16,7 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
 
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _showSyncSnackBar = SingleMutableLiveData<Int>()
-    private val _showPreSyncSnackBar = SingleMutableLiveData<Int>()
+    private val _showSyncInfoSnackBar = SingleMutableLiveData<Int>()
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
 
     val stopSyncSnackBar: LiveData<Unit>
@@ -25,8 +25,8 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
     val showSyncSnackBar: LiveData<Int>
         get() = _showSyncSnackBar
 
-    val showPreSyncSnackBar: LiveData<Int>
-        get() = _showPreSyncSnackBar
+    val showSyncInfoSnackBar: LiveData<Int>
+        get() = _showSyncInfoSnackBar
 
     val updateProgressSnackBar: LiveData<Int>
         get() = _updateProgressSnackBar
@@ -81,7 +81,7 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
             }.exhaustive
 
         if (workCalculated.workUnits.isEmpty()) {
-            return _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
+            return _showSyncInfoSnackBar.postValue(workCalculated.workUnits.size)
         }
 
         _showSyncSnackBar.postValue(workCalculated.workUnits.size)
@@ -160,7 +160,7 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
                 Timber.e("Unable to set most recent sync date: ${setLastSyncedResult.error}")
                 _errorHasOccurred.postValue(BASIC_ERROR)
             }
-            _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
+            _showSyncInfoSnackBar.postValue(workCalculated.workUnits.size)
         } else {
             Timber.e("Couldn't resolve all syncErrors: ${Klaxon().toJsonString(syncErrors)}")
             _stopSyncSnackBar.postValue(Unit)

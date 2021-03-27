@@ -68,14 +68,14 @@ class DrawingViewModel(
 
     fun getDrawing(id: String) {
         viewModelScope.launch(Dispatchers.IO) {
-                val contents = readDocument(id)
-                if (contents != null && contents.isEmpty()) {
-                    backupDrawing = Drawing()
-                } else if (contents != null) {
-                    backupDrawing = Klaxon().parse<Drawing>(contents)
-                }
+            val contents = readDocument(id)
+            if (contents != null && contents.isEmpty()) {
+                backupDrawing = Drawing()
+            } else if (contents != null) {
+                backupDrawing = Klaxon().parse<Drawing>(contents)
+            }
 
-                _drawableReady.postValue(Unit)
+            _drawableReady.postValue(Unit)
         }
     }
 
@@ -102,27 +102,27 @@ class DrawingViewModel(
 
     fun saveDrawing(drawing: Drawing) {
         viewModelScope.launch(Dispatchers.IO) {
-                val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
+            val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
-                if (writeToDocumentResult is Err) {
-                    when (val error = writeToDocumentResult.error) {
-                        is WriteToDocumentError.FolderTreatedAsDocument -> {
-                            _errorHasOccurred.postValue("Error! Folder is treated as document!")
-                        }
-                        is WriteToDocumentError.FileDoesNotExist -> {
-                            _errorHasOccurred.postValue("Error! File does not exist!")
-                        }
-                        is WriteToDocumentError.NoAccount -> {
-                            _errorHasOccurred.postValue("Error! No account!")
-                        }
-                        is WriteToDocumentError.Unexpected -> {
-                            Timber.e("Unable to write document changes: ${error.error}")
-                            _unexpectedErrorHasOccurred.postValue(
-                                error.error
-                            )
-                        }
-                    }.exhaustive
-                }
+            if (writeToDocumentResult is Err) {
+                when (val error = writeToDocumentResult.error) {
+                    is WriteToDocumentError.FolderTreatedAsDocument -> {
+                        _errorHasOccurred.postValue("Error! Folder is treated as document!")
+                    }
+                    is WriteToDocumentError.FileDoesNotExist -> {
+                        _errorHasOccurred.postValue("Error! File does not exist!")
+                    }
+                    is WriteToDocumentError.NoAccount -> {
+                        _errorHasOccurred.postValue("Error! No account!")
+                    }
+                    is WriteToDocumentError.Unexpected -> {
+                        Timber.e("Unable to write document changes: ${error.error}")
+                        _unexpectedErrorHasOccurred.postValue(
+                            error.error
+                        )
+                    }
+                }.exhaustive
+            }
         }
     }
 
