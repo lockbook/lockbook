@@ -30,6 +30,7 @@ class GlobalState: ObservableObject {
     #endif
     @Published var openDocument: Content
 
+    var deleteChannel = PassthroughSubject<FileMetadata, Never>()
     private var syncChannel = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
 

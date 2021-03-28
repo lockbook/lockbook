@@ -23,7 +23,7 @@ struct FileListView: View {
             }
         }
         if let item = selectedItem {
-            EditorLoader(content: core.openDocument, meta: item, files: core.files)
+            EditorLoader(content: core.openDocument, meta: item, files: core.files, deleteChannel: core.deleteChannel)
         }
     }
 }
