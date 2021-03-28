@@ -27,6 +27,8 @@ class GlobalState: ObservableObject {
     let serialQueue = DispatchQueue(label: "syncQueue")
     #if os(iOS)
     @Published var openDrawing: DrawingModel
+    #else
+    @Published var openImage: ImageModel
     #endif
     @Published var openDocument: Content
 
@@ -172,6 +174,8 @@ class GlobalState: ObservableObject {
         #if os(iOS)
         self.openDrawing = DrawingModel(write: api.writeDrawing, read: api.readDrawing)
         openDrawing.writeListener = documentChangeHappened
+        #else
+        self.openImage = ImageModel(read: api.exportDrawing)
         #endif
         openDocument.writeListener = documentChangeHappened
         updateFiles()
@@ -211,6 +215,8 @@ class GlobalState: ObservableObject {
         self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: .empty)
         #if os(iOS)
         self.openDrawing = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY")) }, read: { _ in .failure(.init(unexpected: "LAZY")) })
+        #else
+        self.openImage = ImageModel(read: { _ in .failure(.init(unexpected: "LAZY"))})
         #endif
         self.openDocument = Content(write: { _, _ in .failure(.init(unexpected: "LAZY")) }, read: { _ in .failure(.init(unexpected: "LAZY")) })
         if case .success(let root) = api.getRoot(), case .success(let metas) = api.listFiles() {

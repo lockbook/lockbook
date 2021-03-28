@@ -30,6 +30,7 @@
 		B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */; };
 		B2B7E2EB25C669C400B9EFAD /* NotificationButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2EA25C669C400B9EFAD /* NotificationButton.swift */; };
 		B2B7E2EC25C669C400B9EFAD /* NotificationButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B7E2EA25C669C400B9EFAD /* NotificationButton.swift */; };
+		EA20B52B2611278B00421F48 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA20B52A2611278B00421F48 /* ImageLoader.swift */; };
 		EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
 		EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */; };
 		EA349F0725BC7C360016241E /* OutlineRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA349F0125BC7C110016241E /* OutlineRow.swift */; };
@@ -86,6 +87,7 @@
 		87C118E925C5E20200D28A04 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingState.swift; sourceTree = "<group>"; };
 		B2B7E2EA25C669C400B9EFAD /* NotificationButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificationButton.swift; sourceTree = "<group>"; };
+		EA20B52A2611278B00421F48 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
 		EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageIndicator.swift; sourceTree = "<group>"; };
 		EA349F0125BC7C110016241E /* OutlineRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineRow.swift; sourceTree = "<group>"; };
 		EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityIndicator.swift; sourceTree = "<group>"; };
@@ -227,6 +229,7 @@
 				87C118E125C5E1BA00D28A04 /* OnboardingView.swift */,
 				87C118E925C5E20200D28A04 /* ImportAccountView.swift */,
 				87206EBC25C61DF300870A42 /* CreateAccountView.swift */,
+				EA20B52A2611278B00421F48 /* ImageLoader.swift */,
 			);
 			path = macOS;
 			sourceTree = "<group>";
@@ -432,6 +435,7 @@
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				8741E8FA25ACBCF9005B7B01 /* FileListView.swift in Sources */,
 				87C118E225C5E1BA00D28A04 /* OnboardingView.swift in Sources */,
+				EA20B52B2611278B00421F48 /* ImageLoader.swift in Sources */,
 				EA349F0C25BE6BD80016241E /* ActivityIndicator.swift in Sources */,
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
 				8741E92825AD9B02005B7B01 /* LockbookMarkdownConfig.swift in Sources */,
