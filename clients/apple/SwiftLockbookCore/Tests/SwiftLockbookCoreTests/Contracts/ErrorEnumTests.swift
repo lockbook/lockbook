@@ -30,6 +30,9 @@ class ErrorEnumTests: XCTestCase {
         let GetLastSyncedError: [GetLastSyncedError]
         let GetUsageError: [GetUsageError]
         let FileDeleteError: [FileDeleteError]
+        let GetDrawingError: [GetDrawingError]
+        let SaveDrawingError: [SaveDrawingError]
+        let ExportDrawingError: [ExportDrawingError]
 
         func noneEmpty() -> Bool {
             !GetStateError.isEmpty
@@ -58,6 +61,9 @@ class ErrorEnumTests: XCTestCase {
                 && !GetLastSyncedError.isEmpty
                 && !GetUsageError.isEmpty
                 && !FileDeleteError.isEmpty
+                && !GetDrawingError.isEmpty
+                && !SaveDrawingError.isEmpty
+                && !ExportDrawingError.isEmpty
         }
     }
     
