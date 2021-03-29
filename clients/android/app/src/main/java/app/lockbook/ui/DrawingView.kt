@@ -207,15 +207,17 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 val x2 = stroke.pointsX[pointIndex + 1]
                 val y2 = stroke.pointsY[pointIndex + 1]
 
+                val pointWidth1 = stroke.pointsGirth[pointIndex]
+                val pointWidth2 = stroke.pointsGirth[pointIndex + 1]
                 if (pointIndex == 3) {
-                    strokesBounds.last().set(x1, y1, x1, y1)
-                    updateLastStrokeBounds(x2, y2)
+                    strokesBounds.last().set(x1 - pointWidth1, y1 - pointWidth1, x1 + pointWidth1, y1 + pointWidth1)
+                    updateLastStrokeBounds(x2, y2, pointWidth2)
                 } else {
-                    updateLastStrokeBounds(x1, y1)
-                    updateLastStrokeBounds(x2, y2)
+                    updateLastStrokeBounds(x1, y1, pointWidth1)
+                    updateLastStrokeBounds(x2, y2, pointWidth2)
                 }
 
-                strokePaint.strokeWidth = stroke.pointsGirth[pointIndex]
+                strokePaint.strokeWidth = pointWidth1
                 strokePath.moveTo(
                     x1,
                     y1
@@ -227,6 +229,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 tempCanvas.drawPath(strokePath, strokePaint)
                 strokePath.reset()
             }
+
+            strokePaint.color = Color.WHITE
+
+            tempCanvas.drawRect(
+                    strokesBounds.last(),
+                    strokePaint
+            )
 
             strokePath.reset()
         }
@@ -250,23 +259,27 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         viewPort.bottom = (viewPort.top + currentViewPortHeight).toInt()
     }
 
-    private fun updateLastStrokeBounds(x: Float, y: Float) {
+    private fun updateLastStrokeBounds(x: Float, y: Float, pointWidth: Float) {
         val currentStrokeBounds = strokesBounds.last()
+        val left = x - pointWidth
+        val top = y - pointWidth
+        val right = x + pointWidth
+        val bottom = y + pointWidth
 
-        if (x > currentStrokeBounds.right) {
-            currentStrokeBounds.right = x
-        } else if (x < currentStrokeBounds.left) {
-            currentStrokeBounds.left = x
+        if (right > currentStrokeBounds.right) {
+            currentStrokeBounds.right = right
+        } else if (left < currentStrokeBounds.left) {
+            currentStrokeBounds.left = left
         }
 
-        if (y < currentStrokeBounds.top) {
-            currentStrokeBounds.top = y
-        } else if (y > currentStrokeBounds.bottom) {
-            currentStrokeBounds.bottom = y
+        if (top < currentStrokeBounds.top) {
+            currentStrokeBounds.top = top
+        } else if (bottom > currentStrokeBounds.bottom) {
+            currentStrokeBounds.bottom = bottom
         }
     }
 
-    private fun doesEraserSegmentIntersectStroke(strokeIndex: Int, x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
+    private fun doesEraserSegmentIntersectStroke(x1: Float, y1: Float, x2: Float, y2: Float, strokeIndex: Int): Boolean {
         val currentStrokeBounds = strokesBounds[strokeIndex]
         val eraseBounds = RectF()
 
@@ -382,9 +395,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point)
-        strokesBounds.add(RectF(point.x, point.y, point.x, point.y))
-
         rollingAveragePressure = getAdjustedPressure(pressure)
+
+        val boundsAdjustedForPressure = RectF(point.x - rollingAveragePressure, point.y - rollingAveragePressure, point.x + rollingAveragePressure, point.y + rollingAveragePressure)
+        strokesBounds.add(boundsAdjustedForPressure)
 
         val strokeColor = getColor(strokeColor, alpha)
 
@@ -418,7 +432,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private fun lineTo(point: PointF, pressure: Float) {
         val adjustedCurrentPressure = getAdjustedPressure(pressure)
         rollingAveragePressure = approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
-        updateLastStrokeBounds(point.x, point.y)
+        updateLastStrokeBounds(point.x, point.y, rollingAveragePressure)
 
         strokePaint.strokeWidth = rollingAveragePressure
 
@@ -445,8 +459,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun eraseAtPoint(point: PointF) {
-        val roundedPressure = 20
-
         when {
             erasePoints.first.x.isNaN() -> {
                 erasePoints.first.set(point)
@@ -468,12 +480,18 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             val stroke = drawingClone.strokes[strokeIndex]
             var deleteStroke = false
 
-            if (!doesEraserSegmentIntersectStroke(strokeIndex, erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y)) {
+            if (!doesEraserSegmentIntersectStroke(erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y, strokeIndex)) {
                 continue
             }
 
             pointLoop@ for (pointIndex in 0..(stroke.pointsX.size - 2)) {
                 if (pointIndex < stroke.pointsX.size - 1) {
+                    var roundedPressure = stroke.pointsGirth[pointIndex].toInt()
+
+                    if(roundedPressure < 5) {
+                        roundedPressure = 5
+                    }
+
                     for (pixel in 1..roundedPressure) {
                         val roundedPoint1 =
                             PointF(stroke.pointsX[pointIndex].roundToInt().toFloat(), stroke.pointsY[pointIndex].roundToInt().toFloat())
