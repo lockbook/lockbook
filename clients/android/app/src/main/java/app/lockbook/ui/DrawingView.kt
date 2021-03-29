@@ -209,7 +209,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
                 val pointWidth1 = stroke.pointsGirth[pointIndex]
                 val pointWidth2 = stroke.pointsGirth[pointIndex + 1]
-                if (pointIndex == 3) {
+                if (pointIndex == 0) {
                     strokesBounds.last().set(x1 - pointWidth1, y1 - pointWidth1, x1 + pointWidth1, y1 + pointWidth1)
                     updateLastStrokeBounds(x2, y2, pointWidth2)
                 } else {
@@ -229,13 +229,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 tempCanvas.drawPath(strokePath, strokePaint)
                 strokePath.reset()
             }
-
-            strokePaint.color = Color.WHITE
-
-            tempCanvas.drawRect(
-                    strokesBounds.last(),
-                    strokePaint
-            )
 
             strokePath.reset()
         }
@@ -430,7 +423,12 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun lineTo(point: PointF, pressure: Float) {
+        if (lastPoint.equals(Float.NaN, Float.NaN)) { // if you start drawing after just erasing, and the pen was never lifted, this will compensate for it
+            return moveTo(point, pressure)
+        }
+
         val adjustedCurrentPressure = getAdjustedPressure(pressure)
+
         rollingAveragePressure = approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
         updateLastStrokeBounds(point.x, point.y, rollingAveragePressure)
 
@@ -473,6 +471,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             }
         }
 
+        if (!lastPoint.equals(Float.NaN, Float.NaN)) {
+            lastPoint.set(Float.NaN, Float.NaN)
+        }
+
         val drawingClone = drawing.clone()
         var refreshScreen = false
 
@@ -488,7 +490,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 if (pointIndex < stroke.pointsX.size - 1) {
                     var roundedPressure = stroke.pointsGirth[pointIndex].toInt()
 
-                    if(roundedPressure < 5) {
+                    if (roundedPressure < 5) {
                         roundedPressure = 5
                     }
 
