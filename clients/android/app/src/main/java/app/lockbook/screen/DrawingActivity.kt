@@ -48,6 +48,7 @@ class DrawingActivity : AppCompatActivity() {
         }
 
         override fun surfaceDestroyed(holder: SurfaceHolder) {
+            holder.surface.release()
         }
     }
 
@@ -136,6 +137,7 @@ class DrawingActivity : AppCompatActivity() {
         super.onDestroy()
         drawing_view.endThread()
         autoSaveTimer.cancel()
+        autoSaveTimer.purge()
         if (!isFirstLaunch) {
             drawingViewModel.backupDrawing = drawing_view.drawing
             drawingViewModel.saveDrawing(drawing_view.drawing)

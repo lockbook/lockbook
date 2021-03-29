@@ -124,6 +124,9 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         )
 
     init {
+        holder.setKeepScreenOn(true)
+
+
         setUpPaint()
     }
 
