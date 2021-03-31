@@ -8,7 +8,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.GestureDetector
 import android.view.MotionEvent
-import android.view.SurfaceHolder
 import android.view.View
 import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
@@ -24,7 +23,6 @@ import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
 import kotlinx.android.synthetic.main.activity_drawing.*
 import kotlinx.android.synthetic.main.toolbar_drawing.*
-import timber.log.Timber
 import java.util.*
 
 class DrawingActivity : AppCompatActivity() {
@@ -104,8 +102,6 @@ class DrawingActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        Timber.e("RESUMED")
-
         drawing_view.startThread()
     }
 
@@ -252,7 +248,6 @@ class DrawingActivity : AppCompatActivity() {
 
     private fun startDrawing() {
         drawing_progress_bar.visibility = View.VISIBLE
-
 
         if (drawingViewModel.backupDrawing == null) {
             drawingViewModel.getDrawing(id)
