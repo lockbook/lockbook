@@ -47,9 +47,7 @@ class DrawingActivity : AppCompatActivity() {
         ) {
         }
 
-        override fun surfaceDestroyed(holder: SurfaceHolder) {
-            holder.surface.release()
-        }
+        override fun surfaceDestroyed(holder: SurfaceHolder) {}
     }
 
     private var autoSaveTimer = Timer()
@@ -58,7 +56,6 @@ class DrawingActivity : AppCompatActivity() {
     private lateinit var gestureDetector: GestureDetector
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_drawing)
 
@@ -125,22 +122,24 @@ class DrawingActivity : AppCompatActivity() {
 
     override fun onRestart() {
         super.onRestart()
-        drawing_view.restartThread()
+        drawing_view.startThread()
     }
 
     override fun onPause() {
         super.onPause()
-        drawing_view.endThread()
+        if (!isFirstLaunch) {
+            drawing_view.pauseThread()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        drawing_view.endThread()
         autoSaveTimer.cancel()
         autoSaveTimer.purge()
+        drawing_view.holder.surface.release()
         if (!isFirstLaunch) {
             drawingViewModel.backupDrawing = drawing_view.drawing
-            drawingViewModel.saveDrawing(drawing_view.drawing)
+            drawingViewModel.saveDrawing(drawing_view.drawing.clone())
         }
     }
 

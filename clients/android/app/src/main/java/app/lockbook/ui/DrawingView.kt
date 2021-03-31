@@ -20,6 +20,7 @@ import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import app.lockbook.util.Stroke
 import kotlinx.android.synthetic.main.activity_drawing.*
+import java.lang.IllegalStateException
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -30,9 +31,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     var drawing: Drawing = Drawing()
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
+    private lateinit var thread: Thread
+
 
     private var erasePoints = Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
-    private var thread = Thread(this)
     private var isThreadRunning = false
     private var penSizeMultiplier = 7
     private var strokeAlpha = 255
@@ -544,17 +546,21 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         penSizeMultiplier = penSize
     }
 
-    fun endThread() {
-        isThreadRunning = false
-    }
-
-    fun restartThread() {
-        thread = Thread(this)
-    }
-
     fun startThread() {
+        thread = Thread(this)
         isThreadRunning = true
         thread.start()
+    }
+
+    fun pauseThread() {
+        isThreadRunning = false
+        while(thread.isAlive) {
+            try {
+                thread.join(10)
+            } catch (e: Exception) {
+
+            }
+        }
     }
 
     override fun run() {
@@ -568,7 +574,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 }
                 render(canvas)
             } finally {
-                holder.unlockCanvasAndPost(canvas)
+
+                    holder.unlockCanvasAndPost(canvas)
             }
         }
     }
