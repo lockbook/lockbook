@@ -19,7 +19,6 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-
 class DrawingView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable, SurfaceHolder.Callback {
     lateinit var drawing: Drawing
