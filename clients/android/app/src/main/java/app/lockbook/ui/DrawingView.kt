@@ -19,7 +19,6 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-private const val MAX_FRAME_TIME = (1000.0 / 60.0).toInt()
 
 class DrawingView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable, SurfaceHolder.Callback {
@@ -65,6 +64,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         const val PRESSURE_SAMPLES_AVERAGED = 5
         const val SPEN_ACTION_DOWN = 211
+        const val MAX_FRAME_TIME = (1000.0 / 60.0).toInt()
     }
 
     private val scaleGestureDetector =
