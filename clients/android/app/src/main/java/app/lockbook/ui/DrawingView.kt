@@ -5,10 +5,7 @@ import android.content.Context
 import android.graphics.*
 import android.os.Build
 import android.util.AttributeSet
-import android.view.MotionEvent
-import android.view.ScaleGestureDetector
-import android.view.SurfaceView
-import android.view.View
+import android.view.*
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
@@ -16,26 +13,25 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.OnFinishAlert
 import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
-import app.lockbook.util.ColorAlias
-import app.lockbook.util.Drawing
-import app.lockbook.util.Stroke
 import kotlinx.android.synthetic.main.activity_drawing.*
-import java.lang.IllegalStateException
+import timber.log.Timber
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
+private const val MAX_FRAME_TIME = (1000.0 / 60.0).toInt()
+
 class DrawingView(context: Context, attributeSet: AttributeSet?) :
-    SurfaceView(context, attributeSet), Runnable {
-    var drawing: Drawing = Drawing()
+    SurfaceView(context, attributeSet), Runnable, SurfaceHolder.Callback {
+    lateinit var drawing: Drawing
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
-    private lateinit var thread: Thread
-
+    private var thread: Thread? = null
+    private var isDrawingAllowed = false
+    private var isDrawingAvailable = false
 
     private var erasePoints = Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
-    private var isThreadRunning = false
     private var penSizeMultiplier = 7
     private var strokeAlpha = 255
     var isErasing = false
@@ -74,60 +70,60 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private val scaleGestureDetector =
         ScaleGestureDetector(
-            context,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    if (detector != null) {
-                        onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
-                        modelFocusPoint = screenToModel(onScreenFocusPoint)
+                context,
+                object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
+                        if (detector != null) {
+                            onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
+                            modelFocusPoint = screenToModel(onScreenFocusPoint)
+                        }
+                        return true
                     }
-                    return true
+
+                    override fun onScale(detector: ScaleGestureDetector): Boolean {
+                        drawing.scale *= detector.scaleFactor
+
+                        val screenLocationNormalized = PointF(
+                                onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
+                                onScreenFocusPoint.y / tempCanvas.clipBounds.height()
+                        )
+
+                        val currentViewPortWidth =
+                                tempCanvas.clipBounds.width() / drawing.scale
+                        val currentViewPortHeight =
+                                tempCanvas.clipBounds.height() / drawing.scale
+
+                        driftWhileScalingX =
+                                (onScreenFocusPoint.x - detector.focusX) / drawing.scale
+                        driftWhileScalingY =
+                                (onScreenFocusPoint.y - detector.focusY) / drawing.scale
+
+                        val left =
+                                ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
+                        val top =
+                                ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftWhileScalingY
+                        val right = left + currentViewPortWidth
+                        val bottom = top + currentViewPortHeight
+
+                        viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
+
+                        drawing.translationX = -left
+                        drawing.translationY = -top
+
+                        return true
+                    }
+
+                    override fun onScaleEnd(detector: ScaleGestureDetector?) {
+                        driftWhileScalingX = 0f
+                        driftWhileScalingY = 0f
+                        super.onScaleEnd(detector)
+                    }
                 }
-
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    drawing.scale *= detector.scaleFactor
-
-                    val screenLocationNormalized = PointF(
-                        onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
-                        onScreenFocusPoint.y / tempCanvas.clipBounds.height()
-                    )
-
-                    val currentViewPortWidth =
-                        tempCanvas.clipBounds.width() / drawing.scale
-                    val currentViewPortHeight =
-                        tempCanvas.clipBounds.height() / drawing.scale
-
-                    driftWhileScalingX =
-                        (onScreenFocusPoint.x - detector.focusX) / drawing.scale
-                    driftWhileScalingY =
-                        (onScreenFocusPoint.y - detector.focusY) / drawing.scale
-
-                    val left =
-                        ((modelFocusPoint.x + (1 - screenLocationNormalized.x) * currentViewPortWidth) - currentViewPortWidth) + driftWhileScalingX
-                    val top =
-                        ((modelFocusPoint.y + (1 - screenLocationNormalized.y) * currentViewPortHeight) - currentViewPortHeight) + driftWhileScalingY
-                    val right = left + currentViewPortWidth
-                    val bottom = top + currentViewPortHeight
-
-                    viewPort.set(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
-
-                    drawing.translationX = -left
-                    drawing.translationY = -top
-
-                    return true
-                }
-
-                override fun onScaleEnd(detector: ScaleGestureDetector?) {
-                    driftWhileScalingX = 0f
-                    driftWhileScalingY = 0f
-                    super.onScaleEnd(detector)
-                }
-            }
         )
 
     init {
         holder.setKeepScreenOn(true)
-
+        holder.addCallback(this)
 
         setUpPaint()
     }
@@ -150,27 +146,27 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private fun render(canvas: Canvas) {
         canvas.save()
         canvas.scale(
-            drawing.scale,
-            drawing.scale,
+                drawing.scale,
+                drawing.scale,
         )
 
         canvas.translate(
-            drawing.translationX,
-            drawing.translationY
+                drawing.translationX,
+                drawing.translationY
         )
 
         backgroundPaint.color = ResourcesCompat.getColor(
-            App.instance.resources,
-            R.color.drawingUntouchableBackground,
-            App.instance.theme
+                App.instance.resources,
+                R.color.drawingUntouchableBackground,
+                App.instance.theme
         )
 
         canvas.drawPaint(backgroundPaint)
 
         backgroundPaint.color = ResourcesCompat.getColor(
-            App.instance.resources,
-            R.color.drawingTouchableBackground,
-            App.instance.theme
+                App.instance.resources,
+                R.color.drawingTouchableBackground,
+                App.instance.theme
         )
 
         canvas.drawRect(Rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT), backgroundPaint)
@@ -222,12 +218,12 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
                 strokePaint.strokeWidth = stroke.pointsGirth[pointIndex]
                 strokePath.moveTo(
-                    x1,
-                    y1
+                        x1,
+                        y1
                 )
                 strokePath.lineTo(
-                    x2,
-                    y2
+                        x2,
+                        y2
                 )
                 tempCanvas.drawPath(strokePath, strokePaint)
                 strokePath.reset()
@@ -332,15 +328,14 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         return PointF(modelX, modelY)
     }
 
-    fun initializeWithDrawing(maybeDrawing: Drawing?) {
+    fun initializeWithDrawing(maybeDrawing: Drawing) {
+        Timber.e("CALLED")
         visibility = View.VISIBLE
 
         initializeCanvasesAndBitmaps()
-        if (maybeDrawing != null) {
-            this.drawing = maybeDrawing
-        }
+        this.drawing = maybeDrawing
+        isDrawingAvailable = true
         restoreFromModel()
-        startThread()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -401,11 +396,11 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         strokePaint.color = strokeColor
 
         val stroke = Stroke(
-            mutableListOf(point.x),
-            mutableListOf(point.y),
-            mutableListOf(rollingAveragePressure),
-            this.strokeColor,
-            strokeAlpha.toFloat() / 255
+                mutableListOf(point.x),
+                mutableListOf(point.y),
+                mutableListOf(rollingAveragePressure),
+                this.strokeColor,
+                strokeAlpha.toFloat() / 255
         )
 
         drawing.strokes.add(stroke)
@@ -428,13 +423,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         strokePaint.strokeWidth = rollingAveragePressure
 
         strokePath.moveTo(
-            lastPoint.x,
-            lastPoint.y
+                lastPoint.x,
+                lastPoint.y
         )
 
         strokePath.lineTo(
-            point.x,
-            point.y
+                point.x,
+                point.y
         )
 
         tempCanvas.drawPath(strokePath, strokePaint)
@@ -532,8 +527,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             drawing = drawingClone
             strokesBounds.clear()
             tempCanvas.drawColor(
-                Color.TRANSPARENT,
-                PorterDuff.Mode.CLEAR
+                    Color.TRANSPARENT,
+                    PorterDuff.Mode.CLEAR
             )
             restoreFromModel()
         }
@@ -547,24 +542,37 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     fun startThread() {
-        thread = Thread(this)
-        isThreadRunning = true
-        thread.start()
-    }
-
-    fun pauseThread() {
-        isThreadRunning = false
-        while(thread.isAlive) {
-            try {
-                thread.join(10)
-            } catch (e: Exception) {
-
-            }
+        if(holder.surface.isValid && thread == null) {
+            thread = Thread(this)
+            isDrawingAllowed = true
+            thread?.start()
         }
     }
 
+    fun stopThread() {
+        if(thread == null) {
+            return
+        }
+            isDrawingAllowed = false
+            while(thread?.isAlive == true) {
+                try {
+                    thread?.join() ?: return
+                } catch (e: Exception) {}
+            }
+    }
+
     override fun run() {
-        while (isThreadRunning) {
+        var frameStartTime: Long
+        var frameTime: Long
+
+        while (isDrawingAllowed && isDrawingAvailable) {
+            Timber.e("DRAWING")
+            if(holder == null) {
+                return
+            }
+
+            frameStartTime = System.nanoTime()
+
             var canvas: Canvas? = null
             try {
                 canvas = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
@@ -574,9 +582,34 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 }
                 render(canvas)
             } finally {
-
                     holder.unlockCanvasAndPost(canvas)
             }
+
+            frameTime = (System.nanoTime() - frameStartTime) / 1000000L
+
+            if (frameTime < MAX_FRAME_TIME)
+            {
+                try {
+                    Thread.sleep(MAX_FRAME_TIME - frameTime)
+                } catch (e: InterruptedException) {}
+            }
         }
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        Timber.e("SURFACE CREATED")
+        if(thread != null) {
+            stopThread()
+        }
+
+        isDrawingAllowed = true
+        startThread()
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) { }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        stopThread()
+        holder.surface.release()
     }
 }

@@ -24,31 +24,12 @@ import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
 import kotlinx.android.synthetic.main.activity_drawing.*
 import kotlinx.android.synthetic.main.toolbar_drawing.*
+import timber.log.Timber
 import java.util.*
 
 class DrawingActivity : AppCompatActivity() {
     private lateinit var drawingViewModel: DrawingViewModel
     private var isFirstLaunch = true
-    private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
-        override fun surfaceCreated(holder: SurfaceHolder) {
-            if (!isFirstLaunch) {
-                drawing_loading_view.visibility = View.GONE
-                drawing_view.startThread()
-            } else {
-                initializeDrawing()
-            }
-        }
-
-        override fun surfaceChanged(
-            holder: SurfaceHolder,
-            format: Int,
-            width: Int,
-            height: Int
-        ) {
-        }
-
-        override fun surfaceDestroyed(holder: SurfaceHolder) {}
-    }
 
     private var autoSaveTimer = Timer()
     private val handler = Handler(requireNotNull(Looper.myLooper()))
@@ -89,11 +70,7 @@ class DrawingActivity : AppCompatActivity() {
         drawingViewModel.drawableReady.observe(
             this
         ) {
-            drawing_view.holder.addCallback(surfaceViewReadyCallback)
-
-            if (!drawing_view.holder.isCreating) {
-                initializeDrawing()
-            }
+            initializeDrawing()
         }
 
         drawingViewModel.setToolsVisibility.observe(
@@ -120,23 +97,22 @@ class DrawingActivity : AppCompatActivity() {
         setUpToolbarDefaults()
     }
 
-    override fun onRestart() {
-        super.onRestart()
-        drawing_view.startThread()
-    }
-
     override fun onPause() {
         super.onPause()
-        if (!isFirstLaunch) {
-            drawing_view.pauseThread()
-        }
+        drawing_view.stopThread()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Timber.e("RESUMED")
+
+        drawing_view.startThread()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         autoSaveTimer.cancel()
         autoSaveTimer.purge()
-        drawing_view.holder.surface.release()
         if (!isFirstLaunch) {
             drawingViewModel.backupDrawing = drawing_view.drawing
             drawingViewModel.saveDrawing(drawing_view.drawing.clone())
@@ -277,10 +253,11 @@ class DrawingActivity : AppCompatActivity() {
     private fun startDrawing() {
         drawing_progress_bar.visibility = View.VISIBLE
 
+
         if (drawingViewModel.backupDrawing == null) {
             drawingViewModel.getDrawing(id)
         } else {
-            drawing_view.holder.addCallback(surfaceViewReadyCallback)
+            initializeDrawing()
         }
     }
 
