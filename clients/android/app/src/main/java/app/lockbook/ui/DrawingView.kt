@@ -64,7 +64,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         const val PRESSURE_SAMPLES_AVERAGED = 5
         const val SPEN_ACTION_DOWN = 211
-        const val MAX_FRAME_TIME = (1000.0 / 60.0).toInt()
+        const val MIN_TIME_PER_FRAME = (1000.0 / 60.0).toInt()
     }
 
     private val scaleGestureDetector =
@@ -590,9 +590,9 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
             frameTime = (System.nanoTime() - frameStartTime) / 1000000L
 
-            if (frameTime < MAX_FRAME_TIME) {
+            if (frameTime < MIN_TIME_PER_FRAME) {
                 try {
-                    Thread.sleep(MAX_FRAME_TIME - frameTime)
+                    Thread.sleep(MIN_TIME_PER_FRAME - frameTime)
                 } catch (e: InterruptedException) {}
             }
         }
