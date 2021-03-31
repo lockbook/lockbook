@@ -144,52 +144,58 @@ impl LbApp {
     fn import_account(&self, privkey: String) -> LbResult<()> {
         self.gui.intro.doing("Importing account...");
 
-        let gui = self.gui.clone();
-        let core = self.core.clone();
-        let msngr = self.messenger.clone();
-
-        let import_chan = util::make_glib_chan(move |result: LbResult<()>| {
-            if let Err(err) = result {
-                gui.intro.error_import(err.msg());
-            } else {
-                let gui = gui.clone();
-                let c = core.clone();
-                let m = msngr.clone();
-
-                let sync_chan = util::make_glib_chan(move |msg| {
-                    if let Some(msg) = msg {
-                        gui.intro.sync_progress(&msg)
-                    } else {
-                        if let Err(err) = gui.show_account_screen(&c) {
-                            m.send_err("showing account screen", err);
-                        }
-                        match c.sync_status() {
-                            Ok(s) => gui.account.sync().set_status(&s),
-                            Err(err) => m.send_err("getting sync status", err),
-                        }
-                    }
-                    glib::Continue(true)
-                });
-
-                let c = core.clone();
-                let m = msngr.clone();
-                thread::spawn(move || {
-                    if let Err(err) = c.sync(&sync_chan) {
-                        m.send_err("syncing", err);
-                    }
-                });
+        // Create a channel to receive and process the result of importing the account.
+        let lb = self.clone();
+        let ch = util::make_glib_chan(move |result: LbResult<()>| {
+            // Show any error on the import screen. Otherwise, account syncing will start.
+            match result {
+                Ok(_) => lb.import_account_sync(),
+                Err(err) => lb.gui.intro.error_import(err.msg()),
             }
             glib::Continue(false)
         });
 
+        // In a separate thread, import the account and send the result down the channel.
         let c = self.core.clone();
         let m = self.messenger.clone();
         thread::spawn(move || {
-            if let Err(err) = import_chan.send(c.import_account(&privkey)) {
+            if let Err(err) = ch.send(c.import_account(&privkey)) {
                 m.send_err("sending import result", LbError::fmt_program_err(err));
             }
         });
+
         Ok(())
+    }
+
+    fn import_account_sync(&self) {
+        // Create a channel to receive and process any account sync progress updates.
+        let lb = self.clone();
+        let sync_chan = util::make_glib_chan(move |msgopt| {
+            // If there is some message, show it. If not, syncing is done, so try to show the
+            // account screen. If the account screen is successfully shown, get the account's
+            // sync status.
+            if let Some(msg) = msgopt {
+                lb.gui.intro.sync_progress(&msg)
+            } else if let Err(err) = lb.gui.show_account_screen(&lb.core) {
+                lb.messenger.send_err("showing account screen", err);
+            } else {
+                match lb.core.sync_status() {
+                    Ok(s) => lb.gui.account.sync().set_status(&s),
+                    Err(err) => lb.messenger.send_err("getting sync status", err),
+                }
+            }
+            glib::Continue(true)
+        });
+
+        // In a separate thread, start syncing the account. Pass the sync channel which will be
+        // used to receive progress updates as indicated above.
+        let c = self.core.clone();
+        let m = self.messenger.clone();
+        thread::spawn(move || {
+            if let Err(err) = c.sync(&sync_chan) {
+                m.send_err("syncing", err);
+            }
+        });
     }
 
     fn export_account(&self) -> LbResult<()> {
