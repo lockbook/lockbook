@@ -10,6 +10,7 @@ use crate::model::file_metadata::FileType;
 use crate::model::state::Config;
 use crate::model::work_unit::WorkUnit;
 use crate::repo::file_metadata_repo::{filter_from_str, Filter};
+use crate::service::drawing_service::SupportedImageFormats;
 use crate::{get_all_error_variants, Error, ExecuteWorkError};
 use serde::Serialize;
 
@@ -207,6 +208,18 @@ pub unsafe extern "C" fn read_document(
         crate::read_document(&config_from_ptr(writeable_path), uuid_from_ptr(id))
             .map(|d| String::from(String::from_utf8_lossy(&d))),
     ))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn export_drawing(
+    writeable_path: *const c_char,
+    id: *const c_char,
+) -> *const c_char {
+    c_string(translate(crate::export_drawing(
+        &config_from_ptr(writeable_path),
+        uuid_from_ptr(id),
+        SupportedImageFormats::Png,
+    )))
 }
 
 #[no_mangle]

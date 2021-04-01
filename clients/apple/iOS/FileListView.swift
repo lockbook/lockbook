@@ -160,7 +160,7 @@ struct FileListView: View {
                         FileCell(meta: meta)
                     })
                 } else {
-                    let el = EditorLoader(content: core.openDocument, meta: meta, files: core.files)
+                    let el = EditorLoader(content: core.openDocument, meta: meta, files: core.files, deleteChannel: core.deleteChannel)
                     return AnyView (NavigationLink(destination: el) {
                         FileCell(meta: meta)
                     })
@@ -172,6 +172,7 @@ struct FileListView: View {
     func handleDelete(meta: FileMetadata) {
         switch core.api.deleteFile(id: meta.id) {
         case .success(_):
+            core.deleteChannel.send(meta)
             core.updateFiles()
             core.checkForLocalWork()
         case .failure(let err):

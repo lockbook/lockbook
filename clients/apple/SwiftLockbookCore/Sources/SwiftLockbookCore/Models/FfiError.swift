@@ -201,3 +201,24 @@ public enum FileDeleteError: String, UiError {
 public enum GetLocalChangesError: String, UiError {
     case Stub
 }
+
+public enum GetDrawingError: String, UiError {
+    case NoAccount
+    case FolderTreatedAsDrawing
+    case InvalidDrawing
+    case FileDoesNotExist
+}
+
+public enum SaveDrawingError: String, UiError {
+    case NoAccount
+    case FileDoesNotExist
+    case FolderTreatedAsDrawing
+    case InvalidDrawing
+}
+
+public enum ExportDrawingError: String, UiError {
+    case FolderTreatedAsDrawing
+    case FileDoesNotExist
+    case NoAccount
+    case InvalidDrawing
+}

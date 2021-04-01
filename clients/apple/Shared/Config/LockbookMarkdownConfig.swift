@@ -37,8 +37,8 @@ func applyMarkdown(markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
     switch markdown.type {
     case .header:
         return [
-            .foregroundColor : UniversalColor.fromColorAlias(from: .Red),
-            .font : systemFontWithTraits(headingTraits, fontSize*(10.0-CGFloat(markdown.headingLevel))/3),
+            .foregroundColor : UniversalColor.fromColorAlias(from: .Red).blendColors(UniversalColor.label, by: (CGFloat(markdown.headingLevel-1)/10)),
+            .font : systemFontWithTraits(headingTraits),
         ]
     case .italic:
         return [

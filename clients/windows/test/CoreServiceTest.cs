@@ -799,6 +799,9 @@ namespace test {
                 {"SetLastSyncedError", typeof(Core.SetLastSynced.PossibleErrors)},
                 {"SyncAllError", typeof(Core.SyncAll.PossibleErrors)},
                 {"WriteToDocumentError", typeof(Core.WriteDocument.PossibleErrors)},
+                {"GetDrawingError", typeof(Core.GetDrawing.PossibleErrors)},
+                {"SaveDrawingError", typeof(Core.SaveDrawing.PossibleErrors)},
+                {"ExportDrawingError", typeof(Core.ExportDrawing.PossibleErrors)},
             };
 
             var variants = CoreService.GetVariants().WaitResult();

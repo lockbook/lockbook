@@ -14,12 +14,13 @@ public class MarkdownEngine {
         if let type = MarkdownNode.MarkdownType(rawValue: Int(p.type)) {
             let s = lines[Int(p.start_line) - 1] + Int(p.start_column) - 1
             let e = lines[Int(p.end_line) - 1] + Int(p.end_column) - 1
+            let l = e-s
 
             let fromIdx = text.index(text.startIndex, offsetBy: s)
-            let range = text
-                .index(text.startIndex, offsetBy: e, limitedBy: text.endIndex)
+            let toIdx = text.utf8.index(fromIdx, offsetBy: l, limitedBy: text.utf8.endIndex)
+            let range = toIdx
                 .flatMap {
-                    if ($0 < text.endIndex) { return NSRange(fromIdx...$0, in: text) } else { return nil }
+                    if ($0 < text.utf8.endIndex) { return NSRange(fromIdx...$0, in: text) } else { return nil }
                 } ?? NSRange(fromIdx..<text.endIndex, in: text)
             return MarkdownNode(range: range, type: type, headingLevel: node.cmarkNode.headingLevel)
         } else {

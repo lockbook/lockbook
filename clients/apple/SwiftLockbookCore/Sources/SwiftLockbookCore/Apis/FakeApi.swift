@@ -78,6 +78,10 @@ Vestibulum ante ipsum primis in vel.
     public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {
         .failure(.init(unexpected: "LAZY"))
     }
+
+    public func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError> {
         let now = Date().timeIntervalSince1970
