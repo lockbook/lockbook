@@ -16,7 +16,7 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
 
     private val _stopSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _showSyncSnackBar = SingleMutableLiveData<Int>()
-    private val _showPreSyncSnackBar = SingleMutableLiveData<Int>()
+    private val _showSyncInfoSnackBar = SingleMutableLiveData<Int>()
     private val _updateProgressSnackBar = SingleMutableLiveData<Int>()
 
     val stopSyncSnackBar: LiveData<Unit>
@@ -25,8 +25,8 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
     val showSyncSnackBar: LiveData<Int>
         get() = _showSyncSnackBar
 
-    val showPreSyncSnackBar: LiveData<Int>
-        get() = _showPreSyncSnackBar
+    val showSyncInfoSnackBar: LiveData<Int>
+        get() = _showSyncInfoSnackBar
 
     val updateProgressSnackBar: LiveData<Int>
         get() = _updateProgressSnackBar
@@ -55,6 +55,9 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
                 is GetAccountError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                 is GetAccountError.Unexpected -> {
                     Timber.e("Unable to get account: ${error.error}")
+                    _unexpectedErrorHasOccurred.postValue(
+                        error.error
+                    )
                 }
             }
         }.exhaustive
@@ -78,8 +81,7 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
             }.exhaustive
 
         if (workCalculated.workUnits.isEmpty()) {
-            _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
-            return
+            return _showSyncInfoSnackBar.postValue(workCalculated.workUnits.size)
         }
 
         _showSyncSnackBar.postValue(workCalculated.workUnits.size)
@@ -121,22 +123,23 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
             workCalculated =
                 when (val syncWorkResult = CoreModel.calculateWork(config)) {
                     is Ok -> syncWorkResult.value
-                    is Err -> return when (val error = syncWorkResult.error) {
-                        is CalculateWorkError.NoAccount -> {
-                            _stopSyncSnackBar.postValue(Unit)
-                            _errorHasOccurred.postValue("Error! No account!")
-                        }
-                        is CalculateWorkError.CouldNotReachServer -> _showSnackBar.postValue(App.instance.resources.getString(R.string.list_files_offline_snackbar))
-                        is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
-                        is CalculateWorkError.Unexpected -> {
-                            Timber.e("Unable to calculate syncWork: ${error.error}")
-                            _stopSyncSnackBar.postValue(Unit)
-                            _unexpectedErrorHasOccurred.postValue(
-                                error.error
-                            )
-                        }
+                    is Err -> {
+                        when (val error = syncWorkResult.error) {
+                            is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                            is CalculateWorkError.CouldNotReachServer -> _showSnackBar.postValue(App.instance.resources.getString(R.string.list_files_offline_snackbar))
+                            is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
+                            is CalculateWorkError.Unexpected -> {
+                                Timber.e("Unable to calculate syncWork: ${error.error}")
+                                _stopSyncSnackBar.postValue(Unit)
+                                _unexpectedErrorHasOccurred.postValue(
+                                    error.error
+                                )
+                            }
+                        }.exhaustive
+
+                        return _stopSyncSnackBar.postValue(Unit)
                     }
-                }.exhaustive
+                }
 
             if (workCalculated.workUnits.isEmpty()) {
                 break
@@ -147,12 +150,26 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
             }
         }
 
-        if (syncErrors.isNotEmpty()) {
+        if (syncErrors.isEmpty()) {
+            val setLastSyncedResult =
+                CoreModel.setLastSynced(
+                    config,
+                    workCalculated.mostRecentUpdateFromServer
+                )
+            if (setLastSyncedResult is Err) {
+                Timber.e("Unable to set most recent sync date: ${setLastSyncedResult.error}")
+                _errorHasOccurred.postValue(BASIC_ERROR)
+            }
+            _showSyncInfoSnackBar.postValue(workCalculated.workUnits.size)
+        } else {
             Timber.e("Couldn't resolve all syncErrors: ${Klaxon().toJsonString(syncErrors)}")
             _stopSyncSnackBar.postValue(Unit)
             _errorHasOccurred.postValue("Couldn't sync all files.")
-        } else {
-            _showPreSyncSnackBar.postValue(workCalculated.workUnits.size)
         }
     }
+}
+
+sealed class SyncStatus() {
+    object IsNotSyncing : SyncStatus()
+    data class IsSyncing(var maxProgress: Int, var progress: Int) : SyncStatus()
 }

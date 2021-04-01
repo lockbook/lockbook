@@ -60,6 +60,15 @@ class ListFilesFragment : Fragment() {
             .setAllowUserInput(true)
     }
 
+    private val syncInfoSnackBar by lazy {
+        SnackProgressBar(
+            SnackProgressBar.TYPE_NORMAL,
+            ""
+        )
+            .setSwipeToDismiss(true)
+            .setAllowUserInput(true)
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -128,10 +137,10 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.showPreSyncSnackBar.observe(
+        listFilesViewModel.showSyncInfoSnackBar.observe(
             viewLifecycleOwner,
             { amountToSync ->
-                showPreSyncSnackBar(amountToSync)
+                showSyncInfoSnackBar(amountToSync)
             }
         )
 
@@ -256,6 +265,8 @@ class ListFilesFragment : Fragment() {
             }
         })
 
+        snackProgressBarManager.useRoundedCornerBackground(true)
+
         if (resources.configuration.orientation == ORIENTATION_LANDSCAPE && resources.configuration.screenLayout == SCREENLAYOUT_SIZE_SMALL) {
             list_files_fab_holder.orientation = HORIZONTAL
         }
@@ -360,22 +371,19 @@ class ListFilesFragment : Fragment() {
         )
     }
 
-    private fun showPreSyncSnackBar(amountToSync: Int) {
+    private fun showSyncInfoSnackBar(amountToSync: Int) {
         snackProgressBarManager.dismiss()
         if (amountToSync == 0) {
-            AlertModel.notify(
-                fragment_list_files,
-                resources.getString(R.string.list_files_sync_finished_snackbar), OnFinishAlert.DoNothingOnFinishAlert
-            )
+            syncInfoSnackBar.setMessage(resources.getString(R.string.list_files_sync_finished_snackbar))
+            snackProgressBarManager.show(syncInfoSnackBar, SnackProgressBarManager.LENGTH_SHORT)
         } else {
-            AlertModel.notify(
-                fragment_list_files,
+            syncInfoSnackBar.setMessage(
                 resources.getString(
-                    R.string.list_files_presync_snackbar,
+                    R.string.list_files_sync_info_snackbar,
                     amountToSync.toString()
-                ),
-                OnFinishAlert.DoNothingOnFinishAlert
+                )
             )
+            snackProgressBarManager.show(syncInfoSnackBar, SnackProgressBarManager.LENGTH_SHORT)
         }
     }
 
@@ -413,8 +421,6 @@ class ListFilesFragment : Fragment() {
         files: List<FileMetadata>,
         adapter: GeneralViewAdapter
     ) {
-        listFilesViewModel.updateBreadcrumbWithLatest()
-
         adapter.files = files
         if (!listFilesViewModel.selectedFiles.contains(true)) {
             listFilesViewModel.selectedFiles = MutableList(files.size) { false }

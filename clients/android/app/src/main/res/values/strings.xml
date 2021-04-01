@@ -106,7 +106,7 @@
     </array>
 
     <string name="list_files_offline_snackbar">You are offline</string>
-    <string name="list_files_presync_snackbar">%s items to sync</string>
+    <string name="list_files_sync_info_snackbar">%s items to sync</string>
     <string name="list_files_sync_snackbar">Syncing %s items…</string>
     <string name="list_files_sync_finished_snackbar">Up to date</string>
     <string name="settings_preference_logs">View logs</string>
