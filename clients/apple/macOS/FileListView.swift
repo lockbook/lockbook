@@ -23,7 +23,11 @@ struct FileListView: View {
             }
         }
         if let item = selectedItem {
-            EditorLoader(content: core.openDocument, meta: item, files: core.files)
+            if (item.name.hasSuffix(".draw")) {
+                ImageLoader(model: core.openImage, meta: item)
+            } else {
+                EditorLoader(content: core.openDocument, meta: item, files: core.files, deleteChannel: core.deleteChannel)
+            }
         }
     }
 }

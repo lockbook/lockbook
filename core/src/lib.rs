@@ -1103,6 +1103,9 @@ impl_get_variants!(
     SetLastSyncedError,
     GetLastSyncedError,
     GetUsageError,
+    GetDrawingError,
+    SaveDrawingError,
+    ExportDrawingError,
 );
 
 pub mod c_interface;
