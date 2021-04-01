@@ -49,7 +49,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun setUpPreferences() {
-        findPreference<Preference>(BIOMETRIC_OPTION_KEY)?.setOnPreferenceChangeListener { preference, newValue ->
+        findPreference<Preference>(BIOMETRIC_OPTION_KEY)?.setOnPreferenceChangeListener { _, newValue ->
             if (newValue is String) {
                 newValueForPref = newValue
 
