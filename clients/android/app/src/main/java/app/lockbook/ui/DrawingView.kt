@@ -5,10 +5,7 @@ import android.content.Context
 import android.graphics.*
 import android.os.Build
 import android.util.AttributeSet
-import android.view.MotionEvent
-import android.view.ScaleGestureDetector
-import android.view.SurfaceView
-import android.view.View
+import android.view.*
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
@@ -16,9 +13,6 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.OnFinishAlert
 import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
-import app.lockbook.util.ColorAlias
-import app.lockbook.util.Drawing
-import app.lockbook.util.Stroke
 import kotlinx.android.synthetic.main.activity_drawing.*
 import java.util.*
 import kotlin.math.pow
@@ -26,14 +20,15 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 class DrawingView(context: Context, attributeSet: AttributeSet?) :
-    SurfaceView(context, attributeSet), Runnable {
-    var drawing: Drawing = Drawing()
+    SurfaceView(context, attributeSet), Runnable, SurfaceHolder.Callback {
+    lateinit var drawing: Drawing
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
+    private var thread: Thread? = null
+    private var isThreadAvailable = false
+    private var isDrawingAvailable = false
 
     private var erasePoints = Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
-    private var thread = Thread(this)
-    private var isThreadRunning = false
     private var penSizeMultiplier = 7
     private var strokeAlpha = 255
     var isErasing = false
@@ -124,6 +119,9 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         )
 
     init {
+        holder.setKeepScreenOn(true)
+        holder.addCallback(this)
+
         setUpPaint()
     }
 
@@ -333,15 +331,17 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         return PointF(modelX, modelY)
     }
 
-    fun initializeWithDrawing(maybeDrawing: Drawing?) {
+    fun initializeWithDrawing(maybeDrawing: Drawing) {
         visibility = View.VISIBLE
+        this.drawing = maybeDrawing
 
         initializeCanvasesAndBitmaps()
-        if (maybeDrawing != null) {
-            this.drawing = maybeDrawing
-        }
         restoreFromModel()
-        startThread()
+
+        isDrawingAvailable = true
+        if (isThreadAvailable) {
+            startThread()
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -561,21 +561,34 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         penSizeMultiplier = penSize
     }
 
-    fun endThread() {
-        isThreadRunning = false
-    }
-
-    fun restartThread() {
-        thread = Thread(this)
-    }
-
     fun startThread() {
-        isThreadRunning = true
-        thread.start()
+        if (holder.surface.isValid && thread == null) {
+            thread = Thread(this)
+            isThreadAvailable = true
+            thread?.start()
+        }
+    }
+
+    fun stopThread() {
+        if (thread == null) {
+            return
+        }
+        isThreadAvailable = false
+        while (thread?.isAlive == true) {
+            try {
+                thread?.join() ?: return
+            } catch (e: Exception) {}
+        }
+
+        thread = null
     }
 
     override fun run() {
-        while (isThreadRunning) {
+        while (isThreadAvailable && isDrawingAvailable) {
+            if (holder == null) {
+                return
+            }
+
             var canvas: Canvas? = null
             try {
                 canvas = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
@@ -588,5 +601,23 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 holder.unlockCanvasAndPost(canvas)
             }
         }
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        if (thread != null) {
+            stopThread()
+        }
+
+        isThreadAvailable = true
+        if (isDrawingAvailable) {
+            startThread()
+        }
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) { }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        stopThread()
+        holder.surface.release()
     }
 }
