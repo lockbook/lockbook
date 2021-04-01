@@ -3,6 +3,7 @@ package app.lockbook.model
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -12,8 +13,6 @@ class MoveFileViewModel(path: String) :
     ViewModel(),
     RegularClickInterface {
 
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val config = Config(path)
     lateinit var currentParent: FileMetadata
     lateinit var ids: Array<String>
@@ -37,45 +36,39 @@ class MoveFileViewModel(path: String) :
         get() = _unexpectedErrorHasOccurred
 
     init {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                startInRoot()
-            }
+        viewModelScope.launch(Dispatchers.IO) {
+            startInRoot()
         }
     }
 
-    fun startInRoot() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                when (val rootResult = CoreModel.getRoot(config)) {
-                    is Ok -> {
-                        currentParent = rootResult.value
-                        refreshOverFolder()
-                    }
-                    is Err -> when (val error = rootResult.error) {
-                        is GetRootError.NoRoot -> _errorHasOccurred.postValue("Error! No root!")
-                        is GetRootError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
-                    }
-                }.exhaustive
-            }
+    private fun startInRoot() {
+        viewModelScope.launch(Dispatchers.IO) {
+            when (val rootResult = CoreModel.getRoot(config)) {
+                is Ok -> {
+                    currentParent = rootResult.value
+                    refreshOverFolder()
+                }
+                is Err -> when (val error = rootResult.error) {
+                    is GetRootError.NoRoot -> _errorHasOccurred.postValue("Error! No root!")
+                    is GetRootError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
+                }
+            }.exhaustive
         }
     }
 
     fun moveFilesToFolder() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                var hasErrorOccurred = false
-                for (id in ids) {
-                    val moveFileResult = moveFileIfSuccessful(id)
-                    if (!moveFileResult) {
-                        hasErrorOccurred = !moveFileResult
-                        break
-                    }
+        viewModelScope.launch(Dispatchers.IO) {
+            var hasErrorOccurred = false
+            for (id in ids) {
+                val moveFileResult = moveFileIfSuccessful(id)
+                if (!moveFileResult) {
+                    hasErrorOccurred = !moveFileResult
+                    break
                 }
+            }
 
-                if (!hasErrorOccurred) {
-                    _closeDialog.postValue(Unit)
-                }
+            if (!hasErrorOccurred) {
+                _closeDialog.postValue(Unit)
             }
         }
     }
@@ -126,16 +119,14 @@ class MoveFileViewModel(path: String) :
     }
 
     override fun onItemClick(position: Int) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                _files.value?.let { files ->
-                    if (position == 0) {
-                        setParentAsParent()
-                        refreshOverFolder()
-                    } else {
-                        currentParent = files[position]
-                        refreshOverFolder()
-                    }
+        viewModelScope.launch(Dispatchers.IO) {
+            _files.value?.let { files ->
+                if (position == 0) {
+                    setParentAsParent()
+                    refreshOverFolder()
+                } else {
+                    currentParent = files[position]
+                    refreshOverFolder()
                 }
             }
         }

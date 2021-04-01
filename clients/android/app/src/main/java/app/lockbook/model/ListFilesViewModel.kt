@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
@@ -41,16 +42,9 @@ data class EditableFile(
     val id: String,
 )
 
-sealed class SyncStatus() {
-    object IsNotSyncing : SyncStatus()
-    data class IsSyncing(var maxProgress: Int, var progress: Int) : SyncStatus()
-}
-
 class ListFilesViewModel(path: String, application: Application) :
     AndroidViewModel(application),
     ListFilesClickInterface {
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val config = Config(path)
     var selectedFiles = listOf<Boolean>()
 
@@ -83,8 +77,8 @@ class ListFilesViewModel(path: String, application: Application) :
     val showSyncSnackBar: LiveData<Int>
         get() = syncModel.showSyncSnackBar
 
-    val showPreSyncSnackBar: LiveData<Int>
-        get() = syncModel.showPreSyncSnackBar
+    val showSyncInfoSnackBar: LiveData<Int>
+        get() = syncModel.showSyncInfoSnackBar
 
     val updateProgressSnackBar: LiveData<Int>
         get() = syncModel.updateProgressSnackBar
@@ -139,12 +133,10 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     private fun init() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                setUpPreferenceChangeListener()
-                isThisAnImport()
-                fileModel.startUpInRoot()
-            }
+        viewModelScope.launch(Dispatchers.IO) {
+            setUpPreferenceChangeListener()
+            isThisAnImport()
+            fileModel.startUpInRoot()
         }
     }
 
@@ -161,166 +153,154 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     fun onOpenedActivityEnd() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                syncModel.syncBasedOnPreferences()
-            }
+        viewModelScope.launch(Dispatchers.IO) {
+            syncModel.syncBasedOnPreferences()
         }
     }
 
     fun onSwipeToRefresh() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                syncModel.startSync()
-                fileModel.refreshFiles()
-                _stopProgressSpinner.postValue(Unit)
-            }
+        viewModelScope.launch(Dispatchers.IO) {
+            syncModel.startSync()
+            fileModel.refreshFiles()
+            _stopProgressSpinner.postValue(Unit)
         }
     }
 
     fun onNewDocumentFABClicked(isDrawing: Boolean) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                isFABOpen = !isFABOpen
-                _collapseExpandFAB.postValue(false)
-                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document), isDrawing))
-            }
+        viewModelScope.launch(Dispatchers.IO) {
+            isFABOpen = !isFABOpen
+            _collapseExpandFAB.postValue(false)
+            _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document), isDrawing))
         }
     }
 
     fun onNewFolderFABClicked() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                isFABOpen = !isFABOpen
-                _collapseExpandFAB.postValue(false)
-                _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Folder), false))
-            }
+        viewModelScope.launch(Dispatchers.IO) {
+            isFABOpen = !isFABOpen
+            _collapseExpandFAB.postValue(false)
+            _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Folder), false))
         }
     }
 
     fun onMenuItemPressed(id: Int) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
-                when (id) {
-                    R.id.menu_list_files_sort_last_changed -> {
-                        pref.putString(
-                            SORT_FILES_KEY,
-                            SORT_FILES_LAST_CHANGED
-                        ).apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_sort_a_z -> {
-                        pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
-                            .apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_sort_z_a -> {
-                        pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
-                            .apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_sort_first_changed -> {
-                        pref.putString(
-                            SORT_FILES_KEY,
-                            SORT_FILES_FIRST_CHANGED
-                        ).apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_sort_type -> {
-                        pref.putString(
-                            SORT_FILES_KEY,
-                            SORT_FILES_TYPE
-                        ).apply()
-                        fileModel.refreshFiles()
-                    }
-                    R.id.menu_list_files_linear_view -> {
-                        pref.putString(
-                            FILE_LAYOUT_KEY,
-                            LINEAR_LAYOUT
-                        ).apply()
-                        _switchFileLayout.postValue(Unit)
-                    }
-                    R.id.menu_list_files_grid_view -> {
-                        pref.putString(
-                            FILE_LAYOUT_KEY,
-                            GRID_LAYOUT
-                        ).apply()
-                        _switchFileLayout.postValue(Unit)
-                    }
-                    R.id.menu_list_files_rename -> {
-                        files.value?.let { files ->
-                            val checkedFiles = getSelectedFiles(files)
-                            if (checkedFiles.size == 1) {
-                                _showRenameFileDialog.postValue(RenameFileInfo(checkedFiles[0].id, checkedFiles[0].name))
-                            } else {
-                                _errorHasOccurred.postValue(BASIC_ERROR)
-                            }
+        viewModelScope.launch(Dispatchers.IO) {
+            val pref = PreferenceManager.getDefaultSharedPreferences(getApplication()).edit()
+            when (id) {
+                R.id.menu_list_files_sort_last_changed -> {
+                    pref.putString(
+                        SORT_FILES_KEY,
+                        SORT_FILES_LAST_CHANGED
+                    ).apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_sort_a_z -> {
+                    pref.putString(SORT_FILES_KEY, SORT_FILES_A_Z)
+                        .apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_sort_z_a -> {
+                    pref.putString(SORT_FILES_KEY, SORT_FILES_Z_A)
+                        .apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_sort_first_changed -> {
+                    pref.putString(
+                        SORT_FILES_KEY,
+                        SORT_FILES_FIRST_CHANGED
+                    ).apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_sort_type -> {
+                    pref.putString(
+                        SORT_FILES_KEY,
+                        SORT_FILES_TYPE
+                    ).apply()
+                    fileModel.refreshFiles()
+                }
+                R.id.menu_list_files_linear_view -> {
+                    pref.putString(
+                        FILE_LAYOUT_KEY,
+                        LINEAR_LAYOUT
+                    ).apply()
+                    _switchFileLayout.postValue(Unit)
+                }
+                R.id.menu_list_files_grid_view -> {
+                    pref.putString(
+                        FILE_LAYOUT_KEY,
+                        GRID_LAYOUT
+                    ).apply()
+                    _switchFileLayout.postValue(Unit)
+                }
+                R.id.menu_list_files_rename -> {
+                    files.value?.let { files ->
+                        val checkedFiles = getSelectedFiles(files)
+                        if (checkedFiles.size == 1) {
+                            _showRenameFileDialog.postValue(RenameFileInfo(checkedFiles[0].id, checkedFiles[0].name))
+                        } else {
+                            _errorHasOccurred.postValue(BASIC_ERROR)
                         }
                     }
-                    R.id.menu_list_files_delete -> {
-                        files.value?.let { files ->
-                            val checkedIds = getSelectedFiles(files).map { file -> file.id }
-                            collapseMoreOptionsMenu()
-                            if (fileModel.deleteFiles(checkedIds)) {
-                                _showSnackBar.postValue("Successfully deleted the file(s)")
-                            }
+                }
+                R.id.menu_list_files_delete -> {
+                    files.value?.let { files ->
+                        val checkedIds = getSelectedFiles(files).map { file -> file.id }
+                        collapseMoreOptionsMenu()
+                        if (fileModel.deleteFiles(checkedIds)) {
+                            _showSnackBar.postValue("Successfully deleted the file(s)")
+                        }
 
-                            fileModel.refreshFiles()
+                        fileModel.refreshFiles()
+                    }
+                }
+                R.id.menu_list_files_info -> {
+                    files.value?.let { files ->
+                        val checkedFiles = getSelectedFiles(files)
+                        if (checkedFiles.size == 1) {
+                            collapseMoreOptionsMenu()
+                            _showFileInfoDialog.postValue(checkedFiles[0])
+                        } else {
+                            _errorHasOccurred.postValue(BASIC_ERROR)
                         }
                     }
-                    R.id.menu_list_files_info -> {
-                        files.value?.let { files ->
-                            val checkedFiles = getSelectedFiles(files)
-                            if (checkedFiles.size == 1) {
-                                collapseMoreOptionsMenu()
-                                _showFileInfoDialog.postValue(checkedFiles[0])
-                            } else {
-                                _errorHasOccurred.postValue(BASIC_ERROR)
-                            }
-                        }
-                    }
-                    R.id.menu_list_files_move -> {
-                        files.value?.let { files ->
-                            _showMoveFileDialog.postValue(
-                                MoveFileInfo(
-                                    getSelectedFiles(files)
-                                        .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
-                                    getSelectedFiles(files)
-                                        .map { fileMetadata -> fileMetadata.name }.toTypedArray()
-                                )
+                }
+                R.id.menu_list_files_move -> {
+                    files.value?.let { files ->
+                        _showMoveFileDialog.postValue(
+                            MoveFileInfo(
+                                getSelectedFiles(files)
+                                    .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
+                                getSelectedFiles(files)
+                                    .map { fileMetadata -> fileMetadata.name }.toTypedArray()
                             )
-                        }
+                        )
                     }
-                    else -> {
-                        Timber.e("Unrecognized sort item id.")
-                        _errorHasOccurred.postValue(BASIC_ERROR)
-                    }
-                }.exhaustive
-            }
+                }
+                else -> {
+                    Timber.e("Unrecognized sort item id.")
+                    _errorHasOccurred.postValue(BASIC_ERROR)
+                }
+            }.exhaustive
         }
     }
 
     override fun onItemClick(position: Int, isSelecting: Boolean, selection: List<Boolean>) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                when (isSelecting) {
-                    true -> {
-                        selectedFiles = selection
-                        _switchMenu.postValue(Unit)
-                    }
-                    false -> {
-                        fileModel.files.value?.let { files ->
-                            val fileMetadata = files[position]
+        viewModelScope.launch(Dispatchers.IO) {
+            when (isSelecting) {
+                true -> {
+                    selectedFiles = selection
+                    _switchMenu.postValue(Unit)
+                }
+                false -> {
+                    fileModel.files.value?.let { files ->
+                        val fileMetadata = files[position]
 
-                            if (fileMetadata.fileType == FileType.Folder) {
-                                fileModel.intoFolder(fileMetadata)
-                                selectedFiles = MutableList(files.size) {
-                                    false
-                                }
-                            } else {
-                                enterDocument(fileMetadata)
+                        if (fileMetadata.fileType == FileType.Folder) {
+                            fileModel.intoFolder(fileMetadata)
+                            selectedFiles = MutableList(files.size) {
+                                false
                             }
+                        } else {
+                            enterDocument(fileMetadata)
                         }
                     }
                 }
@@ -329,34 +309,35 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     override fun onLongClick(position: Int, selection: List<Boolean>) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                selectedFiles = selection
-                _switchMenu.postValue(Unit)
-            }
+        viewModelScope.launch(Dispatchers.IO) {
+            selectedFiles = selection
+            _switchMenu.postValue(Unit)
         }
     }
 
     fun refreshFiles(newDocument: FileMetadata?) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                collapseMoreOptionsMenu()
-                fileModel.refreshFiles()
+        viewModelScope.launch(Dispatchers.IO) {
+            collapseMoreOptionsMenu()
+            fileModel.refreshFiles()
 
-                if (newDocument != null && PreferenceManager.getDefaultSharedPreferences(getApplication())
-                    .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
-                ) {
-                    enterDocument(newDocument)
-                }
+            if (newDocument != null && PreferenceManager.getDefaultSharedPreferences(getApplication())
+                .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
+            ) {
+                enterDocument(newDocument)
             }
         }
     }
 
-    fun updateBreadcrumbWithLatest() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                fileModel.updateBreadCrumbWithLatest()
-            }
+    fun handleRefreshAtParent(position: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            fileModel.refreshAtParent(position)
+        }
+    }
+
+    fun collapseExpandFAB() {
+        viewModelScope.launch(Dispatchers.IO) {
+            isFABOpen = !isFABOpen
+            _collapseExpandFAB.postValue(isFABOpen)
         }
     }
 
@@ -393,23 +374,6 @@ class ListFilesViewModel(path: String, application: Application) :
 
         PreferenceManager.getDefaultSharedPreferences(getApplication())
             .registerOnSharedPreferenceChangeListener(listener)
-    }
-
-    fun handleRefreshAtParent(position: Int) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                fileModel.refreshAtParent(position)
-            }
-        }
-    }
-
-    fun collapseExpandFAB() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                isFABOpen = !isFABOpen
-                _collapseExpandFAB.postValue(isFABOpen)
-            }
-        }
     }
 
     private fun getSelectedFiles(files: List<FileMetadata>): List<FileMetadata> = files.filterIndexed { index, _ ->
