@@ -8,7 +8,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.GestureDetector
 import android.view.MotionEvent
-import android.view.SurfaceHolder
 import android.view.View
 import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
@@ -29,27 +28,6 @@ import java.util.*
 class DrawingActivity : AppCompatActivity() {
     private lateinit var drawingViewModel: DrawingViewModel
     private var isFirstLaunch = true
-    private val surfaceViewReadyCallback = object : SurfaceHolder.Callback {
-        override fun surfaceCreated(holder: SurfaceHolder) {
-            if (!isFirstLaunch) {
-                drawing_loading_view.visibility = View.GONE
-                drawing_view.startThread()
-            } else {
-                initializeDrawing()
-            }
-        }
-
-        override fun surfaceChanged(
-            holder: SurfaceHolder,
-            format: Int,
-            width: Int,
-            height: Int
-        ) {
-        }
-
-        override fun surfaceDestroyed(holder: SurfaceHolder) {
-        }
-    }
 
     private var autoSaveTimer = Timer()
     private val handler = Handler(requireNotNull(Looper.myLooper()))
@@ -57,7 +35,6 @@ class DrawingActivity : AppCompatActivity() {
     private lateinit var gestureDetector: GestureDetector
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_drawing)
 
@@ -91,11 +68,7 @@ class DrawingActivity : AppCompatActivity() {
         drawingViewModel.drawableReady.observe(
             this
         ) {
-            drawing_view.holder.addCallback(surfaceViewReadyCallback)
-
-            if (!drawing_view.holder.isCreating) {
-                initializeDrawing()
-            }
+            initializeDrawing()
         }
 
         drawingViewModel.setToolsVisibility.observe(
@@ -122,23 +95,23 @@ class DrawingActivity : AppCompatActivity() {
         setUpToolbarDefaults()
     }
 
-    override fun onRestart() {
-        super.onRestart()
-        drawing_view.restartThread()
-    }
-
     override fun onPause() {
         super.onPause()
-        drawing_view.endThread()
+        drawing_view.stopThread()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        drawing_view.startThread()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        drawing_view.endThread()
         autoSaveTimer.cancel()
+        autoSaveTimer.purge()
         if (!isFirstLaunch) {
             drawingViewModel.backupDrawing = drawing_view.drawing
-            drawingViewModel.saveDrawing(drawing_view.drawing)
+            drawingViewModel.saveDrawing(drawing_view.drawing.clone())
         }
     }
 
@@ -279,7 +252,7 @@ class DrawingActivity : AppCompatActivity() {
         if (drawingViewModel.backupDrawing == null) {
             drawingViewModel.getDrawing(id)
         } else {
-            drawing_view.holder.addCallback(surfaceViewReadyCallback)
+            initializeDrawing()
         }
     }
 
