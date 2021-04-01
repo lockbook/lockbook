@@ -63,7 +63,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         const val PRESSURE_SAMPLES_AVERAGED = 5
         const val SPEN_ACTION_DOWN = 211
-        const val MIN_TIME_PER_FRAME = (1000.0 / 60.0).toInt()
     }
 
     private val scaleGestureDetector =
@@ -565,15 +564,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     override fun run() {
-        var frameStartTime: Long
-        var frameTime: Long
-
         while (isThreadAvailable && isDrawingAvailable) {
             if (holder == null) {
                 return
             }
-
-            frameStartTime = System.nanoTime()
 
             var canvas: Canvas? = null
             try {
@@ -585,14 +579,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 render(canvas)
             } finally {
                 holder.unlockCanvasAndPost(canvas)
-            }
-
-            frameTime = (System.nanoTime() - frameStartTime) / 1000000L
-
-            if (frameTime < MIN_TIME_PER_FRAME) {
-                try {
-                    Thread.sleep(MIN_TIME_PER_FRAME - frameTime)
-                } catch (e: InterruptedException) {}
             }
         }
     }
