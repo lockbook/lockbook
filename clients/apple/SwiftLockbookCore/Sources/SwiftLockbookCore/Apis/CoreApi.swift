@@ -84,6 +84,11 @@ public struct CoreApi: LockbookApi {
             return .failure(.init(unexpected: err.localizedDescription))
         }
     }
+
+    public func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError> {
+        let res: FfiResult<[UInt8], ExportDrawingError> = fromPrimitiveResult(result: export_drawing(documentsDirectory, id.uuidString))
+        return res.map(transform: { Data($0) })
+    }
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError> {
         let fileType = isFolder ? "Folder" : "Document"

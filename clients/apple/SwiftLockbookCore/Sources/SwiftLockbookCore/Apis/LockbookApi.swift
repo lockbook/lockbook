@@ -30,6 +30,7 @@ public protocol LockbookApi {
     func moveFile(id: UUID, newParent: UUID) -> FfiResult<Empty, MoveFileError>
     func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError>
     func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError>
+    func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError>
 
     // State
     func getState() -> FfiResult<DbState, GetStateError>

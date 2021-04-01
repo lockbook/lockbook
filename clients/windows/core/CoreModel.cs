@@ -420,4 +420,50 @@ namespace Core {
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
+
+
+    namespace GetDrawing {
+            public interface IResult { }
+            public class Success : IResult {
+                public string content;
+            }
+            public enum PossibleErrors {
+                NoAccount,
+                FolderTreatedAsDrawing,
+                InvalidDrawing,
+                FileDoesNotExist,
+            }
+            public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+            public class UnexpectedError : Core.UnexpectedError, IResult { }
+    }
+
+    namespace SaveDrawing {
+            public interface IResult { }
+            public class Success : IResult {
+                public string content;
+            }
+            public enum PossibleErrors {
+                NoAccount,
+                FileDoesNotExist,
+                FolderTreatedAsDrawing,
+                InvalidDrawing,
+            }
+            public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+            public class UnexpectedError : Core.UnexpectedError, IResult { }
+    }
+
+    namespace ExportDrawing {
+            public interface IResult { }
+            public class Success : IResult {
+                public string content;
+            }
+            public enum PossibleErrors {
+                FolderTreatedAsDrawing,
+                FileDoesNotExist,
+                NoAccount,
+                InvalidDrawing,
+            }
+            public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+            public class UnexpectedError : Core.UnexpectedError, IResult { }
+    }
 }

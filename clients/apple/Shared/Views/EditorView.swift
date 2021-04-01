@@ -28,9 +28,11 @@ struct EditorLoader: View {
     let files: [FileMetadata]
     @State var editorContent: String = ""
     @State var title: String = ""
-    
+    let deleteChannel: PassthroughSubject<FileMetadata, Never>
+
+    @State var forceDelete: Bool = false
     var deleted: Bool {
-        files.filter({$0.id == meta.id}).isEmpty
+        forceDelete || files.filter({$0.id == meta.id}).isEmpty
     }
     
     var body: some View {
@@ -38,33 +40,25 @@ struct EditorLoader: View {
             switch content.text {
             /// We are forcing this view to hit the default case when it is in a transitionary stage!
             case .some(let c) where content.meta?.id == meta.id:
-                if deleted {
-                    Text("\(meta.name) file has been deleted")
-                        .onDisappear {
-                            content.closeDocument(meta: meta)
-                        }
-                } else {
+                if (!deleted) {
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
-                        .onDisappear {
-                            content.closeDocument(meta: meta)
-                        }
+                    ActivityIndicator(status: $content.status)
+                        .opacity(content.status == .WriteSuccess ? 1 : 0)
+                } else {
+                    Text("\(meta.name) file has been deleted")
                 }
-                ActivityIndicator(status: $content.status)
-                    .opacity(content.status == .WriteSuccess ? 1 : 0)
             default:
                 ProgressView()
                     .onAppear {
                         content.openDocument(meta: meta)
                     }
             }
+        }.onReceive(deleteChannel) { deletedMeta in
+            if (deletedMeta.id == meta.id) {
+                // I have been deleted!
+                forceDelete = true
+            }
         }
-    }
-    
-    
-    init (content: Content, meta: FileMetadata, files: [FileMetadata]) {
-        self.content = content
-        self.meta = meta
-        self.files = files
     }
 }
 
@@ -100,7 +94,6 @@ class Content: ObservableObject {
         switch write(meta.id, content) {
         case .success(_):
             writeListener()
-            print("writeDocument happened")
             withAnimation {
                 status = .WriteSuccess
             }
@@ -146,7 +139,7 @@ extension NSTextField {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorLoader(content: GlobalState().openDocument, meta: FakeApi.fileMetas[0], files: FakeApi.fileMetas)
+            EditorLoader(content: GlobalState().openDocument, meta: FakeApi.fileMetas[0], files: FakeApi.fileMetas, deleteChannel: PassthroughSubject<FileMetadata, Never>())
         }
         .preferredColorScheme(.dark)
     }
