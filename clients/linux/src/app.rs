@@ -41,6 +41,13 @@ use crate::settings::Settings;
 use crate::util;
 use crate::{progerr, tree_iter_value, uerr};
 
+macro_rules! closure {
+    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {{
+        $( $( let $aliases ).* = $( $vars ).+.clone(); )+
+        $fn
+    }};
+}
+
 #[derive(Clone)]
 pub struct LbApp {
     core: Arc<LbCore>,
@@ -142,32 +149,28 @@ impl LbApp {
         self.gui.intro.doing("Importing account...");
 
         // Create a channel to receive and process the result of importing the account.
-        let lb = self.clone();
-        let ch = util::make_glib_chan(move |result: LbResult<()>| {
+        let ch = util::make_glib_chan(closure!(self as lb => move |result: LbResult<()>| {
             // Show any error on the import screen. Otherwise, account syncing will start.
             match result {
                 Ok(_) => lb.import_account_sync(),
                 Err(err) => lb.gui.intro.error_import(err.msg()),
             }
             glib::Continue(false)
-        });
+        }));
 
         // In a separate thread, import the account and send the result down the channel.
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-        thread::spawn(move || {
+        thread::spawn(closure!(self.core as c, self.messenger as m => move || {
             if let Err(err) = ch.send(c.import_account(&privkey)) {
                 m.send_err("sending import result", LbError::fmt_program_err(err));
             }
-        });
+        }));
 
         Ok(())
     }
 
     fn import_account_sync(&self) {
         // Create a channel to receive and process any account sync progress updates.
-        let lb = self.clone();
-        let sync_chan = util::make_glib_chan(move |msgopt| {
+        let sync_chan = util::make_glib_chan(closure!(self as lb => move |msgopt| {
             // If there is some message, show it. If not, syncing is done, so try to show the
             // account screen. If the account screen is successfully shown, get the account's
             // sync status.
@@ -182,17 +185,15 @@ impl LbApp {
                 }
             }
             glib::Continue(true)
-        });
+        }));
 
         // In a separate thread, start syncing the account. Pass the sync channel which will be
         // used to receive progress updates as indicated above.
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-        thread::spawn(move || {
+        thread::spawn(closure!(self.core as c, self.messenger as m => move || {
             if let Err(err) = c.sync(&sync_chan) {
                 m.send_err("syncing", err);
             }
-        });
+        }));
     }
 
     fn export_account(&self) -> LbResult<()> {
