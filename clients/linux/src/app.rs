@@ -117,20 +117,17 @@ impl LbApp {
     fn create_account(&self, name: String) -> LbResult<()> {
         self.gui.intro.doing("Creating account...");
 
-        let gui = self.gui.clone();
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-
+        let lb = self.clone();
         let ch = util::make_glib_chan(move |result: LbResult<()>| {
             match result {
                 Ok(_) => {
-                    if let Err(err) = gui.show_account_screen(&c) {
-                        m.send_err("showing account screen", err);
+                    if let Err(err) = lb.gui.show_account_screen(&lb.core) {
+                        lb.messenger.send_err("showing account screen", err);
                     }
                 }
                 Err(err) => match err.kind() {
-                    UserErr => gui.intro.error_create(&err.msg()),
-                    ProgErr => m.send_err("creating account", err),
+                    UserErr => lb.gui.intro.error_create(&err.msg()),
+                    ProgErr => lb.messenger.send_err("creating account", err),
                 },
             }
             glib::Continue(false)
@@ -249,20 +246,18 @@ impl LbApp {
     }
 
     fn perform_sync(&self) -> LbResult<()> {
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-
         let sync_ui = self.gui.account.sync().clone();
         sync_ui.set_syncing(true);
 
-        let ch = util::make_glib_chan(move |msg| {
-            if let Some(msg) = msg {
+        let lb = self.clone();
+        let ch = util::make_glib_chan(move |msgopt| {
+            if let Some(msg) = msgopt {
                 sync_ui.sync_progress(&msg);
             } else {
                 sync_ui.set_syncing(false);
-                match c.sync_status() {
+                match lb.core.sync_status() {
                     Ok(s) => sync_ui.set_status(&s),
-                    Err(err) => m.send_err("getting sync status", err),
+                    Err(err) => lb.messenger.send_err("getting sync status", err),
                 }
             }
             glib::Continue(true)
@@ -270,12 +265,12 @@ impl LbApp {
 
         let c = self.core.clone();
         let m = self.messenger.clone();
-
         thread::spawn(move || {
             if let Err(err) = c.sync(&ch) {
                 m.send_err("syncing", err);
             }
         });
+
         Ok(())
     }
 
