@@ -48,6 +48,12 @@ macro_rules! closure {
     }};
 }
 
+macro_rules! make_glib_chan {
+    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {
+        util::make_glib_chan(closure!($( $( $vars ).+ as $( $aliases )* ),+ => $fn));
+    };
+}
+
 macro_rules! spawn {
     ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {{
         thread::spawn(closure!($( $( $vars ).+ as $( $aliases )* ),+ => $fn));
@@ -155,14 +161,14 @@ impl LbApp {
         self.gui.intro.doing("Importing account...");
 
         // Create a channel to receive and process the result of importing the account.
-        let ch = util::make_glib_chan(closure!(self as lb => move |result: LbResult<()>| {
+        let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
             // Show any error on the import screen. Otherwise, account syncing will start.
             match result {
                 Ok(_) => lb.import_account_sync(),
                 Err(err) => lb.gui.intro.error_import(err.msg()),
             }
             glib::Continue(false)
-        }));
+        });
 
         // In a separate thread, import the account and send the result down the channel.
         spawn!(self.core as c, self.messenger as m => move || {
@@ -176,7 +182,7 @@ impl LbApp {
 
     fn import_account_sync(&self) {
         // Create a channel to receive and process any account sync progress updates.
-        let sync_chan = util::make_glib_chan(closure!(self as lb => move |msgopt| {
+        let sync_chan = make_glib_chan!(self as lb => move |msgopt| {
             // If there is some message, show it. If not, syncing is done, so try to show the
             // account screen. If the account screen is successfully shown, get the account's
             // sync status.
@@ -191,7 +197,7 @@ impl LbApp {
                 }
             }
             glib::Continue(true)
-        }));
+        });
 
         // In a separate thread, start syncing the account. Pass the sync channel which will be
         // used to receive progress updates as indicated above.
