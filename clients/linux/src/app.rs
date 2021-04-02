@@ -48,6 +48,12 @@ macro_rules! closure {
     }};
 }
 
+macro_rules! spawn {
+    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {{
+        thread::spawn(closure!($( $( $vars ).+ as $( $aliases )* ),+ => $fn));
+    }};
+}
+
 #[derive(Clone)]
 pub struct LbApp {
     core: Arc<LbCore>,
@@ -159,11 +165,11 @@ impl LbApp {
         }));
 
         // In a separate thread, import the account and send the result down the channel.
-        thread::spawn(closure!(self.core as c, self.messenger as m => move || {
+        spawn!(self.core as c, self.messenger as m => move || {
             if let Err(err) = ch.send(c.import_account(&privkey)) {
                 m.send_err("sending import result", LbError::fmt_program_err(err));
             }
-        }));
+        });
 
         Ok(())
     }
@@ -189,11 +195,11 @@ impl LbApp {
 
         // In a separate thread, start syncing the account. Pass the sync channel which will be
         // used to receive progress updates as indicated above.
-        thread::spawn(closure!(self.core as c, self.messenger as m => move || {
+        spawn!(self.core as c, self.messenger as m => move || {
             if let Err(err) = c.sync(&sync_chan) {
                 m.send_err("syncing", err);
             }
-        }));
+        });
     }
 
     fn export_account(&self) -> LbResult<()> {
