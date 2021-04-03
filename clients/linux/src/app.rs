@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::thread;
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
@@ -40,6 +39,25 @@ use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{progerr, tree_iter_value, uerr};
+
+macro_rules! closure {
+    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {{
+        $( $( let $aliases ).* = $( $vars ).+.clone(); )+
+        $fn
+    }};
+}
+
+macro_rules! make_glib_chan {
+    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {
+        util::make_glib_chan(closure!($( $( $vars ).+ as $( $aliases )* ),+ => $fn));
+    };
+}
+
+macro_rules! spawn {
+    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {{
+        std::thread::spawn(closure!($( $( $vars ).+ as $( $aliases )* ),+ => $fn));
+    }};
+}
 
 #[derive(Clone)]
 pub struct LbApp {
@@ -117,27 +135,22 @@ impl LbApp {
     fn create_account(&self, name: String) -> LbResult<()> {
         self.gui.intro.doing("Creating account...");
 
-        let gui = self.gui.clone();
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-
-        let ch = util::make_glib_chan(move |result: LbResult<()>| {
+        let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
             match result {
                 Ok(_) => {
-                    if let Err(err) = gui.show_account_screen(&c) {
-                        m.send_err("showing account screen", err);
+                    if let Err(err) = lb.gui.show_account_screen(&lb.core) {
+                        lb.messenger.send_err("showing account screen", err);
                     }
                 }
                 Err(err) => match err.kind() {
-                    UserErr => gui.intro.error_create(&err.msg()),
-                    ProgErr => m.send_err("creating account", err),
+                    UserErr => lb.gui.intro.error_create(&err.msg()),
+                    ProgErr => lb.messenger.send_err("creating account", err),
                 },
             }
             glib::Continue(false)
         });
 
-        let c = self.core.clone();
-        thread::spawn(move || ch.send(c.create_account(&name)).unwrap());
+        spawn!(self.core as c => move || ch.send(c.create_account(&name)).unwrap());
         Ok(())
     }
 
@@ -145,8 +158,7 @@ impl LbApp {
         self.gui.intro.doing("Importing account...");
 
         // Create a channel to receive and process the result of importing the account.
-        let lb = self.clone();
-        let ch = util::make_glib_chan(move |result: LbResult<()>| {
+        let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
             // Show any error on the import screen. Otherwise, account syncing will start.
             match result {
                 Ok(_) => lb.import_account_sync(),
@@ -156,9 +168,7 @@ impl LbApp {
         });
 
         // In a separate thread, import the account and send the result down the channel.
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-        thread::spawn(move || {
+        spawn!(self.core as c, self.messenger as m => move || {
             if let Err(err) = ch.send(c.import_account(&privkey)) {
                 m.send_err("sending import result", LbError::fmt_program_err(err));
             }
@@ -169,8 +179,7 @@ impl LbApp {
 
     fn import_account_sync(&self) {
         // Create a channel to receive and process any account sync progress updates.
-        let lb = self.clone();
-        let sync_chan = util::make_glib_chan(move |msgopt| {
+        let sync_chan = make_glib_chan!(self as lb => move |msgopt| {
             // If there is some message, show it. If not, syncing is done, so try to show the
             // account screen. If the account screen is successfully shown, get the account's
             // sync status.
@@ -189,9 +198,7 @@ impl LbApp {
 
         // In a separate thread, start syncing the account. Pass the sync channel which will be
         // used to receive progress updates as indicated above.
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-        thread::spawn(move || {
+        spawn!(self.core as c, self.messenger as m => move || {
             if let Err(err) = c.sync(&sync_chan) {
                 m.send_err("syncing", err);
             }
@@ -230,8 +237,7 @@ impl LbApp {
             Err(err) => self.err("unable to export account", &err),
         }
 
-        let m = self.messenger.clone();
-        let ch = util::make_glib_chan(move |res| {
+        let ch = make_glib_chan!(self.messenger as m => move |res| {
             match res {
                 Ok(path) => {
                     let qr_image = GtkImage::from_file(&path);
@@ -243,39 +249,33 @@ impl LbApp {
             glib::Continue(false)
         });
 
-        let core = self.core.clone();
-        thread::spawn(move || ch.send(core.account_qrcode()).unwrap());
+        spawn!(self.core as c => move || ch.send(c.account_qrcode()).unwrap());
         Ok(())
     }
 
     fn perform_sync(&self) -> LbResult<()> {
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-
         let sync_ui = self.gui.account.sync().clone();
         sync_ui.set_syncing(true);
 
-        let ch = util::make_glib_chan(move |msg| {
-            if let Some(msg) = msg {
+        let ch = make_glib_chan!(self as lb => move |msgopt| {
+            if let Some(msg) = msgopt {
                 sync_ui.sync_progress(&msg);
             } else {
                 sync_ui.set_syncing(false);
-                match c.sync_status() {
+                match lb.core.sync_status() {
                     Ok(s) => sync_ui.set_status(&s),
-                    Err(err) => m.send_err("getting sync status", err),
+                    Err(err) => lb.messenger.send_err("getting sync status", err),
                 }
             }
             glib::Continue(true)
         });
 
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-
-        thread::spawn(move || {
+        spawn!(self.core as c, self.messenger as m => move || {
             if let Err(err) = c.sync(&ch) {
                 m.send_err("syncing", err);
             }
         });
+
         Ok(())
     }
 
@@ -347,10 +347,8 @@ impl LbApp {
 
                 let id = f.id;
                 let content = acctscr.text_content();
-                let c = self.core.clone();
-                let m = self.messenger.clone();
 
-                let ch = util::make_glib_chan(move |result: LbResult<()>| {
+                let ch = make_glib_chan!(self.core as c, self.messenger as m => move |result: LbResult<()>| {
                     match result {
                         Ok(_) => {
                             acctscr.set_saving(false);
@@ -364,8 +362,7 @@ impl LbApp {
                     glib::Continue(false)
                 });
 
-                let c = self.core.clone();
-                thread::spawn(move || ch.send(c.save(id, content)).unwrap());
+                spawn!(self.core as c => move || ch.send(c.save(id, content)).unwrap());
             }
         }
         Ok(())
