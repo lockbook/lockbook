@@ -12,8 +12,8 @@ use gtk::{
     Stack as GtkStack, WrapMode as GtkWrapMode,
 };
 use sourceview::prelude::*;
-use sourceview::Buffer as GtkSourceViewBuffer;
 use sourceview::View as GtkSourceView;
+use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 
 use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::work_unit::WorkUnit;
@@ -76,7 +76,7 @@ impl AccountScreen {
             } => {
                 self.header.set_file(&path);
                 self.sidebar.tree.select(&meta.id);
-                self.editor.set_file(&content);
+                self.editor.set_file(&meta.name, &content);
             }
             EditMode::Folder {
                 path,
@@ -334,6 +334,7 @@ impl SyncPanel {
 struct Editor {
     info: GtkBox,
     textarea: GtkSourceView,
+    highlighter: LanguageManager,
     stack: GtkStack,
     cntr: GtkScrolledWindow,
 }
@@ -367,16 +368,18 @@ impl Editor {
         Self {
             info,
             textarea,
+            highlighter: LanguageManager::new(),
             stack,
             cntr,
         }
     }
 
-    fn set_file(&self, content: &str) {
+    fn set_file(&self, name: &str, content: &str) {
         let tvb = self.textarea.get_buffer().unwrap();
         let svb = tvb.downcast::<GtkSourceViewBuffer>().unwrap();
         svb.begin_not_undoable_action();
         svb.set_text(content);
+        svb.set_language(self.highlighter.guess_language(Some(name), None).as_ref());
         svb.end_not_undoable_action();
 
         self.show("textarea");
