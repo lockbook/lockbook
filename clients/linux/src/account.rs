@@ -19,6 +19,7 @@ use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::work_unit::WorkUnit;
 
 use crate::backend::{LbCore, LbSyncMsg};
+use crate::closure;
 use crate::editmode::EditMode;
 use crate::error::LbResult;
 use crate::filetree::FileTree;
@@ -172,39 +173,33 @@ impl Header {
         }
     }
 
-    fn new_search_field(msngr: &Messenger) -> GtkEntry {
+    fn new_search_field(m: &Messenger) -> GtkEntry {
         let search = GtkEntry::new();
         entry_set_primary_icon(&search, "edit-find-symbolic");
         search.set_placeholder_text(Some("Enter a file location..."));
 
-        let m = msngr.clone();
-        search.connect_focus_out_event(move |_, _| {
+        search.connect_focus_out_event(closure!(m => move |_, _| {
             m.send(Msg::SearchFieldBlur(false));
             gtk::Inhibit(false)
-        });
+        }));
 
-        let m = msngr.clone();
-        search.connect_key_press_event(move |_, key| {
+        search.connect_key_press_event(closure!(m => move |_, key| {
             if key.get_hardware_keycode() == ESC {
                 m.send(Msg::SearchFieldBlur(true));
             }
             gtk::Inhibit(false)
-        });
+        }));
 
-        let m = msngr.clone();
-        search.connect_key_release_event(move |_, key| {
+        search.connect_key_release_event(closure!(m => move |_, key| {
             let k = key.get_hardware_keycode();
             if k != ARROW_UP && k != ARROW_DOWN {
                 m.send(Msg::SearchFieldUpdate);
             }
             gtk::Inhibit(false)
-        });
+        }));
 
-        let m = msngr.clone();
-        search.connect_changed(move |_| m.send(Msg::SearchFieldUpdateIcon));
-
-        let m = msngr.clone();
-        search.connect_activate(move |_| m.send(Msg::SearchFieldExec(None)));
+        search.connect_changed(closure!(m => move |_| m.send(Msg::SearchFieldUpdateIcon)));
+        search.connect_activate(closure!(m => move |_| m.send(Msg::SearchFieldExec(None))));
         search
     }
 
@@ -256,14 +251,13 @@ pub struct SyncPanel {
 }
 
 impl SyncPanel {
-    fn new(msngr: &Messenger) -> Self {
+    fn new(m: &Messenger) -> Self {
         let status = GtkLabel::new(None);
         status.set_halign(GtkAlign::Start);
 
-        let m = msngr.clone();
         let status_evbox = gtk::EventBox::new();
         status_evbox.add(&status);
-        status_evbox.connect_button_press_event(move |_, evt| {
+        status_evbox.connect_button_press_event(closure!(m => move |_, evt| {
             if evt.get_button() == RIGHT_CLICK {
                 let menu = GtkMenu::new();
                 let item_data: Vec<(&str, MsgFn)> = vec![
@@ -271,20 +265,18 @@ impl SyncPanel {
                     ("Details", || Msg::ShowDialogSyncDetails),
                 ];
                 for (name, msg) in item_data {
-                    let m = m.clone();
                     let mi = GtkMenuItem::with_label(name);
-                    mi.connect_activate(move |_| m.send(msg()));
+                    mi.connect_activate(closure!(m => move |_| m.send(msg())));
                     menu.append(&mi);
                 }
                 menu.show_all();
                 menu.popup_at_pointer(Some(evt));
             }
             gtk::Inhibit(false)
-        });
+        }));
 
-        let m = msngr.clone();
         let button = GtkBtn::with_label("Sync");
-        button.connect_clicked(move |_| m.send(Msg::PerformSync));
+        button.connect_clicked(closure!(m => move |_| m.send(Msg::PerformSync)));
 
         let spinner = GtkSpinner::new();
         spinner.set_margin_top(4);

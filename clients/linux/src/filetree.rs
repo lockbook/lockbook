@@ -21,6 +21,7 @@ use uuid::Uuid;
 use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 
 use crate::backend::LbCore;
+use crate::closure;
 use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
@@ -72,19 +73,16 @@ impl FileTree {
     }
 
     fn on_selection_change(popup: &Rc<FileTreePopup>) -> impl Fn(&GtkTreeSelection) {
-        let popup = popup.clone();
-        move |tsel| {
+        closure!(popup => move |tsel| {
             let tree = tsel.get_tree_view().unwrap();
             popup.update(&tree);
-        }
+        })
     }
 
     fn on_button_press(
         popup: &Rc<FileTreePopup>,
     ) -> impl Fn(&GtkTreeView, &GdkEventButton) -> GtkInhibit {
-        let popup = popup.clone();
-
-        move |tree, event| {
+        closure!(popup => move |tree, event| {
             if event.get_button() != RIGHT_CLICK {
                 return GtkInhibit(false);
             }
@@ -93,22 +91,20 @@ impl FileTree {
             popup.menu.popup_at_pointer(Some(event));
 
             GtkInhibit(Self::inhibit_right_click(tree, event))
-        }
+        })
     }
 
     fn on_key_press(m: &Messenger) -> impl Fn(&GtkTreeView, &GdkEventKey) -> GtkInhibit {
-        let m = m.clone();
-        move |_, key| {
+        closure!(m => move |_, key| {
             if key.get_hardware_keycode() == DELETE_KEY {
                 m.send(Msg::DeleteFiles);
             }
             GtkInhibit(false)
-        }
+        })
     }
 
     fn on_row_activated(m: &Messenger) -> impl Fn(&GtkTreeView, &GtkTreePath, &GtkTreeViewColumn) {
-        let m = m.clone();
-        move |t, path, _| {
+        closure!(m => move |t, path, _| {
             if t.row_expanded(&path) {
                 t.collapse_row(&path);
                 return;
@@ -123,7 +119,7 @@ impl FileTree {
                 let iter_uuid = Uuid::parse_str(&iter_id).unwrap();
                 m.send(Msg::OpenFile(Some(iter_uuid)));
             }
-        }
+        })
     }
 
     pub fn widget(&self) -> &GtkTreeView {
@@ -345,10 +341,8 @@ impl PopupItem {
     fn hashmap(m: &Messenger) -> HashMap<Self, GtkMenuItem> {
         let mut items = HashMap::new();
         for (item_key, action) in Self::data() {
-            let m = m.clone();
-
             let mi = GtkMenuItem::with_label(&format!("{:?}", item_key));
-            mi.connect_activate(move |_| m.send(action()));
+            mi.connect_activate(closure!(m => move |_| m.send(action())));
             items.insert(item_key, mi);
         }
         items
