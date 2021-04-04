@@ -37,6 +37,7 @@ struct FileListView: View {
 
                 ForEach(files) { meta in
                     renderCell(meta: meta)
+                        .popover(item: $moving, content: renderMoveDialog)
                         .contextMenu(menuItems: {
                             Button(action: {
                                 handleDelete(meta: meta)
@@ -55,7 +56,6 @@ struct FileListView: View {
                                 Label("Rename", systemImage: "pencil")
                             })
                         })
-
                 }
             }
             .padding(.leading, 20)
@@ -69,7 +69,6 @@ struct FileListView: View {
         .sheet(isPresented: $showingAccount, content: {
             AccountView(core: core, account: account)
         })
-        .sheet(item: $moving, content: renderMoveDialog)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: { showingAccount.toggle() }) {
