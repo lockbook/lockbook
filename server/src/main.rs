@@ -334,6 +334,7 @@ fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) 
         "0.1.0" => Ok(()),
         "0.1.1" => Ok(()),
         "0.1.2" => Ok(()),
+        "0.1.3" => Ok(()),
         _ => Err(()),
     }
 }

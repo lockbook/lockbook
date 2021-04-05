@@ -1051,8 +1051,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "lockbook_core"
-version = "0.1.2"
+name = "lockbook-core"
+version = "0.1.3"
 dependencies = [
  "aead",
  "aes-gcm",

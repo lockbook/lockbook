@@ -1,12 +1,12 @@
 [package]
 name = "lockbook"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["steverusso <steverusso@pm.me"]
 edition = "2018"
 
 [dependencies]
 fuzzy-matcher = "*"
-lockbook_core = { path = "../../core" }
+lockbook-core = { path = "../../core" }
 gdk = "0.13.2"
 gdk-pixbuf = "0.9.0"
 glib = "0.10"

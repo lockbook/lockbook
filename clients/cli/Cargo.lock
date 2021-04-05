@@ -1091,12 +1091,12 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "0.2.20"
+version = "0.2.21"
 dependencies = [
  "atty",
  "chrono",
  "hotwatch",
- "lockbook_core",
+ "lockbook-core",
  "qr2term",
  "serde_json",
  "structopt",
@@ -1104,8 +1104,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "lockbook_core"
-version = "0.1.2"
+name = "lockbook-core"
+version = "0.1.3"
 dependencies = [
  "aead",
  "aes-gcm",
