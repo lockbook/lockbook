@@ -13,6 +13,12 @@ WORKDIR core
 COPY containers/dummy.rs src/lib.rs
 COPY core/Cargo.toml .
 COPY core/Cargo.lock .
+COPY containers/dummy.rs libs/models/src/lib.rs
+COPY core/libs/models/Cargo.toml libs/models/.
+COPY core/libs/models/Cargo.lock libs/models/.
+COPY containers/dummy.rs libs/crypto/src/lib.rs
+COPY core/libs/crypto/Cargo.toml libs/crypto/.
+COPY core/libs/crypto/Cargo.lock libs/crypto/.
 COPY core/benches ./benches
 RUN cargo build --release
 
@@ -24,6 +30,8 @@ ENV API_URL=unused
 
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch src/lib.rs
+RUN touch libs/models/src/lib.rs
+RUN touch libs/crypto/src/lib.rs
 RUN cargo build --release
 
 # Check the formatting of core
@@ -38,4 +46,6 @@ RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clip
 FROM core:${HASH} AS core-server-tests
 ENV API_URL=http://lockbook_server:8000
 RUN touch src/lib.rs
+RUN touch libs/models/src/lib.rs
+RUN touch libs/crypto/src/lib.rs
 RUN cargo build --release

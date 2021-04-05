@@ -1,7 +1,6 @@
 extern crate base64;
 extern crate chrono;
 extern crate hyper;
-extern crate lockbook_core;
 extern crate tokio;
 
 #[macro_use]
@@ -12,6 +11,7 @@ pub mod config;
 pub mod file_content_client;
 pub mod file_index_repo;
 pub mod file_service;
+mod loggers;
 pub mod usage_service;
 pub mod utils;
 
@@ -19,10 +19,9 @@ use crate::config::config;
 use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
-use lockbook_core::loggers;
-use lockbook_core::model::api::*;
-use lockbook_core::service::clock_service::ClockImpl;
-use lockbook_core::service::crypto_service::{PubKeyCryptoService, RSAImpl, RSAVerifyError};
+use lockbook_crypto::clock_service::ClockImpl;
+use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl, RSAVerifyError};
+use lockbook_models::api::*;
 use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -334,6 +333,7 @@ fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) 
         "0.1.0" => Ok(()),
         "0.1.1" => Ok(()),
         "0.1.2" => Ok(()),
+        "0.1.3" => Ok(()),
         _ => Err(()),
     }
 }
