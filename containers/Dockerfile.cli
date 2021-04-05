@@ -10,6 +10,9 @@ RUN rustup component add clippy --toolchain stable
 COPY core/Cargo.toml /core/Cargo.toml
 COPY core/Cargo.lock /core/Cargo.lock
 COPY containers/dummy.rs /core/src/lib.rs
+COPY containers/dummy.rs /core/libs/models/src/lib.rs
+COPY core/libs/models/Cargo.toml /core/libs/models/Cargo.toml
+COPY core/libs/models/Cargo.lock /core/libs/models/Cargo.lock
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
@@ -26,6 +29,7 @@ COPY core /core
 # Cargo thinks this file hasn't changed on the filesystem
 RUN touch /clients/cli/src/main.rs
 RUN touch /core/src/lib.rs
+RUN touch /core/libs/models/src/lib.rs
 RUN cargo build --release
 
 # Check formatting

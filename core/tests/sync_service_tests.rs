@@ -3,7 +3,6 @@ mod integration_test;
 #[cfg(test)]
 mod sync_tests {
     use crate::integration_test::{assert_dbs_eq, generate_account, test_db};
-    use lockbook_core::model::work_unit::WorkUnit;
     use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
@@ -14,6 +13,7 @@ mod sync_tests {
         DefaultAccountService, DefaultDocumentRepo, DefaultFileMetadataRepo, DefaultFileService,
         DefaultLocalChangesRepo, DefaultSyncService,
     };
+    use lockbook_models::work_unit::WorkUnit;
 
     macro_rules! assert_n_work_units {
         ($db:expr, $n:literal) => {

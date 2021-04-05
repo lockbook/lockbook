@@ -1097,6 +1097,7 @@ dependencies = [
  "chrono",
  "hotwatch",
  "lockbook-core",
+ "lockbook-models",
  "qr2term",
  "serde_json",
  "structopt",
@@ -1118,6 +1119,7 @@ dependencies = [
  "flate2",
  "image",
  "jni",
+ "lockbook-models",
  "log",
  "rand",
  "raqote",
@@ -1131,6 +1133,18 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "lockbook-models"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_bytes",
  "uuid",
 ]
 

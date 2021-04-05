@@ -22,8 +22,8 @@ use gtk::{
 };
 use uuid::Uuid;
 
-use lockbook_core::model::file_metadata::{FileMetadata, FileType};
-use lockbook_core::model::work_unit::WorkUnit;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
 use crate::backend::LbCore;

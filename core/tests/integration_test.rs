@@ -1,8 +1,5 @@
 #![allow(dead_code)]
 
-use lockbook_core::model::account::Account;
-use lockbook_core::model::crypto::*;
-use lockbook_core::model::file_metadata::{FileMetadata, FileType};
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::account_repo::AccountRepo;
 use lockbook_core::repo::db_version_repo::DbVersionRepo;
@@ -18,6 +15,9 @@ use lockbook_core::{
     DefaultAccountRepo, DefaultBackend, DefaultDbVersionRepo, DefaultDocumentRepo,
     DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
+use lockbook_models::account::Account;
+use lockbook_models::crypto::*;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 use rsa::{RSAPrivateKey, RSAPublicKey};
 use serde::de::DeserializeOwned;
 use serde::Serialize;

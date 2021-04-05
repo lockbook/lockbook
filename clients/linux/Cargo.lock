@@ -1277,6 +1277,7 @@ dependencies = [
  "glib",
  "gtk",
  "lockbook-core",
+ "lockbook-models",
  "pango",
  "qrcode-generator",
  "serde",
@@ -1300,6 +1301,7 @@ dependencies = [
  "flate2",
  "image",
  "jni",
+ "lockbook-models",
  "log",
  "rand",
  "raqote",
@@ -1313,6 +1315,18 @@ dependencies = [
  "strum 0.19.5",
  "strum_macros 0.19.4",
  "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "lockbook-models"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_bytes",
  "uuid",
 ]
 

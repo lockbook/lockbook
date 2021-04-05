@@ -6,21 +6,6 @@ use uuid::Uuid;
 
 use crate::client;
 use crate::client::{ApiError, Client};
-use crate::model::account::Account;
-use crate::model::api;
-use crate::model::api::{
-    ChangeDocumentContentError, ChangeDocumentContentRequest, CreateDocumentError,
-    CreateDocumentRequest, CreateFolderError, CreateFolderRequest, DeleteDocumentError,
-    DeleteDocumentRequest, DeleteFolderError, DeleteFolderRequest, GetDocumentError,
-    GetDocumentRequest, GetUpdatesRequest, MoveDocumentError, MoveDocumentRequest, MoveFolderError,
-    MoveFolderRequest, RenameDocumentError, RenameDocumentRequest, RenameFolderError,
-    RenameFolderRequest,
-};
-use crate::model::file_metadata::FileMetadata;
-use crate::model::file_metadata::FileType::{Document, Folder};
-use crate::model::local_changes::{Edited, LocalChange as LocalChangeRepoLocalChange};
-use crate::model::work_unit::WorkUnit;
-use crate::model::work_unit::WorkUnit::{LocalChange, ServerChange};
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
@@ -41,6 +26,21 @@ use crate::service::sync_service::WorkExecutionError::{
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::storage::db_provider::Backend;
+use lockbook_models::account::Account;
+use lockbook_models::api;
+use lockbook_models::api::{
+    ChangeDocumentContentError, ChangeDocumentContentRequest, CreateDocumentError,
+    CreateDocumentRequest, CreateFolderError, CreateFolderRequest, DeleteDocumentError,
+    DeleteDocumentRequest, DeleteFolderError, DeleteFolderRequest, GetDocumentError,
+    GetDocumentRequest, GetUpdatesRequest, MoveDocumentError, MoveDocumentRequest, MoveFolderError,
+    MoveFolderRequest, RenameDocumentError, RenameDocumentRequest, RenameFolderError,
+    RenameFolderRequest,
+};
+use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::file_metadata::FileType::{Document, Folder};
+use lockbook_models::local_changes::{Edited, LocalChange as LocalChangeRepoLocalChange};
+use lockbook_models::work_unit::WorkUnit;
+use lockbook_models::work_unit::WorkUnit::{LocalChange, ServerChange};
 
 #[derive(Debug)]
 pub enum CalculateWorkError<MyBackend: Backend> {

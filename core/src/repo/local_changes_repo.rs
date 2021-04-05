@@ -2,11 +2,11 @@ use std::time::SystemTimeError;
 
 use uuid::Uuid;
 
-use crate::model::crypto::{EncryptedDocument, UserAccessInfo};
-use crate::model::file_metadata::FileType;
-use crate::model::local_changes::{Edited, LocalChange, Moved, Renamed};
 use crate::service::clock_service::Clock;
 use crate::storage::db_provider::Backend;
+use lockbook_models::crypto::{EncryptedDocument, UserAccessInfo};
+use lockbook_models::file_metadata::FileType;
+use lockbook_models::local_changes::{Edited, LocalChange, Moved, Renamed};
 use std::{thread, time};
 
 #[derive(Debug)]
@@ -467,13 +467,13 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::file_metadata::FileType::{Document, Folder};
-    use crate::model::local_changes::{LocalChange, Moved, Renamed};
     use crate::model::state::temp_config;
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
     use crate::service::clock_service::Clock;
     use crate::storage::db_provider::Backend;
     use crate::DefaultBackend;
+    use lockbook_models::file_metadata::FileType::{Document, Folder};
+    use lockbook_models::local_changes::{LocalChange, Moved, Renamed};
 
     pub struct TestClock;
 

@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 fuzzy-matcher = "*"
 lockbook-core = { path = "../../core" }
+lockbook-models = { path = "../../core/libs/models" }
 gdk = "0.13.2"
 gdk-pixbuf = "0.9.0"
 glib = "0.10"

@@ -1,7 +1,6 @@
 extern crate base64;
 extern crate chrono;
 extern crate hyper;
-extern crate lockbook_core;
 extern crate tokio;
 
 #[macro_use]
@@ -20,9 +19,9 @@ use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
 use lockbook_core::loggers;
-use lockbook_core::model::api::*;
 use lockbook_core::service::clock_service::ClockImpl;
 use lockbook_core::service::crypto_service::{PubKeyCryptoService, RSAImpl, RSAVerifyError};
+use lockbook_models::api::*;
 use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;

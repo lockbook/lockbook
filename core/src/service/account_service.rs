@@ -1,9 +1,5 @@
 use crate::client;
 use crate::client::Client;
-use crate::model::account::Account;
-use crate::model::api::{
-    GetPublicKeyError, GetPublicKeyRequest, NewAccountError, NewAccountRequest,
-};
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
@@ -17,6 +13,10 @@ use crate::service::account_service::AccountImportError::{
 use crate::service::crypto_service::PubKeyCryptoService;
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
 use crate::storage::db_provider::Backend;
+use lockbook_models::account::Account;
+use lockbook_models::api::{
+    GetPublicKeyError, GetPublicKeyRequest, NewAccountError, NewAccountRequest,
+};
 
 #[derive(Debug)]
 pub enum AccountCreationError<MyBackend: Backend> {

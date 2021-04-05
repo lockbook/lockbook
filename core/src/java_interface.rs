@@ -8,10 +8,7 @@ use jni::JNIEnv;
 use uuid::Uuid;
 
 use crate::json_interface::translate;
-use crate::model::account::Account;
-use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
-use crate::model::work_unit::WorkUnit;
 use crate::service::clock_service::Clock;
 use crate::{
     calculate_work, create_account, create_file, delete_file, execute_work, export_account,
@@ -22,6 +19,9 @@ use crate::{
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
+use lockbook_models::account::Account;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::work_unit::WorkUnit;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 

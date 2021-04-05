@@ -1,10 +1,10 @@
 use crate::client;
 use crate::client::Client;
-use crate::model::api;
-use crate::model::api::{GetUsageRequest, GetUsageResponse};
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::storage::db_provider::Backend;
+use lockbook_models::api;
+use lockbook_models::api::{GetUsageRequest, GetUsageResponse};
 
 pub const BYTE: u64 = 1;
 pub const KILOBYTE: u64 = BYTE * 1000;
@@ -84,14 +84,14 @@ impl<MyBackend: Backend, AccountDb: AccountRepo<MyBackend>, ApiClient: Client>
 #[cfg(test)]
 mod unit_tests {
     use crate::client::{ApiError, Client};
-    use crate::model::account::{Account, ApiUrl};
-    use crate::model::api::{FileUsage, GetUsageResponse, Request};
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoError};
     use crate::service::clock_service::ClockImpl;
     use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
     use crate::service::usage_service::{UsageService, UsageServiceImpl};
     use crate::storage::db_provider::{Backend, FileBackend};
+    use lockbook_models::account::{Account, ApiUrl};
+    use lockbook_models::api::{FileUsage, GetUsageResponse, Request};
     use serde::de::DeserializeOwned;
     use serde::Serialize;
     use uuid::Uuid;

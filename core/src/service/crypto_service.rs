@@ -5,7 +5,7 @@ use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 use sha2::{Digest, Sha256};
 
-use crate::model::crypto::*;
+use lockbook_models::crypto::*;
 
 use self::rand::rngs::OsRng;
 use self::rand::RngCore;

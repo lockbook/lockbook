@@ -1,7 +1,7 @@
-use crate::model::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::file_service::{DocumentUpdateError, FileService, ReadDocumentError};
 use crate::storage::db_provider::Backend;
+use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::farbfeld::FarbfeldEncoder;
@@ -319,9 +319,6 @@ impl<
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::account::Account;
-    use crate::model::drawing::{ColorAlias, Drawing, Stroke};
-    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::file_metadata_repo::FileMetadataRepo;
@@ -336,6 +333,9 @@ mod unit_tests {
         DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService,
     };
+    use lockbook_models::account::Account;
+    use lockbook_models::drawing::{ColorAlias, Drawing, Stroke};
+    use lockbook_models::file_metadata::FileType::{Document, Folder};
 
     #[test]
     fn test_drawing_bounds() {

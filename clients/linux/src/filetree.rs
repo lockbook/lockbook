@@ -18,7 +18,7 @@ use gtk::TreeView as GtkTreeView;
 use gtk::TreeViewColumn as GtkTreeViewColumn;
 use uuid::Uuid;
 
-use lockbook_core::model::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 
 use crate::backend::LbCore;
 use crate::error::LbResult;

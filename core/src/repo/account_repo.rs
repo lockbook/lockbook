@@ -1,6 +1,6 @@
-use crate::model::account::{Account, ApiUrl};
 use crate::repo::account_repo::AccountRepoError::NoAccount;
 use crate::storage::db_provider::Backend;
+use lockbook_models::account::{Account, ApiUrl};
 
 #[derive(Debug)]
 pub enum AccountRepoError<MyBackend: Backend> {
@@ -74,12 +74,12 @@ impl<MyBackend: Backend> AccountRepo<MyBackend> for AccountRepoImpl<MyBackend> {
 #[cfg(test)]
 mod unit_tests {
     use super::AccountRepoImpl;
-    use crate::model::account::Account;
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::service::clock_service::ClockImpl;
     use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
     use crate::storage::db_provider::{Backend, FileBackend};
+    use lockbook_models::account::Account;
 
     type DefaultAccountRepo = AccountRepoImpl<FileBackend>;
 
