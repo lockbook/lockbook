@@ -18,6 +18,12 @@ RUN apt update && apt install -y graphviz
 COPY containers/dummy.rs src/lib.rs
 COPY core/Cargo.toml .
 COPY core/Cargo.lock .
+COPY containers/dummy.rs libs/models/src/lib.rs
+COPY core/libs/models/Cargo.toml libs/models/Cargo.toml
+COPY core/libs/models/Cargo.lock libs/models/Cargo.lock
+COPY containers/dummy.rs libs/crypto/src/lib.rs
+COPY core/libs/crypto/Cargo.toml libs/crypto/Cargo.toml
+COPY core/libs/crypto/Cargo.lock libs/crypto/Cargo.lock
 COPY containers/dummy.rs benches/performator.rs
 COPY containers/dummy.rs benches/throughput.rs
 RUN cargo build --release
@@ -25,4 +31,6 @@ RUN cargo build --release
 # Changes onwards!
 COPY core .
 RUN touch src/lib.rs
+RUN touch libs/models/src/lib.rs
+RUN touch libs/crypto/src/lib.rs
 RUN cargo bench --no-run

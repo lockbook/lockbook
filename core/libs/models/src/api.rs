@@ -1,6 +1,6 @@
-use crate::model::account::{Account, Username};
-use crate::model::crypto::*;
-use crate::model::file_metadata::FileMetadata;
+use crate::account::{Account, Username};
+use crate::crypto::*;
+use crate::file_metadata::FileMetadata;
 use reqwest::Method;
 use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};

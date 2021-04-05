@@ -1,0 +1,15 @@
+[package]
+name = "lockbook-crypto"
+version = "0.1.0"
+authors = ["raayan <raayan@raayanpillai.com>"]
+edition = "2018"
+
+[dependencies]
+aead = "0.2.0"
+aes-gcm = "0.5.0"
+bincode = "1.2.1"
+lockbook-models = { path = "../models" }
+rand = "0.7"
+rsa = { version = "^0.2", features = ["serde1"] }
+sha2 = "0.8.0"
+serde = { version = "1.0", features = ["derive"] }
