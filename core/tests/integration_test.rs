@@ -6,14 +6,14 @@ use lockbook_core::repo::db_version_repo::DbVersionRepo;
 use lockbook_core::repo::document_repo::DocumentRepo;
 use lockbook_core::repo::file_metadata_repo::{FileMetadataRepo, FILE_METADATA};
 use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
-use lockbook_core::service::clock_service::ClockImpl;
-use lockbook_core::service::crypto_service::{
-    AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
-};
 use lockbook_core::storage::db_provider::Backend;
 use lockbook_core::{
     DefaultAccountRepo, DefaultBackend, DefaultDbVersionRepo, DefaultDocumentRepo,
     DefaultFileMetadataRepo, DefaultLocalChangesRepo,
+};
+use lockbook_crypto::clock_service::ClockImpl;
+use lockbook_crypto::crypto_service::{
+    AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;

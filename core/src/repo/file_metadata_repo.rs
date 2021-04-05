@@ -562,7 +562,6 @@ mod unit_tests {
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, Problem};
-    use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
     use crate::storage::db_provider::Backend;
@@ -570,6 +569,7 @@ mod unit_tests {
         DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService,
     };
+    use lockbook_crypto::crypto_service::PubKeyCryptoService;
     use lockbook_models::account::Account;
     use lockbook_models::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
     use lockbook_models::file_metadata::FileType::{Document, Folder};

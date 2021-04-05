@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
-use crate::service::crypto_service::{
+use crate::service::file_encryption_service::UnableToGetKeyForUser::UnableToDecryptKey;
+use lockbook_crypto::crypto_service::{
     AESDecryptError, AESEncryptError, PubKeyCryptoService, RSADecryptError, RSAEncryptError,
     SymmetricCryptoService,
 };
-use crate::service::file_encryption_service::UnableToGetKeyForUser::UnableToDecryptKey;
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
@@ -288,9 +288,9 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
 mod unit_tests {
     use std::collections::HashMap;
 
-    use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::{DefaultCrypto, DefaultFileEncryptionService};
+    use lockbook_crypto::crypto_service::PubKeyCryptoService;
     use lockbook_models::account::Account;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
 

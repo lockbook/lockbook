@@ -19,11 +19,14 @@ COPY core/Cargo.toml /core/Cargo.toml
 COPY core/Cargo.lock /core/Cargo.lock
 COPY core/libs/models/Cargo.toml /core/libs/models/Cargo.toml
 COPY core/libs/models/Cargo.lock /core/libs/models/Cargo.lock
+COPY core/libs/crypto/Cargo.toml /core/libs/crypto/Cargo.toml
+COPY core/libs/crypto/Cargo.lock /core/libs/crypto/Cargo.lock
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
 COPY containers/dummy.rs /core/src/lib.rs
 COPY containers/dummy.rs /core/libs/models/src/lib.rs
+COPY containers/dummy.rs /core/libs/crypto/src/lib.rs
 
 COPY containers/dummy.rs src/main.rs
 COPY clients/linux/Cargo.toml .
@@ -38,6 +41,7 @@ COPY core /core
 RUN touch src/main.rs
 RUN touch /core/src/lib.rs
 RUN touch /core/libs/models/src/lib.rs
+RUN touch /core/libs/crypto/src/lib.rs
 RUN cargo build --release
 
 # Check the formatting of core

@@ -322,7 +322,6 @@ mod unit_tests {
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::file_metadata_repo::FileMetadataRepo;
-    use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::drawing_service::{
         DrawingService, DrawingServiceImpl, SupportedImageFormats,
     };
@@ -333,6 +332,7 @@ mod unit_tests {
         DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService,
     };
+    use lockbook_crypto::crypto_service::PubKeyCryptoService;
     use lockbook_models::account::Account;
     use lockbook_models::drawing::{ColorAlias, Drawing, Stroke};
     use lockbook_models::file_metadata::FileType::{Document, Folder};

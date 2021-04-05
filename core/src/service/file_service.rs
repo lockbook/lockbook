@@ -666,7 +666,6 @@ mod unit_tests {
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
     use crate::repo::local_changes_repo::LocalChangesRepo;
-    use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::{
         DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
@@ -678,6 +677,7 @@ mod unit_tests {
         DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
         DefaultLocalChangesRepo, NewFileFromPathError,
     };
+    use lockbook_crypto::crypto_service::PubKeyCryptoService;
     use lockbook_models::account::Account;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
 

@@ -86,10 +86,10 @@ mod unit_tests {
     use crate::client::{ApiError, Client};
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoError};
-    use crate::service::clock_service::ClockImpl;
-    use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
     use crate::service::usage_service::{UsageService, UsageServiceImpl};
     use crate::storage::db_provider::{Backend, FileBackend};
+    use lockbook_crypto::clock_service::ClockImpl;
+    use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl};
     use lockbook_models::account::{Account, ApiUrl};
     use lockbook_models::api::{FileUsage, GetUsageResponse, Request};
     use serde::de::DeserializeOwned;

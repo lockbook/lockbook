@@ -5,13 +5,13 @@ mod request_common_tests {
     use crate::assert_matches;
     use crate::integration_test::{generate_account, generate_root_metadata, test_config};
     use lockbook_core::client::{ApiError, Client, ClientImpl};
-    use lockbook_core::service::clock_service::{Clock, ClockImpl};
     use lockbook_core::service::code_version_service::CodeVersion;
-    use lockbook_core::service::crypto_service::{
+    use lockbook_core::{create_account, get_account, DefaultCodeVersion, DefaultCrypto};
+    use lockbook_crypto::clock_service::{Clock, ClockImpl};
+    use lockbook_crypto::crypto_service::{
         PubKeyCryptoService, RSADecryptError, RSAEncryptError, RSAImpl, RSASignError,
         RSAVerifyError,
     };
-    use lockbook_core::{create_account, get_account, DefaultCodeVersion, DefaultCrypto};
     use lockbook_models::api::{
         GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, NewAccountError,
         NewAccountRequest,

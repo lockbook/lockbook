@@ -11,7 +11,6 @@ use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
-use crate::service::crypto_service::RSASignError;
 use crate::service::file_compression_service::FileCompressionService;
 use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::{FileService, NewFileFromPathError};
@@ -26,6 +25,7 @@ use crate::service::sync_service::WorkExecutionError::{
 };
 use crate::service::{file_encryption_service, file_service};
 use crate::storage::db_provider::Backend;
+use lockbook_crypto::crypto_service::RSASignError;
 use lockbook_models::account::Account;
 use lockbook_models::api;
 use lockbook_models::api::{

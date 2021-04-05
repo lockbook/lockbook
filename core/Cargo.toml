@@ -19,9 +19,10 @@ native-tls = ["reqwest/native-tls"]
 [dependencies.lockbook-models]
 path = "libs/models"
 
+[dependencies.lockbook-crypto]
+path = "libs/crypto"
+
 [dependencies]
-aead = "0.2.0"
-aes-gcm = "0.5.0"
 base64 = "0.11.0"
 basic-human-duration = "0.1.2"
 bincode = "1.2.1"
