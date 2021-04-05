@@ -7,10 +7,10 @@ mod change_document_content_tests {
         aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
     };
     use lockbook_core::client::{ApiError, Client};
-    use lockbook_core::model::api::*;
-    use lockbook_core::model::file_metadata::FileType;
-    use lockbook_core::service::crypto_service::{AESImpl, SymmetricCryptoService};
     use lockbook_core::DefaultClient;
+    use lockbook_crypto::crypto_service::{AESImpl, SymmetricCryptoService};
+    use lockbook_models::api::*;
+    use lockbook_models::file_metadata::FileType;
     use uuid::Uuid;
 
     #[test]

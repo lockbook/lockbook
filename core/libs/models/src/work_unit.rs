@@ -1,4 +1,4 @@
-use crate::model::file_metadata::FileMetadata;
+use crate::file_metadata::FileMetadata;
 
 use serde::{Deserialize, Serialize};
 

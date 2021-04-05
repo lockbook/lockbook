@@ -1,12 +1,12 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::model::work_unit::WorkUnit;
 use lockbook_core::service::sync_service::WorkCalculated;
 use lockbook_core::{
     calculate_work, execute_work, set_last_synced, CalculateWorkError, Error as CoreError,
     SetLastSyncedError,
 };
+use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config};
