@@ -162,14 +162,14 @@ pub struct CustomError {
 #[macro_export]
 macro_rules! err {
     ($err:ident $( ( $( $args:expr ),+ ) )?) => {
-        crate::error::Error::Simple(crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?)
+        $crate::error::Error::Simple($crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?)
     };
 }
 
 #[macro_export]
 macro_rules! err_unexpected {
     ($base:literal $(, $fmtargs:expr )*) => {
-        crate::error::Error::Simple(crate::error::ErrorKind::Unexpected({
+        $crate::error::Error::Simple($crate::error::ErrorKind::Unexpected({
             let msg = format!($base $(, $fmtargs )*);
             format!("unexpected: {}", msg)
         }))
@@ -179,8 +179,8 @@ macro_rules! err_unexpected {
 #[macro_export]
 macro_rules! err_extra {
     ($err:ident $( ( $( $args:expr ),+ ) )?, $base:literal $(, $fmtargs:expr )*) => {
-        crate::error::Error::Custom(crate::error::CustomError {
-            base: crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?,
+        $crate::error::Error::Custom($crate::error::CustomError {
+            base: $crate::error::ErrorKind::$err $( ( $( $args ),+ ) )?,
             context: None,
             extra: Some(format!($base $(, $fmtargs )*)),
         })
