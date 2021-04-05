@@ -845,15 +845,15 @@ impl Gui {
             .unwrap();
 
         // Window.
-        let w = GtkAppWindow::new(app);
-        w.set_title("Lockbook");
-        w.set_icon(Some(&icon));
-        w.add_accel_group(&accels);
-        w.set_default_size(1300, 700);
+        let win = GtkAppWindow::new(app);
+        win.set_title("Lockbook");
+        win.set_icon(Some(&icon));
+        win.add_accel_group(&accels);
+        win.set_default_size(1300, 700);
         if s.window_maximize {
-            w.maximize();
+            win.maximize();
         }
-        w.add(&{
+        win.add(&{
             let base = GtkBox::new(Vertical, 0);
             base.add(menubar.widget());
             base.pack_start(&screens, true, true, 0);
@@ -861,7 +861,7 @@ impl Gui {
         });
 
         Self {
-            win: w,
+            win,
             menubar,
             screens,
             intro,
