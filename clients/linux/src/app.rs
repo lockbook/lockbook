@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use gdk_pixbuf::Pixbuf as GdkPixbuf;
+use gdk_pixbuf::{InterpType, Pixbuf as GdkPixbuf};
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
@@ -839,9 +839,15 @@ impl Gui {
         screens.add_named(&intro.cntr, "intro");
         screens.add_named(&account.cntr, "account");
 
+        let icon = GdkPixbuf::from_inline(LOGO_INTRO, true)
+            .unwrap()
+            .scale_simple(22, 32, InterpType::Nearest)
+            .unwrap();
+
         // Window.
         let w = GtkAppWindow::new(app);
         w.set_title("Lockbook");
+        w.set_icon(Some(&icon));
         w.add_accel_group(&accels);
         w.set_default_size(1300, 700);
         if s.window_maximize {
