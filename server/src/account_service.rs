@@ -1,11 +1,11 @@
 use crate::utils::username_is_valid;
 use crate::{file_index_repo, usage_service, RequestContext};
 use chrono::FixedOffset;
-use lockbook_core::model::api::{
+use lockbook_models::api::{
     GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
     GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
 };
-use lockbook_core::model::file_metadata::FileType;
+use lockbook_models::file_metadata::FileType;
 use std::ops::Add;
 
 pub async fn new_account(

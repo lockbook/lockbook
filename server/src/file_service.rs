@@ -2,8 +2,8 @@ use crate::file_index_repo;
 use crate::file_index_repo::FileError;
 use crate::usage_service;
 use crate::{file_content_client, RequestContext};
-use lockbook_core::model::api::*;
-use lockbook_core::model::file_metadata::FileType;
+use lockbook_models::api::*;
+use lockbook_models::file_metadata::FileType;
 
 pub async fn change_document_content(
     context: &mut RequestContext<'_, ChangeDocumentContentRequest>,
