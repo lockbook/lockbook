@@ -1,7 +1,19 @@
-pub fn make_glib_chan<T, F: FnMut(T) -> glib::Continue + 'static>(func: F) -> glib::Sender<T> {
-    let (s, r) = glib::MainContext::channel::<T>(glib::PRIORITY_DEFAULT);
-    r.attach(None, func);
-    s
+#[macro_export]
+macro_rules! cloned_var_name {
+    ($v:ident) => {
+        $v
+    };
+    ($v:ident $( $_:ident )+) => {
+        $v
+    };
+}
+
+#[macro_export]
+macro_rules! closure {
+    ($( $( $vars:ident ).+ $( as $aliases:ident )? ),+ => $fn:expr) => {{
+        $( let $crate::cloned_var_name!($( $aliases )? $( $vars )+)  = $( $vars ).+.clone(); )+
+        $fn
+    }};
 }
 
 pub mod gui {
