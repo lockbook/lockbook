@@ -10,13 +10,13 @@ use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
-use lockbook_core::model::account::Account;
-use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::service::db_state_service::State;
 use lockbook_core::service::drawing_service::SupportedImageFormats;
 use lockbook_core::service::drawing_service::SupportedImageFormats::{
     Bmp, Farbfeld, Jpeg, Png, Pnm, Tga,
 };
+use lockbook_models::account::Account;
+use lockbook_models::file_metadata::FileMetadata;
 use std::path::Path;
 
 #[macro_export]

@@ -15,8 +15,8 @@ use sourceview::prelude::*;
 use sourceview::View as GtkSourceView;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 
-use lockbook_core::model::file_metadata::FileMetadata;
-use lockbook_core::model::work_unit::WorkUnit;
+use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::work_unit::WorkUnit;
 
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::closure;

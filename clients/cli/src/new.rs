@@ -1,5 +1,5 @@
-use lockbook_core::model::file_metadata::FileType::Folder;
 use lockbook_core::{create_file_at_path, CreateFileAtPathError, Error as CoreError};
+use lockbook_models::file_metadata::FileType::Folder;
 use std::fs;
 use std::fs::File;
 use std::path::Path;

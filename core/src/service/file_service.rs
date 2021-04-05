@@ -1,9 +1,6 @@
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::model::crypto::DecryptedDocument;
-use crate::model::file_metadata::FileType::{Document, Folder};
-use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo;
 use crate::repo::document_repo::DocumentRepo;
@@ -34,6 +31,9 @@ use crate::service::file_service::NewFileFromPathError::{
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
 use crate::storage::db_provider::Backend;
+use lockbook_models::crypto::DecryptedDocument;
+use lockbook_models::file_metadata::FileType::{Document, Folder};
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 
 #[derive(Debug)]
 pub enum NewFileError<MyBackend: Backend> {
@@ -660,15 +660,12 @@ impl<
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::account::Account;
-    use crate::model::file_metadata::FileType::{Document, Folder};
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::document_repo::DocumentRepo;
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
     use crate::repo::local_changes_repo::LocalChangesRepo;
-    use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::{
         DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
@@ -680,6 +677,9 @@ mod unit_tests {
         DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
         DefaultLocalChangesRepo, NewFileFromPathError,
     };
+    use lockbook_crypto::crypto_service::PubKeyCryptoService;
+    use lockbook_models::account::Account;
+    use lockbook_models::file_metadata::FileType::{Document, Folder};
 
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {

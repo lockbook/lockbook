@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-server"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Parth <parth@mehrotra.me>"]
 edition = "2018"
 
@@ -9,7 +9,8 @@ base64 = "0.11.0"
 chrono = "0.4.15"
 fern = { version = "0.6.0", features = ["colored"]}
 hyper = "0.13.5"
-lockbook_core = { path = "../core" }
+lockbook-crypto = { path = "../core/libs/crypto" }
+lockbook-models = { path = "../core/libs/models" }
 log = "0.4.8"
 openssl = { version = "0.10", features = ["vendored"] }
 postgres-openssl = "0.3.0"

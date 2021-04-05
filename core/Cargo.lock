@@ -1051,11 +1051,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "lockbook_core"
-version = "0.1.2"
+name = "lockbook-core"
+version = "0.1.3"
 dependencies = [
- "aead",
- "aes-gcm",
  "base64 0.11.0",
  "basic-human-duration",
  "bincode",
@@ -1067,6 +1065,8 @@ dependencies = [
  "flate2",
  "image",
  "jni",
+ "lockbook-crypto",
+ "lockbook-models",
  "log",
  "rand 0.7.3",
  "raqote",
@@ -1080,6 +1080,32 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "lockbook-crypto"
+version = "0.1.0"
+dependencies = [
+ "aead",
+ "aes-gcm",
+ "bincode",
+ "lockbook-models",
+ "rand 0.7.3",
+ "rsa",
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "lockbook-models"
+version = "0.1.0"
+dependencies = [
+ "rand 0.7.3",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_bytes",
  "uuid",
 ]
 

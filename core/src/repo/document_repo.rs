@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
-use crate::model::crypto::*;
 use crate::storage::db_provider::Backend;
+use lockbook_models::crypto::*;
 
 #[derive(Debug)]
 pub enum Error<MyBackend: Backend> {
@@ -88,7 +88,8 @@ mod unit_tests {
     use crate::model::state::temp_config;
     use crate::repo::document_repo::DocumentRepo;
     use crate::storage::db_provider::Backend;
-    use crate::{model::crypto::*, DefaultBackend, DefaultDocumentRepo};
+    use crate::{DefaultBackend, DefaultDocumentRepo};
+    use lockbook_models::crypto::*;
 
     #[test]
     fn update_document() {

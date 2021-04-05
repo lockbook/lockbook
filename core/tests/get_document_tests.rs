@@ -7,9 +7,9 @@ mod get_document_tests {
         aes_decrypt, aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
     };
     use lockbook_core::client::{ApiError, Client};
-    use lockbook_core::model::api::*;
-    use lockbook_core::model::file_metadata::FileType;
     use lockbook_core::DefaultClient;
+    use lockbook_models::api::*;
+    use lockbook_models::file_metadata::FileType;
     use uuid::Uuid;
 
     #[test]

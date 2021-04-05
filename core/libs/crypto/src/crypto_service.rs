@@ -5,13 +5,13 @@ use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 use sha2::{Digest, Sha256};
 
-use crate::model::crypto::*;
+use lockbook_models::crypto::*;
 
 use self::rand::rngs::OsRng;
 use self::rand::RngCore;
 use self::rsa::hash::Hashes;
 use self::rsa::{PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
-use crate::service::clock_service::Clock;
+use crate::clock_service::Clock;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -158,8 +158,8 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
 #[cfg(test)]
 mod unit_test_pubkey {
     use super::rsa::RSAPrivateKey;
-    use crate::service::clock_service::Clock;
-    use crate::service::crypto_service::{PubKeyCryptoService, RSAImpl};
+    use crate::clock_service::Clock;
+    use crate::crypto_service::{PubKeyCryptoService, RSAImpl};
 
     struct EarlyClock;
     impl Clock for EarlyClock {
@@ -291,7 +291,7 @@ impl SymmetricCryptoService for AESImpl {
 mod unit_test_symmetric {
     use uuid::Uuid;
 
-    use crate::service::crypto_service::{AESImpl, SymmetricCryptoService};
+    use crate::crypto_service::{AESImpl, SymmetricCryptoService};
 
     #[test]
     fn test_key_generation() {

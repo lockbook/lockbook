@@ -4,8 +4,8 @@ mod integration_test;
 mod get_updates_test {
     use crate::integration_test::{generate_account, generate_root_metadata};
     use lockbook_core::client::Client;
-    use lockbook_core::model::api::{GetUpdatesRequest, NewAccountRequest};
     use lockbook_core::DefaultClient;
+    use lockbook_models::api::{GetUpdatesRequest, NewAccountRequest};
 
     #[test]
     fn get_updates() {

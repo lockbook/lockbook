@@ -4,8 +4,6 @@ mod integration_test;
 mod account_tests {
     use crate::integration_test::{generate_account, random_username, test_config, test_db};
     use lockbook_core::client::ApiError;
-    use lockbook_core::model::account::Account;
-    use lockbook_core::model::api::NewAccountError;
     use lockbook_core::repo::account_repo::AccountRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::account_service::{
@@ -17,6 +15,8 @@ mod account_tests {
         create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
         DefaultBackend, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
     };
+    use lockbook_models::account::Account;
+    use lockbook_models::api::NewAccountError;
     use rsa::{BigUint, RSAPrivateKey};
     use std::mem::discriminant;
 

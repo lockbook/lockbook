@@ -1,7 +1,7 @@
-use crate::model::account::Account;
-use crate::model::api::*;
 use crate::service::code_version_service::CodeVersion;
-use crate::service::crypto_service::{PubKeyCryptoService, RSASignError};
+use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSASignError};
+use lockbook_models::account::Account;
+use lockbook_models::api::*;
 use reqwest::blocking::Client as ReqwestClient;
 use reqwest::Error as ReqwestError;
 use serde::de::DeserializeOwned;

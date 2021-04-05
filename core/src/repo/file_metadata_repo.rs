@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
-use crate::model::file_metadata::FileType::{Document, Folder};
-use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 use crate::repo::file_metadata_repo::Problem::{
     CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty, FileOrphaned,
     NameConflictDetected, NoRootFolder,
 };
 use crate::storage::db_provider::Backend;
+use lockbook_models::file_metadata::FileType::{Document, Folder};
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 
 #[derive(Debug)]
 pub enum DbError<MyBackend: Backend> {
@@ -558,15 +558,10 @@ fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, FileMetadata>) -> bool {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::account::Account;
-    use crate::model::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
-    use crate::model::file_metadata::FileType::{Document, Folder};
-    use crate::model::file_metadata::{FileMetadata, FileType};
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, Problem};
-    use crate::service::crypto_service::PubKeyCryptoService;
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
     use crate::storage::db_provider::Backend;
@@ -574,6 +569,11 @@ mod unit_tests {
         DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService,
     };
+    use lockbook_crypto::crypto_service::PubKeyCryptoService;
+    use lockbook_models::account::Account;
+    use lockbook_models::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
+    use lockbook_models::file_metadata::FileType::{Document, Folder};
+    use lockbook_models::file_metadata::{FileMetadata, FileType};
 
     fn base_test_file_metadata() -> FileMetadata {
         FileMetadata {

@@ -1,5 +1,5 @@
-use lockbook_core::model::work_unit::WorkUnit;
 use lockbook_core::{calculate_work, CalculateWorkError, Error as CoreError};
+use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config, print_last_successful_sync};

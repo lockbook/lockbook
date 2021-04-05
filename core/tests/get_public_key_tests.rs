@@ -5,8 +5,8 @@ mod get_public_key_tests {
     use crate::assert_matches;
     use crate::integration_test::{generate_account, generate_root_metadata};
     use lockbook_core::client::{ApiError, Client};
-    use lockbook_core::model::api::*;
     use lockbook_core::DefaultClient;
+    use lockbook_models::api::*;
 
     #[test]
     fn get_public_key() {

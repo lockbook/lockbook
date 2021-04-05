@@ -1,5 +1,4 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use lockbook_core::model::file_metadata::FileType::Document;
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::account_service::AccountService;
@@ -10,6 +9,7 @@ use lockbook_core::{
     DefaultAccountService, DefaultDbProvider, DefaultFileMetadataRepo, DefaultFileService,
     DefaultSyncService,
 };
+use lockbook_models::file_metadata::FileType::Document;
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
 use std::env;

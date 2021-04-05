@@ -6,11 +6,7 @@ use glib::Sender as GlibSender;
 use qrcode_generator::QrCodeEcc;
 use uuid::Uuid;
 
-use lockbook_core::model::account::Account;
-use lockbook_core::model::crypto::DecryptedDocument;
-use lockbook_core::model::file_metadata::FileMetadata;
 use lockbook_core::model::state::Config;
-use lockbook_core::model::work_unit::WorkUnit;
 use lockbook_core::service::db_state_service::State as DbState;
 use lockbook_core::service::sync_service::WorkCalculated;
 use lockbook_core::{
@@ -19,6 +15,10 @@ use lockbook_core::{
     get_file_by_path, get_last_synced, get_root, get_usage_human_string, import_account,
     list_paths, migrate_db, read_document, rename_file, set_last_synced, write_document,
 };
+use lockbook_models::account::Account;
+use lockbook_models::crypto::DecryptedDocument;
+use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::{LbError, LbResult};
 use crate::{progerr, uerr};

@@ -17,12 +17,7 @@ use strum_macros::EnumIter;
 use uuid::Uuid;
 
 use crate::client::{ApiError, ClientImpl};
-use crate::model::account::Account;
-use crate::model::api::{FileUsage, GetPublicKeyError, NewAccountError};
-use crate::model::crypto::DecryptedDocument;
-use crate::model::file_metadata::{FileMetadata, FileType};
 use crate::model::state::Config;
-use crate::model::work_unit::WorkUnit;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_version_repo::DbVersionRepoImpl;
 use crate::repo::document_repo::DocumentRepoImpl;
@@ -35,9 +30,7 @@ use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
     AccountService, AccountServiceImpl,
 };
-use crate::service::clock_service::{Clock, ClockImpl};
 use crate::service::code_version_service::CodeVersionImpl;
-use crate::service::crypto_service::{AESImpl, RSAImpl};
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
 use crate::service::file_compression_service::FileCompressionServiceImpl;
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
@@ -53,6 +46,13 @@ use crate::service::usage_service::{UsageService, UsageServiceImpl};
 use crate::service::{db_state_service, file_service, usage_service};
 #[allow(unused_imports)] // For one touch backend switching, allow one of these to be unused
 use crate::storage::db_provider::{Backend, FileBackend, SledBackend};
+use lockbook_crypto::clock_service::{Clock, ClockImpl};
+use lockbook_crypto::crypto_service::{AESImpl, RSAImpl};
+use lockbook_models::account::Account;
+use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
+use lockbook_models::crypto::DecryptedDocument;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::work_unit::WorkUnit;
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -60,11 +60,11 @@ pub enum Error<U: Serialize> {
     UiError(U),
     Unexpected(String),
 }
-use crate::model::drawing::Drawing;
 use crate::repo::local_changes_repo;
 use crate::service::drawing_service::{
     DrawingError, DrawingService, DrawingServiceImpl, SupportedImageFormats,
 };
+use lockbook_models::drawing::Drawing;
 use serde_json::error::Category;
 use Error::UiError;
 

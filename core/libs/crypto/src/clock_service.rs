@@ -1,4 +1,4 @@
-use crate::model::crypto::Timestamped;
+use lockbook_models::crypto::Timestamped;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub trait Clock {

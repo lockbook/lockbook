@@ -79,6 +79,8 @@ clients/apple/include/
 clients/apple/libs/
 
 core/target/
+core/libs/models/target/
+core/libs/crypto/target/
 clients/cli/target/
 core/lockbook_core.h
 

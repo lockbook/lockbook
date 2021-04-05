@@ -1,12 +1,13 @@
 [package]
 name = "lockbook"
-version = "0.2.20"
+version = "0.2.21"
 authors = ["parth"]
 edition = "2018"
 
 
 [dependencies]
-lockbook_core = { path = "../../core" }
+lockbook-core = { path = "../../core" }
+lockbook-models = { path = "../../core/libs/models" }
 structopt = "0.3.13"
 uuid = "0.8"
 serde_json = "1.0.44"
