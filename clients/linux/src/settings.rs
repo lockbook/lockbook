@@ -20,7 +20,7 @@ pub struct Settings {
 impl Settings {
     pub fn default() -> Self {
         Self {
-            hidden_tree_cols: vec![],
+            hidden_tree_cols: vec!["Id".to_string(), "Type".to_string()],
             window_maximize: false,
             path: "".to_string(),
         }
