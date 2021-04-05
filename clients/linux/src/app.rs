@@ -829,10 +829,6 @@ impl Gui {
     fn new(app: &GtkApp, m: &Messenger, s: &Settings) -> Self {
         // Menubar.
         let accels = GtkAccelGroup::new();
-        let icon = GdkPixbuf::from_inline(LOGO_INTRO, true)
-            .unwrap()
-            .scale_simple(22, 32, InterpType::Nearest)
-            .unwrap();
         let menubar = Menubar::new(m, &accels);
         menubar.set(&EditMode::None);
 
@@ -842,6 +838,11 @@ impl Gui {
         let screens = GtkStack::new();
         screens.add_named(&intro.cntr, "intro");
         screens.add_named(&account.cntr, "account");
+
+        let icon = GdkPixbuf::from_inline(LOGO_INTRO, true)
+            .unwrap()
+            .scale_simple(22, 32, InterpType::Nearest)
+            .unwrap();
 
         // Window.
         let w = GtkAppWindow::new(app);
