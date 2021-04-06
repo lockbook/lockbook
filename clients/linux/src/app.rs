@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use gdk_pixbuf::Pixbuf as GdkPixbuf;
+use gdk_pixbuf::{InterpType, Pixbuf as GdkPixbuf};
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
@@ -26,7 +26,7 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
-use crate::backend::LbCore;
+use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::error::{
     LbErrKind::{Program as ProgErr, User as UserErr},
@@ -38,25 +38,20 @@ use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
-use crate::{progerr, tree_iter_value, uerr};
-
-macro_rules! closure {
-    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {{
-        $( $( let $aliases ).* = $( $vars ).+.clone(); )+
-        $fn
-    }};
-}
+use crate::{closure, progerr, tree_iter_value, uerr};
 
 macro_rules! make_glib_chan {
-    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {
-        util::make_glib_chan(closure!($( $( $vars ).+ as $( $aliases )* ),+ => $fn));
-    };
+    ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
+        let (s, r) = glib::MainContext::channel::<$param_type>(glib::PRIORITY_DEFAULT);
+        r.attach(None, closure!($( $( $vars ).+ $( as $aliases )* ),+ => move |$param: $param_type| $fn));
+        s
+    }};
 }
 
 macro_rules! spawn {
-    ($( $( $vars:ident ).+ as $( $aliases:ident )* ),+ $(,)? => $fn:expr) => {{
-        std::thread::spawn(closure!($( $( $vars ).+ as $( $aliases )* ),+ => $fn));
-    }};
+    ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => $fn:expr) => {
+        std::thread::spawn(closure!($( $( $vars ).+ $( as $aliases )* ),+ => $fn));
+    };
 }
 
 #[derive(Clone)]
@@ -179,7 +174,7 @@ impl LbApp {
 
     fn import_account_sync(&self) {
         // Create a channel to receive and process any account sync progress updates.
-        let sync_chan = make_glib_chan!(self as lb => move |msgopt| {
+        let sync_chan = make_glib_chan!(self as lb => move |msgopt: Option<LbSyncMsg>| {
             // If there is some message, show it. If not, syncing is done, so try to show the
             // account screen. If the account screen is successfully shown, get the account's
             // sync status.
@@ -237,7 +232,7 @@ impl LbApp {
             Err(err) => self.err("unable to export account", &err),
         }
 
-        let ch = make_glib_chan!(self.messenger as m => move |res| {
+        let ch = make_glib_chan!(self.messenger as m => move |res: LbResult<String>| {
             match res {
                 Ok(path) => {
                     let qr_image = GtkImage::from_file(&path);
@@ -257,7 +252,7 @@ impl LbApp {
         let sync_ui = self.gui.account.sync().clone();
         sync_ui.set_syncing(true);
 
-        let ch = make_glib_chan!(self as lb => move |msgopt| {
+        let ch = make_glib_chan!(self as lb => move |msgopt: Option<LbSyncMsg>| {
             if let Some(msg) = msgopt {
                 sync_ui.sync_progress(&msg);
             } else {
@@ -490,24 +485,21 @@ impl LbApp {
         d.add_button("Ok", GtkResponseType::Ok);
         d.set_default_response(GtkResponseType::Ok);
 
-        let acctscr = self.gui.account.clone();
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-
-        d.connect_response(move |d, resp| {
+        d.connect_response(closure!(self as lb => move |d, resp| {
             if resp != GtkResponseType::Ok {
                 d.close();
                 return;
             }
 
             let (id, name) = (meta.id, entry.get_text());
-            match c.rename(&id, &name) {
+            match lb.core.rename(&id, &name) {
                 Ok(_) => {
                     d.close();
+                    let acctscr = &lb.gui.account;
                     acctscr.tree().set_name(&id, &name);
-                    match c.sync_status() {
+                    match lb.core.sync_status() {
                         Ok(s) => acctscr.sync().set_status(&s),
-                        Err(err) => m.send_err("getting sync status", err),
+                        Err(err) => lb.messenger.send_err("getting sync status", err),
                     }
                 }
                 Err(err) => match err.kind() {
@@ -518,11 +510,11 @@ impl LbApp {
                     }
                     ProgErr => {
                         d.close();
-                        m.send_err("renaming file", err);
+                        lb.messenger.send_err("renaming file", err);
                     }
                 },
             }
-        });
+        }));
 
         d.show_all();
         Ok(())
@@ -562,12 +554,11 @@ impl LbApp {
         comp.set_text_column(1);
         comp.set_match_func(|_, _, _| true);
 
-        let m = self.messenger.clone();
-        comp.connect_match_selected(move |_, model, iter| {
+        comp.connect_match_selected(closure!(self.messenger as m => move |_, model, iter| {
             let iter_val = tree_iter_value!(model, iter, 1, String);
             m.send(Msg::SearchFieldExec(Some(iter_val)));
             gtk::Inhibit(false)
-        });
+        }));
 
         self.gui.account.set_search_field_completion(&comp);
         self.state.borrow_mut().set_search_components(search);
@@ -636,23 +627,20 @@ impl LbApp {
         d.get_content_area().set_center_widget(Some(&details));
         d.add_button("Refresh", GtkResponseType::Other(RESP_REFRESH));
         d.add_button("Close", GtkResponseType::Close);
-
-        let c = self.core.clone();
-        let m = self.messenger.clone();
-        d.connect_response(move |d, r| match r {
-            GtkResponseType::Other(RESP_REFRESH) => match sync_details(&c) {
+        d.connect_response(closure!(self as lb => move |d, r| match r {
+            GtkResponseType::Other(RESP_REFRESH) => match sync_details(&lb.core) {
                 Ok(details) => {
-                    m.send(Msg::RefreshSyncStatus);
+                    lb.messenger.send(Msg::RefreshSyncStatus);
                     d.get_content_area().set_center_widget(Some(&details));
                     d.get_content_area().show_all();
                     d.set_position(GtkWindowPosition::CenterAlways);
                 }
-                Err(err) => m.send_err("building sync details ui", err),
+                Err(err) => lb.messenger.send_err("building sync details ui", err),
             },
             _ => d.close(),
-        });
-
+        }));
         d.show_all();
+
         Ok(())
     }
 
@@ -851,9 +839,15 @@ impl Gui {
         screens.add_named(&intro.cntr, "intro");
         screens.add_named(&account.cntr, "account");
 
+        let icon = GdkPixbuf::from_inline(LOGO_INTRO, true)
+            .unwrap()
+            .scale_simple(22, 32, InterpType::Nearest)
+            .unwrap();
+
         // Window.
         let w = GtkAppWindow::new(app);
         w.set_title("Lockbook");
+        w.set_icon(Some(&icon));
         w.add_accel_group(&accels);
         w.set_default_size(1300, 700);
         if s.window_maximize {
@@ -929,12 +923,9 @@ impl SettingsUi {
         let chbxs = GtkBox::new(Vertical, 0);
 
         for col in FileTreeCol::removable() {
-            let s = s.clone();
-            let m = m.clone();
-
             let ch = GtkCheckBox::with_label(&col.name());
             ch.set_active(!s.borrow().hidden_tree_cols.contains(&col.name()));
-            ch.connect_toggled(move |_| m.send(Msg::ToggleTreeCol(col)));
+            ch.connect_toggled(closure!(m => move |_| m.send(Msg::ToggleTreeCol(col))));
             chbxs.add(&ch);
         }
 
@@ -942,13 +933,11 @@ impl SettingsUi {
     }
 
     fn window(s: &Rc<RefCell<Settings>>) -> GtkBox {
-        let s = s.clone();
-
         let ch = GtkCheckBox::with_label("Maximize on startup");
         ch.set_active(s.borrow().window_maximize);
-        ch.connect_toggled(move |chbox| {
+        ch.connect_toggled(closure!(s => move |chbox| {
             s.borrow_mut().window_maximize = chbox.get_active();
-        });
+        }));
 
         let chbxs = GtkBox::new(Vertical, 0);
         chbxs.add(&ch);

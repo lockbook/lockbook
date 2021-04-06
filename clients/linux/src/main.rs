@@ -20,8 +20,6 @@ mod settings;
 mod util;
 
 use std::cell::RefCell;
-use std::env;
-use std::process;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -51,21 +49,7 @@ fn main() {
     };
 
     let gtk_app = GtkApp::new(None, Default::default()).unwrap();
-    gtk_app.connect_activate(on_activate(&core, &settings));
-    gtk_app.connect_shutdown(on_shutdown(&settings));
-    gtk_app.run(&[]);
-}
-
-fn get_data_dir() -> String {
-    let default = format!("{}/.lockbook", env::var("HOME").unwrap());
-    env::var("LOCKBOOK_PATH").unwrap_or(default)
-}
-
-fn on_activate(core: &Arc<LbCore>, settings: &Rc<RefCell<Settings>>) -> impl Fn(&GtkApp) {
-    let core = core.clone();
-    let settings = settings.clone();
-
-    move |app| {
+    gtk_app.connect_activate(closure!(core, settings => move |app| {
         if let Err(err) = gtk_add_css_provider() {
             launch_err("adding css provider", &err);
         }
@@ -74,16 +58,19 @@ fn on_activate(core: &Arc<LbCore>, settings: &Rc<RefCell<Settings>>) -> impl Fn(
         if let Err(err) = lb.show() {
             launch_err("displaying app", &err.msg());
         }
-    }
+    }));
+    gtk_app.connect_shutdown(closure!(settings => move |_| {
+        match settings.borrow_mut().to_file() {
+            Ok(_) => println!("bye!"),
+            Err(err) => println!("error: {:?}", err),
+        }
+    }));
+    gtk_app.run(&[]);
 }
 
-fn on_shutdown(settings: &Rc<RefCell<Settings>>) -> impl Fn(&GtkApp) {
-    let settings = settings.clone();
-
-    move |_| match settings.borrow_mut().to_file() {
-        Ok(_) => println!("bye!"),
-        Err(err) => println!("error: {:?}", err),
-    }
+fn get_data_dir() -> String {
+    let default = format!("{}/.lockbook", std::env::var("HOME").unwrap());
+    std::env::var("LOCKBOOK_PATH").unwrap_or(default)
 }
 
 fn gtk_add_css_provider() -> Result<(), String> {
@@ -116,5 +103,5 @@ fn launch_err(prefix: &str, err: &str) -> ! {
     d.show_all();
     d.run();
 
-    process::exit(1);
+    std::process::exit(1);
 }
