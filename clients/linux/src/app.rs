@@ -300,6 +300,7 @@ impl LbApp {
 
         if let Some(id) = maybe_id.or(selected) {
             let meta = self.core.file_by_id(id)?;
+            self.gui.win.set_title(&meta.name);
             self.state.borrow_mut().set_opened_file(Some(meta.clone()));
             match meta.file_type {
                 FileType::Document => self.open_document(&meta.id),
@@ -364,6 +365,7 @@ impl LbApp {
     }
 
     fn close_file(&self) -> LbResult<()> {
+        self.gui.win.set_title(DEFAULT_WIN_TITLE);
         let mut state = self.state.borrow_mut();
         if state.get_opened_file().is_some() {
             self.edit(&EditMode::None)?;
@@ -846,7 +848,7 @@ impl Gui {
 
         // Window.
         let win = GtkAppWindow::new(app);
-        win.set_title("Lockbook");
+        win.set_title(DEFAULT_WIN_TITLE);
         win.set_icon(Some(&icon));
         win.add_accel_group(&accels);
         win.set_default_size(1300, 700);
@@ -1026,6 +1028,7 @@ fn usage(usage_string: String) -> LbResult<GtkBox> {
     Ok(cntr)
 }
 
+const DEFAULT_WIN_TITLE: &str = "Lockbook";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LICENSE: &str = include_str!("../res/UNLICENSE");
 const COMMENTS: &str = "Lockbook is a document editor that is secure, minimal, private, open source, and cross-platform.";
