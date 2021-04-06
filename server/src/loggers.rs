@@ -198,7 +198,13 @@ fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>
 
     futures::executor::block_on(async {
         handle
-            .spawn(async move { events.event(event).await })
+            .spawn(async move {
+                events
+                    .event(event)
+                    .await
+                    .err()
+                    .map(|err| eprintln!("Failed reporting event to PagerDuty! {}", err))
+            })
             .await
             .err()
             .map(|err| eprintln!("Failed spawning task in Tokio runtime! {}", err))
