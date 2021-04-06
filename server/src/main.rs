@@ -28,6 +28,7 @@ use serde::Serialize;
 use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 use tokio::sync::Mutex;
 
 static LOG_FILE: &str = "lockbook_server.log";
@@ -46,11 +47,15 @@ pub struct RequestContext<'a, TRequest> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let handle = Handle::current();
     let config = config();
+
     loggers::init(
         Path::new(&config.server.log_path),
         LOG_FILE.to_string(),
         true,
+        &config.server.pd_api_key,
+        handle,
     )
     .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str())
     .level(log::LevelFilter::Info)
