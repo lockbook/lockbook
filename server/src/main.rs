@@ -97,8 +97,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     hyper::Server::bind(&addr)
         .http1_keepalive(false)
         .http2_keep_alive_interval(None)
-        .serve(make_service)
-        .await?;
+        .serve(make_service);
+    // .await?;
+
+    error!("An error has occurred!");
+
     Ok(())
 }
 

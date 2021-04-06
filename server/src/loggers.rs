@@ -2,7 +2,9 @@ use fern::colors::{Color, ColoredLevelConfig};
 use fern::Dispatch;
 use log::{Level, Log, Metadata, Record};
 use pagerduty_rs::eventsv2async::EventsV2;
-use pagerduty_rs::types::{Change, ChangePayload, Event};
+use pagerduty_rs::types::{
+    AlertTrigger, AlertTriggerPayload, Change, ChangePayload, Event, Severity,
+};
 use serde::Serialize;
 use std::path::Path;
 use std::time::SystemTime;
@@ -82,7 +84,15 @@ fn pd_logger(pd_api_key: &String, handle: Handle) -> Box<dyn Log> {
     let _ = notify(
         pd_api_key,
         &handle,
-        &"PagerDuty client has connected, server is hot.".to_string(),
+        Event::Change(Change {
+            payload: ChangePayload {
+                summary: "Lockbook Server is starting up...".to_string(),
+                timestamp: SystemTime::now().into(),
+                source: Some("localhost".to_string()), // TODO: Hostname
+                custom_details: Option::<()>::None,
+            },
+            links: None,
+        }),
     );
 
     let pdl = PDLogger {
@@ -100,33 +110,83 @@ struct PDLogger {
 
 impl Log for PDLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= Level::Warn
+        metadata.level() <= Level::Error
     }
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            notify(&self.key, &self.handle, &record.args().to_string());
+            notify(
+                &self.key,
+                &self.handle,
+                Event::AlertTrigger(AlertTrigger {
+                    payload: AlertTriggerPayload {
+                        severity: level_to_severity(record.level()),
+                        summary: record.args().to_string(),
+                        source: "localhost".to_string(), // TODO: Hostname
+                        timestamp: Some(SystemTime::now().into()),
+                        component: None,
+                        group: None,
+                        class: None,
+                        custom_details: Some(LogDetails {
+                            data: record.args().to_string(),
+                            logger: record.target().to_string(),
+                        }),
+                    },
+                    dedup_key: Some(dedup_key(record)),
+                    images: None,
+                    links: None,
+                    client: None,
+                    client_url: None,
+                }),
+            );
         }
     }
 
     fn flush(&self) {}
 }
 
-fn notify(api_key: &String, handle: &Handle, message: &String) {
+fn level_to_severity(level: Level) -> Severity {
+    match level {
+        Level::Error => Severity::Error,
+        Level::Warn => Severity::Info,
+        Level::Info => Severity::Info,
+        Level::Debug => Severity::Info,
+        Level::Trace => Severity::Info,
+    }
+}
+
+fn dedup_key(record: &Record) -> String {
+    match (record.file(), record.line()) {
+        (Some(file), Some(line)) => {
+            format!("{}#{}", file, line)
+        }
+        (_, _) => record
+            .target()
+            .chars()
+            .take(60)
+            .chain("::".chars())
+            .chain(record.args().to_string().chars())
+            .take(255)
+            .collect(),
+    }
+}
+
+#[derive(Serialize)]
+struct LogDetails<T: serde::Serialize> {
+    data: T,
+    logger: String,
+}
+
+fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>(
+    api_key: &String,
+    handle: &Handle,
+    event: Event<T>,
+) {
     let events = EventsV2::new(api_key.to_string(), Some("lockbook-server".to_string())).unwrap();
-    let e = Event::Change(Change {
-        payload: ChangePayload {
-            summary: message.to_string(),
-            timestamp: SystemTime::now().into(),
-            source: Some("lockbook-server".to_string()),
-            custom_details: Option::<()>::None,
-        },
-        links: None,
-    });
 
     futures::executor::block_on(async {
         handle
-            .spawn(async move { events.event(e).await })
+            .spawn(async move { events.event(event).await })
             .await
             .expect("Task spawned in Tokio executor panicked")
             .unwrap_or_else(|_| {})

@@ -672,7 +672,7 @@ dependencies = [
  "http",
  "indexmap",
  "slab",
- "tokio 1.2.0",
+ "tokio 1.4.0",
  "tokio-util 0.6.3",
  "tracing",
  "tracing-futures",
@@ -798,7 +798,7 @@ dependencies = [
  "itoa",
  "pin-project 1.0.5",
  "socket2",
- "tokio 1.2.0",
+ "tokio 1.4.0",
  "tower-service",
  "tracing",
  "want",
@@ -815,19 +815,6 @@ dependencies = [
  "native-tls",
  "tokio 0.2.21",
  "tokio-tls",
-]
-
-[[package]]
-name = "hyper-tls"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
-dependencies = [
- "bytes 1.0.1",
- "hyper 0.14.4",
- "native-tls",
- "tokio 1.2.0",
- "tokio-native-tls",
 ]
 
 [[package]]
@@ -961,7 +948,6 @@ dependencies = [
  "openssl",
  "pagerduty-rs",
  "postgres-openssl",
- "reqwest 0.11.2",
  "rsa",
  "rust-s3",
  "serde",
@@ -1257,10 +1243,8 @@ dependencies = [
 [[package]]
 name = "pagerduty-rs"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "969eeb5ffb41f3edfe20d3618d6e15aedd604ffa645e734bc30195a8d5207483"
 dependencies = [
- "reqwest 0.11.2",
+ "reqwest 0.10.10",
  "serde",
  "time 0.2.26",
  "url",
@@ -1549,7 +1533,7 @@ dependencies = [
  "http",
  "http-body 0.3.1",
  "hyper 0.13.5",
- "hyper-tls 0.4.1",
+ "hyper-tls",
  "ipnet",
  "js-sys",
  "lazy_static",
@@ -1585,20 +1569,17 @@ dependencies = [
  "http",
  "http-body 0.4.0",
  "hyper 0.14.4",
- "hyper-tls 0.5.0",
  "ipnet",
  "js-sys",
  "lazy_static",
  "log",
  "mime",
- "native-tls",
  "percent-encoding",
  "pin-project-lite 0.2.4",
  "serde",
  "serde_json",
  "serde_urlencoded",
- "tokio 1.2.0",
- "tokio-native-tls",
+ "tokio 1.4.0",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -2093,9 +2074,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.2.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8190d04c665ea9e6b6a0dc45523ade572c088d2e6566244c1122671dbf4ae3a"
+checksum = "134af885d758d645f0f0505c9a8b3f9bf8a348fd822e112ab5248138348f1722"
 dependencies = [
  "autocfg 1.0.0",
  "bytes 1.0.1",
@@ -2115,16 +2096,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "tokio-native-tls"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7d995660bd2b7f8c1568414c1126076c13fbb725c40112dc0120b78eb9b717b"
-dependencies = [
- "native-tls",
- "tokio 1.2.0",
 ]
 
 [[package]]
@@ -2205,7 +2176,7 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite 0.2.4",
- "tokio 1.2.0",
+ "tokio 1.4.0",
 ]
 
 [[package]]
