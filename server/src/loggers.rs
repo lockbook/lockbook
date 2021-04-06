@@ -17,6 +17,7 @@ pub fn init(
     std_colors: bool,
     pd_api_key: &Option<String>,
     handle: Handle,
+    build: &String,
 ) -> Result<Dispatch, io::Error> {
     let colors_level = ColoredLevelConfig::new()
         .error(Color::Red)
@@ -67,20 +68,13 @@ pub fn init(
         .chain(stdout_logger)
         .chain(file_logger);
 
-    match pd_api_key {
-        None => Ok(base_logger),
-        Some(api_key) => {
-            let pd_logger = fern::Dispatch::new()
-                .format(move |out, message, _| {
-                    out.finish(format_args!("{message}", message = message.clone()))
-                })
-                .chain(pd_logger(api_key, handle));
-            Ok(base_logger.chain(pd_logger))
-        }
-    }
+    Ok(match pd_api_key {
+        None => base_logger,
+        Some(api_key) => base_logger.chain(pd_logger(build, api_key, handle)),
+    })
 }
 
-fn pd_logger(pd_api_key: &String, handle: Handle) -> Box<dyn Log> {
+fn pd_logger(build: &String, pd_api_key: &String, handle: Handle) -> Dispatch {
     let _ = notify(
         pd_api_key,
         &handle,
@@ -89,7 +83,9 @@ fn pd_logger(pd_api_key: &String, handle: Handle) -> Box<dyn Log> {
                 summary: "Lockbook Server is starting up...".to_string(),
                 timestamp: SystemTime::now().into(),
                 source: Some("localhost".to_string()), // TODO: Hostname
-                custom_details: Option::<()>::None,
+                custom_details: Some(ChangeDetail {
+                    build: build.to_string(),
+                }),
             },
             links: None,
         }),
@@ -98,14 +94,20 @@ fn pd_logger(pd_api_key: &String, handle: Handle) -> Box<dyn Log> {
     let pdl = PDLogger {
         key: pd_api_key.to_string(),
         handle: handle,
+        build: build.to_string(),
     };
 
-    Box::new(pdl)
+    fern::Dispatch::new()
+        .format(move |out, message, _| {
+            out.finish(format_args!("{message}", message = message.clone()))
+        })
+        .chain(Box::new(pdl) as Box<dyn Log>)
 }
 
 struct PDLogger {
     key: String,
     handle: Handle,
+    build: String,
 }
 
 impl Log for PDLogger {
@@ -130,9 +132,12 @@ impl Log for PDLogger {
                         custom_details: Some(LogDetails {
                             data: record.args().to_string(),
                             logger: record.target().to_string(),
+                            file: record.file().map(|c| c.to_string()),
+                            line: record.line().map(|c| c.to_string()),
+                            build: self.build.to_string(),
                         }),
                     },
-                    dedup_key: Some(dedup_key(record)),
+                    dedup_key: Some(dedup_key(record, self.build.to_string())),
                     images: None,
                     links: None,
                     client: None,
@@ -155,15 +160,14 @@ fn level_to_severity(level: Level) -> Severity {
     }
 }
 
-fn dedup_key(record: &Record) -> String {
+fn dedup_key(record: &Record, build: String) -> String {
     match (record.file(), record.line()) {
         (Some(file), Some(line)) => {
-            format!("{}#{}", file, line)
+            format!("{}-{}#{}", build, file, line)
         }
-        (_, _) => record
-            .target()
+        (_, _) => build
             .chars()
-            .take(60)
+            .chain(record.target().chars().take(30))
             .chain("::".chars())
             .chain(record.args().to_string().chars())
             .take(255)
@@ -175,6 +179,14 @@ fn dedup_key(record: &Record) -> String {
 struct LogDetails<T: serde::Serialize> {
     data: T,
     logger: String,
+    file: Option<String>,
+    line: Option<String>,
+    build: String,
+}
+
+#[derive(Serialize)]
+struct ChangeDetail {
+    build: String,
 }
 
 fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>(
@@ -191,13 +203,4 @@ fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>
             .expect("Task spawned in Tokio executor panicked")
             .unwrap_or_else(|_| {})
     });
-}
-
-fn event_to_json<T: Serialize>(event: &Event<T>) -> String {
-    match event {
-        Event::Change(c) => serde_json::to_string(c).unwrap(),
-        Event::AlertTrigger(at) => serde_json::to_string(at).unwrap(),
-        Event::AlertAcknowledge(aa) => serde_json::to_string(aa).unwrap(),
-        Event::AlertResolve(ar) => serde_json::to_string(ar).unwrap(),
-    }
 }
