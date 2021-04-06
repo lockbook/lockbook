@@ -14,7 +14,7 @@ lockbook-crypto = { path = "../core/libs/crypto" }
 lockbook-models = { path = "../core/libs/models" }
 log = "0.4.8"
 openssl = { version = "0.10", features = ["vendored"] }
-pagerduty-rs = { path = "../../pagerduty-rs" }
+pagerduty-rs = { git = "https://github.com/raayan/pagerduty-rs.git", branch = "raayan/lower_reqwests" }
 postgres-openssl = "0.3.0"
 rsa = { version = "^0.2", features = ["serde1"] }
 rust-s3 = { version = "0.22.3", features = ["path-style"] }

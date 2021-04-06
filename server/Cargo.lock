@@ -1243,6 +1243,7 @@ dependencies = [
 [[package]]
 name = "pagerduty-rs"
 version = "0.1.1"
+source = "git+https://github.com/raayan/pagerduty-rs.git?branch=raayan/lower_reqwests#8cdee81fb4c66fcd55e5cfa6e0dc78173dec74ae"
 dependencies = [
  "reqwest 0.10.10",
  "serde",
