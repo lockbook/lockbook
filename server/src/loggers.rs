@@ -200,7 +200,7 @@ fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>
         handle
             .spawn(async move { events.event(event).await })
             .await
-            .expect("Task spawned in Tokio executor panicked")
-            .unwrap_or_else(|_| {})
+            .err()
+            .map(|err| eprintln!("Failed spawning task in Tokio runtime! {}", err))
     });
 }
