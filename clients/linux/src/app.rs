@@ -579,7 +579,7 @@ impl LbApp {
         }));
 
         self.gui.account.set_search_field_completion(&comp);
-        self.state.borrow_mut().set_search_components(search);
+        self.state.borrow_mut().search = Some(search);
         Ok(())
     }
 
@@ -731,10 +731,6 @@ impl LbState {
             opened_file: None,
             open_file_dirty: false,
         }
-    }
-
-    fn set_search_components(&mut self, search: SearchComponents) {
-        self.search = Some(search);
     }
 
     fn get_first_search_match(&self) -> Option<String> {
