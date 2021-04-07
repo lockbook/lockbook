@@ -386,12 +386,12 @@ impl Editor {
         svb.set_language(self.highlighter.guess_language(Some(name), None).as_ref());
         svb.end_not_undoable_action();
 
-        self.show("textarea");
-        self.textarea.grab_focus();
-
         self.change_sig_id.replace(Some(svb.connect_changed(
             closure!(self.messenger as m => move |_| m.send(Msg::FileEdited)),
         )));
+
+        self.show("textarea");
+        self.textarea.grab_focus();
     }
 
     fn show_folder_info(&self, f: &FileMetadata, n_children: usize) {
