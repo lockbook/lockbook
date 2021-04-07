@@ -39,8 +39,6 @@ use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr};
-use glib::translate::{FromGlib, ToGlib};
-use glib::SignalHandlerId;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -336,7 +334,7 @@ impl LbApp {
 
     fn edit(&self, mode: &EditMode) -> LbResult<()> {
         self.gui.menubar.set(&mode);
-        self.gui.account.show(&mode, &mut self.state.borrow_mut());
+        self.gui.account.show(&mode);
         Ok(())
     }
 
@@ -720,11 +718,10 @@ impl LbApp {
     }
 }
 
-pub struct LbState {
+struct LbState {
     search: Option<SearchComponents>,
     opened_file: Option<FileMetadata>,
     open_file_dirty: bool,
-    pub change_sig_id: Option<SignalHandlerId>,
 }
 
 impl LbState {
@@ -733,7 +730,6 @@ impl LbState {
             search: None,
             opened_file: None,
             open_file_dirty: false,
-            change_sig_id: None,
         }
     }
 
@@ -759,14 +755,6 @@ impl LbState {
         match &self.opened_file {
             Some(f) => Some(f),
             None => None,
-        }
-    }
-
-    // Because SignalHandlerId doesn't implement clone
-    pub fn get_change_signal(&self) -> Option<SignalHandlerId> {
-        match &self.change_sig_id {
-            None => None,
-            Some(id) => Some(SignalHandlerId::from_glib(id.to_glib())),
         }
     }
 

@@ -1,6 +1,8 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
+use glib::SignalHandlerId;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
@@ -18,7 +20,6 @@ use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::work_unit::WorkUnit;
 
-use crate::app::LbState;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::closure;
 use crate::editmode::EditMode;
@@ -69,7 +70,7 @@ impl AccountScreen {
         self.sidebar.tree.add(b, f)
     }
 
-    pub fn show(&self, mode: &EditMode, state: &mut LbState) {
+    pub fn show(&self, mode: &EditMode) {
         match mode {
             EditMode::PlainText {
                 path,
@@ -78,7 +79,7 @@ impl AccountScreen {
             } => {
                 self.header.set_file(&path);
                 self.sidebar.tree.select(&meta.id);
-                self.editor.set_file(&meta.name, &content, state);
+                self.editor.set_file(&meta.name, &content);
             }
             EditMode::Folder {
                 path,
@@ -328,6 +329,7 @@ struct Editor {
     info: GtkBox,
     textarea: GtkSourceView,
     highlighter: LanguageManager,
+    change_sig_id: RefCell<Option<SignalHandlerId>>,
     stack: GtkStack,
     cntr: GtkScrolledWindow,
     messenger: Messenger,
@@ -363,17 +365,18 @@ impl Editor {
             info,
             textarea,
             highlighter: LanguageManager::new(),
+            change_sig_id: RefCell::new(None),
             stack,
             cntr,
             messenger: m.clone(),
         }
     }
 
-    fn set_file(&self, name: &str, content: &str, state: &mut LbState) {
+    fn set_file(&self, name: &str, content: &str) {
         let tvb = self.textarea.get_buffer().unwrap();
 
         // Stop listening for changes so that document load doesn't emit FileEdited
-        if let Some(id) = state.get_change_signal() {
+        if let Some(id) = self.change_sig_id.take() {
             tvb.disconnect(id)
         }
 
@@ -386,9 +389,9 @@ impl Editor {
         self.show("textarea");
         self.textarea.grab_focus();
 
-        let m = &self.messenger;
-        state.change_sig_id =
-            Some(svb.connect_changed(closure!(m => move |_| m.send(Msg::FileEdited))));
+        self.change_sig_id.replace(Some(svb.connect_changed(
+            closure!(self.messenger as m => move |_| m.send(Msg::FileEdited)),
+        )));
     }
 
     fn show_folder_info(&self, f: &FileMetadata, n_children: usize) {
