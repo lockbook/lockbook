@@ -340,7 +340,7 @@ impl LbApp {
 
     fn file_edited(&self) -> LbResult<()> {
         let mut state = self.state.borrow_mut();
-        if let Some(f) = state.get_opened_file() {
+        if let Some(f) = state.opened_file.as_ref() {
             self.gui.win.set_title(&format!("+ {}", f.name));
             state.open_file_dirty = true;
         }
@@ -350,7 +350,7 @@ impl LbApp {
     fn save(&self) -> LbResult<()> {
         let mut state = self.state.borrow_mut();
 
-        if let Some(f) = state.get_opened_file().cloned() {
+        if let Some(f) = state.opened_file.as_ref().cloned() {
             if f.file_type == FileType::Document {
                 self.gui.win.set_title(&f.name);
                 state.open_file_dirty = false;
@@ -383,7 +383,7 @@ impl LbApp {
     fn close_file(&self) -> LbResult<()> {
         self.gui.win.set_title(DEFAULT_WIN_TITLE);
         let mut state = self.state.borrow_mut();
-        if state.get_opened_file().is_some() {
+        if state.opened_file.as_ref().is_some() {
             self.edit(&EditMode::None)?;
             state.set_opened_file(None);
         }
@@ -606,7 +606,7 @@ impl LbApp {
 
     fn search_field_blur(&self, escaped: bool) -> LbResult<()> {
         let state = self.state.borrow();
-        let opened_file = state.get_opened_file();
+        let opened_file = state.opened_file.as_ref();
 
         if escaped {
             match opened_file {
@@ -749,13 +749,6 @@ impl LbState {
             }
         }
         None
-    }
-
-    fn get_opened_file(&self) -> Option<&FileMetadata> {
-        match &self.opened_file {
-            Some(f) => Some(f),
-            None => None,
-        }
     }
 
     fn set_opened_file(&mut self, f: Option<FileMetadata>) {
