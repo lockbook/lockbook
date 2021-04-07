@@ -18,6 +18,7 @@ use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::work_unit::WorkUnit;
 
+use crate::app::LbState;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::closure;
 use crate::editmode::EditMode;
@@ -38,7 +39,7 @@ impl AccountScreen {
     pub fn new(m: &Messenger, s: &Settings) -> Self {
         let header = Header::new(&m);
         let sidebar = Sidebar::new(&m, &s);
-        let editor = Editor::new();
+        let editor = Editor::new(&m);
 
         let paned = GtkPaned::new(Horizontal);
         paned.set_position(350);
@@ -68,7 +69,7 @@ impl AccountScreen {
         self.sidebar.tree.add(b, f)
     }
 
-    pub fn show(&self, mode: &EditMode) {
+    pub fn show(&self, mode: &EditMode, state: &mut LbState) {
         match mode {
             EditMode::PlainText {
                 path,
@@ -77,7 +78,7 @@ impl AccountScreen {
             } => {
                 self.header.set_file(&path);
                 self.sidebar.tree.select(&meta.id);
-                self.editor.set_file(&meta.name, &content);
+                self.editor.set_file(&meta.name, &content, state);
             }
             EditMode::Folder {
                 path,
@@ -329,10 +330,11 @@ struct Editor {
     highlighter: LanguageManager,
     stack: GtkStack,
     cntr: GtkScrolledWindow,
+    messenger: Messenger,
 }
 
 impl Editor {
-    fn new() -> Self {
+    fn new(m: &Messenger) -> Self {
         let empty = GtkBox::new(Vertical, 0);
         empty.set_valign(GtkAlign::Center);
         empty.add(&GtkImage::from_pixbuf(Some(
@@ -363,11 +365,18 @@ impl Editor {
             highlighter: LanguageManager::new(),
             stack,
             cntr,
+            messenger: m.clone(),
         }
     }
 
-    fn set_file(&self, name: &str, content: &str) {
+    fn set_file(&self, name: &str, content: &str, state: &mut LbState) {
         let tvb = self.textarea.get_buffer().unwrap();
+
+        // Stop listening for changes so that document load doesn't emit FileEdited
+        if let Some(id) = state.get_change_signal() {
+            tvb.disconnect(id)
+        }
+
         let svb = tvb.downcast::<GtkSourceViewBuffer>().unwrap();
         svb.begin_not_undoable_action();
         svb.set_text(content);
@@ -376,6 +385,10 @@ impl Editor {
 
         self.show("textarea");
         self.textarea.grab_focus();
+
+        let m = &self.messenger;
+        state.change_sig_id =
+            Some(svb.connect_changed(closure!(m => move |_| m.send(Msg::FileEdited))));
     }
 
     fn show_folder_info(&self, f: &FileMetadata, n_children: usize) {
