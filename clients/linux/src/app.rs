@@ -39,6 +39,8 @@ use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr};
+use glib::translate::{FromGlib, ToGlib};
+use glib::SignalHandlerId;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -90,6 +92,7 @@ impl LbApp {
 
                 Msg::NewFile(path) => lb.new_file(path),
                 Msg::OpenFile(id) => lb.open_file(id),
+                Msg::FileEdited => lb.file_edited(),
                 Msg::SaveFile => lb.save(),
                 Msg::CloseFile => lb.close_file(),
                 Msg::DeleteFiles => lb.delete_files(),
@@ -312,7 +315,9 @@ impl LbApp {
     }
 
     fn open_document(&self, id: &Uuid) -> LbResult<()> {
+        // Check for file dirtiness here
         let (meta, content) = self.core.open(&id)?;
+        self.state.borrow_mut().open_file_dirty = false;
         self.edit(&EditMode::PlainText {
             path: self.core.full_path_for(&meta),
             meta,
@@ -331,13 +336,26 @@ impl LbApp {
 
     fn edit(&self, mode: &EditMode) -> LbResult<()> {
         self.gui.menubar.set(&mode);
-        self.gui.account.show(&mode);
+        self.gui.account.show(&mode, &mut self.state.borrow_mut());
+        Ok(())
+    }
+
+    fn file_edited(&self) -> LbResult<()> {
+        let mut state = self.state.borrow_mut();
+        if let Some(f) = state.get_opened_file() {
+            self.gui.win.set_title(&format!("+ {}", f.name));
+            state.open_file_dirty = true;
+        }
         Ok(())
     }
 
     fn save(&self) -> LbResult<()> {
-        if let Some(f) = &self.state.borrow().get_opened_file() {
+        let mut state = self.state.borrow_mut();
+
+        if let Some(f) = state.get_opened_file().cloned() {
             if f.file_type == FileType::Document {
+                self.gui.win.set_title(&f.name);
+                state.open_file_dirty = false;
                 let acctscr = self.gui.account.clone();
                 acctscr.set_saving(true);
 
@@ -702,9 +720,11 @@ impl LbApp {
     }
 }
 
-struct LbState {
+pub struct LbState {
     search: Option<SearchComponents>,
     opened_file: Option<FileMetadata>,
+    open_file_dirty: bool,
+    pub change_sig_id: Option<SignalHandlerId>,
 }
 
 impl LbState {
@@ -712,6 +732,8 @@ impl LbState {
         Self {
             search: None,
             opened_file: None,
+            open_file_dirty: false,
+            change_sig_id: None,
         }
     }
 
@@ -737,6 +759,14 @@ impl LbState {
         match &self.opened_file {
             Some(f) => Some(f),
             None => None,
+        }
+    }
+
+    // Because SignalHandlerId doesn't implement clone
+    pub fn get_change_signal(&self) -> Option<SignalHandlerId> {
+        match &self.change_sig_id {
+            None => None,
+            Some(id) => Some(SignalHandlerId::from_glib(id.to_glib())),
         }
     }
 
