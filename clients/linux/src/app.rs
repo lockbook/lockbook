@@ -584,7 +584,7 @@ impl LbApp {
     }
 
     fn search_field_update(&self) -> LbResult<()> {
-        if let Some(search) = self.state.borrow().search_ref() {
+        if let Some(search) = self.state.borrow().search.as_ref() {
             let input = self.gui.account.get_search_field_text();
             search.update_for(&input);
         }
@@ -735,10 +735,6 @@ impl LbState {
 
     fn set_search_components(&mut self, search: SearchComponents) {
         self.search = Some(search);
-    }
-
-    fn search_ref(&self) -> Option<&SearchComponents> {
-        self.search.as_ref()
     }
 
     fn get_first_search_match(&self) -> Option<String> {
