@@ -8,11 +8,13 @@ edition = "2018"
 base64 = "0.11.0"
 chrono = "0.4.15"
 fern = { version = "0.6.0", features = ["colored"]}
+futures = "0.3.13"
 hyper = "0.13.5"
 lockbook-crypto = { path = "../core/libs/crypto" }
 lockbook-models = { path = "../core/libs/models" }
 log = "0.4.8"
 openssl = { version = "0.10", features = ["vendored"] }
+pagerduty-rs = { git = "https://github.com/raayan/pagerduty-rs.git", branch = "raayan/lower_reqwests" }
 postgres-openssl = "0.3.0"
 rsa = { version = "^0.2", features = ["serde1"] }
 rust-s3 = { version = "0.22.3", features = ["path-style"] }
