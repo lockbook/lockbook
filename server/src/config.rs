@@ -23,6 +23,7 @@ pub struct ServerConfig {
     pub port: u16,
     pub max_auth_delay: u128,
     pub log_path: String,
+    pub pd_api_key: Option<String>,
 }
 
 pub struct Config {
@@ -54,10 +55,21 @@ pub fn config() -> Config {
             port: env_or_panic("SERVER_PORT").parse().unwrap(),
             max_auth_delay: env_or_panic("MAX_AUTH_DELAY").parse().unwrap(),
             log_path: env_or_panic("LOG_PATH").parse().unwrap(),
+            pd_api_key: env_or_empty("PD_KEY"),
         },
     }
 }
 
 fn env_or_panic(var_name: &str) -> String {
     env::var(var_name).expect(&format!("Missing environment variable {}", var_name))
+}
+
+fn env_or_empty(var_name: &str) -> Option<String> {
+    match env::var(var_name) {
+        Ok(var) => Some(var),
+        Err(_) => {
+            println!("Missing environment variable {}", var_name);
+            None
+        }
+    }
 }
