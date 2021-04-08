@@ -28,6 +28,7 @@ use serde::Serialize;
 use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 use tokio::sync::Mutex;
 
 static LOG_FILE: &str = "lockbook_server.log";
@@ -46,29 +47,36 @@ pub struct RequestContext<'a, TRequest> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let handle = Handle::current();
     let config = config();
+    let build = option_env!("SERVER_BUILD").unwrap_or("MISSING");
+
     loggers::init(
         Path::new(&config.server.log_path),
         LOG_FILE.to_string(),
         true,
+        &config.server.pd_api_key,
+        handle,
+        &build.to_string(),
     )
     .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str())
     .level(log::LevelFilter::Info)
     .level_for("lockbook_server", log::LevelFilter::Debug)
     .apply()
     .expect("Failed setting logger!");
+    info!("Server starting with build: {}", build);
 
-    info!("Connecting to index_db...");
+    debug!("Connecting to index_db...");
     let index_db_client = file_index_repo::connect(&config.index_db)
         .await
         .expect("Failed to connect to index_db");
-    info!("Connected to index_db");
+    debug!("Connected to index_db");
 
-    info!("Connecting to files_db...");
+    debug!("Connecting to files_db...");
     let files_db_client = file_content_client::connect(&config.files_db)
         .await
         .expect("Failed to connect to files_db");
-    info!("Connected to files_db");
+    debug!("Connected to files_db");
 
     let port = config.server.port;
     let server_state = Arc::new(Mutex::new(ServerState {
@@ -94,6 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .http2_keep_alive_interval(None)
         .serve(make_service)
         .await?;
+
     Ok(())
 }
 

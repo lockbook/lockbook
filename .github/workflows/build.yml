@@ -29,7 +29,8 @@ jobs:
       working-directory: server
       run: |
         echo $PATH
-        cargo build --release
+        echo Building $HASH
+        SERVER_BUILD=$HASH cargo build --release
     - name: Archive Build
       uses: actions/upload-artifact@v2
       with:
