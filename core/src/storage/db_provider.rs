@@ -42,7 +42,7 @@ impl Backend for SledBackend {
     fn connect_to_db(config: &Config) -> Result<Self::Db, Self::Error> {
         let db_path = format!("{}/{}", &config.writeable_path, DB_NAME.to_string());
         debug!("DB Location: {}", db_path);
-        Ok(sled::open(db_path.as_str())?)
+        sled::open(db_path.as_str())
     }
 
     fn write<N, K, V>(db: &Self::Db, namespace: N, key: K, value: V) -> Result<(), Self::Error>
@@ -166,10 +166,8 @@ impl Backend for FileBackend {
             Ok(rd) => rd
                 .map(|e| {
                     e.and_then(|de| {
-                        Ok(
-                            Self::read(db, namespace, de.file_name().into_string().unwrap())
-                                .map(|r| r.unwrap())?,
-                        )
+                        Self::read(db, namespace, de.file_name().into_string().unwrap())
+                            .map(|r| r.unwrap())
                     })
                 })
                 .collect::<Result<Vec<V>, Self::Error>>(),

@@ -257,7 +257,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
     ) -> Result<EncryptedDocument, FileWriteError> {
         let key = Self::decrypt_key_for_file(&account, metadata.id, parents)
             .map_err(FileWriteError::FileKeyDecryptionFailed)?;
-        Ok(AES::encrypt(&key, &content.to_vec()).map_err(FileWriteError::AesEncryptionFailed)?)
+        AES::encrypt(&key, &content.to_vec()).map_err(FileWriteError::AesEncryptionFailed)
     }
 
     fn read_document(
@@ -268,7 +268,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
     ) -> Result<DecryptedDocument, UnableToReadFile> {
         let key = Self::decrypt_key_for_file(&account, metadata.id, parents)
             .map_err(UnableToReadFile::FileKeyDecryptionFailed)?;
-        Ok(AES::decrypt(&key, file).map_err(UnableToReadFile::AesDecryptionFailed)?)
+        AES::decrypt(&key, file).map_err(UnableToReadFile::AesDecryptionFailed)
     }
 
     fn user_read_document(

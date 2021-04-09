@@ -275,13 +275,11 @@ impl FileTree {
     fn inhibit_right_click(t: &GtkTreeView, e: &GdkEventButton) -> bool {
         let (x, y) = e.get_position();
 
-        if let Some((maybe_tpath, _, _, _)) = t.get_path_at_pos(x as i32, y as i32) {
-            if let Some(right_clicked_tpath) = maybe_tpath {
-                let (selected_tpaths, _) = t.get_selection().get_selected_rows();
-                for tp in selected_tpaths {
-                    if tp == right_clicked_tpath {
-                        return true;
-                    }
+        if let Some((Some(right_clicked_tpath), _, _, _)) = t.get_path_at_pos(x as i32, y as i32) {
+            let (selected_tpaths, _) = t.get_selection().get_selected_rows();
+            for tp in selected_tpaths {
+                if tp == right_clicked_tpath {
+                    return true;
                 }
             }
         }
