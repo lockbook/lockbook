@@ -50,7 +50,7 @@ RUN cargo +stable fmt -- --check -l
 
 # Check the lint of core
 FROM linux:${HASH} AS linux-lint
-RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments
+RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments -A clippy::unnecessary-wraps
 
 # Run core tests
 FROM linux:${HASH} AS linux-test
