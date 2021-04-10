@@ -31,7 +31,7 @@ use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
 
 pub struct AccountScreen {
     header: Header,
-    sidebar: Sidebar,
+    pub sidebar: Sidebar,
     editor: Editor,
     pub cntr: GtkBox,
 }
@@ -222,7 +222,7 @@ impl Header {
 }
 
 pub struct Sidebar {
-    tree: FileTree,
+    pub tree: FileTree,
     sync: Rc<SyncPanel>,
     cntr: GtkBox,
 }

@@ -10,7 +10,7 @@ use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
     AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Align as GtkAlign,
-    Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox,
+    Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button,
     CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, Image as GtkImage, Label as GtkLabel,
     ListStore as GtkListStore, Notebook as GtkNotebook, ResponseType as GtkResponseType,
@@ -297,12 +297,25 @@ impl LbApp {
     }
 
     fn open_file(&self, maybe_id: Option<Uuid>) -> LbResult<()> {
+        // Ask the user how the want to deal with unsaved changes
+        if self.state.borrow().open_file_dirty {
+            if let Some(open_file) = self.state.borrow().opened_file.clone() {
+                if !self.save_file_with_dialog(&open_file) {
+                    // File was not dealt with (dialog was closed) return early or we will lose unsaved work
+                    // Re-select the file that was open to make it clear the user's action was cancelled
+                    self.gui.account.sidebar.tree.select(&open_file.id);
+                    return Ok(());
+                }
+            }
+        }
+
         let selected = self.gui.account.tree().get_selected_uuid();
 
         if let Some(id) = maybe_id.or(selected) {
             let meta = self.core.file_by_id(id)?;
             self.gui.win.set_title(&meta.name);
             self.state.borrow_mut().set_opened_file(Some(meta.clone()));
+
             match meta.file_type {
                 FileType::Document => self.open_document(&meta.id),
                 FileType::Folder => self.open_folder(&meta),
@@ -310,6 +323,72 @@ impl LbApp {
         } else {
             Ok(())
         }
+    }
+
+    fn save_file_with_dialog(&self, open_file: &FileMetadata) -> bool {
+        let file_dealt_with = Rc::new(RefCell::new(false));
+
+        let d = self.gui.new_dialog(&open_file.name);
+
+        let msg = format!("{} has unsaved changes.", open_file.name);
+        let lbl = GtkLabel::new(Some(&msg));
+        util::gui::set_marginx(&lbl, 16);
+        lbl.set_margin_top(16);
+        d.get_content_area().add(&lbl);
+
+        let buttons = GtkBox::new(Horizontal, 16);
+        buttons.set_halign(GtkAlign::Center);
+        let discard = Button::with_label("Discard");
+        let save = Button::with_label("Save");
+
+        save.connect_clicked(
+            closure!(
+
+                self.core as core, // to save
+                self.gui.account as account, // to get text
+                self.messenger as m, // to propagate errors
+                save, // to keep the user informed about the operation
+                d, // to dismiss the dialog
+                file_dealt_with, // to detect if the operation is cancelled
+                open_file // what file are we saving
+
+                => move |_| {
+                        save.set_label("Saving...");
+                        save.set_sensitive(true);
+                        file_dealt_with.replace(true);
+                        let ch = make_glib_chan!(m, d => move |result: LbResult<()>| {
+                            match result {
+                                Ok(_) => d.close(),
+                                Err(err) => m.send_err("saving file", err),
+                            };
+                            glib::Continue(false)
+                        });
+                        let content = account.text_content();
+                        spawn!(core, open_file => move || ch.send(core.save(open_file.id, content)).unwrap());
+                    }),
+        );
+
+        discard.connect_clicked(closure!(d, file_dealt_with => move |_| {
+            file_dealt_with.replace(true);
+            d.close();
+        }));
+
+        buttons.add(&discard);
+        buttons.add(&save);
+
+        d.get_content_area().add(&buttons);
+        d.get_content_area().show_all();
+
+        d.run();
+        unsafe {
+            // This is the idiomatic way to dismiss a dialog programmatically (without default buttons)
+            // The default buttons don't allow you to do an async operation like save before closing the dialog
+            // (they call destroy under the hood)
+            d.destroy();
+        }
+
+        let file_dealt_with = *file_dealt_with.borrow();
+        file_dealt_with
     }
 
     fn open_document(&self, id: &Uuid) -> LbResult<()> {
