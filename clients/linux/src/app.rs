@@ -420,7 +420,7 @@ impl LbApp {
     fn file_edited(&self) -> LbResult<()> {
         let mut state = self.state.borrow_mut();
         if let Some(f) = state.opened_file.as_ref() {
-            self.gui.win.set_title(&format!("+ {}", f.name));
+            self.gui.win.set_title(&format!("{}*", f.name));
             state.open_file_dirty = true;
         }
         Ok(())
@@ -994,6 +994,7 @@ impl SettingsUi {
         for tab_data in vec![
             ("File Tree", Self::filetree(&s, &m)),
             ("Window", Self::window(&s)),
+            ("Editor", Self::editor(&s)),
         ] {
             let (title, content) = tab_data;
             let tab_btn = GtkLabel::new(Some(title));
@@ -1021,6 +1022,18 @@ impl SettingsUi {
         ch.set_active(s.borrow().window_maximize);
         ch.connect_toggled(closure!(s => move |chbox| {
             s.borrow_mut().window_maximize = chbox.get_active();
+        }));
+
+        let chbxs = GtkBox::new(Vertical, 0);
+        chbxs.add(&ch);
+        chbxs
+    }
+
+    fn editor(s: &Rc<RefCell<Settings>>) -> GtkBox {
+        let ch = GtkCheckBox::with_label("Auto-save ");
+        ch.set_active(s.borrow().auto_save);
+        ch.connect_toggled(closure!(s => move |chbox| {
+            s.borrow_mut().auto_save = chbox.get_active();
         }));
 
         let chbxs = GtkBox::new(Vertical, 0);
