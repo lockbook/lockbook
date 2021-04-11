@@ -29,7 +29,7 @@ impl AutoSaveState {
             .as_millis()
     }
 
-    pub fn auto_save_loop(state: Arc<Mutex<AutoSaveState>>) {
+    pub fn auto_save_loop(state: Arc<Mutex<Self>>) {
         loop {
             thread::sleep(Duration::from_secs(1));
             let current_time = Self::current_time();
