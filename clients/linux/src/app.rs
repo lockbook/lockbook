@@ -352,7 +352,6 @@ impl LbApp {
 
         save.connect_clicked(
             closure!(
-
                 self.core as core, // to save
                 self.gui.account as account, // to get text
                 self.messenger as m, // to propagate errors
@@ -362,19 +361,24 @@ impl LbApp {
                 open_file // what file are we saving
 
                 => move |_| {
-                        save.set_label("Saving...");
-                        save.set_sensitive(true);
-                        file_dealt_with.replace(true);
-                        let ch = make_glib_chan!(m, d => move |result: LbResult<()>| {
-                            match result {
-                                Ok(_) => d.close(),
-                                Err(err) => m.send_err("saving file", err),
-                            };
-                            glib::Continue(false)
-                        });
-                        let content = account.text_content();
-                        spawn!(core, open_file => move || ch.send(core.save(open_file.id, content)).unwrap());
-                    }),
+                    save.set_label("Saving...");
+                    save.set_sensitive(true);
+                    file_dealt_with.replace(true);
+
+                    let ch = make_glib_chan!(m, d => move |result: LbResult<()>| {
+                        match result {
+                            Ok(_) => d.close(),
+                            Err(err) => m.send_err("saving file", err),
+                        };
+                        glib::Continue(false)
+                    });
+
+                    let content = account.text_content();
+                    spawn!(core, open_file => move || {
+                        ch.send(core.save(open_file.id, content)).unwrap()
+                    });
+                }
+            ),
         );
 
         discard.connect_clicked(closure!(d, file_dealt_with => move |_| {
