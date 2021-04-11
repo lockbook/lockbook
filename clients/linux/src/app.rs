@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::{InterpType, Pixbuf as GdkPixbuf};
@@ -10,7 +10,7 @@ use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
     AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Align as GtkAlign,
-    Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox,
+    Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button,
     CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, Image as GtkImage, Label as GtkLabel,
     ListStore as GtkListStore, Notebook as GtkNotebook, ResponseType as GtkResponseType,
@@ -26,6 +26,7 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
+use crate::auto_save::AutoSaveState;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::error::{
@@ -39,6 +40,7 @@ use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr};
+use std::thread;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -73,10 +75,17 @@ impl LbApp {
         let lb_app = Self {
             core: c.clone(),
             settings: s.clone(),
-            state: Rc::new(RefCell::new(LbState::default())),
+            state: Rc::new(RefCell::new(LbState::default(&m))),
             gui: Rc::new(gui),
             messenger: m,
         };
+
+        if s.borrow().auto_save {
+            let auto_save_state = lb_app.state.borrow().auto_save_state.clone();
+            thread::spawn(move || {
+                AutoSaveState::auto_save_loop(auto_save_state);
+            });
+        }
 
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
@@ -90,6 +99,7 @@ impl LbApp {
 
                 Msg::NewFile(path) => lb.new_file(path),
                 Msg::OpenFile(id) => lb.open_file(id),
+                Msg::FileEdited => lb.file_edited(),
                 Msg::SaveFile => lb.save(),
                 Msg::CloseFile => lb.close_file(),
                 Msg::DeleteFiles => lb.delete_files(),
@@ -296,11 +306,25 @@ impl LbApp {
     }
 
     fn open_file(&self, maybe_id: Option<Uuid>) -> LbResult<()> {
-        let selected = self.gui.account.tree().get_selected_uuid();
+        // Ask the user how the want to deal with unsaved changes
+        if self.state.borrow().open_file_dirty {
+            if let Some(open_file) = self.state.borrow().opened_file.clone() {
+                if !self.save_file_with_dialog(&open_file) {
+                    // File was not dealt with (dialog was closed) return early or we will lose unsaved work
+                    // Re-select the file that was open to make it clear the user's action was cancelled
+                    self.gui.account.sidebar.tree.select(&open_file.id);
+                    return Ok(());
+                }
+            }
+        }
+
+        let selected = self.gui.account.sidebar.tree.get_selected_uuid();
 
         if let Some(id) = maybe_id.or(selected) {
             let meta = self.core.file_by_id(id)?;
+            self.gui.win.set_title(&meta.name);
             self.state.borrow_mut().set_opened_file(Some(meta.clone()));
+
             match meta.file_type {
                 FileType::Document => self.open_document(&meta.id),
                 FileType::Folder => self.open_folder(&meta),
@@ -310,8 +334,77 @@ impl LbApp {
         }
     }
 
+    fn save_file_with_dialog(&self, open_file: &FileMetadata) -> bool {
+        let file_dealt_with = Rc::new(RefCell::new(false));
+
+        let msg = format!("{} has unsaved changes.", open_file.name);
+        let lbl = GtkLabel::new(Some(&msg));
+        util::gui::set_marginx(&lbl, 16);
+        lbl.set_margin_top(16);
+
+        let d = self.gui.new_dialog(&open_file.name);
+
+        let save = Button::with_label("Save");
+        save.connect_clicked(closure!(
+            self.core as core, // to save
+            self.gui.account as account, // to get text
+            self.messenger as m, // to propagate errors
+            save, // to keep the user informed about the operation
+            d, // to dismiss the dialog
+            file_dealt_with, // to detect if the operation is cancelled
+            open_file // what file are we saving
+
+            => move |_| {
+                save.set_label("Saving...");
+                save.set_sensitive(true);
+                file_dealt_with.replace(true);
+
+                let ch = make_glib_chan!(m, d => move |result: LbResult<()>| {
+                    match result {
+                        Ok(_) => d.close(),
+                        Err(err) => m.send_err("saving file", err),
+                    };
+                    glib::Continue(false)
+                });
+
+                let content = account.text_content();
+                spawn!(core, open_file => move || {
+                    ch.send(core.save(open_file.id, content)).unwrap()
+                });
+            }
+        ));
+
+        let discard = Button::with_label("Discard");
+        discard.connect_clicked(closure!(d, file_dealt_with => move |_| {
+            file_dealt_with.replace(true);
+            d.close();
+        }));
+
+        let buttons = GtkBox::new(Horizontal, 16);
+        buttons.set_halign(GtkAlign::Center);
+        buttons.add(&discard);
+        buttons.add(&save);
+
+        d.get_content_area().add(&lbl);
+        d.get_content_area().add(&buttons);
+        d.show_all();
+        d.run();
+
+        unsafe {
+            // This is the idiomatic way to dismiss a dialog programmatically (without default buttons)
+            // The default buttons don't allow you to do an async operation like save before closing the dialog
+            // (they call destroy under the hood)
+            d.destroy();
+        }
+
+        let file_dealt_with = *file_dealt_with.borrow();
+        file_dealt_with
+    }
+
     fn open_document(&self, id: &Uuid) -> LbResult<()> {
+        // Check for file dirtiness here
         let (meta, content) = self.core.open(&id)?;
+        self.state.borrow_mut().open_file_dirty = false;
         self.edit(&EditMode::PlainText {
             path: self.core.full_path_for(&meta),
             meta,
@@ -334,9 +427,29 @@ impl LbApp {
         Ok(())
     }
 
+    fn file_edited(&self) -> LbResult<()> {
+        let open_file = self.state.borrow().opened_file.clone();
+        if let Some(f) = open_file {
+            self.gui.win.set_title(&format!("{}*", f.name));
+            self.state.borrow_mut().open_file_dirty = true;
+
+            self.state
+                .borrow()
+                .auto_save_state
+                .lock()
+                .unwrap()
+                .file_changed();
+        }
+        Ok(())
+    }
+
     fn save(&self) -> LbResult<()> {
-        if let Some(f) = &self.state.borrow().get_opened_file() {
+        let open_file = self.state.borrow().opened_file.clone();
+
+        if let Some(f) = open_file {
             if f.file_type == FileType::Document {
+                self.gui.win.set_title(&f.name);
+                self.state.borrow_mut().open_file_dirty = false;
                 let acctscr = self.gui.account.clone();
                 acctscr.set_saving(true);
 
@@ -364,8 +477,9 @@ impl LbApp {
     }
 
     fn close_file(&self) -> LbResult<()> {
+        self.gui.win.set_title(DEFAULT_WIN_TITLE);
         let mut state = self.state.borrow_mut();
-        if state.get_opened_file().is_some() {
+        if state.opened_file.as_ref().is_some() {
             self.edit(&EditMode::None)?;
             state.set_opened_file(None);
         }
@@ -373,7 +487,7 @@ impl LbApp {
     }
 
     fn delete_files(&self) -> LbResult<()> {
-        let (selected_files, tmodel) = self.gui.account.tree().selected_rows();
+        let (selected_files, tmodel) = self.gui.account.sidebar.tree.selected_rows();
         if selected_files.is_empty() {
             return Err(uerr!("No file tree items are selected to delete!"));
         }
@@ -438,7 +552,7 @@ impl LbApp {
             for f in &file_data {
                 let (_, id, _) = f;
                 self.core.delete(&id)?;
-                self.gui.account.tree().remove(&id);
+                self.gui.account.sidebar.tree.remove(&id);
             }
         }
 
@@ -451,7 +565,7 @@ impl LbApp {
 
     fn rename_file(&self) -> LbResult<()> {
         // Get the iterator for the selected tree item.
-        let (selected_tpaths, tmodel) = self.gui.account.tree().selected_rows();
+        let (selected_tpaths, tmodel) = self.gui.account.sidebar.tree.selected_rows();
         let tpath = selected_tpaths.get(0).ok_or_else(|| {
             progerr!("No file tree items selected! At least one file tree item must be selected.")
         })?;
@@ -496,7 +610,7 @@ impl LbApp {
                 Ok(_) => {
                     d.close();
                     let acctscr = &lb.gui.account;
-                    acctscr.tree().set_name(&id, &name);
+                    acctscr.sidebar.tree.set_name(&id, &name);
                     match lb.core.sync_status() {
                         Ok(s) => acctscr.sync().set_status(&s),
                         Err(err) => lb.messenger.send_err("getting sync status", err),
@@ -521,7 +635,7 @@ impl LbApp {
     }
 
     fn toggle_tree_col(&self, c: FileTreeCol) -> LbResult<()> {
-        self.gui.account.tree().toggle_col(&c);
+        self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
         Ok(())
     }
@@ -561,12 +675,12 @@ impl LbApp {
         }));
 
         self.gui.account.set_search_field_completion(&comp);
-        self.state.borrow_mut().set_search_components(search);
+        self.state.borrow_mut().search = Some(search);
         Ok(())
     }
 
     fn search_field_update(&self) -> LbResult<()> {
-        if let Some(search) = self.state.borrow().search_ref() {
+        if let Some(search) = self.state.borrow().search.as_ref() {
             let input = self.gui.account.get_search_field_text();
             search.update_for(&input);
         }
@@ -588,12 +702,12 @@ impl LbApp {
 
     fn search_field_blur(&self, escaped: bool) -> LbResult<()> {
         let state = self.state.borrow();
-        let opened_file = state.get_opened_file();
+        let opened_file = state.opened_file.as_ref();
 
         if escaped {
             match opened_file {
                 Some(_) => self.gui.account.focus_editor(),
-                None => self.gui.account.tree().focus(),
+                None => self.gui.account.sidebar.tree.focus(),
             }
         }
 
@@ -703,22 +817,18 @@ impl LbApp {
 struct LbState {
     search: Option<SearchComponents>,
     opened_file: Option<FileMetadata>,
+    open_file_dirty: bool,
+    auto_save_state: Arc<Mutex<AutoSaveState>>,
 }
 
 impl LbState {
-    fn default() -> Self {
+    fn default(m: &Messenger) -> Self {
         Self {
             search: None,
             opened_file: None,
+            open_file_dirty: false,
+            auto_save_state: Arc::new(Mutex::new(AutoSaveState::default(&m))),
         }
-    }
-
-    fn set_search_components(&mut self, search: SearchComponents) {
-        self.search = Some(search);
-    }
-
-    fn search_ref(&self) -> Option<&SearchComponents> {
-        self.search.as_ref()
     }
 
     fn get_first_search_match(&self) -> Option<String> {
@@ -729,13 +839,6 @@ impl LbState {
             }
         }
         None
-    }
-
-    fn get_opened_file(&self) -> Option<&FileMetadata> {
-        match &self.opened_file {
-            Some(f) => Some(f),
-            None => None,
-        }
     }
 
     fn set_opened_file(&mut self, f: Option<FileMetadata>) {
@@ -845,15 +948,15 @@ impl Gui {
             .unwrap();
 
         // Window.
-        let w = GtkAppWindow::new(app);
-        w.set_title("Lockbook");
-        w.set_icon(Some(&icon));
-        w.add_accel_group(&accels);
-        w.set_default_size(1300, 700);
+        let win = GtkAppWindow::new(app);
+        win.set_title(DEFAULT_WIN_TITLE);
+        win.set_icon(Some(&icon));
+        win.add_accel_group(&accels);
+        win.set_default_size(1300, 700);
         if s.window_maximize {
-            w.maximize();
+            win.maximize();
         }
-        w.add(&{
+        win.add(&{
             let base = GtkBox::new(Vertical, 0);
             base.add(menubar.widget());
             base.pack_start(&screens, true, true, 0);
@@ -861,7 +964,7 @@ impl Gui {
         });
 
         Self {
-            win: w,
+            win,
             menubar,
             screens,
             intro,
@@ -889,7 +992,7 @@ impl Gui {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
         self.account.fill(&core)?;
-        self.account.tree().focus();
+        self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
         Ok(())
     }
@@ -910,6 +1013,7 @@ impl SettingsUi {
         for tab_data in vec![
             ("File Tree", Self::filetree(&s, &m)),
             ("Window", Self::window(&s)),
+            ("Editor", Self::editor(&s)),
         ] {
             let (title, content) = tab_data;
             let tab_btn = GtkLabel::new(Some(title));
@@ -937,6 +1041,18 @@ impl SettingsUi {
         ch.set_active(s.borrow().window_maximize);
         ch.connect_toggled(closure!(s => move |chbox| {
             s.borrow_mut().window_maximize = chbox.get_active();
+        }));
+
+        let chbxs = GtkBox::new(Vertical, 0);
+        chbxs.add(&ch);
+        chbxs
+    }
+
+    fn editor(s: &Rc<RefCell<Settings>>) -> GtkBox {
+        let ch = GtkCheckBox::with_label("Auto-save ");
+        ch.set_active(s.borrow().auto_save);
+        ch.connect_toggled(closure!(s => move |chbox| {
+            s.borrow_mut().auto_save = chbox.get_active();
         }));
 
         let chbxs = GtkBox::new(Vertical, 0);
@@ -1026,6 +1142,7 @@ fn usage(usage_string: String) -> LbResult<GtkBox> {
     Ok(cntr)
 }
 
+const DEFAULT_WIN_TITLE: &str = "Lockbook";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LICENSE: &str = include_str!("../res/UNLICENSE");
 const COMMENTS: &str = "Lockbook is a document editor that is secure, minimal, private, open source, and cross-platform.";
