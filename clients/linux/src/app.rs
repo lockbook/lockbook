@@ -318,7 +318,7 @@ impl LbApp {
             }
         }
 
-        let selected = self.gui.account.tree().get_selected_uuid();
+        let selected = self.gui.account.sidebar.tree.get_selected_uuid();
 
         if let Some(id) = maybe_id.or(selected) {
             let meta = self.core.file_by_id(id)?;
@@ -487,7 +487,7 @@ impl LbApp {
     }
 
     fn delete_files(&self) -> LbResult<()> {
-        let (selected_files, tmodel) = self.gui.account.tree().selected_rows();
+        let (selected_files, tmodel) = self.gui.account.sidebar.tree.selected_rows();
         if selected_files.is_empty() {
             return Err(uerr!("No file tree items are selected to delete!"));
         }
@@ -552,7 +552,7 @@ impl LbApp {
             for f in &file_data {
                 let (_, id, _) = f;
                 self.core.delete(&id)?;
-                self.gui.account.tree().remove(&id);
+                self.gui.account.sidebar.tree.remove(&id);
             }
         }
 
@@ -565,7 +565,7 @@ impl LbApp {
 
     fn rename_file(&self) -> LbResult<()> {
         // Get the iterator for the selected tree item.
-        let (selected_tpaths, tmodel) = self.gui.account.tree().selected_rows();
+        let (selected_tpaths, tmodel) = self.gui.account.sidebar.tree.selected_rows();
         let tpath = selected_tpaths.get(0).ok_or_else(|| {
             progerr!("No file tree items selected! At least one file tree item must be selected.")
         })?;
@@ -610,7 +610,7 @@ impl LbApp {
                 Ok(_) => {
                     d.close();
                     let acctscr = &lb.gui.account;
-                    acctscr.tree().set_name(&id, &name);
+                    acctscr.sidebar.tree.set_name(&id, &name);
                     match lb.core.sync_status() {
                         Ok(s) => acctscr.sync().set_status(&s),
                         Err(err) => lb.messenger.send_err("getting sync status", err),
@@ -635,7 +635,7 @@ impl LbApp {
     }
 
     fn toggle_tree_col(&self, c: FileTreeCol) -> LbResult<()> {
-        self.gui.account.tree().toggle_col(&c);
+        self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
         Ok(())
     }
@@ -707,7 +707,7 @@ impl LbApp {
         if escaped {
             match opened_file {
                 Some(_) => self.gui.account.focus_editor(),
-                None => self.gui.account.tree().focus(),
+                None => self.gui.account.sidebar.tree.focus(),
             }
         }
 
@@ -992,7 +992,7 @@ impl Gui {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
         self.account.fill(&core)?;
-        self.account.tree().focus();
+        self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
         Ok(())
     }

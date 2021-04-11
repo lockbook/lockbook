@@ -141,10 +141,6 @@ impl AccountScreen {
     pub fn focus_editor(&self) {
         self.editor.textarea.grab_focus();
     }
-
-    pub fn tree(&self) -> &FileTree {
-        &self.sidebar.tree
-    }
 }
 
 struct Header {
