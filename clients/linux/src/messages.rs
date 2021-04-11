@@ -15,6 +15,7 @@ pub enum Msg {
 
     NewFile(String),
     OpenFile(Option<Uuid>),
+    FileEdited,
     SaveFile,
     CloseFile,
     DeleteFiles,
