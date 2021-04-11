@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::{InterpType, Pixbuf as GdkPixbuf};
@@ -26,6 +26,7 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
+use crate::auto_save::AutoSaveState;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::error::{
@@ -39,6 +40,7 @@ use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr};
+use std::thread;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -73,10 +75,17 @@ impl LbApp {
         let lb_app = Self {
             core: c.clone(),
             settings: s.clone(),
-            state: Rc::new(RefCell::new(LbState::default())),
+            state: Rc::new(RefCell::new(LbState::default(&m))),
             gui: Rc::new(gui),
             messenger: m,
         };
+
+        if s.borrow().auto_save {
+            let auto_save_state = lb_app.state.borrow().auto_save_state.clone();
+            thread::spawn(move || {
+                AutoSaveState::auto_save_loop(auto_save_state);
+            });
+        }
 
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
@@ -418,21 +427,28 @@ impl LbApp {
     }
 
     fn file_edited(&self) -> LbResult<()> {
-        let mut state = self.state.borrow_mut();
-        if let Some(f) = state.opened_file.as_ref() {
+        let open_file = self.state.borrow().opened_file.clone();
+        if let Some(f) = open_file {
             self.gui.win.set_title(&format!("{}*", f.name));
-            state.open_file_dirty = true;
+            self.state.borrow_mut().open_file_dirty = true;
+
+            self.state
+                .borrow()
+                .auto_save_state
+                .lock()
+                .unwrap()
+                .file_changed();
         }
         Ok(())
     }
 
     fn save(&self) -> LbResult<()> {
-        let mut state = self.state.borrow_mut();
+        let open_file = self.state.borrow().opened_file.clone();
 
-        if let Some(f) = state.opened_file.as_ref().cloned() {
+        if let Some(f) = open_file {
             if f.file_type == FileType::Document {
                 self.gui.win.set_title(&f.name);
-                state.open_file_dirty = false;
+                self.state.borrow_mut().open_file_dirty = false;
                 let acctscr = self.gui.account.clone();
                 acctscr.set_saving(true);
 
@@ -801,14 +817,16 @@ struct LbState {
     search: Option<SearchComponents>,
     opened_file: Option<FileMetadata>,
     open_file_dirty: bool,
+    auto_save_state: Arc<Mutex<AutoSaveState>>,
 }
 
 impl LbState {
-    fn default() -> Self {
+    fn default(m: &Messenger) -> Self {
         Self {
             search: None,
             opened_file: None,
             open_file_dirty: false,
+            auto_save_state: Arc::new(Mutex::new(AutoSaveState::default(&m))),
         }
     }
 
