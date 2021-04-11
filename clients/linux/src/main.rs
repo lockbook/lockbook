@@ -9,6 +9,7 @@ extern crate sourceview;
 
 mod account;
 mod app;
+mod auto_save;
 mod backend;
 mod editmode;
 mod error;

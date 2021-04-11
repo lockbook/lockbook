@@ -1,6 +1,8 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
+use glib::SignalHandlerId;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
@@ -29,7 +31,7 @@ use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
 
 pub struct AccountScreen {
     header: Header,
-    sidebar: Sidebar,
+    pub sidebar: Sidebar,
     editor: Editor,
     pub cntr: GtkBox,
 }
@@ -38,7 +40,7 @@ impl AccountScreen {
     pub fn new(m: &Messenger, s: &Settings) -> Self {
         let header = Header::new(&m);
         let sidebar = Sidebar::new(&m, &s);
-        let editor = Editor::new();
+        let editor = Editor::new(&m);
 
         let paned = GtkPaned::new(Horizontal);
         paned.set_position(350);
@@ -139,10 +141,6 @@ impl AccountScreen {
     pub fn focus_editor(&self) {
         self.editor.textarea.grab_focus();
     }
-
-    pub fn tree(&self) -> &FileTree {
-        &self.sidebar.tree
-    }
 }
 
 struct Header {
@@ -220,7 +218,7 @@ impl Header {
 }
 
 pub struct Sidebar {
-    tree: FileTree,
+    pub tree: FileTree,
     sync: Rc<SyncPanel>,
     cntr: GtkBox,
 }
@@ -327,12 +325,14 @@ struct Editor {
     info: GtkBox,
     textarea: GtkSourceView,
     highlighter: LanguageManager,
+    change_sig_id: RefCell<Option<SignalHandlerId>>,
     stack: GtkStack,
     cntr: GtkScrolledWindow,
+    messenger: Messenger,
 }
 
 impl Editor {
-    fn new() -> Self {
+    fn new(m: &Messenger) -> Self {
         let empty = GtkBox::new(Vertical, 0);
         empty.set_valign(GtkAlign::Center);
         empty.add(&GtkImage::from_pixbuf(Some(
@@ -361,18 +361,30 @@ impl Editor {
             info,
             textarea,
             highlighter: LanguageManager::new(),
+            change_sig_id: RefCell::new(None),
             stack,
             cntr,
+            messenger: m.clone(),
         }
     }
 
     fn set_file(&self, name: &str, content: &str) {
         let tvb = self.textarea.get_buffer().unwrap();
+
+        // Stop listening for changes so that document load doesn't emit FileEdited
+        if let Some(id) = self.change_sig_id.take() {
+            tvb.disconnect(id)
+        }
+
         let svb = tvb.downcast::<GtkSourceViewBuffer>().unwrap();
         svb.begin_not_undoable_action();
         svb.set_text(content);
         svb.set_language(self.highlighter.guess_language(Some(name), None).as_ref());
         svb.end_not_undoable_action();
+
+        self.change_sig_id.replace(Some(svb.connect_changed(
+            closure!(self.messenger as m => move |_| m.send(Msg::FileEdited)),
+        )));
 
         self.show("textarea");
         self.textarea.grab_focus();
