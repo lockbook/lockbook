@@ -345,36 +345,34 @@ impl LbApp {
         let d = self.gui.new_dialog(&open_file.name);
 
         let save = Button::with_label("Save");
-        save.connect_clicked(
-            closure!(
-                self.core as core, // to save
-                self.gui.account as account, // to get text
-                self.messenger as m, // to propagate errors
-                save, // to keep the user informed about the operation
-                d, // to dismiss the dialog
-                file_dealt_with, // to detect if the operation is cancelled
-                open_file // what file are we saving
+        save.connect_clicked(closure!(
+            self.core as core, // to save
+            self.gui.account as account, // to get text
+            self.messenger as m, // to propagate errors
+            save, // to keep the user informed about the operation
+            d, // to dismiss the dialog
+            file_dealt_with, // to detect if the operation is cancelled
+            open_file // what file are we saving
 
-                => move |_| {
-                    save.set_label("Saving...");
-                    save.set_sensitive(true);
-                    file_dealt_with.replace(true);
+            => move |_| {
+                save.set_label("Saving...");
+                save.set_sensitive(true);
+                file_dealt_with.replace(true);
 
-                    let ch = make_glib_chan!(m, d => move |result: LbResult<()>| {
-                        match result {
-                            Ok(_) => d.close(),
-                            Err(err) => m.send_err("saving file", err),
-                        };
-                        glib::Continue(false)
-                    });
+                let ch = make_glib_chan!(m, d => move |result: LbResult<()>| {
+                    match result {
+                        Ok(_) => d.close(),
+                        Err(err) => m.send_err("saving file", err),
+                    };
+                    glib::Continue(false)
+                });
 
-                    let content = account.text_content();
-                    spawn!(core, open_file => move || {
-                        ch.send(core.save(open_file.id, content)).unwrap()
-                    });
-                }
-            ),
-        );
+                let content = account.text_content();
+                spawn!(core, open_file => move || {
+                    ch.send(core.save(open_file.id, content)).unwrap()
+                });
+            }
+        ));
 
         let discard = Button::with_label("Discard");
         discard.connect_clicked(closure!(d, file_dealt_with => move |_| {
