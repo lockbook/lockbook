@@ -337,19 +337,14 @@ impl LbApp {
     fn save_file_with_dialog(&self, open_file: &FileMetadata) -> bool {
         let file_dealt_with = Rc::new(RefCell::new(false));
 
-        let d = self.gui.new_dialog(&open_file.name);
-
         let msg = format!("{} has unsaved changes.", open_file.name);
         let lbl = GtkLabel::new(Some(&msg));
         util::gui::set_marginx(&lbl, 16);
         lbl.set_margin_top(16);
-        d.get_content_area().add(&lbl);
 
-        let buttons = GtkBox::new(Horizontal, 16);
-        buttons.set_halign(GtkAlign::Center);
-        let discard = Button::with_label("Discard");
+        let d = self.gui.new_dialog(&open_file.name);
+
         let save = Button::with_label("Save");
-
         save.connect_clicked(
             closure!(
                 self.core as core, // to save
@@ -381,18 +376,22 @@ impl LbApp {
             ),
         );
 
+        let discard = Button::with_label("Discard");
         discard.connect_clicked(closure!(d, file_dealt_with => move |_| {
             file_dealt_with.replace(true);
             d.close();
         }));
 
+        let buttons = GtkBox::new(Horizontal, 16);
+        buttons.set_halign(GtkAlign::Center);
         buttons.add(&discard);
         buttons.add(&save);
 
+        d.get_content_area().add(&lbl);
         d.get_content_area().add(&buttons);
-        d.get_content_area().show_all();
-
+        d.show_all();
         d.run();
+
         unsafe {
             // This is the idiomatic way to dismiss a dialog programmatically (without default buttons)
             // The default buttons don't allow you to do an async operation like save before closing the dialog
