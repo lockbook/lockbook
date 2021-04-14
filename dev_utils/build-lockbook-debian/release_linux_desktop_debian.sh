@@ -2,12 +2,6 @@
 
 set -ae
 
-if [ -z "$LOCKBOOK_CLI_PPA_LOCATION" ]
-then
-	echo "No LOCKBOOK_CLI_PPA_LOCATION, we need debian package files to build from"
-	exit 69
-fi
-
 if [ -z "$GITHUB_TOKEN" ]
 then
 	echo "No GITHUB_TOKEN, you won't be able to upload to github without this"
@@ -47,10 +41,21 @@ then
 	exit 69
 fi
 
+cd ../../clients/linux
 
-cd $LOCKBOOK_CLI_PPA_LOCATION
+new_version=$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)
+
+cd ../../dev_utils/build-lockbook-debian/ppa-lockbook-desktop
 
 current_version=$(dpkg-parsechangelog --show-field Version)
+
+if [ $current_version = $new_version ]
+then
+    echo "They source version and debian package version match, no need to update"
+	exit 69
+fi
+
+dch -v $current_version "Automatic version bump."
 
 echo "Setting up clean environment"
 debuild -- clean
@@ -60,41 +65,41 @@ debuild
 
 cd ..
 
-sha_description=$(shasum -a 256 "lockbook_${current_version}_amd64.deb")
+sha_description=$(shasum -a 256 lockbook-desktop_${current_version}_amd64.deb)
 sha=$(echo $sha_description | cut -d ' ' -f 1)
 
 echo "Releasing..."
 github-release release \
 	--user lockbook \
 	--repo lockbook \
-	--tag "debian-cli-$current_version" \
-	--name "Lockbook CLI Debian" \
-	--description "A debian package to easily install lockbook CLI." \
+	--tag "debian-desktop-$current_version" \
+	--name "Lockbook Desktop Debian" \
+	--description "A debian package that installs lockbook desktop." \
 	--pre-release || echo "Failed to create release, perhaps because one exists, attempting upload"
 
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag "debian-cli-$current_version" \
-	--name "lockbook_${current_version}_amd64.deb" \
-	--file "lockbook_${current_version}_amd64.deb"
+	--tag "debian-desktop-$current_version" \
+	--name "lockbook-desktop_${current_version}_amd64.deb" \
+	--file "lockbook-desktop_${current_version}_amd64.deb"
 
-echo $sha_description >> DEBIAN_CLI_SHA256
+echo $sha_description >> DEBIAN_DESKTOP_SHA256
 
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag "debian-cli-$current_version" \
-	--name "debian-cli-sha256-$sha" \
-	--file DEBIAN_CLI_SHA256
+	--tag "debian-desktop-$current_version" \
+	--name "debian-desktop-sha256-$sha" \
+	--file DEBIAN_DESKTOP_SHA256
 
 echo "Cleaning up"
-rm -f "lockbook_${current_version}_amd64.build" \
-	"lockbook_${current_version}_amd64.buildinfo" \
-	"lockbook_${current_version}_amd64.changes" \
-	"lockbook_${current_version}_amd64.deb" \
-	"lockbook_${current_version}.dsc" \
-	"lockbook_${current_version}.tar.gz" \
-	DEBIAN_CLI_SHA256 
+rm -f "lockbook-desktop_${current_version}_amd64.build" \
+	"lockbook-desktop_${current_version}_amd64.buildinfo" \
+	"lockbook-desktop_${current_version}_amd64.changes" \
+	"lockbook-desktop_${current_version}_amd64.deb" \
+	"lockbook-desktop_${current_version}.dsc" \
+	"lockbook-desktop_${current_version}.tar.gz" \
+	DEBIAN_DESKTOP_SHA256 
 
 echo "Verify this sha is a part of the release on github: $sha"
