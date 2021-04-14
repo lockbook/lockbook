@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftLockbookCore
+import Introspect
 
 struct FileCell: View {
     let meta: FileMetadata
@@ -53,6 +54,10 @@ struct SyntheticFileCell: View {
                     TextField(type == .Folder ? "folder name" : "document name", text: $name, onCommit: onCommit)
                         .autocapitalization(.none)
                         .font(.title3)
+                        .introspectTextField(customize: { textField in
+                            textField.becomeFirstResponder()
+                            textField.selectedTextRange = textField.textRange(from: textField.beginningOfDocument, to: textField.beginningOfDocument)
+                        })
                 }
                 HStack {
                     Image(systemName: type == .Folder ? "folder" : "doc")
