@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+
 set -ae
 
 if [ -z "$LOCKBOOK_CLI_PPA_LOCATION" ]
@@ -51,15 +52,8 @@ cd $LOCKBOOK_CLI_PPA_LOCATION
 
 current_version=$(dpkg-parsechangelog --show-field Version)
 
-echo "Installing build dependencies"
-mk-build-deps
-apt install ./"lockbook-build-deps_${current_version}_all.deb"
-
 echo "Setting up clean environment"
 debuild -- clean
-
-echo "Clean"
-rm -f "lockbook-build-deps_${current_version}_all.deb"
 
 echo "Compiling package"
 debuild 
@@ -98,6 +92,9 @@ echo "Cleaning up"
 rm -f "lockbook_${current_version}_amd64.build" \
 	"lockbook_${current_version}_amd64.buildinfo" \
 	"lockbook_${current_version}_amd64.changes" \
-	"lockbook_${current_version}_amd64.deb"
+	"lockbook_${current_version}_amd64.deb" \
+	"lockbook_${current_version}.dsc" \
+	"lockbook_${current_version}.tar.gz" \
+	DEBIAN_CLI_SHA256 
 
 echo "Verify this sha is a part of the release on github: $sha"

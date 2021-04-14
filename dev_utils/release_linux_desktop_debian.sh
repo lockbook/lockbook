@@ -1,9 +1,10 @@
-#!/bin/sh
+#!/bin/bash
+
 set -ae
 
 if [ -z "$LOCKBOOK_DESKTOP_PPA_LOCATION" ]
 then
-	echo "No LOCKBOOK_DESKTOP_PPA_LOCATION, we need debian package files to build from"
+	echo "No LOCKBOOK_DESKTOP_PPA_LOCATION, we need this to find the package"
 	exit 69
 fi
 
@@ -51,15 +52,8 @@ cd $LOCKBOOK_DESKTOP_PPA_LOCATION
 
 current_version=$(dpkg-parsechangelog --show-field Version)
 
-echo "Installing build dependencies"
-mk-build-deps
-apt install ./"lockbook-desktop-build-deps_${current_version}_all.deb"
-
 echo "Setting up clean environment"
 debuild -- clean
-
-echo "Clean"
-rm -f "lockbook-desktop-build-deps_${current_version}_all.deb"
 
 echo "Compiling package"
 debuild 
@@ -98,6 +92,9 @@ echo "Cleaning up"
 rm -f "lockbook-desktop_${current_version}_amd64.build" \
 	"lockbook-desktop_${current_version}_amd64.buildinfo" \
 	"lockbook-desktop_${current_version}_amd64.changes" \
-	"lockbook-desktop_${current_version}_amd64.deb"
+	"lockbook-desktop_${current_version}_amd64.deb" \
+	"lockbook-desktop_${current_version}.dsc" \
+	"lockbook-desktop_${current_version}.tar.gz" \
+	DEBIAN_DESKTOP_SHA256 
 
 echo "Verify this sha is a part of the release on github: $sha"
