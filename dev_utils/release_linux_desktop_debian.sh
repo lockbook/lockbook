@@ -51,12 +51,12 @@ cd $LOCKBOOK_DESKTOP_PPA_LOCATION
 
 current_version=$(dpkg-parsechangelog --show-field Version)
 
-echo "Setting up clean environment"
-debuild -- clean
-
 echo "Installing build dependencies"
 mk-build-deps
 apt install ./"lockbook-desktop-build-deps_${current_version}_all.deb"
+
+echo "Setting up clean environment"
+debuild -- clean
 
 echo "Clean"
 rm -f "lockbook-desktop-build-deps_${current_version}_all.deb"
@@ -75,7 +75,7 @@ github-release release \
 	--repo lockbook \
 	--tag "debian-desktop-$current_version" \
 	--name "Lockbook Desktop Debian" \
-	--description "A debian package to easily install lockbook desktop." \
+	--description "A debian package that installs lockbook desktop." \
 	--pre-release || echo "Failed to create release, perhaps because one exists, attempting upload"
 
 github-release upload \

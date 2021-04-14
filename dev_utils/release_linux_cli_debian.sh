@@ -51,12 +51,12 @@ cd $LOCKBOOK_CLI_PPA_LOCATION
 
 current_version=$(dpkg-parsechangelog --show-field Version)
 
-echo "Setting up clean environment"
-debuild -- clean
-
 echo "Installing build dependencies"
 mk-build-deps
 apt install ./"lockbook-build-deps_${current_version}_all.deb"
+
+echo "Setting up clean environment"
+debuild -- clean
 
 echo "Clean"
 rm -f "lockbook-build-deps_${current_version}_all.deb"
@@ -66,7 +66,7 @@ debuild
 
 cd ..
 
-sha_description=$(shasum -a 256 lockbook_${current_version}_amd64.deb)
+sha_description=$(shasum -a 256 "lockbook_${current_version}_amd64.deb")
 sha=$(echo $sha_description | cut -d ' ' -f 1)
 
 echo "Releasing..."
