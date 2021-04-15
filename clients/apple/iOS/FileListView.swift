@@ -156,7 +156,7 @@ struct FileListView: View {
                 if meta.name.hasSuffix(".draw") {
                     // This is how you can pop without the navigation bar
                     // https://stackoverflow.com/questions/56513568/ios-swiftui-pop-or-dismiss-view-programmatically
-                    let dl = DrawingLoader(model: core.openDrawing, toolbar: FileListView.toolbar, meta: meta)
+                    let dl = DrawingLoader(model: core.openDrawing, toolbar: FileListView.toolbar, meta: meta, deleteChannel: core.deleteChannel)
                     return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline), tag: meta, selection: $selection) {
                         FileCell(meta: meta)
                     })
@@ -176,6 +176,7 @@ struct FileListView: View {
             core.deleteChannel.send(meta)
             core.updateFiles()
             core.checkForLocalWork()
+            selection = .none
         case .failure(let err):
             core.handleError(err)
         }
