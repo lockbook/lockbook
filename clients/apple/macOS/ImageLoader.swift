@@ -1,19 +1,33 @@
 import SwiftUI
 import SwiftLockbookCore
+import Combine
 
 struct ImageLoader: View {
     @ObservedObject var model: ImageModel
     let meta: FileMetadata
     @State var image: NSImage?
+    let deleteChannel: PassthroughSubject<FileMetadata, Never>
+    @State var deleted: FileMetadata?
 
     var body: some View {
-        if let img = model.image, model.meta?.id == meta.id {
-            Image(nsImage: img)
-        } else {
-            ProgressView()
-                .onAppear {
-                    model.loadDrawing(meta: meta)
+        Group {
+            if (deleted != meta) {
+                if let img = model.image, model.meta?.id == meta.id {
+                    Image(nsImage: img)
+                } else {
+                    ProgressView()
+                        .onAppear {
+                            model.loadDrawing(meta: meta)
+                        }
                 }
+            } else {
+                Text("\(meta.name) file has been deleted")
+            }
+        }
+        .onReceive(deleteChannel) { deletedMeta in
+            if (deletedMeta.id == meta.id) {
+                deleted = deletedMeta
+            }
         }
     }
 }

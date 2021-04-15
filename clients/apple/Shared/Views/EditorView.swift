@@ -25,22 +25,17 @@ struct EditorLoader: View {
     
     @ObservedObject var content: Content
     let meta: FileMetadata
-    let files: [FileMetadata]
     @State var editorContent: String = ""
     @State var title: String = ""
     let deleteChannel: PassthroughSubject<FileMetadata, Never>
-
-    @State var forceDelete: Bool = false
-    var deleted: Bool {
-        forceDelete || files.filter({$0.id == meta.id}).isEmpty
-    }
+    @State var deleted: FileMetadata?
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
             switch content.text {
             /// We are forcing this view to hit the default case when it is in a transitionary stage!
             case .some(let c) where content.meta?.id == meta.id:
-                if (!deleted) {
+                if (deleted != meta) {
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
                     ActivityIndicator(status: $content.status)
                         .opacity(content.status == .WriteSuccess ? 1 : 0)
@@ -53,10 +48,10 @@ struct EditorLoader: View {
                         content.openDocument(meta: meta)
                     }
             }
-        }.onReceive(deleteChannel) { deletedMeta in
+        }
+        .onReceive(deleteChannel) { deletedMeta in
             if (deletedMeta.id == meta.id) {
-                // I have been deleted!
-                forceDelete = true
+                deleted = deletedMeta
             }
         }
     }
@@ -139,7 +134,7 @@ extension NSTextField {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorLoader(content: GlobalState().openDocument, meta: FakeApi.fileMetas[0], files: FakeApi.fileMetas, deleteChannel: PassthroughSubject<FileMetadata, Never>())
+            EditorLoader(content: GlobalState().openDocument, meta: FakeApi.fileMetas[0], deleteChannel: PassthroughSubject<FileMetadata, Never>())
         }
         .preferredColorScheme(.dark)
     }
