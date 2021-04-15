@@ -17,18 +17,20 @@ struct DrawingLoader: View {
             if (deleted != meta) {
                 switch model.originalDrawing {
                 case .some(let drawing):
-                    DrawingView(drawing: drawing, toolPicker: toolbar, onChange: { (ud: PKDrawing) in model.drawingModelChanged(meta: meta, updatedDrawing: ud) })
-                        .navigationTitle(String("\(meta.name) \(meta.contentVersion)"))
-                        .toolbar {
-                            ToolbarItemGroup(placement: .bottomBar) {
-                                Spacer()
-                                DrawingToolbar(toolPicker: toolbar)
-                                Spacer()
+                    GeometryReader { geom in
+                        DrawingView(frame: geom.frame(in: .local), drawing: drawing, toolPicker: toolbar, onChange: { (ud: PKDrawing) in model.drawingModelChanged(meta: meta, updatedDrawing: ud) })
+                            .navigationTitle(String("\(meta.name) \(meta.contentVersion)"))
+                            .toolbar {
+                                ToolbarItemGroup(placement: .bottomBar) {
+                                    Spacer()
+                                    DrawingToolbar(toolPicker: toolbar)
+                                    Spacer()
+                                }
                             }
-                        }
-                        .onDisappear {
-                            model.closeDrawing(meta: meta)
-                        }
+                            .onDisappear {
+                                model.closeDrawing(meta: meta)
+                            }
+                    }
                 case .none:
                     ProgressView()
                         .onAppear {
