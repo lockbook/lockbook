@@ -2,6 +2,7 @@ import SwiftUI
 import PencilKit
 import SwiftLockbookCore
 import Foundation
+import Combine
 
 struct DrawingToolbar: View {
 
@@ -176,12 +177,13 @@ struct Toolbar_Preview: PreviewProvider {
     static let core = GlobalState()
     static let toolbar = ToolbarModel()
     static let dm = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
+    static let dc = PassthroughSubject<FileMetadata, Never>()
 
     static var previews: some View {
         NavigationView {
             HStack {
             }
-            DrawingLoader(model: dm, toolbar: toolbar, meta: core.files[0])
+            DrawingLoader(model: dm, toolbar: toolbar, meta: core.files[0], deleteChannel: dc)
                     .onAppear {
                         dm.originalDrawing = PKDrawing()
                         toolbar.selectedColor = .Red

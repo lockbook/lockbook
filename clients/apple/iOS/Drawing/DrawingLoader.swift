@@ -2,33 +2,49 @@ import Foundation
 import SwiftLockbookCore
 import SwiftUI
 import PencilKit
+import Combine
 
 struct DrawingLoader: View {
 
     @ObservedObject var model: DrawingModel
     @ObservedObject var toolbar: ToolbarModel
     let meta: FileMetadata
+    let deleteChannel: PassthroughSubject<FileMetadata, Never>
+    @State var deleted: FileMetadata?
 
     var body: some View {
-        switch model.originalDrawing {
-        case .some(let drawing):
-            DrawingView(drawing: drawing, toolPicker: toolbar, onChange: { (ud: PKDrawing) in model.drawingModelChanged(meta: meta, updatedDrawing: ud) })
-                .navigationTitle(String("\(meta.name) \(meta.contentVersion)"))
-                .toolbar {
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        Spacer()
-                        DrawingToolbar(toolPicker: toolbar)
-                        Spacer()
+        Group {
+            if (deleted != meta) {
+                switch model.originalDrawing {
+                case .some(let drawing):
+                    GeometryReader { geom in
+                        DrawingView(frame: geom.frame(in: .local), drawing: drawing, toolPicker: toolbar, onChange: { (ud: PKDrawing) in model.drawingModelChanged(meta: meta, updatedDrawing: ud) })
+                            .navigationTitle(String("\(meta.name) \(meta.contentVersion)"))
+                            .toolbar {
+                                ToolbarItemGroup(placement: .bottomBar) {
+                                    Spacer()
+                                    DrawingToolbar(toolPicker: toolbar)
+                                    Spacer()
+                                }
+                            }
+                            .onDisappear {
+                                model.closeDrawing(meta: meta)
+                            }
                     }
+                case .none:
+                    ProgressView()
+                        .onAppear {
+                            model.loadDrawing(meta: meta)
+                        }
                 }
-                .onDisappear {
-                    model.closeDrawing(meta: meta)
-                }
-        case .none:
-            ProgressView()
-                .onAppear {
-                    model.loadDrawing(meta: meta)
-                }
+            } else {
+                Text("\(meta.name) file has been deleted")
+            }
+        }
+        .onReceive(deleteChannel) { deletedMeta in
+            if (deletedMeta.id == meta.id) {
+                deleted = deletedMeta
+            }
         }
     }
 }
@@ -37,11 +53,11 @@ class DrawingModel: ObservableObject {
     @Published var originalDrawing: PKDrawing? = .none
     @Published var meta: FileMetadata? = .none
     var errors: String? = .none
-    let write: (UUID, Drawing) -> FfiResult<Empty, WriteToDocumentError>
+    let write: (UUID, Drawing) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
     let read: (UUID) -> FfiResult<Drawing, ReadDocumentError>
     var writeListener: () -> Void = {}
 
-    init(write: @escaping (UUID, Drawing) -> FfiResult<Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<Drawing, ReadDocumentError>) {
+    init(write: @escaping (UUID, Drawing) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<Drawing, ReadDocumentError>) {
         self.write = write
         self.read = read
     }
