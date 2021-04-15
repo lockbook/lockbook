@@ -6,7 +6,7 @@ use glib::SignalHandlerId;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
-    Adjustment as GtkAdjustment, Adjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn,
+    Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
     Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
@@ -225,7 +225,7 @@ pub struct Sidebar {
 
 impl Sidebar {
     fn new(m: &Messenger, s: &Settings) -> Self {
-        let scroll = GtkScrolledWindow::new::<Adjustment, Adjustment>(None, None);
+        let scroll = GtkScrolledWindow::new::<GtkAdjustment, GtkAdjustment>(None, None);
         let tree = FileTree::new(&m, &s.hidden_tree_cols);
         let sync = Rc::new(SyncPanel::new(&m));
         scroll.add(tree.widget());
