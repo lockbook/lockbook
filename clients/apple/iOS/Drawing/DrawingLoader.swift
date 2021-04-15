@@ -10,11 +10,11 @@ struct DrawingLoader: View {
     @ObservedObject var toolbar: ToolbarModel
     let meta: FileMetadata
     let deleteChannel: PassthroughSubject<FileMetadata, Never>
-    @State var deleted: Bool = false
+    @State var deleted: FileMetadata?
 
     var body: some View {
         Group {
-            if (!deleted) {
+            if (deleted != meta) {
                 switch model.originalDrawing {
                 case .some(let drawing):
                     DrawingView(drawing: drawing, toolPicker: toolbar, onChange: { (ud: PKDrawing) in model.drawingModelChanged(meta: meta, updatedDrawing: ud) })
@@ -41,7 +41,7 @@ struct DrawingLoader: View {
         }
         .onReceive(deleteChannel) { deletedMeta in
             if (deletedMeta.id == meta.id) {
-                deleted = true
+                deleted = deletedMeta
             }
         }
     }

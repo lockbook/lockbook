@@ -161,7 +161,7 @@ struct FileListView: View {
                         FileCell(meta: meta)
                     })
                 } else {
-                    let el = EditorLoader(content: core.openDocument, meta: meta, files: core.files, deleteChannel: core.deleteChannel)
+                    let el = EditorLoader(content: core.openDocument, meta: meta, deleteChannel: core.deleteChannel)
                     return AnyView (NavigationLink(destination: el, tag: meta, selection: $selection) {
                         FileCell(meta: meta)
                     })

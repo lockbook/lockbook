@@ -140,6 +140,7 @@ struct OutlineBranch: View {
         return {
             switch core.api.deleteFile(id: meta.id) {
             case .success(_):
+                core.deleteChannel.send(meta)
                 core.updateFiles()
                 core.checkForLocalWork()
             case .failure(let err):
