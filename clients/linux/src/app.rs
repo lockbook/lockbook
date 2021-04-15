@@ -551,8 +551,14 @@ impl LbApp {
         if d.run() == GtkResponseType::Yes {
             for f in &file_data {
                 let (_, id, _) = f;
-                self.core.delete(&id)?;
-                self.gui.account.sidebar.tree.remove(&id);
+                self.core.delete(id)?;
+                self.gui.account.sidebar.tree.remove(id);
+
+                if let Some(file) = self.state.borrow().opened_file.clone() {
+                    if file.id == *id {
+                        self.messenger.send(Msg::CloseFile);
+                    }
+                }
             }
         }
 
