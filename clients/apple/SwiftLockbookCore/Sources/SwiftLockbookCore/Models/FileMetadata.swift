@@ -1,6 +1,6 @@
 import Foundation
 
-public struct FileMetadata: Codable, Identifiable, Equatable {
+public struct FileMetadata: Codable, Identifiable, Equatable, Hashable {
     public var fileType: FileType
     public var id: UUID
     public var parent: UUID
@@ -22,6 +22,10 @@ public struct FileMetadata: Codable, Identifiable, Equatable {
             lhs.owner == rhs.owner &&
             lhs.deleted == rhs.deleted &&
             lhs.name == rhs.name
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }
 

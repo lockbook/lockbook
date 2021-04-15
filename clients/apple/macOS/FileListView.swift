@@ -24,9 +24,9 @@ struct FileListView: View {
         }
         if let item = selectedItem {
             if (item.name.hasSuffix(".draw")) {
-                ImageLoader(model: core.openImage, meta: item)
+                ImageLoader(model: core.openImage, meta: item, deleteChannel: core.deleteChannel)
             } else {
-                EditorLoader(content: core.openDocument, meta: item, files: core.files, deleteChannel: core.deleteChannel)
+                EditorLoader(content: core.openDocument, meta: item, deleteChannel: core.deleteChannel)
             }
         }
     }
