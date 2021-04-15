@@ -552,6 +552,7 @@ impl LbApp {
             for f in &file_data {
                 let (_, id, _) = f;
                 self.core.delete(&id)?;
+                self.messenger.send(Msg::CloseFile);
                 self.gui.account.sidebar.tree.remove(&id);
             }
         }
