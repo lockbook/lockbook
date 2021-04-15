@@ -6,17 +6,16 @@ clean:
 
 build:
 	dh build
-	git clone https://github.com/lockbook/lockbook.git
-	cargo build --release --locked --manifest-path lockbook/clients/linux/Cargo.toml
+	cargo build --release --locked --manifest-path ../../../clients/linux/Cargo.toml
 
 binary:
 	mkdir -p debian/lockbook-desktop/usr/bin
 	mkdir -p debian/lockbook-desktop/usr/share/applications
 	mkdir -p debian/lockbook-desktop/usr/share/pixmaps
 
-	cp lockbook/clients/linux/target/release/lockbook debian/lockbook-desktop/usr/bin/lockbook-desktop
+	cp ../../../clients/linux/target/release/lockbook debian/lockbook-desktop/usr/bin/lockbook-desktop
 	cp lockbook-desktop.desktop debian/lockbook-desktop/usr/share/applications
-	cp lockbook/graphics/SVGs/dark-1.svg debian/lockbook-desktop/usr/share/pixmaps
+	cp ../../../graphics/SVGs/dark-1.svg debian/lockbook-desktop/usr/share/pixmaps
 
 	strip --strip-all debian/lockbook-desktop/usr/bin/lockbook-desktop
 	dh_gencontrol
