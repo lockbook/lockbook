@@ -12,6 +12,7 @@ struct FileListView: View {
     @Binding var moving: FileMetadata?
     @State var renaming: FileMetadata?
     static var toolbar = ToolbarModel()
+    @State private var selection: FileMetadata?
 
     var files: [FileMetadata] {
         core.files.filter {
@@ -146,7 +147,8 @@ struct FileListView: View {
         } else {
             if meta.fileType == .Folder {
                 return AnyView (
-                    NavigationLink(destination: FileListView(core: core, currentFolder: meta, account: account, moving: $moving)) {
+                    NavigationLink(
+                        destination: FileListView(core: core, currentFolder: meta, account: account, moving: $moving), tag: meta, selection: $selection) {
                         FileCell(meta: meta)
                     }.isDetailLink(false)
                 )
@@ -155,12 +157,12 @@ struct FileListView: View {
                     // This is how you can pop without the navigation bar
                     // https://stackoverflow.com/questions/56513568/ios-swiftui-pop-or-dismiss-view-programmatically
                     let dl = DrawingLoader(model: core.openDrawing, toolbar: FileListView.toolbar, meta: meta)
-                    return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline)) {
+                    return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline), tag: meta, selection: $selection) {
                         FileCell(meta: meta)
                     })
                 } else {
                     let el = EditorLoader(content: core.openDocument, meta: meta, files: core.files, deleteChannel: core.deleteChannel)
-                    return AnyView (NavigationLink(destination: el) {
+                    return AnyView (NavigationLink(destination: el, tag: meta, selection: $selection) {
                         FileCell(meta: meta)
                     })
                 }
@@ -181,10 +183,13 @@ struct FileListView: View {
     
     func handleCreate(meta: FileMetadata, type: FileType) {
         switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
-        case .success(_):
+        case .success(let newMeta):
             doneCreating()
             core.updateFiles()
             core.checkForLocalWork()
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+                selection = newMeta
+            }
         case .failure(let err):
             core.handleError(err)
         }
