@@ -29,107 +29,118 @@ struct OutlineBranch: View {
     
     @ViewBuilder
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) { // spacing: 2 is what List uses
-            if level == -1 {
-                Text(file.name).opacity(0.4)
-            } else {
-                if let isRenaming = renaming, isRenaming == file {
-                    SyntheticOutlineRow(
-                        fileType: file.fileType,
-                        level: level,
-                        onCommit: { s in
-                            renaming = nil
-                            let r = core.api.renameFile(id: isRenaming.id, name: s)
-                            if case .failure(let err) = r {
-                                core.handleError(err)
-                            } else {
-                                withAnimation {
-                                    core.updateFiles()
-                                    core.checkForLocalWork()
+        ScrollViewReader { scrollView in
+            VStack(alignment: .leading, spacing: 2) { // spacing: 2 is what List uses
+                if level == -1 {
+                    Text(file.name).opacity(0.4)
+                } else {
+                    if let isRenaming = renaming, isRenaming == file {
+                        SyntheticOutlineRow(
+                            fileType: file.fileType,
+                            level: level,
+                            onCommit: { s in
+                                renaming = nil
+                                let r = core.api.renameFile(id: isRenaming.id, name: s)
+                                if case .failure(let err) = r {
+                                    core.handleError(err)
+                                } else {
+                                    withAnimation {
+                                        core.updateFiles()
+                                        core.checkForLocalWork()
+                                    }
                                 }
+                            },
+                            onCancel: {
+                                withAnimation {
+                                    renaming = nil
+                                }
+                            },
+                            pendingImage: Image(systemName: "pencil"),
+                            nameField: file.name
+                        ).onDisappear {
+                            withAnimation {
+                                self.core.updateFiles()
                             }
-                        },
+                        }
+                    } else {
+                        if file == selectedItem {
+                            OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
+                                .background(Color.accentColor)
+                                .foregroundColor(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        } else {
+                            OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
+                                .onTapGesture {
+                                    if file.fileType == .Folder {
+                                        withAnimation {
+                                            self.open.toggle()
+                                        }
+                                    } else {
+                                        // Animating this causes editor to load weirdly
+                                        self.selectedItem = self.file
+                                    }
+                                }
+                        }
+                    }
+                }
+                if isLeaf == false && (open == true || level == -1) {
+                    ForEach(children) { child in
+                        OutlineBranch(core: core, file: child, selectedItem: self.$selectedItem, level: self.level + 1, dragging: self.$dragging, renaming: self.$renaming)
+                    }
+                }
+                creating.map { c in
+                    SyntheticOutlineRow(
+                        fileType: c,
+                        level: self.level + 1,
+                        onCommit: handleCreate(meta: file, type: c),
                         onCancel: {
                             withAnimation {
-                                renaming = nil
+                                creating = nil
                             }
                         },
-                        pendingImage: Image(systemName: "pencil"),
-                        nameField: file.name
-                    ).onDisappear {
-                        withAnimation {
-                            self.core.updateFiles()
-                        }
-                    }
-                } else {
-                    if file == selectedItem {
-                        OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
-                            .background(Color.accentColor)
-                            .foregroundColor(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                    } else {
-                        OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
-                            .onTapGesture {
-                                if file.fileType == .Folder {
-                                    withAnimation {
-                                        self.open.toggle()
-                                    }
-                                } else {
-                                    // Animating this causes editor to load weirdly
-                                    self.selectedItem = self.file
-                                }
-                            }
-                    }
+                        pendingImage: Image(systemName: "plus")
+                    )
+                    .id(1)
                 }
             }
-            if isLeaf == false && (open == true || level == -1) {
-                ForEach(children) { child in
-                    OutlineBranch(core: core, file: child, selectedItem: self.$selectedItem, level: self.level + 1, dragging: self.$dragging, renaming: self.$renaming)
-                }
-            }
-            creating.map { c in
-                SyntheticOutlineRow(
-                    fileType: c,
-                    level: self.level + 1,
-                    onCommit: handleCreate(meta: file, type: c),
-                    onCancel: {
-                        withAnimation {
-                            creating = nil
-                        }
-                    },
-                    pendingImage: Image(systemName: "plus")
-                )
-            }
-        }
-        .contextMenu(menuItems: {
-            makeContextActions(
-                meta: file,
-                creating: { creating = $0 }
-            )
-            if (!file.isRoot) {
-                makeNonRootActions(
+            .contextMenu(menuItems: {
+                makeContextActions(
                     meta: file,
-                    renaming: { renaming = file },
-                    delete: handleDelete(meta: file)
+                    creating: {
+                        creating = $0
+                        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+                            withAnimation {
+                                scrollView.scrollTo(1, anchor: .center)
+                            }
+                        }
+                    }
                 )
-            }
-        })
-        .onDrop(of: [UTType.text], delegate: DragDropper(file: file, current: $dragging, open: $open, moveFile: { drag in
-            if case .failure(let err) = core.api.moveFile(id: drag.id, newParent: self.file.id) {
-                core.handleError(err)
-            } else {
-                withAnimation {
-                    core.updateFiles()
+                if (!file.isRoot) {
+                    makeNonRootActions(
+                        meta: file,
+                        renaming: { renaming = file },
+                        delete: handleDelete(meta: file)
+                    )
                 }
-                core.checkForLocalWork()
-            }
-        }))
+            })
+            .onDrop(of: [UTType.text], delegate: DragDropper(file: file, current: $dragging, open: $open, moveFile: { drag in
+                if case .failure(let err) = core.api.moveFile(id: drag.id, newParent: self.file.id) {
+                    core.handleError(err)
+                } else {
+                    withAnimation {
+                        core.updateFiles()
+                    }
+                    core.checkForLocalWork()
+                }
+            }))
+        }
     }
     
     func handleDelete(meta: FileMetadata) -> () -> Void {
         return {
             switch core.api.deleteFile(id: meta.id) {
             case .success(_):
+                core.deleteChannel.send(meta)
                 core.updateFiles()
                 core.checkForLocalWork()
             case .failure(let err):
@@ -141,10 +152,13 @@ struct OutlineBranch: View {
     func handleCreate(meta: FileMetadata, type: FileType) -> (String) -> Void {
         return { creatingName in
             switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
-            case .success(_):
+            case .success(let newMeta):
                 doneCreating()
                 core.updateFiles()
                 core.checkForLocalWork()
+                if (newMeta.fileType == .Document) {
+                    selectedItem = newMeta
+                }
             case .failure(let err):
                 core.handleError(err)
             }
