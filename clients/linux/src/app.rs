@@ -299,9 +299,7 @@ impl LbApp {
         let file = self.core.create_file_at_path(&path)?;
         self.gui.account.add_file(&self.core, &file)?;
 
-        let status = self.core.sync_status()?;
-        self.gui.account.sync().set_status(&status);
-
+        self.refresh_sync_status()?;
         self.open_file(Some(file.id))
     }
 
@@ -563,10 +561,7 @@ impl LbApp {
         }
 
         d.close();
-
-        let s = self.core.sync_status()?;
-        self.gui.account.sync().set_status(&s);
-        Ok(())
+        self.refresh_sync_status()
     }
 
     fn rename_file(&self) -> LbResult<()> {
