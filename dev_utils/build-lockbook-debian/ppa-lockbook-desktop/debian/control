@@ -1,0 +1,10 @@
+Source: lockbook-desktop
+Section: utils
+Priority: extra
+Maintainer: Smail Barkouch <smailbarkouch1@gmail.com>
+Build-Depends: debhelper, git, cargo, libgtksourceview-3.0-dev, libgtk-3-0, libpango-1.0-0, libglib2.0-0, libgdk-pixbuf2.0-0, libatk1.0-0, gobject-introspection, libepoxy0
+
+Package: lockbook-desktop
+Architecture: any
+Depends: libgtksourceview-3.0-dev, libgtk-3-0, libglib2.0-0,
+Description: A secure, private, minimal, cross-platform document editor.

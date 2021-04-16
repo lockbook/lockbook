@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+
+clean:
+	dh clean
+	rm -rf lockbook
+
+build:
+	dh build
+	cargo build --release --locked --manifest-path ../../../clients/cli/Cargo.toml
+
+binary:
+	mkdir -p debian/lockbook/usr/bin
+	mv ../../../clients/cli/target/release/lockbook debian/lockbook/usr/bin
+	
+	strip --strip-all debian/lockbook/usr/bin/lockbook
+	dh_gencontrol
+	dh_builddeb
