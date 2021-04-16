@@ -1,0 +1,9 @@
+Source: lockbook
+Section: utils
+Priority: extra
+Maintainer: Smail Barkouch <smailbarkouch1@gmail.com>
+Build-Depends: debhelper, git, cargo, ca-certificates
+
+Package: lockbook
+Architecture: any
+Description: A secure, private, minimal, cross-platform document editor.
