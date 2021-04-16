@@ -193,10 +193,7 @@ impl LbApp {
             } else if let Err(err) = lb.gui.show_account_screen(&lb.core) {
                 lb.messenger.send_err("showing account screen", err);
             } else {
-                match lb.core.sync_status() {
-                    Ok(s) => lb.gui.account.sync().set_status(&s),
-                    Err(err) => lb.messenger.send_err("getting sync status", err),
-                }
+                lb.messenger.send(Msg::RefreshSyncStatus);
             }
             glib::Continue(true)
         });
@@ -267,10 +264,7 @@ impl LbApp {
                 sync_ui.sync_progress(&msg);
             } else {
                 sync_ui.set_syncing(false);
-                match lb.core.sync_status() {
-                    Ok(s) => sync_ui.set_status(&s),
-                    Err(err) => lb.messenger.send_err("getting sync status", err),
-                }
+                lb.messenger.send(Msg::RefreshSyncStatus);
             }
             glib::Continue(true)
         });
@@ -454,14 +448,11 @@ impl LbApp {
                 let id = f.id;
                 let content = acctscr.text_content();
 
-                let ch = make_glib_chan!(self.core as c, self.messenger as m => move |result: LbResult<()>| {
+                let ch = make_glib_chan!(self.messenger as m => move |result: LbResult<()>| {
                     match result {
                         Ok(_) => {
                             acctscr.set_saving(false);
-                            match c.sync_status() {
-                                Ok(s) => acctscr.sync().set_status(&s),
-                                Err(err) => m.send_err("getting sync status", err),
-                            }
+                            m.send(Msg::RefreshSyncStatus);
                         }
                         Err(err) => m.send_err("saving file", err),
                     }
@@ -612,10 +603,7 @@ impl LbApp {
                     d.close();
                     let acctscr = &lb.gui.account;
                     acctscr.sidebar.tree.set_name(&id, &name);
-                    match lb.core.sync_status() {
-                        Ok(s) => acctscr.sync().set_status(&s),
-                        Err(err) => lb.messenger.send_err("getting sync status", err),
-                    }
+                    lb.messenger.send(Msg::RefreshSyncStatus);
                 }
                 Err(err) => match err.kind() {
                     UserErr => {
