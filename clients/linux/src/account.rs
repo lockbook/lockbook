@@ -225,11 +225,13 @@ pub struct Sidebar {
 
 impl Sidebar {
     fn new(m: &Messenger, s: &Settings) -> Self {
+        let scroll = GtkScrolledWindow::new::<GtkAdjustment, GtkAdjustment>(None, None);
         let tree = FileTree::new(&m, &s.hidden_tree_cols);
         let sync = Rc::new(SyncPanel::new(&m));
+        scroll.add(tree.widget());
 
         let cntr = GtkBox::new(Vertical, 0);
-        cntr.pack_start(tree.widget(), true, true, 0);
+        cntr.pack_start(&scroll, true, true, 0);
         cntr.add(&GtkSeparator::new(Horizontal));
         cntr.add(&sync.cntr);
 
