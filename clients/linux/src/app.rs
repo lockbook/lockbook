@@ -603,7 +603,22 @@ impl LbApp {
                     d.close();
                     let acctscr = &lb.gui.account;
                     acctscr.sidebar.tree.set_name(&id, &name);
-                    lb.messenger.send(Msg::RefreshSyncStatus);
+
+                    match lb.core.open(&meta.id) {
+                        Ok((renamed_meta, content)) => {
+                        lb.gui.win.set_title(&renamed_meta.name);
+                        lb.edit(&EditMode::PlainText {
+                                path: lb.core.full_path_for(&renamed_meta),
+                                meta: renamed_meta,
+                                content,
+                            });
+                            lb.messenger.send(Msg::RefreshSyncStatus);
+                        }
+                        Err(err) => {
+                            d.close();
+                            lb.messenger.send_err("opening file", err);
+                        }
+                    }
                 }
                 Err(err) => match err.kind() {
                     UserErr => {
