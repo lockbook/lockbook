@@ -604,14 +604,10 @@ impl LbApp {
                     let acctscr = &lb.gui.account;
                     acctscr.sidebar.tree.set_name(&id, &name);
 
-                    match lb.core.open(&meta.id) {
-                        Ok((renamed_meta, content)) => {
-                        lb.gui.win.set_title(&renamed_meta.name);
-                        lb.edit(&EditMode::PlainText {
-                                path: lb.core.full_path_for(&renamed_meta),
-                                meta: renamed_meta,
-                                content,
-                            });
+                    match lb.core.file_by_id(meta.id) {
+                        Ok(renamed_meta) => {
+                            lb.gui.win.set_title(&renamed_meta.name);
+                            lb.gui.account.set_search_field_text(&lb.core.full_path_for(&renamed_meta));
                             lb.messenger.send(Msg::RefreshSyncStatus);
                         }
                         Err(err) => {
