@@ -616,7 +616,7 @@ impl LbApp {
                         }
                         Err(err) => {
                             d.close();
-                            lb.messenger.send_err("opening file", err);
+                            lb.messenger.send_err("renaming file", err);
                         }
                     }
                 }
