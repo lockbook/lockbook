@@ -5,31 +5,17 @@ use std::io;
 
 use serde::{Deserialize, Serialize};
 
+#[serde(default)]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
-    #[serde(default)]
     pub hidden_tree_cols: Vec<String>,
-
-    #[serde(default)]
     pub window_maximize: bool,
-
-    #[serde(default)]
     pub auto_save: bool,
-
     #[serde(skip_serializing, skip_deserializing)]
     path: String,
 }
 
 impl Settings {
-    pub fn default() -> Self {
-        Self {
-            hidden_tree_cols: vec!["Id".to_string(), "Type".to_string()],
-            window_maximize: false,
-            auto_save: true,
-            path: "".to_string(),
-        }
-    }
-
     pub fn from_data_dir(dir: &str) -> Result<Self, Box<dyn Error>> {
         let path = format!("{}/settings.yaml", dir);
         let mut s: Self = match File::open(&path) {
@@ -54,6 +40,17 @@ impl Settings {
             cols.retain(|c| !c.eq(&col));
         } else {
             cols.push(col);
+        }
+    }
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            hidden_tree_cols: vec!["Id".to_string(), "Type".to_string()],
+            window_maximize: false,
+            auto_save: true,
+            path: "".to_string(),
         }
     }
 }
