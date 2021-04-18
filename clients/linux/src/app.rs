@@ -605,14 +605,13 @@ impl LbApp {
                     acctscr.sidebar.tree.set_name(&id, &name);
 
                     match lb.core.file_by_id(meta.id) {
-                        Ok(renamed_meta) => {
-                            lb.gui.win.set_title(&renamed_meta.name);
-                            lb.gui.account.set_search_field_text(&lb.core.full_path_for(&renamed_meta));
+                        Ok(f) => {
+                            lb.gui.win.set_title(&f.name);
+                            lb.gui.account.set_search_field_text(&lb.core.full_path_for(&f));
                             lb.messenger.send(Msg::RefreshSyncStatus);
                         }
                         Err(err) => {
-                            d.close();
-                            lb.messenger.send_err("renaming file", err);
+                            lb.messenger.send_err("getmting renamed file", err);
                         }
                     }
                 }
