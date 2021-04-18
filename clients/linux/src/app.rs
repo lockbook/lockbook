@@ -603,10 +603,10 @@ impl LbApp {
                     d.close();
                     let acctscr = &lb.gui.account;
                     acctscr.sidebar.tree.set_name(&id, &name);
+                    lb.gui.win.set_title(&name);
 
                     match lb.core.file_by_id(id) {
                         Ok(f) => {
-                            lb.gui.win.set_title(&name);
                             acctscr.set_search_field_text(&lb.core.full_path_for(&f));
                             lb.messenger.send(Msg::RefreshSyncStatus);
                         }
