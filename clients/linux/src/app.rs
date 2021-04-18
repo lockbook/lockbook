@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use gdk_pixbuf::{InterpType, Pixbuf as GdkPixbuf};
+use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
@@ -939,10 +939,7 @@ impl Gui {
         screens.add_named(&intro.cntr, "intro");
         screens.add_named(&account.cntr, "account");
 
-        let icon = GdkPixbuf::from_inline(LOGO_INTRO, true)
-            .unwrap()
-            .scale_simple(22, 32, InterpType::Nearest)
-            .unwrap();
+        let icon = GdkPixbuf::from_inline(WINDOW_ICON, false).unwrap();
 
         // Window.
         let win = GtkAppWindow::new(app);
@@ -1143,3 +1140,4 @@ const DEFAULT_WIN_TITLE: &str = "Lockbook";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LICENSE: &str = include_str!("../res/UNLICENSE");
 const COMMENTS: &str = "Lockbook is a document editor that is secure, minimal, private, open source, and cross-platform.";
+const WINDOW_ICON: &[u8] = include_bytes!("../res/lockbook-window-icon-pixdata");
