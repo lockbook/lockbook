@@ -603,7 +603,15 @@ impl LbApp {
                     d.close();
                     let acctscr = &lb.gui.account;
                     acctscr.sidebar.tree.set_name(&id, &name);
-                    lb.messenger.send(Msg::RefreshSyncStatus);
+                    lb.gui.win.set_title(&name);
+
+                    match lb.core.file_by_id(id) {
+                        Ok(f) => {
+                            acctscr.set_search_field_text(&lb.core.full_path_for(&f));
+                            lb.messenger.send(Msg::RefreshSyncStatus);
+                        }
+                        Err(err) => lb.messenger.send_err("getting renamed file", err)
+                    }
                 }
                 Err(err) => match err.kind() {
                     UserErr => {
