@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use gdk_pixbuf::{Pixbuf as GdkPixbuf};
+use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
