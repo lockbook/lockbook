@@ -35,6 +35,9 @@ pub enum Msg {
     ShowDialogUsage,
     ShowDialogAbout,
 
+    StopAutoSave,
+    StartAutoSave,
+
     Error(String, LbError),
 }
 
