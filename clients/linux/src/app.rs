@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex};
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
@@ -36,7 +36,7 @@ use crate::error::{
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
 use crate::menubar::Menubar;
-use crate::messages::{Messenger, Msg, ThreadState};
+use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr};
@@ -80,15 +80,8 @@ impl LbApp {
             messenger: m,
         };
 
-        let (as_sender, as_receiver) = glib::MainContext::channel::<()>(glib::PRIORITY_DEFAULT);
-
-        as_receiver.attach(None, move || {
-            lb_app.state.borrow().auto_save_state.lock().unwrap().is_active = false;
-            glib::Continue(true)
-        });
-
         if s.borrow().auto_save {
-            lb_app.start_auto_save()
+            lb_app.messenger.send(Msg::StartAutoSave)
         }
 
         let lb = lb_app.clone();
@@ -124,7 +117,7 @@ impl LbApp {
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
                 Msg::StartAutoSave => lb.start_auto_save(),
-                Msg::StopAutoSave => lb.stop_auto_save(as_sender),
+                Msg::StopAutoSave => lb.stop_auto_save(),
 
                 Msg::Error(title, err) => {
                     lb.err(&title, &err);
@@ -140,16 +133,26 @@ impl LbApp {
         lb_app
     }
 
-    pub fn start_auto_save(&self) {
-        let auto_save_state = lb_app.state.borrow().auto_save_state.clone();
+    pub fn start_auto_save(&self) -> LbResult<()> {
+        let auto_save_state = self.state.borrow().auto_save_state.clone();
+        auto_save_state.lock().unwrap().is_active = true;
 
         thread::spawn(move || {
             AutoSaveState::auto_save_loop(auto_save_state);
         });
+
+        Ok(())
     }
 
-    pub fn stop_auto_save(&self, sender: glib::Sender<()>) {
-        sender.send(()).unwrap()
+    pub fn stop_auto_save(&self) -> LbResult<()> {
+        self.state
+            .borrow()
+            .auto_save_state
+            .lock()
+            .unwrap()
+            .is_active = false;
+
+        Ok(())
     }
 
     pub fn show(&self) -> LbResult<()> {
@@ -775,23 +778,24 @@ impl LbApp {
     }
 
     fn show_dialog_preferences(&self) -> LbResult<()> {
-        let ps = self.settings.clone();
+        let ps_auto_save = self.settings.borrow().auto_save;
         let tabs = SettingsUi::create(&self.settings, &self.messenger);
 
         let d = self.gui.new_dialog("Lockbook Settings");
         d.set_default_size(300, 400);
         d.get_content_area().add(&tabs);
         d.add_button("Ok", GtkResponseType::Ok);
-        d.connect_response(|d, _| {
-            if ps.borrow().auto_save != self.settings.borrow().auto_save {
-                match self.settings.borrow().auto_save {
-                    true => self.messenger.send(Msg::StartAutoSave),
-                    false => self.messenger.send(Msg::StopAutoSave),
+        d.connect_response(closure!(self as lb => move |d, _| {
+            if ps_auto_save != lb.settings.borrow().auto_save {
+                match lb.settings.borrow().auto_save {
+                    true => lb.messenger.send(Msg::StartAutoSave),
+                    false => lb.messenger.send(Msg::StopAutoSave),
                 }
             }
 
             d.close();
-        });
+        }));
+
         d.show_all();
         Ok(())
     }

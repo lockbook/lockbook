@@ -1,4 +1,4 @@
-use crate::messages::{Messenger, Msg, ThreadState};
+use crate::messages::{Messenger, Msg};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -16,7 +16,7 @@ impl AutoSaveState {
             messenger: m.clone(),
             last_change: 0,
             last_save: 0,
-            is_active: false
+            is_active: false,
         }
     }
 
@@ -48,8 +48,8 @@ impl AutoSaveState {
                 auto_save_state.messenger.send(Msg::SaveFile);
             }
 
-            if !state.lock().unwrap().is_active {
-                break
+            if !auto_save_state.is_active {
+                break;
             }
         }
     }
