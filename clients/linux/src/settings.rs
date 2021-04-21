@@ -11,6 +11,7 @@ pub struct Settings {
     pub hidden_tree_cols: Vec<String>,
     pub window_maximize: bool,
     pub auto_save: bool,
+    pub auto_sync: bool,
     #[serde(skip_serializing, skip_deserializing)]
     path: String,
 }
@@ -50,6 +51,7 @@ impl Default for Settings {
             hidden_tree_cols: vec!["Id".to_string(), "Type".to_string()],
             window_maximize: false,
             auto_save: true,
+            auto_sync: true,
             path: "".to_string(),
         }
     }

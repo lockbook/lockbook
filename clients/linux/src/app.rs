@@ -27,6 +27,7 @@ use lockbook_models::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
 use crate::auto_save::AutoSaveState;
+use crate::auto_sync::AutoSyncState;
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::error::{
@@ -87,6 +88,10 @@ impl LbApp {
             });
         }
 
+        if s.borrow().auto_sync {
+            lb_app.messenger.send(Msg::ToggleAutoSync(true))
+        }
+
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
             let maybe_err = match msg {
@@ -119,6 +124,8 @@ impl LbApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
+                Msg::ToggleAutoSync(auto_sync) => lb.toggle_auto_sync(auto_sync),
+
                 Msg::Error(title, err) => {
                     lb.err(&title, &err);
                     Ok(())
@@ -135,6 +142,29 @@ impl LbApp {
 
     pub fn show(&self) -> LbResult<()> {
         self.gui.show(&self.core)
+    }
+
+    fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
+        match auto_sync {
+            true => {
+                let auto_sync_state = self.state.borrow().auto_sync_state.clone();
+                auto_sync_state.lock().unwrap().is_active = true;
+
+                thread::spawn(move || {
+                    AutoSyncState::auto_sync_loop(auto_sync_state, self.core.clone());
+                });
+            }
+            false => {
+                self.state
+                    .borrow()
+                    .auto_sync_state
+                    .lock()
+                    .unwrap()
+                    .is_active = false
+            }
+        }
+
+        Ok(())
     }
 
     fn create_account(&self, name: String) -> LbResult<()> {
@@ -816,6 +846,7 @@ struct LbState {
     opened_file: Option<FileMetadata>,
     open_file_dirty: bool,
     auto_save_state: Arc<Mutex<AutoSaveState>>,
+    auto_sync_state: Arc<Mutex<AutoSyncState>>,
 }
 
 impl LbState {
@@ -825,6 +856,7 @@ impl LbState {
             opened_file: None,
             open_file_dirty: false,
             auto_save_state: Arc::new(Mutex::new(AutoSaveState::default(&m))),
+            auto_sync_state: Arc::new(Mutex::new(AutoSyncState::default(&m))),
         }
     }
 
@@ -1007,7 +1039,7 @@ impl SettingsUi {
         for tab_data in vec![
             ("File Tree", Self::filetree(&s, &m)),
             ("Window", Self::window(&s)),
-            ("Editor", Self::editor(&s)),
+            ("Editor", Self::editor(&s, &m)),
         ] {
             let (title, content) = tab_data;
             let tab_btn = GtkLabel::new(Some(title));
@@ -1042,15 +1074,25 @@ impl SettingsUi {
         chbxs
     }
 
-    fn editor(s: &Rc<RefCell<Settings>>) -> GtkBox {
-        let ch = GtkCheckBox::with_label("Auto-save ");
-        ch.set_active(s.borrow().auto_save);
-        ch.connect_toggled(closure!(s => move |chbox| {
+    fn editor(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkBox {
+        let auto_save_ch = GtkCheckBox::with_label("Auto-save ");
+        auto_save_ch.set_active(s.borrow().auto_save);
+        auto_save_ch.connect_toggled(closure!(s => move |chbox| {
             s.borrow_mut().auto_save = chbox.get_active();
         }));
 
+        let auto_sync_ch = GtkCheckBox::with_label("Auto-sync ");
+        auto_sync_ch.set_active(s.borrow().auto_sync);
+        auto_sync_ch.connect_toggled(closure!(s => move |chbox| {
+            let auto_sync = chbox.get_active();
+
+            s.borrow_mut().auto_sync = auto_sync;
+            m.send(Msg::ToggleAutoSync(auto_sync))
+        }));
+
         let chbxs = GtkBox::new(Vertical, 0);
-        chbxs.add(&ch);
+        chbxs.add(&auto_save_ch);
+        chbxs.add(&auto_sync_ch);
         chbxs
     }
 }

@@ -10,6 +10,7 @@ extern crate sourceview;
 mod account;
 mod app;
 mod auto_save;
+mod auto_sync;
 mod backend;
 mod editmode;
 mod error;
