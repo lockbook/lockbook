@@ -39,6 +39,7 @@ struct NotepadView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
         let np = Notepad(frame: frame)
+        np.allowsUndo = true
         np.isAutomaticQuoteSubstitutionEnabled = false
         np.onTextChange = onTextChange
         np.storage.markdowner = { engine.render($0) }
