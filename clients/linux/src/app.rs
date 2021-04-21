@@ -778,24 +778,13 @@ impl LbApp {
     }
 
     fn show_dialog_preferences(&self) -> LbResult<()> {
-        let ps_auto_save = self.settings.borrow().auto_save;
         let tabs = SettingsUi::create(&self.settings, &self.messenger);
 
         let d = self.gui.new_dialog("Lockbook Settings");
         d.set_default_size(300, 400);
         d.get_content_area().add(&tabs);
         d.add_button("Ok", GtkResponseType::Ok);
-        d.connect_response(closure!(self as lb => move |d, _| {
-            if ps_auto_save != lb.settings.borrow().auto_save {
-                match lb.settings.borrow().auto_save {
-                    true => lb.messenger.send(Msg::StartAutoSave),
-                    false => lb.messenger.send(Msg::StopAutoSave),
-                }
-            }
-
-            d.close();
-        }));
-
+        d.connect_response(|d, _| d.close());
         d.show_all();
         Ok(())
     }
@@ -1040,7 +1029,7 @@ impl SettingsUi {
         for tab_data in vec![
             ("File Tree", Self::filetree(&s, &m)),
             ("Window", Self::window(&s)),
-            ("Editor", Self::editor(&s)),
+            ("Editor", Self::editor(&s, m)),
         ] {
             let (title, content) = tab_data;
             let tab_btn = GtkLabel::new(Some(title));
@@ -1075,11 +1064,17 @@ impl SettingsUi {
         chbxs
     }
 
-    fn editor(s: &Rc<RefCell<Settings>>) -> GtkBox {
+    fn editor(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkBox {
         let ch = GtkCheckBox::with_label("Auto-save ");
         ch.set_active(s.borrow().auto_save);
-        ch.connect_toggled(closure!(s => move |chbox| {
-            s.borrow_mut().auto_save = chbox.get_active();
+        ch.connect_toggled(closure!(s, m => move |chbox| {
+            let auto_save = chbox.get_active();
+            s.borrow_mut().auto_save = auto_save;
+            match auto_save {
+                true => m.send(Msg::StartAutoSave),
+                false => m.send(Msg::StopAutoSave)
+            }
+
         }));
 
         let chbxs = GtkBox::new(Vertical, 0);
