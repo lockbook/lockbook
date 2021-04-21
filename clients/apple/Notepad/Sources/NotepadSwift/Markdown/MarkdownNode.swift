@@ -22,5 +22,6 @@ public struct MarkdownNode: Equatable {
         case code = 14
         case italic = 17
         case bold = 18
+        case link = 19
     }
 }
