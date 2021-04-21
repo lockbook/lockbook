@@ -67,6 +67,10 @@ func applyMarkdown(markdown: MarkdownNode) -> [NSAttributedString.Key : Any] {
             .foregroundColor : UniversalColor.fromColorAlias(from: .Magenta),
             .paragraphStyle : paragraphStyle,
         ]
+    case .link:
+        return [
+            .foregroundColor : UniversalColor.fromColorAlias(from: .Blue)
+        ]
     }
 }
 
