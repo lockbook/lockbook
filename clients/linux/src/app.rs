@@ -81,7 +81,7 @@ impl LbApp {
         };
 
         if s.borrow().auto_save {
-            lb_app.messenger.send(Msg::StartAutoSave)
+            lb_app.messenger.send(Msg::ToggleAutoSave(true))
         }
 
         let lb = lb_app.clone();
@@ -116,8 +116,7 @@ impl LbApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
-                Msg::StartAutoSave => lb.start_auto_save(),
-                Msg::StopAutoSave => lb.stop_auto_save(),
+                Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
 
                 Msg::Error(title, err) => {
                     lb.err(&title, &err);
@@ -133,24 +132,25 @@ impl LbApp {
         lb_app
     }
 
-    pub fn start_auto_save(&self) -> LbResult<()> {
-        let auto_save_state = self.state.borrow().auto_save_state.clone();
-        auto_save_state.lock().unwrap().is_active = true;
+    fn toggle_auto_save(&self, auto_save: bool) -> LbResult<()> {
+        match auto_save {
+            true => {
+                let auto_save_state = self.state.borrow().auto_save_state.clone();
+                auto_save_state.lock().unwrap().is_active = true;
 
-        thread::spawn(move || {
-            AutoSaveState::auto_save_loop(auto_save_state);
-        });
-
-        Ok(())
-    }
-
-    pub fn stop_auto_save(&self) -> LbResult<()> {
-        self.state
-            .borrow()
-            .auto_save_state
-            .lock()
-            .unwrap()
-            .is_active = false;
+                thread::spawn(move || {
+                    AutoSaveState::auto_save_loop(auto_save_state);
+                });
+            }
+            false => {
+                self.state
+                    .borrow()
+                    .auto_save_state
+                    .lock()
+                    .unwrap()
+                    .is_active = false
+            }
+        }
 
         Ok(())
     }
@@ -1069,12 +1069,9 @@ impl SettingsUi {
         ch.set_active(s.borrow().auto_save);
         ch.connect_toggled(closure!(s, m => move |chbox| {
             let auto_save = chbox.get_active();
-            s.borrow_mut().auto_save = auto_save;
-            match auto_save {
-                true => m.send(Msg::StartAutoSave),
-                false => m.send(Msg::StopAutoSave)
-            }
 
+            s.borrow_mut().auto_save = auto_save;
+            m.send(Msg::ToggleAutoSave(auto_save))
         }));
 
         let chbxs = GtkBox::new(Vertical, 0);
