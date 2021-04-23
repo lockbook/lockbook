@@ -102,3 +102,7 @@ liblockbook_core.a
 lockbook_core.h
 *.log
 lockbook_core.dll
+
+*.pem
+*.crt
+lockbook-server.prod
