@@ -1,0 +1,8 @@
+[package]
+name = "lba"
+version = "0.1.0"
+authors = ["Parth <parth@mehrotra.me>"]
+edition = "2018"
+
+[dependencies]
+structopt = "0.3.13"
