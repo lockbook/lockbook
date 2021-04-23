@@ -78,21 +78,15 @@ iOSInjectionProject/
 clients/apple/include/
 clients/apple/libs/
 
-core/target/
-core/libs/models/target/
-core/libs/crypto/target/
-clients/cli/target/
+**/target/
+
 core/lockbook_core.h
 
-server/admin/target/
-server/server/target/
 server/server/**/*.rs.bk
 server/server/ca-certificate.crt
 server/server/qa-ca-certificate.crt
 .idea/
 *.iml
-clients/linux/target
-integration_tests/target/
 containers/qa.env
 containers/prod.env
 containers/devtest.env
