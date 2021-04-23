@@ -100,3 +100,4 @@ lockbook_core.dll
 *.pem
 *.crt
 lockbook-server.prod
+lockbook-server

@@ -23,6 +23,6 @@ scp $GIT_ROOT/server/instances/prometheus/node-exporter.service $TARGET:/etc/sys
 ssh $TARGET << EOF
   systemctl daemon-reload
   systemctl enable node-exporter
-  systemctl start node-exporter
+  systemctl restart node-exporter
   systemctl status node-exporter
 EOF

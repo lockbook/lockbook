@@ -4,8 +4,8 @@ Documentation=https://grafana.com/docs/loki/latest/clients/promtail/
 
 [Service]
 Restart=always
-User=prometheus
-ExecStart=/usr/bin/promtail-linux-amd64 --config.file="/etc/promtail/promtail-config.yaml"
+User=root
+ExecStart=/usr/bin/promtail --config.file="/etc/promtail/promtail.yml"
 ExecReload=/bin/kill -HUP $MAINPID
 TimeoutStopSec=20s
 SendSIGKILL=no

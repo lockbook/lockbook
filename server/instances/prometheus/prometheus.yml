@@ -17,3 +17,8 @@ scrape_configs:
     static_configs:
       - targets:
           - '172.31.43.245:9100'
+  - job_name: 'api'
+    static_configs:
+      - targets: ['172.31.41.113:9100']
+      - labels:
+          instance: 'api-001'
