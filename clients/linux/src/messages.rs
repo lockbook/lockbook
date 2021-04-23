@@ -35,6 +35,7 @@ pub enum Msg {
     ShowDialogUsage,
     ShowDialogAbout,
 
+    ToggleAutoSave(bool),
     ToggleAutoSync(bool),
 
     Error(String, LbError),

@@ -26,9 +26,9 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
-use crate::auto_save::AutoSaveState;
 use crate::auto_sync::AutoSyncState;
 use crate::backend::{LbCore, LbSyncMsg};
+use crate::background_work::{AutoSaveState, BackgroundWork};
 use crate::editmode::EditMode;
 use crate::error::{
     LbErrKind::{Program as ProgErr, User as UserErr},
@@ -81,11 +81,12 @@ impl LbApp {
             messenger: m,
         };
 
+        thread::spawn(move || {
+            BackgroundWork::init_background_work(lb_app.state.borrow().background_work.clone())
+        });
+
         if s.borrow().auto_save {
-            let auto_save_state = lb_app.state.borrow().auto_save_state.clone();
-            thread::spawn(move || {
-                AutoSaveState::auto_save_loop(auto_save_state);
-            });
+            lb_app.messenger.send(Msg::ToggleAutoSave(true))
         }
 
         if s.borrow().auto_sync {
@@ -124,6 +125,7 @@ impl LbApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
+                Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
                 Msg::ToggleAutoSync(auto_sync) => lb.toggle_auto_sync(auto_sync),
 
                 Msg::Error(title, err) => {
@@ -145,24 +147,27 @@ impl LbApp {
     }
 
     fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
-        match auto_sync {
-            true => {
-                let auto_sync_state = self.state.borrow().auto_sync_state.clone();
-                auto_sync_state.lock().unwrap().is_active = true;
+        self.state
+            .borrow()
+            .background_work
+            .lock()
+            .unwrap()
+            .auto_sync_state
+            .borrow_mut()
+            .is_active = auto_sync;
 
-                thread::spawn(move || {
-                    AutoSyncState::auto_sync_loop(auto_sync_state, self.core.clone());
-                });
-            }
-            false => {
-                self.state
-                    .borrow()
-                    .auto_sync_state
-                    .lock()
-                    .unwrap()
-                    .is_active = false
-            }
-        }
+        Ok(())
+    }
+
+    fn toggle_auto_save(&self, auto_save: bool) -> LbResult<()> {
+        self.state
+            .borrow()
+            .background_work
+            .lock()
+            .unwrap()
+            .auto_save_state
+            .borrow_mut()
+            .is_active = auto_save;
 
         Ok(())
     }
@@ -845,8 +850,7 @@ struct LbState {
     search: Option<SearchComponents>,
     opened_file: Option<FileMetadata>,
     open_file_dirty: bool,
-    auto_save_state: Arc<Mutex<AutoSaveState>>,
-    auto_sync_state: Arc<Mutex<AutoSyncState>>,
+    background_work: Arc<Mutex<BackgroundWork>>,
 }
 
 impl LbState {
@@ -855,8 +859,7 @@ impl LbState {
             search: None,
             opened_file: None,
             open_file_dirty: false,
-            auto_save_state: Arc::new(Mutex::new(AutoSaveState::default(&m))),
-            auto_sync_state: Arc::new(Mutex::new(AutoSyncState::default(&m))),
+            background_work: Arc::new(Mutex::new(BackgroundWork::default(&m))),
         }
     }
 
