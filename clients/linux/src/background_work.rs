@@ -1,53 +1,45 @@
 use crate::messages::{Messenger, Msg};
-use std::cell::{Ref, RefCell};
-use std::rc::Rc;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use crate::backend::LbCore;
-use lockbook_models::work_unit::WorkUnit;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct BackgroundWork {
     pub messenger: Messenger,
-    pub core: Arc<LbCore>,
-    pub auto_save_state: Rc<RefCell<AutoSaveState>>,
-    pub auto_sync_state: Rc<RefCell<AutoSyncState>>,
+    pub auto_save_state: AutoSaveState,
+    pub auto_sync_state: AutoSyncState,
 }
 
 impl BackgroundWork {
-    pub fn default(m: &Messenger, c: Arc<LbCore>) -> Self {
+    pub fn default(m: &Messenger) -> Self {
         Self {
             messenger: m.clone(),
-            core: c,
-            auto_save_state: Rc::new(RefCell::new(AutoSaveState::default())),
-            auto_sync_state: Rc::new(RefCell::new(AutoSyncState::default())),
+            auto_save_state: AutoSaveState::default(),
+            auto_sync_state: AutoSyncState::default(),
         }
     }
 
-    fn current_time() -> u128 {
+    pub fn current_time() -> u128 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
             .as_millis()
     }
 
-    pub fn init_background_work(state: Arc<Mutex<Self>>, open_file_dirty: Arc<AtomicBool>) {
+    pub fn init_background_work(state: Arc<Mutex<Self>>) {
         loop {
             thread::sleep(Duration::from_secs(1));
-            let bks = state.lock().unwrap();
-            let current_time = Self::current_time();
+            let mut bks = state.lock().unwrap();
+            let m = bks.messenger.clone();
 
             if bks.auto_save_state.is_active {
-                AutoSaveState::auto_save(bks.auto_save_state.borrow(), &bks.messenger, current_time)
+                bks.auto_save_state.auto_save(&m);
             }
 
             if bks.auto_sync_state.is_active {
-                if !bks.auto_save_state.borrow().is_active && open_file_dirty.load(Ordering::SeqCst) {
-                    break
-                }
+                let last_change = bks.auto_save_state.last_change;
+                let last_save = bks.auto_save_state.last_save;
 
-                AutoSyncState::auto_sync(bks.auto_sync_state.borrow(), &bks.messenger, bks.core.clone(), open_file_dirty.clone(), current_time)
+                bks.auto_sync_state.auto_sync(&m, last_change, last_save)
             }
         }
     }
@@ -69,16 +61,17 @@ impl AutoSaveState {
     }
 
     pub fn file_changed(&mut self) {
-        self.last_change = Self::current_time();
+        self.last_change = BackgroundWork::current_time();
     }
 
-    fn auto_save(auto_save_state: Ref<Self>, m: &Messenger, current_time: u128) {
-        let time_between_edits = current_time - auto_save_state.last_change;
+    pub fn auto_save(&mut self, m: &Messenger) {
+        let current_time = BackgroundWork::current_time();
+        let time_between_edits = current_time - self.last_change;
 
         // Required check to prevent overflow
-        if auto_save_state.last_change > auto_save_state.last_save && time_between_edits > 1000 {
+        if self.last_change > self.last_save && time_between_edits > 1000 {
             // There are changes since we last saved
-            auto_save_state.last_save = current_time;
+            self.last_save = current_time;
             m.send(Msg::SaveFile);
         }
     }
@@ -86,21 +79,27 @@ impl AutoSaveState {
 
 pub struct AutoSyncState {
     pub is_active: bool,
+    pub last_sync: u128,
 }
 
 impl AutoSyncState {
     pub fn default() -> Self {
-        Self { is_active: false }
+        Self {
+            is_active: false,
+            last_sync: 0,
+        }
     }
 
-    pub fn auto_sync(auto_sync_state: Ref<Self>, m: &Messenger, c: Arc<LbCore>, open_file_dirty: Arc<AtomicBool>, current_time: u128) {
-        if open_file_dirty.load(Ordering::Relaxed) {
-            m.send(Msg::SaveFile);
-            m.send(Msg::OpenFile(None));
+    pub fn auto_sync(&mut self, m: &Messenger, last_change: u128, last_save: u128) {
+        let current_time = BackgroundWork::current_time();
+
+        let time_between_edit = current_time - last_change;
+        let time_between_syncs = current_time - self.last_sync;
+        let is_file_clean = last_save as i128 - last_change as i128 > 0;
+
+        if time_between_syncs > 60000 && (time_between_edit > 90000 && is_file_clean) {
+            self.last_sync = current_time;
+            m.send(Msg::PerformSync);
         }
-
-        c.sync()
-
-        m.send(Msg::Sync)
     }
 }

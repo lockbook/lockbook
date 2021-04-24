@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex, atomic};
+use std::sync::{Arc, Mutex};
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
@@ -26,9 +26,8 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
-use crate::auto_sync::AutoSyncState;
 use crate::backend::{LbCore, LbSyncMsg};
-use crate::background_work::{AutoSaveState, BackgroundWork};
+use crate::background_work::BackgroundWork;
 use crate::editmode::EditMode;
 use crate::error::{
     LbErrKind::{Program as ProgErr, User as UserErr},
@@ -42,7 +41,6 @@ use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr};
 use std::thread;
-use std::sync::atomic::AtomicBool;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -77,14 +75,14 @@ impl LbApp {
         let lb_app = Self {
             core: c.clone(),
             settings: s.clone(),
-            state: Rc::new(RefCell::new(LbState::default(&m, c.clone()))),
+            state: Rc::new(RefCell::new(LbState::default(&m))),
             gui: Rc::new(gui),
             messenger: m,
         };
 
-        thread::spawn(move || {
-            BackgroundWork::init_background_work(lb_app.state.borrow().background_work.clone(), lb_app.state.borrow().open_file_dirty.clone())
-        });
+        let background_work = lb_app.state.borrow().background_work.clone();
+
+        thread::spawn(move || BackgroundWork::init_background_work(background_work));
 
         if s.borrow().auto_save {
             lb_app.messenger.send(Msg::ToggleAutoSave(true))
@@ -154,7 +152,6 @@ impl LbApp {
             .lock()
             .unwrap()
             .auto_sync_state
-            .borrow_mut()
             .is_active = auto_sync;
 
         Ok(())
@@ -167,7 +164,6 @@ impl LbApp {
             .lock()
             .unwrap()
             .auto_save_state
-            .borrow_mut()
             .is_active = auto_save;
 
         Ok(())
@@ -432,7 +428,7 @@ impl LbApp {
     fn open_document(&self, id: &Uuid) -> LbResult<()> {
         // Check for file dirtiness here
         let (meta, content) = self.core.open(&id)?;
-        self.state.borrow_mut().open_file_dirty.store(false, atomic::Ordering::SeqCst);
+        self.state.borrow_mut().open_file_dirty = false;
         self.edit(&EditMode::PlainText {
             path: self.core.full_path_for(&meta),
             meta,
@@ -459,13 +455,14 @@ impl LbApp {
         let open_file = self.state.borrow().opened_file.clone();
         if let Some(f) = open_file {
             self.gui.win.set_title(&format!("{}*", f.name));
-            self.state.borrow_mut().open_file_dirty.store(true, atomic::Ordering::SeqCst);
+            self.state.borrow_mut().open_file_dirty = true;
 
             self.state
                 .borrow()
-                .auto_save_state
+                .background_work
                 .lock()
                 .unwrap()
+                .auto_save_state
                 .file_changed();
         }
         Ok(())
@@ -477,7 +474,7 @@ impl LbApp {
         if let Some(f) = open_file {
             if f.file_type == FileType::Document {
                 self.gui.win.set_title(&f.name);
-                self.state.borrow_mut().open_file_dirty.store(false, atomic::Ordering::SeqCst);
+                self.state.borrow_mut().open_file_dirty = false;
                 let acctscr = self.gui.account.clone();
                 acctscr.set_saving(true);
 
@@ -850,17 +847,17 @@ impl LbApp {
 struct LbState {
     search: Option<SearchComponents>,
     opened_file: Option<FileMetadata>,
-    open_file_dirty: Arc<AtomicBool>,
+    open_file_dirty: bool,
     background_work: Arc<Mutex<BackgroundWork>>,
 }
 
 impl LbState {
-    fn default(m: &Messenger, c: Arc<LbCore>) -> Self {
+    fn default(m: &Messenger) -> Self {
         Self {
             search: None,
             opened_file: None,
-            open_file_dirty: Arc::new(AtomicBool::new(false)),
-            background_work: Arc::new(Mutex::new(BackgroundWork::default(&m, c))),
+            open_file_dirty: false,
+            background_work: Arc::new(Mutex::new(BackgroundWork::default(&m))),
         }
     }
 
@@ -1081,7 +1078,7 @@ impl SettingsUi {
     fn editor(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkBox {
         let auto_save_ch = GtkCheckBox::with_label("Auto-save ");
         auto_save_ch.set_active(s.borrow().auto_save);
-        auto_save_ch.connect_toggled(closure!(s => move |chbox| {
+        auto_save_ch.connect_toggled(closure!(s, m => move |chbox| {
             let auto_save = chbox.get_active();
 
             s.borrow_mut().auto_save = auto_save;
@@ -1090,7 +1087,7 @@ impl SettingsUi {
 
         let auto_sync_ch = GtkCheckBox::with_label("Auto-sync ");
         auto_sync_ch.set_active(s.borrow().auto_sync);
-        auto_sync_ch.connect_toggled(closure!(s => move |chbox| {
+        auto_sync_ch.connect_toggled(closure!(s, m => move |chbox| {
             let auto_sync = chbox.get_active();
 
             s.borrow_mut().auto_sync = auto_sync;
