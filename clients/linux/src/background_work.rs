@@ -6,6 +6,7 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use crate::backend::LbCore;
 use lockbook_models::work_unit::WorkUnit;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct BackgroundWork {
     pub messenger: Messenger,
@@ -15,24 +16,39 @@ pub struct BackgroundWork {
 }
 
 impl BackgroundWork {
-    pub fn default(m: &Messenger) -> Self {
+    pub fn default(m: &Messenger, c: Arc<LbCore>) -> Self {
         Self {
             messenger: m.clone(),
+            core: c,
             auto_save_state: Rc::new(RefCell::new(AutoSaveState::default())),
             auto_sync_state: Rc::new(RefCell::new(AutoSyncState::default())),
         }
     }
 
-    pub fn init_background_work(state: Arc<Mutex<Self>>) {
+    fn current_time() -> u128 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis()
+    }
+
+    pub fn init_background_work(state: Arc<Mutex<Self>>, open_file_dirty: Arc<AtomicBool>) {
         loop {
             thread::sleep(Duration::from_secs(1));
             let bks = state.lock().unwrap();
+            let current_time = Self::current_time();
 
             if bks.auto_save_state.is_active {
-                AutoSaveState::auto_save(bks.auto_save_state.borrow(), &bks.messenger)
+                AutoSaveState::auto_save(bks.auto_save_state.borrow(), &bks.messenger, current_time)
             }
 
-            if bks.auto_sync_state.is_active {}
+            if bks.auto_sync_state.is_active {
+                if !bks.auto_save_state.borrow().is_active && open_file_dirty.load(Ordering::SeqCst) {
+                    break
+                }
+
+                AutoSyncState::auto_sync(bks.auto_sync_state.borrow(), &bks.messenger, bks.core.clone(), open_file_dirty.clone(), current_time)
+            }
         }
     }
 }
@@ -56,16 +72,7 @@ impl AutoSaveState {
         self.last_change = Self::current_time();
     }
 
-    fn current_time() -> u128 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_millis()
-    }
-
-    fn auto_save(auto_save_state: Ref<Self>, m: &Messenger) {
-        let current_time = Self::current_time();
-
+    fn auto_save(auto_save_state: Ref<Self>, m: &Messenger, current_time: u128) {
         let time_between_edits = current_time - auto_save_state.last_change;
 
         // Required check to prevent overflow
@@ -86,17 +93,14 @@ impl AutoSyncState {
         Self { is_active: false }
     }
 
-    pub fn auto_sync(auto_sync_state: Ref<Self>, core: Arc<LbCore>) {
-        match core.calculate_work() {
-            Ok(work) => {
-                if work.work_units.iter().all(|w_u| match w_u {
-                    WorkUnit::LocalChange { .. } => false,
-                    WorkUnit::ServerChange { .. } => true,
-                }) {
-                    auto_sync_state.messenger.send(Msg::PerformSync)
-                }
-            }
-            Err(err) => auto_sync_state.messenger.send_err("calculating work", err),
+    pub fn auto_sync(auto_sync_state: Ref<Self>, m: &Messenger, c: Arc<LbCore>, open_file_dirty: Arc<AtomicBool>, current_time: u128) {
+        if open_file_dirty.load(Ordering::Relaxed) {
+            m.send(Msg::SaveFile);
+            m.send(Msg::OpenFile(None));
         }
+
+        c.sync()
+
+        m.send(Msg::Sync)
     }
 }
