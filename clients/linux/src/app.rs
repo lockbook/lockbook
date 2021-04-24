@@ -288,6 +288,10 @@ impl LbApp {
     }
 
     fn perform_sync(&self) -> LbResult<()> {
+        if let Ok(mut background_work) = self.state.borrow().background_work.try_lock() {
+            background_work.auto_sync_state.last_sync = BackgroundWork::current_time();
+        }
+
         let sync_ui = self.gui.account.sync().clone();
         sync_ui.set_syncing(true);
 
