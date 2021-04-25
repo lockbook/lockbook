@@ -28,21 +28,59 @@ impl BackgroundWork {
     pub fn init_background_work(state: Arc<Mutex<Self>>) {
         loop {
             thread::sleep(Duration::from_secs(1));
-            let mut bks = state.lock().unwrap();
-            let m = bks.messenger.clone();
+            let mut bgs = state.lock().unwrap();
 
-            if bks.auto_save_state.is_active {
-                bks.auto_save_state.auto_save(&m);
+            if bgs.auto_save_state.is_active {
+                bgs.auto_save();
             }
 
-            if bks.auto_sync_state.is_active {
-                let last_change = bks.auto_save_state.last_change;
-                let last_save = bks.auto_save_state.last_save;
-
-                bks.auto_sync_state.auto_sync(&m, last_change, last_save)
+            if bgs.auto_sync_state.is_active {
+                bgs.auto_sync();
             }
         }
     }
+
+    pub fn auto_sync(&mut self) {
+        let current_time = Self::current_time();
+
+        let time_since_edit = current_time - self.auto_save_state.last_change;
+        let time_since_sync = current_time - self.auto_sync_state.last_sync;
+        let sync_on_last_edit =
+            !self.auto_sync_state.synced_last_edit && time_since_edit > Self::SYNC_TIME_AFTER_EDIT;
+
+        if sync_on_last_edit {
+            self.auto_sync_state.synced_last_edit = true;
+        }
+
+        if self.auto_save_state.last_save > self.auto_save_state.last_change
+            && (sync_on_last_edit
+                || self.auto_sync_state.synced_last_edit
+                    && time_since_sync > Self::TIME_BETWEEN_SYNCS)
+        {
+            // TODO: make a setting to adjust these durations
+            self.auto_sync_state.last_sync = current_time;
+            self.messenger.send(Msg::PerformSync);
+        }
+    }
+
+    pub fn auto_save(&mut self) {
+        let current_time = BackgroundWork::current_time();
+        let time_since_edit = current_time - self.auto_save_state.last_change;
+
+        // Required check to prevent overflow
+        if self.auto_save_state.last_change > self.auto_save_state.last_save
+            && time_since_edit > Self::SAVE_TIME_AFTER_EDIT
+        {
+            // There are changes since we last saved
+            self.auto_sync_state.synced_last_edit = false;
+            self.auto_save_state.last_save = current_time;
+            self.messenger.send(Msg::SaveFile);
+        }
+    }
+
+    pub const TIME_BETWEEN_SYNCS: u128 = 1800000;
+    pub const SYNC_TIME_AFTER_EDIT: u128 = 90000;
+    pub const SAVE_TIME_AFTER_EDIT: u128 = 1000;
 }
 
 pub struct AutoSaveState {
@@ -63,23 +101,12 @@ impl AutoSaveState {
     pub fn file_changed(&mut self) {
         self.last_change = BackgroundWork::current_time();
     }
-
-    pub fn auto_save(&mut self, m: &Messenger) {
-        let current_time = BackgroundWork::current_time();
-        let time_between_edits = current_time - self.last_change;
-
-        // Required check to prevent overflow
-        if self.last_change > self.last_save && time_between_edits > 1000 {
-            // There are changes since we last saved
-            self.last_save = current_time;
-            m.send(Msg::SaveFile);
-        }
-    }
 }
 
 pub struct AutoSyncState {
     pub is_active: bool,
     pub last_sync: u128,
+    pub synced_last_edit: bool,
 }
 
 impl AutoSyncState {
@@ -87,19 +114,7 @@ impl AutoSyncState {
         Self {
             is_active: false,
             last_sync: 0,
-        }
-    }
-
-    pub fn auto_sync(&mut self, m: &Messenger, last_change: u128, last_save: u128) {
-        let current_time = BackgroundWork::current_time();
-
-        let time_between_edit = current_time - last_change;
-        let time_between_syncs = current_time - self.last_sync;
-        let is_file_clean = last_save as i128 - last_change as i128 > 0;
-
-        if time_between_syncs > 60000 && (time_between_edit > 90000 && is_file_clean) {
-            self.last_sync = current_time;
-            m.send(Msg::PerformSync);
+            synced_last_edit: false,
         }
     }
 }
