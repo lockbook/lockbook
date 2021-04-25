@@ -37,6 +37,8 @@ use crate::backend::LbCore;
 use crate::settings::Settings;
 
 fn main() {
+    gtk::init().unwrap();
+
     let data_dir = get_data_dir();
 
     let core = match LbCore::new(&data_dir) {
