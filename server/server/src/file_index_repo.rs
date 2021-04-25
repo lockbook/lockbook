@@ -729,6 +729,36 @@ pub async fn get_updates(
         .collect()
 }
 
+pub async fn get_root(
+    transaction: &Transaction<'_>,
+    public_key: &RSAPublicKey,
+) -> Result<Option<FileMetadata>, FileError> {
+    let possible_roots: Result<Vec<FileMetadata>, FileError> = transaction
+        .query(
+            "SELECT * FROM files fi
+            LEFT JOIN user_access_keys uak ON fi.id = uak.file_id AND fi.owner = uak.sharee_id
+            LEFT JOIN accounts a ON fi.owner = a.name
+            WHERE owner = (SELECT name FROM accounts WHERE public_key = $1)
+            AND id = parent;",
+            &[
+                &serde_json::to_string(public_key).map_err(FileError::Serialize)?
+            ],
+        )
+        .await
+        .map_err(FileError::Postgres)?
+        .iter()
+        .map(row_to_file_metadata)
+        .collect();
+
+    if let Ok(roots) = &possible_roots {
+        if roots.len() > 1 {
+            error!("Public key has multiple roots! {}", &serde_json::to_string(public_key).map_err(FileError::Serialize)?);
+        }
+    }
+
+    return possible_roots.map(|root| root.first().cloned());
+}
+
 pub async fn new_account(
     transaction: &Transaction<'_>,
     username: &str,

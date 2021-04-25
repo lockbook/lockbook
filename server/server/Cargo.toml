@@ -4,6 +4,14 @@ version = "0.1.1"
 authors = ["Parth <parth@mehrotra.me>"]
 edition = "2018"
 
+[lib]
+name = "lockbook_server_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lockbook-server"
+path = "src/main.rs"
+
 [dependencies]
 base64 = "0.11.0"
 chrono = "0.4.15"

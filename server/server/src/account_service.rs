@@ -1,9 +1,10 @@
 use crate::utils::username_is_valid;
-use crate::{file_index_repo, usage_service, RequestContext};
+use crate::{file_index_repo, usage_repo, RequestContext};
 use chrono::FixedOffset;
 use lockbook_models::api::{
-    GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
-    GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
+    DeleteAccountError, DeleteAccountRequest, DeleteAccountResponse, GetPublicKeyError,
+    GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
+    NewAccountError, NewAccountRequest, NewAccountResponse,
 };
 use lockbook_models::file_metadata::FileType;
 use std::ops::Add;
@@ -136,7 +137,7 @@ pub async fn get_usage(
 
     let timestamp = chrono::Local::now().naive_utc();
 
-    let res = usage_service::calculate(
+    let res = usage_repo::calculate(
         &transaction,
         &context.public_key,
         timestamp,
@@ -149,4 +150,11 @@ pub async fn get_usage(
     })?;
 
     Ok(GetUsageResponse { usages: res })
+}
+
+// TODO this will probably be deleted, and the comment in api moved to admin cli
+pub async fn delete_user(
+    context: &mut RequestContext<'_, DeleteAccountRequest>,
+) -> Result<DeleteAccountResponse, DeleteAccountError> {
+    Ok(DeleteAccountResponse {})
 }

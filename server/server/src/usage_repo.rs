@@ -131,9 +131,9 @@ mod usage_service_tests {
 
     use lockbook_models::api::FileUsage;
 
-    use crate::config::{config, IndexDbConfig};
+    use crate::config::{Config, IndexDbConfig};
     use crate::file_index_repo;
-    use crate::usage_service::{calculate, UsageCalculateError};
+    use crate::usage_repo::{calculate, UsageCalculateError};
     use lockbook_crypto::clock_service::ClockImpl;
     use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl};
     use uuid::Uuid;
@@ -176,7 +176,7 @@ mod usage_service_tests {
             res
         }
 
-        let fake_config = config();
+        let fake_config = Config::from_env_vars();
 
         let res = tokio_test::block_on(do_stuff(&fake_config.index_db, file_id)).unwrap();
 

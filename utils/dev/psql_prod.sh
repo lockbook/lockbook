@@ -3,7 +3,7 @@
 # brew install postgresql
 
 set -a
-. ../containers/prod.env
+. ../../containers/prod.env
 
 PGPASSWORD=$INDEX_DB_PASS psql \
 	--host=$INDEX_DB_HOST \
