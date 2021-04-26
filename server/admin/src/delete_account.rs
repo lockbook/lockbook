@@ -1,5 +1,5 @@
-use lockbook_models::api::DeleteAccountRequest;
-use lockbook_server_lib::{RequestContext, ServerState, file_index_repo};
+use lockbook_models::api::GetRootRequest;
+use lockbook_server_lib::{file_index_repo, RequestContext, ServerState};
 use rsa::{BigUint, RSAPublicKey};
 
 pub async fn delete_account(mut server_state: ServerState, username: &str) {
@@ -14,7 +14,7 @@ pub async fn delete_account(mut server_state: ServerState, username: &str) {
 
     let _request = RequestContext {
         server_state: &mut server_state,
-        request: DeleteAccountRequest {},
+        request: GetRootRequest {},
         public_key: pub_key,
     };
 

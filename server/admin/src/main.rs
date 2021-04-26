@@ -10,16 +10,23 @@ use crate::Subcommands::DeleteAccount;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::{file_content_client, file_index_repo, ServerState};
 
+use rsa::{BigUint, RSAPublicKey};
 use s3::bucket::Bucket;
 use structopt::StructOpt;
 use tokio::join;
 use tokio_postgres::Client as PostgresClient;
-use rsa::{BigUint, RSAPublicKey};
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A utility for a lockbook server administrator.")]
 enum Subcommands {
     /// Purge a user, and all their files from postgres & s3
+    ///  *Note: This is intentionally left unexposed to give the user experience of deleting a user more
+    /// thought. This includes thinking about being able to mark themselves as compromised and indicate to
+    /// collaborators that certain files are potentially compromised. This could also involve us reaching out
+    /// to services like Strip / Apple / Google and terminating open subscriptions.
+    /// Additionally deleted usernames should not be "freed". Usernames are a form of identity that's
+    /// immutable, if a username is compromised or deleted, it is consumed forever, someone else cannot
+    /// assume that identity.
     DeleteAccount { username: String },
 }
 

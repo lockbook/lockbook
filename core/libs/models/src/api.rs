@@ -513,36 +513,3 @@ impl Request for NewAccountRequest {
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/new-account";
 }
-
-// *Note: This is intentionally left unexposed to give the user experience of deleting a user more
-// thought. This includes thinking about being able to mark themselves as compromised and indicate to
-// colaborators that certain files are potentially compromised. This could also involve us reaching out
-// to services like Strip / Apple / Google and terminating open subscriptions.
-// Additionally deleted usernames should not be "freed". Usernames are a form of identity that's
-// immutable, if a username is compromised or deleted, it is consumed forever, someone else cannot
-// assume that identity.
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct DeleteAccountRequest {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct DeleteAccountResponse {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum DeleteAccountError {
-    InvalidUsername,
-    UserNotFound,
-}
-
-impl DeleteAccountRequest {
-    pub fn new() -> Self {
-        DeleteAccountRequest {}
-    }
-}
-
-impl Request for DeleteAccountRequest {
-    type Response = DeleteAccountResponse;
-    type Error = DeleteAccountError;
-    const METHOD: Method = Method::DELETE;
-    const ROUTE: &'static str = "/delete-account";
-}

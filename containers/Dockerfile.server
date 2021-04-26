@@ -22,15 +22,15 @@ COPY containers/dummy.rs /core/libs/models/src/lib.rs
 COPY containers/dummy.rs /core/libs/crypto/src/lib.rs
 
 COPY containers/dummy.rs src/main.rs
-COPY server/Cargo.toml .
-COPY server/Cargo.lock .
+COPY server/server/Cargo.toml .
+COPY server/server/Cargo.lock .
 
 # Dependency on core which has compile-time env var
 ENV API_URL=unused
 RUN cargo build --release
 
 # Build our source
-COPY server .
+COPY server/server .
 COPY core /core
 
 # Cargo thinks this file hasn't changed on the filesystem

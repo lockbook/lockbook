@@ -32,3 +32,6 @@ tokio = { version = "0.2.18", features = ["full"] }
 tokio-postgres = { version = "0.5.4", features = ["with-chrono-0_4"] }
 tokio-test = "0.2.1"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+lockbook-core = { path = "../../core" }
