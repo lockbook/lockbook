@@ -33,8 +33,8 @@ pub async fn delete_account(mut server_state: ServerState, username: &str) -> bo
     let mut ok = true;
 
     for file in deleted_files {
-        if !file.is_folder
-            && file_content_client::delete(
+        if !file.is_folder {
+            let problem = file_content_client::delete(
                 &server_state.files_db_client,
                 file.id,
                 file.old_content_version,
@@ -46,9 +46,11 @@ pub async fn delete_account(mut server_state: ServerState, username: &str) -> bo
                     file.id, err
                 )
             })
-            .is_err()
-        {
-            ok = false;
+            .is_err();
+
+            if problem {
+                ok = false;
+            }
         }
     }
 
