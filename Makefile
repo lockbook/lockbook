@@ -51,6 +51,19 @@ server_tests_run: server server_tests db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up server_tests
 	exit $$(docker wait server_tests-client-$(hash))
 
+.PHONY: admin_cli
+admin_cli: is_docker_running
+	docker build --target admin-cli-build -f containers/Dockerfile.admin_cli . --tag admin_cli:$(hash) --build-arg HASH=$(hash)
+
+.PHONY: admin_cli_fmt
+admin_cli_fmt: admin_cli
+	@echo The following files need formatting:
+	docker build --target admin-cli-fmt -f containers/Dockerfile.admin_cli . --tag admin_cli_fmt:$(hash) --build-arg HASH=$(hash)
+
+.PHONY: admin_cli_lint
+admin_cli_lint: admin_cli
+	docker build --target admin-cli-lint -f containers/Dockerfile.admin_cli . --tag admin_cli_lint:$(hash) --build-arg HASH=$(hash)
+
 .PHONY: cli
 cli: is_docker_running
 	docker build --target cli-build -f containers/Dockerfile.cli . --tag cli:$(hash) --build-arg HASH=$(hash)

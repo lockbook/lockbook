@@ -1,0 +1,55 @@
+ARG HASH
+FROM rust AS admin-cli-build
+# Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
+RUN rustup toolchain install stable
+RUN rustup component add rustfmt --toolchain stable
+RUN rustup component add clippy --toolchain stable
+
+WORKDIR admin-cli
+
+# Admin CLI depends on server and core via a relative import
+COPY server/server/Cargo.toml /server/Cargo.toml
+COPY server/server/Cargo.lock /server/Cargo.lock
+COPY core/Cargo.toml /core/Cargo.toml
+COPY core/Cargo.lock /core/Cargo.lock
+COPY core/libs/models/Cargo.toml /core/libs/models/Cargo.toml
+COPY core/libs/models/Cargo.lock /core/libs/models/Cargo.lock
+COPY core/libs/crypto/Cargo.toml /core/libs/crypto/Cargo.toml
+COPY core/libs/crypto/Cargo.lock /core/libs/crypto/Cargo.lock
+
+# Required to get cargo to get and compile deps but not our source
+# https://blog.mgattozzi.dev/caching-rust-docker-builds/
+COPY containers/dummy.rs /server/src/lib.rs
+COPY containers/dummy.rs /server/src/main.rs
+COPY containers/dummy.rs /core/src/lib.rs
+COPY containers/dummy.rs /core/libs/models/src/lib.rs
+COPY containers/dummy.rs /core/libs/crypto/src/lib.rs
+
+COPY containers/dummy.rs src/main.rs
+COPY server/admin/Cargo.toml .
+COPY server/admin/Cargo.lock .
+
+# Dependency on core which has compile-time env var
+ENV API_URL=unused
+RUN cargo test --release # test to pickup dev deps
+
+# Build our source
+COPY server/admin .
+COPY core /core
+COPY server/server /server
+
+# Cargo thinks this file hasn't changed on the filesystem
+RUN touch src/main.rs
+RUN touch /core/src/lib.rs
+RUN touch /core/libs/models/src/lib.rs
+RUN touch /core/libs/crypto/src/lib.rs
+RUN touch /server/src/lib.rs
+RUN cargo build --release
+
+# Check formatting
+FROM admin_cli:${HASH} AS admin-cli-fmt
+RUN cargo +stable fmt -- --check -l
+
+# Check lint
+FROM admin_cli:${HASH} AS admin-cli-lint
+RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments -A clippy::upper-case-acronyms
