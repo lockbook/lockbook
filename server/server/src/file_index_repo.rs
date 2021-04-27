@@ -736,6 +736,7 @@ pub async fn get_root(
     let possible_roots: Result<Vec<FileMetadata>, FileError> = transaction
         .query(
             "SELECT * FROM files fi
+            LEFT JOIN user_access_keys uak ON fi.id = uak.file_id AND fi.owner = uak.sharee_id
             LEFT JOIN accounts a ON fi.owner = a.name
             WHERE owner = (SELECT name FROM accounts WHERE public_key = $1)
             AND id = parent;",
