@@ -78,7 +78,7 @@ jobs:
       - name: Lint
         run: make server_lint
   
-  Admin-Cli:
+  Admin:
     runs-on: [self-hosted, dockerized]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
