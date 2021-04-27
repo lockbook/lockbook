@@ -43,21 +43,18 @@ impl BackgroundWork {
     pub fn auto_sync(&mut self) {
         let current_time = Self::current_time();
 
-        let time_since_edit = current_time - self.auto_save_state.last_change;
-        let time_since_sync = current_time - self.auto_sync_state.last_sync;
-        let sync_on_last_edit =
-            !self.auto_sync_state.synced_last_edit && time_since_edit > Self::SYNC_TIME_AFTER_EDIT;
-
-        if sync_on_last_edit {
-            self.auto_sync_state.synced_last_edit = true;
+        if self.auto_save_state.last_save < self.auto_save_state.last_change {
+            return;
         }
 
-        if self.auto_save_state.last_save > self.auto_save_state.last_change
-            && (sync_on_last_edit
-                || self.auto_sync_state.synced_last_edit
-                    && time_since_sync > Self::TIME_BETWEEN_SYNCS)
+        let millis_since_edit = current_time - self.auto_save_state.last_change;
+        let millis_since_sync = current_time - self.auto_sync_state.last_sync;
+
+        let unsynced_changes = self.auto_sync_state.last_sync < self.auto_save_state.last_save;
+
+        if (unsynced_changes && millis_since_edit > Self::SYNC_AFTER_EDIT_DELAY)
+            || millis_since_sync > Self::SYNC_AFTER_SYNC_DELAY
         {
-            // TODO: make a setting to adjust these durations
             self.auto_sync_state.last_sync = current_time;
             self.messenger.send(Msg::PerformSync);
         }
@@ -65,22 +62,22 @@ impl BackgroundWork {
 
     pub fn auto_save(&mut self) {
         let current_time = BackgroundWork::current_time();
-        let time_since_edit = current_time - self.auto_save_state.last_change;
+        let millis_since_edit = current_time - self.auto_save_state.last_change;
 
         // Required check to prevent overflow
         if self.auto_save_state.last_change > self.auto_save_state.last_save
-            && time_since_edit > Self::SAVE_TIME_AFTER_EDIT
+            && millis_since_edit > Self::SAVE_AFTER_EDIT_DELAY
         {
             // There are changes since we last saved
-            self.auto_sync_state.synced_last_edit = false;
             self.auto_save_state.last_save = current_time;
             self.messenger.send(Msg::SaveFile);
         }
     }
 
-    pub const TIME_BETWEEN_SYNCS: u128 = 1800000;
-    pub const SYNC_TIME_AFTER_EDIT: u128 = 90000;
-    pub const SAVE_TIME_AFTER_EDIT: u128 = 1000;
+    // TODO: make a setting to adjust these durations
+    pub const SYNC_AFTER_SYNC_DELAY: u128 = 1800000;
+    pub const SYNC_AFTER_EDIT_DELAY: u128 = 90000;
+    pub const SAVE_AFTER_EDIT_DELAY: u128 = 1000;
 }
 
 pub struct AutoSaveState {
@@ -106,7 +103,6 @@ impl AutoSaveState {
 pub struct AutoSyncState {
     pub is_active: bool,
     pub last_sync: u128,
-    pub synced_last_edit: bool,
 }
 
 impl AutoSyncState {
@@ -114,7 +110,6 @@ impl AutoSyncState {
         Self {
             is_active: false,
             last_sync: 0,
-            synced_last_edit: false,
         }
     }
 }

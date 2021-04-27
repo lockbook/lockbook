@@ -84,13 +84,12 @@ impl LbApp {
 
         thread::spawn(move || BackgroundWork::init_background_work(background_work));
 
-        if s.borrow().auto_save {
-            lb_app.messenger.send(Msg::ToggleAutoSave(true))
-        }
-
-        if s.borrow().auto_sync {
-            lb_app.messenger.send(Msg::ToggleAutoSync(true))
-        }
+        lb_app
+            .messenger
+            .send(Msg::ToggleAutoSave(s.borrow().auto_save));
+        lb_app
+            .messenger
+            .send(Msg::ToggleAutoSync(s.borrow().auto_sync));
 
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
