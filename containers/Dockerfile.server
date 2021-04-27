@@ -28,7 +28,7 @@ COPY server/server/Cargo.lock .
 
 # Dependency on core which has compile-time env var
 ENV API_URL=unused
-RUN cargo build --release
+RUN cargo test --release # test to pickup dev deps
 
 # Build our source
 COPY server/server .
