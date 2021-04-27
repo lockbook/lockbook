@@ -736,13 +736,10 @@ pub async fn get_root(
     let possible_roots: Result<Vec<FileMetadata>, FileError> = transaction
         .query(
             "SELECT * FROM files fi
-            LEFT JOIN user_access_keys uak ON fi.id = uak.file_id AND fi.owner = uak.sharee_id
             LEFT JOIN accounts a ON fi.owner = a.name
             WHERE owner = (SELECT name FROM accounts WHERE public_key = $1)
             AND id = parent;",
-            &[
-                &serde_json::to_string(public_key).map_err(FileError::Serialize)?
-            ],
+            &[&serde_json::to_string(public_key).map_err(FileError::Serialize)?],
         )
         .await
         .map_err(FileError::Postgres)?
@@ -752,7 +749,10 @@ pub async fn get_root(
 
     if let Ok(roots) = &possible_roots {
         if roots.len() > 1 {
-            error!("Public key has multiple roots! {}", &serde_json::to_string(public_key).map_err(FileError::Serialize)?);
+            error!(
+                "Public key has multiple roots! {}",
+                &serde_json::to_string(public_key).map_err(FileError::Serialize)?
+            );
         }
     }
 
@@ -789,5 +789,69 @@ pub async fn create_user_access_key(
             ],
         )
         .await?;
+    Ok(())
+}
+
+pub async fn delete_account_access_keys(
+    transaction: &Transaction<'_>,
+    username: &str,
+) -> Result<(), AccountError> {
+    transaction
+        .execute(
+            "DELETE FROM user_access_keys where sharee_id = $1",
+            &[&username.to_string()]
+        )
+        .await?;
+
+    Ok(())
+}
+
+pub async fn delete_account_from_usage_ledger(
+    transaction: &Transaction<'_>,
+    username: &str,
+) -> Result<(), AccountError> {
+    transaction
+        .execute(
+            "DELETE FROM usage_ledger where owner = $1",
+            &[&username.to_string()]
+        )
+        .await?;
+
+    Ok(())
+}
+
+pub async fn delete_all_files_of_account(
+    transaction: &Transaction<'_>,
+    username: &str,
+) -> Result<FileDeleteResponses, FileError> {
+    let rows = transaction
+        .query(
+            "DELETE FROM files
+            WHERE owner = $1
+            RETURNING
+                id AS id,
+                deleted AS old_deleted,
+                parent AS parent_id,
+                content_version AS old_content_version,
+                metadata_version AS new_metadata_version,
+                is_folder AS is_folder;",
+            &[&username.to_string()]
+        )
+        .await?;
+    let metadata = FileDeleteResponses::from_rows(&rows)?;
+    Ok(metadata)
+}
+
+pub async fn delete_account(
+    transaction: &Transaction<'_>,
+    username: &str,
+) -> Result<(), AccountError> {
+    transaction
+        .execute(
+            "DELETE FROM accounts where name = $1",
+            &[&username.to_string()]
+        )
+        .await?;
+
     Ok(())
 }

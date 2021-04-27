@@ -963,11 +963,8 @@ dependencies = [
 name = "lba"
 version = "0.1.0"
 dependencies = [
- "fern",
  "lockbook-models",
  "lockbook-server",
- "log",
- "rsa",
  "rust-s3",
  "structopt",
  "tokio 0.2.25",

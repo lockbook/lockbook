@@ -1,8 +1,4 @@
 mod delete_account;
-mod loggers;
-
-#[macro_use]
-extern crate log;
 
 use crate::delete_account::delete_account;
 use crate::Subcommands::DeleteAccount;
@@ -10,7 +6,6 @@ use crate::Subcommands::DeleteAccount;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::{file_content_client, file_index_repo, ServerState};
 
-use rsa::{BigUint, RSAPublicKey};
 use s3::bucket::Bucket;
 use structopt::StructOpt;
 use tokio::join;
@@ -32,7 +27,6 @@ enum Subcommands {
 
 #[tokio::main]
 async fn main() {
-    loggers::init();
     let config = Config::from_env_vars();
     let (index_db_client, files_db_client) = connect_to_state(&config).await;
     let server_state = ServerState {
@@ -41,8 +35,14 @@ async fn main() {
         files_db_client,
     };
 
-    match Subcommands::from_args() {
+    let ok = match Subcommands::from_args() {
         DeleteAccount { username: user } => delete_account(server_state, &user).await,
+    };
+
+    if ok {
+        std::process::exit(0);
+    } else {
+        std::process::exit(1);
     }
 }
 

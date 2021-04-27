@@ -38,7 +38,14 @@ mod get_root_tests {
         .unwrap();
         lockbook_core::sync_all(&cfg2).unwrap();
 
-        let res = tokio_test::block_on(get_user_root(&account1.private_key.to_public_key()));
-        assert_eq!(res.name, account1.username);
+        let server_root =
+            tokio_test::block_on(get_user_root(&account1.private_key.to_public_key()));
+        let core_root = lockbook_core::get_root(&cfg1).unwrap();
+        assert_eq!(server_root, core_root);
+
+        let server_root =
+            tokio_test::block_on(get_user_root(&account2.private_key.to_public_key()));
+        let core_root = lockbook_core::get_root(&cfg2).unwrap();
+        assert_eq!(server_root, core_root);
     }
 }

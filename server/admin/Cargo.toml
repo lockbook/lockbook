@@ -10,7 +10,4 @@ lockbook-server = { path = "../server" }
 tokio = { version = "0.2.18", features = ["full"] }
 tokio-postgres = { version = "0.5.4", features = ["with-chrono-0_4"] }
 rust-s3 = { version = "0.22.3", features = ["path-style"] }
-rsa = { version = "^0.2", features = ["serde1"] }
 lockbook-models = { path = "../../core/libs/models" }
-fern = { version = "0.6.0", features = ["colored"]}
-log = "0.4.8"
