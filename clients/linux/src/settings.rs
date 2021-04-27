@@ -5,8 +5,8 @@ use std::io;
 
 use serde::{Deserialize, Serialize};
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     pub hidden_tree_cols: Vec<String>,
     pub window_maximize: bool,
