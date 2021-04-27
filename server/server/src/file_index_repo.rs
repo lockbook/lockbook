@@ -799,7 +799,7 @@ pub async fn delete_account_access_keys(
     transaction
         .execute(
             "DELETE FROM user_access_keys where sharee_id = $1",
-            &[&username.to_string()]
+            &[&username.to_string()],
         )
         .await?;
 
@@ -813,7 +813,7 @@ pub async fn delete_account_from_usage_ledger(
     transaction
         .execute(
             "DELETE FROM usage_ledger where owner = $1",
-            &[&username.to_string()]
+            &[&username.to_string()],
         )
         .await?;
 
@@ -835,7 +835,7 @@ pub async fn delete_all_files_of_account(
                 content_version AS old_content_version,
                 metadata_version AS new_metadata_version,
                 is_folder AS is_folder;",
-            &[&username.to_string()]
+            &[&username.to_string()],
         )
         .await?;
     let metadata = FileDeleteResponses::from_rows(&rows)?;
@@ -849,7 +849,7 @@ pub async fn delete_account(
     transaction
         .execute(
             "DELETE FROM accounts where name = $1",
-            &[&username.to_string()]
+            &[&username.to_string()],
         )
         .await?;
 
