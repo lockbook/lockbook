@@ -53,7 +53,7 @@ impl BackgroundWork {
         let unsynced_changes = self.auto_sync_state.last_sync < self.auto_save_state.last_save;
 
         if (unsynced_changes && millis_since_edit > Self::SYNC_AFTER_EDIT_DELAY)
-            || millis_since_sync > Self::SYNC_AFTER_SYNC_DELAY
+            || (!unsynced_changes && millis_since_sync > Self::SYNC_AFTER_SYNC_DELAY)
         {
             self.auto_sync_state.last_sync = current_time;
             self.messenger.send(Msg::PerformSync);
