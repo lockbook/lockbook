@@ -26,8 +26,8 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::account::AccountScreen;
-use crate::auto_save::AutoSaveState;
 use crate::backend::{LbCore, LbSyncMsg};
+use crate::background_work::BackgroundWork;
 use crate::editmode::EditMode;
 use crate::error::{
     LbErrKind::{Program as ProgErr, User as UserErr},
@@ -80,12 +80,16 @@ impl LbApp {
             messenger: m,
         };
 
-        if s.borrow().auto_save {
-            let auto_save_state = lb_app.state.borrow().auto_save_state.clone();
-            thread::spawn(move || {
-                AutoSaveState::auto_save_loop(auto_save_state);
-            });
-        }
+        let background_work = lb_app.state.borrow().background_work.clone();
+
+        thread::spawn(move || BackgroundWork::init_background_work(background_work));
+
+        lb_app
+            .messenger
+            .send(Msg::ToggleAutoSave(s.borrow().auto_save));
+        lb_app
+            .messenger
+            .send(Msg::ToggleAutoSync(s.borrow().auto_sync));
 
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
@@ -119,6 +123,9 @@ impl LbApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
 
+                Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
+                Msg::ToggleAutoSync(auto_sync) => lb.toggle_auto_sync(auto_sync),
+
                 Msg::Error(title, err) => {
                     lb.err(&title, &err);
                     Ok(())
@@ -135,6 +142,30 @@ impl LbApp {
 
     pub fn show(&self) -> LbResult<()> {
         self.gui.show(&self.core)
+    }
+
+    fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
+        self.state
+            .borrow()
+            .background_work
+            .lock()
+            .unwrap()
+            .auto_sync_state
+            .is_active = auto_sync;
+
+        Ok(())
+    }
+
+    fn toggle_auto_save(&self, auto_save: bool) -> LbResult<()> {
+        self.state
+            .borrow()
+            .background_work
+            .lock()
+            .unwrap()
+            .auto_save_state
+            .is_active = auto_save;
+
+        Ok(())
     }
 
     fn create_account(&self, name: String) -> LbResult<()> {
@@ -256,6 +287,10 @@ impl LbApp {
     }
 
     fn perform_sync(&self) -> LbResult<()> {
+        if let Ok(mut background_work) = self.state.borrow().background_work.try_lock() {
+            background_work.auto_sync_state.last_sync = BackgroundWork::current_time();
+        }
+
         let sync_ui = self.gui.account.sync().clone();
         sync_ui.set_syncing(true);
 
@@ -427,9 +462,10 @@ impl LbApp {
 
             self.state
                 .borrow()
-                .auto_save_state
+                .background_work
                 .lock()
                 .unwrap()
+                .auto_save_state
                 .file_changed();
         }
         Ok(())
@@ -815,7 +851,7 @@ struct LbState {
     search: Option<SearchComponents>,
     opened_file: Option<FileMetadata>,
     open_file_dirty: bool,
-    auto_save_state: Arc<Mutex<AutoSaveState>>,
+    background_work: Arc<Mutex<BackgroundWork>>,
 }
 
 impl LbState {
@@ -824,7 +860,7 @@ impl LbState {
             search: None,
             opened_file: None,
             open_file_dirty: false,
-            auto_save_state: Arc::new(Mutex::new(AutoSaveState::default(&m))),
+            background_work: Arc::new(Mutex::new(BackgroundWork::default(&m))),
         }
     }
 
@@ -1007,7 +1043,7 @@ impl SettingsUi {
         for tab_data in vec![
             ("File Tree", Self::filetree(&s, &m)),
             ("Window", Self::window(&s)),
-            ("Editor", Self::editor(&s)),
+            ("Editor", Self::editor(&s, &m)),
         ] {
             let (title, content) = tab_data;
             let tab_btn = GtkLabel::new(Some(title));
@@ -1042,15 +1078,28 @@ impl SettingsUi {
         chbxs
     }
 
-    fn editor(s: &Rc<RefCell<Settings>>) -> GtkBox {
-        let ch = GtkCheckBox::with_label("Auto-save ");
-        ch.set_active(s.borrow().auto_save);
-        ch.connect_toggled(closure!(s => move |chbox| {
-            s.borrow_mut().auto_save = chbox.get_active();
+    fn editor(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkBox {
+        let auto_save_ch = GtkCheckBox::with_label("Auto-save ");
+        auto_save_ch.set_active(s.borrow().auto_save);
+        auto_save_ch.connect_toggled(closure!(s, m => move |chbox| {
+            let auto_save = chbox.get_active();
+
+            s.borrow_mut().auto_save = auto_save;
+            m.send(Msg::ToggleAutoSave(auto_save))
+        }));
+
+        let auto_sync_ch = GtkCheckBox::with_label("Auto-sync ");
+        auto_sync_ch.set_active(s.borrow().auto_sync);
+        auto_sync_ch.connect_toggled(closure!(s, m => move |chbox| {
+            let auto_sync = chbox.get_active();
+
+            s.borrow_mut().auto_sync = auto_sync;
+            m.send(Msg::ToggleAutoSync(auto_sync))
         }));
 
         let chbxs = GtkBox::new(Vertical, 0);
-        chbxs.add(&ch);
+        chbxs.add(&auto_save_ch);
+        chbxs.add(&auto_sync_ch);
         chbxs
     }
 }
