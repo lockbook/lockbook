@@ -6,22 +6,14 @@ extern crate tokio;
 #[macro_use]
 extern crate log;
 
-pub mod account_service;
-pub mod config;
-pub mod file_content_client;
-pub mod file_index_repo;
-pub mod file_service;
-mod loggers;
-pub mod usage_service;
-pub mod utils;
-
-use crate::config::config;
 use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
 use lockbook_crypto::clock_service::ClockImpl;
 use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl, RSAVerifyError};
 use lockbook_models::api::*;
+use lockbook_server_lib::config::Config;
+use lockbook_server_lib::*;
 use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -33,22 +25,10 @@ use tokio::sync::Mutex;
 
 static LOG_FILE: &str = "lockbook_server.log";
 
-pub struct ServerState {
-    pub config: config::Config,
-    pub index_db_client: tokio_postgres::Client,
-    pub files_db_client: s3::bucket::Bucket,
-}
-
-pub struct RequestContext<'a, TRequest> {
-    server_state: &'a mut ServerState,
-    request: TRequest,
-    public_key: RSAPublicKey,
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let handle = Handle::current();
-    let config = config();
+    let config = Config::from_env_vars();
     let build = option_env!("SERVER_BUILD").unwrap_or("MISSING");
 
     loggers::init(
@@ -80,9 +60,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let port = config.server.port;
     let server_state = Arc::new(Mutex::new(ServerState {
-        config: config,
-        index_db_client: index_db_client,
-        files_db_client: files_db_client,
+        config,
+        index_db_client,
+        files_db_client,
     }));
     let addr = format!("0.0.0.0:{}", port).parse()?;
 
