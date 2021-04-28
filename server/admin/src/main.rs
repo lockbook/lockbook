@@ -18,7 +18,7 @@ enum Subcommands {
     ///  *Note: This is intentionally left unexposed to give the user experience of deleting a user more
     /// thought. This includes thinking about being able to mark themselves as compromised and indicate to
     /// collaborators that certain files are potentially compromised. This could also involve us reaching out
-    /// to services like Strip / Apple / Google and terminating open subscriptions.
+    /// to services like Stripe / Apple / Google and terminating open subscriptions.
     /// Additionally deleted usernames should not be "freed". Usernames are a form of identity that's
     /// immutable, if a username is compromised or deleted, it is consumed forever, someone else cannot
     /// assume that identity.
