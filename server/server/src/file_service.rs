@@ -1,6 +1,6 @@
 use crate::file_index_repo;
 use crate::file_index_repo::FileError;
-use crate::usage_service;
+use crate::usage_repo;
 use crate::{file_content_client, RequestContext};
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType;
@@ -78,7 +78,7 @@ pub async fn change_document_content(
         return Err(None);
     };
 
-    usage_service::track_content_change(
+    usage_repo::track_content_change(
         &transaction,
         &request.id,
         &context.public_key,
@@ -148,7 +148,7 @@ pub async fn create_document(
         }
     })?;
 
-    usage_service::track_content_change(
+    usage_repo::track_content_change(
         &transaction,
         &request.id,
         &context.public_key,
@@ -247,7 +247,7 @@ pub async fn delete_document(
         return Err(None);
     };
 
-    usage_service::track_content_change(&transaction, &request.id, &context.public_key, 0)
+    usage_repo::track_content_change(&transaction, &request.id, &context.public_key, 0)
         .await
         .map_err(|err| {
             error!("Usage tracking error: {:?}", err);
@@ -526,7 +526,7 @@ pub async fn delete_folder(
                 return Err(None);
             };
 
-            usage_service::track_content_change(&transaction, &r.id, &context.public_key, 0)
+            usage_repo::track_content_change(&transaction, &r.id, &context.public_key, 0)
                 .await
                 .map_err(|err| {
                     error!("Usage tracking error: {:?}", err);
