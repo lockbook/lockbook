@@ -20,7 +20,7 @@ COPY containers/dummy.rs libs/crypto/src/lib.rs
 COPY core/libs/crypto/Cargo.toml libs/crypto/.
 COPY core/libs/crypto/Cargo.lock libs/crypto/.
 COPY core/benches ./benches
-RUN cargo build --release
+RUN cargo test --release
 
 # Build our source
 COPY core .

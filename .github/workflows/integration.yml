@@ -77,6 +77,19 @@ jobs:
         run: make server_fmt
       - name: Lint
         run: make server_lint
+  
+  Admin:
+    runs-on: [self-hosted, dockerized]
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build admin cli container
+        run: make admin_cli
+      - name: Check Formatting
+        run: make admin_cli_fmt
+      - name: Lint
+        run: make admin_cli_lint
 
   Prep-Core-Server-Db:
     runs-on: [self-hosted, dockerized]

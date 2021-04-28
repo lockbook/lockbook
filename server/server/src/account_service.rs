@@ -1,5 +1,5 @@
 use crate::utils::username_is_valid;
-use crate::{file_index_repo, usage_service, RequestContext};
+use crate::{file_index_repo, usage_repo, RequestContext};
 use chrono::FixedOffset;
 use lockbook_models::api::{
     GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
@@ -136,7 +136,7 @@ pub async fn get_usage(
 
     let timestamp = chrono::Local::now().naive_utc();
 
-    let res = usage_service::calculate(
+    let res = usage_repo::calculate(
         &transaction,
         &context.public_key,
         timestamp,

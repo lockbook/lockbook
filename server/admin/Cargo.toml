@@ -1,0 +1,13 @@
+[package]
+name = "lba"
+version = "0.1.0"
+authors = ["Parth <parth@mehrotra.me>"]
+edition = "2018"
+
+[dependencies]
+structopt = "0.3.13"
+lockbook-server = { path = "../server" }
+tokio = { version = "0.2.18", features = ["full"] }
+tokio-postgres = { version = "0.5.4", features = ["with-chrono-0_4"] }
+rust-s3 = { version = "0.22.3", features = ["path-style"] }
+lockbook-models = { path = "../../core/libs/models" }
