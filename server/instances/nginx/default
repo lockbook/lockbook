@@ -1,0 +1,31 @@
+upstream prometheus {
+        server localhost:9090;
+}
+
+upstream grafana {
+        server localhost:3000;
+}
+
+server {
+	server_name metrics.lockbook.app;
+
+    location / {
+        proxy_pass http://grafana;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+	listen 80;
+	listen [::]:80;
+}
+
+server {
+	server_name prometheus.lockbook.app;
+
+	location / {
+		proxy_pass http://prometheus;
+		proxy_set_header X-Real-IP $remote_addr;
+	}
+
+	listen 80;
+	listen [::]:80;
+}
