@@ -22,6 +22,7 @@ use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::{LbError, LbResult};
 use crate::{progerr, uerr};
+use std::collections::HashMap;
 
 macro_rules! match_core_err {
     (
@@ -230,12 +231,10 @@ impl LbCore {
         let acct_lock = lock!(self.account, read)?;
         let acct = account!(acct_lock)?;
 
-        loop {
-            let work = self.calculate_work()?;
-            if work.work_units.is_empty() {
-                break;
-            }
+        let mut work = self.calculate_work()?;
+        let mut errors: HashMap<Uuid, LbError> = HashMap::new();
 
+        for _ in 0..10 {
             for (i, wu) in work.work_units.iter().enumerate() {
                 let data = LbSyncMsg {
                     work: wu.clone(),
@@ -245,13 +244,31 @@ impl LbCore {
                 };
 
                 ch.send(Some(data)).map_err(LbError::fmt_program_err)?;
-                self.do_work(&acct, wu)?;
+                match self.do_work(&acct, wu) {
+                    Ok(_) => errors.remove(&wu.get_metadata().id),
+                    Err(err) => errors.insert(wu.get_metadata().id, err),
+                };
             }
 
-            self.set_last_synced(work.most_recent_update_from_server)?;
+            if errors.is_empty() {
+                self.set_last_synced(work.most_recent_update_from_server)?;
+            }
+
+            work = self.calculate_work()?;
+
+            if work.work_units.is_empty() {
+                break;
+            }
         }
 
-        ch.send(None).map_err(LbError::fmt_program_err)
+        ch.send(None).map_err(LbError::fmt_program_err)?;
+
+        if errors.is_empty() {
+            self.set_last_synced(work.most_recent_update_from_server)?;
+            Ok(())
+        } else {
+            Err(LbError::fmt_program_err(errors))
+        }
     }
 
     pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
