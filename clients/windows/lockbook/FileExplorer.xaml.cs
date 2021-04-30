@@ -545,14 +545,13 @@ namespace lockbook {
 
         private void StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args) {
             foreach(var erasedStroke in args.Strokes) {
-                // todo: does a dictionary lookup of the erased stroke actually work?
                 foreach(var connectedSubstroke in drawingContext.splitStrokes[erasedStroke]) {
                     drawingContext.strokes.Remove(connectedSubstroke);
                     drawingContext.splitStrokes.Remove(connectedSubstroke);
                 }
                 // todo: better way to erase
                 inkCanvas.InkPresenter.StrokeContainer.Clear();
-                foreach (var stroke in drawingContext.strokes) {
+                foreach (var stroke in drawingContext.GetDrawing().GetContext().strokes) {
                     inkCanvas.InkPresenter.StrokeContainer.AddStroke(stroke);
                 }
             }
