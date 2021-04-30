@@ -29,6 +29,7 @@ pub enum Msg {
 
     ToggleTreeCol(FileTreeCol),
 
+    AccountScreenShown,
     ShowDialogNew,
     ShowDialogSyncDetails,
     ShowDialogPreferences,
