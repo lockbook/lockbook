@@ -80,6 +80,13 @@ impl LbApp {
             messenger: m,
         };
 
+        lb_app
+            .messenger
+            .send(Msg::ToggleAutoSave(s.borrow().auto_save));
+        lb_app
+            .messenger
+            .send(Msg::ToggleAutoSync(s.borrow().auto_save));
+
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
             let maybe_err = match msg {
@@ -132,7 +139,7 @@ impl LbApp {
     }
 
     pub fn show(&self) -> LbResult<()> {
-        self.gui.show(&self.core, &self.messenger)
+        self.gui.show(&self.core)
     }
 
     fn create_account(&self, name: String) -> LbResult<()> {
@@ -141,7 +148,7 @@ impl LbApp {
         let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
             match result {
                 Ok(_) => {
-                    if let Err(err) = lb.gui.show_account_screen(&lb.core, &lb.messenger) {
+                    if let Err(err) = lb.gui.show_account_screen(&lb.core) {
                         lb.messenger.send_err("showing account screen", err);
                     }
                 }
@@ -188,7 +195,7 @@ impl LbApp {
             // sync status.
             if let Some(msg) = msgopt {
                 lb.gui.intro.sync_progress(&msg)
-            } else if let Err(err) = lb.gui.show_account_screen(&lb.core, &lb.messenger) {
+            } else if let Err(err) = lb.gui.show_account_screen(&lb.core) {
                 lb.messenger.send_err("showing account screen", err);
             } else {
                 lb.messenger.send(Msg::RefreshSyncStatus);
@@ -295,11 +302,6 @@ impl LbApp {
         let background_work = self.state.borrow().background_work.clone();
 
         thread::spawn(move || BackgroundWork::init_background_work(background_work));
-
-        self.messenger
-            .send(Msg::ToggleAutoSave(self.settings.borrow().auto_save));
-        self.messenger
-            .send(Msg::ToggleAutoSync(self.settings.borrow().auto_save));
 
         Ok(())
     }
@@ -963,6 +965,7 @@ struct Gui {
     screens: GtkStack,
     intro: IntroScreen,
     account: Rc<AccountScreen>,
+    messenger: Messenger,
 }
 
 impl Gui {
@@ -1003,13 +1006,14 @@ impl Gui {
             screens,
             intro,
             account: Rc::new(account),
+            messenger: m.clone(),
         }
     }
 
-    fn show(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
+    fn show(&self, core: &LbCore) -> LbResult<()> {
         self.win.show_all();
         if core.has_account()? {
-            self.show_account_screen(&core, m)
+            self.show_account_screen(&core)
         } else {
             self.show_intro_screen()
         }
@@ -1022,13 +1026,13 @@ impl Gui {
         Ok(())
     }
 
-    fn show_account_screen(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
+    fn show_account_screen(&self, core: &LbCore) -> LbResult<()> {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
         self.account.fill(&core)?;
         self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
-        m.send(Msg::AccountScreenShown);
+        self.messenger.send(Msg::AccountScreenShown);
         Ok(())
     }
 
