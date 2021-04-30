@@ -1,10 +1,10 @@
 ﻿using Core;
+using lib;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Numerics;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
@@ -90,7 +90,7 @@ namespace lockbook {
             set {
                 inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
                     Color = theme.GetUIColor(value, 0xFF),
-                    Size = new Size(5, 5),
+                    Size = new Size(20, 20),
                 });
             }
         }
@@ -101,6 +101,7 @@ namespace lockbook {
 
         ObservableCollection<UIFile> Files = new ObservableCollection<UIFile>();
         Dictionary<string, int> editCount = new Dictionary<string, int>();
+        DrawingContext drawingContext;
 
         public FileExplorer() {
             InitializeComponent();
@@ -113,15 +114,8 @@ namespace lockbook {
                 Color = theme.GetUIColor(ColorAlias.Black, 0xFF),
                 Size = new Size(5, 5),
             });
-            inkCanvas.InkPresenter.StrokesCollected += DrawingChanged;
-            PenPaletteBlack.Color = theme.GetUIColor(ColorAlias.Black, 1f);
-            PenPaletteRed.Color = theme.GetUIColor(ColorAlias.Red, 1f);
-            PenPaletteGreen.Color = theme.GetUIColor(ColorAlias.Green, 1f);
-            PenPaletteBlue.Color = theme.GetUIColor(ColorAlias.Blue, 1f);
-            PenPaletteYellow.Color = theme.GetUIColor(ColorAlias.Yellow, 1f);
-            PenPaletteMagenta.Color = theme.GetUIColor(ColorAlias.Magenta, 1f);
-            PenPaletteCyan.Color = theme.GetUIColor(ColorAlias.Cyan, 1f);
-            PenPaletteWhite.Color = theme.GetUIColor(ColorAlias.White, 1f);
+            inkCanvas.InkPresenter.StrokesCollected += StrokesCollected;
+            inkCanvas.InkPresenter.StrokesErased += StrokesErased;
         }
 
         private async void SignOutClicked(object sender, RoutedEventArgs e) {
@@ -486,21 +480,21 @@ namespace lockbook {
                         if (file.Name.EndsWith(".draw")) {
                             CurrentEditMode = EditMode.Draw;
                             if (!string.IsNullOrWhiteSpace(content.content)) {
-                                var drawing = JsonConvert.DeserializeObject<Drawing>(content.content);
-                                var builder = new InkStrokeBuilder();
-                                foreach (var stroke in drawing.strokes) {
-                                    var attributes = new InkDrawingAttributes();
-                                    attributes.Size = new Size(5, 5);
-                                    attributes.Color = drawing.theme.GetUIColor(stroke.color, 1f);
-                                    builder.SetDefaultDrawingAttributes(attributes);
-                                    var inkPoints = new List<InkPoint>();
-                                    for (var i = 0; i < stroke.pointsX.Count; i++) {
-                                        inkPoints.Add(new InkPoint(new Point(stroke.pointsX[i], stroke.pointsY[i]), Draw.GirthToPressure(stroke.pointsGirth[i]), 0, 0, 0));
-                                    }
-                                    var inkStroke = builder.CreateStrokeFromInkPoints(inkPoints, Matrix3x2.Identity);
-                                    inkCanvas.InkPresenter.StrokeContainer.AddStroke(inkStroke);
-                                }
+                                drawingContext = JsonConvert.DeserializeObject<Drawing>(content.content).GetContext();
+                            } else {
+                                drawingContext = new DrawingContext();
                             }
+                            foreach (var stroke in drawingContext.strokes) {
+                                inkCanvas.InkPresenter.StrokeContainer.AddStroke(stroke);
+                            }
+                            PenPaletteBlack.Color = theme.GetUIColor(ColorAlias.Black, 1f);
+                            PenPaletteRed.Color = theme.GetUIColor(ColorAlias.Red, 1f);
+                            PenPaletteGreen.Color = theme.GetUIColor(ColorAlias.Green, 1f);
+                            PenPaletteBlue.Color = theme.GetUIColor(ColorAlias.Blue, 1f);
+                            PenPaletteYellow.Color = theme.GetUIColor(ColorAlias.Yellow, 1f);
+                            PenPaletteMagenta.Color = theme.GetUIColor(ColorAlias.Magenta, 1f);
+                            PenPaletteCyan.Color = theme.GetUIColor(ColorAlias.Cyan, 1f);
+                            PenPaletteWhite.Color = theme.GetUIColor(ColorAlias.White, 1f);
                         } else {
                             CurrentEditMode = EditMode.Text;
                             textEditor.TextDocument.SetText(TextSetOptions.None, content.content);
@@ -532,6 +526,7 @@ namespace lockbook {
 
         private async void TextChanged(object sender, RoutedEventArgs e) {
             if (SelectedDocumentId != "" && textEditor.FocusState != FocusState.Unfocused) {
+                // Capture variables in case document is closed before save actually happens
                 string docID = SelectedDocumentId;
                 string text;
                 textEditor.TextDocument.GetText(TextGetOptions.UseLf, out text);
@@ -548,8 +543,36 @@ namespace lockbook {
             }
         }
 
-        private async void DrawingChanged(InkPresenter sender, InkStrokesCollectedEventArgs args) {
+        private void StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args) {
+            foreach(var erasedStroke in args.Strokes) {
+                // todo: does a dictionary lookup of the erased stroke actually work?
+                foreach(var connectedSubstroke in drawingContext.splitStrokes[erasedStroke]) {
+                    drawingContext.strokes.Remove(connectedSubstroke);
+                    drawingContext.splitStrokes.Remove(connectedSubstroke);
+                }
+                // todo: better way to erase
+                inkCanvas.InkPresenter.StrokeContainer.Clear();
+                foreach (var stroke in drawingContext.strokes) {
+                    inkCanvas.InkPresenter.StrokeContainer.AddStroke(stroke);
+                }
+            }
+
+            DrawingChanged();
+        }
+
+        private void StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args) {
+            foreach (var addedStroke in args.Strokes) {
+                drawingContext.strokes.Add(addedStroke);
+                drawingContext.splitStrokes[addedStroke] = new List<InkStroke> { addedStroke };
+            }
+
+            DrawingChanged();
+        }
+
+        private async void DrawingChanged() {
+            // Capture variables in case document is closed before save actually happens
             string docID = SelectedDocumentId;
+            var context = drawingContext;
 
             // Only save the document if no strokes have happened in the last .5 seconds
             editCount[docID]++;
@@ -559,30 +582,7 @@ namespace lockbook {
                 return;
             }
 
-            var drawing = new Drawing {
-                scale = 1,
-                translationX = 0,
-                translationY = 0,
-                strokes = new List<Stroke>(),
-                theme = null,
-            };
-            foreach (var stroke in inkCanvas.InkPresenter.StrokeContainer.GetStrokes()) {
-                var newStroke = new Stroke {
-                    pointsX = new List<float>(),
-                    pointsY = new List<float>(),
-                    pointsGirth = new List<float>(),
-                    color = drawing.theme.GetColorAlias(stroke.DrawingAttributes.Color),
-                    alpha = 0xFF,
-                };
-                foreach (var point in stroke.GetInkPoints()) {
-                    newStroke.pointsX.Add((float)point.Position.X);
-                    newStroke.pointsY.Add((float)point.Position.Y);
-                    newStroke.pointsGirth.Add(Draw.PressureToGirth(point.Pressure));
-                }
-                drawing.strokes.Add(newStroke);
-            }
-
-            var drawingJSON = JsonConvert.SerializeObject(drawing);
+            var drawingJSON = JsonConvert.SerializeObject(context.GetDrawing());
             await SaveContent(docID, drawingJSON);
         }
 
