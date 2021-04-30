@@ -531,7 +531,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
         Err(err) => return err,
     };
 
-    string_to_jstring(&env, translate(sync_all(&config)))
+    string_to_jstring(&env, translate(sync_all(&config, None)))
 }
 
 #[no_mangle]

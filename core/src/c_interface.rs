@@ -289,7 +289,7 @@ pub unsafe extern "C" fn execute_work(
 #[no_mangle]
 pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_char {
     let config = &config_from_ptr(writeable_path);
-    c_string(translate(crate::sync_all(config)))
+    c_string(translate(crate::sync_all(config, None)))
 }
 
 #[no_mangle]
