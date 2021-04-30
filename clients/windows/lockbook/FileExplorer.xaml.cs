@@ -544,12 +544,21 @@ namespace lockbook {
         }
 
         private void StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args) {
-            foreach(var erasedStroke in args.Strokes) {
+            var redraw = false;
+            foreach (var erasedStroke in args.Strokes) {
+                var removedCount = 0;
                 foreach(var connectedSubstroke in drawingContext.splitStrokes[erasedStroke]) {
                     drawingContext.strokes.Remove(connectedSubstroke);
                     drawingContext.splitStrokes.Remove(connectedSubstroke);
+                    removedCount++;
                 }
-                // todo: better way to erase
+                if(removedCount > 1) {
+                    redraw = true;
+                }
+            }
+
+            // todo: better way to erase
+            if(redraw) {
                 inkCanvas.InkPresenter.StrokeContainer.Clear();
                 foreach (var stroke in drawingContext.GetDrawing().GetContext().strokes) {
                     inkCanvas.InkPresenter.StrokeContainer.AddStroke(stroke);
