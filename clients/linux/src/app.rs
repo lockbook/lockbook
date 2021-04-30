@@ -80,10 +80,6 @@ impl LbApp {
             messenger: m,
         };
 
-        let background_work = lb_app.state.borrow().background_work.clone();
-
-        thread::spawn(move || BackgroundWork::init_background_work(background_work));
-
         lb_app
             .messenger
             .send(Msg::ToggleAutoSave(s.borrow().auto_save));
@@ -100,6 +96,8 @@ impl LbApp {
                 Msg::PerformSync => lb.perform_sync(),
                 Msg::RefreshSyncStatus => lb.refresh_sync_status(),
                 Msg::Quit => lb.quit(),
+
+                Msg::AccountScreenShown => lb.account_screen_shown(),
 
                 Msg::NewFile(path) => lb.new_file(path),
                 Msg::OpenFile(id) => lb.open_file(id),
@@ -142,30 +140,6 @@ impl LbApp {
 
     pub fn show(&self) -> LbResult<()> {
         self.gui.show(&self.core)
-    }
-
-    fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
-        self.state
-            .borrow()
-            .background_work
-            .lock()
-            .unwrap()
-            .auto_sync_state
-            .is_active = auto_sync;
-
-        Ok(())
-    }
-
-    fn toggle_auto_save(&self, auto_save: bool) -> LbResult<()> {
-        self.state
-            .borrow()
-            .background_work
-            .lock()
-            .unwrap()
-            .auto_save_state
-            .is_active = auto_save;
-
-        Ok(())
     }
 
     fn create_account(&self, name: String) -> LbResult<()> {
@@ -321,6 +295,14 @@ impl LbApp {
 
     fn quit(&self) -> LbResult<()> {
         self.gui.win.close();
+        Ok(())
+    }
+
+    fn account_screen_shown(&self) -> LbResult<()> {
+        let background_work = self.state.borrow().background_work.clone();
+
+        thread::spawn(move || BackgroundWork::init_background_work(background_work));
+
         Ok(())
     }
 
@@ -829,6 +811,30 @@ impl LbApp {
         Ok(())
     }
 
+    fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
+        self.state
+            .borrow()
+            .background_work
+            .lock()
+            .unwrap()
+            .auto_sync_state
+            .is_active = auto_sync;
+
+        Ok(())
+    }
+
+    fn toggle_auto_save(&self, auto_save: bool) -> LbResult<()> {
+        self.state
+            .borrow()
+            .background_work
+            .lock()
+            .unwrap()
+            .auto_save_state
+            .is_active = auto_save;
+
+        Ok(())
+    }
+
     fn err(&self, title: &str, err: &LbError) {
         let details = util::gui::scrollable(&GtkLabel::new(Some(&err.msg())));
         util::gui::set_margin(&details, 16);
@@ -959,6 +965,7 @@ struct Gui {
     screens: GtkStack,
     intro: IntroScreen,
     account: Rc<AccountScreen>,
+    messenger: Messenger,
 }
 
 impl Gui {
@@ -999,6 +1006,7 @@ impl Gui {
             screens,
             intro,
             account: Rc::new(account),
+            messenger: m.clone(),
         }
     }
 
@@ -1024,6 +1032,7 @@ impl Gui {
         self.account.fill(&core)?;
         self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
+        self.messenger.send(Msg::AccountScreenShown);
         Ok(())
     }
 
