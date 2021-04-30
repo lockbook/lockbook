@@ -80,17 +80,6 @@ impl LbApp {
             messenger: m,
         };
 
-        let background_work = lb_app.state.borrow().background_work.clone();
-
-        thread::spawn(move || BackgroundWork::init_background_work(background_work));
-
-        lb_app
-            .messenger
-            .send(Msg::ToggleAutoSave(s.borrow().auto_save));
-        lb_app
-            .messenger
-            .send(Msg::ToggleAutoSync(s.borrow().auto_sync));
-
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
             let maybe_err = match msg {
@@ -100,6 +89,8 @@ impl LbApp {
                 Msg::PerformSync => lb.perform_sync(),
                 Msg::RefreshSyncStatus => lb.refresh_sync_status(),
                 Msg::Quit => lb.quit(),
+
+                Msg::AccountScreenShown => lb.account_screen_shown(),
 
                 Msg::NewFile(path) => lb.new_file(path),
                 Msg::OpenFile(id) => lb.open_file(id),
@@ -141,31 +132,7 @@ impl LbApp {
     }
 
     pub fn show(&self) -> LbResult<()> {
-        self.gui.show(&self.core)
-    }
-
-    fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
-        self.state
-            .borrow()
-            .background_work
-            .lock()
-            .unwrap()
-            .auto_sync_state
-            .is_active = auto_sync;
-
-        Ok(())
-    }
-
-    fn toggle_auto_save(&self, auto_save: bool) -> LbResult<()> {
-        self.state
-            .borrow()
-            .background_work
-            .lock()
-            .unwrap()
-            .auto_save_state
-            .is_active = auto_save;
-
-        Ok(())
+        self.gui.show(&self.core, &self.messenger)
     }
 
     fn create_account(&self, name: String) -> LbResult<()> {
@@ -174,7 +141,7 @@ impl LbApp {
         let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
             match result {
                 Ok(_) => {
-                    if let Err(err) = lb.gui.show_account_screen(&lb.core) {
+                    if let Err(err) = lb.gui.show_account_screen(&lb.core, &lb.messenger) {
                         lb.messenger.send_err("showing account screen", err);
                     }
                 }
@@ -221,7 +188,7 @@ impl LbApp {
             // sync status.
             if let Some(msg) = msgopt {
                 lb.gui.intro.sync_progress(&msg)
-            } else if let Err(err) = lb.gui.show_account_screen(&lb.core) {
+            } else if let Err(err) = lb.gui.show_account_screen(&lb.core, &lb.messenger) {
                 lb.messenger.send_err("showing account screen", err);
             } else {
                 lb.messenger.send(Msg::RefreshSyncStatus);
@@ -321,6 +288,19 @@ impl LbApp {
 
     fn quit(&self) -> LbResult<()> {
         self.gui.win.close();
+        Ok(())
+    }
+
+    fn account_screen_shown(&self) -> LbResult<()> {
+        let background_work = self.state.borrow().background_work.clone();
+
+        thread::spawn(move || BackgroundWork::init_background_work(background_work));
+
+        self.messenger
+            .send(Msg::ToggleAutoSave(self.settings.borrow().auto_save));
+        self.messenger
+            .send(Msg::ToggleAutoSync(self.settings.borrow().auto_save));
+
         Ok(())
     }
 
@@ -829,6 +809,30 @@ impl LbApp {
         Ok(())
     }
 
+    fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
+        self.state
+            .borrow()
+            .background_work
+            .lock()
+            .unwrap()
+            .auto_sync_state
+            .is_active = auto_sync;
+
+        Ok(())
+    }
+
+    fn toggle_auto_save(&self, auto_save: bool) -> LbResult<()> {
+        self.state
+            .borrow()
+            .background_work
+            .lock()
+            .unwrap()
+            .auto_save_state
+            .is_active = auto_save;
+
+        Ok(())
+    }
+
     fn err(&self, title: &str, err: &LbError) {
         let details = util::gui::scrollable(&GtkLabel::new(Some(&err.msg())));
         util::gui::set_margin(&details, 16);
@@ -1002,10 +1006,10 @@ impl Gui {
         }
     }
 
-    fn show(&self, core: &LbCore) -> LbResult<()> {
+    fn show(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
         self.win.show_all();
         if core.has_account()? {
-            self.show_account_screen(&core)
+            self.show_account_screen(&core, m)
         } else {
             self.show_intro_screen()
         }
@@ -1018,12 +1022,13 @@ impl Gui {
         Ok(())
     }
 
-    fn show_account_screen(&self, core: &LbCore) -> LbResult<()> {
+    fn show_account_screen(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
         self.account.fill(&core)?;
         self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
+        m.send(Msg::AccountScreenShown);
         Ok(())
     }
 
