@@ -85,7 +85,7 @@ impl LbApp {
             .send(Msg::ToggleAutoSave(s.borrow().auto_save));
         lb_app
             .messenger
-            .send(Msg::ToggleAutoSync(s.borrow().auto_save));
+            .send(Msg::ToggleAutoSync(s.borrow().auto_sync));
 
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
