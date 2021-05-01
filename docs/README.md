@@ -19,7 +19,7 @@ Be the customer, not the product. We make money by selling a note-taking app, no
 
 | Payment Option | Monthly Fee   |
 |----------------|---------------|
-| Monthly        | $5 per 50gb   |
+| Monthly        | $2.50 per 50gb   |
 | Annual         | $25 per 50gb  |
 
 ### Developer Friendly
