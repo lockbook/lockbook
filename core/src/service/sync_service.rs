@@ -111,7 +111,10 @@ pub trait SyncService<MyBackend: Backend> {
         account: &Account,
         work: WorkUnit,
     ) -> Result<(), WorkExecutionError<MyBackend>>;
-    fn sync<F: Fn<SyncState>>(backend: &MyBackend::Db, f: Option<F>) -> Result<(), SyncError<MyBackend>>;
+    fn sync(
+        backend: &MyBackend::Db,
+        f: Option<Box<dyn Fn(SyncProgress) -> ()>>,
+    ) -> Result<(), SyncError<MyBackend>>;
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -121,16 +124,16 @@ pub struct WorkCalculated {
 }
 
 pub struct SyncProgress {
-    pub sync_state: SyncState,
+    pub state: SyncState,
     pub total: usize,
     pub progress: usize,
-    pub current_work_unit: WorkUnit
+    pub current_work_unit: WorkUnit,
 }
 
 pub enum SyncState {
     ErrStep,
     OkStep,
-    BeforeStep
+    BeforeStep,
 }
 
 pub struct FileSyncService<
@@ -253,7 +256,10 @@ impl<
         }
     }
 
-    fn sync<F: Fn<SyncState>>(backend: &MyBackend::Db, f: Option<F>) -> Result<(), SyncError<MyBackend>> {
+    fn sync(
+        backend: &MyBackend::Db,
+        f: Option<Box<dyn Fn(SyncProgress) -> ()>>,
+    ) -> Result<(), SyncError<MyBackend>> {
         let account = AccountDb::get_account(backend).map_err(SyncError::AccountRetrievalError)?;
 
         let mut sync_errors: HashMap<Uuid, WorkExecutionError<MyBackend>> = HashMap::new();
@@ -266,22 +272,37 @@ impl<
             info!("Syncing");
 
             for (progress, work_unit) in work_calculated.work_units.iter().enumerate() {
-                if let Some(&func) = f {
-                    func(SyncProgress { sync_state: SyncState::BeforeStep, total: work_calculated.work_units.len(), progress, current_work_unit: work_unit.clone() })
+                if let Some(ref func) = f {
+                    func(SyncProgress {
+                        state: SyncState::BeforeStep,
+                        total: work_calculated.work_units.len(),
+                        progress,
+                        current_work_unit: work_unit.clone(),
+                    })
                 }
 
                 match Self::execute_work(backend, &account, work_unit.clone()) {
                     Ok(_) => {
                         debug!("{:#?} executed successfully", work_unit);
-                        if let Some(&func) = f {
-                            func(SyncProgress { sync_state: SyncState::OkStep, total: work_calculated.work_units.len(), progress, current_work_unit: work_unit.clone() })
+                        if let Some(ref func) = f {
+                            func(SyncProgress {
+                                state: SyncState::OkStep,
+                                total: work_calculated.work_units.len(),
+                                progress,
+                                current_work_unit: work_unit.clone(),
+                            })
                         }
                         sync_errors.remove(&work_unit.get_metadata().id);
                     }
                     Err(err) => {
                         error!("Sync error detected: {:#?} {:#?}", work_unit, err);
-                        if let Some(&func) = f {
-                            func(SyncProgress { sync_state: SyncState::ErrStep, total: work_calculated.work_units.len(), progress, current_work_unit: work_unit.clone() })
+                        if let Some(ref func) = f {
+                            func(SyncProgress {
+                                state: SyncState::ErrStep,
+                                total: work_calculated.work_units.len(),
+                                progress,
+                                current_work_unit: work_unit.clone(),
+                            })
                         }
                         sync_errors.insert(work_unit.get_metadata().id, err);
                     }

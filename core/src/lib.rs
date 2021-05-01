@@ -38,7 +38,10 @@ use crate::service::file_service::{
     DocumentRenameError, DocumentUpdateError, FileMoveError, FileService, FileServiceImpl,
     NewFileError, NewFileFromPathError, ReadDocumentError as FSReadDocumentError,
 };
-use crate::service::sync_service::{CalculateWorkError as SSCalculateWorkError, FileSyncService, SyncError, SyncService, WorkCalculated, WorkExecutionError, SyncState};
+use crate::service::sync_service::{
+    CalculateWorkError as SSCalculateWorkError, FileSyncService, SyncError, SyncProgress,
+    SyncService, WorkCalculated, WorkExecutionError,
+};
 use crate::service::usage_service::{UsageService, UsageServiceImpl};
 use crate::service::{db_state_service, file_service, usage_service};
 #[allow(unused_imports)] // For one touch backend switching, allow one of these to be unused
@@ -655,7 +658,10 @@ pub enum SyncAllError {
     ExecuteWorkError, // TODO: @parth ExecuteWorkError(Vec<Error<ExecuteWorkError>>),
 }
 
-pub fn sync_all<F: Fn<SyncState>>(config: &Config, f: Option<F>) -> Result<(), Error<SyncAllError>> {
+pub fn sync_all(
+    config: &Config,
+    f: Option<Box<dyn Fn(SyncProgress) -> ()>>,
+) -> Result<(), Error<SyncAllError>> {
     let backend = connect_to_db!(config)?;
 
     DefaultSyncService::sync(&backend, f).map_err(|e| match e {

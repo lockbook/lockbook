@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use lockbook_core::model::state::Config;
 use lockbook_core::service::db_state_service::State as DbState;
-use lockbook_core::service::sync_service::WorkCalculated;
+use lockbook_core::service::sync_service::{WorkCalculated, SyncProgress, SyncState};
 use lockbook_core::{
     calculate_work, create_account, create_file_at_path, delete_file, execute_work, export_account,
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
@@ -236,14 +236,7 @@ impl LbCore {
 
         for _ in 0..10 {
             for (i, wu) in work.work_units.iter().enumerate() {
-                let data = LbSyncMsg {
-                    work: wu.clone(),
-                    path: self.full_path_for(&wu.get_metadata()),
-                    index: i + 1,
-                    total: work.work_units.len(),
-                };
 
-                ch.send(Some(data)).map_err(LbError::fmt_program_err)?;
                 match self.do_work(&acct, wu) {
                     Ok(_) => errors.remove(&wu.get_metadata().id),
                     Err(err) => errors.insert(wu.get_metadata().id, err),
@@ -268,6 +261,29 @@ impl LbCore {
             Ok(())
         } else {
             Err(LbError::fmt_program_err(errors))
+        }
+    }
+
+    fn sync_callback(&self, sync_progress: SyncProgress) {
+        match sync_progress.state {
+            SyncState::ErrStep => {
+
+            }
+            SyncState::OkStep => {
+
+            }
+            SyncState::BeforeStep => {
+                let wu = sync_progress.current_work_unit;
+
+                let data = LbSyncMsg {
+                    work: wu.clone(),
+                    path: self.full_path_for(&wu.get_metadata()),
+                    index: sync_progress.progress + 1,
+                    total: sync_progress.total,
+                };
+
+                ch.send(Some(data)).map_err(LbError::fmt_program_err)?;
+            }
         }
     }
 
