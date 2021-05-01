@@ -660,7 +660,7 @@ pub enum SyncAllError {
 
 pub fn sync_all(
     config: &Config,
-    f: Option<Box<dyn Fn(SyncProgress) -> ()>>,
+    f: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), Error<SyncAllError>> {
     let backend = connect_to_db!(config)?;
 

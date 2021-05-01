@@ -113,7 +113,7 @@ pub trait SyncService<MyBackend: Backend> {
     ) -> Result<(), WorkExecutionError<MyBackend>>;
     fn sync(
         backend: &MyBackend::Db,
-        f: Option<Box<dyn Fn(SyncProgress) -> ()>>,
+        f: Option<Box<dyn Fn(SyncProgress)>>,
     ) -> Result<(), SyncError<MyBackend>>;
 }
 
@@ -258,7 +258,7 @@ impl<
 
     fn sync(
         backend: &MyBackend::Db,
-        f: Option<Box<dyn Fn(SyncProgress) -> ()>>,
+        f: Option<Box<dyn Fn(SyncProgress)>>,
     ) -> Result<(), SyncError<MyBackend>> {
         let account = AccountDb::get_account(backend).map_err(SyncError::AccountRetrievalError)?;
 
