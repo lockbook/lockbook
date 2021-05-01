@@ -44,7 +44,7 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 | New Account        |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | QR Import          |   ⛔️     |    📆     |     ✅      |     📆       |      ✅        |    📆     |
 | Import Account     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Space Utilized     |   ✅     |    🏗     |     ✅      |     ✅       |      ✅        |    ✅     |
+| Space Utilized     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Billing            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 
 ### File Operations
@@ -64,9 +64,9 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 |                       |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
 |-----------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
 | Text                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Markdown              |   ✅     |    📆     |     ✅      |     📆       |      🏗        |    🏗     |
-| Drawings              |   ✅     |    🏗     |     ✅      |     🏗       |      ✅        |    🏗     |
-| Images                |   ✅     |    🏗     |     ✅      |     📆       |      📆        |    📆     |
+| Markdown              |   ✅     |    ✅     |     ✅      |     📆       |      ✅        |    ✅     |
+| Drawings              |   ✅     |    🏗     |     ✅      |     🏗       |      ✅        |    ✅     |
+| Images                |   ✅     |    🏗     |     📆      |     📆       |      📆        |    📆     |
 | PDFs                  |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 | Todo lists            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 | Document Linking      |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
