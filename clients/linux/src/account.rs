@@ -296,13 +296,12 @@ impl SyncPanel {
 
     pub fn set_syncing(&self, is_syncing: bool) {
         if is_syncing {
-            self.cntr.remove(&self.button);
-            self.cntr.pack_end(&self.progress, false, false, 0);
+            self.button.hide();
             self.progress.show();
             self.progress.set_fraction(0.0);
         } else {
+            self.button.show();
             self.progress.hide();
-            self.cntr.pack_end(&self.button, false, false, 0);
             self.status.set_text("");
         }
     }
