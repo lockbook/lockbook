@@ -1,33 +1,30 @@
-# Project Overview
+# Lockbook
 ![Build](https://github.com/lockbook/monorepo/workflows/Build/badge.svg)
 
-Lockbook is a document editor that is:
-+ Secure
-+ Minimal
-+ Private
-+ Open Source
-+ Cross Platform
+## About
+_The best place to store and share thoughts_
 
-## Secure
+Privacy shouldn’t be a compromise. That’s why we made Lockbook, a companion for recording thoughts on all your devices. Record, sync, and share your notes with apps engineered to feel like home on every platform. We collect no personal information and encrypt your notes so even _we_ can’t see them. Don’t take our word for it: Lockbook is 100% open-source.
 
-All user generated content is encrypted on clients with keys that never leave your hands. No Lockbook employee, cloud provider, or state actor can view your content.
+### Polished
+We built Lockbook for everyday use because we use Lockbook everyday. We need a note-taking app that doesn't make trade-offs with respect to speed, stability, efficiency, device integration, or delightfulness. The only way to have that is put in the effort, including writing native apps for every platform, and we can't wait for you to try it.
 
-## Minimal
+### Secure
+Keep your thoughts to yourself. Your notes are encrypted with keys that are generated on your devices and stay on your devices. The people that can see your notes are you and the users you share them with. The people that can't are everyone else, including infrastructure providers, state actors, and Lockbook employees.
 
-Clear, snappy, native user interfaces. Deep support for offline use and background sync. Our clients include a CLI which requires no dependencies, and invokes your favorite text editor. Minimal software is secure software.
+### Private
+Know your customer? We sure don't. We don't collect your email, phone number, or name. We don't need a password. We don't even want your credit card number: pay anonymously with bitcoin and get a discount. Lockbook is for people with better things to worry about than privacy.
 
-## Private
+### Honest
+Be the customer, not the product. We make money by selling a note-taking app, not your data.
 
-No verification, no emails, no passwords. Our business model is straightforward ($/gb) and doesn't include selling your data.
+| Payment Option | Monthly Fee   |
+|----------------|---------------|
+| USD            | $5 + $0.03/GB |
+| BTC            | $2 + $0.03/GB |
 
-## Open Source
-
-Secure software cannot be closed source. This is free and unencumbered software released into the public domain. Open source makes it easy for security researchers to inspect our code and provide feedback. Problems are discussed openly and anyone can improve our software.
-
-## Cross Platform
-
-Native support for: Linux, macOS, iOS, iPadOS, Android, and Windows. We capture the essence of each device / platform. This means a scriptable CLI on Linux and Apple Pencil support for our iPad app.
-
+### Developer Friendly
+The Lockbook CLI will right into your favorite chain of piped-together unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. When scripting doesn't cut it, use our Rust library for a robust programmatic interface with Lockbook.
 
 ## Feature Matrix
 
