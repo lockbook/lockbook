@@ -1,3 +1,4 @@
+use crate::file_index_repo::create_free_account_tier_row;
 use crate::utils::username_is_valid;
 use crate::{file_index_repo, usage_repo, RequestContext};
 use chrono::FixedOffset;
@@ -24,11 +25,22 @@ pub async fn new_account(
         }
     };
 
+    let tier_id = create_free_account_tier_row(&transaction)
+        .await
+        .map_err(|e| {
+            error!(
+                "Internal server error! Could not create tier row for new account {:?}",
+                e
+            );
+            None
+        })?;
+
     let new_account_result = file_index_repo::new_account(
         &transaction,
         &request.username,
         &serde_json::to_string(&request.public_key)
             .map_err(|_| Some(NewAccountError::InvalidPublicKey))?,
+        tier_id,
     )
     .await;
     new_account_result.map_err(|e| match e {

@@ -8,6 +8,7 @@ mod usage_service_tests {
     use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl};
     use lockbook_server_lib::config::{Config, IndexDbConfig};
     use lockbook_server_lib::file_index_repo;
+    use lockbook_server_lib::file_index_repo::create_free_account_tier_row;
     use lockbook_server_lib::usage_repo::{calculate, UsageCalculateError};
     use uuid::Uuid;
 
@@ -30,10 +31,11 @@ mod usage_service_tests {
                 .unwrap()
                 .to_public_key();
 
+            let tier_id = create_free_account_tier_row(&transaction).await.unwrap();
             let _ = transaction
                 .execute(
-                    "INSERT INTO accounts (name, public_key) VALUES ('juicy', $1);",
-                    &[&serde_json::to_string(&public_key).unwrap()],
+                    "INSERT INTO accounts (name, public_key, account_tier) VALUES ('juicy', $1, $2);",
+                    &[&serde_json::to_string(&public_key).unwrap(), &(tier_id as i64)],
                 )
                 .await
                 .unwrap();

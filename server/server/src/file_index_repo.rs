@@ -1,4 +1,5 @@
 use crate::config::IndexDbConfig;
+use crate::file_index_repo::GetTierError::Unknown;
 use lockbook_models::account::Username;
 use lockbook_models::crypto::{FolderAccessInfo, UserAccessInfo};
 use lockbook_models::file_metadata::FileMetadata;
@@ -40,6 +41,12 @@ impl From<PostgresError> for AccountError {
             _ => AccountError::Postgres(e),
         }
     }
+}
+
+#[derive(Debug)]
+pub enum GetTierError {
+    Postgres(PostgresError),
+    Unknown(String),
 }
 
 #[derive(Debug)]
@@ -764,14 +771,38 @@ pub async fn new_account(
     transaction: &Transaction<'_>,
     username: &str,
     public_key: &str,
+    tier_row_id: u64,
 ) -> Result<(), AccountError> {
     transaction
         .execute(
-            "INSERT INTO accounts (name, public_key) VALUES ($1, $2);",
-            &[&username, &public_key],
+            "INSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, $3);",
+            &[&username, &public_key, &(tier_row_id as i64)],
         )
         .await?;
     Ok(())
+}
+
+pub async fn create_free_account_tier_row(
+    transaction: &Transaction<'_>,
+) -> Result<u64, GetTierError> {
+    let row = transaction
+        .query(
+            "INSERT INTO account_tiers (bytes_cap) VALUES ($1) RETURNING account_tier_id;",
+            &[&(1000000_i64)], // TODO make configurable or settable
+        )
+        .await
+        .map_err(GetTierError::Postgres)?;
+
+    match row.first() {
+        None => {
+            return Err(Unknown(
+                "Creating a file row did not return an id!".to_string(),
+            ))
+        }
+        Some(row) => Ok(row
+            .try_get::<&str, i64>("account_tier_id")
+            .map_err(GetTierError::Postgres)? as u64),
+    }
 }
 
 pub async fn create_user_access_key(
