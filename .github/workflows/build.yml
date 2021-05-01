@@ -26,7 +26,7 @@ jobs:
       with:
         ref: ${{ github.event.inputs.git-ref }}
     - name: Build Server
-      working-directory: server
+      working-directory: server/server
       run: |
         echo $PATH
         echo Building $HASH
