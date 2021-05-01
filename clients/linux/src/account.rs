@@ -319,7 +319,7 @@ impl SyncPanel {
             WorkUnit::LocalChange { metadata: _ } => "Pushing",
             WorkUnit::ServerChange { metadata: _ } => "Pulling",
         };
-        self.set_status(&format!("{}: {} ({}/{})", prefix, s.path, s.index, s.total));
+        self.set_status(&format!("{}: {} ({}/{})", prefix, s.name, s.index, s.total));
     }
 }
 

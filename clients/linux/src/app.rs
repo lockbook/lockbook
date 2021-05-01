@@ -232,7 +232,7 @@ impl LbApp {
         // In a separate thread, start syncing the account. Pass the sync channel which will be
         // used to receive progress updates as indicated above.
         spawn!(self.core as c, self.messenger as m => move || {
-            if let Err(err) = c.sync(&sync_chan) {
+            if let Err(err) = c.sync(sync_chan) {
                 m.send_err("syncing", err);
             }
         });
@@ -305,7 +305,7 @@ impl LbApp {
         });
 
         spawn!(self.core as c, self.messenger as m => move || {
-            if let Err(err) = c.sync(&ch) {
+            if let Err(err) = c.sync(ch) {
                 m.send_err("syncing", err);
             }
         });
