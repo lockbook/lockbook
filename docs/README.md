@@ -1,5 +1,4 @@
 # Lockbook
-![Build](https://github.com/lockbook/monorepo/workflows/Build/badge.svg)
 
 ## About
 _The best place to store and share thoughts_
