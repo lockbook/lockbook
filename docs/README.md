@@ -1,5 +1,4 @@
 # Lockbook
-![Build](https://github.com/lockbook/monorepo/workflows/Build/badge.svg)
 
 ## About
 _The best place to store and share thoughts_
@@ -20,8 +19,8 @@ Be the customer, not the product. We make money by selling a note-taking app, no
 
 | Payment Option | Monthly Fee   |
 |----------------|---------------|
-| USD            | $5 + $0.03/GB |
-| BTC            | $2 + $0.03/GB |
+| Monthly        | $5 per 50gb   |
+| Annual         | $25 per 50gb  |
 
 ### Developer Friendly
 The Lockbook CLI will right into your favorite chain of piped-together unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. When scripting doesn't cut it, use our Rust library for a robust programmatic interface with Lockbook.
@@ -45,7 +44,7 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 | New Account        |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | QR Import          |   ⛔️     |    📆     |     ✅      |     📆       |      ✅        |    📆     |
 | Import Account     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Space Utilized     |   ✅     |    🏗     |     ✅      |     ✅       |      ✅        |    ✅     |
+| Space Utilized     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Billing            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 
 ### File Operations
@@ -65,9 +64,9 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 |                       |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
 |-----------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
 | Text                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Markdown              |   ✅     |    📆     |     ✅      |     📆       |      🏗        |    🏗     |
-| Drawings              |   ✅     |    🏗     |     ✅      |     🏗       |      ✅        |    🏗     |
-| Images                |   ✅     |    🏗     |     ✅      |     📆       |      📆        |    📆     |
+| Markdown              |   ✅     |    ✅     |     ✅      |     📆       |      ✅        |    ✅     |
+| Drawings              |   ✅     |    🏗     |     ✅      |     🏗       |      ✅        |    ✅     |
+| Images                |   ✅     |    🏗     |     📆      |     📆       |      📆        |    📆     |
 | PDFs                  |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 | Todo lists            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 | Document Linking      |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
