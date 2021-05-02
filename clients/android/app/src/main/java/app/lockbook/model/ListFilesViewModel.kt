@@ -7,8 +7,10 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
+import app.lockbook.App
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.R
+import app.lockbook.screen.ListFilesFragment
 import app.lockbook.ui.BreadCrumb
 import app.lockbook.ui.CreateFileInfo
 import app.lockbook.ui.MoveFileInfo
@@ -34,6 +36,8 @@ import app.lockbook.util.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.util.SharedPreferences.SORT_FILES_Z_A
 import app.lockbook.util.SharedPreferences.SYNC_AUTOMATICALLY_KEY
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
 
@@ -63,6 +67,9 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
     private val _showSnackBar = SingleMutableLiveData<String>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
+
+    private val _showSyncSnackBar = SingleMutableLiveData<Unit>()
+
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
     val stopProgressSpinner: LiveData<Unit>
@@ -71,17 +78,8 @@ class ListFilesViewModel(path: String, application: Application) :
     val files: LiveData<List<FileMetadata>>
         get() = fileModel.files
 
-    val stopSyncSnackBar: LiveData<Unit>
-        get() = syncModel.stopSyncSnackBar
-
-    val showSyncSnackBar: LiveData<Int>
-        get() = syncModel.showSyncSnackBar
-
-    val showSyncInfoSnackBar: LiveData<Int>
-        get() = syncModel.showSyncInfoSnackBar
-
-    val updateProgressSnackBar: LiveData<Int>
-        get() = syncModel.updateProgressSnackBar
+    val showSyncSnackBar: LiveData<Unit>
+        get() = _showSyncSnackBar
 
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
@@ -126,16 +124,15 @@ class ListFilesViewModel(path: String, application: Application) :
         get() = _unexpectedErrorHasOccurred
 
     private val fileModel = FileModel(config, _errorHasOccurred, _unexpectedErrorHasOccurred)
-    val syncModel = SyncModel(config, _showSnackBar, _errorHasOccurred, _unexpectedErrorHasOccurred)
 
     init {
-        init()
+        init(null)
     }
 
-    private fun init() {
+    private fun init(listFilesFragment: ListFilesFragment?) {
         viewModelScope.launch(Dispatchers.IO) {
             setUpPreferenceChangeListener()
-            isThisAnImport()
+            isThisAnImport(listFilesFragment)
             fileModel.startUpInRoot()
         }
     }
@@ -152,15 +149,15 @@ class ListFilesViewModel(path: String, application: Application) :
         else -> false
     }
 
-    fun onOpenedActivityEnd() {
+    fun onOpenedActivityEnd(listFilesFragment: ListFilesFragment) {
         viewModelScope.launch(Dispatchers.IO) {
-            syncModel.syncBasedOnPreferences()
+            syncBasedOnPreferences(listFilesFragment)
         }
     }
 
-    fun onSwipeToRefresh() {
+    fun onSwipeToRefresh(listFilesFragment: ListFilesFragment) {
         viewModelScope.launch(Dispatchers.IO) {
-            syncModel.startSync()
+            syncBasedOnPreferences(listFilesFragment)
             fileModel.refreshFiles()
             _stopProgressSpinner.postValue(Unit)
         }
@@ -341,15 +338,20 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    private fun isThisAnImport() {
+    private fun isThisAnImport(listFilesFragment: ListFilesFragment?) {
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
             .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
         ) {
-            syncModel.startSync()
-            PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(
-                IS_THIS_AN_IMPORT_KEY,
-                false
-            ).apply()
+            if(listFilesFragment != null) {
+                syncBasedOnPreferences(listFilesFragment)
+                PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(
+                        IS_THIS_AN_IMPORT_KEY,
+                        false
+                ).apply()
+            } else {
+                _errorHasOccurred.postValue(BASIC_ERROR)
+            }
+
         }
     }
 
@@ -394,6 +396,30 @@ class ListFilesViewModel(path: String, application: Application) :
             _navigateToDrawing.postValue(editableFileResult)
         } else {
             _navigateToFileEditor.postValue(editableFileResult)
+        }
+    }
+
+    fun syncBasedOnPreferences(listFilesFragment: ListFilesFragment) {
+        if (PreferenceManager.getDefaultSharedPreferences(App.instance)
+                        .getBoolean(SYNC_AUTOMATICALLY_KEY, false)
+        ) {
+            _showSyncSnackBar.postValue(Unit)
+
+            when(val syncResult = CoreModel.sync(config, listFilesFragment)) {
+                is Ok -> {
+                    _showSnackBar.postValue("Up to date!")
+                }
+                is Err -> when(val error = syncResult.error) {
+                    SyncAllError.NoAccount -> _errorHasOccurred.postValue("No account.")
+                    SyncAllError.CouldNotReachServer -> _errorHasOccurred.postValue("Network unavailable.")
+                    SyncAllError.ExecuteWorkError -> _errorHasOccurred.postValue("An unrecoverable execute work error has occurred.")
+                    SyncAllError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
+                    is SyncAllError.Unexpected -> {
+                        Timber.e("Unable to sync: ${error.error}")
+                        _unexpectedErrorHasOccurred.postValue(error.error)
+                    }
+                }
+            }.exhaustive
         }
     }
 }

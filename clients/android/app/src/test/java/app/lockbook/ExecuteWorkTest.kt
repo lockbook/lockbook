@@ -116,7 +116,7 @@ class ExecuteWorkTest {
         )
 
         assertType<Unit>(
-            CoreModel.syncAll(config).component1()
+            CoreModel.sync(config, null).component1()
         )
 
         val exportAccountString = assertTypeReturn<String>(

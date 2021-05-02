@@ -22,7 +22,8 @@ external fun deleteFile(config: String, id: String): String
 external fun readDocument(config: String, id: String): String
 external fun writeDocument(config: String, id: String, content: String): String
 external fun moveFile(config: String, id: String, parentId: String): String
-external fun syncAll(config: String): String
+external fun syncAll(config: String, fragment: Any): String
+external fun backgroundSync(config: String): String
 external fun calculateWork(config: String): String
 external fun executeWork(config: String, account: String, workUnit: String): String
 external fun getAllErrorVariants(): String

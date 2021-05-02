@@ -2,9 +2,9 @@
 
 use std::path::Path;
 
-use jni::objects::{JClass, JString};
-use jni::sys::{jboolean, jlong, jstring};
-use jni::JNIEnv;
+use jni::objects::{JClass, JString, JObject, JValue};
+use jni::sys::{jboolean, jlong, jstring, jvalue};
+use jni::{JNIEnv};
 use uuid::Uuid;
 
 use crate::json_interface::translate;
@@ -24,6 +24,8 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use crate::service::sync_service::{SyncState, SyncProgress};
+use core::slice::SlicePattern;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -522,6 +524,30 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+) -> jstring {
+    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let env_c = env.clone();
+    let closure = move |sync_progress: SyncProgress| {
+        if let SyncState::BeforeStep = sync_progress.state {
+            let args = [JValue::Int(sync_progress.progress as i32), JValue::Int(sync_progress.total as i32)].to_vec();
+
+            env_c.call_method(jfragment, "updateProgressSnackBar", "(II)V", args.as_slice()).unwrap();
+        }
+    };
+
+
+    string_to_jstring(&env, translate(sync_all(&config, None)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_backgroundSync(
     env: JNIEnv,
     _: JClass,
     jconfig: JString,

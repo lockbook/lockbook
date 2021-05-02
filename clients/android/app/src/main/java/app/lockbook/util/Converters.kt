@@ -794,7 +794,7 @@ val moveFileConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-val syncAllConverter = object : Converter {
+val syncConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {

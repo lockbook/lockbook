@@ -91,7 +91,7 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
     Worker(appContext, workerParams) {
     override fun doWork(): Result {
         val syncAllResult =
-            CoreModel.syncAll(Config(applicationContext.filesDir.absolutePath))
+            CoreModel.sync(Config(applicationContext.filesDir.absolutePath), null)
         return if (syncAllResult is Err) {
             when (val error = syncAllResult.error) {
                 is SyncAllError.NoAccount -> {

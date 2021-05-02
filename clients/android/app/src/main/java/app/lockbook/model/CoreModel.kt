@@ -1,6 +1,7 @@
 package app.lockbook.model
 
 import app.lockbook.core.*
+import app.lockbook.screen.ListFilesFragment
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
@@ -96,15 +97,18 @@ object CoreModel {
         return Err(AccountExportError.Unexpected("exportAccountConverter was unable to be called!"))
     }
 
-    fun syncAll(config: Config): Result<Unit, SyncAllError> {
-        val syncResult: Result<Unit, SyncAllError>? =
-            Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString(config)))
+    fun sync(config: Config, listFilesFragment: ListFilesFragment?): Result<Unit, SyncAllError> { // should send the viewmodel object, not the fragment. the fragment can go null on a config change, viewmodel wont
+        val syncResult: Result<Unit, SyncAllError>? = if(listFilesFragment != null) {
+            Klaxon().converter(syncConverter).parse(syncAll(Klaxon().toJsonString(config), listFilesFragment))
+        } else {
+            Klaxon().converter(syncConverter).parse(backgroundSync(Klaxon().toJsonString(config)))
+        }
 
         if (syncResult != null) {
             return syncResult
         }
 
-        return Err(SyncAllError.Unexpected("syncAllConverter was unable to be called!"))
+        return Err(SyncAllError.Unexpected("syncConverter was unable to be called!"))
     }
 
     fun writeContentToDocument(
