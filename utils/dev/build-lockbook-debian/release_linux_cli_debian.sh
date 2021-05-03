@@ -45,7 +45,7 @@ cd ../../clients/cli
 
 new_version=$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)
 
-cd ../../dev_utils/build-lockbook-debian/ppa-lockbook
+cd ../../utils/dev/build-lockbook-debian/ppa-lockbook
 
 current_version=$(dpkg-parsechangelog --show-field Version)
 
@@ -55,24 +55,24 @@ then
 	exit 69
 fi
 
-dch -v $current_version "Automatic version bump."
+dch -v $new_version "Automatic version bump."
 
 echo "Setting up clean environment"
 debuild -- clean
 
 echo "Compiling package"
-debuild 
+debuild --no-lintian
 
 cd ..
 
-sha_description=$(shasum -a 256 "lockbook_${current_version}_amd64.deb")
+sha_description=$(shasum -a 256 "lockbook_${new_version}_amd64.deb")
 sha=$(echo $sha_description | cut -d ' ' -f 1)
 
 echo "Releasing..."
 github-release release \
 	--user lockbook \
 	--repo lockbook \
-	--tag "debian-cli-$current_version" \
+	--tag "debian-cli-$new_version" \
 	--name "Lockbook CLI Debian" \
 	--description "A debian package to easily install lockbook CLI." \
 	--pre-release || echo "Failed to create release, perhaps because one exists, attempting upload"
@@ -80,26 +80,26 @@ github-release release \
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag "debian-cli-$current_version" \
-	--name "lockbook_${current_version}_amd64.deb" \
-	--file "lockbook_${current_version}_amd64.deb"
+	--tag "debian-cli-$new_version" \
+	--name "lockbook_${new_version}_amd64.deb" \
+	--file "lockbook_${new_version}_amd64.deb"
 
 echo $sha_description >> DEBIAN_CLI_SHA256
 
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag "debian-cli-$current_version" \
+	--tag "debian-cli-$new_version" \
 	--name "debian-cli-sha256-$sha" \
 	--file DEBIAN_CLI_SHA256
 
 echo "Cleaning up"
-rm -f "lockbook_${current_version}_amd64.build" \
-	"lockbook_${current_version}_amd64.buildinfo" \
-	"lockbook_${current_version}_amd64.changes" \
-	"lockbook_${current_version}_amd64.deb" \
-	"lockbook_${current_version}.dsc" \
-	"lockbook_${current_version}.tar.gz" \
+rm -f "lockbook_${new_version}_amd64.build" \
+	"lockbook_${new_version}_amd64.buildinfo" \
+	"lockbook_${new_version}_amd64.changes" \
+	"lockbook_${new_version}_amd64.deb" \
+	"lockbook_${new_version}.dsc" \
+	"lockbook_${new_version}.tar.gz" \
 	DEBIAN_CLI_SHA256 
 
 echo "Verify this sha is a part of the release on github: $sha"

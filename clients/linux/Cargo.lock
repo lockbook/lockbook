@@ -1268,7 +1268,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "fuzzy-matcher",
  "gdk",

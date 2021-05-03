@@ -41,11 +41,11 @@ then
 	exit 69
 fi
 
-cd ../../clients/linux
+cd ../../../clients/linux
 
 new_version=$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)
 
-cd ../../dev_utils/build-lockbook-debian/ppa-lockbook-desktop
+cd ../../utils/dev/build-lockbook-debian/ppa-lockbook-desktop
 
 current_version=$(dpkg-parsechangelog --show-field Version)
 
@@ -55,24 +55,24 @@ then
 	exit 69
 fi
 
-dch -v $current_version "Automatic version bump."
+dch -v $new_version "Automatic version bump."
 
 echo "Setting up clean environment"
 debuild -- clean
 
 echo "Compiling package"
-debuild 
+debuild --no-lintian
 
 cd ..
 
-sha_description=$(shasum -a 256 lockbook-desktop_${current_version}_amd64.deb)
+sha_description=$(shasum -a 256 lockbook-desktop_${new_version}_amd64.deb)
 sha=$(echo $sha_description | cut -d ' ' -f 1)
 
 echo "Releasing..."
 github-release release \
 	--user lockbook \
 	--repo lockbook \
-	--tag "debian-desktop-$current_version" \
+	--tag "debian-desktop-$new_version" \
 	--name "Lockbook Desktop Debian" \
 	--description "A debian package that installs lockbook desktop." \
 	--pre-release || echo "Failed to create release, perhaps because one exists, attempting upload"
@@ -80,26 +80,26 @@ github-release release \
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag "debian-desktop-$current_version" \
-	--name "lockbook-desktop_${current_version}_amd64.deb" \
-	--file "lockbook-desktop_${current_version}_amd64.deb"
+	--tag "debian-desktop-$new_version" \
+	--name "lockbook-desktop_${new_version}_amd64.deb" \
+	--file "lockbook-desktop_${new_version}_amd64.deb"
 
 echo $sha_description >> DEBIAN_DESKTOP_SHA256
 
 github-release upload \
 	--user lockbook \
 	--repo lockbook \
-	--tag "debian-desktop-$current_version" \
+	--tag "debian-desktop-$new_version" \
 	--name "debian-desktop-sha256-$sha" \
 	--file DEBIAN_DESKTOP_SHA256
 
 echo "Cleaning up"
-rm -f "lockbook-desktop_${current_version}_amd64.build" \
-	"lockbook-desktop_${current_version}_amd64.buildinfo" \
-	"lockbook-desktop_${current_version}_amd64.changes" \
-	"lockbook-desktop_${current_version}_amd64.deb" \
-	"lockbook-desktop_${current_version}.dsc" \
-	"lockbook-desktop_${current_version}.tar.gz" \
+rm -f "lockbook-desktop_${new_version}_amd64.build" \
+	"lockbook-desktop_${new_version}_amd64.buildinfo" \
+	"lockbook-desktop_${new_version}_amd64.changes" \
+	"lockbook-desktop_${new_version}_amd64.deb" \
+	"lockbook-desktop_${new_version}.dsc" \
+	"lockbook-desktop_${new_version}.tar.gz" \
 	DEBIAN_DESKTOP_SHA256 
 
 echo "Verify this sha is a part of the release on github: $sha"
