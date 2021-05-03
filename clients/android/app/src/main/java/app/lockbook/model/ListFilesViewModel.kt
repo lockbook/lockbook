@@ -10,7 +10,7 @@ import androidx.work.WorkManager
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.R
 import app.lockbook.screen.ListFilesFragment
-import app.lockbook.ui.BreadCrumb
+import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.ui.CreateFileInfo
 import app.lockbook.ui.MoveFileInfo
 import app.lockbook.ui.RenameFileInfo
@@ -108,7 +108,7 @@ class ListFilesViewModel(path: String, application: Application) :
     val uncheckAllFiles: LiveData<Unit>
         get() = _uncheckAllFiles
 
-    val updateBreadcrumbBar: LiveData<List<BreadCrumb>>
+    val updateBreadcrumbBar: LiveData<List<BreadCrumbItem>>
         get() = fileModel.updateBreadcrumbBar
 
     val showSnackBar: LiveData<String>
