@@ -32,7 +32,7 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
 
     fun updateSyncProgressAndTotal(total: Int, progress: Int) { // used by core over ffi
         val newStatus = SyncStatus.IsSyncing(total, progress)
-        
+
         when (syncStatus) {
             SyncStatus.IsNotSyncing -> _errorHasOccurred.postValue(BASIC_ERROR)
             is SyncStatus.IsSyncing -> {
