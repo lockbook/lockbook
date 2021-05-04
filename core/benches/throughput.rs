@@ -50,7 +50,7 @@ pub fn bench_throughput(c: &mut Criterion) {
                 .as_str(),
         )
         .unwrap();
-        let _ = DefaultSyncService::sync(backend).unwrap();
+        let _ = DefaultSyncService::sync(backend, None).unwrap();
         let root = DefaultFileMetadataRepo::get_root(backend).unwrap().unwrap();
 
         for x in vec![1, 1000, 10000, 100000, 1000000] {

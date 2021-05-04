@@ -111,7 +111,7 @@ mod account_tests {
         assert_ne!(work.most_recent_update_from_server, 0);
         assert_eq!(work.work_units.len(), 1);
         assert!(DefaultFileMetadataRepo::get_root(&db2).unwrap().is_none());
-        DefaultSyncService::sync(&db2).unwrap();
+        DefaultSyncService::sync(&db2, None).unwrap();
         assert!(DefaultFileMetadataRepo::get_root(&db2).unwrap().is_some());
         let home_folders2 = DefaultFileMetadataRepo::get_root(&db2).unwrap().unwrap();
         assert_eq!(home_folders1, home_folders2);
