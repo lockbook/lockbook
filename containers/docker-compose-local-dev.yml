@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  filesdb:
+    ports:
+      - "9000:9000"
+
+  indexdb:
+    ports:
+    - "5432:5432"

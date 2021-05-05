@@ -4,7 +4,6 @@ pub mod file_content_client;
 pub mod file_index_repo;
 pub mod file_service;
 pub mod loggers;
-pub mod usage_repo;
 pub mod utils;
 
 use rsa::RSAPublicKey;

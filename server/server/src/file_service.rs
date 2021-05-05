@@ -1,6 +1,5 @@
 use crate::file_index_repo;
 use crate::file_index_repo::FileError;
-use crate::usage_repo;
 use crate::{file_content_client, RequestContext};
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType;
@@ -18,9 +17,10 @@ pub async fn change_document_content(
         }
     };
 
-    let result = file_index_repo::change_document_content_version(
+    let result = file_index_repo::change_document_version_and_size(
         &transaction,
         request.id,
+        request.new_content.value.len() as u64,
         request.old_metadata_version,
     )
     .await;
@@ -78,18 +78,6 @@ pub async fn change_document_content(
         return Err(None);
     };
 
-    usage_repo::track_content_change(
-        &transaction,
-        &request.id,
-        &context.public_key,
-        request.new_content.value.len() as i64,
-    )
-    .await
-    .map_err(|err| {
-        error!("Usage tracking error: {:?}", err);
-        None
-    })?;
-
     match transaction.commit().await {
         Ok(()) => Ok(ChangeDocumentContentResponse {
             new_metadata_and_content_version: new_version,
@@ -122,6 +110,7 @@ pub async fn create_document(
         &request.name,
         &context.public_key,
         &request.parent_access_key,
+        Some(request.content.value.len() as u64),
     )
     .await;
     let new_version = index_result.map_err(|e| match e {
@@ -146,18 +135,6 @@ pub async fn create_document(
             );
             None
         }
-    })?;
-
-    usage_repo::track_content_change(
-        &transaction,
-        &request.id,
-        &context.public_key,
-        request.content.value.len() as i64,
-    )
-    .await
-    .map_err(|err| {
-        error!("Usage tracking error: {:?}", err);
-        None
     })?;
 
     let files_result = file_content_client::create(
@@ -246,13 +223,6 @@ pub async fn delete_document(
         );
         return Err(None);
     };
-
-    usage_repo::track_content_change(&transaction, &request.id, &context.public_key, 0)
-        .await
-        .map_err(|err| {
-            error!("Usage tracking error: {:?}", err);
-            None
-        })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(DeleteDocumentResponse {
@@ -422,6 +392,7 @@ pub async fn create_folder(
         &request.name,
         &context.public_key,
         &request.parent_access_key,
+        None,
     )
     .await;
     let new_version = result.map_err(|e| match e {
@@ -525,13 +496,6 @@ pub async fn delete_folder(
                 );
                 return Err(None);
             };
-
-            usage_repo::track_content_change(&transaction, &r.id, &context.public_key, 0)
-                .await
-                .map_err(|err| {
-                    error!("Usage tracking error: {:?}", err);
-                    None
-                })?;
         }
     }
 

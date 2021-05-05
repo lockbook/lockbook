@@ -163,6 +163,19 @@ performance_bench_report: is_docker_running
 db_container: is_docker_running
 	HASH=$(hash) docker build -f containers/Dockerfile.db . --tag db_with_migration-$(hash)
 
+.PHONY: local_store_of_state
+local_store_of_state: db_container
+	HASH=$(hash) docker-compose \
+		-f containers/docker-compose-integration-tests.yml \
+		-f containers/docker-compose-local-dev.yml \
+		--project-name=lockbook-$(hash) \
+		up -V --detach config_indexdb
+	HASH=$(hash) docker-compose \
+		-f containers/docker-compose-integration-tests.yml \
+		-f containers/docker-compose-local-dev.yml \
+		--project-name=lockbook-$(hash) \
+		up -V --detach config_filesdb
+
 .PHONY: dev_stack_run
 dev_stack_run: server db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --detach lockbook_server

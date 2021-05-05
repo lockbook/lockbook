@@ -1,12 +1,12 @@
+use crate::file_index_repo::create_free_account_tier_row;
 use crate::utils::username_is_valid;
-use crate::{file_index_repo, usage_repo, RequestContext};
-use chrono::FixedOffset;
+use crate::{file_index_repo, RequestContext};
+
 use lockbook_models::api::{
     GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
     GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
 };
 use lockbook_models::file_metadata::FileType;
-use std::ops::Add;
 
 pub async fn new_account(
     context: &mut RequestContext<'_, NewAccountRequest>,
@@ -24,11 +24,22 @@ pub async fn new_account(
         }
     };
 
+    let tier_id = create_free_account_tier_row(&transaction)
+        .await
+        .map_err(|e| {
+            error!(
+                "Internal server error! Could not create tier row for new account {:?}",
+                e
+            );
+            None
+        })?;
+
     let new_account_result = file_index_repo::new_account(
         &transaction,
         &request.username,
         &serde_json::to_string(&request.public_key)
             .map_err(|_| Some(NewAccountError::InvalidPublicKey))?,
+        tier_id,
     )
     .await;
     new_account_result.map_err(|e| match e {
@@ -50,6 +61,7 @@ pub async fn new_account(
         &request.username,
         &context.public_key,
         &request.parent_access_key,
+        None,
     )
     .await;
     let new_version = create_folder_result.map_err(|e| match e {
@@ -134,19 +146,19 @@ pub async fn get_usage(
         }
     };
 
-    let timestamp = chrono::Local::now().naive_utc();
+    let usages = file_index_repo::get_file_usages(&transaction, &context.public_key)
+        .await
+        .map_err(|e| {
+            error!("Usage calculation error: {:#?}", e);
+            None
+        })?;
 
-    let res = usage_repo::calculate(
-        &transaction,
-        &context.public_key,
-        timestamp,
-        timestamp.add(FixedOffset::east(1)),
-    )
-    .await
-    .map_err(|e| {
-        error!("Usage calculation error: {:#?}", e);
-        None
-    })?;
+    let cap = file_index_repo::get_account_data_cap(&transaction, &context.public_key)
+        .await
+        .map_err(|e| {
+            error!("Data cap calculation error: {:#?}", e);
+            None
+        })?;
 
-    Ok(GetUsageResponse { usages: res })
+    Ok(GetUsageResponse { usages, cap })
 }

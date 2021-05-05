@@ -43,7 +43,7 @@ mod get_usage_tests {
         assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
         assert_eq!(get_usage(config).unwrap().len(), 1);
         assert_eq!(
-            get_usage(config).unwrap()[0].byte_secs,
+            get_usage(config).unwrap()[0].size_bytes,
             local_encrypted.len() as u64
         )
     }
@@ -69,7 +69,7 @@ mod get_usage_tests {
 
         assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
         assert_eq!(get_usage(config).unwrap().len(), 1);
-        assert_eq!(get_usage(config).unwrap()[0].byte_secs, 0)
+        assert_eq!(get_usage(config).unwrap()[0].size_bytes, 0)
     }
 
     #[test]
@@ -105,7 +105,7 @@ mod get_usage_tests {
         let usages = get_usage(config).unwrap();
         let mut total_usage = 0;
         for usage in usages {
-            total_usage += usage.byte_secs;
+            total_usage += usage.size_bytes;
         }
 
         assert_eq!(get_usage(config).unwrap().len(), 3);
