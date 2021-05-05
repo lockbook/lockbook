@@ -10,12 +10,12 @@
 
 # Pricing
 
-Pricing will be on an `Anual` basis or a `Monthly` basis.
+Pricing will be on an `Annual` basis or a `Monthly` basis.
 
 Billing will be:
 
 + `$2.50 / month per 50gb`
-+ `$25 / year per $50gb`
++ `$25 / year per 50gb`
 
 # Data Model
 
@@ -118,6 +118,5 @@ Exactly the same as apple's experience. [Overview](https://developer.android.com
 [Server side details](https://developer.android.com/google/play/billing/getting-ready#configure-rtdn). [Events they send](https://developer.android.com/google/play/billing/rtdn-reference#sub).
 
 The verification happens like apple's, the token is a prompt for you to go and check with google about the status of a subscription, [details](https://medium.com/@emilieroberts/real-time-developer-notifications-happen-when-something-changes-with-a-users-subscription-cb46dc053495).
-
 
 

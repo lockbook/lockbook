@@ -912,7 +912,7 @@ pub async fn get_account_data_cap(
             "SELECT bytes_cap
             FROM account_tiers
             WHERE account_tier_id =
-                (select account_tier from accounts where public_key = $1);",
+                (SELECT account_tier FROM accounts WHERE public_key = $1);",
             &[&serde_json::to_string(public_key).map_err(GetDataCapError::Serialize)?],
         )
         .await
@@ -942,7 +942,7 @@ pub async fn track_content_change(
 ) -> Result<(), UsageTrackError> {
     let _ = transaction
         .execute(
-            "UPDATE files SET (document_size = $2) where id = $1;",
+            "UPDATE files SET (document_size = $2) WHERE id = $1;",
             &[
                 &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
                 &file_content_len,
@@ -968,7 +968,7 @@ pub async fn get_file_usages(
         .query(
             "SELECT id, document_size FROM files
             WHERE owner = (SELECT name FROM accounts WHERE public_key = $1)
-                and not is_folder;",
+                AND NOT is_folder;",
             &[&serde_json::to_string(public_key).map_err(UsageCalculateError::Serialize)?],
         )
         .await
