@@ -52,9 +52,14 @@ CREATE TABLE IF NOT EXISTS files
     deleted           boolean,
     metadata_version  bigint  NOT NULL,
     content_version   bigint  NOT NULL,
+    document_size     bigint,
     CONSTRAINT pk_files PRIMARY KEY (id),
     CONSTRAINT fk_files_parent_files_id FOREIGN KEY (parent) REFERENCES files (id),
-    CONSTRAINT fk_files_owner_accounts_name FOREIGN KEY (owner) REFERENCES accounts (name)
+    CONSTRAINT fk_files_owner_accounts_name FOREIGN KEY (owner) REFERENCES accounts (name),
+    CONSTRAINT documents_must_have_size
+        CHECK (
+            is_folder OR document_size IS NOT NULL
+            )
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_files_name_parent ON files (parent, name) WHERE (NOT deleted);
@@ -68,16 +73,3 @@ CREATE TABLE IF NOT EXISTS user_access_keys
     CONSTRAINT fk_user_access_keys_file_id_files_id FOREIGN KEY (file_id) REFERENCES files (id),
     CONSTRAINT fk_user_access_keys_sharee_id_accounts_name FOREIGN KEY (sharee_id) REFERENCES accounts (name)
 );
-
-CREATE TABLE IF NOT EXISTS usage_ledger
-(
-    file_id   text        NOT NULL,
-    timestamp timestamptz NOT NULL,
-    owner     text        NOT NULL,
-    bytes     bigint      NOT NULL,
-    CONSTRAINT pk_usage_ledger PRIMARY KEY (file_id, timestamp),
-    CONSTRAINT fk_usage_ledger_file_id_files_id FOREIGN KEY (file_id) REFERENCES files (id),
-    CONSTRAINT fk_usage_ledger_accounts_name FOREIGN KEY (owner) REFERENCES accounts (name)
-);
-
-CREATE INDEX IF NOT EXISTS usage_ledger_owner_index ON usage_ledger (owner);

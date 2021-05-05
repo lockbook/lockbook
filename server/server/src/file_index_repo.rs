@@ -1,6 +1,7 @@
 use crate::config::IndexDbConfig;
 use crate::file_index_repo::GetTierError::Unknown;
 use lockbook_models::account::Username;
+use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::{FolderAccessInfo, UserAccessInfo};
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType;
@@ -41,6 +42,14 @@ impl From<PostgresError> for AccountError {
             _ => AccountError::Postgres(e),
         }
     }
+}
+
+#[derive(Debug)]
+pub enum GetDataCapError {
+    TierNotFound,
+    Serialize(serde_json::Error),
+    Postgres(PostgresError),
+    Unknown(String),
 }
 
 #[derive(Debug)]
@@ -162,9 +171,10 @@ async fn connect_with_tls(
     }
 }
 
-pub async fn change_document_content_version(
+pub async fn change_document_version_and_size(
     transaction: &Transaction<'_>,
     id: Uuid,
+    document_size_bytes: u64,
     old_metadata_version: u64,
 ) -> Result<(u64, u64), FileError> {
     let rows = transaction
@@ -179,7 +189,8 @@ pub async fn change_document_content_version(
                 content_version =
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND NOT old.is_folder
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-                    ELSE old.content_version END)
+                    ELSE old.content_version END),
+                document_size = $3
             FROM old
             WHERE old.id = new.id
             RETURNING
@@ -192,6 +203,7 @@ pub async fn change_document_content_version(
             &[
                 &serde_json::to_string(&id).map_err(FileError::Serialize)?,
                 &(old_metadata_version as i64),
+                &(document_size_bytes as i64),
             ],
         )
         .await
@@ -212,11 +224,12 @@ pub async fn create_file(
     name: &str,
     public_key: &RSAPublicKey,
     access_key: &FolderAccessInfo,
+    maybe_document_bytes: Option<u64>,
 ) -> Result<u64, FileError> {
     let row = transaction
         .query_one(
-            "INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, deleted, metadata_version, content_version)
-            VALUES ($1, $2, $3, $4, $5, (SELECT name FROM accounts WHERE public_key = $6), $7, FALSE, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT))
+            "INSERT INTO files (id, parent, parent_access_key, is_folder, name, owner, signature, deleted, metadata_version, content_version, document_size)
+            VALUES ($1, $2, $3, $4, $5, (SELECT name FROM accounts WHERE public_key = $6), $7, FALSE, CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT), $8)
             RETURNING metadata_version;",
             &[
                 &serde_json::to_string(&id).map_err(FileError::Serialize)?,
@@ -227,6 +240,7 @@ pub async fn create_file(
                 &name,
                 &serde_json::to_string(public_key).map_err(FileError::Serialize)?,
                 &serde_json::to_string("signature goes here").map_err(FileError::Serialize)?, // TODO: sign
+                &(maybe_document_bytes.map(|bytes_u64| bytes_u64 as i64))
             ],
         )
         .await?;
@@ -253,6 +267,7 @@ pub async fn delete_file(
             old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE)
             UPDATE files new
             SET
+                document_size = (CASE WHEN old.is_folder THEN NULL ELSE 0 END),
                 deleted = (CASE WHEN old.id != old.parent
                     THEN TRUE
                     ELSE old.deleted END),
@@ -886,4 +901,91 @@ pub async fn delete_account(
         .await?;
 
     Ok(())
+}
+
+pub async fn get_account_data_cap(
+    transaction: &Transaction<'_>,
+    public_key: &RSAPublicKey,
+) -> Result<u64, GetDataCapError> {
+    match transaction
+        .query(
+            "SELECT bytes_cap
+            FROM account_tiers
+            WHERE account_tier_id =
+                (select account_tier from accounts where public_key = $1);",
+            &[&serde_json::to_string(public_key).map_err(GetDataCapError::Serialize)?],
+        )
+        .await
+        .map_err(GetDataCapError::Postgres)?
+        .as_slice()
+    {
+        [] => Err(GetDataCapError::TierNotFound),
+        [row] => Ok(row
+            .try_get::<&str, i64>("bytes_cap")
+            .map_err(GetDataCapError::Postgres)? as u64),
+        _ => Err(GetDataCapError::Unknown(String::from(
+            "unexpected multiple postgres rows",
+        ))),
+    }
+}
+
+#[derive(Debug)]
+pub enum UsageTrackError {
+    Serialize(serde_json::Error),
+    Postgres(PostgresError),
+}
+
+pub async fn track_content_change(
+    transaction: &Transaction<'_>,
+    file_id: &Uuid,
+    file_content_len: i64,
+) -> Result<(), UsageTrackError> {
+    let _ = transaction
+        .execute(
+            "UPDATE files SET (document_size = $2) where id = $1;",
+            &[
+                &serde_json::to_string(file_id).map_err(UsageTrackError::Serialize)?,
+                &file_content_len,
+            ],
+        )
+        .await
+        .map_err(UsageTrackError::Postgres)?;
+
+    Ok(())
+}
+
+#[derive(Debug)]
+pub enum UsageCalculateError {
+    Serialize(serde_json::Error),
+    Postgres(PostgresError),
+}
+
+pub async fn get_file_usages(
+    transaction: &Transaction<'_>,
+    public_key: &RSAPublicKey,
+) -> Result<Vec<FileUsage>, UsageCalculateError> {
+    let result = transaction
+        .query(
+            "SELECT id, document_size FROM files
+            WHERE owner = (SELECT name FROM accounts WHERE public_key = $1)
+                and not is_folder;",
+            &[&serde_json::to_string(public_key).map_err(UsageCalculateError::Serialize)?],
+        )
+        .await
+        .map_err(UsageCalculateError::Postgres)?;
+
+    trace!("Usage query results {}", result.len());
+
+    result.iter().map(row_to_usage).collect()
+}
+
+fn row_to_usage(row: &tokio_postgres::row::Row) -> Result<FileUsage, UsageCalculateError> {
+    trace!("Parsing usage row {:?}", row);
+    Ok(FileUsage {
+        file_id: serde_json::from_str(row.try_get("id").map_err(UsageCalculateError::Postgres)?)
+            .map_err(UsageCalculateError::Serialize)?,
+        size_bytes: row
+            .try_get::<&str, i64>("document_size")
+            .map_err(UsageCalculateError::Postgres)? as u64,
+    })
 }
