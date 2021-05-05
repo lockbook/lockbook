@@ -14,13 +14,11 @@ macro_rules! progerr {
 
 pub type LbResult<T> = Result<T, LbError>;
 
-#[derive(Debug)]
 pub enum LbErrKind {
     Program,
     User,
 }
 
-#[derive(Debug)]
 pub struct LbError {
     kind: LbErrKind,
     msg: String,

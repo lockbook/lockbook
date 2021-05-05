@@ -234,7 +234,6 @@ impl Sidebar {
         cntr.pack_start(&scroll, true, true, 0);
         cntr.add(&GtkSeparator::new(Horizontal));
         cntr.add(&sync.cntr);
-        cntr.add(&sync.progress);
 
         Self { tree, sync, cntr }
     }
@@ -280,6 +279,7 @@ impl SyncPanel {
         button.connect_clicked(closure!(m => move |_| m.send(Msg::PerformSync)));
 
         let progress = GtkProgressBar::new();
+        progress.set_margin_top(3);
 
         let cntr = GtkBox::new(Horizontal, 0);
         gui_util::set_margin(&cntr, 8);
@@ -296,12 +296,15 @@ impl SyncPanel {
 
     pub fn set_syncing(&self, is_syncing: bool) {
         if is_syncing {
-            self.button.hide();
+            self.cntr.remove(&self.button);
+            self.cntr.set_orientation(Vertical);
+            self.cntr.pack_end(&self.progress, true, true, 0);
             self.progress.show();
             self.progress.set_fraction(0.0);
         } else {
-            self.button.show();
-            self.progress.hide();
+            self.cntr.remove(&self.progress);
+            self.cntr.set_orientation(Horizontal);
+            self.cntr.pack_end(&self.button, false, false, 0);
             self.status.set_text("");
         }
     }
