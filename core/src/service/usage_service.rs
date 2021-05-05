@@ -58,7 +58,7 @@ impl<MyBackend: Backend, AccountDb: AccountRepo<MyBackend>, ApiClient: Client>
         let usage_in_bytes: u64 = Self::get_usage(backend)?
             .usages
             .into_iter()
-            .map(|usage| usage.byte_secs)
+            .map(|usage| usage.size_bytes)
             .sum();
 
         if exact {
@@ -172,12 +172,12 @@ mod unit_tests {
         ) -> Result<<T as Request>::Response, ApiError<<T as Request>::Error>> {
             let file_usage = FileUsage {
                 file_id: Uuid::nil(),
-                byte_secs: MyByteHelper::get_bytes_count(),
-                secs: 0,
+                size_bytes: MyByteHelper::get_bytes_count(),
             };
 
             let get_usage_response = GetUsageResponse {
                 usages: vec![file_usage.clone(), file_usage],
+                cap: 100000,
             };
 
             let serialized = serde_json::to_string(&get_usage_response).unwrap();
