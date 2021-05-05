@@ -190,7 +190,10 @@ pub async fn change_document_version_and_size(
                     (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND NOT old.is_folder
                     THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
                     ELSE old.content_version END),
-                document_size = $3
+                document_size = 
+                    (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND NOT old.is_folder
+                    THEN $3
+                    ELSE old.document_size END)
             FROM old
             WHERE old.id = new.id
             RETURNING
