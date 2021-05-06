@@ -124,16 +124,9 @@ pub struct WorkCalculated {
 }
 
 pub struct SyncProgress {
-    pub state: SyncState,
     pub total: usize,
     pub progress: usize,
     pub current_work_unit: WorkUnit,
-}
-
-pub enum SyncState {
-    ErrStep,
-    OkStep,
-    BeforeStep,
 }
 
 pub struct FileSyncService<
@@ -274,7 +267,6 @@ impl<
             for (progress, work_unit) in work_calculated.work_units.iter().enumerate() {
                 if let Some(ref func) = f {
                     func(SyncProgress {
-                        state: SyncState::BeforeStep,
                         total: work_calculated.work_units.len(),
                         progress,
                         current_work_unit: work_unit.clone(),
@@ -284,26 +276,10 @@ impl<
                 match Self::execute_work(backend, &account, work_unit.clone()) {
                     Ok(_) => {
                         debug!("{:#?} executed successfully", work_unit);
-                        if let Some(ref func) = f {
-                            func(SyncProgress {
-                                state: SyncState::OkStep,
-                                total: work_calculated.work_units.len(),
-                                progress,
-                                current_work_unit: work_unit.clone(),
-                            })
-                        }
                         sync_errors.remove(&work_unit.get_metadata().id);
                     }
                     Err(err) => {
                         error!("Sync error detected: {:#?} {:#?}", work_unit, err);
-                        if let Some(ref func) = f {
-                            func(SyncProgress {
-                                state: SyncState::ErrStep,
-                                total: work_calculated.work_units.len(),
-                                progress,
-                                current_work_unit: work_unit.clone(),
-                            })
-                        }
                         sync_errors.insert(work_unit.get_metadata().id, err);
                     }
                 }

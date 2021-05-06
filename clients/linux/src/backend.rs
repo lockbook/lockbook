@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use lockbook_core::model::state::Config;
 use lockbook_core::service::db_state_service::State as DbState;
-use lockbook_core::service::sync_service::{SyncProgress, SyncState, WorkCalculated};
+use lockbook_core::service::sync_service::{SyncProgress, WorkCalculated};
 use lockbook_core::{
     calculate_work, create_account, create_file_at_path, delete_file, export_account, get_account,
     get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
@@ -226,20 +226,17 @@ impl LbCore {
     }
 
     pub fn sync(&self, ch: glib::Sender<Option<LbSyncMsg>>) -> LbResult<()> {
-        // try out a progress bar, get rid of file name in the lbsyncmsg
         let closure = closure!(ch => move |sync_progress: SyncProgress| {
-            if let SyncState::BeforeStep =  sync_progress.state {
-                let wu = sync_progress.current_work_unit;
+            let wu = sync_progress.current_work_unit;
 
-                let data = LbSyncMsg {
-                    work: wu.clone(),
-                    name: wu.get_metadata().name,
-                    index: sync_progress.progress + 1,
-                    total: sync_progress.total,
-                };
+            let data = LbSyncMsg {
+                work: wu.clone(),
+                name: wu.get_metadata().name,
+                index: sync_progress.progress + 1,
+                total: sync_progress.total,
+            };
 
-                ch.send(Some(data)).unwrap();
-            }
+            ch.send(Some(data)).unwrap();
         });
 
         sync_all(&self.config, Some(Box::new(closure))).map_err(map_core_err!(SyncAllError,

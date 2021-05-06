@@ -60,7 +60,17 @@ mod sync_tests {
     macro_rules! make_and_sync_new_client {
         ($new_client:ident, $old_client:expr) => {
             make_new_client!($new_client, $old_client);
-            DefaultSyncService::sync(&$new_client, None).unwrap();
+            sync!(&$new_client).unwrap();
+        };
+    }
+
+    #[macro_export]
+    macro_rules! sync {
+        ($config:expr, $f:expr) => {
+            DefaultSyncService::sync($config, $f)
+        };
+        ($config:expr) => {
+            DefaultSyncService::sync($config)
         };
     }
 
@@ -75,12 +85,12 @@ mod sync_tests {
             .unwrap();
         assert_n_work_units!(db, 4);
 
-        DefaultSyncService::sync(&db, None).unwrap();
+        sync!(&db).unwrap();
 
         make_new_client!(db2, db);
         assert_n_work_units!(db2, 5);
 
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db2).unwrap();
         assert_eq!(
             DefaultFileMetadataRepo::get_all(&db).unwrap(),
             DefaultFileMetadataRepo::get_all(&db2).unwrap()
@@ -100,7 +110,7 @@ mod sync_tests {
             DefaultFileService::create_at_path(&db, &format!("{}/a/b/c/test", account.username))
                 .unwrap();
 
-        DefaultSyncService::sync(&db, None).unwrap();
+        sync!(&db).unwrap();
         println!("1st sync done");
 
         make_and_sync_new_client!(db2, db);
@@ -125,7 +135,7 @@ mod sync_tests {
         };
         println!("3rd calculate work, db1, 1 dirty file");
 
-        DefaultSyncService::sync(&db, None).unwrap();
+        sync!(&db).unwrap();
         println!("3rd sync done, db1, dirty file pushed");
 
         assert_n_work_units!(db, 0);
@@ -150,7 +160,7 @@ mod sync_tests {
         };
         println!("6th calculate work, db2, dirty file needs to be pulled");
 
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db2, None).unwrap();
         println!("4th sync done, db2, dirty file pulled");
 
         assert_n_work_units!(db2, 0);
@@ -175,7 +185,7 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "nice document".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
         assert_dbs_eq(&db1, &db2);
@@ -187,11 +197,11 @@ mod sync_tests {
         DefaultFileService::move_file(&db1, file.id, new_folder.id).unwrap();
         assert_n_work_units!(db1, 2);
 
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         assert_n_work_units!(db1, 0);
         assert_n_work_units!(db2, 2);
 
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db2).unwrap();
         assert_n_work_units!(db2, 0);
 
         assert_eq!(
@@ -228,14 +238,14 @@ mod sync_tests {
             DefaultFileService::create_at_path(&db1, &format!("{}/folder3/", account.username))
                 .unwrap();
 
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
         DefaultFileService::move_file(&db2, file.id, new_folder1.id).unwrap();
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db2).unwrap();
 
         DefaultFileService::move_file(&db1, file.id, new_folder2.id).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         assert_dbs_eq(&db1, &db2);
 
@@ -261,7 +271,7 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::rename_file(&db1, file.parent, "folder1-new").unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
@@ -298,15 +308,15 @@ mod sync_tests {
             &format!("{}/folder1/test.txt", account.username),
         )
         .unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         DefaultFileService::rename_file(&db1, file.parent, "folder1-new").unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::rename_file(&db2, file.parent, "folder2-new").unwrap();
-        DefaultSyncService::sync(&db2, None).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db2).unwrap();
+        sync!(&db1).unwrap();
 
         assert_eq!(
             DefaultFileMetadataRepo::get_by_path(
@@ -339,13 +349,13 @@ mod sync_tests {
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/test.txt", account.username))
                 .unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         DefaultFileService::rename_file(&db1, file.id, "new_name.txt").unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "noice".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
     }
 
     #[test]
@@ -359,11 +369,11 @@ mod sync_tests {
         let file2 =
             DefaultFileService::create_at_path(&db1, &format!("{}/test2.txt", account.username))
                 .unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
         DefaultFileService::rename_file(&db2, file1.id, "test3.txt").unwrap();
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db2).unwrap();
 
         DefaultFileService::rename_file(&db1, file2.id, "test3.txt").unwrap();
         // Just operate on the server work
@@ -383,8 +393,8 @@ mod sync_tests {
 
         assert_n_work_units!(db1, 1);
 
-        DefaultSyncService::sync(&db1, None).unwrap();
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db1).unwrap();
+        sync!(&db2).unwrap();
 
         assert_eq!(
             DefaultFileMetadataRepo::get_all(&db1).unwrap(),
@@ -406,7 +416,7 @@ mod sync_tests {
             DefaultFileService::create_at_path(&db1, &format!("{}/b/test.txt", account.username))
                 .unwrap();
 
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
@@ -416,7 +426,7 @@ mod sync_tests {
             DefaultFileMetadataRepo::get_root(&db1).unwrap().unwrap().id,
         )
         .unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         DefaultFileService::move_file(
             &db2,
@@ -442,8 +452,8 @@ mod sync_tests {
         assert_n_work_units!(db1, 0);
         assert_n_work_units!(db2, 1);
 
-        DefaultSyncService::sync(&db2, None).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db2).unwrap();
+        sync!(&db1).unwrap();
 
         assert_eq!(
             DefaultFileMetadataRepo::get_all(&db1).unwrap(),
@@ -464,11 +474,11 @@ mod sync_tests {
 
         DefaultFileService::write_document(&db1, file.id, "some good content".as_bytes()).unwrap();
 
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
         DefaultFileService::write_document(&db1, file.id, "some new content".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         DefaultFileService::write_document(&db2, file.id, "some offline content".as_bytes())
             .unwrap();
@@ -490,8 +500,8 @@ mod sync_tests {
             WorkUnit::ServerChange { .. } => panic!("This should not be the work type"),
         }
 
-        DefaultSyncService::sync(&db2, None).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db2).unwrap();
+        sync!(&db1).unwrap();
 
         assert_dbs_eq(&db1, &db2);
     }
@@ -509,17 +519,17 @@ mod sync_tests {
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
 
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         DefaultFileService::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes())
             .unwrap();
 
-        DefaultSyncService::sync(&db2, None).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db2).unwrap();
+        sync!(&db1).unwrap();
 
         assert!(String::from_utf8_lossy(
             &DefaultFileService::read_document(&db1, file.id).unwrap()
@@ -548,12 +558,12 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         let folder =
             DefaultFileService::create_at_path(&db2, &format!("{}/folder1/", account.username))
                 .unwrap();
@@ -561,8 +571,8 @@ mod sync_tests {
         DefaultFileService::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes())
             .unwrap();
 
-        DefaultSyncService::sync(&db2, None).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db2).unwrap();
+        sync!(&db1).unwrap();
 
         assert!(String::from_utf8_lossy(
             &DefaultFileService::read_document(&db1, file.id).unwrap()
@@ -591,12 +601,12 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         let folder =
             DefaultFileService::create_at_path(&db2, &format!("{}/folder1/", account.username))
                 .unwrap();
@@ -604,8 +614,8 @@ mod sync_tests {
             .unwrap();
         DefaultFileService::move_file(&db2, file.id, folder.id).unwrap();
 
-        DefaultSyncService::sync(&db2, None).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db2).unwrap();
+        sync!(&db1).unwrap();
 
         assert!(String::from_utf8_lossy(
             &DefaultFileService::read_document(&db1, file.id).unwrap()
@@ -634,7 +644,7 @@ mod sync_tests {
         .unwrap();
 
         DefaultFileService::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
@@ -643,12 +653,12 @@ mod sync_tests {
             DefaultFileService::create_at_path(&db1, &format!("{}/folder1/", account.username))
                 .unwrap();
         DefaultFileService::move_file(&db1, file.id, folder.id).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         DefaultFileService::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes())
             .unwrap();
 
-        DefaultSyncService::sync(&db2, None).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db2).unwrap();
+        sync!(&db1).unwrap();
 
         assert!(String::from_utf8_lossy(
             &DefaultFileService::read_document(&db1, file.id).unwrap()
@@ -675,7 +685,7 @@ mod sync_tests {
                 .unwrap();
 
         DefaultFileService::write_document(&db, file.id, "original".as_bytes()).unwrap();
-        DefaultSyncService::sync(&db, None).unwrap();
+        sync!(&db).unwrap();
         assert_n_work_units!(db, 0);
 
         DefaultFileService::write_document(&db, file.id, "original".as_bytes()).unwrap();
@@ -691,7 +701,7 @@ mod sync_tests {
             DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
                 .unwrap();
 
-        DefaultSyncService::sync(&db, None).unwrap();
+        sync!(&db).unwrap();
         assert_n_work_units!(db, 0);
 
         assert!(DefaultFileService::rename_file(&db, file.id, "file.md").is_err());
@@ -707,7 +717,7 @@ mod sync_tests {
             DefaultFileService::create_at_path(&db, &format!("{}/file.md", account.username))
                 .unwrap();
 
-        DefaultSyncService::sync(&db, None).unwrap();
+        sync!(&db).unwrap();
         assert_n_work_units!(db, 0);
 
         assert!(DefaultFileService::move_file(&db, file.id, file.parent).is_err());
@@ -723,10 +733,10 @@ mod sync_tests {
             DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
                 .unwrap();
 
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         DefaultFileService::delete_document(&db1, file.id).unwrap();
         assert!(DefaultFileMetadataRepo::get(&db1, file.id).unwrap().deleted);
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
             .unwrap()
             .is_none());
@@ -735,7 +745,7 @@ mod sync_tests {
         assert!(DefaultFileMetadataRepo::maybe_get(&db2, file.id)
             .unwrap()
             .is_none());
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db2).unwrap();
         assert!(DefaultFileMetadataRepo::maybe_get(&db2, file.id)
             .unwrap()
             .is_none());
@@ -773,13 +783,13 @@ mod sync_tests {
         let file =
             DefaultFileService::create_at_path(&db1, &format!("{}/file.md", account.username))
                 .unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
         DefaultFileService::delete_document(&db1, file.id).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db1).unwrap();
+        sync!(&db2).unwrap();
 
         assert!(DefaultFileMetadataRepo::maybe_get(&db1, file.id)
             .unwrap()
@@ -829,7 +839,7 @@ mod sync_tests {
         let file1_stay = DefaultFileService::create_at_path(&db1, &path("stay/file1.md")).unwrap();
         let file2_stay = DefaultFileService::create_at_path(&db1, &path("stay/file2.md")).unwrap();
         let file3_stay = DefaultFileService::create_at_path(&db1, &path("stay/file3.md")).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
@@ -884,7 +894,7 @@ mod sync_tests {
 
         // Only the folder should show up as the sync instruction
         assert_n_work_units!(db2, 1);
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db2).unwrap();
 
         assert!(
             DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.parent)
@@ -893,7 +903,7 @@ mod sync_tests {
         );
 
         assert_n_work_units!(db1, 4);
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         assert!(
             DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.parent)
@@ -962,7 +972,7 @@ mod sync_tests {
         let file1_stay = DefaultFileService::create_at_path(&db1, &path("stay/file1.md")).unwrap();
         let file2_stay = DefaultFileService::create_at_path(&db1, &path("stay/file2.md")).unwrap();
         let file3_stay = DefaultFileService::create_at_path(&db1, &path("stay/file3.md")).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
@@ -1021,7 +1031,7 @@ mod sync_tests {
 
         // Only the folder should show up as the sync instruction
         assert_n_work_units!(db2, 2);
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync!(&db2).unwrap();
 
         assert!(
             DefaultFileMetadataRepo::maybe_get(&db2, file1_delete.parent)
@@ -1030,7 +1040,7 @@ mod sync_tests {
         );
 
         assert_n_work_units!(db1, 4);
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         assert!(
             DefaultFileMetadataRepo::maybe_get(&db1, file1_delete.parent)
@@ -1086,7 +1096,7 @@ mod sync_tests {
         let file3_delete = DefaultFileService::create_at_path(&db1, &path("old/file3.md")).unwrap();
         let file4_delete = DefaultFileService::create_at_path(&db1, &path("old/file4.md")).unwrap();
 
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         let new_folder = DefaultFileService::create_at_path(&db1, &path("new/")).unwrap();
         DefaultFileService::move_file(&db1, file2_delete.id, new_folder.id).unwrap();
@@ -1124,7 +1134,7 @@ mod sync_tests {
                 .deleted
         );
 
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
@@ -1159,9 +1169,9 @@ mod sync_tests {
 
         let file1 = DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
 
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         DefaultFileService::delete_document(&db1, file1.id).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         assert_n_work_units!(db1, 0);
     }
 
@@ -1172,13 +1182,13 @@ mod sync_tests {
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
         let file1 = DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         DefaultFileService::delete_document(&db1, file1.id).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         DefaultFileService::create_at_path(&db1, &path("file1.md")).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
     }
 
     #[test]
@@ -1188,16 +1198,16 @@ mod sync_tests {
 
         DefaultFileService::create_at_path(&db1, path!(account, "test/folder/document.md"))
             .unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
         make_and_sync_new_client!(db2, db1);
 
         let folder_to_delete = DefaultFileMetadataRepo::get_by_path(&db1, path!(account, "test"))
             .unwrap()
             .unwrap();
         DefaultFileService::delete_folder(&db1, folder_to_delete.id).unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
-        DefaultSyncService::sync(&db2, None).unwrap(); // There was an error here
+        sync!(&db2).unwrap(); // There was an error here
     }
 
     #[test]
@@ -1208,7 +1218,7 @@ mod sync_tests {
         let file =
             DefaultFileService::create_at_path(&db1, path!(account, "test/folder/document.md"))
                 .unwrap();
-        DefaultSyncService::sync(&db1, None).unwrap();
+        sync!(&db1).unwrap();
 
         DefaultFileService::delete_document(&db1, file.id).unwrap();
 
