@@ -16,10 +16,10 @@ mod get_usage_tests {
     #[macro_export]
     macro_rules! sync_all {
         ($config:expr, $f:expr) => {
-            crate::sync_all($config, $f)
+            sync_all($config, $f)
         };
         ($config:expr) => {
-            crate::sync_all($config, None)
+            sync_all($config, None)
         };
     }
 
