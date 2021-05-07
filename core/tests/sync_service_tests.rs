@@ -70,7 +70,7 @@ mod sync_tests {
             DefaultSyncService::sync($config, $f)
         };
         ($config:expr) => {
-            DefaultSyncService::sync($config)
+            DefaultSyncService::sync($config, None)
         };
     }
 
