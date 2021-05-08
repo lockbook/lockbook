@@ -5,11 +5,11 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 use uuid::Uuid;
 
+use crate::get_all_error_variants;
 use crate::json_interface::translate;
 use crate::model::state::Config;
 use crate::repo::file_metadata_repo::{filter_from_str, Filter};
 use crate::service::drawing_service::SupportedImageFormats;
-use crate::get_all_error_variants;
 use lockbook_models::file_metadata::FileType;
 use serde::Serialize;
 

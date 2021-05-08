@@ -693,8 +693,9 @@ pub fn sync_all(
                 | ApiError::Endpoint(_) => unexpected!("{:#?}", api_err),
             },
         },
-        SyncError::WorkExecutionError(_)
-        | SyncError::MetadataUpdateError(_) => unexpected!("{:#?}", e),
+        SyncError::WorkExecutionError(_) | SyncError::MetadataUpdateError(_) => {
+            unexpected!("{:#?}", e)
+        }
     })
 }
 
