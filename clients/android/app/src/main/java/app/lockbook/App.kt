@@ -100,9 +100,6 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
                 is SyncAllError.CouldNotReachServer -> {
                     Timber.e("Could not reach server.")
                 }
-                is SyncAllError.ExecuteWorkError -> {
-                    Timber.e("Could not execute some work.")
-                }
                 is SyncAllError.ClientUpdateRequired -> {
                     Timber.e("Client update required.")
                 }

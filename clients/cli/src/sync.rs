@@ -20,7 +20,6 @@ pub fn sync() -> CliResult<()> {
             SyncAllError::NoAccount => err!(NoAccount),
             SyncAllError::ClientUpdateRequired => err!(UpdateRequired),
             SyncAllError::CouldNotReachServer => err!(NetworkIssue),
-            SyncAllError::ExecuteWorkError => err!(ExecuteWorkError),
         },
         Error::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;

@@ -71,34 +71,4 @@ class SyncFileTests: SLCTest {
 
         assertSuccess(resultCalculate) { $0.count == 0 }
     }
-    
-    func testIterativeSomeFiles() throws {
-        let root = try core.api.getRoot().get()
-        
-        let resultCalculateEmpty = core.api.calculateWork()
-        
-        assertSuccess(resultCalculateEmpty) { $0.workUnits.isEmpty }
-        
-        let numberOfFiles = 5
-        
-        (0..<numberOfFiles).forEach { _ in assertSuccess(core.api.createFile(name: randomFilename(), dirId: root.id, isFolder: false)) }
-        
-        assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.name == root.name || $0.metadataVersion == 0 } && $0.count == numberOfFiles+1 }
-        
-        let resultCalculateWithSome = core.api.calculateWork()
-        
-        /// Ensure there are X work units for X new files
-        assertSuccess(resultCalculateWithSome) { $0.workUnits.count == numberOfFiles }
-        
-        let work = try resultCalculateWithSome.get()
-        
-        for unit in work.workUnits {
-            log("Syncing: \(unit.get().name)")
-            assertSuccess(core.api.executeWork(work: unit))
-        }
-        
-        assertSuccess(core.api.setLastSynced(lastSync: UInt64(work.mostRecentUpdateFromServer.timeIntervalSince1970)))
-        
-        assertSuccess(core.api.calculateWork()) { $0.workUnits.isEmpty }
-    }
 }

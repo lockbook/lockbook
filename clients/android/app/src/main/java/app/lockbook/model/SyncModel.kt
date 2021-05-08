@@ -74,7 +74,6 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
             is Err -> when (val error = syncResult.error) {
                 SyncAllError.NoAccount -> _errorHasOccurred.postValue("No account.")
                 SyncAllError.CouldNotReachServer -> _errorHasOccurred.postValue("Network unavailable.")
-                SyncAllError.ExecuteWorkError -> _errorHasOccurred.postValue("An unrecoverable execute work error has occurred.")
                 SyncAllError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
                 is SyncAllError.Unexpected -> {
                     Timber.e("Unable to sync: ${error.error}")

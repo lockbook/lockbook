@@ -106,7 +106,6 @@ make_errkind_enum!(
     49 => NoRootOps(&'static str),
     50 => InvalidDrawing(String),
     51 => FolderTreatedAsDoc(String),
-    52 => ExecuteWorkError,
 );
 
 impl ErrorKind {
@@ -150,7 +149,6 @@ impl ErrorKind {
             Self::NoRootOps(op) => format!("cannot {} your root directory!", op),
             Self::InvalidDrawing(name) => format!("'{}' is an invalid drawing", name),
             Self::FolderTreatedAsDoc(path) => format!("a file in path '{}' is a folder being treated as a document", path),
-            Self::ExecuteWorkError => "An unrecoverable execute work error was encountered.".to_string()
         }
     }
 }

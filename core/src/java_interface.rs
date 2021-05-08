@@ -11,7 +11,7 @@ use crate::json_interface::translate;
 use crate::model::state::Config;
 use crate::service::sync_service::SyncProgress;
 use crate::{
-    calculate_work, create_account, create_file, delete_file, execute_work, export_account,
+    calculate_work, create_account, create_file, delete_file, export_account,
     get_account, get_all_error_variants, get_children, get_db_state, get_file_by_id,
     get_last_synced_human_string, get_root, get_usage, get_usage_human_string, import_account,
     init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced,
@@ -20,9 +20,7 @@ use crate::{
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use lockbook_crypto::clock_service::Clock;
-use lockbook_models::account::Account;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
-use lockbook_models::work_unit::WorkUnit;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -579,32 +577,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
     };
 
     string_to_jstring(&env, translate(calculate_work(&config)))
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_executeWork(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jaccount: JString,
-    jworkunit: JString,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-    let account = match deserialize::<Account>(&env, jaccount, "Couldn't successfully get account")
-    {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-    let work_unit =
-        match deserialize::<WorkUnit>(&env, jworkunit, "Couldn't successfully get work unit") {
-            Ok(ok) => ok,
-            Err(err) => return err,
-        };
-
-    string_to_jstring(&env, translate(execute_work(&config, &account, work_unit)))
 }
 
 #[no_mangle]

@@ -343,25 +343,4 @@ object CoreModel {
 
         return Err(CalculateWorkError.Unexpected("calculateSyncWorkConverter was unable to be called!"))
     }
-
-    fun executeWork(
-        config: Config,
-        account: Account,
-        workUnit: WorkUnit
-    ): Result<Unit, ExecuteWorkError> {
-        val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
-            Klaxon().converter(executeWorkConverter).parse(
-                executeWork(
-                    Klaxon().toJsonString(config),
-                    Klaxon().toJsonString(account),
-                    Klaxon().toJsonString(workUnit)
-                )
-            )
-
-        if (executeSyncWorkResult != null) {
-            return executeSyncWorkResult
-        }
-
-        return Err(ExecuteWorkError.Unexpected("executeSyncWorkConverter was unable to be called!"))
-    }
 }

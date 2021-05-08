@@ -133,7 +133,6 @@ sealed class MoveFileError : CoreError() {
 sealed class SyncAllError : CoreError() {
     object NoAccount : SyncAllError()
     object CouldNotReachServer : SyncAllError()
-    object ExecuteWorkError : SyncAllError()
     object ClientUpdateRequired : SyncAllError()
     data class Unexpected(val error: String) : SyncAllError()
 }
@@ -143,13 +142,6 @@ sealed class CalculateWorkError : CoreError() {
     object CouldNotReachServer : CalculateWorkError()
     object ClientUpdateRequired : CalculateWorkError()
     data class Unexpected(val error: String) : CalculateWorkError()
-}
-
-sealed class ExecuteWorkError : CoreError() {
-    object CouldNotReachServer : ExecuteWorkError()
-    object ClientUpdateRequired : ExecuteWorkError()
-    object BadAccount : ExecuteWorkError()
-    data class Unexpected(val error: String) : ExecuteWorkError()
 }
 
 const val UNEXPECTED_ERROR = "An unexpected error has occurred!"

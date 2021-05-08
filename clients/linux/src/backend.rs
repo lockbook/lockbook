@@ -243,7 +243,6 @@ impl LbCore {
             CouldNotReachServer => uerr!("Unable to connect to the server."),
             ClientUpdateRequired => uerr!("Client upgrade required."),
             NoAccount => uerr!("No account found."),
-            ExecuteWorkError => uerr!("An unrecoverable execute work error was encountered."),
         ))?;
 
         ch.send(None).unwrap();
