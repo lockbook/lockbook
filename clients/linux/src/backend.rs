@@ -2,18 +2,17 @@ use std::env;
 use std::path::Path;
 use std::sync::RwLock;
 
-use glib::Sender as GlibSender;
 use qrcode_generator::QrCodeEcc;
 use uuid::Uuid;
 
 use lockbook_core::model::state::Config;
 use lockbook_core::service::db_state_service::State as DbState;
-use lockbook_core::service::sync_service::WorkCalculated;
+use lockbook_core::service::sync_service::{SyncProgress, WorkCalculated};
 use lockbook_core::{
-    calculate_work, create_account, create_file_at_path, delete_file, execute_work, export_account,
-    get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
-    get_file_by_path, get_last_synced, get_root, get_usage_human_string, import_account,
-    list_paths, migrate_db, read_document, rename_file, set_last_synced, write_document,
+    calculate_work, create_account, create_file_at_path, delete_file, export_account, get_account,
+    get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
+    get_last_synced, get_root, get_usage_human_string, import_account, list_paths, migrate_db,
+    read_document, rename_file, sync_all, write_document,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
@@ -21,7 +20,7 @@ use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::{LbError, LbResult};
-use crate::{progerr, uerr};
+use crate::{closure, progerr, uerr};
 
 macro_rules! match_core_err {
     (
@@ -64,7 +63,7 @@ fn api_url() -> String {
 
 pub struct LbSyncMsg {
     pub work: WorkUnit,
-    pub path: String,
+    pub name: String,
     pub index: usize,
     pub total: usize,
 }
@@ -226,32 +225,29 @@ impl LbCore {
         ))
     }
 
-    pub fn sync(&self, ch: &GlibSender<Option<LbSyncMsg>>) -> LbResult<()> {
-        let acct_lock = lock!(self.account, read)?;
-        let acct = account!(acct_lock)?;
+    pub fn sync(&self, ch: glib::Sender<Option<LbSyncMsg>>) -> LbResult<()> {
+        let closure = closure!(ch => move |sync_progress: SyncProgress| {
+            let wu = sync_progress.current_work_unit;
 
-        loop {
-            let work = self.calculate_work()?;
-            if work.work_units.is_empty() {
-                break;
-            }
+            let data = LbSyncMsg {
+                work: wu.clone(),
+                name: wu.get_metadata().name,
+                index: sync_progress.progress + 1,
+                total: sync_progress.total,
+            };
 
-            for (i, wu) in work.work_units.iter().enumerate() {
-                let data = LbSyncMsg {
-                    work: wu.clone(),
-                    path: self.full_path_for(&wu.get_metadata()),
-                    index: i + 1,
-                    total: work.work_units.len(),
-                };
+            ch.send(Some(data)).unwrap();
+        });
 
-                ch.send(Some(data)).map_err(LbError::fmt_program_err)?;
-                self.do_work(&acct, wu)?;
-            }
+        sync_all(&self.config, Some(Box::new(closure))).map_err(map_core_err!(SyncAllError,
+            CouldNotReachServer => uerr!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr!("Client upgrade required."),
+            NoAccount => uerr!("No account found."),
+        ))?;
 
-            self.set_last_synced(work.most_recent_update_from_server)?;
-        }
+        ch.send(None).unwrap();
 
-        ch.send(None).map_err(LbError::fmt_program_err)
+        Ok(())
     }
 
     pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
@@ -259,20 +255,6 @@ impl LbCore {
             CouldNotReachServer => uerr!("Unable to connect to the server."),
             ClientUpdateRequired => uerr!("Client upgrade required."),
             NoAccount => uerr!("No account found."),
-        ))
-    }
-
-    fn do_work(&self, a: &Account, wu: &WorkUnit) -> LbResult<()> {
-        execute_work(&self.config, &a, wu.clone()).map_err(map_core_err!(ExecuteWorkError,
-            CouldNotReachServer => uerr!("Unable to connect to the server."),
-            ClientUpdateRequired => uerr!("Client upgrade required."),
-            BadAccount => uerr!("wut"),
-        ))
-    }
-
-    fn set_last_synced(&self, last_sync: u64) -> LbResult<()> {
-        set_last_synced(&self.config, last_sync).map_err(map_core_err!(SetLastSyncedError,
-            Stub => panic!("impossible"),
         ))
     }
 

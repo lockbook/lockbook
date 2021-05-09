@@ -111,13 +111,22 @@ pub trait SyncService<MyBackend: Backend> {
         account: &Account,
         work: WorkUnit,
     ) -> Result<(), WorkExecutionError<MyBackend>>;
-    fn sync(backend: &MyBackend::Db) -> Result<(), SyncError<MyBackend>>;
+    fn sync(
+        backend: &MyBackend::Db,
+        f: Option<Box<dyn Fn(SyncProgress)>>,
+    ) -> Result<(), SyncError<MyBackend>>;
 }
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
     pub work_units: Vec<WorkUnit>,
     pub most_recent_update_from_server: u64,
+}
+
+pub struct SyncProgress {
+    pub total: usize,
+    pub progress: usize,
+    pub current_work_unit: WorkUnit,
 }
 
 pub struct FileSyncService<
@@ -240,7 +249,10 @@ impl<
         }
     }
 
-    fn sync(backend: &MyBackend::Db) -> Result<(), SyncError<MyBackend>> {
+    fn sync(
+        backend: &MyBackend::Db,
+        f: Option<Box<dyn Fn(SyncProgress)>>,
+    ) -> Result<(), SyncError<MyBackend>> {
         let account = AccountDb::get_account(backend).map_err(SyncError::AccountRetrievalError)?;
 
         let mut sync_errors: HashMap<Uuid, WorkExecutionError<MyBackend>> = HashMap::new();
@@ -252,7 +264,15 @@ impl<
             // Retry sync n times
             info!("Syncing");
 
-            for work_unit in work_calculated.work_units {
+            for (progress, work_unit) in work_calculated.work_units.iter().enumerate() {
+                if let Some(ref func) = f {
+                    func(SyncProgress {
+                        total: work_calculated.work_units.len(),
+                        progress,
+                        current_work_unit: work_unit.clone(),
+                    })
+                }
+
                 match Self::execute_work(backend, &account, work_unit.clone()) {
                     Ok(_) => {
                         debug!("{:#?} executed successfully", work_unit);

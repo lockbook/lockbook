@@ -11,7 +11,7 @@ import app.lockbook.R
 import app.lockbook.model.BreadCrumbAdapter
 import app.lockbook.model.BreadCrumbItemClickListener
 
-data class BreadCrumb(
+data class BreadCrumbItem(
     val title: String
 )
 
@@ -69,7 +69,7 @@ class BreadCrumbView : FrameLayout {
         addView(recyclerView, recyclerViewParams)
     }
 
-    fun addBreadCrumbItem(item: BreadCrumb) {
+    fun addBreadCrumbItem(item: BreadCrumbItem) {
         breadCrumbAdapter.addBreadCrumbItem(item)
         recyclerView.smoothScrollToPosition(breadCrumbAdapter.getBreadCrumbItemsSize() - 1)
     }
@@ -78,7 +78,7 @@ class BreadCrumbView : FrameLayout {
         breadCrumbAdapter.breadCrumbItemClickListener = listener
     }
     fun setArrowDrawable(arrowDrawable: Int) = breadCrumbAdapter.setArrowDrawable(arrowDrawable)
-    fun setBreadCrumbItems(items: MutableList<BreadCrumb>) {
+    fun setBreadCrumbItems(items: MutableList<BreadCrumbItem>) {
         breadCrumbAdapter.setBreadCrumbItems(items)
         recyclerView.smoothScrollToPosition(breadCrumbAdapter.getBreadCrumbItemsSize() - 1)
     }
