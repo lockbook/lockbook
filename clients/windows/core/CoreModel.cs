@@ -327,7 +327,6 @@ namespace Core {
             NoAccount,
             ClientUpdateRequired,
             CouldNotReachServer,
-            ExecuteWorkError,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
@@ -342,18 +341,6 @@ namespace Core {
             NoAccount,
             CouldNotReachServer,
             ClientUpdateRequired,
-        }
-        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
-        public class UnexpectedError : Core.UnexpectedError, IResult { }
-    }
-
-    namespace ExecuteWork {
-        public interface IResult { }
-        public class Success : IResult { }
-        public enum PossibleErrors {
-            CouldNotReachServer,
-            ClientUpdateRequired,
-            BadAccount,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }

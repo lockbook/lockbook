@@ -39,8 +39,8 @@ use crate::service::file_service::{
     NewFileError, NewFileFromPathError, ReadDocumentError as FSReadDocumentError,
 };
 use crate::service::sync_service::{
-    CalculateWorkError as SSCalculateWorkError, FileSyncService, SyncError, SyncService,
-    WorkCalculated, WorkExecutionError,
+    CalculateWorkError as SSCalculateWorkError, FileSyncService, SyncError, SyncProgress,
+    SyncService, WorkCalculated,
 };
 use crate::service::usage_service::{UsageService, UsageServiceImpl};
 use crate::service::{db_state_service, file_service, usage_service};
@@ -52,7 +52,6 @@ use lockbook_models::account::Account;
 use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
-use lockbook_models::work_unit::WorkUnit;
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -655,13 +654,15 @@ pub enum SyncAllError {
     NoAccount,
     ClientUpdateRequired,
     CouldNotReachServer,
-    ExecuteWorkError, // TODO: @parth ExecuteWorkError(Vec<Error<ExecuteWorkError>>),
 }
 
-pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
+pub fn sync_all(
+    config: &Config,
+    f: Option<Box<dyn Fn(SyncProgress)>>,
+) -> Result<(), Error<SyncAllError>> {
     let backend = connect_to_db!(config)?;
 
-    DefaultSyncService::sync(&backend).map_err(|e| match e {
+    DefaultSyncService::sync(&backend, f).map_err(|e| match e {
         SyncError::AccountRetrievalError(err) => match err {
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 unexpected!("{:#?}", err)
@@ -692,8 +693,9 @@ pub fn sync_all(config: &Config) -> Result<(), Error<SyncAllError>> {
                 | ApiError::Endpoint(_) => unexpected!("{:#?}", api_err),
             },
         },
-        SyncError::WorkExecutionError(_) => UiError(SyncAllError::ExecuteWorkError),
-        SyncError::MetadataUpdateError(err) => unexpected!("{:#?}", err),
+        SyncError::WorkExecutionError(_) | SyncError::MetadataUpdateError(_) => {
+            unexpected!("{:#?}", e)
+        }
     })
 }
 
@@ -751,60 +753,6 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
             | ApiError::ExpiredAuth
             | ApiError::Endpoint(_) => unexpected!("{:#?}", api_err),
         },
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ExecuteWorkError {
-    CouldNotReachServer,
-    ClientUpdateRequired,
-    BadAccount, // FIXME: @raayan Temporary to avoid passing key through FFI
-}
-
-pub fn execute_work(
-    config: &Config,
-    account: &Account,
-    wu: WorkUnit,
-) -> Result<(), Error<ExecuteWorkError>> {
-    let backend = connect_to_db!(config)?;
-
-    DefaultSyncService::execute_work(&backend, &account, wu).map_err(|e| match e {
-        WorkExecutionError::SendFailed(_) => UiError(ExecuteWorkError::CouldNotReachServer),
-        WorkExecutionError::ClientUpdateRequired => UiError(ExecuteWorkError::ClientUpdateRequired),
-        WorkExecutionError::MetadataRepoError(_)
-        | WorkExecutionError::MetadataRepoErrorOpt(_)
-        | WorkExecutionError::SaveDocumentError(_)
-        | WorkExecutionError::AutoRenameError(_)
-        | WorkExecutionError::ResolveConflictByCreatingNewFileError(_)
-        | WorkExecutionError::DecryptingOldVersionForMergeError(_)
-        | WorkExecutionError::DecompressingForMergeError(_)
-        | WorkExecutionError::ReadingCurrentVersionError(_)
-        | WorkExecutionError::WritingMergedFileError(_)
-        | WorkExecutionError::ErrorCreatingRecoveryFile(_)
-        | WorkExecutionError::ErrorCalculatingCurrentTime(_)
-        | WorkExecutionError::FindingParentsForConflictingFileError(_)
-        | WorkExecutionError::LocalFolderDeleteError(_)
-        | WorkExecutionError::FindingChildrenFailed(_)
-        | WorkExecutionError::RecursiveDeleteError(_)
-        | WorkExecutionError::LocalChangesRepoError(_)
-        | WorkExecutionError::InvalidAuth
-        | WorkExecutionError::ExpiredAuth
-        | WorkExecutionError::InternalError
-        | WorkExecutionError::BadRequest
-        | WorkExecutionError::Sign(_)
-        | WorkExecutionError::Serialize(_)
-        | WorkExecutionError::ReceiveFailed(_)
-        | WorkExecutionError::Deserialize(_)
-        | WorkExecutionError::DocumentGetError(_)
-        | WorkExecutionError::DocumentRenameError(_)
-        | WorkExecutionError::FolderRenameError(_)
-        | WorkExecutionError::DocumentMoveError(_)
-        | WorkExecutionError::FolderMoveError(_)
-        | WorkExecutionError::DocumentCreateError(_)
-        | WorkExecutionError::FolderCreateError(_)
-        | WorkExecutionError::DocumentChangeError(_)
-        | WorkExecutionError::DocumentDeleteError(_)
-        | WorkExecutionError::FolderDeleteError(_) => unexpected!("{:#?}", e),
     })
 }
 
@@ -1099,7 +1047,6 @@ impl_get_variants!(
     MoveFileError,
     SyncAllError,
     CalculateWorkError,
-    ExecuteWorkError,
     SetLastSyncedError,
     GetLastSyncedError,
     GetUsageError,

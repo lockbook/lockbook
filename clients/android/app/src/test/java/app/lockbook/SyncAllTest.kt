@@ -1,6 +1,6 @@
 package app.lockbook
 
-import app.lockbook.core.syncAll
+import app.lockbook.core.backgroundSync
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
@@ -62,21 +62,21 @@ class SyncAllTest {
         )
 
         assertType<Unit>(
-            CoreModel.syncAll(config).component1()
+            CoreModel.sync(config, null).component1()
         )
     }
 
     @Test
     fun syncAllNoAccount() {
         assertType<SyncAllError.NoAccount>(
-            CoreModel.syncAll(config).component2()
+            CoreModel.sync(config, null).component2()
         )
     }
 
     @Test
     fun syncAllUnexpectedError() {
         val syncResult: Result<Unit, SyncAllError>? =
-            Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString("")))
+            Klaxon().converter(syncConverter).parse(backgroundSync(Klaxon().toJsonString("")))
 
         assertType<SyncAllError.Unexpected>(
             syncResult?.component2()

@@ -13,6 +13,16 @@ mod get_usage_tests {
     use lockbook_models::file_metadata::FileType::Folder;
     use std::path::Path;
 
+    #[macro_export]
+    macro_rules! sync_all {
+        ($config:expr, $f:expr) => {
+            sync_all($config, $f)
+        };
+        ($config:expr) => {
+            sync_all($config, None)
+        };
+    }
+
     #[test]
     fn report_usage() {
         let config = &test_config();
@@ -33,7 +43,7 @@ mod get_usage_tests {
             "Returned non-empty usage!"
         );
 
-        sync_all(config).unwrap();
+        sync_all!(config).unwrap();
 
         let local_encrypted = {
             let backend = DefaultBackend::connect_to_db(config).unwrap();
@@ -63,9 +73,9 @@ mod get_usage_tests {
         let file = create_file(config, &random_filename(), root.id, FileType::Document).unwrap();
         write_document(config, file.id, &String::from("0000000000").into_bytes()).unwrap();
 
-        sync_all(config).unwrap();
+        sync_all!(config).unwrap();
         delete_file(config, file.id).unwrap();
-        sync_all(config).unwrap();
+        sync_all!(config).unwrap();
 
         assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
         assert_eq!(get_usage(config).unwrap().len(), 1);
@@ -93,9 +103,9 @@ mod get_usage_tests {
         let file3 = create_file(config, &random_filename(), folder.id, FileType::Document).unwrap();
         write_document(config, file3.id, &String::from("0000000000").into_bytes()).unwrap();
 
-        sync_all(config).unwrap();
+        sync_all!(config).unwrap();
         delete_file(config, folder.id).unwrap();
-        sync_all(config).unwrap();
+        sync_all!(config).unwrap();
 
         let local_encrypted = {
             let backend = DefaultBackend::connect_to_db(config).unwrap();

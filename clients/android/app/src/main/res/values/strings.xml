@@ -108,7 +108,8 @@
     <string name="list_files_offline_snackbar">You are offline</string>
     <string name="list_files_sync_info_snackbar">%s items to sync</string>
     <string name="list_files_sync_snackbar">Syncing %s items…</string>
-    <string name="list_files_sync_finished_snackbar">Up to date</string>
+    <string name="list_files_sync_snackbar_default">Syncing</string>
+    <string name="list_files_sync_finished_snackbar">Up to date!</string>
     <string name="settings_preference_logs">View logs</string>
     <string name="settings_preference_clear_logs">Clear logs</string>
     <string name="dialog_duration_hours_label">Hours</string>

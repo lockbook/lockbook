@@ -355,15 +355,6 @@ namespace lockbook {
                 s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<WorkCalculated>(s) });
         }
 
-        public async Task<Core.ExecuteWork.IResult> ExecuteWork(string workUnit) {
-            var workUnitPtr = Utils.ToFFI(workUnit);
-            var result = await FFICommon<Core.ExecuteWork.IResult, Core.ExecuteWork.ExpectedError, Core.ExecuteWork.PossibleErrors, Core.ExecuteWork.UnexpectedError>(
-                () => execute_work(path, workUnitPtr),
-                s => new Core.ExecuteWork.Success());
-            Marshal.FreeHGlobal(workUnitPtr);
-            return result;
-        }
-
         public async Task<Core.SetLastSynced.IResult> SetLastSynced(ulong lastSync) {
             return await FFICommon<Core.SetLastSynced.IResult, Core.SetLastSynced.ExpectedError, Core.SetLastSynced.PossibleErrors, Core.SetLastSynced.UnexpectedError>(
                 () => set_last_synced(path, lastSync),

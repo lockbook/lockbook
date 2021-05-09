@@ -4,7 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.preference.PreferenceManager
 import app.lockbook.App
-import app.lockbook.ui.BreadCrumb
+import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -12,7 +12,7 @@ import timber.log.Timber
 
 class FileModel(private val config: Config, private val _errorHasOccurred: SingleMutableLiveData<String>, private val _unexpectedErrorHasOccurred: SingleMutableLiveData<String>) {
     private val _files = MutableLiveData<List<FileMetadata>>()
-    private val _updateBreadcrumbBar = SingleMutableLiveData<List<BreadCrumb>>()
+    private val _updateBreadcrumbBar = MutableLiveData<List<BreadCrumbItem>>()
     lateinit var parentFileMetadata: FileMetadata
     lateinit var lastDocumentAccessed: FileMetadata
     private val filePath: MutableList<FileMetadata> = mutableListOf()
@@ -20,7 +20,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
     val files: LiveData<List<FileMetadata>>
         get() = _files
 
-    val updateBreadcrumbBar: LiveData<List<BreadCrumb>>
+    val updateBreadcrumbBar: LiveData<List<BreadCrumbItem>>
         get() = _updateBreadcrumbBar
 
     fun isAtRoot(): Boolean = parentFileMetadata.id == parentFileMetadata.parent
@@ -124,7 +124,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
     }
 
     private fun updateBreadCrumbWithLatest() {
-        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumb(file.name) })
+        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumbItem(file.name) })
     }
 
     private fun deleteFile(id: String): Boolean {

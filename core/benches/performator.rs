@@ -44,7 +44,7 @@ pub fn bench_performator(c: &mut Criterion) {
             .as_str(),
     )
     .unwrap();
-    let _ = DefaultSyncService::sync(backend).unwrap();
+    let _ = DefaultSyncService::sync(backend, None).unwrap();
     let root = DefaultFileMetadataRepo::get_root(backend).unwrap().unwrap();
 
     let mut group = c.benchmark_group("simple");
