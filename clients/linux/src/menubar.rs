@@ -88,8 +88,7 @@ impl Menubar {
                 n_children: _,
             } => {
                 menu_set!(
-                    self.file, self.items, FileNew, FileOpen, Separator, FileClose, Separator,
-                    FileQuit
+                    self.file, self.items, FileOpen, Separator, FileClose, Separator, FileQuit
                 );
             }
             EditMode::PlainText {
@@ -98,12 +97,12 @@ impl Menubar {
                 content: _,
             } => {
                 menu_set!(
-                    self.file, self.items, FileNew, FileOpen, Separator, FileSave, FileClose,
-                    Separator, FileQuit
+                    self.file, self.items, FileOpen, Separator, FileSave, FileClose, Separator,
+                    FileQuit
                 );
             }
             EditMode::None => {
-                menu_set!(self.file, self.items, FileNew, FileOpen, FileQuit);
+                menu_set!(self.file, self.items, FileOpen, FileQuit);
                 menu_set!(self.edit, self.items, EditPreferences);
                 menu_set!(
                     self.acct,
@@ -139,7 +138,6 @@ type ItemData = (ItemName, ItemAccel, fn() -> Msg);
 
 #[derive(Hash, Eq, PartialEq, Debug)]
 enum Item {
-    FileNew,
     FileOpen,
     FileSave,
     FileClose,
@@ -178,7 +176,6 @@ impl Item {
     #[rustfmt::skip]
     fn data() -> Vec<(Self, ItemData)> {
         vec![
-            (Self::FileNew, ("New", "<Primary>N", || Msg::ShowDialogNew)),
             (Self::FileOpen, ("Open", "<Primary>L", || Msg::SearchFieldFocus)),
             (Self::FileSave, ("Save", "<Primary>S", || Msg::SaveFile)),
             (Self::FileClose, ("Close File", "<Primary>W", || Msg::CloseFile)),

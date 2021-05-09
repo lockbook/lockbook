@@ -330,6 +330,8 @@ impl FileTreeCol {
 
 #[derive(Hash, Eq, PartialEq, Debug)]
 enum PopupItem {
+    NewDocument,
+    NewFolder,
     Rename,
     Open,
     Delete,
@@ -339,7 +341,15 @@ impl PopupItem {
     fn hashmap(m: &Messenger) -> HashMap<Self, GtkMenuItem> {
         let mut items = HashMap::new();
         for (item_key, action) in Self::data() {
-            let mi = GtkMenuItem::with_label(&format!("{:?}", item_key));
+            let name = if let PopupItem::NewFolder = item_key {
+                "New Folder".to_string()
+            } else if let PopupItem::NewDocument = item_key {
+                "New Document".to_string()
+            } else {
+                format!("{:?}", item_key)
+            };
+
+            let mi = GtkMenuItem::with_label(&name);
             mi.connect_activate(closure!(m => move |_| m.send(action())));
             items.insert(item_key, mi);
         }
@@ -349,6 +359,8 @@ impl PopupItem {
     #[rustfmt::skip]
     fn data() -> Vec<(Self, MsgFn)> {
         vec![
+            (Self::NewDocument, || Msg::NewFile(FileType::Document)),
+            (Self::NewFolder, || Msg::NewFile(FileType::Folder)),
             (Self::Rename, || Msg::RenameFile),
             (Self::Open, || Msg::OpenFile(None)),
             (Self::Delete, || Msg::DeleteFiles),

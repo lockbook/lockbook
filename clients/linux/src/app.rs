@@ -99,7 +99,7 @@ impl LbApp {
 
                 Msg::AccountScreenShown => lb.account_screen_shown(),
 
-                Msg::NewFile(path) => lb.new_file(path),
+                Msg::NewFile(name) => lb.new_file(name),
                 Msg::OpenFile(id) => lb.open_file(id),
                 Msg::FileEdited => lb.file_edited(),
                 Msg::SaveFile => lb.save(),
@@ -115,7 +115,6 @@ impl LbApp {
                 Msg::SearchFieldUpdateIcon => lb.search_field_update_icon(),
                 Msg::SearchFieldExec(vopt) => lb.search_field_exec(vopt),
 
-                Msg::ShowDialogNew => lb.show_dialog_new(),
                 Msg::ShowDialogSyncDetails => lb.show_dialog_sync_details(),
                 Msg::ShowDialogPreferences => lb.show_dialog_preferences(),
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
@@ -306,12 +305,76 @@ impl LbApp {
         Ok(())
     }
 
-    fn new_file(&self, path: String) -> LbResult<()> {
-        let file = self.core.create_file_at_path(&path)?;
-        self.gui.account.add_file(&self.core, &file)?;
+    fn new_file(&self, file_type: FileType) -> LbResult<()> {
+        let entry = GtkEntry::new();
+        entry.set_margin_start(8);
+        entry.set_activates_default(true);
 
-        self.refresh_sync_status()?;
-        self.open_file(Some(file.id))
+        let lbl = util::gui::text_left("Enter file name:");
+        lbl.set_margin_top(12);
+
+        let errlbl = util::gui::text_left("");
+        util::gui::set_widget_name(&errlbl, "err");
+        errlbl.set_margin_start(8);
+        errlbl.set_margin_bottom(8);
+
+        let d = self.gui.new_dialog("New Document");
+        d.get_content_area().add(&entry);
+        d.get_content_area().add(&lbl);
+        d.add_button("Ok", GtkResponseType::Ok);
+        d.set_default_response(GtkResponseType::Ok);
+
+        d.connect_response(closure!(self as lb => move |d, resp| {
+            if resp != GtkResponseType::Ok {
+                d.close();
+                return;
+            }
+
+            let name = entry.get_buffer().get_text();
+            match self.gui.account.sidebar.tree.get_selected_uuid() {
+                Some(selected) => {
+                    match self.core.file_by_id(selected) {
+                        Ok(file) => {
+
+                            let parent = if let FileType::Folder = file.file_type {
+                        file.id
+                    } else {
+                        file.parent
+                    };
+
+                            match lb.core.create_file(&name, parent, file_type) {
+                        Ok(file) => {
+                            d.close();
+
+                            self.gui.account.add_file(&self.core, &file)?;
+                            self.refresh_sync_status()?;
+                            self.open_file(Some(file.id));
+                        }
+                        Err(err) => match err.kind() {
+                            UserErr => {
+                                util::gui::add(&d.get_content_area(), &errlbl);
+                                errlbl.set_text(&err.msg());
+                                errlbl.show();
+                            }
+                            ProgErr => {
+                                d.close();
+                                lb.messenger.send_err("creating file", err);
+                            }
+                        },
+                    }
+                        }
+                        Err(err) => lb.messenger.send_err("getting selected file", err)
+                    }
+
+
+
+                },
+                None => lb.messenger.send_err("getting selected id", None)
+            };
+        }));
+
+        d.show_all();
+        Ok(())
     }
 
     fn open_file(&self, maybe_id: Option<Uuid>) -> LbResult<()> {
@@ -652,24 +715,6 @@ impl LbApp {
     fn toggle_tree_col(&self, c: FileTreeCol) -> LbResult<()> {
         self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
-        Ok(())
-    }
-
-    fn show_dialog_new(&self) -> LbResult<()> {
-        let entry = GtkEntry::new();
-        entry.set_activates_default(true);
-
-        let d = self.gui.new_dialog("New...");
-        d.get_content_area().add(&entry);
-        d.add_button("Ok", GtkResponseType::Ok);
-        d.set_default_response(GtkResponseType::Ok);
-        d.show_all();
-
-        if d.run() == GtkResponseType::Ok {
-            let path = entry.get_buffer().get_text();
-            self.messenger.send(Msg::NewFile(path));
-            d.close();
-        }
         Ok(())
     }
 
