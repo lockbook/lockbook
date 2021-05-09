@@ -287,25 +287,6 @@ namespace test {
         }
 
         [TestMethod]
-        public void ExecuteWork() {
-            var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
-            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
-
-            var getRootResult = CoreService.GetRoot().WaitResult();
-            var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
-
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
-            CastOrDie(createFileResult, out Core.CreateFile.Success _);
-
-            var calculateWorkResult = CoreService.CalculateWork().WaitResult();
-            var work = CastOrDie(calculateWorkResult, out Core.CalculateWork.Success _).workCalculated;
-
-            var executeWorkResult = ((Task<Core.ExecuteWork.IResult>)CoreService.ExecuteWork(JsonConvert.SerializeObject(work.workUnits[0]))).WaitResult();
-            CastOrDie(executeWorkResult, out Core.ExecuteWork.Success _);
-        }
-
-        [TestMethod]
         public void GetLastSynced() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
@@ -778,7 +759,6 @@ namespace test {
                 {"CreateAccountError", typeof(Core.CreateAccount.PossibleErrors)},
                 {"CreateFileAtPathError", typeof(Core.CreateFileAtPath.PossibleErrors)},
                 {"CreateFileError", typeof(Core.CreateFile.PossibleErrors)},
-                {"ExecuteWorkError", typeof(Core.ExecuteWork.PossibleErrors)},
                 {"FileDeleteError", typeof(Core.DeleteFile.PossibleErrors)},
                 {"GetAccountError", typeof(Core.GetAccount.PossibleErrors)},
                 {"GetChildrenError", typeof(Core.GetChildren.PossibleErrors)},

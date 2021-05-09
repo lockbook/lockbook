@@ -141,9 +141,6 @@ namespace lockbook {
                         case Core.SyncAll.PossibleErrors.NoAccount:
                             ImportAccountError = "Successfully imported account but failed to load it. Try restarting the app. If the problem persists, please file a bug report.";
                             break;
-                        case Core.SyncAll.PossibleErrors.ExecuteWorkError:
-                            await new MessageDialog(error.ToString(), "Unexpected Error!").ShowAsync();
-                            break;
                     }
                     break;
             }

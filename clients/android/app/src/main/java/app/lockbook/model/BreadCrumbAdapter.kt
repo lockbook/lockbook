@@ -7,11 +7,11 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
-import app.lockbook.ui.BreadCrumb
+import app.lockbook.ui.BreadCrumbItem
 
 class BreadCrumbAdapter(var breadCrumbItemClickListener: BreadCrumbItemClickListener) : RecyclerView.Adapter<BreadCrumbAdapter.ViewHolder>() {
 
-    private var breadCrumbItemsData: MutableList<BreadCrumb> = mutableListOf()
+    private var breadCrumbItemsData: MutableList<BreadCrumbItem> = mutableListOf()
     private var arrowDrawable: Int = R.drawable.ic_baseline_keyboard_arrow_right_24
     private var textColor: Int = 10
     private var textSize: Int = 10
@@ -48,12 +48,12 @@ class BreadCrumbAdapter(var breadCrumbItemClickListener: BreadCrumbItemClickList
         notifyDataSetChanged()
     }
 
-    fun addBreadCrumbItem(item: BreadCrumb) {
+    fun addBreadCrumbItem(item: BreadCrumbItem) {
         breadCrumbItemsData.add(item)
         notifyDataSetChanged()
     }
 
-    fun setBreadCrumbItems(items: MutableList<BreadCrumb>) {
+    fun setBreadCrumbItems(items: MutableList<BreadCrumbItem>) {
         breadCrumbItemsData = items
         notifyDataSetChanged()
     }

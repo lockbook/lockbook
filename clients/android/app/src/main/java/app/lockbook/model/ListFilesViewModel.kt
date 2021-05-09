@@ -9,7 +9,8 @@ import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.R
-import app.lockbook.ui.BreadCrumb
+import app.lockbook.screen.ListFilesFragment
+import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.ui.CreateFileInfo
 import app.lockbook.ui.MoveFileInfo
 import app.lockbook.ui.RenameFileInfo
@@ -71,17 +72,11 @@ class ListFilesViewModel(path: String, application: Application) :
     val files: LiveData<List<FileMetadata>>
         get() = fileModel.files
 
-    val stopSyncSnackBar: LiveData<Unit>
-        get() = syncModel.stopSyncSnackBar
+    val showSyncSnackBar: LiveData<Unit>
+        get() = syncModel._showSyncSnackBar
 
-    val showSyncSnackBar: LiveData<Int>
-        get() = syncModel.showSyncSnackBar
-
-    val showSyncInfoSnackBar: LiveData<Int>
-        get() = syncModel.showSyncInfoSnackBar
-
-    val updateProgressSnackBar: LiveData<Int>
-        get() = syncModel.updateProgressSnackBar
+    val updateSyncSnackBar: LiveData<Pair<Int, Int>>
+        get() = syncModel._updateSyncSnackBar
 
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
@@ -113,7 +108,7 @@ class ListFilesViewModel(path: String, application: Application) :
     val uncheckAllFiles: LiveData<Unit>
         get() = _uncheckAllFiles
 
-    val updateBreadcrumbBar: LiveData<List<BreadCrumb>>
+    val updateBreadcrumbBar: LiveData<List<BreadCrumbItem>>
         get() = fileModel.updateBreadcrumbBar
 
     val showSnackBar: LiveData<String>
@@ -129,10 +124,10 @@ class ListFilesViewModel(path: String, application: Application) :
     val syncModel = SyncModel(config, _showSnackBar, _errorHasOccurred, _unexpectedErrorHasOccurred)
 
     init {
-        init()
+        init(null)
     }
 
-    private fun init() {
+    private fun init(listFilesFragment: ListFilesFragment?) {
         viewModelScope.launch(Dispatchers.IO) {
             setUpPreferenceChangeListener()
             isThisAnImport()
@@ -160,7 +155,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
     fun onSwipeToRefresh() {
         viewModelScope.launch(Dispatchers.IO) {
-            syncModel.startSync()
+            syncModel.trySync()
             fileModel.refreshFiles()
             _stopProgressSpinner.postValue(Unit)
         }
@@ -345,7 +340,7 @@ class ListFilesViewModel(path: String, application: Application) :
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
             .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
         ) {
-            syncModel.startSync()
+            syncModel.trySync()
             PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(
                 IS_THIS_AN_IMPORT_KEY,
                 false

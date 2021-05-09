@@ -283,9 +283,6 @@ namespace lockbook {
                         case Core.SyncAll.PossibleErrors.NoAccount:
                             await App.ReloadDbStateAndAccount();
                             break;
-                        case Core.SyncAll.PossibleErrors.ExecuteWorkError:
-                            await new MessageDialog(error.ToString(), "Unexpected Error!").ShowAsync();
-                            break;
                     }
                     break;
             }

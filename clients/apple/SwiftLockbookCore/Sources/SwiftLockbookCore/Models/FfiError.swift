@@ -170,17 +170,11 @@ public enum SyncAllError: String, UiError {
     case NoAccount
     case ClientUpdateRequired
     case CouldNotReachServer
-    case ExecuteWorkError
 }
 public enum CalculateWorkError: String, UiError {
     case NoAccount
     case CouldNotReachServer
     case ClientUpdateRequired
-}
-public enum ExecuteWorkError: String, UiError {
-    case CouldNotReachServer
-    case ClientUpdateRequired
-    case BadAccount
 }
 public enum SetLastSyncedError: String, UiError {
     case Stub
