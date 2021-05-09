@@ -11,8 +11,8 @@ mod get_root_tests {
     async fn get_user_root(pub_key: &RSAPublicKey) -> FileMetadata {
         let fake_config = Config::from_env_vars().index_db;
         let mut pg_client = file_index_repo::connect(&fake_config).await.unwrap();
-        let transaction = pg_client.transaction().await.unwrap();
-        file_index_repo::get_root(&transaction, &pub_key)
+        let mut transaction = pg_client.begin().await.unwrap();
+        file_index_repo::get_root(&mut transaction, &pub_key)
             .await
             .unwrap()
             .unwrap()

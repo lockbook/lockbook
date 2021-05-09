@@ -1,29 +1,29 @@
 use lockbook_server_lib::{file_content_client, file_index_repo, ServerState};
 
 pub async fn delete_account(mut server_state: ServerState, username: &str) -> bool {
-    let transaction = server_state.index_db_client.transaction().await.unwrap();
+    let mut transaction = server_state.index_db_client.begin().await.unwrap();
 
     // Ensure this is a real user
-    file_index_repo::get_public_key(&transaction, username)
+    file_index_repo::get_public_key(&mut transaction, username)
         .await
         .expect(&format!("Could not find public key for user {}", &username));
 
-    file_index_repo::delete_account_access_keys(&transaction, &username)
+    file_index_repo::delete_account_access_keys(&mut transaction, &username)
         .await
-        .expect("Could not delete from user_access_keys.");
+        .expect("Failed to delete account access keys");
 
-    file_index_repo::delete_account_from_usage_ledger(&transaction, &username)
+    file_index_repo::delete_all_files_of_account(&mut transaction, &username)
         .await
-        .expect("Could not delete from user_access_keys.");
-
-    let deleted_files = file_index_repo::delete_all_files_of_account(&transaction, &username)
-        .await
-        .expect("Failed to delete root folder")
+        .expect("Failed to delete all files of account")
         .responses;
 
-    file_index_repo::delete_account(&transaction, &username)
+    file_index_repo::delete_account(&mut transaction, &username)
         .await
         .expect("Failed to delete account");
+
+    let files = file_index_repo::get_files(&mut transaction, &username)
+        .await
+        .expect("Failed to get files");
 
     transaction
         .commit()
@@ -32,7 +32,7 @@ pub async fn delete_account(mut server_state: ServerState, username: &str) -> bo
 
     let mut ok = true;
 
-    for file in deleted_files {
+    for file in files {
         if !file.is_folder {
             let problem = file_content_client::delete(
                 &server_state.files_db_client,
