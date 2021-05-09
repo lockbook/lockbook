@@ -53,7 +53,7 @@ class ListFilesFragment : Fragment() {
     private val syncSnackProgressBar by lazy {
         SnackProgressBar(
             SnackProgressBar.TYPE_HORIZONTAL,
-            resources.getString(R.string.list_files_sync_snackbar, "n")
+            resources.getString(R.string.list_files_sync_snackbar_default)
         )
             .setIsIndeterminate(false)
             .setSwipeToDismiss(false)
@@ -116,13 +116,6 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.stopSyncSnackBar.observe(
-            viewLifecycleOwner,
-            {
-                earlyStopSyncSnackBar()
-            }
-        )
-
         listFilesViewModel.stopProgressSpinner.observe(
             viewLifecycleOwner,
             {
@@ -132,22 +125,8 @@ class ListFilesFragment : Fragment() {
 
         listFilesViewModel.showSyncSnackBar.observe(
             viewLifecycleOwner,
-            { maxProgress ->
-                showSyncSnackBar(maxProgress)
-            }
-        )
-
-        listFilesViewModel.showSyncInfoSnackBar.observe(
-            viewLifecycleOwner,
-            { amountToSync ->
-                showSyncInfoSnackBar(amountToSync)
-            }
-        )
-
-        listFilesViewModel.updateProgressSnackBar.observe(
-            viewLifecycleOwner,
-            { progress ->
-                updateProgressSnackBar(progress)
+            {
+                showSyncSnackBar()
             }
         )
 
@@ -236,6 +215,13 @@ class ListFilesFragment : Fragment() {
                     snackProgressBarManager.dismiss()
                     AlertModel.notify(container, msg, OnFinishAlert.DoNothingOnFinishAlert)
                 }
+            }
+        )
+
+        listFilesViewModel.updateSyncSnackBar.observe(
+            viewLifecycleOwner,
+            { progressAndTotal ->
+                updateProgressSnackBar(progressAndTotal.first, progressAndTotal.second)
             }
         )
 
@@ -338,7 +324,9 @@ class ListFilesFragment : Fragment() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
 
         if (listFilesViewModel.syncModel.syncStatus is SyncStatus.IsSyncing) {
-            showSyncSnackBar((listFilesViewModel.syncModel.syncStatus as SyncStatus.IsSyncing).maxProgress)
+            val status = listFilesViewModel.syncModel.syncStatus as SyncStatus.IsSyncing
+            showSyncSnackBar()
+            updateProgressSnackBar(status.total, status.progress)
         }
 
         parentFragmentManager.registerFragmentLifecycleCallbacks(
@@ -347,24 +335,21 @@ class ListFilesFragment : Fragment() {
         )
     }
 
-    private fun earlyStopSyncSnackBar() {
-        snackProgressBarManager.dismiss()
-    }
-
-    private fun updateProgressSnackBar(progress: Int) {
+    private fun updateProgressSnackBar(total: Int, progress: Int) {
+        syncSnackProgressBar.setProgressMax(total)
         snackProgressBarManager.setProgress(progress)
-    }
-
-    private fun showSyncSnackBar(maxProgress: Int) {
-        snackProgressBarManager.dismiss()
-        snackProgressBarManager.setProgress(0)
-        syncSnackProgressBar.setProgressMax(maxProgress)
         syncSnackProgressBar.setMessage(
             resources.getString(
                 R.string.list_files_sync_snackbar,
-                maxProgress.toString()
+                total.toString()
             )
         )
+        snackProgressBarManager.updateTo(syncSnackProgressBar)
+    }
+
+    private fun showSyncSnackBar() {
+        snackProgressBarManager.dismiss()
+        syncSnackProgressBar.setMessage(resources.getString(R.string.list_files_sync_snackbar_default))
         snackProgressBarManager.show(
             syncSnackProgressBar,
             SnackProgressBarManager.LENGTH_INDEFINITE

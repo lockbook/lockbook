@@ -794,7 +794,7 @@ val moveFileConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-val syncAllConverter = object : Converter {
+val syncConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
@@ -807,7 +807,6 @@ val syncAllConverter = object : Converter {
                         when (error) {
                             SyncAllError.CouldNotReachServer::class.simpleName -> SyncAllError.CouldNotReachServer
                             SyncAllError.NoAccount::class.simpleName -> SyncAllError.NoAccount
-                            SyncAllError.ExecuteWorkError::class.simpleName -> SyncAllError.ExecuteWorkError
                             SyncAllError.ClientUpdateRequired::class.simpleName -> SyncAllError.ClientUpdateRequired
                             else -> SyncAllError.Unexpected("syncAllConverter $unmatchedUiError $error")
                         }
@@ -871,43 +870,6 @@ val calculateWorkConverter = object : Converter {
             else -> Err(CalculateWorkError.Unexpected("calculateSyncWorkConverter $unmatchedErrorTag $errorTag"))
         }
         else -> Err(CalculateWorkError.Unexpected("calculateSyncWorkConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
-    }
-
-    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
-}
-
-val executeWorkConverter = object : Converter {
-    override fun canConvert(cls: Class<*>): Boolean = true
-
-    override fun fromJson(jv: JsonValue): Any? = when (jv.obj?.string("tag")) {
-        okTag -> Ok(Unit)
-        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
-            uiErrorTag -> {
-                val error = jv.obj?.obj("content")?.string("content")
-                if (error != null) {
-                    Err(
-                        when (error) {
-                            ExecuteWorkError.CouldNotReachServer::class.simpleName -> ExecuteWorkError.CouldNotReachServer
-                            ExecuteWorkError.ClientUpdateRequired::class.simpleName -> ExecuteWorkError.ClientUpdateRequired
-                            ExecuteWorkError.BadAccount::class.simpleName -> ExecuteWorkError.BadAccount
-                            else -> ExecuteWorkError.Unexpected("executeSyncWorkConverter $unmatchedUiError $error")
-                        }
-                    )
-                } else {
-                    Err(ExecuteWorkError.Unexpected("executeSyncWorkConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
-                }
-            }
-            unexpectedTag -> {
-                val error = jv.obj?.obj("content")?.string("content")
-                if (error != null) {
-                    Err(ExecuteWorkError.Unexpected(error))
-                } else {
-                    Err(ExecuteWorkError.Unexpected("executeSyncWorkConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
-                }
-            }
-            else -> Err(ExecuteWorkError.Unexpected("executeSyncWorkConverter $unmatchedErrorTag $errorTag"))
-        }
-        else -> Err(ExecuteWorkError.Unexpected("executeSyncWorkConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)

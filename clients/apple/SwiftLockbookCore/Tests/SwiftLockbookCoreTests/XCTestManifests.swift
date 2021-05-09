@@ -91,7 +91,6 @@ extension SyncFileTests {
         ("testBruteSomeFiles", testBruteSomeFiles),
         ("testBruteSomeFilesLocalChanges", testBruteSomeFilesLocalChanges),
         ("testIterativeNoFiles", testIterativeNoFiles),
-        ("testIterativeSomeFiles", testIterativeSomeFiles),
         ("testLocalChangesNoFiles", testLocalChangesNoFiles),
     ]
 }

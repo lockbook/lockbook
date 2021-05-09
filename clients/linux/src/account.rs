@@ -10,8 +10,8 @@ use gtk::{
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
     Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
-    ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator, Spinner as GtkSpinner,
-    Stack as GtkStack, WrapMode as GtkWrapMode,
+    ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator,
+    Spinner as GtkSpinner, Stack as GtkStack, WrapMode as GtkWrapMode,
 };
 use sourceview::prelude::*;
 use sourceview::View as GtkSourceView;
@@ -246,7 +246,7 @@ impl Sidebar {
 pub struct SyncPanel {
     status: GtkLabel,
     button: GtkBtn,
-    spinner: GtkSpinner,
+    progress: GtkProgressBar,
     cntr: GtkBox,
 }
 
@@ -278,10 +278,8 @@ impl SyncPanel {
         let button = GtkBtn::with_label("Sync");
         button.connect_clicked(closure!(m => move |_| m.send(Msg::PerformSync)));
 
-        let spinner = GtkSpinner::new();
-        spinner.set_margin_top(4);
-        spinner.set_margin_bottom(4);
-        spinner.set_size_request(20, 20);
+        let progress = GtkProgressBar::new();
+        progress.set_margin_top(3);
 
         let cntr = GtkBox::new(Horizontal, 0);
         gui_util::set_margin(&cntr, 8);
@@ -291,7 +289,7 @@ impl SyncPanel {
         Self {
             status,
             button,
-            spinner,
+            progress,
             cntr,
         }
     }
@@ -299,13 +297,14 @@ impl SyncPanel {
     pub fn set_syncing(&self, is_syncing: bool) {
         if is_syncing {
             self.cntr.remove(&self.button);
-            self.cntr.pack_end(&self.spinner, false, false, 0);
-            self.spinner.show();
-            self.spinner.start();
+            self.cntr.set_orientation(Vertical);
+            self.cntr.pack_end(&self.progress, true, true, 0);
+            self.progress.show();
+            self.progress.set_fraction(0.0);
         } else {
-            self.cntr.remove(&self.spinner);
+            self.cntr.remove(&self.progress);
+            self.cntr.set_orientation(Horizontal);
             self.cntr.pack_end(&self.button, false, false, 0);
-            self.spinner.stop();
             self.status.set_text("");
         }
     }
@@ -319,7 +318,8 @@ impl SyncPanel {
             WorkUnit::LocalChange { metadata: _ } => "Pushing",
             WorkUnit::ServerChange { metadata: _ } => "Pulling",
         };
-        self.set_status(&format!("{}: {} ({}/{})", prefix, s.path, s.index, s.total));
+        self.set_status(&format!("{}: {}", prefix, s.name));
+        self.progress.set_fraction(s.index as f64 / s.total as f64);
     }
 }
 

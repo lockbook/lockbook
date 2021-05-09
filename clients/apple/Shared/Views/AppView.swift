@@ -54,8 +54,6 @@ struct AppView: View {
                 return updateAlert
             case let update as FfiError<SyncAllError> where update == .init(.ClientUpdateRequired):
                 return updateAlert
-            case let update as FfiError<ExecuteWorkError> where update == .init(.ClientUpdateRequired):
-                return updateAlert
             case let update as FfiError<GetUsageError> where update == .init(.ClientUpdateRequired):
                 return updateAlert
             default:
