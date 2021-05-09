@@ -66,7 +66,6 @@ pub async fn connect(config: &FilesDbConfig) -> Result<S3Client, Error> {
         None,
         None,
     )
-    .await
     .map_err(Error::Credentials)?;
     Ok(S3Client::new(
         &config.bucket,
@@ -85,7 +84,7 @@ pub async fn create(
     file_contents: &EncryptedDocument,
 ) -> Result<(), Error> {
     match client
-        .put_object(
+        .put_object_with_content_type(
             &format!("/{}-{}", file_id, content_version),
             &serde_json::to_vec(file_contents).map_err(Error::Serialization)?,
             "text/plain",

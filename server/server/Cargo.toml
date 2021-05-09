@@ -17,7 +17,7 @@ base64 = "0.11.0"
 chrono = "0.4.15"
 fern = { version = "0.6.0", features = ["colored"]}
 futures = "0.3.13"
-hyper = { version = "0.14.7", features = ["server"] }
+hyper = "0.13.10"
 lockbook-crypto = { path = "../../core/libs/crypto" }
 lockbook-models = { path = "../../core/libs/models" }
 log = "0.4.8"
@@ -25,11 +25,11 @@ openssl = { version = "0.10", features = ["vendored"] }
 pagerduty-rs = { version = "0.1.1", features = ["sync"] }
 postgres-openssl = "0.3.0"
 rsa = { version = "^0.2", features = ["serde1"] }
-rust-s3 = { version = "0.22.3", features = ["path-style"] }
+rust-s3 = { version = "0.26.4", features = ["default"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
-tokio = { version = "1.5.0", features = ["full"] }
-sqlx = { version = "0.5", features = ["macros", "postgres", "uuid", "tls", "runtime-tokio-native-tls"] }
+tokio = { version = "0.2.11", features = ["full"] }
+sqlx = { version = "0.4.2", features = ["macros", "postgres", "uuid", "tls", "runtime-tokio-native-tls"] }
 tokio-test = "0.2.1"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 
