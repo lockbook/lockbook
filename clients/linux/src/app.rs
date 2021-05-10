@@ -99,7 +99,7 @@ impl LbApp {
 
                 Msg::AccountScreenShown => lb.account_screen_shown(),
 
-                Msg::NewFile(name) => lb.new_file(name),
+                Msg::NewFile(file_type) => lb.new_file(file_type),
                 Msg::OpenFile(id) => lb.open_file(id),
                 Msg::FileEdited => lb.file_edited(),
                 Msg::SaveFile => lb.save(),
@@ -334,13 +334,10 @@ impl LbApp {
         let parent = match self.gui.account.sidebar.tree.get_selected_uuid() {
             Some(id) => {
                 let file = self.core.file_by_id(id)?;
-                let parent = if let FileType::Folder = file.file_type {
-                    file.id
-                } else {
-                    file.parent
-                };
-
-                Ok(parent)
+                Ok(match file.file_type {
+                    FileType::Document => file.parent,
+                    FileType::Folder => file.id,
+                })
             }
             None => Err(uerr!("No destination is selected to create from!")),
         }?;
