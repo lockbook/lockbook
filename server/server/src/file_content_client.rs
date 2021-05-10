@@ -1,16 +1,12 @@
 use crate::config::FilesDbConfig;
 use lockbook_models::crypto::EncryptedDocument;
 use s3::bucket::Bucket as S3Client;
-use s3::creds::AwsCredsError;
 use s3::creds::Credentials;
 use s3::region::Region;
-use s3::S3Error;
 use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum Error {
-    Credentials(AwsCredsError),
-    ErrorTryingToConnect(String),
     InvalidAccessKeyId(String),
     NoSuchKey(String),
     ResponseNotUtf8(String),
@@ -43,38 +39,23 @@ impl From<Vec<u8>> for Error {
     }
 }
 
-impl From<S3Error> for Error {
-    fn from(err: S3Error) -> Error {
-        match err.description {
-            Some(desc) => {
-                if desc.contains("error trying to connect: ") {
-                    Error::ErrorTryingToConnect(desc)
-                } else {
-                    Error::Unknown(Some(desc))
-                }
-            }
-            None => Error::Unknown(None),
-        }
-    }
-}
+pub fn create_client(config: &FilesDbConfig) -> Result<S3Client, Error> {
+    let credentials = Credentials {
+        access_key: Some(config.access_key.clone()),
+        secret_key: Some(config.secret_key.clone()),
+        security_token: None,
+        session_token: None,
+    };
 
-pub async fn connect(config: &FilesDbConfig) -> Result<S3Client, Error> {
-    let credentials = Credentials::new(
-        Some(&config.access_key),
-        Some(&config.secret_key),
-        None,
-        None,
-        None,
-    )
-    .map_err(Error::Credentials)?;
-    Ok(S3Client::new(
+    Ok(S3Client::new_with_path_style(
         &config.bucket,
         Region::Custom {
             endpoint: format!("{}://{}:{}", config.scheme, config.host, config.port),
             region: config.region.clone(),
         },
         credentials,
-    )?)
+    )
+    .map_err(|err| Error::Unknown(Some(err.to_string())))?)
 }
 
 pub async fn create(
@@ -89,7 +70,8 @@ pub async fn create(
             &serde_json::to_vec(file_contents).map_err(Error::Serialization)?,
             "text/plain",
         )
-        .await?
+        .await
+        .map_err(|err| err.to_string())?
     {
         (_, 200) => Ok(()),
         (body, _) => Err(Error::from(body)),
@@ -99,7 +81,8 @@ pub async fn create(
 pub async fn delete(client: &S3Client, file_id: Uuid, content_version: u64) -> Result<(), Error> {
     match client
         .delete_object(&format!("/{}-{}", file_id, content_version))
-        .await?
+        .await
+        .map_err(|err| err.to_string())?
     {
         (_, 204) => Ok(()),
         (body, _) => Err(Error::from(body)),
@@ -113,7 +96,8 @@ pub async fn get(
 ) -> Result<EncryptedDocument, Error> {
     match client
         .get_object(&format!("/{}-{}", file_id, content_version))
-        .await?
+        .await
+        .map_err(|err| err.to_string())?
     {
         (data, 200) => Ok(serde_json::from_slice(&data).map_err(Error::Deserialization)?),
         (body, _) => Err(Error::from(body)),
