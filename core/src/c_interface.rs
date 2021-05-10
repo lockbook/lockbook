@@ -5,13 +5,12 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 use uuid::Uuid;
 
+use crate::get_all_error_variants;
 use crate::json_interface::translate;
 use crate::model::state::Config;
 use crate::repo::file_metadata_repo::{filter_from_str, Filter};
 use crate::service::drawing_service::SupportedImageFormats;
-use crate::{get_all_error_variants, Error, ExecuteWorkError};
 use lockbook_models::file_metadata::FileType;
-use lockbook_models::work_unit::WorkUnit;
 use serde::Serialize;
 
 fn c_string(value: String) -> *const c_char {
@@ -47,10 +46,6 @@ unsafe fn file_type_from_ptr(s: *const c_char) -> FileType {
 
 unsafe fn filter_from_ptr(s: *const c_char) -> Option<Filter> {
     filter_from_str(&str_from_ptr(s)).expect("Could not String -> Option<Filter>")
-}
-
-unsafe fn work_unit_from_ptr(s: *const c_char) -> WorkUnit {
-    serde_json::from_str(&str_from_ptr(s)).expect("Could not String -> WorkUnit")
 }
 
 #[no_mangle]
@@ -274,22 +269,9 @@ pub unsafe extern "C" fn calculate_work(writeable_path: *const c_char) -> *const
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn execute_work(
-    writeable_path: *const c_char,
-    work_unit: *const c_char,
-) -> *const c_char {
-    let config = &config_from_ptr(writeable_path);
-    c_string(translate(
-        crate::get_account(config) // FIXME: @raayan Temporary to avoid passing key through FFI
-            .map_err(|_| Error::UiError(ExecuteWorkError::BadAccount))
-            .and_then(|acc| crate::execute_work(config, &acc, work_unit_from_ptr(work_unit))),
-    ))
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_char {
     let config = &config_from_ptr(writeable_path);
-    c_string(translate(crate::sync_all(config)))
+    c_string(translate(crate::sync_all(config, None)))
 }
 
 #[no_mangle]

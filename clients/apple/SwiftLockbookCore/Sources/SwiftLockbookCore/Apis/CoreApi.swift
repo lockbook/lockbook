@@ -42,15 +42,6 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: calculate_work(documentsDirectory))
     }
     
-    public func executeWork(work: WorkUnit) -> FfiResult<Empty, ExecuteWorkError> {
-        switch serialize(obj: work) {
-        case .success(let str):
-            return fromPrimitiveResult(result: execute_work(documentsDirectory, str))
-        case .failure(let err):
-            return .failure(.init(unexpected: err.localizedDescription))
-        }
-    }
-    
     public func setLastSynced(lastSync: UInt64) -> FfiResult<Empty, SetLastSyncedError> {
         fromPrimitiveResult(result: set_last_synced(documentsDirectory, lastSync))
     }

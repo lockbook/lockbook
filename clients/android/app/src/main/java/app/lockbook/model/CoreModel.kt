@@ -96,15 +96,18 @@ object CoreModel {
         return Err(AccountExportError.Unexpected("exportAccountConverter was unable to be called!"))
     }
 
-    fun syncAll(config: Config): Result<Unit, SyncAllError> {
-        val syncResult: Result<Unit, SyncAllError>? =
-            Klaxon().converter(syncAllConverter).parse(syncAll(Klaxon().toJsonString(config)))
+    fun sync(config: Config, syncModel: SyncModel?): Result<Unit, SyncAllError> {
+        val syncResult: Result<Unit, SyncAllError>? = if (syncModel != null) {
+            Klaxon().converter(syncConverter).parse(syncAll(Klaxon().toJsonString(config), syncModel))
+        } else {
+            Klaxon().converter(syncConverter).parse(backgroundSync(Klaxon().toJsonString(config)))
+        }
 
         if (syncResult != null) {
             return syncResult
         }
 
-        return Err(SyncAllError.Unexpected("syncAllConverter was unable to be called!"))
+        return Err(SyncAllError.Unexpected("syncConverter was unable to be called!"))
     }
 
     fun writeContentToDocument(
@@ -339,26 +342,5 @@ object CoreModel {
         }
 
         return Err(CalculateWorkError.Unexpected("calculateSyncWorkConverter was unable to be called!"))
-    }
-
-    fun executeWork(
-        config: Config,
-        account: Account,
-        workUnit: WorkUnit
-    ): Result<Unit, ExecuteWorkError> {
-        val executeSyncWorkResult: Result<Unit, ExecuteWorkError>? =
-            Klaxon().converter(executeWorkConverter).parse(
-                executeWork(
-                    Klaxon().toJsonString(config),
-                    Klaxon().toJsonString(account),
-                    Klaxon().toJsonString(workUnit)
-                )
-            )
-
-        if (executeSyncWorkResult != null) {
-            return executeSyncWorkResult
-        }
-
-        return Err(ExecuteWorkError.Unexpected("executeSyncWorkConverter was unable to be called!"))
     }
 }

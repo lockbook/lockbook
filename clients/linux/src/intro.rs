@@ -89,7 +89,7 @@ impl IntroScreen {
     }
 
     pub fn sync_progress(&self, s: &LbSyncMsg) {
-        let status = format!("Syncing :: {} ({}/{})", s.path, s.index, s.total);
+        let status = format!("Syncing :: {} ({}/{})", s.name, s.index, s.total);
         self.doing.status.set_text(&status);
     }
 

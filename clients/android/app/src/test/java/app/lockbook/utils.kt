@@ -116,19 +116,6 @@ val checkIfAllErrorsPresentConverter = object : Converter {
             throw Throwable(obsoleteErrorTemplate + FileDeleteError::class.simpleName)
         }
 
-        var executeWorkErrors = ExecuteWorkError::class.nestedClasses.filter { kClass -> kClass != ExecuteWorkError.Unexpected::class }
-        jsonObject.array<String>("ExecuteWorkError")!!.forEach { error ->
-            val sizeBefore = executeWorkErrors.size
-            executeWorkErrors = executeWorkErrors.filter { kClass -> error != kClass.simpleName }
-            if (executeWorkErrors.size == sizeBefore && error != stubError) {
-                throw Throwable(error + unrecognizedErrorTemplate + ExecuteWorkError::class.simpleName)
-            }
-        }
-
-        if (executeWorkErrors.isNotEmpty()) {
-            throw Throwable(obsoleteErrorTemplate + ExecuteWorkError::class.simpleName)
-        }
-
         var getAccountErrors = GetAccountError::class.nestedClasses.filter { kClass -> kClass != GetAccountError.Unexpected::class }
         jsonObject.array<String>("GetAccountError")!!.forEach { error ->
             val sizeBefore = getAccountErrors.size
