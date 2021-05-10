@@ -306,11 +306,12 @@ impl LbApp {
     }
 
     fn new_file(&self, file_type: FileType) -> LbResult<()> {
-        let entry = GtkEntry::new();
-        entry.set_margin_start(8);
-        entry.set_activates_default(true);
+        let file_type_string = match file_type {
+            FileType::Document => "Document",
+            FileType::Folder => "Folder",
+        };
 
-        let lbl = util::gui::text_left("Enter file name:");
+        let lbl = util::gui::text_left(&format!("Enter {} name:", file_type_string.to_lowercase()));
         lbl.set_margin_top(12);
 
         let errlbl = util::gui::text_left("");
@@ -318,11 +319,31 @@ impl LbApp {
         errlbl.set_margin_start(8);
         errlbl.set_margin_bottom(8);
 
-        let d = self.gui.new_dialog("New Document");
-        d.get_content_area().add(&entry);
+        let entry = GtkEntry::new();
+        util::gui::set_marginy(&entry, 16);
+        entry.set_margin_start(8);
+        entry.set_activates_default(true);
+
+        let d = self.gui.new_dialog(&format!("New {}", file_type_string));
+        d.set_default_size(300, -1);
         d.get_content_area().add(&lbl);
+        d.get_content_area().add(&entry);
         d.add_button("Ok", GtkResponseType::Ok);
         d.set_default_response(GtkResponseType::Ok);
+
+        let parent = match self.gui.account.sidebar.tree.get_selected_uuid() {
+            Some(id) => {
+                let file = self.core.file_by_id(id)?;
+                let parent = if let FileType::Folder = file.file_type {
+                    file.id
+                } else {
+                    file.parent
+                };
+
+                Ok(parent)
+            }
+            None => Err(uerr!("No destination is selected to create from!")),
+        }?;
 
         d.connect_response(closure!(self as lb => move |d, resp| {
             if resp != GtkResponseType::Ok {
@@ -331,46 +352,31 @@ impl LbApp {
             }
 
             let name = entry.get_buffer().get_text();
-            match self.gui.account.sidebar.tree.get_selected_uuid() {
-                Some(selected) => {
-                    match self.core.file_by_id(selected) {
-                        Ok(file) => {
 
-                            let parent = if let FileType::Folder = file.file_type {
-                        file.id
-                    } else {
-                        file.parent
-                    };
+            match lb.core.create_file(&name, parent, file_type) {
+                Ok(file) => {
+                    d.close();
 
-                            match lb.core.create_file(&name, parent, file_type) {
-                        Ok(file) => {
-                            d.close();
-
-                            self.gui.account.add_file(&self.core, &file)?;
-                            self.refresh_sync_status()?;
-                            self.open_file(Some(file.id));
+                    match lb.gui.account.add_file(&lb.core, &file) {
+                        Ok(_) => {
+                            lb.messenger.send(Msg::RefreshSyncStatus);
+                            lb.messenger.send(Msg::OpenFile(Some(file.id)));
                         }
-                        Err(err) => match err.kind() {
-                            UserErr => {
-                                util::gui::add(&d.get_content_area(), &errlbl);
-                                errlbl.set_text(&err.msg());
-                                errlbl.show();
-                            }
-                            ProgErr => {
-                                d.close();
-                                lb.messenger.send_err("creating file", err);
-                            }
-                        },
+                        Err(err) => lb.messenger.send_err("adding file to file tree", err)
                     }
-                        }
-                        Err(err) => lb.messenger.send_err("getting selected file", err)
+                }
+                Err(err) => match err.kind() {
+                    UserErr => {
+                        util::gui::add(&d.get_content_area(), &errlbl);
+                        errlbl.set_text(&err.msg());
+                        errlbl.show();
                     }
-
-
-
+                    ProgErr => {
+                        d.close();
+                        lb.messenger.send_err("creating file", err);
+                    }
                 },
-                None => lb.messenger.send_err("getting selected id", None)
-            };
+            }
         }));
 
         d.show_all();

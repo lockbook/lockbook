@@ -396,6 +396,8 @@ impl FileTreePopup {
         let is_root = tsel.iter_is_selected(&tmodel.get_iter_first().unwrap());
 
         for (key, is_enabled) in &[
+            (PopupItem::NewFolder, only_1),
+            (PopupItem::NewDocument, only_1),
             (PopupItem::Rename, only_1 && !is_root),
             (PopupItem::Open, only_1),
             (PopupItem::Delete, at_least_1),
