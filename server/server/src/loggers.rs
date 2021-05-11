@@ -187,9 +187,8 @@ fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>
     api_key: &String,
     event: Event<T>,
 ) {
-    EventsV2::new(api_key.to_string(), Some("lockbook-server".to_string()))
+    let _ = EventsV2::new(api_key.to_string(), Some("lockbook-server".to_string()))
         .unwrap()
         .event(event)
-        .err()
-        .map(|err| eprintln!("Failed reporting event to PagerDuty! {}", err));
+        .map_err(|err| eprintln!("Failed reporting event to PagerDuty! {}", err));
 }

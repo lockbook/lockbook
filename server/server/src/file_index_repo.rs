@@ -8,7 +8,6 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{PgPool, Postgres, Transaction};
 use std::array::IntoIter;
 use std::collections::HashMap;
-use std::iter::FromIterator;
 use uuid::Uuid;
 
 // TODO:
@@ -550,7 +549,6 @@ WHERE
         deleted: row.deleted,
         user_access_keys: {
             if let Some(encrypted_key) = &row.encrypted_key {
-                HashMap::<_, _>::from_iter(
                     IntoIter::new(
                         [
                             (
@@ -565,7 +563,7 @@ WHERE
                             )
                         ]
                     )
-                )
+                        .collect()
             } else {
                 HashMap::new()
             }
@@ -620,7 +618,6 @@ WHERE
         deleted: row.deleted,
         user_access_keys: {
             if let Some(encrypted_key) = &row.encrypted_key {
-                HashMap::<_, _>::from_iter(
                     IntoIter::new(
                         [
                             (
@@ -634,8 +631,7 @@ WHERE
                                 }
                             )
                         ]
-                    )
-                )
+                    ).collect()
             } else {
                 HashMap::new()
             }
@@ -692,7 +688,7 @@ WHERE
         deleted: row.deleted,
         user_access_keys: {
             if let Some(encrypted_key) = &row.encrypted_key {
-                HashMap::<_, _>::from_iter(IntoIter::new([(
+                IntoIter::new([(
                     row.name.clone(),
                     UserAccessInfo {
                         username: row.name.clone(),
@@ -701,7 +697,7 @@ WHERE
                         access_key: serde_json::from_str(&encrypted_key)
                             .map_err(GetRootError::Deserialize)?,
                     },
-                )]))
+                )]).collect()
             } else {
                 HashMap::new()
             }
@@ -824,19 +820,20 @@ RETURNING
     .fetch_all(transaction)
     .await
     .map_err(DeleteAllFilesOfAccountError::Postgres)?
-        .as_slice()
+    .as_slice()
     {
         [] => Err(DeleteAllFilesOfAccountError::DoesNotExist),
         rows => rows
-            .into_iter()
+            .iter()
             .map(|row| {
-                    Ok(FileDeleteResponse {
-                        id: Uuid::parse_str(&row.id).map_err(DeleteAllFilesOfAccountError::UuidDeserialize)?,
-                        old_content_version: row.old_content_version as u64,
-                        new_metadata_version: row.new_metadata_version as u64,
-                        is_folder: row.is_folder,
-                    })
+                Ok(FileDeleteResponse {
+                    id: Uuid::parse_str(&row.id)
+                        .map_err(DeleteAllFilesOfAccountError::UuidDeserialize)?,
+                    old_content_version: row.old_content_version as u64,
+                    new_metadata_version: row.new_metadata_version as u64,
+                    is_folder: row.is_folder,
                 })
+            })
             .collect(),
     }
 }
