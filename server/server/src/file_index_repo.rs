@@ -697,7 +697,8 @@ WHERE
                         access_key: serde_json::from_str(&encrypted_key)
                             .map_err(GetRootError::Deserialize)?,
                     },
-                )]).collect()
+                )])
+                .collect()
             } else {
                 HashMap::new()
             }
