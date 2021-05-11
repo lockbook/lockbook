@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use gdk::EventButton as GdkEventButton;
+use gdk::{EventButton as GdkEventButton, ModifierType, DragAction, DragContext};
 use gdk::EventKey as GdkEventKey;
 use gtk::prelude::*;
-use gtk::CellRendererText as GtkCellRendererText;
+use gtk::{CellRendererText as GtkCellRendererText, TargetEntry, TargetFlags, SelectionData, TreeView};
 use gtk::Inhibit as GtkInhibit;
 use gtk::Menu as GtkMenu;
 use gtk::MenuItem as GtkMenuItem;
@@ -70,6 +70,12 @@ impl FileTree {
             }
         }
 
+        let targets = vec![TargetEntry::new("text/uri-list", TargetFlags::SAME_WIDGET & TargetFlags::OTHER_APP, 0)];
+        let actions = DragAction::MOVE & DragAction::COPY;
+        let activating_buttons = ModifierType::BUTTON1_MASK;
+        tree.drag_source_set(activating_buttons, &targets, actions);
+        tree.connect_drag_data_received(Self::on_item_dragged(&m));
+
         Self { cols, model, tree }
     }
 
@@ -119,6 +125,12 @@ impl FileTree {
                 let iter_uuid = Uuid::parse_str(&iter_id).unwrap();
                 m.send(Msg::OpenFile(Some(iter_uuid)));
             }
+        })
+    }
+
+    fn on_item_dragged(m: &Messenger) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
+        closure!(m => |w, _, _, _, d, _, _| {
+
         })
     }
 
