@@ -798,14 +798,16 @@ DELETE FROM user_access_keys where sharee_id = $1
 
 #[derive(Debug)]
 pub enum DeleteAllFilesOfAccountError {
+    DoesNotExist,
     Postgres(sqlx::Error),
+    UuidDeserialize(uuid::Error),
 }
 
 pub async fn delete_all_files_of_account(
     transaction: &mut Transaction<'_, Postgres>,
     username: &str,
-) -> Result<(), DeleteAllFilesOfAccountError> {
-    sqlx::query!(
+) -> Result<Vec<FileDeleteResponse>, DeleteAllFilesOfAccountError> {
+    match sqlx::query!(
         r#"
 DELETE FROM files
 WHERE owner = $1
@@ -819,10 +821,24 @@ RETURNING
         "#,
         &username.to_string()
     )
-    .fetch_one(transaction)
+    .fetch_all(transaction)
     .await
-    .map_err(DeleteAllFilesOfAccountError::Postgres)?;
-    Ok(())
+    .map_err(DeleteAllFilesOfAccountError::Postgres)?
+        .as_slice()
+    {
+        [] => Err(DeleteAllFilesOfAccountError::DoesNotExist),
+        rows => rows
+            .into_iter()
+            .map(|row| {
+                    Ok(FileDeleteResponse {
+                        id: Uuid::parse_str(&row.id).map_err(DeleteAllFilesOfAccountError::UuidDeserialize)?,
+                        old_content_version: row.old_content_version as u64,
+                        new_metadata_version: row.new_metadata_version as u64,
+                        is_folder: row.is_folder,
+                    })
+                })
+            .collect(),
+    }
 }
 
 #[derive(Debug)]

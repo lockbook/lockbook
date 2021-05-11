@@ -1,6 +1,6 @@
 use lockbook_server_lib::{file_content_client, file_index_repo, ServerState};
 
-pub async fn delete_account(mut server_state: ServerState, username: &str) -> bool {
+pub async fn delete_account(server_state: ServerState, username: &str) -> bool {
     let mut transaction = server_state.index_db_client.begin().await.unwrap();
 
     // Ensure this is a real user
@@ -12,18 +12,13 @@ pub async fn delete_account(mut server_state: ServerState, username: &str) -> bo
         .await
         .expect("Failed to delete account access keys");
 
-    file_index_repo::delete_all_files_of_account(&mut transaction, &username)
+    let files = file_index_repo::delete_all_files_of_account(&mut transaction, &username)
         .await
-        .expect("Failed to delete all files of account")
-        .responses;
+        .expect("Failed to delete all files of account");
 
     file_index_repo::delete_account(&mut transaction, &username)
         .await
         .expect("Failed to delete account");
-
-    let files = file_index_repo::get_files(&mut transaction, &username)
-        .await
-        .expect("Failed to get files");
 
     transaction
         .commit()
