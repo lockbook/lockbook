@@ -47,7 +47,7 @@ pub fn create_client(config: &FilesDbConfig) -> Result<S3Client, Error> {
         session_token: None,
     };
 
-    Ok(S3Client::new_with_path_style(
+    S3Client::new_with_path_style(
         &config.bucket,
         Region::Custom {
             endpoint: format!("{}://{}:{}", config.scheme, config.host, config.port),
@@ -55,7 +55,7 @@ pub fn create_client(config: &FilesDbConfig) -> Result<S3Client, Error> {
         },
         credentials,
     )
-    .map_err(|err| Error::Unknown(Some(err.to_string())))?)
+    .map_err(|err| Error::Unknown(Some(err.to_string())))
 }
 
 pub async fn create(

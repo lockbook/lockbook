@@ -269,12 +269,12 @@ RETURNING
     {
         [] => Err(DeleteFileError::DoesNotExist),
         rows => rows
-            .into_iter()
+            .iter()
             .map(|row| {
                 if row.parent_id == row.id {
                     Err(DeleteFileError::IllegalRootChange)
                 } else if row.id
-                    == id
+                    == *id
                         .to_simple()
                         .encode_lower(&mut Uuid::encode_buffer())
                         .to_owned()
