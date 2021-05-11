@@ -326,7 +326,7 @@ WITH RECURSIVE file_descendants AS (
     ),
     old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE),
     parent AS (
-        SELECT * FROM files WHERE id = $4
+        SELECT * FROM files WHERE id = $3
     )
 UPDATE files new
 SET
@@ -362,7 +362,7 @@ LEFT JOIN parent ON TRUE
 WHERE old.id = new.id
 RETURNING
     old.deleted AS old_deleted,
-    parent.deleted AS parent_deleted,
+    parent.deleted AS "parent_deleted?",
     old.parent AS parent_id,
     COALESCE(EXISTS(SELECT * FROM file_descendants WHERE id = $3), FALSE) AS "moved_into_descendant!",
     EXISTS(SELECT * FROM parent) AS "parent_exists!",
@@ -383,14 +383,14 @@ RETURNING
                 Err(MoveFileError::Deleted)
             } else if row.old_metadata_version as u64 != old_metadata_version {
                 Err(MoveFileError::IncorrectOldVersion)
-            } else if row.parent_deleted {
+            } else if row.parent_deleted == Some(true) {
                 Err(MoveFileError::ParentDeleted)
-            } else if row.moved_into_descendant {
-                Err(MoveFileError::FolderMovedIntoDescendants)
             } else if !row.parent_exists {
                 Err(MoveFileError::ParentDoesNotExist)
             } else if &row.parent_id == id.to_simple().encode_lower(&mut Uuid::encode_buffer()) {
                 Err(MoveFileError::IllegalRootChange)
+            } else if row.moved_into_descendant {
+                Err(MoveFileError::FolderMovedIntoDescendants)
             } else {
                 Ok(row.new_metadata_version as u64)
             }
