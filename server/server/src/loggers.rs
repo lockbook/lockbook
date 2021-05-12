@@ -1,7 +1,8 @@
+
 use fern::colors::{Color, ColoredLevelConfig};
 use fern::Dispatch;
 use log::{Level, Log, Metadata, Record};
-use pagerduty_rs::eventsv2sync::*;
+use pagerduty_rs::eventsv2async::EventsV2;
 use pagerduty_rs::types::{
     AlertTrigger, AlertTriggerPayload, Change, ChangePayload, Event, Severity,
 };
@@ -9,12 +10,14 @@ use serde::Serialize;
 use std::path::Path;
 use std::time::SystemTime;
 use std::{fs, io};
+use tokio::runtime::Handle;
 
 pub fn init(
     log_path: &Path,
     log_name: String,
     std_colors: bool,
     pd_api_key: &Option<String>,
+    handle: Handle,
     build: &String,
 ) -> Result<Dispatch, io::Error> {
     let colors_level = ColoredLevelConfig::new()
@@ -68,13 +71,14 @@ pub fn init(
 
     Ok(match pd_api_key {
         None => base_logger,
-        Some(api_key) => base_logger.chain(pd_logger(build, api_key)),
+        Some(api_key) => base_logger.chain(pd_logger(build, api_key, handle)),
     })
 }
 
-fn pd_logger(build: &String, pd_api_key: &String) -> Dispatch {
+fn pd_logger(build: &String, pd_api_key: &String, handle: Handle) -> Dispatch {
     let _ = notify(
         pd_api_key,
+        &handle,
         Event::Change(Change {
             payload: ChangePayload {
                 summary: "Lockbook Server is starting up...".to_string(),
@@ -90,6 +94,7 @@ fn pd_logger(build: &String, pd_api_key: &String) -> Dispatch {
 
     let pdl = PDLogger {
         key: pd_api_key.to_string(),
+        handle: handle,
         build: build.to_string(),
     };
 
@@ -102,6 +107,7 @@ fn pd_logger(build: &String, pd_api_key: &String) -> Dispatch {
 
 struct PDLogger {
     key: String,
+    handle: Handle,
     build: String,
 }
 
@@ -114,6 +120,7 @@ impl Log for PDLogger {
         if self.enabled(record.metadata()) {
             notify(
                 &self.key,
+                &self.handle,
                 Event::AlertTrigger(AlertTrigger {
                     payload: AlertTriggerPayload {
                         severity: level_to_severity(record.level()),
@@ -185,10 +192,22 @@ struct ChangeDetail {
 
 fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>(
     api_key: &String,
+    handle: &Handle,
     event: Event<T>,
 ) {
-    let _ = EventsV2::new(api_key.to_string(), Some("lockbook-server".to_string()))
-        .unwrap()
-        .event(event)
-        .map_err(|err| eprintln!("Failed reporting event to PagerDuty! {}", err));
+    let events = EventsV2::new(api_key.to_string(), Some("lockbook-server".to_string())).unwrap();
+
+    futures::executor::block_on(async {
+        handle
+            .spawn(async move {
+                events
+                    .event(event)
+                    .await
+                    .err()
+                    .map(|err| eprintln!("Failed reporting event to PagerDuty! {}", err))
+            })
+            .await
+            .err()
+            .map(|err| eprintln!("Failed spawning task in Tokio runtime! {}", err))
+    });
 }

@@ -17,15 +17,16 @@ use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::Infallible;
-use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 use tokio::sync::Mutex;
 
 static LOG_FILE: &str = "lockbook_server.log";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let handle = Handle::current();
     let config = Config::from_env_vars();
     let build = option_env!("SERVER_BUILD").unwrap_or("MISSING");
 
@@ -34,6 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         LOG_FILE.to_string(),
         true,
         &config.server.pd_api_key,
+        handle,
         &build.to_string(),
     )
     .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str())
@@ -60,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         index_db_client,
         files_db_client,
     }));
-    let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
+    let addr = format!("0.0.0.0:{}", port).parse()?;
 
     let make_service = make_service_fn(|_| {
         let server_state = server_state.clone();
