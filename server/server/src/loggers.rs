@@ -1,4 +1,3 @@
-
 use fern::colors::{Color, ColoredLevelConfig};
 use fern::Dispatch;
 use log::{Level, Log, Metadata, Record};
