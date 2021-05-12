@@ -15,7 +15,6 @@ mod get_root_tests {
         file_index_repo::get_root(&mut transaction, &pub_key)
             .await
             .unwrap()
-            .unwrap()
     }
 
     #[test]
