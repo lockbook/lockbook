@@ -9,14 +9,14 @@ use lockbook_core::model::state::Config;
 use lockbook_core::service::db_state_service::State as DbState;
 use lockbook_core::service::sync_service::{SyncProgress, WorkCalculated};
 use lockbook_core::{
-    calculate_work, create_account, create_file_at_path, delete_file, export_account, get_account,
+    calculate_work, create_account, create_file, delete_file, export_account, get_account,
     get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
     get_last_synced, get_root, get_usage_human_string, import_account, list_paths, migrate_db,
     read_document, rename_file, sync_all, write_document,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::{LbError, LbResult};
@@ -135,16 +135,19 @@ impl LbCore {
         ))
     }
 
-    pub fn create_file_at_path(&self, path: &str) -> LbResult<FileMetadata> {
-        let prefixed = format!("{}/{}", self.root()?.name, path);
-
-        create_file_at_path(&self.config, &prefixed).map_err(map_core_err!(CreateFileAtPathError,
-            FileAlreadyExists => uerr!("That file already exists!"),
+    pub fn create_file(
+        &self,
+        name: &str,
+        parent: Uuid,
+        file_type: FileType,
+    ) -> LbResult<FileMetadata> {
+        create_file(&self.config, name, parent, file_type).map_err(map_core_err!(CreateFileError,
+            FileNameNotAvailable => uerr!("That file name is not available."),
             NoAccount => uerr!("No account found."),
-            NoRoot => uerr!("No root folder found."),
-            PathDoesntStartWithRoot => uerr!("The path '{}' doesn't start with root.", path),
-            PathContainsEmptyFile => uerr!("The path '{}' contains an empty file.", path),
             DocumentTreatedAsFolder => uerr!("A document is being treated as folder."),
+            CouldNotFindAParent => uerr!("Could not find parent."),
+            FileNameEmpty => uerr!("Cannot create file with no name."),
+            FileNameContainsSlash => uerr!("The file name cannot contain a slash."),
         ))
     }
 

@@ -2,6 +2,7 @@ use uuid::Uuid;
 
 use crate::error::LbError;
 use crate::filetree::FileTreeCol;
+use lockbook_models::file_metadata::FileType;
 
 pub type MsgFn = fn() -> Msg;
 
@@ -13,7 +14,7 @@ pub enum Msg {
     RefreshSyncStatus,
     Quit,
 
-    NewFile(String),
+    NewFile(FileType),
     OpenFile(Option<Uuid>),
     FileEdited,
     SaveFile,
@@ -30,7 +31,6 @@ pub enum Msg {
     ToggleTreeCol(FileTreeCol),
 
     AccountScreenShown,
-    ShowDialogNew,
     ShowDialogSyncDetails,
     ShowDialogPreferences,
     ShowDialogUsage,
