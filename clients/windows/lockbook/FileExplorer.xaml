@@ -116,7 +116,6 @@
         </SplitView.Pane>
         <SplitView.Content>
             <Grid Background="Black">
-                <!--Visibility="Collapsed">-->
                 <Grid
                     Background="Black"
                     x:Name="drawEditor"
@@ -149,10 +148,12 @@
                         <InkCanvas x:Name="inkCanvas" Width="2125" Height="2750"/>
                     </ScrollViewer>
                     <InkToolbar
+                        x:Name="drawToolbar"
                         Grid.Row="1"
                         HorizontalAlignment="Center"
                         TargetInkCanvas="{x:Bind inkCanvas}"
-                        InitialControls="None">
+                        InitialControls="None"
+                        EraseAllClicked="AllStrokesErased">
                         <InkToolbar.Resources>
                             <BrushCollection x:Key="PenPalette">
                                 <SolidColorBrush x:Name="PenPaletteBlack"/>
@@ -165,20 +166,22 @@
                                 <SolidColorBrush x:Name="PenPaletteWhite"/>
                             </BrushCollection>
                         </InkToolbar.Resources>
-                        <InkToolbarBallpointPenButton  
+                        <InkToolbarBallpointPenButton
+                            x:Name="drawToolbarPenButton"
                             MinStrokeWidth="1"
                             MaxStrokeWidth="20"
                             SelectedStrokeWidth="5"
-                            Palette="{StaticResource PenPalette}"/>
+                            Palette="{StaticResource PenPalette}"
+                            Loaded="drawToolbarPenButton_Loaded"/>
                         <InkToolbarEraserButton/>
                         <InkToolbarStencilButton/>
-                        <InkToolbarCustomToolButton Name="undoButton" Click="Undo" ToolTipService.ToolTip="Undo">
+                        <!--<InkToolbarCustomToolButton Name="undoButton" Click="Undo" ToolTipService.ToolTip="Undo">
                             <SymbolIcon Symbol="Undo"/>
                         </InkToolbarCustomToolButton>
                         <InkToolbarCustomToolButton Name="redoButton" Click="Redo" ToolTipService.ToolTip="Redo">
                             <SymbolIcon Symbol="Redo"/>
-                        </InkToolbarCustomToolButton>
-                        <InkToolbarCustomToggleButton x:Name="toggleButton" Click="ToggleTouchDrawing" ToolTipService.ToolTip="Touch Writing">
+                        </InkToolbarCustomToolButton>-->
+                        <InkToolbarCustomToggleButton x:Name="toggleButton" Click="ToggleTouchDrawing" ToolTipService.ToolTip="Touch Writing" Loaded="toggleButton_Loaded">
                             <SymbolIcon Symbol="{x:Bind TouchWriting}"/>
                         </InkToolbarCustomToggleButton>
                     </InkToolbar>

@@ -7,7 +7,6 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
-using Windows.Foundation;
 using Windows.UI;
 using Windows.UI.Core;
 using Windows.UI.Input.Inking;
@@ -82,18 +81,6 @@ namespace lockbook {
                 Refresh();
             }
         }
-        private Dictionary<ColorAlias, ColorRGB> theme;
-        public ColorAlias DrawingColor {
-            get {
-                return theme.GetColorAlias(inkCanvas.InkPresenter.CopyDefaultDrawingAttributes().Color);
-            }
-            set {
-                inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
-                    Color = theme.GetUIColor(value, 0xFF),
-                    Size = new Size(20, 20),
-                });
-            }
-        }
 
         public const string checkGlyph = "\uE73E";
         public const string syncGlyph = "\uE895";
@@ -110,10 +97,6 @@ namespace lockbook {
                 CoreInputDeviceTypes.Mouse |
                 CoreInputDeviceTypes.Pen |
                 CoreInputDeviceTypes.Touch;
-            inkCanvas.InkPresenter.UpdateDefaultDrawingAttributes(new InkDrawingAttributes {
-                Color = theme.GetUIColor(ColorAlias.Black, 0xFF),
-                Size = new Size(5, 5),
-            });
             inkCanvas.InkPresenter.StrokesCollected += StrokesCollected;
             inkCanvas.InkPresenter.StrokesErased += StrokesErased;
         }
@@ -135,6 +118,17 @@ namespace lockbook {
             if (await dialog.ShowAsync() == ContentDialogResult.Primary) {
                 await App.SignOut();
             }
+        }
+
+        private void drawToolbarPenButton_Loaded(object sender, RoutedEventArgs e) {
+            drawToolbarPenButton.SelectedBrushIndex = 1;
+            drawToolbarPenButton.SelectedBrushIndex = 0;
+            drawToolbarPenButton.SelectedStrokeWidth = 5;
+        }
+
+        private void toggleButton_Loaded(object sender, RoutedEventArgs e) {
+            toggleButton.IsChecked = true;
+            toggleButton.IsChecked = false;
         }
 
         private async void NavigationViewLoaded(object sender, RoutedEventArgs e) {
@@ -231,6 +225,7 @@ namespace lockbook {
             }
             PopulateTreeRecursive(files, newUIFiles, root);
             newUIFiles[root.Id].IsRoot = true;
+            newUIFiles[root.Id].IsExpanded = true;
             foreach (var f in App.UIFiles) {
                 if (f.Value.IsExpanded) {
                     if (newUIFiles.TryGetValue(f.Key, out var newUIFile)) {
@@ -487,14 +482,14 @@ namespace lockbook {
                             foreach (var stroke in drawingContext.strokes) {
                                 inkCanvas.InkPresenter.StrokeContainer.AddStroke(stroke);
                             }
-                            PenPaletteBlack.Color = theme.GetUIColor(ColorAlias.Black, 1f);
-                            PenPaletteRed.Color = theme.GetUIColor(ColorAlias.Red, 1f);
-                            PenPaletteGreen.Color = theme.GetUIColor(ColorAlias.Green, 1f);
-                            PenPaletteBlue.Color = theme.GetUIColor(ColorAlias.Blue, 1f);
-                            PenPaletteYellow.Color = theme.GetUIColor(ColorAlias.Yellow, 1f);
-                            PenPaletteMagenta.Color = theme.GetUIColor(ColorAlias.Magenta, 1f);
-                            PenPaletteCyan.Color = theme.GetUIColor(ColorAlias.Cyan, 1f);
-                            PenPaletteWhite.Color = theme.GetUIColor(ColorAlias.White, 1f);
+                            PenPaletteBlack.Color = drawingContext.theme.GetUIColor(ColorAlias.Black, 1f);
+                            PenPaletteRed.Color = drawingContext.theme.GetUIColor(ColorAlias.Red, 1f);
+                            PenPaletteGreen.Color = drawingContext.theme.GetUIColor(ColorAlias.Green, 1f);
+                            PenPaletteBlue.Color = drawingContext.theme.GetUIColor(ColorAlias.Blue, 1f);
+                            PenPaletteYellow.Color = drawingContext.theme.GetUIColor(ColorAlias.Yellow, 1f);
+                            PenPaletteMagenta.Color = drawingContext.theme.GetUIColor(ColorAlias.Magenta, 1f);
+                            PenPaletteCyan.Color = drawingContext.theme.GetUIColor(ColorAlias.Cyan, 1f);
+                            PenPaletteWhite.Color = drawingContext.theme.GetUIColor(ColorAlias.White, 1f);
                         } else {
                             CurrentEditMode = EditMode.Text;
                             textEditor.TextDocument.SetText(TextSetOptions.None, content.content);
@@ -568,6 +563,12 @@ namespace lockbook {
             DrawingChanged();
         }
 
+        private void AllStrokesErased(InkToolbar sender, object args) {
+            drawingContext.strokes.Clear();
+            drawingContext.splitStrokes.Clear();
+            DrawingChanged();
+        }
+
         private void StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args) {
             foreach (var addedStroke in args.Strokes) {
                 drawingContext.strokes.Add(addedStroke);
@@ -628,7 +629,7 @@ namespace lockbook {
         DateTime prev;
         private void Pasted(object sender, TextControlPasteEventArgs e) {
             var now = DateTime.Now;
-            if (now - prev < TimeSpan.FromMilliseconds(10)) {
+            if (now - prev < TimeSpan.FromMilliseconds(50)) {
                 e.Handled = true;
             } else {
                 prev = now;

@@ -28,8 +28,9 @@ namespace lib {
     }
 
     public static class Draw {
-        // pressure * pen size * girth ratio = girth
+        // (pressure + offset) * pen size * girth ratio = girth
         private const float girthRatio = 1.55f;
+        private const float offset = 0.16f;
         // pressures below this pressure are rendered at this pressure
         private const float minPressure = 0.16f;
         // pressures above this pressure result in strange rending behavior
@@ -96,7 +97,7 @@ namespace lib {
                 if (girth > maxGirth) {
                     maxGirth = girth;
                 }
-                if (maxGirth / minGirth > maxPressure / minPressure) {
+                if (maxGirth / minGirth > SizeAndPressureToGirth(1, maxPressure) / SizeAndPressureToGirth(1, minPressure)) {
                     // Stroke is HDR; emit a substroke for points with indices ∈ [substrokeStart, i)
                     // Select the pen size which assigns the lowest girth point to the minimum supported pressure
                     var size = PressureAndGirthToSize(minPressure, minGirth);
@@ -189,15 +190,15 @@ namespace lib {
         }
 
         private static float SizeAndPressureToGirth(float size, float pressure) {
-            return size * pressure * girthRatio;
+            return size * (pressure + offset) * girthRatio;
         }
 
         private static float SizeAndGirthToPressure(float size, float girth) {
-            return Math.Clamp(girth / (size * girthRatio), minPressure, maxPressure);
+            return Math.Clamp(girth / (size * girthRatio) - offset, minPressure, maxPressure);
         }
 
         private static float PressureAndGirthToSize(float pressure, float girth) {
-            return girth / (pressure * girthRatio);
+            return girth / ((pressure + offset) * girthRatio);
         }
 
         private static bool InkPointsEqual(InkPoint a, InkStroke aStroke, InkPoint b, InkStroke bStroke) {

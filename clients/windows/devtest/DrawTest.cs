@@ -91,7 +91,7 @@ namespace devtest {
                     new Stroke {
                         pointsX = new List<float> {0, 1, 2},
                         pointsY = new List<float> {0, 0, 0},
-                        pointsGirth = new List<float> {1.55f, 1.55f, 1.55f},
+                        pointsGirth = new List<float> {3.1f, 3.1f, 3.1f},
                     }
                 }
             };
@@ -134,53 +134,53 @@ namespace devtest {
                     new Stroke {
                         pointsX = new List<float> {0, 1, 2},
                         pointsY = new List<float> {0, 0, 0},
-                        pointsGirth = new List<float> {1.55f, 1.55f * 4, 1.55f * 8},
+                        pointsGirth = new List<float> {3.1f, 3.1f * 3, 3.1f * 9},
                     }
                 }
             };
             inkStrokeBuilder1.SetDefaultDrawingAttributes(new InkDrawingAttributes { Size = new Size(6.25f, 6.25f) });
-            inkStrokeBuilder2.SetDefaultDrawingAttributes(new InkDrawingAttributes { Size = new Size(6.25f * 4, 6.25f * 4) });
+            inkStrokeBuilder2.SetDefaultDrawingAttributes(new InkDrawingAttributes { Size = new Size(18.75f, 18.75f) });
             var expectedContext = new DrawingContext {
                 strokes = new List<InkStroke> {
                     inkStrokeBuilder1.CreateStrokeFromInkPoints(new List<InkPoint>{
                         new InkPoint(new Point(0, 0), .16f),
-                        new InkPoint(new Point(1, 0), .16f * 4),
+                        new InkPoint(new Point(1, 0), .80f),
                     }, Matrix3x2.Identity),
                     inkStrokeBuilder2.CreateStrokeFromInkPoints(new List<InkPoint>{
                         new InkPoint(new Point(1, 0), .16f),
-                        new InkPoint(new Point(2, 0), .16f * 2),
+                        new InkPoint(new Point(2, 0), .80f),
                     }, Matrix3x2.Identity),
                 },
                 splitStrokes = new Dictionary<InkStroke, List<InkStroke>> {
                     {
                         inkStrokeBuilder1.CreateStrokeFromInkPoints(new List<InkPoint>{
                             new InkPoint(new Point(0, 0), .16f),
-                            new InkPoint(new Point(1, 0), .16f * 4),
+                            new InkPoint(new Point(1, 0), .80f),
                         }, Matrix3x2.Identity),
                         new List<InkStroke> {
                             inkStrokeBuilder1.CreateStrokeFromInkPoints(new List<InkPoint>{
                                 new InkPoint(new Point(0, 0), .16f),
-                                new InkPoint(new Point(1, 0), .16f * 4),
+                                new InkPoint(new Point(1, 0), .80f),
                             }, Matrix3x2.Identity),
                             inkStrokeBuilder2.CreateStrokeFromInkPoints(new List<InkPoint>{
                                 new InkPoint(new Point(1, 0), .16f),
-                                new InkPoint(new Point(2, 0), .16f * 2),
+                                new InkPoint(new Point(2, 0), .80f),
                             }, Matrix3x2.Identity),
                         }
                     },
                     {
                         inkStrokeBuilder2.CreateStrokeFromInkPoints(new List<InkPoint>{
                             new InkPoint(new Point(1, 0), .16f),
-                            new InkPoint(new Point(2, 0), .16f * 2),
+                            new InkPoint(new Point(2, 0), .80f),
                         }, Matrix3x2.Identity),
                         new List<InkStroke> {
                             inkStrokeBuilder1.CreateStrokeFromInkPoints(new List<InkPoint>{
                                 new InkPoint(new Point(0, 0), .16f),
-                                new InkPoint(new Point(1, 0), .16f * 4),
+                                new InkPoint(new Point(1, 0), .80f),
                             }, Matrix3x2.Identity),
                             inkStrokeBuilder2.CreateStrokeFromInkPoints(new List<InkPoint>{
                                 new InkPoint(new Point(1, 0), .16f),
-                                new InkPoint(new Point(2, 0), .16f * 2),
+                                new InkPoint(new Point(2, 0), .80f),
                             }, Matrix3x2.Identity),
                         }
                     },
@@ -225,7 +225,7 @@ namespace devtest {
                     new Stroke {
                         pointsX = new List<float> {0, 1, 2},
                         pointsY = new List<float> {0, 0, 0},
-                        pointsGirth = new List<float> {1.55f, 1.55f, 1.55f},
+                        pointsGirth = new List<float> {3.1f, 3.1f, 3.1f},
                     }
                 }
             };
@@ -238,48 +238,48 @@ namespace devtest {
         [TestMethod]
         public void GetDrawingSplit() {
             inkStrokeBuilder1.SetDefaultDrawingAttributes(new InkDrawingAttributes { Size = new Size(6.25f, 6.25f) });
-            inkStrokeBuilder2.SetDefaultDrawingAttributes(new InkDrawingAttributes { Size = new Size(6.25f * 4, 6.25f * 4) });
+            inkStrokeBuilder2.SetDefaultDrawingAttributes(new InkDrawingAttributes { Size = new Size(18.75f, 18.75f) });
             var context = new DrawingContext {
                 strokes = new List<InkStroke> {
                     inkStrokeBuilder1.CreateStrokeFromInkPoints(new List<InkPoint>{
                         new InkPoint(new Point(0, 0), .16f),
-                        new InkPoint(new Point(1, 0), .16f * 4),
+                        new InkPoint(new Point(1, 0), .80f),
                     }, Matrix3x2.Identity),
                     inkStrokeBuilder2.CreateStrokeFromInkPoints(new List<InkPoint>{
                         new InkPoint(new Point(1, 0), .16f),
-                        new InkPoint(new Point(2, 0), .16f * 2),
+                        new InkPoint(new Point(2, 0), .80f),
                     }, Matrix3x2.Identity),
                 },
                 splitStrokes = new Dictionary<InkStroke, List<InkStroke>>(new Draw.InkStrokeComparer()) {
                     {
                         inkStrokeBuilder1.CreateStrokeFromInkPoints(new List<InkPoint>{
                             new InkPoint(new Point(0, 0), .16f),
-                            new InkPoint(new Point(1, 0), .16f * 4),
+                            new InkPoint(new Point(1, 0), .80f),
                         }, Matrix3x2.Identity),
                         new List<InkStroke> {
                             inkStrokeBuilder1.CreateStrokeFromInkPoints(new List<InkPoint>{
                                 new InkPoint(new Point(0, 0), .16f),
-                                new InkPoint(new Point(1, 0), .16f * 4),
+                                new InkPoint(new Point(1, 0), .80f),
                             }, Matrix3x2.Identity),
                             inkStrokeBuilder2.CreateStrokeFromInkPoints(new List<InkPoint>{
                                 new InkPoint(new Point(1, 0), .16f),
-                                new InkPoint(new Point(2, 0), .16f * 2),
+                                new InkPoint(new Point(2, 0), .80f),
                             }, Matrix3x2.Identity),
                         }
                     },
                     {
                         inkStrokeBuilder2.CreateStrokeFromInkPoints(new List<InkPoint>{
                             new InkPoint(new Point(1, 0), .16f),
-                            new InkPoint(new Point(2, 0), .16f * 2),
+                            new InkPoint(new Point(2, 0), .80f),
                         }, Matrix3x2.Identity),
                         new List<InkStroke> {
                             inkStrokeBuilder1.CreateStrokeFromInkPoints(new List<InkPoint>{
                                 new InkPoint(new Point(0, 0), .16f),
-                                new InkPoint(new Point(1, 0), .16f * 4),
+                                new InkPoint(new Point(1, 0), .80f),
                             }, Matrix3x2.Identity),
                             inkStrokeBuilder2.CreateStrokeFromInkPoints(new List<InkPoint>{
                                 new InkPoint(new Point(1, 0), .16f),
-                                new InkPoint(new Point(2, 0), .16f * 2),
+                                new InkPoint(new Point(2, 0), .80f),
                             }, Matrix3x2.Identity),
                         }
                     },
@@ -290,7 +290,7 @@ namespace devtest {
                     new Stroke {
                         pointsX = new List<float> {0, 1, 2},
                         pointsY = new List<float> {0, 0, 0},
-                        pointsGirth = new List<float> {1.55f, 1.55f * 4, 1.55f * 8},
+                        pointsGirth = new List<float> {3.1f, 3.1f * 3, 3.1f * 9},
                     }
                 }
             };
