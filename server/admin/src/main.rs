@@ -7,9 +7,8 @@ use lockbook_server_lib::config::Config;
 use lockbook_server_lib::{file_content_client, file_index_repo, ServerState};
 
 use s3::bucket::Bucket;
+use sqlx::PgPool;
 use structopt::StructOpt;
-use tokio::join;
-use tokio_postgres::Client as PostgresClient;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A utility for a lockbook server administrator.")]
@@ -46,9 +45,8 @@ async fn main() {
     }
 }
 
-async fn connect_to_state(config: &Config) -> (PostgresClient, Bucket) {
-    let index_db = file_index_repo::connect(&config.index_db);
-    let files_db = file_content_client::connect(&config.files_db);
-    let (index_db, files_db) = join!(index_db, files_db);
+async fn connect_to_state(config: &Config) -> (PgPool, Bucket) {
+    let index_db = file_index_repo::connect(&config.index_db).await;
+    let files_db = file_content_client::create_client(&config.files_db);
     (index_db.unwrap(), files_db.unwrap())
 }

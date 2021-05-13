@@ -1,0 +1,694 @@
+{
+  "db": "PostgreSQL",
+  "06455258f83f7094a66450d6729bafc1dbaf00c74e8eab405b98185c25af4ad8": {
+    "query": "\nSELECT\n    files.*,\n    user_access_keys.encrypted_key AS \"encrypted_key?\",\n    accounts.public_key\nFROM files\nJOIN accounts ON files.owner = accounts.name\nLEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id\nWHERE\n    accounts.public_key = $1 AND\n    id = parent;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "parent",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "parent_access_key",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "is_folder",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "name",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "owner",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "signature",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "deleted",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 9,
+          "name": "content_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 10,
+          "name": "document_size",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 11,
+          "name": "encrypted_key?",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 12,
+          "name": "public_key",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false
+      ]
+    }
+  },
+  "0972fd8ef65479575f29be9f3299fce820627bb348b1472065bfb39d0de81d50": {
+    "query": "\nWITH RECURSIVE file_descendants AS (\n        SELECT * FROM files AS parent\n        WHERE parent.id = $1\n            UNION\n        SELECT children.* FROM files AS children\n        JOIN file_descendants ON file_descendants.id = children.parent\n    ),\n    old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE)\nUPDATE files new\nSET\n    document_size =\n        (CASE WHEN\n            NOT old.deleted AND\n            old.id != old.parent\n        THEN\n            (CASE WHEN\n                old.is_folder\n            THEN NULL\n            ELSE 0 END)\n        ELSE old.document_size END),\n    deleted =\n        (CASE WHEN\n            NOT old.deleted AND\n            old.id != old.parent\n        THEN TRUE\n        ELSE old.deleted END),\n    metadata_version =\n        (CASE WHEN\n            NOT old.deleted AND\n            old.id != old.parent\n        THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n        ELSE old.metadata_version END)\nFROM old\nWHERE old.id = new.id\nRETURNING\n    old.id AS id,\n    old.deleted AS old_deleted,\n    old.parent AS parent_id,\n    old.content_version AS old_content_version,\n    new.metadata_version AS new_metadata_version,\n    old.is_folder AS is_folder;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "old_deleted",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 2,
+          "name": "parent_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "old_content_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 4,
+          "name": "new_metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 5,
+          "name": "is_folder",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "12be31a805736cd77161fe0860485c91885dd98b551927d250d143334494aa71": {
+    "query": "\nSELECT public_key FROM accounts WHERE name = $1;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "public_key",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "361477b766129580c93461357fb40591e7f6b4dda2d94f108ac24831e8198c98": {
+    "query": "\nINSERT INTO user_access_keys (file_id, sharee_id, encrypted_key) VALUES ($1, $2, $3);\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "40d6c9587bfbe3d05f4a27ea03c9986032aab7a93210f9604875a6efc8221a33": {
+    "query": "\nSELECT\n    files.*,\n    user_access_keys.encrypted_key AS \"encrypted_key?\",\n    accounts.public_key\nFROM files\nJOIN accounts ON files.owner = accounts.name\nLEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id\nWHERE\n    accounts.public_key = $1;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "parent",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "parent_access_key",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "is_folder",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "name",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "owner",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "signature",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "deleted",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 9,
+          "name": "content_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 10,
+          "name": "document_size",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 11,
+          "name": "encrypted_key?",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 12,
+          "name": "public_key",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false
+      ]
+    }
+  },
+  "4dce2106114f63467d8eb1274f1c345d620a873197b5aed4055fa0663ed8c84d": {
+    "query": "\n    SELECT\n        files.id,\n        files.document_size AS \"document_size!\"\n    FROM files\n    JOIN accounts ON files.owner = accounts.name\n    WHERE\n        accounts.public_key = $1 AND\n        NOT files.is_folder;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "document_size!",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        true
+      ]
+    }
+  },
+  "4ea63bf2021871af921d25456594b18f755df32e034880b301f7b291ffa11ac7": {
+    "query": "\nDELETE FROM accounts where name = $1\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "526521ed459e617b6f8564cfd80761b731761d024db711dcfc7bedf3f87bf303": {
+    "query": "\nWITH RECURSIVE file_descendants AS (\n        SELECT * FROM files AS parent\n        WHERE parent.id = $1\n            UNION\n        SELECT children.* FROM files AS children\n        JOIN file_descendants ON file_descendants.id = children.parent\n    ),\n    old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE),\n    parent AS (\n        SELECT * FROM files WHERE id = $3\n    )\nUPDATE files new\nSET\n    parent =\n        (CASE WHEN\n            NOT old.deleted\n            AND old.id != old.parent\n            AND old.metadata_version = $2\n            AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $3)\n            AND EXISTS(SELECT * FROM parent WHERE NOT deleted)\n        THEN $3\n        ELSE old.parent END),\n    metadata_version =\n        (CASE WHEN\n            NOT old.deleted\n            AND old.id != old.parent\n            AND old.metadata_version = $2\n            AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $3)\n            AND EXISTS(SELECT * FROM parent WHERE NOT deleted)\n        THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n        ELSE old.metadata_version END),\n    parent_access_key =\n        (CASE WHEN\n            NOT old.deleted\n            AND old.id != old.parent\n            AND old.metadata_version = $2\n            AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $3)\n            AND EXISTS(SELECT * FROM parent WHERE NOT deleted)\n        THEN $4\n        ELSE old.parent_access_key END)\nFROM old\nLEFT JOIN parent ON TRUE\nWHERE old.id = new.id\nRETURNING\n    old.deleted AS old_deleted,\n    parent.deleted AS \"parent_deleted?\",\n    old.parent AS parent_id,\n    COALESCE(EXISTS(SELECT * FROM file_descendants WHERE id = $3), FALSE) AS \"moved_into_descendant!\",\n    EXISTS(SELECT * FROM parent) AS \"parent_exists!\",\n    old.metadata_version AS old_metadata_version,\n    new.metadata_version AS new_metadata_version,\n    old.is_folder AS is_folder;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "old_deleted",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 1,
+          "name": "parent_deleted?",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 2,
+          "name": "parent_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "moved_into_descendant!",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "parent_exists!",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 5,
+          "name": "old_metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 6,
+          "name": "new_metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "is_folder",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        null,
+        null,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "69859ad7c125e3deb2b65b84af28ddf8c40f988e8cd0188a9b0b227e2c3e50ec": {
+    "query": "\nWITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)\nUPDATE files new\nSET\n    name =\n        (CASE WHEN NOT old.deleted\n        AND old.metadata_version = $2\n        AND old.is_folder = $3\n        AND old.id != old.parent\n        THEN $4\n        ELSE old.name END),\n    metadata_version =\n        (CASE WHEN NOT old.deleted\n        AND old.metadata_version = $2\n        AND old.is_folder = $3\n        AND old.id != old.parent\n        THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n        ELSE old.metadata_version END)\nFROM old\nWHERE old.id = new.id\nRETURNING\n    old.deleted AS old_deleted,\n    old.metadata_version AS old_metadata_version,\n    old.content_version AS old_content_version,\n    old.parent AS parent_id,\n    new.metadata_version AS new_metadata_version,\n    old.is_folder AS is_folder;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "old_deleted",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 1,
+          "name": "old_metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "old_content_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "parent_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "new_metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 5,
+          "name": "is_folder",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8",
+          "Bool",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "6ff6c95e06b1fd6edda4231ea9f4dfd462c0b66aa3527fc0a54b2729ffc1a19e": {
+    "query": "\nSELECT\n    files.*,\n    user_access_keys.encrypted_key AS \"encrypted_key?\",\n    accounts.public_key\nFROM files\nJOIN accounts ON files.owner = accounts.name\nLEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id\nWHERE\n    accounts.public_key = $1 AND\n    metadata_version > $2;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "parent",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "parent_access_key",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "is_folder",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "name",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "owner",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "signature",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "deleted",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 9,
+          "name": "content_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 10,
+          "name": "document_size",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 11,
+          "name": "encrypted_key?",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 12,
+          "name": "public_key",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false
+      ]
+    }
+  },
+  "7cb24bd257993562cb5b2e2e3cd3f60345ce5644dff579fe7c03ba6916e4795b": {
+    "query": "\nWITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)\nUPDATE files new\nSET\n    metadata_version =\n        (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND NOT old.is_folder\n        THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n        ELSE old.metadata_version END),\n    content_version =\n        (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND NOT old.is_folder\n        THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n        ELSE old.content_version END),\n    document_size = \n        (CASE WHEN NOT old.deleted AND old.metadata_version = $2 AND NOT old.is_folder\n        THEN $3\n        ELSE old.document_size END)\nFROM old\nWHERE old.id = new.id\nRETURNING\n    old.deleted AS old_deleted,\n    old.metadata_version AS old_metadata_version,\n    old.content_version AS old_content_version,\n    old.parent AS parent_id,\n    new.metadata_version AS new_metadata_version,\n    old.is_folder AS is_folder;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "old_deleted",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 1,
+          "name": "old_metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "old_content_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "parent_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "new_metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 5,
+          "name": "is_folder",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "7df83121f364fe056bdac842608512436419611fb3bbf539792d5d1631de7b38": {
+    "query": "\nINSERT INTO files (\n    id,\n    parent,\n    parent_access_key,\n    is_folder,\n    name,\n    owner,\n    signature,\n    deleted,\n    metadata_version,\n    content_version,\n    document_size\n)\nVALUES (\n    $1,\n    $2,\n    $3,\n    $4,\n    $5,\n    (\n        SELECT name\n        FROM accounts\n        WHERE public_key = $6\n    ),\n    $7,\n    FALSE,\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n    $8\n)\nRETURNING metadata_version;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "metadata_version",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text",
+          "Bool",
+          "Text",
+          "Text",
+          "Text",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "87ae69308a4ffbaffabc065553004331f17cd9c0bdad005b1e8c9e9f5f2c2a82": {
+    "query": "\nSELECT bytes_cap\nFROM account_tiers\nWHERE id =\n    (SELECT account_tier FROM accounts WHERE public_key = $1);\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "bytes_cap",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "b9d28fb984c7871adfe5eeb0dd2c5bedb4ca3a45d448e3b6b68da796adc10b23": {
+    "query": "\nDELETE FROM files\nWHERE owner = $1\nRETURNING\n    id AS id,\n    deleted AS old_deleted,\n    parent AS parent_id,\n    content_version AS old_content_version,\n    metadata_version AS new_metadata_version,\n    is_folder AS is_folder;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "old_deleted",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 2,
+          "name": "parent_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "old_content_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 4,
+          "name": "new_metadata_version",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 5,
+          "name": "is_folder",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "de436a06a37650a215cba005db97f566f466229d6f1c6e54a0dec82f4cb162fb": {
+    "query": "\nDELETE FROM user_access_keys where sharee_id = $1\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "ee181bf167dc57995d471a2f17c0af1fef964cbb69b9d4f716ed4945cea20310": {
+    "query": "\nWITH i1 AS (\n    INSERT INTO account_tiers (bytes_cap) VALUES (1000000) RETURNING id\n)\nINSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, (SELECT id FROM i1))\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  }
+}
