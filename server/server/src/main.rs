@@ -1,4 +1,3 @@
-extern crate base64;
 extern crate chrono;
 extern crate hyper;
 extern crate tokio;
@@ -53,8 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     debug!("Connected to index_db");
 
     debug!("Connecting to files_db...");
-    let files_db_client = file_content_client::connect(&config.files_db)
-        .await
+    let files_db_client = file_content_client::create_client(&config.files_db)
         .expect("Failed to connect to files_db");
     debug!("Connected to files_db");
 

@@ -13,7 +13,7 @@ extern crate log;
 
 pub struct ServerState {
     pub config: config::Config,
-    pub index_db_client: tokio_postgres::Client,
+    pub index_db_client: sqlx::PgPool,
     pub files_db_client: s3::bucket::Bucket,
 }
 
