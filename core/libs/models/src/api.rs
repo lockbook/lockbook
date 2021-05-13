@@ -425,6 +425,12 @@ pub struct GetUsageResponse {
     pub cap: u64,
 }
 
+impl GetUsageResponse {
+    pub fn sum_server_usage(&self) -> u64 {
+        self.usages.iter().map(|usage| usage.size_bytes).sum()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileUsage {
     pub file_id: Uuid,
