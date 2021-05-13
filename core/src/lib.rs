@@ -42,7 +42,10 @@ use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, FileSyncService, SyncError, SyncProgress,
     SyncService, WorkCalculated,
 };
-use crate::service::usage_service::{UsageService, UsageServiceImpl};
+use crate::service::usage_service::{
+    GetUsageError as USGetUsageError, LocalAndServerUsageError as USLocalAndServerUsageError,
+    LocalAndServerUsages, UsageService, UsageServiceImpl,
+};
 use crate::service::{db_state_service, file_service, usage_service};
 #[allow(unused_imports)] // For one touch backend switching, allow one of these to be unused
 use crate::storage::db_provider::{Backend, FileBackend, SledBackend};
@@ -805,7 +808,7 @@ pub enum GetUsageError {
 pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>> {
     let backend = connect_to_db!(config)?;
 
-    DefaultUsageService::get_usage(&backend)
+    DefaultUsageService::server_usage(&backend)
         .map(|resp| resp.usages)
         .map_err(|err| match err {
             usage_service::GetUsageError::AccountRetrievalError(db_err) => match db_err {
@@ -837,13 +840,13 @@ pub fn get_usage_human_string(
     let backend = connect_to_db!(config)?;
 
     DefaultUsageService::get_usage_human_string(&backend, exact).map_err(|err| match err {
-        usage_service::GetUsageError::AccountRetrievalError(db_err) => match db_err {
+        USGetUsageError::AccountRetrievalError(db_err) => match db_err {
             AccountRepoError::NoAccount => UiError(GetUsageError::NoAccount),
             AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
                 unexpected!("{:#?}", db_err)
             }
         },
-        usage_service::GetUsageError::ApiError(api_err) => match api_err {
+        USGetUsageError::ApiError(api_err) => match api_err {
             ApiError::SendFailed(_) => UiError(GetUsageError::CouldNotReachServer),
             ApiError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
             ApiError::Endpoint(_)
@@ -856,6 +859,34 @@ pub fn get_usage_human_string(
             | ApiError::ReceiveFailed(_)
             | ApiError::Deserialize(_) => unexpected!("{:#?}", api_err),
         },
+    })
+}
+
+pub fn get_local_and_server_usage(
+    config: &Config,
+    exact: bool,
+) -> Result<LocalAndServerUsages, Error<GetUsageError>> {
+    let backend = connect_to_db!(config)?;
+
+    DefaultUsageService::local_and_server_usages(&backend, exact).map_err(|err| match err {
+        USLocalAndServerUsageError::GetUsageError(gue) => match gue {
+            USGetUsageError::AccountRetrievalError(_) => UiError(GetUsageError::NoAccount),
+            USGetUsageError::ApiError(api_err) => match api_err {
+                ApiError::SendFailed(_) => UiError(GetUsageError::CouldNotReachServer),
+                ApiError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
+                ApiError::Endpoint(_)
+                | ApiError::InvalidAuth
+                | ApiError::ExpiredAuth
+                | ApiError::InternalError
+                | ApiError::BadRequest
+                | ApiError::Sign(_)
+                | ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_) => unexpected!("{:#?}", api_err),
+            },
+        },
+        USLocalAndServerUsageError::CalcUncompressedError(_)
+        | USLocalAndServerUsageError::UncompressedNumberTooLarge(_) => unexpected!("{:#?}", err),
     })
 }
 
@@ -1077,7 +1108,13 @@ pub type DefaultBackend = FileBackend;
 pub type DefaultCodeVersion = CodeVersionImpl;
 pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl<DefaultBackend>;
-pub type DefaultUsageService = UsageServiceImpl<DefaultBackend, DefaultAccountRepo, DefaultClient>;
+pub type DefaultUsageService = UsageServiceImpl<
+    DefaultBackend,
+    DefaultFileMetadataRepo,
+    DefaultFileService,
+    DefaultAccountRepo,
+    DefaultClient,
+>;
 pub type DefaultDrawingService =
     DrawingServiceImpl<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl<DefaultBackend>;

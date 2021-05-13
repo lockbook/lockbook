@@ -2,9 +2,16 @@ use crate::client;
 use crate::client::Client;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
+use crate::repo::file_metadata_repo::{DbError, FileMetadataRepo};
+use crate::service::file_service::{FileService, ReadDocumentError};
 use crate::storage::db_provider::Backend;
 use lockbook_models::api;
 use lockbook_models::api::{GetUsageRequest, GetUsageResponse};
+use lockbook_models::file_metadata::FileType::Document;
+
+use std::convert::TryInto;
+use std::num::TryFromIntError;
+use uuid::Uuid;
 
 pub const BYTE: u64 = 1;
 pub const KILOBYTE: u64 = BYTE * 1000;
@@ -23,29 +30,77 @@ pub enum GetUsageError<MyBackend: Backend> {
     ApiError(client::ApiError<api::GetUsageError>),
 }
 
-pub trait UsageService<MyBackend: Backend, AccountDb: AccountRepo<MyBackend>, ApiClient: Client> {
-    fn get_usage(backend: &MyBackend::Db) -> Result<GetUsageResponse, GetUsageError<MyBackend>>;
+#[derive(Debug)]
+pub enum UncompressedError<MyBackend: Backend> {
+    FileMetadataDb(DbError<MyBackend>),
+    FilesError(ReadDocumentError<MyBackend>),
+}
+
+#[derive(Debug)]
+pub enum LocalAndServerUsageError<MyBackend: Backend> {
+    GetUsageError(GetUsageError<MyBackend>),
+    CalcUncompressedError(UncompressedError<MyBackend>),
+    UncompressedNumberTooLarge(TryFromIntError),
+}
+
+pub struct LocalAndServerUsages {
+    pub server_usage: String,
+    pub uncomressed_usage: String,
+    pub data_cap: String,
+}
+
+pub trait UsageService<MyBackend: Backend> {
+    fn bytes_to_human(size: u64) -> String;
+    fn server_usage(backend: &MyBackend::Db) -> Result<GetUsageResponse, GetUsageError<MyBackend>>;
     fn get_usage_human_string(
         backend: &MyBackend::Db,
         exact: bool,
     ) -> Result<String, GetUsageError<MyBackend>>;
+    fn get_uncompressed_usage(
+        backend: &MyBackend::Db,
+    ) -> Result<usize, UncompressedError<MyBackend>>;
+    fn local_and_server_usages(
+        backend: &MyBackend::Db,
+        exact: bool,
+    ) -> Result<LocalAndServerUsages, LocalAndServerUsageError<MyBackend>>;
 }
 
 pub struct UsageServiceImpl<
     MyBackend: Backend,
+    FileMetadataDb: FileMetadataRepo<MyBackend>,
+    Files: FileService<MyBackend>,
     AccountDb: AccountRepo<MyBackend>,
     ApiClient: Client,
 > {
     _accounts: AccountDb,
     _backend: MyBackend,
     _client: ApiClient,
+    _files: Files,
+    _files_db: FileMetadataDb,
 }
 
-impl<MyBackend: Backend, AccountDb: AccountRepo<MyBackend>, ApiClient: Client>
-    UsageService<MyBackend, AccountDb, ApiClient>
-    for UsageServiceImpl<MyBackend, AccountDb, ApiClient>
+impl<
+        MyBackend: Backend,
+        FileMetadataDb: FileMetadataRepo<MyBackend>,
+        Files: FileService<MyBackend>,
+        AccountDb: AccountRepo<MyBackend>,
+        ApiClient: Client,
+    > UsageService<MyBackend>
+    for UsageServiceImpl<MyBackend, FileMetadataDb, Files, AccountDb, ApiClient>
 {
-    fn get_usage(backend: &MyBackend::Db) -> Result<GetUsageResponse, GetUsageError<MyBackend>> {
+    fn bytes_to_human(size: u64) -> String {
+        let (unit, abbr) = match size {
+            0..=KILOBYTE => (BYTE, ""),
+            KILOBYTE_PLUS_ONE..=MEGABYTE => (KILOBYTE, "K"),
+            MEGABYTE_PLUS_ONE..=GIGABYTE => (MEGABYTE, "M"),
+            GIGABYTE_PLUS_ONE..=TERABYTE => (GIGABYTE, "G"),
+            TERABYTE_PLUS_ONE..=u64::MAX => (TERABYTE, "T"),
+        };
+
+        format!("{:.3} {}B", size as f64 / unit as f64, abbr)
+    }
+
+    fn server_usage(backend: &MyBackend::Db) -> Result<GetUsageResponse, GetUsageError<MyBackend>> {
         let acc = AccountDb::get_account(backend).map_err(GetUsageError::AccountRetrievalError)?;
 
         ApiClient::request(&acc, GetUsageRequest {}).map_err(GetUsageError::ApiError)
@@ -55,29 +110,66 @@ impl<MyBackend: Backend, AccountDb: AccountRepo<MyBackend>, ApiClient: Client>
         backend: &MyBackend::Db,
         exact: bool,
     ) -> Result<String, GetUsageError<MyBackend>> {
-        let usage_in_bytes: u64 = Self::get_usage(backend)?
-            .usages
-            .into_iter()
-            .map(|usage| usage.size_bytes)
-            .sum();
+        let usage = Self::server_usage(backend)?.sum_server_usage();
 
         if exact {
-            Ok(usage_in_bytes.to_string())
+            Ok(format!("{} B", usage))
         } else {
-            let (unit, abbr) = match usage_in_bytes {
-                0..=KILOBYTE => (BYTE, ""),
-                KILOBYTE_PLUS_ONE..=MEGABYTE => (KILOBYTE, "K"),
-                MEGABYTE_PLUS_ONE..=GIGABYTE => (MEGABYTE, "M"),
-                GIGABYTE_PLUS_ONE..=TERABYTE => (GIGABYTE, "G"),
-                TERABYTE_PLUS_ONE..=u64::MAX => (TERABYTE, "T"),
-            };
-
-            Ok(format!(
-                "{:.3} {}B",
-                usage_in_bytes as f64 / unit as f64,
-                abbr
-            ))
+            Ok(Self::bytes_to_human(usage))
         }
+    }
+
+    fn get_uncompressed_usage(
+        backend: &MyBackend::Db,
+    ) -> Result<usize, UncompressedError<MyBackend>> {
+        let doc_ids: Vec<Uuid> = FileMetadataDb::get_all(&backend)
+            .map_err(UncompressedError::FileMetadataDb)?
+            .into_iter()
+            .filter(|f| f.file_type == Document)
+            .map(|f| f.id)
+            .collect();
+
+        let mut size: usize = 0;
+        for id in doc_ids {
+            size += Files::read_document(&backend, id)
+                .map_err(UncompressedError::FilesError)?
+                .len()
+        }
+
+        Ok(size)
+    }
+
+    fn local_and_server_usages(
+        backend: &MyBackend::Db,
+        exact: bool,
+    ) -> Result<LocalAndServerUsages, LocalAndServerUsageError<MyBackend>> {
+        let server_usage_and_cap =
+            Self::server_usage(&backend).map_err(LocalAndServerUsageError::GetUsageError)?;
+
+        let server_usage = server_usage_and_cap.sum_server_usage();
+        let local_usage = Self::get_uncompressed_usage(backend)
+            .map_err(LocalAndServerUsageError::CalcUncompressedError)?;
+        let cap = server_usage_and_cap.cap;
+
+        let usages = if exact {
+            LocalAndServerUsages {
+                server_usage: format!("{} B", server_usage),
+                uncomressed_usage: format!("{} bytes", local_usage),
+                data_cap: format!("{} B", cap),
+            }
+        } else {
+            LocalAndServerUsages {
+                server_usage: Self::bytes_to_human(server_usage),
+                uncomressed_usage: Self::bytes_to_human(
+                    local_usage
+                        .try_into()
+                        .map_err(LocalAndServerUsageError::UncompressedNumberTooLarge)?,
+                ),
+                data_cap: Self::bytes_to_human(cap),
+            }
+        };
+
+        Ok(usages)
     }
 }
 
@@ -88,6 +180,7 @@ mod unit_tests {
     use crate::repo::account_repo::{AccountRepo, AccountRepoError};
     use crate::service::usage_service::{UsageService, UsageServiceImpl};
     use crate::storage::db_provider::{Backend, FileBackend};
+    use crate::{DefaultFileMetadataRepo, DefaultFileService};
     use lockbook_crypto::clock_service::ClockImpl;
     use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl};
     use lockbook_models::account::{Account, ApiUrl};
@@ -190,6 +283,8 @@ mod unit_tests {
     fn get_usage_of_size<T: BytesHelper>(exact: bool) -> String {
         UsageServiceImpl::<
             FileBackend,
+            DefaultFileMetadataRepo,
+            DefaultFileService,
             MockAccountRepo<FileBackend>,
             MockClient<T>,
         >::get_usage_human_string(
@@ -197,7 +292,8 @@ mod unit_tests {
                 writeable_path: "".to_string(),
             },
             exact,
-        ).unwrap()
+        )
+        .unwrap()
     }
 
     #[test]
@@ -207,20 +303,23 @@ mod unit_tests {
         let bytes_small_total = BYTES_SMALL * 2;
 
         assert_eq!(bytes_small_result, format!("{}.000 KB", 2));
-        assert_eq!(bytes_small_exact_result, bytes_small_total.to_string());
+        assert_eq!(bytes_small_exact_result, format!("{} B", bytes_small_total));
 
         let bytes_medium_result = get_usage_of_size::<BytesHelperMedium>(false);
         let bytes_medium_exact_result = get_usage_of_size::<BytesHelperMedium>(true);
         let bytes_medium_total = BYTES_MEDIUM * 2;
 
         assert_eq!(bytes_medium_result, format!("{}.000 MB", 2));
-        assert_eq!(bytes_medium_exact_result, bytes_medium_total.to_string());
+        assert_eq!(
+            bytes_medium_exact_result,
+            format!("{} B", bytes_medium_total)
+        );
 
         let bytes_large_result = get_usage_of_size::<BytesHelperLarge>(false);
         let bytes_large_exact_result = get_usage_of_size::<BytesHelperLarge>(true);
         let bytes_large_total = BYTES_LARGE * 2;
 
         assert_eq!(bytes_large_result, format!("{}.000 GB", 2));
-        assert_eq!(bytes_large_exact_result, bytes_large_total.to_string());
+        assert_eq!(bytes_large_exact_result, format!("{} B", bytes_large_total));
     }
 }
