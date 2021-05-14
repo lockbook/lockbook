@@ -36,9 +36,17 @@ pub fn new(file_name: &str) -> CliResult<()> {
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
-    let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
-    fs::create_dir(&directory_location)
+    let directory_location = if cfg!(target_os = "windows") {
+        let result = format!("/Temp/{}", Uuid::new_v4().to_string());
+        fs::create_dir(&result)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
+        result
+    } else {
+        let result = format!("/tmp/{}", Uuid::new_v4().to_string());
+        fs::create_dir(&result)
+        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
+        result
+    };
 
     let file_location = format!("{}/{}", directory_location, file_metadata.name);
     let temp_file_path = Path::new(file_location.as_str());
