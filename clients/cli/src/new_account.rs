@@ -15,7 +15,7 @@ pub fn new_account() -> CliResult<()> {
     io::stdin()
         .read_line(&mut username)
         .expect("Failed to read from stdin");
-    username.retain(|c| c != '\n');
+    username.retain(|c| c != '\n' && c != '\r');
 
     let api_location =
         env::var("API_URL").unwrap_or_else(|_| lockbook_core::DEFAULT_API_LOCATION.to_string());
