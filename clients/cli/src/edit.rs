@@ -9,8 +9,8 @@ use lockbook_core::{
 
 use crate::error::CliResult;
 use crate::utils::{
-    edit_file_with_editor, get_account_or_exit, get_config, save_temp_file_contents,
-    set_up_auto_save, stop_auto_save, get_directory_location
+    edit_file_with_editor, get_account_or_exit, get_config, get_directory_location,
+    save_temp_file_contents, set_up_auto_save, stop_auto_save,
 };
 use crate::{err, err_unexpected};
 

@@ -139,9 +139,8 @@ pub fn get_directory_location() -> CliResult<String> {
     } else {
         format!("/tmp/{}", Uuid::new_v4().to_string())
     };
-    fs::create_dir(&result).map_err(|err| {
-        err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
-    })?;
+    fs::create_dir(&result)
+        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
     Ok(result)
 }
 
