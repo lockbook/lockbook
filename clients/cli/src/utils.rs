@@ -152,22 +152,42 @@ pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
 }
 
 pub fn edit_file_with_editor(file_location: &str) -> bool {
-    let command = match get_editor() {
-        Vim => format!("</dev/tty vim {}", file_location),
-        Emacs => format!("</dev/tty emacs {}", file_location),
-        Nano => format!("</dev/tty nano {}", file_location),
-        Sublime => format!("subl --wait {}", file_location),
-        Code => format!("code --wait {}", file_location),
-    };
+    if cfg!(target_os = "windows") {
+        let command = match get_editor() {
+            Vim | Emacs | Nano => {
+                eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
+                return false;
+            }
+            Sublime => format!("subl --wait {}", file_location),
+            Code => format!("code --wait {}", file_location),
+        };
 
-    std::process::Command::new("/bin/sh")
-        .arg("-c")
-        .arg(command)
-        .spawn()
-        .expect("Error: Failed to run editor")
-        .wait()
-        .unwrap()
-        .success()
+        std::process::Command::new("cmd")
+            .arg("/C")
+            .arg(command)
+            .spawn()
+            .expect("Error: Failed to run editor")
+            .wait()
+            .unwrap()
+            .success()
+    } else {
+        let command = match get_editor() {
+            Vim => format!("</dev/tty vim {}", file_location),
+            Emacs => format!("</dev/tty emacs {}", file_location),
+            Nano => format!("</dev/tty nano {}", file_location),
+            Sublime => format!("subl --wait {}", file_location),
+            Code => format!("code --wait {}", file_location),
+        };
+
+        std::process::Command::new("/bin/sh")
+            .arg("-c")
+            .arg(command)
+            .spawn()
+            .expect("Error: Failed to run editor")
+            .wait()
+            .unwrap()
+            .success()
+    }
 }
 
 pub fn print_last_successful_sync() -> CliResult<()> {

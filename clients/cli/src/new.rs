@@ -38,13 +38,15 @@ pub fn new(file_name: &str) -> CliResult<()> {
 
     let directory_location = if cfg!(target_os = "windows") {
         let result = format!("/Temp/{}", Uuid::new_v4().to_string());
-        fs::create_dir(&result)
-        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
+        fs::create_dir(&result).map_err(|err| {
+            err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
+        })?;
         result
     } else {
         let result = format!("/tmp/{}", Uuid::new_v4().to_string());
-        fs::create_dir(&result)
-        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
+        fs::create_dir(&result).map_err(|err| {
+            err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
+        })?;
         result
     };
 
