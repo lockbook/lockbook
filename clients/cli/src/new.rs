@@ -3,12 +3,11 @@ use lockbook_models::file_metadata::FileType::Folder;
 use std::fs;
 use std::fs::File;
 use std::path::Path;
-use uuid::Uuid;
 
 use crate::error::CliResult;
 use crate::utils::{
     edit_file_with_editor, exit_success, get_account_or_exit, get_config, save_temp_file_contents,
-    set_up_auto_save, stop_auto_save,
+    set_up_auto_save, stop_auto_save, get_directory_location
 };
 use crate::{err, err_unexpected};
 
@@ -36,21 +35,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
-    let directory_location = if cfg!(target_os = "windows") {
-        let result = format!("/Temp/{}", Uuid::new_v4().to_string());
-        fs::create_dir(&result).map_err(|err| {
-            err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
-        })?;
-        result
-    } else {
-        let result = format!("/tmp/{}", Uuid::new_v4().to_string());
-        fs::create_dir(&result).map_err(|err| {
-            err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
-        })?;
-        result
-    };
-
-    let file_location = format!("{}/{}", directory_location, file_metadata.name);
+    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.name);
     let temp_file_path = Path::new(file_location.as_str());
     let _ = File::create(&temp_file_path)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;

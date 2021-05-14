@@ -18,6 +18,7 @@ use lockbook_core::service::drawing_service::SupportedImageFormats::{
 use lockbook_models::account::Account;
 use lockbook_models::file_metadata::FileMetadata;
 use std::path::Path;
+use uuid::Uuid;
 
 #[macro_export]
 macro_rules! path_string {
@@ -100,7 +101,7 @@ pub fn exit_success(msg: &str) -> ! {
     std::process::exit(0)
 }
 
-// In order of superiority
+// In ascending order of superiority
 pub enum SupportedEditors {
     Vim,
     Emacs,
@@ -130,6 +131,18 @@ pub fn get_editor() -> SupportedEditors {
             Vim
         }
     }
+}
+
+pub fn get_directory_location() -> CliResult<String> {
+    let result = if cfg!(target_os = "windows") {
+        format!("/Temp/{}", Uuid::new_v4().to_string())
+    } else {
+        format!("/tmp/{}", Uuid::new_v4().to_string())
+    };
+    fs::create_dir(&result).map_err(|err| {
+        err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
+    })?;
+    Ok(result)
 }
 
 pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
