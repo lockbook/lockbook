@@ -11,7 +11,8 @@ use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{
     calculate_work, create_account, create_file, delete_file, export_account, get_account,
     get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
-    get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db, read_document,
+    get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db,
+    move_file, read_document,
     rename_file, sync_all, write_document,
 };
 use lockbook_models::account::Account;
@@ -228,6 +229,18 @@ impl LbCore {
             FileNameNotAvailable => uerr_dialog!("The new file name is not available."),
             NewNameContainsSlash => uerr_dialog!("File names cannot contain slashes."),
             NewNameEmpty => uerr_dialog!("File names cannot be blank."),
+        ))
+    }
+
+    pub fn move_file(&self, parent: Uuid, id: Uuid) -> LbResult<()> {
+        move_file(&self.config, parent, id).map_err(map_core_err!(MoveFileError,
+            CannotMoveRoot => uerr!("The root folder cannot be renamed."),
+            DocumentTreatedAsFolder => uerr!("A document is being treated as folder."),
+            FileDoesNotExist => uerr!("File with id '{}' does not exist.", id),
+            FolderMovedIntoItself => uerr!("The folder was moved into itself."),
+            NoAccount => uerr!("No account found."),
+            TargetParentDoesNotExist => uerr!("The folder does not exist."),
+            TargetParentHasChildNamedThat => uerr!("The folder already has a child named that."),
         ))
     }
 

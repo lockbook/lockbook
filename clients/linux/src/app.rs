@@ -71,7 +71,7 @@ impl LbApp {
         let (sender, receiver) = glib::MainContext::channel::<Msg>(glib::PRIORITY_DEFAULT);
         let m = Messenger::new(sender);
 
-        let gui = Gui::new(&a, &m, &s.borrow());
+        let gui = Gui::new(&a, &m, &s.borrow(), c);
 
         let lb_app = Self {
             core: c.clone(),
@@ -767,6 +767,10 @@ impl LbApp {
         Ok(())
     }
 
+    fn move_file(&self, parent: Uuid, id: Uuid) -> LbResult<()> {
+        Ok(())
+    }
+
     fn toggle_tree_col(&self, c: FileTreeCol) -> LbResult<()> {
         self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
@@ -1072,7 +1076,7 @@ struct Gui {
 }
 
 impl Gui {
-    fn new(app: &GtkApp, m: &Messenger, s: &Settings) -> Self {
+    fn new(app: &GtkApp, m: &Messenger, s: &Settings, c: &Arc<LbCore>) -> Self {
         // Menubar.
         let accels = GtkAccelGroup::new();
         let menubar = Menubar::new(m, &accels);
@@ -1080,7 +1084,7 @@ impl Gui {
 
         // Screens.
         let intro = IntroScreen::new(m);
-        let account = AccountScreen::new(m, &s);
+        let account = AccountScreen::new(m, &s, c);
         let screens = GtkStack::new();
         screens.add_named(&intro.cntr, "intro");
         screens.add_named(&account.cntr, "account");
