@@ -151,23 +151,38 @@ impl FileTree {
                 selected_ids.push(uuid);
             }
 
-            if let Some((Some(dest), _, _, _)) = w.get_path_at_pos(x, y) {
-                let iter = tmodel.get_iter(&dest).unwrap();
+            if let Some((Some(dest_path), _, _, _)) = w.get_path_at_pos(x, y) {
+                let iter = tmodel.get_iter(&dest_path).unwrap();
                 let id = tree_iter_value!(tmodel, &iter, 1, String);
                 let uuid = Uuid::parse_str(&id).unwrap();
 
+                match c.file_by_id(uuid) {
+                    Ok(file) => {
+                        let dest = match file.file_type {
+                            FileType::Document => file.parent,
+                            FileType::Folder => file.id,
+                        };
 
-                for selected_id in selected_ids {
-                    if let Err(err) = c.move_file(selected_id, uuid) {
-                        m.send_err("moving", err);
+                        for selected_id in selected_ids {
+                            if let Err(err) = c.move_file(selected_id, dest) {
+                                m.send_err("moving", err);
+                                return GtkInhibit(true);
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        m.send_err("getting file", err);
+                        return GtkInhibit(true);
                     }
                 }
             } else {
                 m.send_err("getting drag destination", LbError::new_program_err("There seems to be no drag destination.".to_string()));
+                return GtkInhibit(true);
             }
 
             GtkInhibit(false)
         })
+
     }
 
     pub fn widget(&self) -> &GtkTreeView {
