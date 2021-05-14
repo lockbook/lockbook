@@ -46,7 +46,7 @@ pub fn remove(path: &str, force: bool) -> CliResult<()> {
         io::stdin()
             .read_line(&mut answer)
             .expect("Failed to read from stdin");
-        answer.retain(|c| c != '\n');
+        answer.retain(|c| c != '\n' && c != '\r');
 
         if answer != "y" && answer != "Y" {
             exit_success("Aborted.")
