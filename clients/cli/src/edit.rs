@@ -3,16 +3,14 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
-use uuid::Uuid;
-
 use lockbook_core::{
     get_file_by_path, read_document, Error as CoreError, GetFileByPathError, ReadDocumentError,
 };
 
 use crate::error::CliResult;
 use crate::utils::{
-    edit_file_with_editor, get_account_or_exit, get_config, save_temp_file_contents,
-    set_up_auto_save, stop_auto_save,
+    edit_file_with_editor, get_account_or_exit, get_config, get_directory_location,
+    save_temp_file_contents, set_up_auto_save, stop_auto_save,
 };
 use crate::{err, err_unexpected};
 
@@ -35,11 +33,7 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         | CoreError::Unexpected(_) => err_unexpected!("reading encrypted doc: {:#?}", err),
     })?;
 
-    let directory_location = format!("/tmp/{}", Uuid::new_v4().to_string());
-    fs::create_dir(&directory_location)
-        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
-
-    let file_location = format!("{}/{}", directory_location, file_metadata.name);
+    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.name);
     let temp_file_path = Path::new(file_location.as_str());
     let mut file_handle = File::create(&temp_file_path)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
