@@ -3,25 +3,18 @@ mod integration_test;
 #[cfg(test)]
 mod sync_tests {
     use crate::integration_test::{assert_dbs_eq, generate_account, test_db};
-    use lockbook_core::repo::account_repo::AccountRepo;
     use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
     use lockbook_core::service::account_service::AccountService;
-    use lockbook_core::service::file_service::{FileService, NewFileError};
+    use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::storage::db_provider::FileBackend;
     use lockbook_core::{
-        DefaultAccountRepo, DefaultAccountService, DefaultDocumentRepo, DefaultFileMetadataRepo,
-        DefaultFileService, DefaultLocalChangesRepo, DefaultSyncService,
+        DefaultAccountService, DefaultDocumentRepo, DefaultFileMetadataRepo, DefaultFileService,
+        DefaultLocalChangesRepo, DefaultSyncService,
     };
-    use lockbook_models::file_metadata::FileMetadata;
     use lockbook_models::file_metadata::FileType::Folder;
     use lockbook_models::work_unit::WorkUnit;
-    use lockbook_models::work_unit::WorkUnit::LocalChange;
-    use std::thread;
-    use std::time::Duration;
-    use uuid::Uuid;
 
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
@@ -1286,13 +1279,13 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let parent = DefaultFileService::create_at_path(&db1, path!(account, "tmp/")).unwrap();
-        let child = DefaultFileService::create(&db1, "child", parent.id, Folder).unwrap();
+        DefaultFileService::create(&db1, "child", parent.id, Folder).unwrap();
 
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
 
-        let child2 = DefaultFileService::create(&db2, "child2", parent.id, Folder).unwrap();
+        DefaultFileService::create(&db2, "child2", parent.id, Folder).unwrap();
         let work = DefaultSyncService::calculate_work(&db2).unwrap().work_units; // 1 piece of work, the new child
         assert_n_work_units!(db2, 1);
 
@@ -1309,7 +1302,7 @@ mod sync_tests {
 
         // Uninstall and fresh sync
         let db3 = test_db();
-        let account = DefaultAccountService::import_account(
+        DefaultAccountService::import_account(
             &db3,
             &DefaultAccountService::export_account(&db1).unwrap(),
         )
@@ -1317,5 +1310,19 @@ mod sync_tests {
 
         DefaultSyncService::sync(&db3, None).unwrap();
         assert_no_metadata_problems!(&db3); // Account is busted, needs admin intervention
+    }
+
+    #[test]
+    fn issue_734_bug() {
+        let db1 = test_db();
+        let account = make_account!(db1);
+
+        DefaultFileService::create_at_path(
+            &db1,
+            &format!("{}/{}/", account.username, account.username),
+        )
+        .unwrap();
+
+        sync!(&db1);
     }
 }
