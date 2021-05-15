@@ -767,10 +767,6 @@ impl LbApp {
         Ok(())
     }
 
-    fn move_file(&self, parent: Uuid, id: Uuid) -> LbResult<()> {
-        Ok(())
-    }
-
     fn toggle_tree_col(&self, c: FileTreeCol) -> LbResult<()> {
         self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());

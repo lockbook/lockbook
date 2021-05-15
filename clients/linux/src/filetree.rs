@@ -2,9 +2,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use gdk::EventKey as GdkEventKey;
-use gdk::{DragAction, DragContext, EventButton as GdkEventButton, ModifierType};
+use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gtk::prelude::*;
-use gtk::Inhibit as GtkInhibit;
 use gtk::Menu as GtkMenu;
 use gtk::MenuItem as GtkMenuItem;
 use gtk::SelectionMode as GtkSelectionMode;
@@ -18,6 +17,7 @@ use gtk::TreeViewColumn as GtkTreeViewColumn;
 use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
 };
+use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDropPosition};
 use uuid::Uuid;
 
 use lockbook_models::file_metadata::FileType;
@@ -72,11 +72,14 @@ impl FileTree {
                 tree.append_column(&c.to_tree_view_col());
             }
         }
+        let targets = [TargetEntry::new(
+            "file_type/folder",
+            TargetFlags::SAME_APP,
+            0,
+        )];
+        tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::DEFAULT);
 
-        let targets = vec![TargetEntry::new("text/uri-list", TargetFlags::SAME_APP, 0)];
-        tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::MOVE);
-        tree.drag_source_set(ModifierType::BUTTON1_MASK, &targets, DragAction::MOVE);
-
+        tree.connect_drag_motion(Self::on_drag_motion());
         tree.connect_drag_drop(Self::on_drag_dropped(&m, c));
         tree.set_reorderable(true);
 
@@ -132,6 +135,38 @@ impl FileTree {
         })
     }
 
+    fn on_drag_motion() -> impl Fn(&TreeView, &DragContext, i32, i32, u32) -> GtkInhibit {
+        |w, d, x, y, time| {
+            match w.get_drag_dest_row() {
+                (Some(path), pos) => {
+                    let (path1, pos1) = w.get_dest_row_at_pos(x, y).unwrap();
+                    println!("{:?}, {:?}, {:?}, {:?}", path, path1.unwrap(), pos, pos1);
+
+                    let model = w.get_model().unwrap();
+                    let iter = model.get_iter(&path).unwrap();
+                    let iter_file_type = tree_iter_value!(model, &iter, 2, String);
+
+                    if iter_file_type == format!("{:?}", FileType::Document) {
+                        let new_pos = match pos {
+                            TreeViewDropPosition::IntoOrAfter => TreeViewDropPosition::After,
+                            TreeViewDropPosition::IntoOrBefore => TreeViewDropPosition::Before,
+                            _ => return GtkInhibit(false),
+                        };
+
+                        w.set_drag_dest_row(Some(&path), new_pos);
+                        d.drag_status(d.get_suggested_action(), time);
+                        println!("MOTION: {:?}", new_pos);
+                        return GtkInhibit(true);
+                    }
+                    println!("MOTION: {:?}", pos);
+                }
+                _ => {}
+            }
+
+            GtkInhibit(false)
+        }
+    }
+
     fn on_drag_dropped(
         m: &Messenger,
         c: &Arc<LbCore>,
@@ -139,7 +174,12 @@ impl FileTree {
         closure!(m, c => move |w, d, x, y, _| {
             let (selected_files, tmodel) = w.get_selection().get_selected_rows();
             if selected_files.is_empty() {
-                m.send_err("getting dragged files", LbError::new_program_err("There seems to be no selected file for the drag.".to_string()));
+                m.send_err(
+                    "getting dragged files",
+                    LbError::new_program_err(
+                        "There seems to be no selected file for the drag.".to_string(),
+                    ),
+                );
             }
 
             let mut selected_ids: Vec<Uuid> = Vec::new();
@@ -153,14 +193,22 @@ impl FileTree {
 
             if let Some((Some(dest_path), _, _, _)) = w.get_path_at_pos(x, y) {
                 let iter = tmodel.get_iter(&dest_path).unwrap();
-                let id = tree_iter_value!(tmodel, &iter, 1, String);
-                let uuid = Uuid::parse_str(&id).unwrap();
-
+                let iter_id = tree_iter_value!(tmodel, &iter, 1, String);
+                let uuid = Uuid::parse_str(&iter_id).unwrap();
+                            let (_, pos) = w.get_drag_dest_row();
+                println!("DROPPED: {:?}", pos);
                 match c.file_by_id(uuid) {
                     Ok(file) => {
-                        let dest = match file.file_type {
-                            FileType::Document => file.parent,
-                            FileType::Folder => file.id,
+                        let dest = if let FileType::Document = file.file_type {
+                            file.parent
+                        } else {
+                            let (_, pos) = w.get_drag_dest_row();
+                            match pos {
+                                TreeViewDropPosition::After | TreeViewDropPosition::Before => {
+                                    file.parent
+                                }
+                                _ => file.id,
+                            }
                         };
 
                         for selected_id in selected_ids {
@@ -176,13 +224,15 @@ impl FileTree {
                     }
                 }
             } else {
-                m.send_err("getting drag destination", LbError::new_program_err("There seems to be no drag destination.".to_string()));
+                m.send_err(
+                    "getting drag destination",
+                    LbError::new_program_err("There seems to be no drag destination.".to_string()),
+                );
                 return GtkInhibit(true);
             }
 
             GtkInhibit(false)
         })
-
     }
 
     pub fn widget(&self) -> &GtkTreeView {
@@ -519,6 +569,64 @@ impl FileTreePopup {
 
     fn set_enabled(&self, key: &PopupItem, condition: bool) {
         self.items.get(key).unwrap().set_sensitive(condition);
+    }
+}
+
+struct FileTreeStore {
+    model: GtkTreeStore,
+}
+
+impl TreeStoreExt for FileTreeStore {
+    fn append(&self, parent: Option<&TreeIter>) -> TreeIter {
+        self.model.append(parent)
+    }
+
+    fn clear(&self) {
+        self.model.clear()
+    }
+
+    fn insert(&self, parent: Option<&TreeIter>, position: i32) -> TreeIter {
+        self.model.insert(parent, position)
+    }
+
+    fn insert_after(&self, parent: Option<&TreeIter>, sibling: Option<&TreeIter>) -> TreeIter {
+        self.model.insert_after(parent, sibling)
+    }
+
+    fn insert_before(&self, parent: Option<&TreeIter>, sibling: Option<&TreeIter>) -> TreeIter {
+        self.model.insert_before(parent, sibling)
+    }
+
+    fn is_ancestor(&self, iter: &TreeIter, descendant: &TreeIter) -> bool {
+        self.model.is_ancestor(iter, descendant)
+    }
+
+    fn iter_depth(&self, iter: &TreeIter) -> i32 {
+        self.model.iter_depth(iter)
+    }
+
+    fn iter_is_valid(&self, iter: &TreeIter) -> bool {
+        self.model.iter_is_valid(iter)
+    }
+
+    fn move_after(&self, iter: &TreeIter, position: Option<&TreeIter>) {
+        self.model.move_after(iter, position)
+    }
+
+    fn move_before(&self, iter: &TreeIter, position: Option<&TreeIter>) {
+        self.model.move_before(iter, position)
+    }
+
+    fn prepend(&self, parent: Option<&TreeIter>) -> TreeIter {
+        self.model.prepend(parent)
+    }
+
+    fn remove(&self, iter: &TreeIter) -> bool {
+        self.model.remove(iter)
+    }
+
+    fn swap(&self, a: &TreeIter, b: &TreeIter) {
+        self.model.swap(a, b)
     }
 }
 
