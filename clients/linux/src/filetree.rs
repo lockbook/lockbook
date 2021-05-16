@@ -25,6 +25,7 @@ use crate::closure;
 use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
+use std::sync::Arc;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -136,6 +137,19 @@ impl FileTree {
         self.append(c, None, &root)
     }
 
+    pub fn refresh(&self, c: &LbCore) -> LbResult<()> {
+        let mut expanded_paths = Vec::<GtkTreePath>::new();
+        self.search_expanded(&self.iter(), &mut expanded_paths);
+
+        self.fill(&c)?;
+
+        for path in expanded_paths {
+            self.tree.expand_row(&path, false);
+        }
+
+        Ok(())
+    }
+
     pub fn add(&self, b: &LbCore, f: &FileMetadata) -> LbResult<()> {
         let mut file = f.clone();
         let mut parent_iter: Option<GtkTreeIter>;
@@ -190,6 +204,24 @@ impl FileTree {
             }
         }
         None
+    }
+
+    pub fn search_expanded(&self, iter: &GtkTreeIter, expanded_paths: &mut Vec<GtkTreePath>) {
+        let maybe_path = self.model.get_path(&iter);
+
+        if let Some(path) = maybe_path {
+            if self.tree.row_expanded(&path) {
+                expanded_paths.push(path.clone());
+            }
+        }
+
+        if let Some(it) = self.model.iter_children(Some(&iter)) {
+            self.search_expanded(&it, expanded_paths)
+        }
+
+        if self.model.iter_next(&iter) {
+            self.search_expanded(&iter, expanded_paths)
+        }
     }
 
     pub fn select(&self, id: &Uuid) {
