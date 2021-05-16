@@ -1,5 +1,6 @@
 use std::env;
 
+#[derive(Clone)]
 pub struct IndexDbConfig {
     pub user: String,
     pub pass: String,
@@ -22,6 +23,7 @@ impl IndexDbConfig {
     }
 }
 
+#[derive(Clone)]
 pub struct FilesDbConfig {
     pub scheme: String,
     pub host: String,
@@ -46,6 +48,7 @@ impl FilesDbConfig {
     }
 }
 
+#[derive(Clone)]
 pub struct ServerConfig {
     pub port: u16,
     pub max_auth_delay: u128,
@@ -64,6 +67,7 @@ impl ServerConfig {
     }
 }
 
+#[derive(Clone)]
 pub struct Config {
     pub index_db: IndexDbConfig,
     pub files_db: FilesDbConfig,

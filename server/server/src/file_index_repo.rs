@@ -26,14 +26,16 @@ pub async fn connect(config: &IndexDbConfig) -> Result<PgPool, ConnectError> {
         .host(&config.host)
         .password(&config.pass)
         .port(config.port)
-        .database(&config.db);
+        .database(&config.db)
+        .application_name("lockbook-server");
 
     if config.cert.as_str() != "" {
         pool_options = pool_options.ssl_root_cert_from_pem(config.cert.clone().into_bytes());
     }
 
     PgPoolOptions::new()
-        .max_connections(20)
+        .min_connections(5)
+        .max_connections(15)
         .connect_with(pool_options)
         .await
         .map_err(ConnectError::Postgres)
