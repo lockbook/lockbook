@@ -25,7 +25,6 @@ use crate::closure;
 use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
-use std::sync::Arc;
 
 #[macro_export]
 macro_rules! tree_iter_value {
