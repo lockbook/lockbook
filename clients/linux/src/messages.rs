@@ -29,6 +29,7 @@ pub enum Msg {
     SearchFieldExec(Option<String>),
 
     ToggleTreeCol(FileTreeCol),
+    RefreshTree,
 
     AccountScreenShown,
     ShowDialogSyncDetails,
