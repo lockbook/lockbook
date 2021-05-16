@@ -210,7 +210,7 @@ impl FileTree {
 
         if let Some(path) = maybe_path {
             if self.tree.row_expanded(&path) {
-                expanded_paths.push(path.clone());
+                expanded_paths.push(path);
             }
         }
 
