@@ -34,8 +34,7 @@ pub async fn connect(config: &IndexDbConfig) -> Result<PgPool, ConnectError> {
     }
 
     PgPoolOptions::new()
-        .min_connections(5)
-        .max_connections(15)
+        .max_connections(config.pool_size)
         .connect_with(pool_options)
         .await
         .map_err(ConnectError::Postgres)

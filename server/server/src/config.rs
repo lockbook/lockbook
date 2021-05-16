@@ -8,6 +8,7 @@ pub struct IndexDbConfig {
     pub port: u16,
     pub db: String,
     pub cert: String,
+    pub pool_size: u32
 }
 
 impl IndexDbConfig {
@@ -19,6 +20,7 @@ impl IndexDbConfig {
             user: env_or_panic("INDEX_DB_USER"),
             pass: env_or_panic("INDEX_DB_PASS"),
             cert: env_or_panic("INDEX_DB_CERT"),
+            pool_size: env_or_panic("INDEX_DB_POOL_SIZE").parse().unwrap(),
         }
     }
 }
