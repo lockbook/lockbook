@@ -108,6 +108,7 @@ impl LbApp {
                 Msg::RenameFile => lb.rename_file(),
 
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
+                Msg::RefreshTree => lb.refresh_tree(),
 
                 Msg::SearchFieldFocus => lb.search_field_focus(),
                 Msg::SearchFieldBlur(escaped) => lb.search_field_blur(escaped),
@@ -281,6 +282,7 @@ impl LbApp {
             if let Err(err) = c.sync(ch) {
                 m.send_err("syncing", err);
             }
+            m.send(Msg::RefreshTree)
         });
 
         Ok(())
@@ -719,6 +721,10 @@ impl LbApp {
         self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
         Ok(())
+    }
+
+    fn refresh_tree(&self) -> LbResult<()> {
+        self.gui.account.sidebar.tree.refresh(&self.core)
     }
 
     fn search_field_focus(&self) -> LbResult<()> {
