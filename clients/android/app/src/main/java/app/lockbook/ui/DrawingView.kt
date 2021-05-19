@@ -14,6 +14,7 @@ import app.lockbook.model.OnFinishAlert
 import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
 import kotlinx.android.synthetic.main.activity_drawing.*
+import timber.log.Timber
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -370,13 +371,17 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val modelPoint = screenToModel(PointF(event.x, event.y))
 
         if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-            if ((event.action == SPEN_ACTION_DOWN || isErasing) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
+            Timber.e("ERASING: ${event.action}")
+
+            if ((event.action == SPEN_ACTION_DOWN || event.action == MotionEvent.ACTION_DOWN) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
                 erasePoints.first.set(PointF(Float.NaN, Float.NaN))
                 erasePoints.second.set(PointF(Float.NaN, Float.NaN))
             }
 
             eraseAtPoint(modelPoint)
         } else {
+            Timber.e("DRAWING: ${event.action}")
+
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> moveTo(modelPoint, event.pressure)
                 MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
