@@ -1293,11 +1293,7 @@ mod sync_tests {
         sync!(&db1);
 
         for wu in work {
-            // This should be an error
-            // Puts the account into an inconsistent state
-            // DefaultSyncService::execute_work(&db2, &account, wu).unwrap_err();
-
-            DefaultSyncService::execute_work(&db2, &account, wu).unwrap();
+            DefaultSyncService::execute_work(&db2, &account, wu).unwrap_err();
         }
 
         // Uninstall and fresh sync
@@ -1309,7 +1305,7 @@ mod sync_tests {
         .unwrap();
 
         DefaultSyncService::sync(&db3, None).unwrap();
-        assert_no_metadata_problems!(&db3); // Account is busted, needs admin intervention
+        assert_no_metadata_problems!(&db3);
     }
 
     #[test]
