@@ -115,6 +115,7 @@ pub enum CreateFileError {
     PathTaken,
     OwnerDoesNotExist,
     ParentDoesNotExist,
+    AncestorDeleted,
 }
 
 pub async fn create_file(
@@ -129,37 +130,49 @@ pub async fn create_file(
 ) -> Result<u64, CreateFileError> {
     match sqlx::query!(
         r#"
-INSERT INTO files (
-    id,
-    parent,
-    parent_access_key,
-    is_folder,
-    name,
-    owner,
-    signature,
-    deleted,
-    metadata_version,
-    content_version,
-    document_size
-)
-VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    (
-        SELECT name
-        FROM accounts
-        WHERE public_key = $6
+WITH RECURSIVE file_ancestors AS (
+        SELECT * FROM files AS new_file_parent
+        WHERE new_file_parent.id = $2
+            UNION DISTINCT
+        SELECT ancestors.* FROM files AS ancestors
+        JOIN file_ancestors ON file_ancestors.parent = ancestors.id
     ),
-    $7,
-    FALSE,
-    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
-    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
-    $8
-)
-RETURNING metadata_version;
+    insert_cte AS (
+        INSERT INTO files (
+            id,
+            parent,
+            parent_access_key,
+            is_folder,
+            name,
+            owner,
+            signature,
+            deleted,
+            metadata_version,
+            content_version,
+            document_size
+        )
+        SELECT
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            (
+                SELECT name
+                FROM accounts
+                WHERE public_key = $6
+            ),
+            $7,
+            FALSE,
+            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
+            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
+            $8
+        WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)
+        RETURNING NULL
+    )
+SELECT
+    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS "metadata_version!",
+    EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS "ancestor_deleted!";
         "#,
         &id.to_simple()
             .encode_lower(&mut Uuid::encode_buffer())
@@ -178,7 +191,13 @@ RETURNING metadata_version;
     .fetch_one(transaction)
     .await
     {
-        Ok(row) => Ok(row.metadata_version as u64),
+        Ok(row) => {
+            if !row.ancestor_deleted {
+                Ok(row.metadata_version as u64)
+            } else {
+                Err(CreateFileError::AncestorDeleted)
+            }
+        }
         Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
             Some("pk_files") => Err(CreateFileError::IdTaken),
             Some("uk_files_name_parent") => Err(CreateFileError::PathTaken),
