@@ -197,7 +197,7 @@ SELECT
             } else {
                 Err(CreateFileError::AncestorDeleted)
             }
-        },
+        }
         Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
             Some("pk_files") => Err(CreateFileError::IdTaken),
             Some("uk_files_name_parent") => Err(CreateFileError::PathTaken),
