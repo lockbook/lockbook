@@ -260,8 +260,8 @@ impl<
         let mut work_calculated =
             Self::calculate_work(backend).map_err(SyncError::CalculateWorkError)?;
 
+        // Retry sync n times
         for _ in 0..10 {
-            // Retry sync n times
             info!("Syncing");
 
             for (progress, work_unit) in work_calculated.work_units.iter().enumerate() {

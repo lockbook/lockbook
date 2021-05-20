@@ -176,6 +176,39 @@
       "nullable": []
     }
   },
+  "3761bb93c35996ca2c1b0df2d7e64750fbcc3135b0f53bdf114bc060ff69988e": {
+    "query": "\nWITH RECURSIVE file_ancestors AS (\n        SELECT * FROM files AS new_file_parent\n        WHERE new_file_parent.id = $2\n            UNION DISTINCT\n        SELECT ancestors.* FROM files AS ancestors\n        JOIN file_ancestors ON file_ancestors.parent = ancestors.id\n    ),\n    insert_cte AS (\n        INSERT INTO files (\n            id,\n            parent,\n            parent_access_key,\n            is_folder,\n            name,\n            owner,\n            signature,\n            deleted,\n            metadata_version,\n            content_version,\n            document_size\n        )\n        SELECT\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            (\n                SELECT name\n                FROM accounts\n                WHERE public_key = $6\n            ),\n            $7,\n            FALSE,\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            $8\n        WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)\n        RETURNING NULL\n    )\nSELECT\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS \"metadata_version!\",\n    EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS \"ancestor_deleted!\";\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "metadata_version!",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "ancestor_deleted!",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text",
+          "Bool",
+          "Text",
+          "Text",
+          "Text",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        null,
+        null
+      ]
+    }
+  },
   "40d6c9587bfbe3d05f4a27ea03c9986032aab7a93210f9604875a6efc8221a33": {
     "query": "\nSELECT\n    files.*,\n    user_access_keys.encrypted_key AS \"encrypted_key?\",\n    accounts.public_key\nFROM files\nJOIN accounts ON files.owner = accounts.name\nLEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id\nWHERE\n    accounts.public_key = $1;\n        ",
     "describe": {
@@ -565,33 +598,6 @@
         false,
         false,
         false,
-        false
-      ]
-    }
-  },
-  "7df83121f364fe056bdac842608512436419611fb3bbf539792d5d1631de7b38": {
-    "query": "\nINSERT INTO files (\n    id,\n    parent,\n    parent_access_key,\n    is_folder,\n    name,\n    owner,\n    signature,\n    deleted,\n    metadata_version,\n    content_version,\n    document_size\n)\nVALUES (\n    $1,\n    $2,\n    $3,\n    $4,\n    $5,\n    (\n        SELECT name\n        FROM accounts\n        WHERE public_key = $6\n    ),\n    $7,\n    FALSE,\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n    $8\n)\nRETURNING metadata_version;\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "metadata_version",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "Text",
-          "Bool",
-          "Text",
-          "Text",
-          "Text",
-          "Int8"
-        ]
-      },
-      "nullable": [
         false
       ]
     }
