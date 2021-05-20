@@ -84,7 +84,7 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
     }
 }
 
-sealed class SyncStatus() {
+sealed class SyncStatus {
     object IsNotSyncing : SyncStatus()
     data class IsSyncing(var total: Int, var progress: Int) : SyncStatus()
 }
