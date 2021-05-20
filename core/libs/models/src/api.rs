@@ -80,6 +80,7 @@ pub enum CreateDocumentError {
     FileIdTaken,
     DocumentPathTaken,
     ParentNotFound,
+    AncestorDeleted
 }
 
 impl CreateDocumentRequest {
@@ -257,6 +258,7 @@ pub enum CreateFolderError {
     FileIdTaken,
     FolderPathTaken,
     ParentNotFound,
+    AncestorDeleted,
 }
 
 impl CreateFolderRequest {

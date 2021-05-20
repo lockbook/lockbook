@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS files
     )
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_files_name_parent ON files (parent, name) WHERE (NOT deleted);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_files_name_parent ON files (parent, name) WHERE (NOT deleted AND id != parent);
 
 CREATE TABLE IF NOT EXISTS user_access_keys
 (

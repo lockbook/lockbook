@@ -117,6 +117,7 @@ pub async fn create_document(
         CreateFileError::PathTaken => Some(CreateDocumentError::DocumentPathTaken),
         CreateFileError::OwnerDoesNotExist => Some(CreateDocumentError::UserNotFound),
         CreateFileError::ParentDoesNotExist => Some(CreateDocumentError::ParentNotFound),
+        CreateFileError::AncestorDeleted => Some(CreateDocumentError::AncestorDeleted),
         CreateFileError::Postgres(_) | CreateFileError::Serialize(_) => {
             error!(
                 "Internal server error! Cannot create document in Postgres: {:?}",
@@ -366,6 +367,7 @@ pub async fn create_folder(
         CreateFileError::PathTaken => Some(CreateFolderError::FolderPathTaken),
         CreateFileError::OwnerDoesNotExist => Some(CreateFolderError::UserNotFound),
         CreateFileError::ParentDoesNotExist => Some(CreateFolderError::ParentNotFound),
+        CreateFileError::AncestorDeleted => Some(CreateFolderError::AncestorDeleted),
         CreateFileError::Postgres(_) | CreateFileError::Serialize(_) => {
             error!(
                 "Internal server error! Cannot create folder in Postgres: {:?}",
