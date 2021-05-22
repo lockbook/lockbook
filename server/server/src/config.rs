@@ -1,5 +1,6 @@
 use std::env;
 
+#[derive(Clone)]
 pub struct IndexDbConfig {
     pub user: String,
     pub pass: String,
@@ -7,6 +8,7 @@ pub struct IndexDbConfig {
     pub port: u16,
     pub db: String,
     pub cert: String,
+    pub pool_size: u32,
 }
 
 impl IndexDbConfig {
@@ -18,14 +20,16 @@ impl IndexDbConfig {
             user: env_or_panic("INDEX_DB_USER"),
             pass: env_or_panic("INDEX_DB_PASS"),
             cert: env_or_panic("INDEX_DB_CERT"),
+            pool_size: env_or_panic("INDEX_DB_POOL_SIZE").parse().unwrap(),
         }
     }
 }
 
+#[derive(Clone)]
 pub struct FilesDbConfig {
-    pub scheme: String,
-    pub host: String,
-    pub port: u16,
+    pub scheme: Option<String>,
+    pub host: Option<String>,
+    pub port: Option<u16>,
     pub region: String,
     pub bucket: String,
     pub access_key: String,
@@ -35,9 +39,9 @@ pub struct FilesDbConfig {
 impl FilesDbConfig {
     pub fn from_env_vars() -> FilesDbConfig {
         FilesDbConfig {
-            scheme: env_or_panic("FILES_DB_SCHEME"),
-            host: env_or_panic("FILES_DB_HOST"),
-            port: env_or_panic("FILES_DB_PORT").parse().unwrap(),
+            scheme: env_or_empty("FILES_DB_SCHEME"),
+            host: env_or_empty("FILES_DB_HOST"),
+            port: env_or_empty("FILES_DB_PORT").map(|e| e.parse().expect("Expected u16!")),
             region: env_or_panic("FILES_DB_REGION").parse().unwrap(),
             bucket: env_or_panic("FILES_DB_BUCKET"),
             access_key: env_or_panic("FILES_DB_ACCESS_KEY"),
@@ -46,6 +50,7 @@ impl FilesDbConfig {
     }
 }
 
+#[derive(Clone)]
 pub struct ServerConfig {
     pub port: u16,
     pub max_auth_delay: u128,
@@ -64,6 +69,7 @@ impl ServerConfig {
     }
 }
 
+#[derive(Clone)]
 pub struct Config {
     pub index_db: IndexDbConfig,
     pub files_db: FilesDbConfig,
