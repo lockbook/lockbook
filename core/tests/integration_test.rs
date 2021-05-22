@@ -37,8 +37,8 @@ macro_rules! assert_matches (
     }
 );
 
-pub fn test_db() -> <DefaultBackend as Backend>::Db {
-    <DefaultBackend as Backend>::connect_to_db(&test_config()).unwrap()
+pub fn test_db() -> Config {
+    FileBackend::connect_to_db(&test_config()).unwrap()
 }
 
 pub fn test_config() -> Config {
@@ -160,7 +160,7 @@ pub fn rsa_decrypt<T: Serialize + DeserializeOwned>(
     RSAImpl::<ClockImpl>::decrypt(key, to_decrypt).unwrap()
 }
 
-pub fn assert_dbs_eq(db1: &<DefaultBackend as Backend>::Db, db2: &<DefaultBackend as Backend>::Db) {
+pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     let value1: Vec<FileMetadata> = DefaultBackend::dump::<_, Vec<u8>>(&db1, FILE_METADATA)
         .unwrap()
         .iter()

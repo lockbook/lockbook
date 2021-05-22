@@ -539,13 +539,12 @@ fn is_leaf_node(id: Uuid, ids: &HashMap<Uuid, FileMetadata>) -> bool {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::state::temp_config;
+    use crate::model::state::{temp_config, Config};
     use crate::repo::account_repo::AccountRepo;
     use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
     use crate::repo::file_metadata_repo::{FileMetadataRepo, Problem};
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::storage::db_provider::FileBackend;
     use crate::{
         DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService,
@@ -574,10 +573,7 @@ mod unit_tests {
         }
     }
 
-    fn insert_test_metadata_root(
-        config: &<DefaultBackend as Backend>::Db,
-        name: &str,
-    ) -> FileMetadata {
+    fn insert_test_metadata_root(config: &Config, name: &str) -> FileMetadata {
         let root_id = Uuid::new_v4();
         let fmd = FileMetadata {
             file_type: FileType::Folder,
@@ -591,7 +587,7 @@ mod unit_tests {
     }
 
     fn insert_test_metadata(
-        config: &<DefaultBackend as Backend>::Db,
+        config: &Config,
         file_type: FileType,
         parent: Uuid,
         name: &str,

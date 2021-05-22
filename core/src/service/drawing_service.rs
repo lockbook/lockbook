@@ -307,7 +307,6 @@ mod unit_tests {
     };
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::storage::db_provider::FileBackend;
     use crate::{
         DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService,
@@ -327,7 +326,12 @@ mod unit_tests {
             theme: None,
         };
 
-        assert_eq!(DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::get_drawing_bounds(empty_drawing.strokes.as_slice()), (20, 20));
+        assert_eq!(
+            DrawingServiceImpl::<DefaultFileService, DefaultFileMetadataRepo>::get_drawing_bounds(
+                empty_drawing.strokes.as_slice()
+            ),
+            (20, 20)
+        );
 
         let small_drawing = Drawing {
             scale: 0.0,
@@ -343,7 +347,12 @@ mod unit_tests {
             theme: None,
         };
 
-        assert_eq!(DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::get_drawing_bounds(small_drawing.strokes.as_slice()), (121, 121));
+        assert_eq!(
+            DrawingServiceImpl::<DefaultFileService, DefaultFileMetadataRepo>::get_drawing_bounds(
+                small_drawing.strokes.as_slice()
+            ),
+            (121, 121)
+        );
 
         let large_drawing = Drawing {
             scale: 0.0,
@@ -359,7 +368,12 @@ mod unit_tests {
             theme: None,
         };
 
-        assert_eq!(DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::get_drawing_bounds(large_drawing.strokes.as_slice()), (2021, 2021));
+        assert_eq!(
+            DrawingServiceImpl::<DefaultFileService, DefaultFileMetadataRepo>::get_drawing_bounds(
+                large_drawing.strokes.as_slice()
+            ),
+            (2021, 2021)
+        );
     }
 
     #[test]
@@ -402,7 +416,12 @@ mod unit_tests {
         )
         .unwrap();
 
-        DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::export_drawing(config, document.id, SupportedImageFormats::Png).unwrap();
+        DrawingServiceImpl::<DefaultFileService, DefaultFileMetadataRepo>::export_drawing(
+            config,
+            document.id,
+            SupportedImageFormats::Png,
+        )
+        .unwrap();
     }
 
     #[test]
@@ -445,6 +464,11 @@ mod unit_tests {
         )
         .unwrap();
 
-        DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::export_drawing(config, document.id, SupportedImageFormats::Png).unwrap_err();
+        DrawingServiceImpl::<DefaultFileService, DefaultFileMetadataRepo>::export_drawing(
+            config,
+            document.id,
+            SupportedImageFormats::Png,
+        )
+        .unwrap_err();
     }
 }

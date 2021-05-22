@@ -65,7 +65,7 @@ mod unit_tests {
     use super::AccountRepoImpl;
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
-    use crate::storage::db_provider::{Backend, FileBackend};
+    use crate::storage::db_provider::FileBackend;
     use lockbook_crypto::clock_service::ClockImpl;
     use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl};
     use lockbook_models::account::Account;

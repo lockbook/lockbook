@@ -166,7 +166,6 @@ mod unit_tests {
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoError};
     use crate::service::usage_service::{UsageService, UsageServiceImpl};
-    use crate::storage::db_provider::{Backend, FileBackend};
     use crate::{DefaultFileMetadataRepo, DefaultFileService};
     use lockbook_crypto::clock_service::ClockImpl;
     use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl};
@@ -262,10 +261,9 @@ mod unit_tests {
 
     fn get_usage_of_size<T: BytesHelper>(exact: bool) -> String {
         UsageServiceImpl::<
-            FileBackend,
             DefaultFileMetadataRepo,
             DefaultFileService,
-            MockAccountRepo<FileBackend>,
+            MockAccountRepo,
             MockClient<T>,
         >::get_usage_human_string(
             &Config {

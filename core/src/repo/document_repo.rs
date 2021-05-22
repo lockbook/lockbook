@@ -72,7 +72,6 @@ mod unit_tests {
 
     use crate::model::state::temp_config;
     use crate::repo::document_repo::DocumentRepo;
-    use crate::storage::db_provider::FileBackend;
     use crate::{DefaultBackend, DefaultDocumentRepo};
     use lockbook_models::crypto::*;
 

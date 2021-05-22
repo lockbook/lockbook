@@ -46,7 +46,6 @@ impl DbVersionRepo for DbVersionRepoImpl {
 #[cfg(test)]
 mod unit_tests {
     use crate::repo::db_version_repo::DbVersionRepo;
-    use crate::storage::db_provider::FileBackend;
     use crate::{model::state::temp_config, DefaultBackend, DefaultDbVersionRepo};
 
     #[test]

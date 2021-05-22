@@ -627,7 +627,6 @@ mod unit_tests {
     use crate::service::file_service::{
         DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
-    use crate::storage::db_provider::FileBackend;
     use crate::DefaultBackend;
     use crate::{
         init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,

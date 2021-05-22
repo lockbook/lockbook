@@ -449,7 +449,6 @@ mod unit_tests {
 
     use crate::model::state::temp_config;
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
-    use crate::storage::db_provider::FileBackend;
     use crate::DefaultBackend;
     use lockbook_crypto::clock_service::Clock;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
@@ -463,7 +462,7 @@ mod unit_tests {
         }
     }
 
-    pub type TestLocalChangesRepo = LocalChangesRepoImpl<TestClock, DefaultBackend>;
+    pub type TestLocalChangesRepo = LocalChangesRepoImpl<TestClock>;
 
     macro_rules! assert_total_local_changes (
         ($db:expr, $total:literal) => {

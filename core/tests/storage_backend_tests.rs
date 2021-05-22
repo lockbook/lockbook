@@ -4,9 +4,7 @@ mod integration_test;
 #[cfg(test)]
 mod unit_tests_file {
     use lockbook_core::model::state::temp_config;
-    use lockbook_core::storage::db_provider::{Backend, FileBackend};
-
-    type MyBackend = FileBackend;
+    use lockbook_core::storage::db_provider::FileBackend;
 
     #[test]
     fn read() {

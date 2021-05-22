@@ -9,7 +9,6 @@ mod db_state_service_tests {
     use lockbook_core::service::db_state_service::State::{
         Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
     };
-    use lockbook_core::storage::db_provider::FileBackend;
     use lockbook_core::{
         create_account, get_db_state, DefaultBackend, DefaultDbStateService, DefaultDbVersionRepo,
     };

@@ -101,7 +101,6 @@ mod unit_tests {
     use crate::service::code_version_service::{CodeVersion, CodeVersionImpl};
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
-    use crate::storage::db_provider::FileBackend;
     use crate::DefaultBackend;
     use crate::{DefaultDbStateService, DefaultDbVersionRepo};
 
