@@ -4,7 +4,7 @@ mod integration_test;
 mod get_usage_tests {
     use crate::integration_test::{generate_account, random_filename, test_config};
     use lockbook_core::repo::document_repo::DocumentRepo;
-    use lockbook_core::storage::db_provider::Backend;
+    use lockbook_core::storage::db_provider::FileBackend;
     use lockbook_core::{
         create_account, create_file, delete_file, get_root, get_usage, init_logger, sync_all,
         write_document, DefaultBackend, DefaultDocumentRepo,
@@ -46,8 +46,8 @@ mod get_usage_tests {
         sync_all!(config).unwrap();
 
         let local_encrypted = {
-            let backend = DefaultBackend::connect_to_db(config).unwrap();
-            DefaultDocumentRepo::get(&backend, file.id).unwrap().value
+            let config = DefaultBackend::connect_to_db(config).unwrap();
+            DefaultDocumentRepo::get(&config, file.id).unwrap().value
         };
 
         assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
@@ -108,8 +108,8 @@ mod get_usage_tests {
         sync_all!(config).unwrap();
 
         let local_encrypted = {
-            let backend = DefaultBackend::connect_to_db(config).unwrap();
-            DefaultDocumentRepo::get(&backend, file.id).unwrap().value
+            let config = DefaultBackend::connect_to_db(config).unwrap();
+            DefaultDocumentRepo::get(&config, file.id).unwrap().value
         };
 
         let usages = get_usage(config).unwrap();

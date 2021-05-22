@@ -2,38 +2,39 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
+use crate::model::state::Config;
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 use crate::repo::file_metadata_repo::Problem::{
     CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty, FileOrphaned,
     NameConflictDetected, NoRootFolder,
 };
-use crate::storage::db_provider::Backend;
+use crate::storage::db_provider::FileBackend;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 
 #[derive(Debug)]
-pub enum DbError<MyBackend: Backend> {
-    BackendError(MyBackend::Error),
+pub enum DbError {
+    BackendError(std::io::Error),
     SerdeError(serde_json::Error),
 }
 
 #[derive(Debug)]
-pub enum GetError<MyBackend: Backend> {
+pub enum GetError {
     FileRowMissing,
-    DbError(DbError<MyBackend>),
+    DbError(DbError),
 }
 
 #[derive(Debug)]
-pub enum FindingParentsFailed<MyBackend: Backend> {
+pub enum FindingParentsFailed {
     AncestorMissing,
-    DbError(DbError<MyBackend>),
+    DbError(DbError),
 }
 
 #[derive(Debug)]
-pub enum FindingChildrenFailed<MyBackend: Backend> {
+pub enum FindingChildrenFailed {
     FileDoesNotExist,
     DocumentTreatedAsFolder,
-    DbError(DbError<MyBackend>),
+    DbError(DbError),
 }
 
 pub enum Filter {
@@ -68,56 +69,45 @@ pub enum Problem {
     DocumentTreatedAsFolder(Uuid),
 }
 
-pub trait FileMetadataRepo<MyBackend: Backend> {
-    fn insert(backend: &MyBackend::Db, file: &FileMetadata) -> Result<(), DbError<MyBackend>>;
-    fn get_root(backend: &MyBackend::Db) -> Result<Option<FileMetadata>, DbError<MyBackend>>;
-    fn get(backend: &MyBackend::Db, id: Uuid) -> Result<FileMetadata, GetError<MyBackend>>;
-    fn maybe_get(
-        backend: &MyBackend::Db,
-        id: Uuid,
-    ) -> Result<Option<FileMetadata>, DbError<MyBackend>>;
-    fn get_by_path(
-        backend: &MyBackend::Db,
-        path: &str,
-    ) -> Result<Option<FileMetadata>, DbError<MyBackend>>;
+pub trait FileMetadataRepo {
+    fn insert(config: &Config, file: &FileMetadata) -> Result<(), DbError>;
+    fn get_root(config: &Config) -> Result<Option<FileMetadata>, DbError>;
+    fn get(config: &Config, id: Uuid) -> Result<FileMetadata, GetError>;
+    fn maybe_get(config: &Config, id: Uuid) -> Result<Option<FileMetadata>, DbError>;
+    fn get_by_path(config: &Config, path: &str) -> Result<Option<FileMetadata>, DbError>;
     fn get_with_all_parents(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
-    ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed<MyBackend>>;
+    ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed>;
     fn get_and_get_children_recursively(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
-    ) -> Result<Vec<FileMetadata>, FindingChildrenFailed<MyBackend>>;
-    fn get_all(backend: &MyBackend::Db) -> Result<Vec<FileMetadata>, DbError<MyBackend>>;
+    ) -> Result<Vec<FileMetadata>, FindingChildrenFailed>;
+    fn get_all(config: &Config) -> Result<Vec<FileMetadata>, DbError>;
     fn get_all_paths(
-        backend: &MyBackend::Db,
+        config: &Config,
         filter: Option<Filter>,
-    ) -> Result<Vec<String>, FindingParentsFailed<MyBackend>>;
-    fn non_recursive_delete(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>>;
+    ) -> Result<Vec<String>, FindingParentsFailed>;
+    fn non_recursive_delete(config: &Config, id: Uuid) -> Result<(), DbError>;
     fn get_children_non_recursively(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
-    ) -> Result<Vec<FileMetadata>, DbError<MyBackend>>;
-    fn set_last_synced(
-        backend: &MyBackend::Db,
-        last_updated: u64,
-    ) -> Result<(), DbError<MyBackend>>;
-    fn get_last_updated(backend: &MyBackend::Db) -> Result<u64, DbError<MyBackend>>;
-    fn test_repo_integrity(backend: &MyBackend::Db) -> Result<Vec<Problem>, DbError<MyBackend>>;
+    ) -> Result<Vec<FileMetadata>, DbError>;
+    fn set_last_synced(config: &Config, last_updated: u64) -> Result<(), DbError>;
+    fn get_last_updated(config: &Config) -> Result<u64, DbError>;
+    fn test_repo_integrity(config: &Config) -> Result<Vec<Problem>, DbError>;
 }
 
-pub struct FileMetadataRepoImpl<MyBackend: Backend> {
-    _backend: MyBackend,
-}
+pub struct FileMetadataRepoImpl;
 
 pub static FILE_METADATA: &[u8; 13] = b"file_metadata";
 static ROOT: &[u8; 4] = b"ROOT";
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
-impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<MyBackend> {
-    fn insert(backend: &MyBackend::Db, file: &FileMetadata) -> Result<(), DbError<MyBackend>> {
-        MyBackend::write(
-            backend,
+impl FileMetadataRepo for FileMetadataRepoImpl {
+    fn insert(config: &Config, file: &FileMetadata) -> Result<(), DbError> {
+        FileBackend::write(
+            config,
             FILE_METADATA,
             file.id.to_string().as_str(),
             serde_json::to_vec(&file).map_err(DbError::SerdeError)?,
@@ -125,20 +115,20 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
         .map_err(DbError::BackendError)?;
         if file.id == file.parent {
             debug!("saving root folder: {:?}", &file.id);
-            MyBackend::write(backend, ROOT, ROOT, file.id.to_string().as_str())
+            FileBackend::write(config, ROOT, ROOT, file.id.to_string().as_str())
                 .map_err(DbError::BackendError)?;
         }
         Ok(())
     }
 
-    fn get_root(backend: &MyBackend::Db) -> Result<Option<FileMetadata>, DbError<MyBackend>> {
+    fn get_root(config: &Config) -> Result<Option<FileMetadata>, DbError> {
         let maybe_value: Option<Vec<u8>> =
-            MyBackend::read(backend, ROOT, ROOT).map_err(DbError::BackendError)?;
+            FileBackend::read(config, ROOT, ROOT).map_err(DbError::BackendError)?;
         match maybe_value {
             None => Ok(None),
             Some(value) => match String::from_utf8(value.clone()) {
                 Ok(id) => match Uuid::parse_str(&id) {
-                    Ok(uuid) => Self::maybe_get(&backend, uuid),
+                    Ok(uuid) => Self::maybe_get(&config, uuid),
                     Err(err) => {
                         error!("Failed to parse {:?} into a UUID. Error: {:?}", id, err);
                         Ok(None)
@@ -152,9 +142,9 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
         }
     }
 
-    fn get(backend: &MyBackend::Db, id: Uuid) -> Result<FileMetadata, GetError<MyBackend>> {
+    fn get(config: &Config, id: Uuid) -> Result<FileMetadata, GetError> {
         let maybe_value: Option<Vec<u8>> =
-            MyBackend::read(backend, FILE_METADATA, id.to_string().as_str())
+            FileBackend::read(config, FILE_METADATA, id.to_string().as_str())
                 .map_err(DbError::BackendError)
                 .map_err(GetError::DbError)?;
         let value = maybe_value.ok_or(GetError::FileRowMissing)?;
@@ -164,26 +154,20 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
         Ok(file_metadata)
     }
 
-    fn maybe_get(
-        backend: &MyBackend::Db,
-        id: Uuid,
-    ) -> Result<Option<FileMetadata>, DbError<MyBackend>> {
+    fn maybe_get(config: &Config, id: Uuid) -> Result<Option<FileMetadata>, DbError> {
         let maybe_value: Option<Vec<u8>> =
-            MyBackend::read(backend, FILE_METADATA, id.to_string().as_str())
+            FileBackend::read(config, FILE_METADATA, id.to_string().as_str())
                 .map_err(DbError::BackendError)?;
         Ok(maybe_value.and_then(|value| {
             serde_json::from_slice(value.as_ref())
-                .map_err(DbError::<MyBackend>::SerdeError)
+                .map_err(DbError::SerdeError)
                 .ok()?
         }))
     }
 
-    fn get_by_path(
-        backend: &MyBackend::Db,
-        path: &str,
-    ) -> Result<Option<FileMetadata>, DbError<MyBackend>> {
+    fn get_by_path(config: &Config, path: &str) -> Result<Option<FileMetadata>, DbError> {
         debug!("Path: {}", path);
-        let root = match Self::get_root(backend)? {
+        let root = match Self::get_root(config)? {
             None => return Ok(None),
             Some(root) => root,
         };
@@ -207,7 +191,7 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
                 return Ok(Some(current));
             }
 
-            let children = Self::get_children_non_recursively(backend, current.id)?;
+            let children = Self::get_children_non_recursively(config, current.id)?;
             let mut found_child = false;
             for child in children {
                 if child.name == paths[i + 1] {
@@ -225,15 +209,15 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
     }
 
     fn get_with_all_parents(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
-    ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed<MyBackend>> {
+    ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed> {
         let mut parents = HashMap::new();
         let mut current_id = id;
         debug!("Finding parents for: {}", current_id);
 
         loop {
-            match Self::maybe_get(backend, current_id).map_err(FindingParentsFailed::DbError)? {
+            match Self::maybe_get(config, current_id).map_err(FindingParentsFailed::DbError)? {
                 Some(found) => {
                     debug!("Current id exists: {:?}", &found);
                     parents.insert(current_id, found.clone());
@@ -250,10 +234,10 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
     }
 
     fn get_and_get_children_recursively(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
-    ) -> Result<Vec<FileMetadata>, FindingChildrenFailed<MyBackend>> {
-        let all = Self::get_all(backend).map_err(FindingChildrenFailed::DbError)?;
+    ) -> Result<Vec<FileMetadata>, FindingChildrenFailed> {
+        let all = Self::get_all(config).map_err(FindingChildrenFailed::DbError)?;
         let target_file = all
             .clone()
             .into_iter()
@@ -292,12 +276,12 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
         Ok(result)
     }
 
-    fn get_all(backend: &MyBackend::Db) -> Result<Vec<FileMetadata>, DbError<MyBackend>> {
-        let files = MyBackend::dump::<_, Vec<u8>>(backend, FILE_METADATA)
+    fn get_all(config: &Config) -> Result<Vec<FileMetadata>, DbError> {
+        let files = FileBackend::dump::<_, Vec<u8>>(config, FILE_METADATA)
             .map_err(DbError::BackendError)?
             .into_iter()
             .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
-            .collect::<Result<Vec<FileMetadata>, DbError<MyBackend>>>();
+            .collect::<Result<Vec<FileMetadata>, DbError>>();
 
         let mut files = files?;
         files.retain(|file| !file.deleted);
@@ -306,14 +290,14 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
     }
 
     fn get_all_paths(
-        backend: &MyBackend::Db,
+        config: &Config,
         filter: Option<Filter>,
-    ) -> Result<Vec<String>, FindingParentsFailed<MyBackend>> {
+    ) -> Result<Vec<String>, FindingParentsFailed> {
         let mut cache = HashMap::new();
         let mut path_cache = HashMap::new();
 
         // Populate metadata cache
-        Self::get_all(backend)
+        Self::get_all(config)
             .map_err(FindingParentsFailed::DbError)?
             .into_iter()
             .for_each(|meta| {
@@ -366,28 +350,25 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
         Ok(paths)
     }
 
-    fn non_recursive_delete(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>> {
-        MyBackend::delete(backend, FILE_METADATA, id.to_string().as_str())
+    fn non_recursive_delete(config: &Config, id: Uuid) -> Result<(), DbError> {
+        FileBackend::delete(config, FILE_METADATA, id.to_string().as_str())
             .map_err(DbError::BackendError)
     }
 
     fn get_children_non_recursively(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
-    ) -> Result<Vec<FileMetadata>, DbError<MyBackend>> {
-        Ok(Self::get_all(backend)?
+    ) -> Result<Vec<FileMetadata>, DbError> {
+        Ok(Self::get_all(config)?
             .into_iter()
             .filter(|file| file.parent == id && file.parent != file.id)
             .collect::<Vec<FileMetadata>>())
     }
 
-    fn set_last_synced(
-        backend: &MyBackend::Db,
-        last_updated: u64,
-    ) -> Result<(), DbError<MyBackend>> {
+    fn set_last_synced(config: &Config, last_updated: u64) -> Result<(), DbError> {
         debug!("Setting last updated to: {}", last_updated);
-        MyBackend::write(
-            backend,
+        FileBackend::write(
+            config,
             LAST_UPDATED,
             LAST_UPDATED,
             serde_json::to_vec(&last_updated).map_err(DbError::SerdeError)?,
@@ -395,19 +376,19 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
         .map_err(DbError::BackendError)
     }
 
-    fn get_last_updated(backend: &MyBackend::Db) -> Result<u64, DbError<MyBackend>> {
+    fn get_last_updated(config: &Config) -> Result<u64, DbError> {
         let maybe_value: Option<Vec<u8>> =
-            MyBackend::read(backend, LAST_UPDATED, LAST_UPDATED).map_err(DbError::BackendError)?;
+            FileBackend::read(config, LAST_UPDATED, LAST_UPDATED).map_err(DbError::BackendError)?;
         match maybe_value {
             None => Ok(0),
             Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?),
         }
     }
 
-    fn test_repo_integrity(backend: &MyBackend::Db) -> Result<Vec<Problem>, DbError<MyBackend>> {
-        let all = Self::get_all(backend)?;
+    fn test_repo_integrity(config: &Config) -> Result<Vec<Problem>, DbError> {
+        let all = Self::get_all(config)?;
         let mut probs = vec![];
-        match Self::get_root(backend)? {
+        match Self::get_root(config)? {
             None => {
                 if all.is_empty() {
                     probs.push(NoRootFolder);
@@ -508,11 +489,11 @@ impl<MyBackend: Backend> FileMetadataRepo<MyBackend> for FileMetadataRepoImpl<My
     }
 }
 
-fn saturate_path_cache<MyBackend: Backend>(
+fn saturate_path_cache(
     client: &FileMetadata,
     ids: &HashMap<Uuid, FileMetadata>,
     paths: &mut HashMap<Uuid, String>,
-) -> Result<String, FindingParentsFailed<MyBackend>> {
+) -> Result<String, FindingParentsFailed> {
     match paths.get(&client.id) {
         Some(path) => Ok(path.to_string()),
         None => {
@@ -564,7 +545,7 @@ mod unit_tests {
     use crate::repo::file_metadata_repo::{FileMetadataRepo, Problem};
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::storage::db_provider::Backend;
+    use crate::storage::db_provider::FileBackend;
     use crate::{
         DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService,
@@ -594,7 +575,7 @@ mod unit_tests {
     }
 
     fn insert_test_metadata_root(
-        backend: &<DefaultBackend as Backend>::Db,
+        config: &<DefaultBackend as Backend>::Db,
         name: &str,
     ) -> FileMetadata {
         let root_id = Uuid::new_v4();
@@ -605,12 +586,12 @@ mod unit_tests {
             parent: root_id,
             ..base_test_file_metadata()
         };
-        DefaultFileMetadataRepo::insert(backend, &fmd).unwrap();
+        DefaultFileMetadataRepo::insert(config, &fmd).unwrap();
         fmd
     }
 
     fn insert_test_metadata(
-        backend: &<DefaultBackend as Backend>::Db,
+        config: &<DefaultBackend as Backend>::Db,
         file_type: FileType,
         parent: Uuid,
         name: &str,
@@ -622,26 +603,26 @@ mod unit_tests {
             parent,
             ..base_test_file_metadata()
         };
-        DefaultFileMetadataRepo::insert(backend, &fmd).unwrap();
+        DefaultFileMetadataRepo::insert(config, &fmd).unwrap();
         fmd
     }
 
     #[test]
     fn insert_file_metadata() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
-        let root = insert_test_metadata_root(backend, "root_folder");
-        let test_file = insert_test_metadata(backend, FileType::Document, root.id, "test.txt");
+        let root = insert_test_metadata_root(config, "root_folder");
+        let test_file = insert_test_metadata(config, FileType::Document, root.id, "test.txt");
 
-        let retrieved_file_metadata = DefaultFileMetadataRepo::get(backend, test_file.id).unwrap();
+        let retrieved_file_metadata = DefaultFileMetadataRepo::get(config, test_file.id).unwrap();
         assert_eq!(test_file.name, retrieved_file_metadata.name);
         assert_eq!(test_file.parent, retrieved_file_metadata.parent);
 
-        DefaultFileMetadataRepo::maybe_get(backend, test_file.id)
+        DefaultFileMetadataRepo::maybe_get(config, test_file.id)
             .unwrap()
             .unwrap();
-        assert!(DefaultFileMetadataRepo::maybe_get(backend, Uuid::new_v4())
+        assert!(DefaultFileMetadataRepo::maybe_get(config, Uuid::new_v4())
             .unwrap()
             .is_none());
     }
@@ -649,7 +630,7 @@ mod unit_tests {
     #[test]
     fn update_file_metadata() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let id = Uuid::new_v4();
         let parent = Uuid::new_v4();
@@ -667,17 +648,17 @@ mod unit_tests {
             ..base_test_file_metadata()
         };
 
-        DefaultFileMetadataRepo::insert(backend, &test_meta).unwrap();
+        DefaultFileMetadataRepo::insert(config, &test_meta).unwrap();
         assert_eq!(
             test_meta.content_version,
-            DefaultFileMetadataRepo::get(backend, test_meta.id)
+            DefaultFileMetadataRepo::get(config, test_meta.id)
                 .unwrap()
                 .content_version
         );
-        DefaultFileMetadataRepo::insert(backend, &test_meta_updated).unwrap();
+        DefaultFileMetadataRepo::insert(config, &test_meta_updated).unwrap();
         assert_eq!(
             test_meta_updated.content_version,
-            DefaultFileMetadataRepo::get(backend, test_meta_updated.id)
+            DefaultFileMetadataRepo::get(config, test_meta_updated.id)
                 .unwrap()
                 .content_version
         );
@@ -686,45 +667,44 @@ mod unit_tests {
     #[test]
     fn test_searches() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
-        let root = insert_test_metadata_root(backend, "root_folder1");
-        let _ = insert_test_metadata(backend, FileType::Document, root.id, "test.txt");
-        let test_folder = insert_test_metadata(backend, FileType::Folder, root.id, "test");
-        let _ = insert_test_metadata(backend, FileType::Document, test_folder.id, "test.txt");
-        let _ = insert_test_metadata(backend, FileType::Document, test_folder.id, "test.txt");
+        let root = insert_test_metadata_root(config, "root_folder1");
+        let _ = insert_test_metadata(config, FileType::Document, root.id, "test.txt");
+        let test_folder = insert_test_metadata(config, FileType::Folder, root.id, "test");
+        let _ = insert_test_metadata(config, FileType::Document, test_folder.id, "test.txt");
+        let _ = insert_test_metadata(config, FileType::Document, test_folder.id, "test.txt");
         let test_file4 =
-            insert_test_metadata(backend, FileType::Document, test_folder.id, "test.txt");
+            insert_test_metadata(config, FileType::Document, test_folder.id, "test.txt");
 
-        let parents =
-            DefaultFileMetadataRepo::get_with_all_parents(backend, test_file4.id).unwrap();
+        let parents = DefaultFileMetadataRepo::get_with_all_parents(config, test_file4.id).unwrap();
         assert_eq!(parents.len(), 3);
         assert!(parents.contains_key(&root.id));
         assert!(parents.contains_key(&test_folder.id));
         assert!(parents.contains_key(&test_file4.id));
 
         let children =
-            DefaultFileMetadataRepo::get_children_non_recursively(backend, root.id).unwrap();
+            DefaultFileMetadataRepo::get_children_non_recursively(config, root.id).unwrap();
         assert_eq!(children.len(), 2);
     }
 
     #[test]
     fn test_integrity_no_problems() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
-        let _ = insert_test_metadata_root(backend, "rootdir");
+        let _ = insert_test_metadata_root(config, "rootdir");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(backend).unwrap();
+        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
         assert!(probs.is_empty());
     }
 
     #[test]
     fn test_no_root() {
         let cfg = &temp_config();
-        let backend = DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = DefaultBackend::connect_to_db(cfg).unwrap();
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(&backend).unwrap();
+        let probs = DefaultFileMetadataRepo::test_repo_integrity(&config).unwrap();
         assert_eq!(probs.len(), 1);
         assert_eq!(probs.get(0).unwrap(), &Problem::NoRootFolder);
     }
@@ -732,7 +712,7 @@ mod unit_tests {
     #[test]
     fn test_orphaned_children() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let keys = DefaultCrypto::generate_key().unwrap();
 
@@ -742,42 +722,42 @@ mod unit_tests {
             private_key: keys,
         };
 
-        DefaultAccountRepo::insert_account(backend, &account).unwrap();
+        DefaultAccountRepo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(backend, &root).unwrap();
+        DefaultFileMetadataRepo::insert(config, &root).unwrap();
 
-        DefaultFileService::create_at_path(backend, "username/folder1/file1.txt").unwrap();
-        DefaultFileService::create_at_path(backend, "username/folder2/file2.txt").unwrap();
-        DefaultFileService::create_at_path(backend, "username/folder2/file3.txt").unwrap();
-        DefaultFileService::create_at_path(backend, "username/folder2/file4.txt").unwrap();
-        DefaultFileService::create_at_path(backend, "username/folder3/file5.txt").unwrap();
+        DefaultFileService::create_at_path(config, "username/folder1/file1.txt").unwrap();
+        DefaultFileService::create_at_path(config, "username/folder2/file2.txt").unwrap();
+        DefaultFileService::create_at_path(config, "username/folder2/file3.txt").unwrap();
+        DefaultFileService::create_at_path(config, "username/folder2/file4.txt").unwrap();
+        DefaultFileService::create_at_path(config, "username/folder3/file5.txt").unwrap();
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(backend)
+        assert!(DefaultFileMetadataRepo::test_repo_integrity(config)
             .unwrap()
             .is_empty());
 
-        let orphan = insert_test_metadata(backend, FileType::Document, Uuid::new_v4(), "test");
+        let orphan = insert_test_metadata(config, FileType::Document, Uuid::new_v4(), "test");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(backend).unwrap();
+        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 1);
         assert_eq!(probs.get(0).unwrap(), &Problem::FileOrphaned(orphan.id));
 
-        let _ = insert_test_metadata(backend, FileType::Document, Uuid::new_v4(), "test");
+        let _ = insert_test_metadata(config, FileType::Document, Uuid::new_v4(), "test");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(backend).unwrap();
+        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 2);
     }
 
     #[test]
     fn test_files_invalid_names() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
-        let root = insert_test_metadata_root(backend, "rootdir");
-        let has_slash = insert_test_metadata(backend, FileType::Document, root.id, "uh/oh");
-        let empty_name = insert_test_metadata(backend, FileType::Document, root.id, "");
+        let root = insert_test_metadata_root(config, "rootdir");
+        let has_slash = insert_test_metadata(config, FileType::Document, root.id, "uh/oh");
+        let empty_name = insert_test_metadata(config, FileType::Document, root.id, "");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(backend).unwrap();
+        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 2);
         assert!(probs.contains(&Problem::FileNameContainsSlash(has_slash.id)));
         assert!(probs.contains(&Problem::FileNameEmpty(empty_name.id)));
@@ -786,14 +766,14 @@ mod unit_tests {
     #[test]
     fn test_cycle_detection() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
-        let _ = insert_test_metadata_root(backend, "rootdir");
+        let _ = insert_test_metadata_root(config, "rootdir");
         let folder1 = Uuid::new_v4();
         let folder2 = Uuid::new_v4();
 
         DefaultFileMetadataRepo::insert(
-            backend,
+            config,
             &FileMetadata {
                 id: folder2,
                 file_type: FileType::Folder,
@@ -805,7 +785,7 @@ mod unit_tests {
         .unwrap();
 
         DefaultFileMetadataRepo::insert(
-            backend,
+            config,
             &FileMetadata {
                 id: folder1,
                 file_type: FileType::Folder,
@@ -817,7 +797,7 @@ mod unit_tests {
         .unwrap();
 
         assert_eq!(
-            DefaultFileMetadataRepo::test_repo_integrity(backend)
+            DefaultFileMetadataRepo::test_repo_integrity(config)
                 .unwrap()
                 .into_iter()
                 .filter(|prob| *prob == CycleDetected(folder1) || *prob == CycleDetected(folder2))
@@ -829,13 +809,13 @@ mod unit_tests {
     #[test]
     fn test_name_conflicts() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
-        let root = insert_test_metadata_root(backend, "uhoh");
-        let doc1 = insert_test_metadata(backend, FileType::Document, root.id, "a");
-        let doc2 = insert_test_metadata(backend, FileType::Document, root.id, "a");
+        let root = insert_test_metadata_root(config, "uhoh");
+        let doc1 = insert_test_metadata(config, FileType::Document, root.id, "a");
+        let doc2 = insert_test_metadata(config, FileType::Document, root.id, "a");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(backend).unwrap();
+        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 1);
 
         let p = probs.get(0).unwrap();
@@ -845,13 +825,13 @@ mod unit_tests {
     #[test]
     fn test_document_treated_as_folder() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
-        let root = insert_test_metadata_root(backend, "uhoh");
-        let doc = insert_test_metadata(backend, FileType::Document, root.id, "a");
-        let _ = insert_test_metadata(backend, FileType::Document, doc.id, "b");
+        let root = insert_test_metadata_root(config, "uhoh");
+        let doc = insert_test_metadata(config, FileType::Document, root.id, "a");
+        let _ = insert_test_metadata(config, FileType::Document, doc.id, "b");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(backend).unwrap();
+        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 1);
         assert!(probs.contains(&Problem::DocumentTreatedAsFolder(doc.id)));
     }
@@ -859,24 +839,24 @@ mod unit_tests {
     #[test]
     fn test_get_children_handle_empty_root() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
-        let root = insert_test_metadata_root(backend, "root");
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let root = insert_test_metadata_root(config, "root");
         let children_of_root =
-            DefaultFileMetadataRepo::get_and_get_children_recursively(backend, root.id).unwrap();
+            DefaultFileMetadataRepo::get_and_get_children_recursively(config, root.id).unwrap();
         assert_eq!(children_of_root, vec![root])
     }
 
     #[test]
     fn test_get_children() {
         let cfg = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
 
-        let root = insert_test_metadata_root(backend, "root");
+        let root = insert_test_metadata_root(config, "root");
 
         let doc = insert_test_metadata(
-            backend,
+            config,
             Document,
-            DefaultFileMetadataRepo::get_root(backend)
+            DefaultFileMetadataRepo::get_root(config)
                 .unwrap()
                 .unwrap()
                 .id,
@@ -885,19 +865,18 @@ mod unit_tests {
 
         {
             let mut children_of_root =
-                DefaultFileMetadataRepo::get_and_get_children_recursively(backend, root.id)
-                    .unwrap();
+                DefaultFileMetadataRepo::get_and_get_children_recursively(config, root.id).unwrap();
             children_of_root.sort_by(|f1, f2| f1.name.cmp(&f2.name));
             assert_eq!(children_of_root, vec![doc.clone(), root.clone()]);
             assert!(
-                DefaultFileMetadataRepo::get_and_get_children_recursively(backend, doc.id).is_err()
+                DefaultFileMetadataRepo::get_and_get_children_recursively(config, doc.id).is_err()
             );
         }
 
         let folder = insert_test_metadata(
-            backend,
+            config,
             Folder,
-            DefaultFileMetadataRepo::get_root(backend)
+            DefaultFileMetadataRepo::get_root(config)
                 .unwrap()
                 .unwrap()
                 .id,
@@ -906,39 +885,38 @@ mod unit_tests {
 
         {
             let mut children_of_root =
-                DefaultFileMetadataRepo::get_and_get_children_recursively(backend, root.id)
-                    .unwrap();
+                DefaultFileMetadataRepo::get_and_get_children_recursively(config, root.id).unwrap();
             children_of_root.sort_by(|f1, f2| f1.name.cmp(&f2.name));
             assert_eq!(
                 children_of_root,
                 vec![doc.clone(), folder.clone(), root.clone()]
             );
             assert!(
-                DefaultFileMetadataRepo::get_and_get_children_recursively(backend, doc.id).is_err()
+                DefaultFileMetadataRepo::get_and_get_children_recursively(config, doc.id).is_err()
             );
 
             assert_eq!(
-                DefaultFileMetadataRepo::get_and_get_children_recursively(backend, folder.id)
+                DefaultFileMetadataRepo::get_and_get_children_recursively(config, folder.id)
                     .unwrap(),
                 vec![folder.clone()]
             );
         }
 
-        let doc2 = insert_test_metadata(backend, Document, folder.id, "child doc2");
+        let doc2 = insert_test_metadata(config, Document, folder.id, "child doc2");
 
-        let doc3 = insert_test_metadata(backend, Document, folder.id, "child doc3");
+        let doc3 = insert_test_metadata(config, Document, folder.id, "child doc3");
 
-        let doc4 = insert_test_metadata(backend, Document, folder.id, "child doc4");
+        let doc4 = insert_test_metadata(config, Document, folder.id, "child doc4");
 
-        let doc5 = insert_test_metadata(backend, Document, folder.id, "child doc5");
+        let doc5 = insert_test_metadata(config, Document, folder.id, "child doc5");
 
-        let doc6 = insert_test_metadata(backend, Document, folder.id, "child doc6");
+        let doc6 = insert_test_metadata(config, Document, folder.id, "child doc6");
 
-        let doc7 = insert_test_metadata(backend, Document, folder.id, "child doc7");
+        let doc7 = insert_test_metadata(config, Document, folder.id, "child doc7");
 
         {
             let mut children_of_folder =
-                DefaultFileMetadataRepo::get_and_get_children_recursively(backend, folder.id)
+                DefaultFileMetadataRepo::get_and_get_children_recursively(config, folder.id)
                     .unwrap();
             children_of_folder.sort_by(|f1, f2| f1.name.cmp(&f2.name));
             assert_eq!(

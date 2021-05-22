@@ -11,9 +11,9 @@ mod unit_tests_file {
     #[test]
     fn read() {
         let cfg = &temp_config();
-        let backend = &MyBackend::connect_to_db(cfg).unwrap();
+        let config = &FileBackend::connect_to_db(cfg).unwrap();
 
-        let result = MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt").unwrap();
+        let result = FileBackend::read::<_, _, Vec<u8>>(config, "files", "notes.txt").unwrap();
 
         assert_eq!(result, None);
     }
@@ -21,13 +21,13 @@ mod unit_tests_file {
     #[test]
     fn write_and_read() {
         let cfg = &temp_config();
-        let backend = &MyBackend::connect_to_db(cfg).unwrap();
+        let config = &FileBackend::connect_to_db(cfg).unwrap();
 
         let data = "noice";
 
-        MyBackend::write(backend, "files", "notes.txt", data).unwrap();
+        FileBackend::write(config, "files", "notes.txt", data).unwrap();
 
-        let result = MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt")
+        let result = FileBackend::read::<_, _, Vec<u8>>(config, "files", "notes.txt")
             .unwrap()
             .unwrap();
 
@@ -37,15 +37,15 @@ mod unit_tests_file {
     #[test]
     fn write_and_dump() {
         let cfg = &temp_config();
-        let backend = &MyBackend::connect_to_db(cfg).unwrap();
+        let config = &FileBackend::connect_to_db(cfg).unwrap();
 
         println!("{:?}", cfg);
 
         let data = "noice";
 
-        MyBackend::write(backend, "files", "a.txt", data).unwrap();
-        MyBackend::write(backend, "files", "b.txt", data).unwrap();
-        MyBackend::write(backend, "files", "c.txt", data).unwrap();
+        FileBackend::write(config, "files", "a.txt", data).unwrap();
+        FileBackend::write(config, "files", "b.txt", data).unwrap();
+        FileBackend::write(config, "files", "c.txt", data).unwrap();
 
         assert_eq!(
             vec![
@@ -53,31 +53,31 @@ mod unit_tests_file {
                 data.as_bytes().to_vec(),
                 data.as_bytes().to_vec()
             ],
-            MyBackend::dump::<_, Vec<u8>>(backend, "files").unwrap()
+            FileBackend::dump::<_, Vec<u8>>(config, "files").unwrap()
         )
     }
 
     #[test]
     fn write_read_delete() {
         let cfg = &temp_config();
-        let backend = &MyBackend::connect_to_db(cfg).unwrap();
+        let config = &FileBackend::connect_to_db(cfg).unwrap();
 
         let data = "noice";
 
-        MyBackend::write(backend, "files", "notes.txt", data).unwrap();
+        FileBackend::write(config, "files", "notes.txt", data).unwrap();
 
         assert_eq!(
             data.as_bytes().to_vec(),
-            MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt")
+            FileBackend::read::<_, _, Vec<u8>>(config, "files", "notes.txt")
                 .unwrap()
                 .unwrap()
         );
 
-        MyBackend::delete(backend, "files", "notes.txt").unwrap();
+        FileBackend::delete(config, "files", "notes.txt").unwrap();
 
         assert_eq!(
             None,
-            MyBackend::read::<_, _, Vec<u8>>(backend, "files", "notes.txt").unwrap()
+            FileBackend::read::<_, _, Vec<u8>>(config, "files", "notes.txt").unwrap()
         );
     }
 }

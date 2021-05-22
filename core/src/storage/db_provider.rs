@@ -1,48 +1,19 @@
 use crate::model::state::Config;
 use std::fmt::Debug;
 use std::fs::{create_dir_all, read_dir, remove_file, File, OpenOptions};
+use std::io::Error;
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
-
-// Debug required because we parametrize enums with this, even though we only include Backend::Error
-// https://github.com/rust-lang/rust/issues/26925
-pub trait Backend: Debug {
-    type Db;
-    type Error: Debug;
-
-    fn connect_to_db(config: &Config) -> Result<Self::Db, Self::Error>;
-    fn write<N, K, V>(db: &Self::Db, namespace: N, key: K, value: V) -> Result<(), Self::Error>
-    where
-        N: AsRef<[u8]>,
-        K: AsRef<[u8]>,
-        V: Into<Vec<u8>>;
-    fn read<N, K, V>(db: &Self::Db, namespace: N, key: K) -> Result<Option<V>, Self::Error>
-    where
-        N: AsRef<[u8]>,
-        K: AsRef<[u8]>,
-        V: From<Vec<u8>>;
-    fn delete<N, K>(db: &Self::Db, namespace: N, key: K) -> Result<(), Self::Error>
-    where
-        N: AsRef<[u8]>,
-        K: AsRef<[u8]>;
-    fn dump<N, V>(db: &Self::Db, namespace: N) -> Result<Vec<V>, Self::Error>
-    where
-        N: AsRef<[u8]> + Copy,
-        V: From<Vec<u8>>;
-}
 
 #[derive(Debug)]
 pub struct FileBackend;
 
-impl Backend for FileBackend {
-    type Db = Config;
-    type Error = std::io::Error;
-
-    fn connect_to_db(config: &Config) -> Result<Self::Db, Self::Error> {
+impl FileBackend {
+    pub fn connect_to_db(config: &Config) -> Result<Config, Error> {
         Ok(config.clone())
     }
 
-    fn write<N, K, V>(db: &Self::Db, namespace: N, key: K, value: V) -> Result<(), Self::Error>
+    pub fn write<N, K, V>(db: &Config, namespace: N, key: K, value: V) -> Result<(), Error>
     where
         N: AsRef<[u8]>,
         K: AsRef<[u8]>,
@@ -61,7 +32,7 @@ impl Backend for FileBackend {
         f.write_all(data)
     }
 
-    fn read<N, K, V>(db: &Self::Db, namespace: N, key: K) -> Result<Option<V>, Self::Error>
+    pub fn read<N, K, V>(db: &Config, namespace: N, key: K) -> Result<Option<V>, Error>
     where
         N: AsRef<[u8]>,
         K: AsRef<[u8]>,
@@ -83,7 +54,7 @@ impl Backend for FileBackend {
         }
     }
 
-    fn delete<N, K>(db: &Self::Db, namespace: N, key: K) -> Result<(), Self::Error>
+    pub fn delete<N, K>(db: &Config, namespace: N, key: K) -> Result<(), Error>
     where
         N: AsRef<[u8]>,
         K: AsRef<[u8]>,
@@ -98,7 +69,7 @@ impl Backend for FileBackend {
         }
     }
 
-    fn dump<N, V>(db: &Self::Db, namespace: N) -> Result<Vec<V>, Self::Error>
+    pub fn dump<N, V>(db: &Config, namespace: N) -> Result<Vec<V>, Error>
     where
         N: AsRef<[u8]> + Copy,
         V: From<Vec<u8>>,
@@ -114,13 +85,11 @@ impl Backend for FileBackend {
                             .map(|r| r.unwrap())
                     })
                 })
-                .collect::<Result<Vec<V>, Self::Error>>(),
+                .collect::<Result<Vec<V>, Error>>(),
             Err(_) => Ok(Vec::new()),
         }
     }
-}
 
-impl FileBackend {
     fn namespace_path<N>(db: &Config, namespace: N) -> String
     where
         N: AsRef<[u8]>,

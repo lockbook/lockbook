@@ -4,11 +4,11 @@ use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo::{DbError, FileMetadataRepo};
 use crate::service::file_service::{FileService, ReadDocumentError};
-use crate::storage::db_provider::Backend;
 use lockbook_models::api;
 use lockbook_models::api::{GetUsageRequest, GetUsageResponse};
 use lockbook_models::file_metadata::FileType::Document;
 
+use crate::model::state::Config;
 use std::convert::TryInto;
 use std::num::TryFromIntError;
 use uuid::Uuid;
@@ -25,21 +25,21 @@ pub const GIGABYTE_PLUS_ONE: u64 = GIGABYTE + 1;
 pub const TERABYTE_PLUS_ONE: u64 = TERABYTE + 1;
 
 #[derive(Debug)]
-pub enum GetUsageError<MyBackend: Backend> {
-    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
+pub enum GetUsageError {
+    AccountRetrievalError(account_repo::AccountRepoError),
     ApiError(client::ApiError<api::GetUsageError>),
 }
 
 #[derive(Debug)]
-pub enum UncompressedError<MyBackend: Backend> {
-    FileMetadataDb(DbError<MyBackend>),
-    FilesError(ReadDocumentError<MyBackend>),
+pub enum UncompressedError {
+    FileMetadataDb(DbError),
+    FilesError(ReadDocumentError),
 }
 
 #[derive(Debug)]
-pub enum LocalAndServerUsageError<MyBackend: Backend> {
-    GetUsageError(GetUsageError<MyBackend>),
-    CalcUncompressedError(UncompressedError<MyBackend>),
+pub enum LocalAndServerUsageError {
+    GetUsageError(GetUsageError),
+    CalcUncompressedError(UncompressedError),
     UncompressedNumberTooLarge(TryFromIntError),
 }
 
@@ -49,44 +49,36 @@ pub struct LocalAndServerUsages {
     pub data_cap: String,
 }
 
-pub trait UsageService<MyBackend: Backend> {
+pub trait UsageService {
     fn bytes_to_human(size: u64) -> String;
-    fn server_usage(backend: &MyBackend::Db) -> Result<GetUsageResponse, GetUsageError<MyBackend>>;
-    fn get_usage_human_string(
-        backend: &MyBackend::Db,
-        exact: bool,
-    ) -> Result<String, GetUsageError<MyBackend>>;
-    fn get_uncompressed_usage(
-        backend: &MyBackend::Db,
-    ) -> Result<usize, UncompressedError<MyBackend>>;
+    fn server_usage(config: &Config) -> Result<GetUsageResponse, GetUsageError>;
+    fn get_usage_human_string(config: &Config, exact: bool) -> Result<String, GetUsageError>;
+    fn get_uncompressed_usage(config: &Config) -> Result<usize, UncompressedError>;
     fn local_and_server_usages(
-        backend: &MyBackend::Db,
+        config: &Config,
         exact: bool,
-    ) -> Result<LocalAndServerUsages, LocalAndServerUsageError<MyBackend>>;
+    ) -> Result<LocalAndServerUsages, LocalAndServerUsageError>;
 }
 
 pub struct UsageServiceImpl<
-    MyBackend: Backend,
-    FileMetadataDb: FileMetadataRepo<MyBackend>,
-    Files: FileService<MyBackend>,
-    AccountDb: AccountRepo<MyBackend>,
+    FileMetadataDb: FileMetadataRepo,
+    Files: FileService,
+    AccountDb: AccountRepo,
     ApiClient: Client,
 > {
     _accounts: AccountDb,
-    _backend: MyBackend,
+
     _client: ApiClient,
     _files: Files,
     _files_db: FileMetadataDb,
 }
 
 impl<
-        MyBackend: Backend,
-        FileMetadataDb: FileMetadataRepo<MyBackend>,
-        Files: FileService<MyBackend>,
-        AccountDb: AccountRepo<MyBackend>,
+        FileMetadataDb: FileMetadataRepo,
+        Files: FileService,
+        AccountDb: AccountRepo,
         ApiClient: Client,
-    > UsageService<MyBackend>
-    for UsageServiceImpl<MyBackend, FileMetadataDb, Files, AccountDb, ApiClient>
+    > UsageService for UsageServiceImpl<FileMetadataDb, Files, AccountDb, ApiClient>
 {
     fn bytes_to_human(size: u64) -> String {
         let (unit, abbr) = match size {
@@ -100,17 +92,14 @@ impl<
         format!("{:.3} {}B", size as f64 / unit as f64, abbr)
     }
 
-    fn server_usage(backend: &MyBackend::Db) -> Result<GetUsageResponse, GetUsageError<MyBackend>> {
-        let acc = AccountDb::get_account(backend).map_err(GetUsageError::AccountRetrievalError)?;
+    fn server_usage(config: &Config) -> Result<GetUsageResponse, GetUsageError> {
+        let acc = AccountDb::get_account(config).map_err(GetUsageError::AccountRetrievalError)?;
 
         ApiClient::request(&acc, GetUsageRequest {}).map_err(GetUsageError::ApiError)
     }
 
-    fn get_usage_human_string(
-        backend: &MyBackend::Db,
-        exact: bool,
-    ) -> Result<String, GetUsageError<MyBackend>> {
-        let usage = Self::server_usage(backend)?.sum_server_usage();
+    fn get_usage_human_string(config: &Config, exact: bool) -> Result<String, GetUsageError> {
+        let usage = Self::server_usage(config)?.sum_server_usage();
 
         if exact {
             Ok(format!("{} B", usage))
@@ -119,10 +108,8 @@ impl<
         }
     }
 
-    fn get_uncompressed_usage(
-        backend: &MyBackend::Db,
-    ) -> Result<usize, UncompressedError<MyBackend>> {
-        let doc_ids: Vec<Uuid> = FileMetadataDb::get_all(&backend)
+    fn get_uncompressed_usage(config: &Config) -> Result<usize, UncompressedError> {
+        let doc_ids: Vec<Uuid> = FileMetadataDb::get_all(&config)
             .map_err(UncompressedError::FileMetadataDb)?
             .into_iter()
             .filter(|f| f.file_type == Document)
@@ -131,7 +118,7 @@ impl<
 
         let mut size: usize = 0;
         for id in doc_ids {
-            size += Files::read_document(&backend, id)
+            size += Files::read_document(&config, id)
                 .map_err(UncompressedError::FilesError)?
                 .len()
         }
@@ -140,14 +127,14 @@ impl<
     }
 
     fn local_and_server_usages(
-        backend: &MyBackend::Db,
+        config: &Config,
         exact: bool,
-    ) -> Result<LocalAndServerUsages, LocalAndServerUsageError<MyBackend>> {
+    ) -> Result<LocalAndServerUsages, LocalAndServerUsageError> {
         let server_usage_and_cap =
-            Self::server_usage(&backend).map_err(LocalAndServerUsageError::GetUsageError)?;
+            Self::server_usage(&config).map_err(LocalAndServerUsageError::GetUsageError)?;
 
         let server_usage = server_usage_and_cap.sum_server_usage();
-        let local_usage = Self::get_uncompressed_usage(backend)
+        let local_usage = Self::get_uncompressed_usage(config)
             .map_err(LocalAndServerUsageError::CalcUncompressedError)?;
         let cap = server_usage_and_cap.cap;
 
@@ -193,25 +180,18 @@ mod unit_tests {
     const BYTES_MEDIUM: u64 = 1000000;
     const BYTES_LARGE: u64 = 1000000000;
 
-    struct MockAccountRepo<MyBackend: Backend> {
-        _backend: MyBackend,
-    }
+    struct MockAccountRepo {}
 
-    impl<MyBackend: Backend> AccountRepo<MyBackend> for MockAccountRepo<MyBackend> {
-        fn insert_account(
-            _backend: &MyBackend::Db,
-            _account: &Account,
-        ) -> Result<(), AccountRepoError<MyBackend>> {
+    impl AccountRepo for MockAccountRepo {
+        fn insert_account(_config: &Config, _account: &Account) -> Result<(), AccountRepoError> {
             unimplemented!()
         }
 
-        fn maybe_get_account(
-            _backend: &MyBackend::Db,
-        ) -> Result<Option<Account>, AccountRepoError<MyBackend>> {
+        fn maybe_get_account(_config: &Config) -> Result<Option<Account>, AccountRepoError> {
             unimplemented!()
         }
 
-        fn get_account(_backend: &MyBackend::Db) -> Result<Account, AccountRepoError<MyBackend>> {
+        fn get_account(_config: &Config) -> Result<Account, AccountRepoError> {
             Ok(Account {
                 username: "".to_string(),
                 api_url: "".to_string(),
@@ -219,7 +199,7 @@ mod unit_tests {
             })
         }
 
-        fn get_api_url(_backend: &MyBackend::Db) -> Result<ApiUrl, AccountRepoError<MyBackend>> {
+        fn get_api_url(_config: &Config) -> Result<ApiUrl, AccountRepoError> {
             unimplemented!()
         }
     }

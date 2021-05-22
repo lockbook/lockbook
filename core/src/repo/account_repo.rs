@@ -1,40 +1,31 @@
+use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepoError::NoAccount;
-use crate::storage::db_provider::Backend;
+use crate::storage::db_provider::FileBackend;
 use lockbook_models::account::{Account, ApiUrl};
 
 #[derive(Debug)]
-pub enum AccountRepoError<MyBackend: Backend> {
-    BackendError(MyBackend::Error),
+pub enum AccountRepoError {
+    BackendError(std::io::Error),
     SerdeError(serde_json::Error),
     NoAccount,
 }
 
-pub trait AccountRepo<MyBackend: Backend> {
-    fn insert_account(
-        backend: &MyBackend::Db,
-        account: &Account,
-    ) -> Result<(), AccountRepoError<MyBackend>>;
-    fn maybe_get_account(
-        backend: &MyBackend::Db,
-    ) -> Result<Option<Account>, AccountRepoError<MyBackend>>;
-    fn get_account(backend: &MyBackend::Db) -> Result<Account, AccountRepoError<MyBackend>>;
-    fn get_api_url(backend: &MyBackend::Db) -> Result<ApiUrl, AccountRepoError<MyBackend>>;
+pub trait AccountRepo {
+    fn insert_account(config: &Config, account: &Account) -> Result<(), AccountRepoError>;
+    fn maybe_get_account(config: &Config) -> Result<Option<Account>, AccountRepoError>;
+    fn get_account(config: &Config) -> Result<Account, AccountRepoError>;
+    fn get_api_url(config: &Config) -> Result<ApiUrl, AccountRepoError>;
 }
 
-pub struct AccountRepoImpl<MyBackend: Backend> {
-    _backend: MyBackend,
-}
+pub struct AccountRepoImpl;
 
 static ACCOUNT: &str = "account";
 static YOU: &str = "you";
 
-impl<MyBackend: Backend> AccountRepo<MyBackend> for AccountRepoImpl<MyBackend> {
-    fn insert_account(
-        backend: &MyBackend::Db,
-        account: &Account,
-    ) -> Result<(), AccountRepoError<MyBackend>> {
-        MyBackend::write(
-            backend,
+impl AccountRepo for AccountRepoImpl {
+    fn insert_account(config: &Config, account: &Account) -> Result<(), AccountRepoError> {
+        FileBackend::write(
+            config,
             ACCOUNT,
             YOU,
             serde_json::to_vec(account).map_err(AccountRepoError::SerdeError)?,
@@ -42,10 +33,8 @@ impl<MyBackend: Backend> AccountRepo<MyBackend> for AccountRepoImpl<MyBackend> {
         .map_err(AccountRepoError::BackendError)
     }
 
-    fn maybe_get_account(
-        backend: &MyBackend::Db,
-    ) -> Result<Option<Account>, AccountRepoError<MyBackend>> {
-        match Self::get_account(backend) {
+    fn maybe_get_account(config: &Config) -> Result<Option<Account>, AccountRepoError> {
+        match Self::get_account(config) {
             Ok(account) => Ok(Some(account)),
             Err(err) => match err {
                 AccountRepoError::NoAccount => Ok(None),
@@ -54,9 +43,9 @@ impl<MyBackend: Backend> AccountRepo<MyBackend> for AccountRepoImpl<MyBackend> {
         }
     }
 
-    fn get_account(backend: &MyBackend::Db) -> Result<Account, AccountRepoError<MyBackend>> {
+    fn get_account(config: &Config) -> Result<Account, AccountRepoError> {
         let maybe_value: Option<Vec<u8>> =
-            MyBackend::read(backend, ACCOUNT, YOU).map_err(AccountRepoError::BackendError)?;
+            FileBackend::read(config, ACCOUNT, YOU).map_err(AccountRepoError::BackendError)?;
         match maybe_value {
             None => Err(NoAccount),
             Some(account) => {
@@ -66,8 +55,8 @@ impl<MyBackend: Backend> AccountRepo<MyBackend> for AccountRepoImpl<MyBackend> {
         }
     }
 
-    fn get_api_url(backend: &MyBackend::Db) -> Result<ApiUrl, AccountRepoError<MyBackend>> {
-        Self::get_account(backend).map(|account| account.api_url)
+    fn get_api_url(config: &Config) -> Result<ApiUrl, AccountRepoError> {
+        Self::get_account(config).map(|account| account.api_url)
     }
 }
 
@@ -81,7 +70,7 @@ mod unit_tests {
     use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl};
     use lockbook_models::account::Account;
 
-    type DefaultAccountRepo = AccountRepoImpl<FileBackend>;
+    type DefaultAccountRepo = AccountRepoImpl;
 
     #[test]
     fn insert_account() {
@@ -92,13 +81,13 @@ mod unit_tests {
         };
 
         let config = temp_config();
-        let backend = FileBackend::connect_to_db(&config).unwrap();
-        let res = DefaultAccountRepo::get_account(&backend);
+        let config = FileBackend::connect_to_db(&config).unwrap();
+        let res = DefaultAccountRepo::get_account(&config);
         assert!(res.is_err());
 
-        DefaultAccountRepo::insert_account(&backend, &test_account).unwrap();
+        DefaultAccountRepo::insert_account(&config, &test_account).unwrap();
 
-        let db_account = DefaultAccountRepo::get_account(&backend).unwrap();
+        let db_account = DefaultAccountRepo::get_account(&config).unwrap();
         assert_eq!(test_account, db_account);
     }
 }

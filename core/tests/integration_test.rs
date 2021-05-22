@@ -6,7 +6,7 @@ use lockbook_core::repo::db_version_repo::DbVersionRepo;
 use lockbook_core::repo::document_repo::DocumentRepo;
 use lockbook_core::repo::file_metadata_repo::{FileMetadataRepo, FILE_METADATA};
 use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
-use lockbook_core::storage::db_provider::Backend;
+use lockbook_core::storage::db_provider::FileBackend;
 use lockbook_core::{
     DefaultAccountRepo, DefaultBackend, DefaultDbVersionRepo, DefaultDocumentRepo,
     DefaultFileMetadataRepo, DefaultLocalChangesRepo,

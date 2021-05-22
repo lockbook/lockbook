@@ -27,22 +27,22 @@ pub fn bench_throughput(c: &mut Criterion) {
         writeable_path: format!("/tmp/throughput{}", random_string()),
     };
 
-    let backend = &Backend::File(cfg_file);
+    let config = &Backend::File(cfg_file);
 
     let mut group = c.benchmark_group("Throughput");
 
-    let backend_string = "File";
+    let config_string = "File";
 
     let _ = DefaultAccountService::create_account(
-        backend,
+        config,
         format!("throughput{}", random_string()).as_str(),
         env::var("API_URL")
             .expect("API_URL must be defined!")
             .as_str(),
     )
     .unwrap();
-    let _ = DefaultSyncService::sync(backend, None).unwrap();
-    let root = DefaultFileMetadataRepo::get_root(backend).unwrap().unwrap();
+    let _ = DefaultSyncService::sync(config, None).unwrap();
+    let root = DefaultFileMetadataRepo::get_root(config).unwrap().unwrap();
 
     for x in vec![1, 1000, 10000, 100000, 1000000] {
         let bytes = rand::thread_rng()
@@ -53,28 +53,28 @@ pub fn bench_throughput(c: &mut Criterion) {
 
         // File to be used in benchmark
         let file =
-            DefaultFileService::create(backend, &Uuid::new_v4().to_string(), root.id, Document)
+            DefaultFileService::create(config, &Uuid::new_v4().to_string(), root.id, Document)
                 .unwrap();
 
         group.throughput(Throughput::Bytes(bytes.len() as u64));
         group.bench_with_input(
-            BenchmarkId::new(format!("{}-Write", backend_string), bytes.len()),
+            BenchmarkId::new(format!("{}-Write", config_string), bytes.len()),
             &bytes,
             |b, _| {
                 b.iter(|| {
-                    let _ = DefaultFileService::write_document(backend, file.id, &bytes.clone())
+                    let _ = DefaultFileService::write_document(config, file.id, &bytes.clone())
                         .unwrap();
                 });
             },
         );
 
         group.bench_with_input(
-            BenchmarkId::new(format!("{}-Read", backend_string), bytes.len()),
+            BenchmarkId::new(format!("{}-Read", config_string), bytes.len()),
             &bytes,
             |b, _| {
-                DefaultFileService::write_document(backend, file.id, &bytes.clone()).unwrap();
+                DefaultFileService::write_document(config, file.id, &bytes.clone()).unwrap();
                 b.iter(|| {
-                    let _ = DefaultFileService::read_document(backend, file.id).unwrap();
+                    let _ = DefaultFileService::read_document(config, file.id).unwrap();
                 });
             },
         );

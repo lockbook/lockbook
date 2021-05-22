@@ -1,11 +1,11 @@
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::file_service::{DocumentUpdateError, FileService, ReadDocumentError};
-use crate::storage::db_provider::Backend;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::farbfeld::FarbfeldEncoder;
 
+use crate::model::state::Config;
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
@@ -27,10 +27,10 @@ pub enum SupportedImageFormats {
 }
 
 #[derive(Debug)]
-pub enum DrawingError<MyBackend: Backend> {
+pub enum DrawingError {
     InvalidDrawingError(serde_json::error::Error),
-    FailedToSaveDrawing(DocumentUpdateError<MyBackend>),
-    FailedToRetrieveDrawing(ReadDocumentError<MyBackend>),
+    FailedToSaveDrawing(DocumentUpdateError),
+    FailedToRetrieveDrawing(ReadDocumentError),
     FailedToEncodeImage(ImageError),
     UnequalPointsAndGirthMetrics,
     UnableToGetColorFromAlias,
@@ -45,58 +45,41 @@ macro_rules! hashmap {
     }}
 }
 
-pub trait DrawingService<
-    MyBackend: Backend,
-    MyFileService: FileService<MyBackend>,
-    FileMetadataDb: FileMetadataRepo<MyBackend>,
->
-{
+pub trait DrawingService<MyFileService: FileService, FileMetadataDb: FileMetadataRepo> {
     fn save_drawing(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
         serialized_drawing: &[u8],
-    ) -> Result<(), DrawingError<MyBackend>>;
-    fn get_drawing(backend: &MyBackend::Db, id: Uuid) -> Result<Drawing, DrawingError<MyBackend>>;
+    ) -> Result<(), DrawingError>;
+    fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, DrawingError>;
     fn export_drawing(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
         format: SupportedImageFormats,
-    ) -> Result<Vec<u8>, DrawingError<MyBackend>>;
+    ) -> Result<Vec<u8>, DrawingError>;
 }
 
-pub struct DrawingServiceImpl<
-    MyBackend: Backend,
-    MyFileService: FileService<MyBackend>,
-    FileMetadataDb: FileMetadataRepo<MyBackend>,
-> {
-    _backend: MyBackend,
+pub struct DrawingServiceImpl<MyFileService: FileService, FileMetadataDb: FileMetadataRepo> {
     _file_service: MyFileService,
     _file_metadata_db: FileMetadataDb,
 }
 
-impl<
-        MyBackend: Backend,
-        MyFileService: FileService<MyBackend>,
-        FileMetadataDb: FileMetadataRepo<MyBackend>,
-    > DrawingService<MyBackend, MyFileService, FileMetadataDb>
-    for DrawingServiceImpl<MyBackend, MyFileService, FileMetadataDb>
+impl<MyFileService: FileService, FileMetadataDb: FileMetadataRepo>
+    DrawingService<MyFileService, FileMetadataDb>
+    for DrawingServiceImpl<MyFileService, FileMetadataDb>
 {
-    fn save_drawing(
-        backend: &MyBackend::Db,
-        id: Uuid,
-        drawing_bytes: &[u8],
-    ) -> Result<(), DrawingError<MyBackend>> {
+    fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), DrawingError> {
         let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
         serde_json::from_str::<Drawing>(drawing_string.as_str()) // validating json
             .map_err(DrawingError::InvalidDrawingError)?;
 
-        MyFileService::write_document(backend, id, drawing_bytes)
+        MyFileService::write_document(config, id, drawing_bytes)
             .map_err(DrawingError::FailedToSaveDrawing)
     }
 
-    fn get_drawing(backend: &MyBackend::Db, id: Uuid) -> Result<Drawing, DrawingError<MyBackend>> {
-        let drawing_bytes = MyFileService::read_document(backend, id)
+    fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, DrawingError> {
+        let drawing_bytes = MyFileService::read_document(config, id)
             .map_err(DrawingError::FailedToRetrieveDrawing)?;
 
         let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
@@ -106,11 +89,11 @@ impl<
     }
 
     fn export_drawing(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
         format: SupportedImageFormats,
-    ) -> Result<Vec<u8>, DrawingError<MyBackend>> {
-        let drawing = Self::get_drawing(backend, id)?;
+    ) -> Result<Vec<u8>, DrawingError> {
+        let drawing = Self::get_drawing(config, id)?;
 
         let theme = drawing.theme.unwrap_or_else(|| {
             hashmap![
@@ -257,11 +240,8 @@ impl<
     }
 }
 
-impl<
-        MyBackend: Backend,
-        MyFileService: FileService<MyBackend>,
-        FileMetadataDb: FileMetadataRepo<MyBackend>,
-    > DrawingServiceImpl<MyBackend, MyFileService, FileMetadataDb>
+impl<MyFileService: FileService, FileMetadataDb: FileMetadataRepo>
+    DrawingServiceImpl<MyFileService, FileMetadataDb>
 {
     fn u32_byte_to_u8_bytes(u32_byte: u32) -> (u8, u8, u8, u8) {
         let mut byte_1 = (u32_byte >> 16) & 0xffu32;
@@ -327,7 +307,7 @@ mod unit_tests {
     };
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::storage::db_provider::Backend;
+    use crate::storage::db_provider::FileBackend;
     use crate::{
         DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
         DefaultFileMetadataRepo, DefaultFileService,
@@ -385,7 +365,7 @@ mod unit_tests {
     #[test]
     fn test_create_png_sanity_check() {
         let db = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
+        let config = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let keys = DefaultCrypto::generate_key().unwrap();
         let account = Account {
@@ -394,12 +374,12 @@ mod unit_tests {
             private_key: keys,
         };
 
-        DefaultAccountRepo::insert_account(backend, &account).unwrap();
+        DefaultAccountRepo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(backend, &root).unwrap();
+        DefaultFileMetadataRepo::insert(config, &root).unwrap();
 
-        let folder = DefaultFileService::create(backend, "folder", root.id, Folder).unwrap();
-        let document = DefaultFileService::create(backend, "doc", folder.id, Document).unwrap();
+        let folder = DefaultFileService::create(config, "folder", root.id, Folder).unwrap();
+        let document = DefaultFileService::create(config, "doc", folder.id, Document).unwrap();
 
         let drawing = Drawing {
             scale: 0.0,
@@ -416,19 +396,19 @@ mod unit_tests {
         };
 
         DefaultFileService::write_document(
-            backend,
+            config,
             document.id,
             serde_json::to_string(&drawing).unwrap().as_bytes(),
         )
         .unwrap();
 
-        DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::export_drawing(backend, document.id, SupportedImageFormats::Png).unwrap();
+        DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::export_drawing(config, document.id, SupportedImageFormats::Png).unwrap();
     }
 
     #[test]
     fn test_create_png_unequal_points_data_sanity_check() {
         let db = &temp_config();
-        let backend = &DefaultBackend::connect_to_db(&db).unwrap();
+        let config = &DefaultBackend::connect_to_db(&db).unwrap();
 
         let keys = DefaultCrypto::generate_key().unwrap();
         let account = Account {
@@ -437,12 +417,12 @@ mod unit_tests {
             private_key: keys,
         };
 
-        DefaultAccountRepo::insert_account(backend, &account).unwrap();
+        DefaultAccountRepo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(backend, &root).unwrap();
+        DefaultFileMetadataRepo::insert(config, &root).unwrap();
 
-        let folder = DefaultFileService::create(backend, "folder", root.id, Folder).unwrap();
-        let document = DefaultFileService::create(backend, "doc", folder.id, Document).unwrap();
+        let folder = DefaultFileService::create(config, "folder", root.id, Folder).unwrap();
+        let document = DefaultFileService::create(config, "doc", folder.id, Document).unwrap();
 
         let drawing = Drawing {
             scale: 0.0,
@@ -459,12 +439,12 @@ mod unit_tests {
         };
 
         DefaultFileService::write_document(
-            backend,
+            config,
             document.id,
             serde_json::to_string(&drawing).unwrap().as_bytes(),
         )
         .unwrap();
 
-        DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::export_drawing(backend, document.id, SupportedImageFormats::Png).unwrap_err();
+        DrawingServiceImpl::<DefaultBackend, DefaultFileService, DefaultFileMetadataRepo>::export_drawing(config, document.id, SupportedImageFormats::Png).unwrap_err();
     }
 }

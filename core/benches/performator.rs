@@ -34,18 +34,18 @@ pub fn bench_performator(c: &mut Criterion) {
         writeable_path: format!("/tmp/perf-{}", Uuid::new_v4().to_string()),
     };
 
-    let backend = FileBackend::connect_to_db(config);
+    let config = FileBackend::connect_to_db(config);
 
     let _ = DefaultAccountService::create_account(
-        backend,
+        config,
         "performator",
         env::var("API_URL")
             .expect("API_URL must be defined!")
             .as_str(),
     )
     .unwrap();
-    let _ = DefaultSyncService::sync(backend, None).unwrap();
-    let root = DefaultFileMetadataRepo::get_root(backend).unwrap().unwrap();
+    let _ = DefaultSyncService::sync(config, None).unwrap();
+    let root = DefaultFileMetadataRepo::get_root(config).unwrap().unwrap();
 
     let mut group = c.benchmark_group("simple");
 
@@ -59,12 +59,12 @@ pub fn bench_performator(c: &mut Criterion) {
     group.bench_function("create_write_read", |b| {
         b.iter(|| {
             let file =
-                DefaultFileService::create(backend, &Uuid::new_v4().to_string(), root.id, Document)
+                DefaultFileService::create(config, &Uuid::new_v4().to_string(), root.id, Document)
                     .unwrap();
 
-            let _ = DefaultFileService::write_document(backend, file.id, &bytes.clone()).unwrap();
+            let _ = DefaultFileService::write_document(config, file.id, &bytes.clone()).unwrap();
 
-            let _ = DefaultFileService::read_document(backend, file.id).unwrap();
+            let _ = DefaultFileService::read_document(config, file.id).unwrap();
         });
     });
 
