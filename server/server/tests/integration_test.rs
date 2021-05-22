@@ -1,15 +1,10 @@
 #![allow(dead_code)]
 
 use lockbook_core::model::state::Config;
-use lockbook_core::storage::db_provider::Backend;
 use lockbook_core::DefaultBackend;
 
 use std::env;
 use uuid::Uuid;
-
-pub fn test_db() -> <DefaultBackend as Backend>::Db {
-    <DefaultBackend as Backend>::connect_to_db(&test_config()).unwrap()
-}
 
 pub fn test_config() -> Config {
     Config {
