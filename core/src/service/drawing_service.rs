@@ -308,8 +308,8 @@ mod unit_tests {
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
     use crate::{
-        DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
-        DefaultFileMetadataRepo, DefaultFileService,
+        DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
+        DefaultFileService,
     };
     use lockbook_crypto::crypto_service::PubKeyCryptoService;
     use lockbook_models::account::Account;
@@ -378,8 +378,7 @@ mod unit_tests {
 
     #[test]
     fn test_create_png_sanity_check() {
-        let db = &temp_config();
-        let config = &DefaultBackend::connect_to_db(&db).unwrap();
+        let config = &temp_config();
 
         let keys = DefaultCrypto::generate_key().unwrap();
         let account = Account {
@@ -426,8 +425,7 @@ mod unit_tests {
 
     #[test]
     fn test_create_png_unequal_points_data_sanity_check() {
-        let db = &temp_config();
-        let config = &DefaultBackend::connect_to_db(&db).unwrap();
+        let config = &temp_config();
 
         let keys = DefaultCrypto::generate_key().unwrap();
         let account = Account {

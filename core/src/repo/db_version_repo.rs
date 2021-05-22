@@ -46,12 +46,11 @@ impl DbVersionRepo for DbVersionRepoImpl {
 #[cfg(test)]
 mod unit_tests {
     use crate::repo::db_version_repo::DbVersionRepo;
-    use crate::{model::state::temp_config, DefaultBackend, DefaultDbVersionRepo};
+    use crate::{model::state::temp_config, DefaultDbVersionRepo};
 
     #[test]
     fn db_version_sanity_check() {
-        let cfg = &temp_config();
-        let config = DefaultBackend::connect_to_db(&cfg).unwrap();
+        let config = temp_config();
 
         assert!(DefaultDbVersionRepo::get(&config).unwrap().is_none());
         DefaultDbVersionRepo::set(&config, "version 1").unwrap();

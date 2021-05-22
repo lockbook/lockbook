@@ -546,8 +546,8 @@ mod unit_tests {
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
     use crate::{
-        DefaultAccountRepo, DefaultBackend, DefaultCrypto, DefaultFileEncryptionService,
-        DefaultFileMetadataRepo, DefaultFileService,
+        DefaultAccountRepo, DefaultCrypto, DefaultFileEncryptionService, DefaultFileMetadataRepo,
+        DefaultFileService,
     };
     use lockbook_crypto::crypto_service::PubKeyCryptoService;
     use lockbook_models::account::Account;
@@ -605,8 +605,7 @@ mod unit_tests {
 
     #[test]
     fn insert_file_metadata() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let root = insert_test_metadata_root(config, "root_folder");
         let test_file = insert_test_metadata(config, FileType::Document, root.id, "test.txt");
@@ -625,8 +624,7 @@ mod unit_tests {
 
     #[test]
     fn update_file_metadata() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let id = Uuid::new_v4();
         let parent = Uuid::new_v4();
@@ -662,8 +660,7 @@ mod unit_tests {
 
     #[test]
     fn test_searches() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let root = insert_test_metadata_root(config, "root_folder1");
         let _ = insert_test_metadata(config, FileType::Document, root.id, "test.txt");
@@ -686,8 +683,7 @@ mod unit_tests {
 
     #[test]
     fn test_integrity_no_problems() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let _ = insert_test_metadata_root(config, "rootdir");
 
@@ -697,8 +693,7 @@ mod unit_tests {
 
     #[test]
     fn test_no_root() {
-        let cfg = &temp_config();
-        let config = DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = temp_config();
 
         let probs = DefaultFileMetadataRepo::test_repo_integrity(&config).unwrap();
         assert_eq!(probs.len(), 1);
@@ -707,8 +702,7 @@ mod unit_tests {
 
     #[test]
     fn test_orphaned_children() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let keys = DefaultCrypto::generate_key().unwrap();
 
@@ -746,8 +740,7 @@ mod unit_tests {
 
     #[test]
     fn test_files_invalid_names() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let root = insert_test_metadata_root(config, "rootdir");
         let has_slash = insert_test_metadata(config, FileType::Document, root.id, "uh/oh");
@@ -761,8 +754,7 @@ mod unit_tests {
 
     #[test]
     fn test_cycle_detection() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let _ = insert_test_metadata_root(config, "rootdir");
         let folder1 = Uuid::new_v4();
@@ -804,8 +796,7 @@ mod unit_tests {
 
     #[test]
     fn test_name_conflicts() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let root = insert_test_metadata_root(config, "uhoh");
         let doc1 = insert_test_metadata(config, FileType::Document, root.id, "a");
@@ -820,8 +811,7 @@ mod unit_tests {
 
     #[test]
     fn test_document_treated_as_folder() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let root = insert_test_metadata_root(config, "uhoh");
         let doc = insert_test_metadata(config, FileType::Document, root.id, "a");
@@ -834,8 +824,7 @@ mod unit_tests {
 
     #[test]
     fn test_get_children_handle_empty_root() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
         let root = insert_test_metadata_root(config, "root");
         let children_of_root =
             DefaultFileMetadataRepo::get_and_get_children_recursively(config, root.id).unwrap();
@@ -844,8 +833,7 @@ mod unit_tests {
 
     #[test]
     fn test_get_children() {
-        let cfg = &temp_config();
-        let config = &DefaultBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let root = insert_test_metadata_root(config, "root");
 

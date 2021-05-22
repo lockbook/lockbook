@@ -10,24 +10,22 @@ mod db_state_service_tests {
         Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
     };
     use lockbook_core::{
-        create_account, get_db_state, DefaultBackend, DefaultDbStateService, DefaultDbVersionRepo,
+        create_account, get_db_state, DefaultDbStateService, DefaultDbVersionRepo,
     };
 
     #[test]
     fn initial_state() {
-        let cfg = test_config();
+        let config = test_config();
         let generated_account = generate_account();
-        assert_eq!(get_db_state(&cfg).unwrap(), Empty);
-        assert_eq!(get_db_state(&cfg).unwrap(), Empty);
+        assert_eq!(get_db_state(&config).unwrap(), Empty);
+        assert_eq!(get_db_state(&config).unwrap(), Empty);
         create_account(
-            &cfg,
+            &config,
             &generated_account.username,
             &generated_account.api_url,
         )
         .unwrap();
-        assert_eq!(get_db_state(&cfg).unwrap(), ReadyToUse);
-
-        let config = DefaultBackend::connect_to_db(&cfg).unwrap();
+        assert_eq!(get_db_state(&config).unwrap(), ReadyToUse);
 
         DefaultDbVersionRepo::set(&config, "0.1.0").unwrap();
         assert_ne!(
