@@ -1,5 +1,4 @@
 use crate::model::state::Config;
-use crate::DB_NAME;
 use std::fmt::Debug;
 use std::fs::{create_dir_all, read_dir, remove_file, File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
@@ -30,61 +29,6 @@ pub trait Backend: Debug {
     where
         N: AsRef<[u8]> + Copy,
         V: From<Vec<u8>>;
-}
-
-#[derive(Debug)]
-pub struct SledBackend;
-
-impl Backend for SledBackend {
-    type Db = sled::Db;
-    type Error = sled::Error;
-
-    fn connect_to_db(config: &Config) -> Result<Self::Db, Self::Error> {
-        let db_path = format!("{}/{}", &config.writeable_path, DB_NAME.to_string());
-        debug!("DB Location: {}", db_path);
-        sled::open(db_path.as_str())
-    }
-
-    fn write<N, K, V>(db: &Self::Db, namespace: N, key: K, value: V) -> Result<(), Self::Error>
-    where
-        N: AsRef<[u8]>,
-        K: AsRef<[u8]>,
-        V: Into<Vec<u8>>,
-    {
-        db.open_tree(namespace)?
-            .insert(key, value.into())
-            .map(|_| ())
-    }
-
-    fn read<N, K, V>(db: &Self::Db, namespace: N, key: K) -> Result<Option<V>, Self::Error>
-    where
-        N: AsRef<[u8]>,
-        K: AsRef<[u8]>,
-        V: From<Vec<u8>>,
-    {
-        db.open_tree(namespace)?
-            .get(key)
-            .map(|v| v.map(|d| From::from(d.to_vec())))
-    }
-
-    fn delete<N, K>(db: &Self::Db, namespace: N, key: K) -> Result<(), Self::Error>
-    where
-        N: AsRef<[u8]>,
-        K: AsRef<[u8]>,
-    {
-        db.open_tree(namespace)?.remove(key).map(|_| ())
-    }
-
-    fn dump<N, V>(db: &Self::Db, namespace: N) -> Result<Vec<V>, Self::Error>
-    where
-        N: AsRef<[u8]> + Copy,
-        V: From<Vec<u8>>,
-    {
-        db.open_tree(namespace)?
-            .iter()
-            .map(|s| s.map(|v| From::from(v.1.to_vec())))
-            .collect()
-    }
 }
 
 #[derive(Debug)]

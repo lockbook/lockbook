@@ -48,7 +48,7 @@ use crate::service::usage_service::{
 };
 use crate::service::{db_state_service, file_service, usage_service};
 #[allow(unused_imports)] // For one touch backend switching, allow one of these to be unused
-use crate::storage::db_provider::{Backend, FileBackend, SledBackend};
+use crate::storage::db_provider::{Backend, FileBackend};
 use lockbook_crypto::clock_service::{Clock, ClockImpl};
 use lockbook_crypto::crypto_service::{AESImpl, RSAImpl};
 use lockbook_models::account::Account;
@@ -1098,7 +1098,6 @@ pub mod storage;
 
 pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
-static DB_NAME: &str = "lockbook.sled";
 static LOG_FILE: &str = "lockbook.log";
 
 pub type DefaultClock = ClockImpl;
