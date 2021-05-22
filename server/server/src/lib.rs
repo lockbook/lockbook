@@ -11,6 +11,7 @@ use rsa::RSAPublicKey;
 #[macro_use]
 extern crate log;
 
+#[derive(Clone)]
 pub struct ServerState {
     pub config: config::Config,
     pub index_db_client: sqlx::PgPool,
