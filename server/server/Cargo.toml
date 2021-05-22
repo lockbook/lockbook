@@ -32,3 +32,6 @@ uuid = { version = "0.8.1", features = ["v4", "serde"] }
 [dev-dependencies]
 lockbook-core = { path = "../../core" }
 tokio-test = "0.4.1"
+num_cpus = "1.13.0"
+atomic-counter = "1.0.1"
+indicatif = "0.16.0"
