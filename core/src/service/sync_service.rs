@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::client;
 use crate::client::{ApiError, Client};
+use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
@@ -24,7 +25,6 @@ use crate::service::sync_service::WorkExecutionError::{
     SaveDocumentError, WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
-use crate::storage::db_provider::Backend;
 use lockbook_crypto::crypto_service::RSASignError;
 use lockbook_models::account::Account;
 use lockbook_models::api;
@@ -43,19 +43,19 @@ use lockbook_models::work_unit::WorkUnit;
 use lockbook_models::work_unit::WorkUnit::{LocalChange, ServerChange};
 
 #[derive(Debug)]
-pub enum CalculateWorkError<MyBackend: Backend> {
-    LocalChangesRepoError(local_changes_repo::DbError<MyBackend>),
-    MetadataRepoError(file_metadata_repo::GetError<MyBackend>),
-    GetMetadataError(file_metadata_repo::DbError<MyBackend>),
-    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
+pub enum CalculateWorkError {
+    LocalChangesRepoError(local_changes_repo::DbError),
+    MetadataRepoError(file_metadata_repo::GetError),
+    GetMetadataError(file_metadata_repo::DbError),
+    AccountRetrievalError(account_repo::AccountRepoError),
     GetUpdatesError(client::ApiError<api::GetUpdatesError>),
 }
 
 // TODO standardize enum variant notation within core
 #[derive(Debug)]
-pub enum WorkExecutionError<MyBackend: Backend> {
-    MetadataRepoError(file_metadata_repo::DbError<MyBackend>),
-    MetadataRepoErrorOpt(file_metadata_repo::GetError<MyBackend>),
+pub enum WorkExecutionError {
+    MetadataRepoError(file_metadata_repo::DbError),
+    MetadataRepoErrorOpt(file_metadata_repo::GetError),
     DocumentGetError(GetDocumentError),
     DocumentRenameError(RenameDocumentError),
     FolderRenameError(RenameFolderError),
@@ -67,20 +67,20 @@ pub enum WorkExecutionError<MyBackend: Backend> {
     DocumentDeleteError(DeleteDocumentError),
     FolderDeleteError(DeleteFolderError),
     RecursiveDeleteError(Vec<String>),
-    LocalFolderDeleteError(file_service::DeleteFolderError<MyBackend>),
-    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed<MyBackend>),
-    SaveDocumentError(document_repo::Error<MyBackend>),
+    LocalFolderDeleteError(file_service::DeleteFolderError),
+    FindingChildrenFailed(file_metadata_repo::FindingChildrenFailed),
+    SaveDocumentError(document_repo::Error),
     // Delete uses this and it shouldn't
     // TODO make more general
-    LocalChangesRepoError(local_changes_repo::DbError<MyBackend>),
-    AutoRenameError(file_service::DocumentRenameError<MyBackend>),
-    ResolveConflictByCreatingNewFileError(file_service::NewFileError<MyBackend>),
+    LocalChangesRepoError(local_changes_repo::DbError),
+    AutoRenameError(file_service::DocumentRenameError),
+    ResolveConflictByCreatingNewFileError(file_service::NewFileError),
     DecryptingOldVersionForMergeError(file_encryption_service::UnableToReadFileAsUser),
     DecompressingForMergeError(std::io::Error),
-    ReadingCurrentVersionError(file_service::ReadDocumentError<MyBackend>),
-    WritingMergedFileError(file_service::DocumentUpdateError<MyBackend>),
-    FindingParentsForConflictingFileError(file_metadata_repo::FindingParentsFailed<MyBackend>),
-    ErrorCreatingRecoveryFile(NewFileFromPathError<MyBackend>),
+    ReadingCurrentVersionError(file_service::ReadDocumentError),
+    WritingMergedFileError(file_service::DocumentUpdateError),
+    FindingParentsForConflictingFileError(file_metadata_repo::FindingParentsFailed),
+    ErrorCreatingRecoveryFile(NewFileFromPathError),
     ErrorCalculatingCurrentTime(SystemTimeError),
     ClientUpdateRequired,
     InvalidAuth,
@@ -95,26 +95,21 @@ pub enum WorkExecutionError<MyBackend: Backend> {
 }
 
 #[derive(Debug)]
-pub enum SyncError<MyBackend: Backend> {
-    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
-    CalculateWorkError(CalculateWorkError<MyBackend>),
-    WorkExecutionError(HashMap<Uuid, WorkExecutionError<MyBackend>>),
-    MetadataUpdateError(file_metadata_repo::DbError<MyBackend>),
+pub enum SyncError {
+    AccountRetrievalError(account_repo::AccountRepoError),
+    CalculateWorkError(CalculateWorkError),
+    WorkExecutionError(HashMap<Uuid, WorkExecutionError>),
+    MetadataUpdateError(file_metadata_repo::DbError),
 }
 
-pub trait SyncService<MyBackend: Backend> {
-    fn calculate_work(
-        backend: &MyBackend::Db,
-    ) -> Result<WorkCalculated, CalculateWorkError<MyBackend>>;
+pub trait SyncService {
+    fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError>;
     fn execute_work(
-        backend: &MyBackend::Db,
+        config: &Config,
         account: &Account,
         work: WorkUnit,
-    ) -> Result<(), WorkExecutionError<MyBackend>>;
-    fn sync(
-        backend: &MyBackend::Db,
-        f: Option<Box<dyn Fn(SyncProgress)>>,
-    ) -> Result<(), SyncError<MyBackend>>;
+    ) -> Result<(), WorkExecutionError>;
+    fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), SyncError>;
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -130,15 +125,14 @@ pub struct SyncProgress {
 }
 
 pub struct FileSyncService<
-    FileMetadataDb: FileMetadataRepo<MyBackend>,
-    ChangeDb: LocalChangesRepo<MyBackend>,
-    DocsDb: DocumentRepo<MyBackend>,
-    AccountDb: AccountRepo<MyBackend>,
+    FileMetadataDb: FileMetadataRepo,
+    ChangeDb: LocalChangesRepo,
+    DocsDb: DocumentRepo,
+    AccountDb: AccountRepo,
     ApiClient: Client,
-    Files: FileService<MyBackend>,
+    Files: FileService,
     FileCrypto: FileEncryptionService,
     FileCompression: FileCompressionService,
-    MyBackend: Backend,
 > {
     _metadatas: FileMetadataDb,
     _changes: ChangeDb,
@@ -148,20 +142,18 @@ pub struct FileSyncService<
     _file: Files,
     _file_crypto: FileCrypto,
     _file_compression: FileCompression,
-    _backend: MyBackend,
 }
 
 impl<
-        MyBackend: Backend,
-        FileMetadataDb: FileMetadataRepo<MyBackend>,
-        ChangeDb: LocalChangesRepo<MyBackend>,
-        DocsDb: DocumentRepo<MyBackend>,
-        AccountDb: AccountRepo<MyBackend>,
+        FileMetadataDb: FileMetadataRepo,
+        ChangeDb: LocalChangesRepo,
+        DocsDb: DocumentRepo,
+        AccountDb: AccountRepo,
         ApiClient: Client,
-        Files: FileService<MyBackend>,
+        Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > SyncService<MyBackend>
+    > SyncService
     for FileSyncService<
         FileMetadataDb,
         ChangeDb,
@@ -171,17 +163,14 @@ impl<
         Files,
         FileCrypto,
         FileCompression,
-        MyBackend,
     >
 {
-    fn calculate_work(
-        backend: &MyBackend::Db,
-    ) -> Result<WorkCalculated, CalculateWorkError<MyBackend>> {
+    fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
         let mut work_units: Vec<WorkUnit> = vec![];
 
-        let account = AccountDb::get_account(backend).map_err(AccountRetrievalError)?;
-        let last_sync = FileMetadataDb::get_last_updated(backend).map_err(GetMetadataError)?;
+        let account = AccountDb::get_account(config).map_err(AccountRetrievalError)?;
+        let last_sync = FileMetadataDb::get_last_updated(config).map_err(GetMetadataError)?;
 
         let server_updates = ApiClient::request(
             &account,
@@ -198,7 +187,7 @@ impl<
                 most_recent_update_from_server = metadata.metadata_version;
             }
 
-            match FileMetadataDb::maybe_get(backend, metadata.id).map_err(GetMetadataError)? {
+            match FileMetadataDb::maybe_get(config, metadata.id).map_err(GetMetadataError)? {
                 None => {
                     if !metadata.deleted {
                         // no work for files we don't have that have been deleted
@@ -219,11 +208,11 @@ impl<
                 .cmp(&f2.get_metadata().metadata_version)
         });
 
-        let changes = ChangeDb::get_all_local_changes(backend).map_err(LocalChangesRepoError)?;
+        let changes = ChangeDb::get_all_local_changes(config).map_err(LocalChangesRepoError)?;
 
         for change_description in changes {
             let metadata =
-                FileMetadataDb::get(backend, change_description.id).map_err(MetadataRepoError)?;
+                FileMetadataDb::get(config, change_description.id).map_err(MetadataRepoError)?;
 
             work_units.push(LocalChange { metadata });
         }
@@ -235,30 +224,27 @@ impl<
         })
     }
     fn execute_work(
-        backend: &MyBackend::Db,
+        config: &Config,
         account: &Account,
         work: WorkUnit,
-    ) -> Result<(), WorkExecutionError<MyBackend>> {
+    ) -> Result<(), WorkExecutionError> {
         match work {
             WorkUnit::LocalChange { mut metadata } => {
-                Self::handle_local_change(backend, &account, &mut metadata)
+                Self::handle_local_change(config, &account, &mut metadata)
             }
             WorkUnit::ServerChange { mut metadata } => {
-                Self::handle_server_change(backend, &account, &mut metadata)
+                Self::handle_server_change(config, &account, &mut metadata)
             }
         }
     }
 
-    fn sync(
-        backend: &MyBackend::Db,
-        f: Option<Box<dyn Fn(SyncProgress)>>,
-    ) -> Result<(), SyncError<MyBackend>> {
-        let account = AccountDb::get_account(backend).map_err(SyncError::AccountRetrievalError)?;
+    fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), SyncError> {
+        let account = AccountDb::get_account(config).map_err(SyncError::AccountRetrievalError)?;
 
-        let mut sync_errors: HashMap<Uuid, WorkExecutionError<MyBackend>> = HashMap::new();
+        let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
 
         let mut work_calculated =
-            Self::calculate_work(backend).map_err(SyncError::CalculateWorkError)?;
+            Self::calculate_work(config).map_err(SyncError::CalculateWorkError)?;
 
         // Retry sync n times
         for _ in 0..10 {
@@ -273,7 +259,7 @@ impl<
                     })
                 }
 
-                match Self::execute_work(backend, &account, work_unit.clone()) {
+                match Self::execute_work(config, &account, work_unit.clone()) {
                     Ok(_) => {
                         debug!("{:#?} executed successfully", work_unit);
                         sync_errors.remove(&work_unit.get_metadata().id);
@@ -287,14 +273,14 @@ impl<
 
             if sync_errors.is_empty() {
                 FileMetadataDb::set_last_synced(
-                    backend,
+                    config,
                     work_calculated.most_recent_update_from_server,
                 )
                 .map_err(SyncError::MetadataUpdateError)?;
             }
 
             work_calculated =
-                Self::calculate_work(backend).map_err(SyncError::CalculateWorkError)?;
+                Self::calculate_work(config).map_err(SyncError::CalculateWorkError)?;
 
             if work_calculated.work_units.is_empty() {
                 break;
@@ -302,11 +288,8 @@ impl<
         }
 
         if sync_errors.is_empty() {
-            FileMetadataDb::set_last_synced(
-                backend,
-                work_calculated.most_recent_update_from_server,
-            )
-            .map_err(SyncError::MetadataUpdateError)?;
+            FileMetadataDb::set_last_synced(config, work_calculated.most_recent_update_from_server)
+                .map_err(SyncError::MetadataUpdateError)?;
             Ok(())
         } else {
             error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
@@ -317,15 +300,14 @@ impl<
 
 /// Helper functions
 impl<
-        FileMetadataDb: FileMetadataRepo<MyBackend>,
-        ChangeDb: LocalChangesRepo<MyBackend>,
-        DocsDb: DocumentRepo<MyBackend>,
-        AccountDb: AccountRepo<MyBackend>,
+        FileMetadataDb: FileMetadataRepo,
+        ChangeDb: LocalChangesRepo,
+        DocsDb: DocumentRepo,
+        AccountDb: AccountRepo,
         ApiClient: Client,
-        Files: FileService<MyBackend>,
+        Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-        MyBackend: Backend,
     >
     FileSyncService<
         FileMetadataDb,
@@ -336,18 +318,17 @@ impl<
         Files,
         FileCrypto,
         FileCompression,
-        MyBackend,
     >
 {
     /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
     /// there are not going to be path conflicts. If there are, we find the file that is conflicting
     /// locally and rename it
     fn rename_local_conflicting_files(
-        backend: &MyBackend::Db,
+        config: &Config,
         metadata: &FileMetadata,
-    ) -> Result<(), WorkExecutionError<MyBackend>> {
+    ) -> Result<(), WorkExecutionError> {
         let conflicting_files =
-            FileMetadataDb::get_children_non_recursively(backend, metadata.parent)
+            FileMetadataDb::get_children_non_recursively(config, metadata.parent)
                 .map_err(WorkExecutionError::MetadataRepoError)?
                 .into_iter()
                 .filter(|potential_conflict| potential_conflict.name == metadata.name)
@@ -357,7 +338,7 @@ impl<
         // There should only be one of these
         for conflicting_file in conflicting_files {
             Files::rename_file(
-                backend,
+                config,
                 conflicting_file.id,
                 &format!(
                     "{}-NAME-CONFLICT-{}",
@@ -372,12 +353,11 @@ impl<
 
     /// Save metadata locally, and download the file contents if this file is a Document
     fn save_file_locally(
-        backend: &MyBackend::Db,
+        config: &Config,
         account: &Account,
         metadata: &FileMetadata,
-    ) -> Result<(), WorkExecutionError<MyBackend>> {
-        FileMetadataDb::insert(backend, &metadata)
-            .map_err(WorkExecutionError::MetadataRepoError)?;
+    ) -> Result<(), WorkExecutionError> {
+        FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
         if metadata.file_type == Document {
             let document = ApiClient::request(
@@ -390,36 +370,36 @@ impl<
             .map_err(WorkExecutionError::from)?
             .content;
 
-            DocsDb::insert(backend, metadata.id, &document).map_err(SaveDocumentError)?;
+            DocsDb::insert(config, metadata.id, &document).map_err(SaveDocumentError)?;
         }
 
         Ok(())
     }
 
     fn delete_file_locally(
-        backend: &MyBackend::Db,
+        config: &Config,
         metadata: &FileMetadata,
-    ) -> Result<(), WorkExecutionError<MyBackend>> {
+    ) -> Result<(), WorkExecutionError> {
         if metadata.file_type == Document {
             // A deleted document
-            FileMetadataDb::non_recursive_delete(backend, metadata.id)
+            FileMetadataDb::non_recursive_delete(config, metadata.id)
                 .map_err(WorkExecutionError::MetadataRepoError)?;
 
-            ChangeDb::delete(backend, metadata.id)
+            ChangeDb::delete(config, metadata.id)
                 .map_err(WorkExecutionError::LocalChangesRepoError)?;
 
-            DocsDb::delete(backend, metadata.id).map_err(SaveDocumentError)?
+            DocsDb::delete(config, metadata.id).map_err(SaveDocumentError)?
         } else {
             // A deleted folder
             let delete_errors =
-                FileMetadataDb::get_and_get_children_recursively(backend, metadata.id)
+                FileMetadataDb::get_and_get_children_recursively(config, metadata.id)
                     .map_err(WorkExecutionError::FindingChildrenFailed)?
                     .into_iter()
                     .map(|file_metadata| -> Option<String> {
-                        match DocsDb::delete(backend, file_metadata.id) {
+                        match DocsDb::delete(config, file_metadata.id) {
                             Ok(_) => {
-                                match FileMetadataDb::non_recursive_delete(backend, metadata.id) {
-                                    Ok(_) => match ChangeDb::delete(backend, metadata.id) {
+                                match FileMetadataDb::non_recursive_delete(config, metadata.id) {
+                                    Ok(_) => match ChangeDb::delete(config, metadata.id) {
                                         Ok(_) => None,
                                         Err(err) => Some(format!("{:?}", err)),
                                     },
@@ -441,13 +421,13 @@ impl<
     }
 
     fn merge_documents(
-        backend: &MyBackend::Db,
+        config: &Config,
         account: &Account,
         metadata: &mut FileMetadata,
         local_metadata: &FileMetadata,
         local_changes: &LocalChangeRepoLocalChange,
         edited_locally: &Edited,
-    ) -> Result<(), WorkExecutionError<MyBackend>> {
+    ) -> Result<(), WorkExecutionError> {
         if metadata.name.ends_with(".md") || metadata.name.ends_with(".txt") {
             let common_ancestor = {
                 let compressed_common_ancestor = FileCrypto::user_read_document(
@@ -462,7 +442,7 @@ impl<
             };
 
             let current_version =
-                Files::read_document(backend, metadata.id).map_err(ReadingCurrentVersionError)?;
+                Files::read_document(config, metadata.id).map_err(ReadingCurrentVersionError)?;
 
             let server_version = {
                 let server_document = ApiClient::request(
@@ -493,11 +473,11 @@ impl<
                     Err(conflicts) => conflicts,
                 };
 
-            Files::write_document(backend, metadata.id, &result).map_err(WritingMergedFileError)?;
+            Files::write_document(config, metadata.id, &result).map_err(WritingMergedFileError)?;
         } else {
             // Create a new file
             let new_file = Files::create(
-                backend,
+                config,
                 &format!(
                     "{}-CONTENT-CONFLICT-{}",
                     &local_metadata.name, local_metadata.id
@@ -509,9 +489,9 @@ impl<
 
             // Copy the local copy over
             DocsDb::insert(
-                backend,
+                config,
                 new_file.id,
-                &DocsDb::get(backend, local_changes.id).map_err(SaveDocumentError)?,
+                &DocsDb::get(config, local_changes.id).map_err(SaveDocumentError)?,
             )
             .map_err(SaveDocumentError)?;
 
@@ -526,10 +506,10 @@ impl<
             .map_err(WorkExecutionError::from)?
             .content;
 
-            DocsDb::insert(backend, metadata.id, &new_content).map_err(SaveDocumentError)?;
+            DocsDb::insert(config, metadata.id, &new_content).map_err(SaveDocumentError)?;
 
             // Mark content as synced
-            ChangeDb::untrack_edit(backend, metadata.id)
+            ChangeDb::untrack_edit(config, metadata.id)
                 .map_err(WorkExecutionError::LocalChangesRepoError)?;
         }
 
@@ -537,16 +517,16 @@ impl<
     }
 
     fn merge_files(
-        backend: &MyBackend::Db,
+        config: &Config,
         account: &Account,
         metadata: &mut FileMetadata,
         local_metadata: &FileMetadata,
         local_changes: &LocalChangeRepoLocalChange,
-    ) -> Result<(), WorkExecutionError<MyBackend>> {
+    ) -> Result<(), WorkExecutionError> {
         if let Some(renamed_locally) = &local_changes.renamed {
             // Check if both renamed, if so, server wins
             if metadata.name != renamed_locally.old_value {
-                ChangeDb::untrack_rename(backend, metadata.id)
+                ChangeDb::untrack_rename(config, metadata.id)
                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
             } else {
                 metadata.name = local_metadata.name.clone();
@@ -557,7 +537,7 @@ impl<
         if let Some(moved_locally) = &local_changes.moved {
             // Check if both moved, if so server wins
             if metadata.parent != moved_locally.old_value {
-                ChangeDb::untrack_move(backend, metadata.id)
+                ChangeDb::untrack_move(config, metadata.id)
                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
             } else {
                 metadata.parent = local_metadata.parent;
@@ -574,7 +554,7 @@ impl<
                 }
 
                 Self::merge_documents(
-                    &backend,
+                    &config,
                     &account,
                     metadata,
                     &local_metadata,
@@ -588,18 +568,18 @@ impl<
     }
 
     fn handle_server_change(
-        backend: &MyBackend::Db,
+        config: &Config,
         account: &Account,
         metadata: &mut FileMetadata,
-    ) -> Result<(), WorkExecutionError<MyBackend>> {
-        Self::rename_local_conflicting_files(&backend, &metadata)?;
+    ) -> Result<(), WorkExecutionError> {
+        Self::rename_local_conflicting_files(&config, &metadata)?;
 
-        match FileMetadataDb::maybe_get(backend, metadata.id)
+        match FileMetadataDb::maybe_get(config, metadata.id)
             .map_err(WorkExecutionError::MetadataRepoError)?
         {
             None => {
                 if !metadata.deleted {
-                    Self::save_file_locally(&backend, &account, &metadata)?;
+                    Self::save_file_locally(&config, &account, &metadata)?;
                 } else {
                     debug!(
                         "Server deleted a file we don't know about, ignored. id: {:?}",
@@ -608,31 +588,31 @@ impl<
                 }
             }
             Some(local_metadata) => {
-                match ChangeDb::get_local_changes(backend, metadata.id)
+                match ChangeDb::get_local_changes(config, metadata.id)
                     .map_err(WorkExecutionError::LocalChangesRepoError)?
                 {
                     None => {
                         if metadata.deleted {
-                            Self::delete_file_locally(&backend, &metadata)?;
+                            Self::delete_file_locally(&config, &metadata)?;
                         } else {
-                            Self::save_file_locally(&backend, &account, &metadata)?;
+                            Self::save_file_locally(&config, &account, &metadata)?;
                         }
                     }
                     Some(local_changes) => {
                         if !local_changes.deleted && !metadata.deleted {
                             Self::merge_files(
-                                &backend,
+                                &config,
                                 &account,
                                 metadata,
                                 &local_metadata,
                                 &local_changes,
                             )?;
 
-                            FileMetadataDb::insert(backend, &metadata)
+                            FileMetadataDb::insert(config, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
                         } else if metadata.deleted {
                             // Adding checks here is how you can protect local state from being deleted
-                            Self::delete_file_locally(&backend, &metadata)?;
+                            Self::delete_file_locally(&config, &metadata)?;
                         }
                     }
                 }
@@ -643,16 +623,16 @@ impl<
     }
 
     fn handle_local_change(
-        backend: &MyBackend::Db,
+        config: &Config,
         account: &Account,
         metadata: &mut FileMetadata,
-    ) -> Result<(), WorkExecutionError<MyBackend>> {
-        match ChangeDb::get_local_changes(backend, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)? {
+    ) -> Result<(), WorkExecutionError> {
+        match ChangeDb::get_local_changes(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)? {
             None => debug!("Calculate work indicated there was work to be done, but ChangeDb didn't give us anything. It must have been unset by a server change. id: {:?}", metadata.id),
             Some(mut local_change) => {
                 if local_change.new {
                     if metadata.file_type == Document {
-                        let content = DocsDb::get(backend, metadata.id).map_err(SaveDocumentError)?;
+                        let content = DocsDb::get(config, metadata.id).map_err(SaveDocumentError)?;
                         let version = ApiClient::request(
                             &account,
                             CreateDocumentRequest::new(&metadata, content),
@@ -674,9 +654,9 @@ impl<
                         metadata.content_version = version;
                     }
 
-                    FileMetadataDb::insert(backend, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                    FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                    ChangeDb::untrack_new_file(backend, metadata.id)
+                    ChangeDb::untrack_new_file(config, metadata.id)
                         .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     local_change.new = false;
                     local_change.renamed = None;
@@ -699,9 +679,9 @@ impl<
                             .map_err(WorkExecutionError::from)?.new_metadata_version
                     };
                     metadata.metadata_version = version;
-                    FileMetadataDb::insert(backend, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                    FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                    ChangeDb::untrack_rename(backend, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    ChangeDb::untrack_rename(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                     local_change.renamed = None;
                 }
 
@@ -713,9 +693,9 @@ impl<
                     };
 
                     metadata.metadata_version = version;
-                    FileMetadataDb::insert(backend, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                    FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                    ChangeDb::untrack_move(backend, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    ChangeDb::untrack_move(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                     local_change.moved = None;
                 }
 
@@ -723,14 +703,14 @@ impl<
                     let version = ApiClient::request(&account, ChangeDocumentContentRequest{
                         id: metadata.id,
                         old_metadata_version: metadata.metadata_version,
-                        new_content: DocsDb::get(backend, metadata.id).map_err(SaveDocumentError)?,
+                        new_content: DocsDb::get(config, metadata.id).map_err(SaveDocumentError)?,
                     }).map_err(WorkExecutionError::from)?.new_metadata_and_content_version;
 
                     metadata.content_version = version;
                     metadata.metadata_version = version;
-                    FileMetadataDb::insert(backend, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                    FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                    ChangeDb::untrack_edit(backend, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                    ChangeDb::untrack_edit(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                     local_change.content_edited = None;
                 }
 
@@ -741,11 +721,11 @@ impl<
                         ApiClient::request(&account, DeleteFolderRequest{ id: metadata.id }).map_err(WorkExecutionError::from)?;
                     }
 
-                    ChangeDb::delete(backend, metadata.id)
+                    ChangeDb::delete(config, metadata.id)
                         .map_err(WorkExecutionError::LocalChangesRepoError)?;
                     local_change.deleted = false;
 
-                    FileMetadataDb::non_recursive_delete(backend, metadata.id)
+                    FileMetadataDb::non_recursive_delete(config, metadata.id)
                         .map_err(WorkExecutionError::MetadataRepoError)?; // Now it's safe to delete this locally
                 }
             }
@@ -754,9 +734,9 @@ impl<
     }
 }
 
-fn work_execution_error_from_api_error_common<T, MyBackend: Backend>(
+fn work_execution_error_from_api_error_common<T>(
     err: ApiError<T>,
-) -> Result<WorkExecutionError<MyBackend>, T> {
+) -> Result<WorkExecutionError, T> {
     match err {
         ApiError::Endpoint(e) => Err(e),
         ApiError::ClientUpdateRequired => Ok(WorkExecutionError::ClientUpdateRequired),
@@ -779,72 +759,70 @@ fn ok<T>(r: Result<T, T>) -> T {
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<GetDocumentError>> for WorkExecutionError<MyBackend> {
+impl From<ApiError<GetDocumentError>> for WorkExecutionError {
     fn from(err: ApiError<GetDocumentError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::DocumentGetError))
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<RenameDocumentError>> for WorkExecutionError<MyBackend> {
+impl From<ApiError<RenameDocumentError>> for WorkExecutionError {
     fn from(err: ApiError<RenameDocumentError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::DocumentRenameError))
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<RenameFolderError>> for WorkExecutionError<MyBackend> {
+impl From<ApiError<RenameFolderError>> for WorkExecutionError {
     fn from(err: ApiError<RenameFolderError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::FolderRenameError))
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<MoveDocumentError>> for WorkExecutionError<MyBackend> {
+impl From<ApiError<MoveDocumentError>> for WorkExecutionError {
     fn from(err: ApiError<MoveDocumentError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::DocumentMoveError))
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<MoveFolderError>> for WorkExecutionError<MyBackend> {
+impl From<ApiError<MoveFolderError>> for WorkExecutionError {
     fn from(err: ApiError<MoveFolderError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::FolderMoveError))
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<CreateDocumentError>> for WorkExecutionError<MyBackend> {
+impl From<ApiError<CreateDocumentError>> for WorkExecutionError {
     fn from(err: ApiError<CreateDocumentError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::DocumentCreateError))
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<CreateFolderError>> for WorkExecutionError<MyBackend> {
+impl From<ApiError<CreateFolderError>> for WorkExecutionError {
     fn from(err: ApiError<CreateFolderError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::FolderCreateError))
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<ChangeDocumentContentError>>
-    for WorkExecutionError<MyBackend>
-{
+impl From<ApiError<ChangeDocumentContentError>> for WorkExecutionError {
     fn from(err: ApiError<ChangeDocumentContentError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::DocumentChangeError))
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<DeleteDocumentError>> for WorkExecutionError<MyBackend> {
+impl From<ApiError<DeleteDocumentError>> for WorkExecutionError {
     fn from(err: ApiError<DeleteDocumentError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::DocumentDeleteError))
     }
 }
 
-impl<MyBackend: Backend> From<ApiError<DeleteFolderError>> for WorkExecutionError<MyBackend> {
+impl From<ApiError<DeleteFolderError>> for WorkExecutionError {
     fn from(err: ApiError<DeleteFolderError>) -> Self {
         ok(work_execution_error_from_api_error_common(err)
             .map_err(WorkExecutionError::FolderDeleteError))
