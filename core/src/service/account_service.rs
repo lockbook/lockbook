@@ -1,5 +1,6 @@
 use crate::client;
 use crate::client::Client;
+use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
@@ -11,7 +12,6 @@ use crate::service::account_service::AccountImportError::{
     FailedToVerifyAccountServerSide, PublicKeyMismatch,
 };
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
-use crate::storage::db_provider::Backend;
 use lockbook_crypto::crypto_service::PubKeyCryptoService;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
@@ -19,80 +19,75 @@ use lockbook_models::api::{
 };
 
 #[derive(Debug)]
-pub enum AccountCreationError<MyBackend: Backend> {
+pub enum AccountCreationError {
     KeyGenerationError(rsa::errors::Error),
-    AccountRepoError(account_repo::AccountRepoError<MyBackend>),
+    AccountRepoError(account_repo::AccountRepoError),
     FolderError(RootFolderCreationError),
-    MetadataRepoError(file_metadata_repo::DbError<MyBackend>),
+    MetadataRepoError(file_metadata_repo::DbError),
     ApiError(client::ApiError<NewAccountError>),
     KeySerializationError(serde_json::error::Error),
     AccountExistsAlready,
 }
 
 #[derive(Debug)]
-pub enum AccountImportError<MyBackend: Backend> {
+pub enum AccountImportError {
     AccountStringCorrupted(base64::DecodeError),
     AccountStringFailedToDeserialize(bincode::Error),
-    PersistenceError(account_repo::AccountRepoError<MyBackend>),
+    PersistenceError(account_repo::AccountRepoError),
     InvalidPrivateKey(rsa::errors::Error),
-    AccountRepoError(account_repo::AccountRepoError<MyBackend>),
+    AccountRepoError(account_repo::AccountRepoError),
     FailedToVerifyAccountServerSide(client::ApiError<GetPublicKeyError>),
     PublicKeyMismatch,
     AccountExistsAlready,
 }
 
 #[derive(Debug)]
-pub enum AccountExportError<MyBackend: Backend> {
-    AccountRetrievalError(account_repo::AccountRepoError<MyBackend>),
+pub enum AccountExportError {
+    AccountRetrievalError(account_repo::AccountRepoError),
     AccountStringFailedToSerialize(bincode::Error),
 }
 
-pub trait AccountService<MyBackend: Backend> {
+pub trait AccountService {
     fn create_account(
-        backend: &MyBackend::Db,
+        config: &Config,
         username: &str,
         api_url: &str,
-    ) -> Result<Account, AccountCreationError<MyBackend>>;
-    fn import_account(
-        backend: &MyBackend::Db,
-        account_string: &str,
-    ) -> Result<Account, AccountImportError<MyBackend>>;
-    fn export_account(backend: &MyBackend::Db) -> Result<String, AccountExportError<MyBackend>>;
+    ) -> Result<Account, AccountCreationError>;
+    fn import_account(config: &Config, account_string: &str)
+        -> Result<Account, AccountImportError>;
+    fn export_account(config: &Config) -> Result<String, AccountExportError>;
 }
 
 pub struct AccountServiceImpl<
     Crypto: PubKeyCryptoService,
-    AccountDb: AccountRepo<MyBackend>,
+    AccountDb: AccountRepo,
     ApiClient: Client,
     FileCrypto: FileEncryptionService,
-    FileMetadata: FileMetadataRepo<MyBackend>,
-    MyBackend: Backend,
+    FileMetadata: FileMetadataRepo,
 > {
     _encryption: Crypto,
     _accounts: AccountDb,
     _client: ApiClient,
     _file_crypto: FileCrypto,
     _file_db: FileMetadata,
-    _backend: MyBackend,
 }
 
 impl<
         Crypto: PubKeyCryptoService,
-        AccountDb: AccountRepo<MyBackend>,
+        AccountDb: AccountRepo,
         ApiClient: Client,
         FileCrypto: FileEncryptionService,
-        FileMetadata: FileMetadataRepo<MyBackend>,
-        MyBackend: Backend,
-    > AccountService<MyBackend>
-    for AccountServiceImpl<Crypto, AccountDb, ApiClient, FileCrypto, FileMetadata, MyBackend>
+        FileMetadata: FileMetadataRepo,
+    > AccountService
+    for AccountServiceImpl<Crypto, AccountDb, ApiClient, FileCrypto, FileMetadata>
 {
     fn create_account(
-        backend: &MyBackend::Db,
+        config: &Config,
         username: &str,
         api_url: &str,
-    ) -> Result<Account, AccountCreationError<MyBackend>> {
+    ) -> Result<Account, AccountCreationError> {
         info!("Checking if account already exists");
-        if AccountDb::maybe_get_account(backend)
+        if AccountDb::maybe_get_account(config)
             .map_err(AccountRepoError)?
             .is_some()
         {
@@ -124,7 +119,7 @@ impl<
         file_metadata.metadata_version = version;
         file_metadata.content_version = version;
 
-        FileMetadata::insert(backend, &file_metadata)
+        FileMetadata::insert(config, &file_metadata)
             .map_err(AccountCreationError::MetadataRepoError)?;
 
         debug!(
@@ -133,18 +128,18 @@ impl<
         );
 
         info!("Saving account locally");
-        AccountDb::insert_account(backend, &account)
+        AccountDb::insert_account(config, &account)
             .map_err(AccountCreationError::AccountRepoError)?;
 
         Ok(account)
     }
 
     fn import_account(
-        backend: &MyBackend::Db,
+        config: &Config,
         account_string: &str,
-    ) -> Result<Account, AccountImportError<MyBackend>> {
+    ) -> Result<Account, AccountImportError> {
         info!("Checking if account already exists");
-        if AccountDb::maybe_get_account(backend)
+        if AccountDb::maybe_get_account(config)
             .map_err(AccountImportError::AccountRepoError)?
             .is_some()
         {
@@ -184,16 +179,16 @@ impl<
         }
 
         info!("Account String seems valid, saving now");
-        AccountDb::insert_account(backend, &account)
+        AccountDb::insert_account(config, &account)
             .map_err(AccountImportError::PersistenceError)?;
 
         info!("Account imported successfully");
         Ok(account)
     }
 
-    fn export_account(backend: &MyBackend::Db) -> Result<String, AccountExportError<MyBackend>> {
+    fn export_account(config: &Config) -> Result<String, AccountExportError> {
         let account =
-            &AccountDb::get_account(backend).map_err(AccountExportError::AccountRetrievalError)?;
+            &AccountDb::get_account(config).map_err(AccountExportError::AccountRetrievalError)?;
         let encoded: Vec<u8> = bincode::serialize(&account)
             .map_err(AccountExportError::AccountStringFailedToSerialize)?;
         Ok(base64::encode(&encoded))

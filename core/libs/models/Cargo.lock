@@ -926,7 +926,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-bindgen-backend"
+name = "wasm-bindgen-config"
 version = "0.2.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae70622411ca953215ca6d06d3ebeb1e915f0f6613e3b495122878d7ebec7dae"
@@ -971,7 +971,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "wasm-bindgen-backend",
+ "wasm-bindgen-config",
  "wasm-bindgen-shared",
 ]
 

@@ -1,48 +1,36 @@
 use uuid::Uuid;
 
-use crate::storage::db_provider::Backend;
+use crate::model::state::Config;
+use crate::storage::db_provider::FileBackend;
 use lockbook_models::crypto::*;
 
 #[derive(Debug)]
-pub enum Error<MyBackend: Backend> {
-    BackendError(MyBackend::Error),
+pub enum Error {
+    BackendError(std::io::Error),
     SerdeError(serde_json::Error),
     FileRowMissing(()), // TODO remove from insert
 }
 
 #[derive(Debug)]
-pub enum DbError<MyBackend: Backend> {
-    BackendError(MyBackend::Error),
+pub enum DbError {
+    BackendError(std::io::Error),
     SerdeError(serde_json::Error),
 }
 
-pub trait DocumentRepo<MyBackend: Backend> {
+pub trait DocumentRepo {
     const NAMESPACE: &'static [u8] = b"documents";
-    fn insert(
-        backend: &MyBackend::Db,
-        id: Uuid,
-        document: &EncryptedDocument,
-    ) -> Result<(), Error<MyBackend>>;
-    fn get(backend: &MyBackend::Db, id: Uuid) -> Result<EncryptedDocument, Error<MyBackend>>;
-    fn maybe_get(
-        backend: &MyBackend::Db,
-        id: Uuid,
-    ) -> Result<Option<EncryptedDocument>, DbError<MyBackend>>;
-    fn delete(backend: &MyBackend::Db, id: Uuid) -> Result<(), Error<MyBackend>>;
+    fn insert(config: &Config, id: Uuid, document: &EncryptedDocument) -> Result<(), Error>;
+    fn get(config: &Config, id: Uuid) -> Result<EncryptedDocument, Error>;
+    fn maybe_get(config: &Config, id: Uuid) -> Result<Option<EncryptedDocument>, DbError>;
+    fn delete(config: &Config, id: Uuid) -> Result<(), Error>;
 }
 
-pub struct DocumentRepoImpl<MyBackend: Backend> {
-    _backend: MyBackend,
-}
+pub struct DocumentRepoImpl;
 
-impl<MyBackend: Backend> DocumentRepo<MyBackend> for DocumentRepoImpl<MyBackend> {
-    fn insert(
-        backend: &MyBackend::Db,
-        id: Uuid,
-        document: &EncryptedDocument,
-    ) -> Result<(), Error<MyBackend>> {
-        MyBackend::write(
-            backend,
+impl DocumentRepo for DocumentRepoImpl {
+    fn insert(config: &Config, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
+        FileBackend::write(
+            config,
             Self::NAMESPACE,
             id.to_string().as_str(),
             serde_json::to_vec(document).map_err(Error::SerdeError)?,
@@ -50,9 +38,9 @@ impl<MyBackend: Backend> DocumentRepo<MyBackend> for DocumentRepoImpl<MyBackend>
         .map_err(Error::BackendError)
     }
 
-    fn get(backend: &MyBackend::Db, id: Uuid) -> Result<EncryptedDocument, Error<MyBackend>> {
+    fn get(config: &Config, id: Uuid) -> Result<EncryptedDocument, Error> {
         let maybe_data: Option<Vec<u8>> =
-            MyBackend::read(backend, Self::NAMESPACE, id.to_string().as_str())
+            FileBackend::read(config, Self::NAMESPACE, id.to_string().as_str())
                 .map_err(Error::BackendError)?;
         match maybe_data {
             None => Err(Error::FileRowMissing(())),
@@ -60,12 +48,9 @@ impl<MyBackend: Backend> DocumentRepo<MyBackend> for DocumentRepoImpl<MyBackend>
         }
     }
 
-    fn maybe_get(
-        backend: &MyBackend::Db,
-        id: Uuid,
-    ) -> Result<Option<EncryptedDocument>, DbError<MyBackend>> {
+    fn maybe_get(config: &Config, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
         let maybe_data: Option<Vec<u8>> =
-            MyBackend::read(backend, Self::NAMESPACE, id.to_string().as_str())
+            FileBackend::read(config, Self::NAMESPACE, id.to_string().as_str())
                 .map_err(DbError::BackendError)?;
         match maybe_data {
             None => Ok(None),
@@ -75,8 +60,8 @@ impl<MyBackend: Backend> DocumentRepo<MyBackend> for DocumentRepoImpl<MyBackend>
         }
     }
 
-    fn delete(backend: &MyBackend::Db, id: Uuid) -> Result<(), Error<MyBackend>> {
-        MyBackend::delete(backend, Self::NAMESPACE, id.to_string().as_str())
+    fn delete(config: &Config, id: Uuid) -> Result<(), Error> {
+        FileBackend::delete(config, Self::NAMESPACE, id.to_string().as_str())
             .map_err(Error::BackendError)
     }
 }
@@ -87,7 +72,6 @@ mod unit_tests {
 
     use crate::model::state::temp_config;
     use crate::repo::document_repo::DocumentRepo;
-    use crate::storage::db_provider::Backend;
     use crate::{DefaultBackend, DefaultDocumentRepo};
     use lockbook_models::crypto::*;
 

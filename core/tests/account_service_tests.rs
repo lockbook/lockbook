@@ -10,7 +10,6 @@ mod account_tests {
         AccountCreationError, AccountImportError, AccountService,
     };
     use lockbook_core::service::sync_service::SyncService;
-    use lockbook_core::storage::db_provider::Backend;
     use lockbook_core::{
         create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
         DefaultBackend, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,

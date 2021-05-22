@@ -1,3 +1,4 @@
+use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_version_repo::DbVersionRepo;
 use crate::repo::{account_repo, db_version_repo};
@@ -5,7 +6,6 @@ use crate::service::code_version_service::CodeVersion;
 use crate::service::db_state_service::State::{
     Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
 };
-use crate::storage::db_provider::Backend;
 use serde::Serialize;
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -17,52 +17,46 @@ pub enum State {
 }
 
 #[derive(Debug)]
-pub enum GetStateError<MyBackend: Backend> {
-    AccountRepoError(account_repo::AccountRepoError<MyBackend>),
-    RepoError(db_version_repo::Error<MyBackend>),
+pub enum GetStateError {
+    AccountRepoError(account_repo::AccountRepoError),
+    RepoError(db_version_repo::Error),
 }
 
 #[derive(Debug)]
-pub enum MigrationError<MyBackend: Backend> {
+pub enum MigrationError {
     StateRequiresClearing,
-    RepoError(db_version_repo::Error<MyBackend>),
+    RepoError(db_version_repo::Error),
 }
 
-pub trait DbStateService<MyBackend: Backend> {
-    fn get_state(backend: &MyBackend::Db) -> Result<State, GetStateError<MyBackend>>;
-    fn perform_migration(backend: &MyBackend::Db) -> Result<(), MigrationError<MyBackend>>;
+pub trait DbStateService {
+    fn get_state(config: &Config) -> Result<State, GetStateError>;
+    fn perform_migration(config: &Config) -> Result<(), MigrationError>;
 }
 
 pub struct DbStateServiceImpl<
-    AccountDb: AccountRepo<MyBackend>,
-    VersionDb: DbVersionRepo<MyBackend>,
+    AccountDb: AccountRepo,
+    VersionDb: DbVersionRepo,
     Version: CodeVersion,
-    MyBackend: Backend,
 > {
     _account: AccountDb,
     _repo: VersionDb,
     _version: Version,
-    _backend: MyBackend,
 }
 
-impl<
-        AccountDb: AccountRepo<MyBackend>,
-        VersionDb: DbVersionRepo<MyBackend>,
-        Version: CodeVersion,
-        MyBackend: Backend,
-    > DbStateService<MyBackend> for DbStateServiceImpl<AccountDb, VersionDb, Version, MyBackend>
+impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo, Version: CodeVersion> DbStateService
+    for DbStateServiceImpl<AccountDb, VersionDb, Version>
 {
-    fn get_state(backend: &MyBackend::Db) -> Result<State, GetStateError<MyBackend>> {
-        if AccountDb::maybe_get_account(backend)
+    fn get_state(config: &Config) -> Result<State, GetStateError> {
+        if AccountDb::maybe_get_account(config)
             .map_err(GetStateError::AccountRepoError)?
             .is_none()
         {
-            VersionDb::set(backend, Version::get_code_version())
+            VersionDb::set(config, Version::get_code_version())
                 .map_err(GetStateError::RepoError)?;
             return Ok(Empty);
         }
 
-        match VersionDb::get(backend).map_err(GetStateError::RepoError)? {
+        match VersionDb::get(config).map_err(GetStateError::RepoError)? {
             None => Ok(StateRequiresClearing),
             Some(state_version) => {
                 if state_version == Version::get_code_version() {
@@ -79,9 +73,9 @@ impl<
         }
     }
 
-    fn perform_migration(backend: &MyBackend::Db) -> Result<(), MigrationError<MyBackend>> {
+    fn perform_migration(config: &Config) -> Result<(), MigrationError> {
         loop {
-            let db_version = match VersionDb::get(backend).map_err(MigrationError::RepoError)? {
+            let db_version = match VersionDb::get(config).map_err(MigrationError::RepoError)? {
                 None => return Err(MigrationError::StateRequiresClearing),
                 Some(version) => version,
             };
@@ -91,7 +85,7 @@ impl<
             }
 
             match db_version.as_str() {
-                "0.1.0" => VersionDb::set(backend, "0.1.1").map_err(MigrationError::RepoError)?,
+                "0.1.0" => VersionDb::set(config, "0.1.1").map_err(MigrationError::RepoError)?,
                 "0.1.1" => return Err(MigrationError::StateRequiresClearing), // If you wanted to remove this, write a migration for PR #332
                 "0.1.2" => return Ok(()),
                 _ => return Err(MigrationError::StateRequiresClearing),
@@ -107,20 +101,17 @@ mod unit_tests {
     use crate::service::code_version_service::{CodeVersion, CodeVersionImpl};
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
-    use crate::storage::db_provider::Backend;
-    use crate::DefaultBackend;
     use crate::{DefaultDbStateService, DefaultDbVersionRepo};
 
     #[test]
     fn test_initial_state() {
         let config = temp_config();
-        let backend = DefaultBackend::connect_to_db(&config).unwrap();
 
-        assert!(DefaultDbVersionRepo::get(&backend).unwrap().is_none());
-        assert_eq!(DefaultDbStateService::get_state(&backend).unwrap(), Empty);
-        assert_eq!(DefaultDbStateService::get_state(&backend).unwrap(), Empty);
+        assert!(DefaultDbVersionRepo::get(&config).unwrap().is_none());
+        assert_eq!(DefaultDbStateService::get_state(&config).unwrap(), Empty);
+        assert_eq!(DefaultDbStateService::get_state(&config).unwrap(), Empty);
         assert_eq!(
-            DefaultDbVersionRepo::get(&backend).unwrap().unwrap(),
+            DefaultDbVersionRepo::get(&config).unwrap().unwrap(),
             CodeVersionImpl::get_code_version()
         );
     }

@@ -2,7 +2,8 @@ use std::time::SystemTimeError;
 
 use uuid::Uuid;
 
-use crate::storage::db_provider::Backend;
+use crate::model::state::Config;
+use crate::storage::db_provider::FileBackend;
 use lockbook_crypto::clock_service::Clock;
 use lockbook_models::crypto::{EncryptedDocument, UserAccessInfo};
 use lockbook_models::file_metadata::FileType;
@@ -10,83 +11,66 @@ use lockbook_models::local_changes::{Edited, LocalChange, Moved, Renamed};
 use std::{thread, time};
 
 #[derive(Debug)]
-pub enum DbError<MyBackend: Backend> {
+pub enum DbError {
     TimeError(SystemTimeError),
-    BackendError(MyBackend::Error),
+    BackendError(std::io::Error),
     SerdeError(serde_json::Error),
 }
 
-pub trait LocalChangesRepo<MyBackend: Backend> {
-    fn get_all_local_changes(
-        backend: &MyBackend::Db,
-    ) -> Result<Vec<LocalChange>, DbError<MyBackend>>;
-    fn get_local_changes(
-        backend: &MyBackend::Db,
-        id: Uuid,
-    ) -> Result<Option<LocalChange>, DbError<MyBackend>>;
-    fn track_new_file(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>>;
+pub trait LocalChangesRepo {
+    fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, DbError>;
+    fn get_local_changes(config: &Config, id: Uuid) -> Result<Option<LocalChange>, DbError>;
+    fn track_new_file(config: &Config, id: Uuid) -> Result<(), DbError>;
     fn track_rename(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
         old_name: &str,
         new_name: &str,
-    ) -> Result<(), DbError<MyBackend>>;
+    ) -> Result<(), DbError>;
     fn track_move(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
         old_parent: Uuid,
         new_parent: Uuid,
-    ) -> Result<(), DbError<MyBackend>>;
+    ) -> Result<(), DbError>;
     fn track_edit(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
         old_version: &EncryptedDocument,
         access_info_for_old_version: &UserAccessInfo,
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
-    ) -> Result<(), DbError<MyBackend>>;
-    fn track_delete(
-        backend: &MyBackend::Db,
-        id: Uuid,
-        file_type: FileType,
-    ) -> Result<(), DbError<MyBackend>>;
-    fn untrack_new_file(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>>;
-    fn untrack_rename(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>>;
-    fn untrack_move(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>>;
-    fn untrack_edit(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>>;
-    fn delete(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>>;
+    ) -> Result<(), DbError>;
+    fn track_delete(config: &Config, id: Uuid, file_type: FileType) -> Result<(), DbError>;
+    fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), DbError>;
+    fn untrack_rename(config: &Config, id: Uuid) -> Result<(), DbError>;
+    fn untrack_move(config: &Config, id: Uuid) -> Result<(), DbError>;
+    fn untrack_edit(config: &Config, id: Uuid) -> Result<(), DbError>;
+    fn delete(config: &Config, id: Uuid) -> Result<(), DbError>;
 }
 
-pub struct LocalChangesRepoImpl<Time: Clock, MyBackend: Backend> {
+pub struct LocalChangesRepoImpl<Time: Clock> {
     _clock: Time,
-    _backend: MyBackend,
 }
 
 static LOCAL_CHANGES: &[u8; 13] = b"local_changes";
 
-impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
-    for LocalChangesRepoImpl<Time, MyBackend>
-{
-    fn get_all_local_changes(
-        backend: &MyBackend::Db,
-    ) -> Result<Vec<LocalChange>, DbError<MyBackend>> {
-        let mut value = MyBackend::dump::<_, Vec<u8>>(backend, LOCAL_CHANGES)
+impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
+    fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, DbError> {
+        let mut value = FileBackend::dump::<_, Vec<u8>>(config, LOCAL_CHANGES)
             .map_err(DbError::BackendError)?
             .into_iter()
             .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
-            .collect::<Result<Vec<LocalChange>, DbError<MyBackend>>>()?;
+            .collect::<Result<Vec<LocalChange>, DbError>>()?;
 
         value.sort_by(|change1, change2| change1.timestamp.cmp(&change2.timestamp));
 
         Ok(value)
     }
 
-    fn get_local_changes(
-        backend: &MyBackend::Db,
-        id: Uuid,
-    ) -> Result<Option<LocalChange>, DbError<MyBackend>> {
+    fn get_local_changes(config: &Config, id: Uuid) -> Result<Option<LocalChange>, DbError> {
         let maybe_value: Option<Vec<u8>> =
-            MyBackend::read(backend, LOCAL_CHANGES, id.to_string().as_str())
+            FileBackend::read(config, LOCAL_CHANGES, id.to_string().as_str())
                 .map_err(DbError::BackendError)?;
         match maybe_value {
             None => Ok(None),
@@ -98,7 +82,7 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
         }
     }
 
-    fn track_new_file(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>> {
+    fn track_new_file(config: &Config, id: Uuid) -> Result<(), DbError> {
         let new_local_change = LocalChange {
             timestamp: Time::get_time(),
             id,
@@ -109,8 +93,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
             deleted: false,
         };
 
-        MyBackend::write(
-            backend,
+        FileBackend::write(
+            config,
             LOCAL_CHANGES,
             id.to_string().as_str(),
             serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
@@ -120,16 +104,16 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
     }
 
     fn track_rename(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
         old_name: &str,
         new_name: &str,
-    ) -> Result<(), DbError<MyBackend>> {
+    ) -> Result<(), DbError> {
         if old_name == new_name {
             return Ok(());
         }
 
-        match Self::get_local_changes(backend, id)? {
+        match Self::get_local_changes(config, id)? {
             None => {
                 let new_local_change = LocalChange {
                     timestamp: Time::get_time(),
@@ -141,8 +125,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                     deleted: false,
                 };
 
-                MyBackend::write(
-                    backend,
+                FileBackend::write(
+                    config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
@@ -153,8 +137,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
             Some(mut change) => match change.renamed {
                 None => {
                     change.renamed = Some(Renamed::from(old_name));
-                    MyBackend::write(
-                        backend,
+                    FileBackend::write(
+                        config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
@@ -164,7 +148,7 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                 }
                 Some(renamed) => {
                     if new_name == renamed.old_value {
-                        Self::untrack_rename(backend, id)
+                        Self::untrack_rename(config, id)
                     } else {
                         Ok(())
                     }
@@ -174,16 +158,16 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
     }
 
     fn track_move(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
         old_parent: Uuid,
         new_parent: Uuid,
-    ) -> Result<(), DbError<MyBackend>> {
+    ) -> Result<(), DbError> {
         if old_parent == new_parent {
             return Ok(());
         }
 
-        match Self::get_local_changes(backend, id)? {
+        match Self::get_local_changes(config, id)? {
             None => {
                 let new_local_change = LocalChange {
                     timestamp: Time::get_time(),
@@ -195,8 +179,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                     deleted: false,
                 };
 
-                MyBackend::write(
-                    backend,
+                FileBackend::write(
+                    config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
@@ -207,8 +191,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
             Some(mut change) => match change.moved {
                 None => {
                     change.moved = Some(Moved::from(old_parent));
-                    MyBackend::write(
-                        backend,
+                    FileBackend::write(
+                        config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
@@ -218,7 +202,7 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                 }
                 Some(moved) => {
                     if moved.old_value == new_parent {
-                        Self::untrack_move(backend, id)
+                        Self::untrack_move(config, id)
                     } else {
                         Ok(())
                     }
@@ -228,18 +212,18 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
     }
 
     fn track_edit(
-        backend: &MyBackend::Db,
+        config: &Config,
         id: Uuid,
         old_version: &EncryptedDocument,
         access_info_for_old_version: &UserAccessInfo,
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
-    ) -> Result<(), DbError<MyBackend>> {
+    ) -> Result<(), DbError> {
         if old_content_checksum == new_content_checksum {
             return Ok(());
         }
 
-        match Self::get_local_changes(backend, id)? {
+        match Self::get_local_changes(config, id)? {
             None => {
                 let new_local_change = LocalChange {
                     timestamp: Time::get_time(),
@@ -254,8 +238,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                     }),
                     deleted: false,
                 };
-                MyBackend::write(
-                    backend,
+                FileBackend::write(
+                    config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
@@ -270,8 +254,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                         access_info: access_info_for_old_version.clone(),
                         old_content_checksum,
                     });
-                    MyBackend::write(
-                        backend,
+                    FileBackend::write(
+                        config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
@@ -281,7 +265,7 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                 }
                 Some(edited) => {
                     if edited.old_content_checksum == new_content_checksum {
-                        Self::untrack_edit(backend, id)
+                        Self::untrack_edit(config, id)
                     } else {
                         Ok(())
                     }
@@ -290,15 +274,11 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
         }
     }
 
-    fn track_delete(
-        backend: &MyBackend::Db,
-        id: Uuid,
-        file_type: FileType,
-    ) -> Result<(), DbError<MyBackend>> {
+    fn track_delete(config: &Config, id: Uuid, file_type: FileType) -> Result<(), DbError> {
         // Added to ensure that a prior move is at least 1ms older than this delete
         thread::sleep(time::Duration::from_millis(1));
 
-        match Self::get_local_changes(backend, id)? {
+        match Self::get_local_changes(config, id)? {
             None => {
                 let new_local_change = LocalChange {
                     timestamp: Time::get_time(),
@@ -309,8 +289,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                     content_edited: None,
                     deleted: true,
                 };
-                MyBackend::write(
-                    backend,
+                FileBackend::write(
+                    config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
                     serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
@@ -324,7 +304,7 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                 } else if file_type == FileType::Document {
                     if change.new {
                         // If a document was created and deleted, just forget about it
-                        Self::delete(backend, id)
+                        Self::delete(config, id)
                     } else {
                         // If a document was deleted, don't bother pushing it's rename / move
                         let delete_tracked = LocalChange {
@@ -336,8 +316,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                             content_edited: None,
                             deleted: true,
                         };
-                        MyBackend::write(
-                            backend,
+                        FileBackend::write(
+                            config,
                             LOCAL_CHANGES,
                             id.to_string().as_str(),
                             serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
@@ -347,8 +327,8 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
                     }
                 } else {
                     change.deleted = true;
-                    MyBackend::write(
-                        backend,
+                    FileBackend::write(
+                        config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
                         serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
@@ -360,17 +340,17 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
         }
     }
 
-    fn untrack_new_file(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>> {
-        match Self::get_local_changes(backend, id)? {
+    fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(config, id)? {
             None => Ok(()),
             Some(mut new) => {
                 new.new = false;
 
                 if !new.deleted {
-                    Self::delete(backend, new.id)?
+                    Self::delete(config, new.id)?
                 } else {
-                    MyBackend::write(
-                        backend,
+                    FileBackend::write(
+                        config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
                         serde_json::to_vec(&new).map_err(DbError::SerdeError)?,
@@ -383,17 +363,17 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
         }
     }
 
-    fn untrack_rename(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>> {
-        match Self::get_local_changes(backend, id)? {
+    fn untrack_rename(config: &Config, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(config, id)? {
             None => Ok(()),
             Some(mut edit) => {
                 edit.renamed = None;
 
                 if edit.ready_to_be_deleted() {
-                    Self::delete(backend, edit.id)?
+                    Self::delete(config, edit.id)?
                 } else {
-                    MyBackend::write(
-                        backend,
+                    FileBackend::write(
+                        config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
                         serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
@@ -405,17 +385,17 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
         }
     }
 
-    fn untrack_move(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>> {
-        match Self::get_local_changes(backend, id)? {
+    fn untrack_move(config: &Config, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(config, id)? {
             None => Ok(()),
             Some(mut edit) => {
                 edit.moved = None;
 
                 if edit.ready_to_be_deleted() {
-                    Self::delete(backend, edit.id)?
+                    Self::delete(config, edit.id)?
                 } else {
-                    MyBackend::write(
-                        backend,
+                    FileBackend::write(
+                        config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
                         serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
@@ -428,17 +408,17 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
         }
     }
 
-    fn untrack_edit(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>> {
-        match Self::get_local_changes(backend, id)? {
+    fn untrack_edit(config: &Config, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(config, id)? {
             None => Ok(()),
             Some(mut edit) => {
                 edit.content_edited = None;
 
                 if edit.ready_to_be_deleted() {
-                    Self::delete(backend, edit.id)?
+                    Self::delete(config, edit.id)?
                 } else {
-                    MyBackend::write(
-                        backend,
+                    FileBackend::write(
+                        config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
                         serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
@@ -451,11 +431,11 @@ impl<Time: Clock, MyBackend: Backend> LocalChangesRepo<MyBackend>
         }
     }
 
-    fn delete(backend: &MyBackend::Db, id: Uuid) -> Result<(), DbError<MyBackend>> {
-        match Self::get_local_changes(backend, id)? {
+    fn delete(config: &Config, id: Uuid) -> Result<(), DbError> {
+        match Self::get_local_changes(config, id)? {
             None => Ok(()),
             Some(_) => {
-                MyBackend::delete(backend, LOCAL_CHANGES, id.to_string().as_str())
+                FileBackend::delete(config, LOCAL_CHANGES, id.to_string().as_str())
                     .map_err(DbError::BackendError)?;
                 Ok(())
             }
@@ -469,7 +449,6 @@ mod unit_tests {
 
     use crate::model::state::temp_config;
     use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
-    use crate::storage::db_provider::Backend;
     use crate::DefaultBackend;
     use lockbook_crypto::clock_service::Clock;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
@@ -483,7 +462,7 @@ mod unit_tests {
         }
     }
 
-    pub type TestLocalChangesRepo = LocalChangesRepoImpl<TestClock, DefaultBackend>;
+    pub type TestLocalChangesRepo = LocalChangesRepoImpl<TestClock>;
 
     macro_rules! assert_total_local_changes (
         ($db:expr, $total:literal) => {
