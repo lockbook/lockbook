@@ -18,9 +18,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::Infallible;
 use std::path::Path;
-use std::sync::Arc;
 use tokio::runtime::Handle;
-use tokio::sync::Mutex;
 
 static LOG_FILE: &str = "lockbook_server.log";
 
@@ -57,11 +55,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     debug!("Connected to files_db");
 
     let port = config.server.port;
-    let server_state = Arc::new(Mutex::new(ServerState {
+    let server_state = ServerState {
         config,
         index_db_client,
         files_db_client,
-    }));
+    };
     let addr = format!("0.0.0.0:{}", port).parse()?;
 
     let make_service = make_service_fn(|_| {
@@ -118,10 +116,10 @@ macro_rules! route_handler {
 }
 
 async fn route(
-    server_state: Arc<Mutex<ServerState>>,
+    server_state: ServerState,
     hyper_request: hyper::Request<Body>,
 ) -> Result<Response<Body>, hyper::http::Error> {
-    let mut s = server_state.lock().await;
+    let mut s = server_state.clone();
     reconnect(&mut s).await;
     match (hyper_request.method(), hyper_request.uri().path()) {
         route_case!(ChangeDocumentContentRequest) => route_handler!(
