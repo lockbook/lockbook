@@ -1,10 +1,10 @@
 Our repository contains many projects which facilitate the development of Lockbook. This document describes the various build strategies used to build Lockbook components.
 
-Understanding the [system architecture](../guides/system-architecture.md) is a prerequisite for getting the most out of this document.
+Understanding the [system architecture](../design-tech/system-architecture.md) is a prerequisite for getting the most out of this document.
 
 # Clients
 
-Lockbook is designed to make it easy to create high quality native applications for many platforms. We achieve this by putting all the business logic that [clients are responsible for](../guides/system-architecture.md) in a [core library](../core) which is written in Rust.
+Lockbook is designed to make it easy to create high quality native applications for many platforms. We achieve this by putting all the business logic that [clients are responsible for](../design-tech/system-architecture.md) in a [core library](../core) which is written in Rust.
 
 Writing core in Rust allows us to perform FFI calls with C-like overhead, with the safety and productivity of high level languages. Reusing this code across all of our clients makes the addition of clients inexpensive and the quality of core very high.
 
