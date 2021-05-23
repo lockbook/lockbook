@@ -4,7 +4,7 @@ Understanding the [system architecture](../design-tech/system-architecture.md) i
 
 # Clients
 
-Lockbook is designed to make it easy to create high quality native applications for many platforms. We achieve this by putting all the business logic that [clients are responsible for](../design-tech/system-architecture.md) in a [core library](../core) which is written in Rust.
+Lockbook is designed to make it easy to create high quality native applications for many platforms. We achieve this by putting all the business logic that [clients are responsible for](../design-tech/system-architecture.md) in a [core library](/core) which is written in Rust.
 
 Writing core in Rust allows us to perform FFI calls with C-like overhead, with the safety and productivity of high level languages. Reusing this code across all of our clients makes the addition of clients inexpensive and the quality of core very high.
 
@@ -20,13 +20,13 @@ More specific instructions for things like installing the stable Rust toolchain 
 
 CLI is the most straightforward client. You can build it on any machine and don't need anything in addition to the stable Rust toolchain.
 
-Simply go into the [CLI Folder](../clients/cli) and `cargo run`.
+Simply go into the [CLI Folder](/clients/cli) and `cargo run`.
 
 ## Linux
 
 In order to build the Linux client, you need the stable Rust toolchain on a
 Linux distro with GTK installed. Then, go into the [Linux
-folder](../clients/linux) and `cargo run`.
+folder](/clients/linux) and `cargo run`.
 
 ## Android
 
