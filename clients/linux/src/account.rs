@@ -328,8 +328,7 @@ struct Editor {
     textarea: GtkSourceView,
     highlighter: LanguageManager,
     change_sig_id: RefCell<Option<SignalHandlerId>>,
-    stack: GtkStack,
-    cntr: GtkScrolledWindow,
+    cntr: GtkStack,
     messenger: Messenger,
 }
 
@@ -351,20 +350,19 @@ impl Editor {
         textarea.set_left_margin(4);
         textarea.set_tab_width(4);
 
-        let stack = GtkStack::new();
-        stack.add_named(&empty, "empty");
-        stack.add_named(&info, "folderinfo");
-        stack.add_named(&textarea, "textarea");
+        let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
+        scroll.add(&textarea);
 
-        let cntr = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
-        cntr.add(&stack);
+        let cntr = GtkStack::new();
+        cntr.add_named(&empty, "empty");
+        cntr.add_named(&info, "folderinfo");
+        cntr.add_named(&scroll, "scroll");
 
         Self {
             info,
             textarea,
             highlighter: LanguageManager::new(),
             change_sig_id: RefCell::new(None),
-            stack,
             cntr,
             messenger: m.clone(),
         }
@@ -388,7 +386,7 @@ impl Editor {
             closure!(self.messenger as m => move |_| m.send(Msg::FileEdited)),
         )));
 
-        self.show("textarea");
+        self.show("scroll");
         self.textarea.grab_focus();
     }
 
@@ -419,7 +417,7 @@ impl Editor {
     }
 
     fn show(&self, name: &str) {
-        self.stack.set_visible_child_name(name);
+        self.cntr.set_visible_child_name(name);
     }
 }
 
