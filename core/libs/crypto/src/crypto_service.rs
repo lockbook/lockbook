@@ -102,7 +102,7 @@ impl<Time: Clock> PubKeyCryptoService for RSAImpl<Time> {
     ) -> Result<RSASigned<T>, RSASignError> {
         let timestamped = Time::timestamp(to_sign);
         let serialized = bincode::serialize(&timestamped).map_err(RSASignError::Serialization)?;
-        let digest = Sha256::digest(&serialized).to_vec();
+        let digest = Sha256::digest(&serialized);
         let signature = private_key
             .sign(PaddingScheme::PKCS1v15, Some(&Hashes::SHA2_256), &digest)
             .map_err(RSASignError::Signing)?;

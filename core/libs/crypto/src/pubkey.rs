@@ -1,8 +1,9 @@
 use libsecp256k1::Message;
-use libsecp256k1::{PublicKey, SecretKey, Signature};
+use libsecp256k1::{PublicKey, SecretKey, SharedSecret, Signature};
 use rand::rngs::OsRng;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use std::convert::TryInto;
 
 use crate::clock_service::Clock;
 use lockbook_models::crypto::*;
@@ -24,7 +25,10 @@ pub enum ECVerifyError {
 }
 
 #[derive(Debug)]
-pub enum ECSelfSecret {}
+pub enum GetAesKeyError {
+    SharedSecretUnexpectedSize,
+    SharedSecretError(libsecp256k1::Error),
+}
 
 pub trait PubKeyCryptoService {
     fn generate_key() -> SecretKey;
@@ -35,7 +39,7 @@ pub trait PubKeyCryptoService {
         max_delay_ms: u64,
         max_skew_ms: u64,
     ) -> Result<(), ECVerifyError>;
-    fn self_shared_secret(secret_key: &SecretKey) -> Result<&[u8], ECSelfSecret>;
+    fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> Result<AESKey, GetAesKeyError>;
 }
 
 pub struct ElipticCurve<Time: Clock> {
@@ -102,8 +106,12 @@ impl<Time: Clock> PubKeyCryptoService for ElipticCurve<Time> {
         }
     }
 
-    fn self_shared_secret(sk: &SecretKey) -> Result<&[u8], ECSelfSecret> {
-        todo!()
+    fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> Result<AESKey, GetAesKeyError> {
+        SharedSecret::<Sha256>::new(&pk, &sk)
+            .map_err(GetAesKeyError::SharedSecretError)?
+            .as_ref()
+            .try_into()
+            .map_err(|_| GetAesKeyError::SharedSecretUnexpectedSize)
     }
 }
 
@@ -141,5 +149,39 @@ mod unit_test_pubkey {
         let value = ElipticCurve::<EarlyClock>::sign(&key, "Test").unwrap();
         ElipticCurve::<LateClock>::verify(&PublicKey::from_secret_key(&key), &value, 10, 10)
             .unwrap_err();
+    }
+
+    #[test]
+    fn ec_test_shared_secret_one_party() {
+        // Just sanity checks
+
+        let key = ElipticCurve::<EarlyClock>::generate_key();
+        let shared_secret1 =
+            ElipticCurve::<EarlyClock>::get_aes_key(&key, &PublicKey::from_secret_key(&key))
+                .unwrap();
+
+        let shared_secret2 =
+            ElipticCurve::<EarlyClock>::get_aes_key(&key, &PublicKey::from_secret_key(&key))
+                .unwrap();
+
+        assert_eq!(shared_secret1, shared_secret2);
+    }
+
+    #[test]
+    fn ec_test_shared_secret_two_parties() {
+        // Just sanity checks
+
+        let key1 = ElipticCurve::<EarlyClock>::generate_key();
+        let key2 = ElipticCurve::<EarlyClock>::generate_key();
+
+        let shared_secret1 =
+            ElipticCurve::<EarlyClock>::get_aes_key(&key1, &PublicKey::from_secret_key(&key2))
+                .unwrap();
+
+        let shared_secret2 =
+            ElipticCurve::<EarlyClock>::get_aes_key(&key2, &PublicKey::from_secret_key(&key1))
+                .unwrap();
+
+        assert_eq!(shared_secret1, shared_secret2);
     }
 }
