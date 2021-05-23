@@ -1,4 +1,6 @@
-use lockbook_core::{create_file_at_path, CreateFileAtPathError, Error as CoreError};
+use lockbook_core::{
+    create_file_at_path, write_document, CreateFileAtPathError, Error as CoreError,
+};
 use lockbook_models::file_metadata::FileType::Folder;
 use std::fs;
 use std::fs::File;
@@ -7,11 +9,13 @@ use std::path::Path;
 use crate::error::CliResult;
 use crate::utils::{
     edit_file_with_editor, exit_success, get_account_or_exit, get_config, get_directory_location,
-    save_temp_file_contents, set_up_auto_save, stop_auto_save,
+    handle_write_err, save_temp_file_contents, set_up_auto_save, stop_auto_save,
 };
 use crate::{err, err_unexpected};
+use std::io;
+use std::io::Read;
 
-pub fn new(file_name: &str) -> CliResult<()> {
+pub fn new(file_name: &str, stdin: bool) -> CliResult<()> {
     get_account_or_exit();
     let cfg = get_config();
 
@@ -35,29 +39,42 @@ pub fn new(file_name: &str) -> CliResult<()> {
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
-    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.name);
-    let temp_file_path = Path::new(file_location.as_str());
-    let _ = File::create(&temp_file_path)
-        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
-
-    if file_metadata.file_type == Folder {
-        exit_success("Folder created.");
-    }
-
-    let watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
-
-    let edit_was_successful = edit_file_with_editor(&file_location);
-
-    if let Some(ok) = watcher {
-        stop_auto_save(ok, file_location.clone());
-    }
-
-    if edit_was_successful {
-        save_temp_file_contents(file_metadata, &file_location, temp_file_path, false)
+    if stdin {
+        let mut data = String::new();
+        io::stdin().read_to_string(&mut data).unwrap();
+        match write_document(&cfg, file_metadata.id, data.as_bytes()) {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                handle_write_err(err);
+                Ok(())
+            }
+        }
     } else {
-        eprintln!("Your editor indicated a problem, aborting and cleaning up");
-    }
+        let file_location = format!("{}/{}", get_directory_location()?, file_metadata.name);
+        let temp_file_path = Path::new(file_location.as_str());
+        let _ = File::create(&temp_file_path).map_err(|err| {
+            err_unexpected!("couldn't open temporary file for writing: {:#?}", err)
+        })?;
 
-    fs::remove_file(&temp_file_path)
-        .map_err(|err| err_unexpected!("deleting temporary file '{}': {}", &file_location, err))
+        if file_metadata.file_type == Folder {
+            exit_success("Folder created.");
+        }
+
+        let watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
+
+        let edit_was_successful = edit_file_with_editor(&file_location);
+
+        if let Some(ok) = watcher {
+            stop_auto_save(ok, file_location.clone());
+        }
+
+        if edit_was_successful {
+            save_temp_file_contents(file_metadata, &file_location, temp_file_path, false)
+        } else {
+            eprintln!("Your editor indicated a problem, aborting and cleaning up");
+        }
+
+        fs::remove_file(&temp_file_path)
+            .map_err(|err| err_unexpected!("deleting temporary file '{}': {}", &file_location, err))
+    }
 }
