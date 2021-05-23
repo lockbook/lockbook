@@ -58,7 +58,7 @@ pub trait PubKeyCryptoService {
     ) -> Result<RSASigned<T>, RSASignError>;
     fn verify<T: Serialize>(
         public_key: &RSAPublicKey,
-        to_verify: &RSASigned<T>,
+        to_verifymazon: &RSASigned<T>,
         max_delay_ms: u64,
         max_skew_ms: u64,
     ) -> Result<(), RSAVerifyError>;

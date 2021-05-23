@@ -1,3 +1,4 @@
+use libsecp256k1::PublicKey;
 use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -56,6 +57,15 @@ pub struct Timestamped<T> {
     pub timestamp: i64,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ECSigned<T> {
+    pub timestamped_value: Timestamped<T>,
+    #[serde(with = "serde_bytes")]
+    pub signature: Vec<u8>,
+    pub public_key: PublicKey,
+}
+
+// TODO: remove
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RSASigned<T> {
     pub timestamped_value: Timestamped<T>,
