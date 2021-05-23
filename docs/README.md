@@ -77,9 +77,9 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 + [Data Model and Procedures](data_model.md)
 + [Building](building.md)
 
-[Cli]: installing-cli.md
-[Linux]: installing-linux.md
-[Android]: installing-android.md
-[Windows]: installing-windows.md
-[MacOS]: installing-macos.md
-[iOS/iPadOS]: installing-iOS-iPadOS.md
+[Cli]: guides/installing-cli.md
+[Linux]: guides/installing-linux.md
+[Android]: guides/installing-android.md
+[Windows]: guides/installing-windows.md
+[MacOS]: guides/installing-macos.md
+[iOS/iPadOS]: guides/installing-iOS-iPadOS.md
