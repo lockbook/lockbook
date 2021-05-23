@@ -73,9 +73,9 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 
 # Further Reading
 
-+ [System Architecture](system-architecture.md)
-+ [Data Model and Procedures](data_model.md)
-+ [Building](building.md)
++ [System Architecture](design-tech/system-architecture.md)
++ [Data Model and Procedures](design-tech/data_model.md)
++ [Building](guides/building.md)
 
 [Cli]: guides/installing-cli.md
 [Linux]: guides/installing-linux.md
