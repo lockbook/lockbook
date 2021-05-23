@@ -1,5 +1,6 @@
 package app.lockbook.util
 
+import android.content.res.Configuration
 import android.graphics.Color
 import com.beust.klaxon.Json
 import java.util.LinkedHashMap
@@ -20,11 +21,13 @@ data class Drawing(
             return Color.argb(alpha, colorRGB.r, colorRGB.g, colorRGB.b)
         }
 
-        fun themeToARGBColors(theme: LinkedHashMap<String, ColorRGB>): LinkedHashMap<ColorAlias, Int?> {
+        fun themeToARGBColors(theme: LinkedHashMap<String, ColorRGB>, uiMode: Int): LinkedHashMap<ColorAlias, Int?> {
+            val white = Pair(ColorAlias.White, getARGBColor(theme, ColorAlias.White, 255))
+            val black = Pair(ColorAlias.Black, getARGBColor(theme, ColorAlias.Black, 255))
 
             return linkedMapOf(
-                Pair(ColorAlias.White, getARGBColor(theme, ColorAlias.White, 255)),
-                Pair(ColorAlias.Black, getARGBColor(theme, ColorAlias.Black, 255)),
+                if (uiMode == Configuration.UI_MODE_NIGHT_NO) white else black,
+                if (uiMode == Configuration.UI_MODE_NIGHT_NO) black else white,
                 Pair(ColorAlias.Red, getARGBColor(theme, ColorAlias.Red, 255)),
                 Pair(ColorAlias.Green, getARGBColor(theme, ColorAlias.Green, 255)),
                 Pair(ColorAlias.Yellow, getARGBColor(theme, ColorAlias.Yellow, 255)),

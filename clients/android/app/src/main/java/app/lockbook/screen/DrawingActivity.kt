@@ -212,7 +212,7 @@ class DrawingActivity : AppCompatActivity() {
         }
 
         drawing_view.theme = drawing.theme ?: DEFAULT_THEME
-        val colorAliasInARGB = EnumMap(Drawing.themeToARGBColors(drawing_view.theme))
+        val colorAliasInARGB = EnumMap(Drawing.themeToARGBColors(drawing_view.theme, resources.configuration.uiMode))
 
         val white = colorAliasInARGB[ColorAlias.White]
         val black = colorAliasInARGB[ColorAlias.Black]
