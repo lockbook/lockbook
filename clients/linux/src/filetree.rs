@@ -427,7 +427,7 @@ impl FileTreePopup {
 
         let is_root = tsel.iter_is_selected(&match tmodel.get_iter_first() {
             Some(iter) => iter,
-            None => return, // early return since tree empty
+            None => return, // early return since tree is empty
         });
 
         let (selected_rows, _) = tsel.get_selected_rows();
