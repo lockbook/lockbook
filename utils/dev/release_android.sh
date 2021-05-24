@@ -17,12 +17,6 @@ then
     exit 69
 fi
 
-if [ -z "$ANDROID_SDK_HOME" ]
-then
-    echo "No ANDROID_SDK_HOME means you can't sign the lockbook apk, set it to where your sdk is."
-    exit 69
-fi
-
 if [ -z "$ANDROID_RELEASE_KEY" ]
 then
     echo "No ANDROID_RELEASE_KEY means you can't sign the app yourself."
@@ -41,11 +35,26 @@ then
 	exit 69
 fi
 
-if ! command -v jarsigner &> /dev/null
+if ! command -v apksigner &> /dev/null
 then
-	echo "You do not have the util jarsigner, install a JDK (Java Development Kit)"
+	echo "You do not have the util apksigner, install the android SDK (Software Development Kit)"
 	exit 69
 fi
+
+if ! command -v aapt2 &> /dev/null
+then
+	echo "You do not have the util aapt2, install the android SDK (Software Development Kit)"
+	exit 69
+fi
+
+if ! command -v zipalign &> /dev/null
+then
+	echo "You do not have the util zipalign, install the android SDK (Software Development Kit)"
+	exit 69
+fi
+
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+current_hash=$(git rev-parse --short HEAD)
 
 if [ $current_branch != "master" ]
 then
@@ -53,12 +62,8 @@ then
 	exit 69
 fi
 
-current_branch=$(git rev-parse --abbrev-ref HEAD)
-current_hash=$(git rev-parse --short HEAD)
-
-
 echo "Performing clean build"
-cd ../core
+cd ../../core
 touch src/lib.rs
 # TODO @parth do this everywhere
 make android
@@ -66,12 +71,11 @@ make android
 echo "Creating apk"
 cd ../clients/android/
 ./gradlew clean assembleRelease
-jarsigner -keystore $ANDROID_RELEASE_KEY -storepass $ANDROID_RELEASE_KEY_PASSWORD app/build/outputs/apk/release/app-release-unsigned.apk android-lockbook
 cd app/build/outputs/apk/release/
-$ANDROID_SDK_HOME/build-tools/29.0.3/zipalign -v 4 app-release-unsigned.apk lockbook-android.apk
+apksigner sign --ks $ANDROID_RELEASE_KEY --ks-pass file:$ANDROID_RELEASE_KEY_PASSWORD --out lockbook-android.apk --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true app-release-unsigned.apk 
 
 echo "Extracting information from release apk."
-current_version=$($ANDROID_SDK_HOME/build-tools/29.0.3/aapt2 dump badging lockbook-android.apk | grep "VersionName" | sed -e "s/.*versionName='//" -e "s/' .*//")
+current_version=$(aapt2 dump badging lockbook-android.apk | grep "VersionName" | sed -e "s/.*versionName='//" -e "s/' .*//")
 sha_description=$(shasum -a 256 lockbook-android.apk)
 sha=$(echo $sha_description | cut -d ' ' -f 1)
 
