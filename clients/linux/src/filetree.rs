@@ -86,7 +86,6 @@ impl FileTree {
             if event.get_button() != RIGHT_CLICK {
                 return GtkInhibit(false);
             }
-
             popup.update(&tree);
             popup.menu.popup_at_pointer(Some(event));
 
@@ -140,10 +139,17 @@ impl FileTree {
         let mut expanded_paths = Vec::<GtkTreePath>::new();
         self.search_expanded(&self.iter(), &mut expanded_paths);
 
+        let sel = self.tree.get_selection();
+        let (selected_paths, _) = sel.get_selected_rows();
+
         self.fill(&c)?;
 
         for path in expanded_paths {
             self.tree.expand_row(&path, false);
+        }
+
+        for path in selected_paths {
+            sel.select_path(&path);
         }
 
         Ok(())
@@ -419,24 +425,27 @@ impl FileTreePopup {
         let tsel = t.get_selection();
         let tmodel = t.get_model().unwrap();
 
-        let (selected_rows, _) = tsel.get_selected_rows();
-        let n_selected = selected_rows.len();
+        if let Some(iter) = tmodel.get_iter_first() {
+            let is_root = tsel.iter_is_selected(&iter);
 
-        let at_least_1 = n_selected > 0;
-        let only_1 = n_selected == 1;
-        let is_root = tsel.iter_is_selected(&tmodel.get_iter_first().unwrap());
+            let (selected_rows, _) = tsel.get_selected_rows();
+            let n_selected = selected_rows.len();
 
-        for (key, is_enabled) in &[
-            (PopupItem::NewFolder, only_1),
-            (PopupItem::NewDocument, only_1),
-            (PopupItem::Rename, only_1 && !is_root),
-            (PopupItem::Open, only_1),
-            (PopupItem::Delete, at_least_1),
-        ] {
-            self.set_enabled(&key, *is_enabled);
+            let at_least_1 = n_selected > 0;
+            let only_1 = n_selected == 1;
+
+            for (key, is_enabled) in &[
+                (PopupItem::NewFolder, only_1),
+                (PopupItem::NewDocument, only_1),
+                (PopupItem::Rename, only_1 && !is_root),
+                (PopupItem::Open, only_1),
+                (PopupItem::Delete, at_least_1),
+            ] {
+                self.set_enabled(&key, *is_enabled);
+            }
+
+            self.menu.show_all();
         }
-
-        self.menu.show_all();
     }
 
     fn set_enabled(&self, key: &PopupItem, condition: bool) {
