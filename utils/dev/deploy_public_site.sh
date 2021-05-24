@@ -13,7 +13,7 @@ fi
 temp_directory=/tmp/$(date +%s)
 echo "Temporary directory is: $temp_directory"
 
-cd ../public_site
+cd ../../public_site
 hugo
 
 echo "Site built successfully, moving to temporary directory"
