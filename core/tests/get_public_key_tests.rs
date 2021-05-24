@@ -22,7 +22,7 @@ mod get_public_key_tests {
         )
         .unwrap()
         .key;
-        assert_eq!(result, account.private_key.to_public_key());
+        assert_eq!(result, account.public_key());
     }
 
     #[test]

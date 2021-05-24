@@ -12,7 +12,7 @@ use crate::service::account_service::AccountImportError::{
     FailedToVerifyAccountServerSide, PublicKeyMismatch,
 };
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
-use lockbook_crypto::crypto_service::PubKeyCryptoService;
+use lockbook_crypto::pubkey::PubKeyCryptoService;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
     GetPublicKeyError, GetPublicKeyRequest, NewAccountError, NewAccountRequest,
@@ -20,7 +20,6 @@ use lockbook_models::api::{
 
 #[derive(Debug)]
 pub enum AccountCreationError {
-    KeyGenerationError(rsa::errors::Error),
     AccountRepoError(account_repo::AccountRepoError),
     FolderError(RootFolderCreationError),
     MetadataRepoError(file_metadata_repo::DbError),
@@ -34,7 +33,6 @@ pub enum AccountImportError {
     AccountStringCorrupted(base64::DecodeError),
     AccountStringFailedToDeserialize(bincode::Error),
     PersistenceError(account_repo::AccountRepoError),
-    InvalidPrivateKey(rsa::errors::Error),
     AccountRepoError(account_repo::AccountRepoError),
     FailedToVerifyAccountServerSide(client::ApiError<GetPublicKeyError>),
     PublicKeyMismatch,
@@ -97,7 +95,7 @@ impl<
         info!("Creating new account for {}", username);
 
         info!("Generating Key...");
-        let keys = Crypto::generate_key().map_err(AccountCreationError::KeyGenerationError)?;
+        let keys = Crypto::generate_key();
 
         let account = Account {
             username: String::from(username),
@@ -156,12 +154,6 @@ impl<
             .map_err(AccountImportError::AccountStringFailedToDeserialize)?;
         debug!("Key was valid bincode");
 
-        account
-            .private_key
-            .validate()
-            .map_err(AccountImportError::InvalidPrivateKey)?;
-        debug!("RSA says the key is valid");
-
         info!(
             "Checking this username, public_key pair exists at {}",
             account.api_url
@@ -174,7 +166,7 @@ impl<
         )
         .map_err(FailedToVerifyAccountServerSide)?
         .key;
-        if account.private_key.to_public_key() != server_public_key {
+        if account.public_key() != server_public_key {
             return Err(PublicKeyMismatch);
         }
 

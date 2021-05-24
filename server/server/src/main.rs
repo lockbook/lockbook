@@ -9,7 +9,6 @@ use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
 use lockbook_crypto::clock_service::ClockImpl;
-use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl, RSAVerifyError};
 use lockbook_models::api::*;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
@@ -246,7 +245,7 @@ async fn reconnect(server_state: &mut ServerState) {
 async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
     server_state: &ServerState,
     hyper_request: hyper::Request<Body>,
-) -> Result<(TRequest, RSAPublicKey), ErrorWrapper<TRequest::Error>> {
+) -> Result<(TRequest, PublicKey), ErrorWrapper<TRequest::Error>> {
     let request_bytes = match from_request(hyper_request).await {
         Ok(o) => o,
         Err(e) => {

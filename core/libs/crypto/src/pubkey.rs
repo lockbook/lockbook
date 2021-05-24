@@ -8,28 +8,6 @@ use std::convert::TryInto;
 use crate::clock_service::Clock;
 use lockbook_models::crypto::*;
 
-#[derive(Debug)]
-pub enum ECSignError {
-    ParseError(libsecp256k1::Error),
-    Serialization(bincode::Error),
-}
-
-#[derive(Debug)]
-pub enum ECVerifyError {
-    SignatureInvalid,
-    WrongPublicKey,
-    SignatureInTheFuture(u64),
-    SignatureExpired(u64),
-    ParseError(libsecp256k1::Error),
-    Serialization(bincode::Error),
-}
-
-#[derive(Debug)]
-pub enum GetAesKeyError {
-    SharedSecretUnexpectedSize,
-    SharedSecretError(libsecp256k1::Error),
-}
-
 pub trait PubKeyCryptoService {
     fn generate_key() -> SecretKey;
     fn sign<T: Serialize>(secret_key: &SecretKey, to_sign: T) -> Result<ECSigned<T>, ECSignError>;
@@ -40,10 +18,6 @@ pub trait PubKeyCryptoService {
         max_skew_ms: u64,
     ) -> Result<(), ECVerifyError>;
     fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> Result<AESKey, GetAesKeyError>;
-}
-
-pub struct ElipticCurve<Time: Clock> {
-    _clock: Time,
 }
 
 impl<Time: Clock> PubKeyCryptoService for ElipticCurve<Time> {
@@ -113,6 +87,32 @@ impl<Time: Clock> PubKeyCryptoService for ElipticCurve<Time> {
             .try_into()
             .map_err(|_| GetAesKeyError::SharedSecretUnexpectedSize)
     }
+}
+
+pub struct ElipticCurve<Time: Clock> {
+    _clock: Time,
+}
+
+#[derive(Debug)]
+pub enum ECSignError {
+    ParseError(libsecp256k1::Error),
+    Serialization(bincode::Error),
+}
+
+#[derive(Debug)]
+pub enum ECVerifyError {
+    SignatureInvalid,
+    WrongPublicKey,
+    SignatureInTheFuture(u64),
+    SignatureExpired(u64),
+    ParseError(libsecp256k1::Error),
+    Serialization(bincode::Error),
+}
+
+#[derive(Debug)]
+pub enum GetAesKeyError {
+    SharedSecretUnexpectedSize,
+    SharedSecretError(libsecp256k1::Error),
 }
 
 #[cfg(test)]

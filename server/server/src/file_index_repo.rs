@@ -575,7 +575,7 @@ WHERE
                                 row.name.clone(),
                                 UserAccessInfo {
                                     username: row.name.clone(),
-                                    public_key: serde_json::from_str(&row.public_key)
+                                    encrypted_by: serde_json::from_str(&row.public_key)
                                         .map_err(GetFilesError::Deserialize)?,
                                     access_key: serde_json::from_str(&encrypted_key)
                                         .map_err(GetFilesError::Deserialize)?,
@@ -644,7 +644,7 @@ WHERE
                                 row.name.clone(),
                                 UserAccessInfo {
                                     username: row.name.clone(),
-                                    public_key: serde_json::from_str(&row.public_key)
+                                    encrypted_by: serde_json::from_str(&row.public_key)
                                         .map_err(GetUpdatesError::Deserialize)?,
                                     access_key: serde_json::from_str(&encrypted_key)
                                         .map_err(GetUpdatesError::Deserialize)?,
@@ -712,7 +712,7 @@ WHERE
                     row.name.clone(),
                     UserAccessInfo {
                         username: row.name.clone(),
-                        public_key: serde_json::from_str(&row.public_key)
+                        encrypted_by: serde_json::from_str(&row.public_key)
                             .map_err(GetRootError::Deserialize)?,
                         access_key: serde_json::from_str(&encrypted_key)
                             .map_err(GetRootError::Deserialize)?,

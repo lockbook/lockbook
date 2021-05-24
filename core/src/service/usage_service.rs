@@ -166,9 +166,9 @@ mod unit_tests {
     use crate::model::state::Config;
     use crate::repo::account_repo::{AccountRepo, AccountRepoError};
     use crate::service::usage_service::{UsageService, UsageServiceImpl};
-    use crate::{DefaultFileMetadataRepo, DefaultFileService};
-    use lockbook_crypto::clock_service::ClockImpl;
-    use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl};
+    use crate::{DefaultFileMetadataRepo, DefaultFileService, DefaultPKCrypto};
+    
+    use lockbook_crypto::pubkey::PubKeyCryptoService;
     use lockbook_models::account::{Account, ApiUrl};
     use lockbook_models::api::{FileUsage, GetUsageResponse, Request};
     use serde::de::DeserializeOwned;
@@ -194,7 +194,7 @@ mod unit_tests {
             Ok(Account {
                 username: "".to_string(),
                 api_url: "".to_string(),
-                private_key: RSAImpl::<ClockImpl>::generate_key().unwrap(),
+                private_key: DefaultPKCrypto::generate_key(),
             })
         }
 

@@ -52,6 +52,7 @@ debug = true
 [dev-dependencies]
 criterion = "0.3.3"
 cpuprofiler = "0.0.4"
+libsecp256k1 = "0.5.0"
 
 [[bench]]
 name = "performator"

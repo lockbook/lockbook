@@ -7,7 +7,7 @@ mod account_tests {
     use lockbook_core::repo::account_repo::AccountRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::account_service::{
-        AccountCreationError, AccountImportError, AccountService,
+        AccountCreationError, AccountService,
     };
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::{
@@ -16,8 +16,8 @@ mod account_tests {
     };
     use lockbook_models::account::Account;
     use lockbook_models::api::NewAccountError;
-    use rsa::{BigUint, RSAPrivateKey};
-    use std::mem::discriminant;
+    
+    
 
     #[test]
     fn create_account_successfully() {
@@ -138,8 +138,7 @@ mod account_tests {
         ) {
             Ok(_) => panic!("This action should have failed with AccountAlreadyExists!"),
             Err(err) => match err {
-                AccountCreationError::KeyGenerationError(_)
-                | AccountCreationError::AccountRepoError(_)
+                AccountCreationError::AccountRepoError(_)
                 | AccountCreationError::FolderError(_)
                 | AccountCreationError::MetadataRepoError(_)
                 | AccountCreationError::ApiError(_)
@@ -149,41 +148,6 @@ mod account_tests {
                 AccountCreationError::AccountExistsAlready => {}
             },
         }
-    }
-
-    #[test]
-    fn test_import_invalid_private_key() {
-        let db1 = test_db();
-        let db2 = test_db();
-
-        let account = Account {
-            username: "Smail".to_string(),
-            api_url: generate_account().api_url,
-            private_key: RSAPrivateKey::from_components(
-                BigUint::from_bytes_be(b"Test"),
-                BigUint::from_bytes_be(b"Test"),
-                BigUint::from_bytes_be(b"Test"),
-                vec![
-                    BigUint::from_bytes_le(&vec![105, 101, 60, 173, 19, 153, 3, 192]),
-                    BigUint::from_bytes_le(&vec![235, 65, 160, 134, 32, 136, 6, 241]),
-                ],
-            ),
-        };
-
-        DefaultAccountRepo::insert_account(&db1, &account).unwrap();
-
-        let result = discriminant(
-            &DefaultAccountService::import_account(
-                &db2,
-                &DefaultAccountService::export_account(&db1).unwrap(),
-            )
-            .unwrap_err(),
-        );
-        let err = discriminant(&AccountImportError::InvalidPrivateKey(
-            rsa::errors::Error::InvalidModulus,
-        ));
-
-        assert_eq!(result, err)
     }
 
     #[test]

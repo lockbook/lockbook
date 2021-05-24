@@ -4,23 +4,24 @@ mod integration_test;
 mod request_common_tests {
     use crate::assert_matches;
     use crate::integration_test::{generate_account, generate_root_metadata, test_config};
+    use libsecp256k1::{Message, PublicKey, SecretKey};
     use lockbook_core::client::{ApiError, Client, ClientImpl};
     use lockbook_core::service::code_version_service::CodeVersion;
-    use lockbook_core::{create_account, get_account, DefaultCodeVersion, DefaultCrypto};
+    use lockbook_core::{
+        create_account, get_account, DefaultClock, DefaultCodeVersion, DefaultPKCrypto,
+    };
     use lockbook_crypto::clock_service::{Clock, ClockImpl};
-    use lockbook_crypto::crypto_service::{
-        PubKeyCryptoService, RSADecryptError, RSAEncryptError, RSAImpl, RSASignError,
-        RSAVerifyError,
+    use lockbook_crypto::pubkey::{
+        ECSignError, ECVerifyError, GetAesKeyError, PubKeyCryptoService,
     };
     use lockbook_models::api::{
         GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, NewAccountError,
         NewAccountRequest,
     };
-    use lockbook_models::crypto::{RSAEncrypted, RSASigned};
-    use rsa::errors::Error;
-    use rsa::{RSAPrivateKey, RSAPublicKey};
-    use serde::de::DeserializeOwned;
+    use lockbook_models::crypto::{ECSigned};
+    
     use serde::Serialize;
+    use sha2::{Digest, Sha256};
 
     struct MockCodeVersion;
     impl CodeVersion for MockCodeVersion {
@@ -41,8 +42,8 @@ mod request_common_tests {
         .unwrap();
         let account = get_account(&cfg).unwrap();
 
-        let result: Result<RSAPublicKey, ApiError<GetPublicKeyError>> =
-            ClientImpl::<DefaultCrypto, MockCodeVersion>::request(
+        let result: Result<PublicKey, ApiError<GetPublicKeyError>> =
+            ClientImpl::<DefaultPKCrypto, MockCodeVersion>::request(
                 &account,
                 GetPublicKeyRequest {
                     username: account.username.clone(),
@@ -67,48 +68,43 @@ mod request_common_tests {
     fn expired_request() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        let result = ClientImpl::<RSAImpl<MockClock>, DefaultCodeVersion>::request(
+        let result = ClientImpl::<DefaultPKCrypto, DefaultCodeVersion>::request(
             &account,
             NewAccountRequest::new(&account, &root),
         );
         assert_matches!(result, Err(ApiError::<NewAccountError>::ExpiredAuth));
     }
 
-    struct MockRSA;
-    impl PubKeyCryptoService for MockRSA {
-        fn generate_key() -> Result<RSAPrivateKey, Error> {
+    struct MockEC;
+    impl PubKeyCryptoService for MockEC {
+        fn generate_key() -> SecretKey {
             unimplemented!()
         }
 
-        fn encrypt<T: Serialize + DeserializeOwned>(
-            _: &RSAPublicKey,
-            _: &T,
-        ) -> Result<RSAEncrypted<T>, RSAEncryptError> {
-            unimplemented!()
-        }
-
-        fn decrypt<T: DeserializeOwned>(
-            _: &RSAPrivateKey,
-            _: &RSAEncrypted<T>,
-        ) -> Result<T, RSADecryptError> {
-            unimplemented!()
-        }
-
-        fn sign<T: Serialize>(
-            private_key: &RSAPrivateKey,
-            to_sign: T,
-        ) -> Result<RSASigned<T>, RSASignError> {
-            let mut result = RSAImpl::<ClockImpl>::sign(private_key, to_sign).unwrap();
-            result.signature.pop();
-            Ok(result)
+        fn sign<T: Serialize>(sk: &SecretKey, to_sign: T) -> Result<ECSigned<T>, ECSignError> {
+            let timestamped = DefaultClock::timestamp(to_sign);
+            let serialized =
+                bincode::serialize(&timestamped).map_err(ECSignError::Serialization)?;
+            let digest = Sha256::digest(&serialized);
+            let message = &Message::parse_slice(&digest).map_err(ECSignError::ParseError)?;
+            let (signature, _) = libsecp256k1::sign(&message, &sk);
+            Ok(ECSigned {
+                timestamped_value: timestamped,
+                signature: signature.serialize()[0..31].to_vec(),
+                public_key: PublicKey::from_secret_key(&sk),
+            })
         }
 
         fn verify<T: Serialize>(
-            _: &RSAPublicKey,
-            _: &RSASigned<T>,
-            _: u64,
-            _: u64,
-        ) -> Result<(), RSAVerifyError> {
+            _pk: &PublicKey,
+            _signed: &ECSigned<T>,
+            _max_delay_ms: u64,
+            _max_skew_ms: u64,
+        ) -> Result<(), ECVerifyError> {
+            unimplemented!()
+        }
+
+        fn get_aes_key(_: &SecretKey, _: &PublicKey) -> Result<[u8; 32], GetAesKeyError> {
             unimplemented!()
         }
     }
@@ -117,7 +113,7 @@ mod request_common_tests {
     fn bad_signature() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        let result = ClientImpl::<MockRSA, DefaultCodeVersion>::request(
+        let result = ClientImpl::<MockEC, DefaultCodeVersion>::request(
             &account,
             NewAccountRequest::new(&account, &root),
         );

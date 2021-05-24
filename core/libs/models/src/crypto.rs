@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub type AESKey = [u8; 32];
 pub type DecryptedDocument = Vec<u8>;
 pub type EncryptedDocument = AESEncrypted<DecryptedDocument>;
-pub type EncryptedUserAccessKey = RSAEncrypted<AESKey>;
+pub type EncryptedUserAccessKey = AESEncrypted<AESKey>;
 pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -77,7 +77,7 @@ pub struct RSASigned<T> {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct UserAccessInfo {
     pub username: String,
-    pub public_key: RSAPublicKey,
+    pub encrypted_by: PublicKey,
     pub access_key: EncryptedUserAccessKey,
 }
 

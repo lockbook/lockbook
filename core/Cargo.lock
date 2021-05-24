@@ -1162,6 +1162,7 @@ dependencies = [
  "flate2",
  "image",
  "jni",
+ "libsecp256k1",
  "lockbook-crypto",
  "lockbook-models",
  "log",

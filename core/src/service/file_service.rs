@@ -628,13 +628,14 @@ mod unit_tests {
         DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
     use crate::{
-        init_logger, DefaultAccountRepo, DefaultCrypto, DefaultDocumentRepo,
-        DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService,
-        DefaultLocalChangesRepo, NewFileFromPathError,
+        init_logger, DefaultAccountRepo, DefaultDocumentRepo, DefaultFileEncryptionService,
+        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo,
+        NewFileFromPathError,
     };
-    use lockbook_crypto::crypto_service::PubKeyCryptoService;
+    use libsecp256k1::SecretKey;
     use lockbook_models::account::Account;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
+    use rand::rngs::OsRng;
 
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
@@ -670,7 +671,7 @@ mod unit_tests {
         Account {
             username: String::from("username"),
             api_url: "ftp://uranus.net".to_string(),
-            private_key: DefaultCrypto::generate_key().unwrap(),
+            private_key: SecretKey::random(&mut OsRng),
         }
     }
 
