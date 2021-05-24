@@ -425,28 +425,27 @@ impl FileTreePopup {
         let tsel = t.get_selection();
         let tmodel = t.get_model().unwrap();
 
-        let is_root = tsel.iter_is_selected(&match tmodel.get_iter_first() {
-            Some(iter) => iter,
-            None => return, // early return since tree is empty
-        });
+        if let Some(iter) = tmodel.get_iter_first() {
+            let is_root = tsel.iter_is_selected(&iter);
 
-        let (selected_rows, _) = tsel.get_selected_rows();
-        let n_selected = selected_rows.len();
+            let (selected_rows, _) = tsel.get_selected_rows();
+            let n_selected = selected_rows.len();
 
-        let at_least_1 = n_selected > 0;
-        let only_1 = n_selected == 1;
+            let at_least_1 = n_selected > 0;
+            let only_1 = n_selected == 1;
 
-        for (key, is_enabled) in &[
-            (PopupItem::NewFolder, only_1),
-            (PopupItem::NewDocument, only_1),
-            (PopupItem::Rename, only_1 && !is_root),
-            (PopupItem::Open, only_1),
-            (PopupItem::Delete, at_least_1),
-        ] {
-            self.set_enabled(&key, *is_enabled);
+            for (key, is_enabled) in &[
+                (PopupItem::NewFolder, only_1),
+                (PopupItem::NewDocument, only_1),
+                (PopupItem::Rename, only_1 && !is_root),
+                (PopupItem::Open, only_1),
+                (PopupItem::Delete, at_least_1),
+            ] {
+                self.set_enabled(&key, *is_enabled);
+            }
+
+            self.menu.show_all();
         }
-
-        self.menu.show_all();
     }
 
     fn set_enabled(&self, key: &PopupItem, condition: bool) {
