@@ -24,7 +24,7 @@ then
 fi
 
 echo "Performing clean build"
-cd ../clients/cli
+cd ../../clients/cli
 current_version=$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)
 cargo clean
 API_URL="http://api.lockbook.app:8000" cargo build --release
