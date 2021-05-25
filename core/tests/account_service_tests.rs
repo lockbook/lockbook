@@ -98,7 +98,7 @@ mod account_tests {
 
         let db2 = test_db();
         assert!(DefaultAccountService::export_account(&db2).is_err());
-        assert!(DefaultAccountService::import_account(&db2, &account_string).is_ok());
+        DefaultAccountService::import_account(&db2, &account_string).unwrap();
         assert_eq!(DefaultAccountRepo::get_account(&db2).unwrap(), account);
         assert_eq!(DefaultFileMetadataRepo::get_last_updated(&db2).unwrap(), 0);
 

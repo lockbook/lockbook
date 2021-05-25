@@ -166,6 +166,7 @@ impl<
         )
         .map_err(FailedToVerifyAccountServerSide)?
         .key;
+
         if account.public_key() != server_public_key {
             return Err(PublicKeyMismatch);
         }

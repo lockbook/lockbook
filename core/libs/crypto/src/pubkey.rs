@@ -184,4 +184,17 @@ mod unit_test_pubkey {
 
         assert_eq!(shared_secret1, shared_secret2);
     }
+
+    #[test]
+    fn same_sk_same_pk_sanity_check() {
+        let key1 = ElipticCurve::<EarlyClock>::generate_key();
+        let key2 = SecretKey::parse(&key1.serialize()).unwrap();
+
+        assert_eq!(key1, key2);
+
+        assert_eq!(
+            PublicKey::from_secret_key(&key1),
+            PublicKey::from_secret_key(&key2)
+        );
+    }
 }

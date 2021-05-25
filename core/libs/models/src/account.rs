@@ -38,8 +38,29 @@ pub mod secret_key_serializer {
     where
         D: Deserializer<'de>,
     {
-        let key = <[u8; 32]>::deserialize(deserializer)?;
-        let sk = SecretKey::parse(&key).map_err(serde::de::Error::custom)?;
+        let key = <Vec<u8>>::deserialize(deserializer)?;
+        let sk = SecretKey::parse_slice(&key).map_err(serde::de::Error::custom)?;
         Ok(sk)
+    }
+}
+
+#[cfg(test)]
+mod test_account_serialization {
+    use crate::account::Account;
+    use libsecp256k1::SecretKey;
+    use rand::rngs::OsRng;
+
+    #[test]
+    fn account_serialize_deserialize() {
+        let account1 = Account {
+            username: "test".to_string(),
+            api_url: "test.com".to_string(),
+            private_key: SecretKey::random(&mut OsRng),
+        };
+
+        let encoded: Vec<u8> = bincode::serialize(&account1).unwrap();
+        let account2: Account = bincode::deserialize(&encoded).unwrap();
+
+        assert_eq!(account1, account2);
     }
 }
