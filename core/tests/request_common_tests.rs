@@ -12,7 +12,7 @@ mod request_common_tests {
     };
     use lockbook_crypto::clock_service::{Clock, ClockImpl};
     use lockbook_crypto::pubkey::{
-        ECSignError, ECVerifyError, GetAesKeyError, PubKeyCryptoService,
+        ECSignError, ECVerifyError, ElipticCurve, GetAesKeyError, PubKeyCryptoService,
     };
     use lockbook_models::api::{
         GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, NewAccountError,
@@ -68,7 +68,7 @@ mod request_common_tests {
     fn expired_request() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        let result = ClientImpl::<DefaultPKCrypto, DefaultCodeVersion>::request(
+        let result = ClientImpl::<ElipticCurve<MockClock>, DefaultCodeVersion>::request(
             &account,
             NewAccountRequest::new(&account, &root),
         );
