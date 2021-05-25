@@ -1,5 +1,4 @@
 extern crate rand;
-extern crate rsa;
 
 use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;

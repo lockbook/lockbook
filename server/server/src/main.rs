@@ -8,11 +8,12 @@ extern crate log;
 use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
+use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::ClockImpl;
+use lockbook_crypto::pubkey::{ECVerifyError, ElipticCurve, PubKeyCryptoService};
 use lockbook_models::api::*;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
-use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::Infallible;
@@ -268,7 +269,7 @@ async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
 
     match verify_auth(server_state, &request) {
         Ok(()) => {}
-        Err(RSAVerifyError::SignatureExpired(_)) | Err(RSAVerifyError::SignatureInTheFuture(_)) => {
+        Err(ECVerifyError::SignatureExpired(_)) | Err(ECVerifyError::SignatureInTheFuture(_)) => {
             return Err(ErrorWrapper::<TRequest::Error>::ExpiredAuth);
         }
         Err(_) => {
@@ -325,8 +326,8 @@ fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) 
 fn verify_auth<TRequest: Request + Serialize>(
     server_state: &ServerState,
     request: &RequestWrapper<TRequest>,
-) -> Result<(), RSAVerifyError> {
-    RSAImpl::<ClockImpl>::verify(
+) -> Result<(), ECVerifyError> {
+    ElipticCurve::<ClockImpl>::verify(
         &request.signed_request.public_key,
         &request.signed_request,
         server_state.config.server.max_auth_delay as u64,

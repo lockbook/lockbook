@@ -605,7 +605,6 @@ dependencies = [
  "libsecp256k1",
  "rand",
  "reqwest",
- "rsa",
  "serde",
  "serde_bytes",
  "uuid",
