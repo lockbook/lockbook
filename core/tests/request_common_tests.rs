@@ -18,8 +18,8 @@ mod request_common_tests {
         GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, NewAccountError,
         NewAccountRequest,
     };
-    use lockbook_models::crypto::{ECSigned};
-    
+    use lockbook_models::crypto::ECSigned;
+
     use serde::Serialize;
     use sha2::{Digest, Sha256};
 

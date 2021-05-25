@@ -167,7 +167,7 @@ mod unit_tests {
     use crate::repo::account_repo::{AccountRepo, AccountRepoError};
     use crate::service::usage_service::{UsageService, UsageServiceImpl};
     use crate::{DefaultFileMetadataRepo, DefaultFileService, DefaultPKCrypto};
-    
+
     use lockbook_crypto::pubkey::PubKeyCryptoService;
     use lockbook_models::account::{Account, ApiUrl};
     use lockbook_models::api::{FileUsage, GetUsageResponse, Request};

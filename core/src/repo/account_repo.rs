@@ -67,7 +67,7 @@ mod unit_tests {
     use crate::repo::account_repo::AccountRepo;
     use crate::storage::db_provider::FileBackend;
     use crate::DefaultPKCrypto;
-    
+
     use lockbook_crypto::pubkey::PubKeyCryptoService;
     use lockbook_models::account::Account;
 

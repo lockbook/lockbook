@@ -629,8 +629,7 @@ mod unit_tests {
     };
     use crate::{
         init_logger, DefaultAccountRepo, DefaultDocumentRepo, DefaultFileEncryptionService,
-        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo,
-        NewFileFromPathError,
+        DefaultFileMetadataRepo, DefaultFileService, DefaultLocalChangesRepo, NewFileFromPathError,
     };
     use libsecp256k1::SecretKey;
     use lockbook_models::account::Account;
