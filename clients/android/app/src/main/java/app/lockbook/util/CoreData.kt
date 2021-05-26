@@ -47,14 +47,10 @@ enum class FileType {
 
 data class UserAccessInfo(
     val username: String,
-    @Json(name = "public_key")
-    val publicKey: RSAPublicKey,
+    @Json(name = "encrypted_by")
+    val encryptedBy: String,
     @Json(name = "access_key")
-    val accessKey: RSAEncrypted
-)
-
-data class RSAEncrypted(
-    val value: List<Int>
+    val accessKey: AESEncrypted
 )
 
 data class Account(
@@ -62,19 +58,7 @@ data class Account(
     @Json(name = "api_url")
     val apiUrl: String,
     @Json(name = "private_key")
-    val privateKey: RSAPrivateKey,
-)
-
-data class RSAPrivateKey(
-    val n: List<Int>,
-    val e: List<Int>,
-    val d: List<Int>,
-    val primes: List<String>
-)
-
-data class RSAPublicKey(
-    val n: List<Int>,
-    val e: List<Int>
+    val privateKey: List<Int>,
 )
 
 data class WorkCalculated(
