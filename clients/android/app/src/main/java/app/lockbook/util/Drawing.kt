@@ -1,5 +1,6 @@
 package app.lockbook.util
 
+import android.content.res.Configuration
 import android.graphics.Color
 import com.beust.klaxon.Json
 import java.util.LinkedHashMap
@@ -14,25 +15,28 @@ data class Drawing(
     var theme: LinkedHashMap<String, ColorRGB>? = null
 ) {
 
-    companion object {
-        fun getARGBColor(theme: LinkedHashMap<String, ColorRGB>, colorAlias: ColorAlias, alpha: Int): Int? {
-            val colorRGB = theme.get(colorAlias.name) ?: return null
-            return Color.argb(alpha, colorRGB.r, colorRGB.g, colorRGB.b)
+    fun getARGBColor(uiMode: Int, colorAlias: ColorAlias, alpha: Int = 255): Int? {
+        val modifiedColorAlias = when (colorAlias) {
+            ColorAlias.White -> if (uiMode == Configuration.UI_MODE_NIGHT_NO) ColorAlias.White else ColorAlias.Black
+            ColorAlias.Black -> if (uiMode == Configuration.UI_MODE_NIGHT_NO) ColorAlias.Black else ColorAlias.White
+            else -> colorAlias
         }
 
-        fun themeToARGBColors(theme: LinkedHashMap<String, ColorRGB>): LinkedHashMap<ColorAlias, Int?> {
+        val colorRGB = (theme ?: DEFAULT_THEME)[modifiedColorAlias.name] ?: return null
+        return Color.argb(alpha, colorRGB.r, colorRGB.g, colorRGB.b)
+    }
 
-            return linkedMapOf(
-                Pair(ColorAlias.White, getARGBColor(theme, ColorAlias.White, 255)),
-                Pair(ColorAlias.Black, getARGBColor(theme, ColorAlias.Black, 255)),
-                Pair(ColorAlias.Red, getARGBColor(theme, ColorAlias.Red, 255)),
-                Pair(ColorAlias.Green, getARGBColor(theme, ColorAlias.Green, 255)),
-                Pair(ColorAlias.Yellow, getARGBColor(theme, ColorAlias.Yellow, 255)),
-                Pair(ColorAlias.Blue, getARGBColor(theme, ColorAlias.Blue, 255)),
-                Pair(ColorAlias.Magenta, getARGBColor(theme, ColorAlias.Magenta, 255)),
-                Pair(ColorAlias.Cyan, getARGBColor(theme, ColorAlias.Cyan, 255))
-            )
-        }
+    fun themeToARGBColors(uiMode: Int): LinkedHashMap<ColorAlias, Int?> {
+        return linkedMapOf(
+            Pair(ColorAlias.White, getARGBColor(uiMode, ColorAlias.White)),
+            Pair(ColorAlias.Black, getARGBColor(uiMode, ColorAlias.Black)),
+            Pair(ColorAlias.Red, getARGBColor(uiMode, ColorAlias.Red)),
+            Pair(ColorAlias.Green, getARGBColor(uiMode, ColorAlias.Green)),
+            Pair(ColorAlias.Yellow, getARGBColor(uiMode, ColorAlias.Yellow)),
+            Pair(ColorAlias.Blue, getARGBColor(uiMode, ColorAlias.Blue)),
+            Pair(ColorAlias.Magenta, getARGBColor(uiMode, ColorAlias.Magenta)),
+            Pair(ColorAlias.Cyan, getARGBColor(uiMode, ColorAlias.Cyan))
+        )
     }
 
     fun clone(): Drawing {

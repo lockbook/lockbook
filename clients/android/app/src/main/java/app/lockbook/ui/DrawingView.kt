@@ -33,7 +33,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private var strokeAlpha = 255
     var isErasing = false
     var strokeColor = ColorAlias.White
-    var theme = DEFAULT_THEME
     lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int?>
 
     // Current drawing stroke state
@@ -182,7 +181,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         return if (alphaAsInt == 255) {
             colorAliasInARGB[colorAlias]
         } else {
-            Drawing.getARGBColor(theme, colorAlias, alphaAsInt)
+            drawing.getARGBColor(resources.configuration.uiMode, colorAlias, alphaAsInt)
         }
     }
 
