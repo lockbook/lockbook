@@ -18,9 +18,6 @@ impl Account {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SecretKeyHolder(pub [u8; 32]);
-
 pub mod secret_key_serializer {
     use libsecp256k1::SecretKey;
     use serde::de::Deserialize;
