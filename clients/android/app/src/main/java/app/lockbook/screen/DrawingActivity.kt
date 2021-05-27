@@ -3,6 +3,7 @@ package app.lockbook.screen
 import android.animation.Animator
 import android.annotation.SuppressLint
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -211,8 +212,7 @@ class DrawingActivity : AppCompatActivity() {
             return
         }
 
-        drawing_view.theme = drawing.theme ?: DEFAULT_THEME
-        val colorAliasInARGB = EnumMap(Drawing.themeToARGBColors(drawing_view.theme))
+        val colorAliasInARGB = EnumMap(drawing.themeToARGBColors(resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK))
 
         val white = colorAliasInARGB[ColorAlias.White]
         val black = colorAliasInARGB[ColorAlias.Black]
