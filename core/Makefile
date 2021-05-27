@@ -1,9 +1,9 @@
 .PHONY: android
 android:
-	cargo ndk --target aarch64-linux-android --android-platform $(MIN_VER) -- build --release
-	cargo ndk --target armv7-linux-androideabi --android-platform $(MIN_VER) -- build --release
-	cargo ndk --target i686-linux-android --android-platform $(MIN_VER) -- build --release
-	cargo ndk --target x86_64-linux-android --android-platform $(MIN_VER) -- build --release
+	cargo ndk --target aarch64-linux-android --platform $(MIN_VER) -- build --release
+	cargo ndk --target armv7-linux-androideabi --platform $(MIN_VER) -- build --release
+	cargo ndk --target i686-linux-android --platform $(MIN_VER) -- build --release
+	cargo ndk --target x86_64-linux-android --platform $(MIN_VER) -- build --release
 
 	@echo "Cleaning up old .so's if they exist"
 	@rm -rf $(jniLibs)/*
