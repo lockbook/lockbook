@@ -21,13 +21,13 @@ lockbook-crypto = { path = "../../core/libs/crypto" }
 lockbook-models = { path = "../../core/libs/models" }
 log = "0.4.8"
 pagerduty-rs = { version = "0.1.1", features = ["sync"] }
-rsa = { version = "^0.2", features = ["serde1"] }
 rust-s3 = "0.27.0-rc3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
 tokio = { version = "1.5.0", features = ["full"] }
 sqlx = { version = "0.5.2", features = ["macros", "postgres", "uuid", "tls", "runtime-tokio-native-tls", "offline"] }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
+libsecp256k1 = "0.5.0"
 
 [dev-dependencies]
 lockbook-core = { path = "../../core" }

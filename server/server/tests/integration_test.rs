@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use lockbook_core::model::state::Config;
-use lockbook_core::DefaultBackend;
 
 use std::env;
 use uuid::Uuid;

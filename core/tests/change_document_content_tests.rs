@@ -8,7 +8,7 @@ mod change_document_content_tests {
     };
     use lockbook_core::client::{ApiError, Client};
     use lockbook_core::DefaultClient;
-    use lockbook_crypto::crypto_service::{AESImpl, SymmetricCryptoService};
+    use lockbook_crypto::symkey::{AESImpl, SymmetricCryptoService};
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
     use uuid::Uuid;

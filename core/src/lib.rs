@@ -4,6 +4,7 @@
 extern crate log;
 extern crate reqwest;
 
+use lockbook_crypto::symkey::AESImpl;
 use std::env;
 use std::path::Path;
 use std::str::FromStr;
@@ -49,7 +50,6 @@ use crate::service::usage_service::{
 use crate::service::{db_state_service, file_service, usage_service};
 use crate::storage::db_provider::FileBackend;
 use lockbook_crypto::clock_service::{Clock, ClockImpl};
-use lockbook_crypto::crypto_service::{AESImpl, RSAImpl};
 use lockbook_models::account::Account;
 use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
 use lockbook_models::crypto::DecryptedDocument;
@@ -65,6 +65,7 @@ use crate::repo::local_changes_repo;
 use crate::service::drawing_service::{
     DrawingError, DrawingService, DrawingServiceImpl, SupportedImageFormats,
 };
+use lockbook_crypto::pubkey::ElipticCurve;
 use lockbook_models::drawing::Drawing;
 use serde_json::error::Category;
 use Error::UiError;
@@ -152,8 +153,7 @@ pub fn create_account(
             | ApiError::InvalidAuth
             | ApiError::ExpiredAuth => unexpected!("{:#?}", network),
         },
-        AccountCreationError::KeyGenerationError(_)
-        | AccountCreationError::AccountRepoError(_)
+        AccountCreationError::AccountRepoError(_)
         | AccountCreationError::FolderError(_)
         | AccountCreationError::MetadataRepoError(_)
         | AccountCreationError::KeySerializationError(_) => unexpected!("{:#?}", e),
@@ -176,8 +176,9 @@ pub fn import_account(
 ) -> Result<Account, Error<ImportError>> {
     DefaultAccountService::import_account(&config, account_string).map_err(|e| match e {
         AccountImportError::AccountStringCorrupted(_)
-        | AccountImportError::AccountStringFailedToDeserialize(_)
-        | AccountImportError::InvalidPrivateKey(_) => UiError(ImportError::AccountStringCorrupted),
+        | AccountImportError::AccountStringFailedToDeserialize(_) => {
+            UiError(ImportError::AccountStringCorrupted)
+        }
         AccountImportError::AccountExistsAlready => UiError(ImportError::AccountExistsAlready),
         AccountImportError::PublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
         AccountImportError::FailedToVerifyAccountServerSide(client_err) => match client_err {
@@ -1031,11 +1032,11 @@ pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
 
 pub type DefaultClock = ClockImpl;
-pub type DefaultCrypto = RSAImpl<DefaultClock>;
+pub type DefaultPKCrypto = ElipticCurve<DefaultClock>;
 pub type DefaultSymmetric = AESImpl;
 pub type DefaultBackend = FileBackend;
 pub type DefaultCodeVersion = CodeVersionImpl;
-pub type DefaultClient = ClientImpl<DefaultCrypto, DefaultCodeVersion>;
+pub type DefaultClient = ClientImpl<DefaultPKCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl;
 pub type DefaultUsageService = UsageServiceImpl<
     DefaultFileMetadataRepo,
@@ -1048,7 +1049,7 @@ pub type DefaultDbVersionRepo = DbVersionRepoImpl;
 pub type DefaultDbStateService =
     DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo, DefaultCodeVersion>;
 pub type DefaultAccountService = AccountServiceImpl<
-    DefaultCrypto,
+    DefaultPKCrypto,
     DefaultAccountRepo,
     DefaultClient,
     DefaultFileEncryptionService,
@@ -1057,7 +1058,8 @@ pub type DefaultAccountService = AccountServiceImpl<
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock>;
 pub type DefaultDocumentRepo = DocumentRepoImpl;
-pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultCrypto, DefaultSymmetric>;
+pub type DefaultFileEncryptionService =
+    FileEncryptionServiceImpl<DefaultPKCrypto, DefaultSymmetric>;
 pub type DefaultFileCompressionService = FileCompressionServiceImpl;
 pub type DefaultSyncService = FileSyncService<
     DefaultFileMetadataRepo,

@@ -3,16 +3,16 @@ import Foundation
 public struct Account: Codable {
     public var username: Username
     public var apiUrl: ApiUrl
-    var privateKey: RSAPrivateKey
+    var privateKey: [UInt8]
     
-    public init(username: Username, apiUrl: ApiUrl, keys: RSAPrivateKey) {
+    public init(username: Username, apiUrl: ApiUrl, keys: [UInt8]) {
         self.username = username
         self.apiUrl = apiUrl
         self.privateKey = keys
     }
     
     public static func fake(username: Username) -> Account {
-        Account(username: username, apiUrl: "test://api", keys: .empty)
+        Account(username: username, apiUrl: "test://api", keys: [])
     }
     
     public func qualified() -> String {
@@ -21,14 +21,6 @@ public struct Account: Codable {
     
     public typealias Username = String
     public typealias ApiUrl = String
-    public struct RSAPrivateKey: Codable {
-        var n: [UInt64]
-        var e: [UInt64]
-        var d: [UInt64]
-        var primes: [[UInt64]]
-        
-        public static let empty: RSAPrivateKey = RSAPrivateKey(n: [], e: [], d: [], primes: [])
-    }
 }
 
 extension Account: Identifiable {

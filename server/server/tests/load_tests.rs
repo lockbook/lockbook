@@ -1,6 +1,6 @@
 mod integration_test;
 
-/// Run with: cargo test load_tests -- --nocapture
+/// Run with: cargo test load_tests -- --nocapture --ignored
 #[cfg(test)]
 mod load_tests {
     use crate::integration_test::{api_url, random_uuid, test_config};
@@ -12,6 +12,7 @@ mod load_tests {
     use std::{thread, time};
 
     #[test]
+    #[ignore]
     fn create_and_sync() {
         let cpu_count = num_cpus::get();
         println!("Threads: {}", cpu_count);

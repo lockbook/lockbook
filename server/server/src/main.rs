@@ -8,12 +8,12 @@ extern crate log;
 use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
+use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::ClockImpl;
-use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl, RSAVerifyError};
+use lockbook_crypto::pubkey::{ECVerifyError, ElipticCurve, PubKeyCryptoService};
 use lockbook_models::api::*;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
-use rsa::RSAPublicKey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::Infallible;
@@ -246,7 +246,7 @@ async fn reconnect(server_state: &mut ServerState) {
 async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
     server_state: &ServerState,
     hyper_request: hyper::Request<Body>,
-) -> Result<(TRequest, RSAPublicKey), ErrorWrapper<TRequest::Error>> {
+) -> Result<(TRequest, PublicKey), ErrorWrapper<TRequest::Error>> {
     let request_bytes = match from_request(hyper_request).await {
         Ok(o) => o,
         Err(e) => {
@@ -269,7 +269,7 @@ async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
 
     match verify_auth(server_state, &request) {
         Ok(()) => {}
-        Err(RSAVerifyError::SignatureExpired(_)) | Err(RSAVerifyError::SignatureInTheFuture(_)) => {
+        Err(ECVerifyError::SignatureExpired(_)) | Err(ECVerifyError::SignatureInTheFuture(_)) => {
             return Err(ErrorWrapper::<TRequest::Error>::ExpiredAuth);
         }
         Err(_) => {
@@ -326,8 +326,8 @@ fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) 
 fn verify_auth<TRequest: Request + Serialize>(
     server_state: &ServerState,
     request: &RequestWrapper<TRequest>,
-) -> Result<(), RSAVerifyError> {
-    RSAImpl::<ClockImpl>::verify(
+) -> Result<(), ECVerifyError> {
+    ElipticCurve::<ClockImpl>::verify(
         &request.signed_request.public_key,
         &request.signed_request,
         server_state.config.server.max_auth_delay as u64,

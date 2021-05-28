@@ -1,9 +1,9 @@
 use crate::config::IndexDbConfig;
+use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::{EncryptedUserAccessKey, FolderAccessInfo, UserAccessInfo};
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType;
-use rsa::RSAPublicKey;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{PgPool, Postgres, Transaction};
 use std::array::IntoIter;
@@ -125,7 +125,7 @@ pub async fn create_file(
     parent: Uuid,
     file_type: FileType,
     name: &str,
-    public_key: &RSAPublicKey,
+    public_key: &PublicKey,
     access_key: &FolderAccessInfo,
     maybe_document_bytes: Option<u64>,
 ) -> Result<u64, CreateFileError> {
@@ -510,7 +510,7 @@ pub enum PublicKeyError {
 pub async fn get_public_key(
     transaction: &mut Transaction<'_, Postgres>,
     username: &str,
-) -> Result<RSAPublicKey, PublicKeyError> {
+) -> Result<PublicKey, PublicKeyError> {
     match sqlx::query!(
         r#"
 SELECT public_key FROM accounts WHERE name = $1;
@@ -538,7 +538,7 @@ pub enum GetFilesError {
 
 pub async fn get_files(
     transaction: &mut Transaction<'_, Postgres>,
-    public_key: &RSAPublicKey,
+    public_key: &PublicKey,
 ) -> Result<Vec<FileMetadata>, GetFilesError> {
     sqlx::query!(
         r#"
@@ -575,7 +575,7 @@ WHERE
                                 row.name.clone(),
                                 UserAccessInfo {
                                     username: row.name.clone(),
-                                    public_key: serde_json::from_str(&row.public_key)
+                                    encrypted_by: serde_json::from_str(&row.public_key)
                                         .map_err(GetFilesError::Deserialize)?,
                                     access_key: serde_json::from_str(&encrypted_key)
                                         .map_err(GetFilesError::Deserialize)?,
@@ -604,7 +604,7 @@ pub enum GetUpdatesError {
 
 pub async fn get_updates(
     transaction: &mut Transaction<'_, Postgres>,
-    public_key: &RSAPublicKey,
+    public_key: &PublicKey,
     metadata_version: u64,
 ) -> Result<Vec<FileMetadata>, GetUpdatesError> {
     sqlx::query!(
@@ -644,7 +644,7 @@ WHERE
                                 row.name.clone(),
                                 UserAccessInfo {
                                     username: row.name.clone(),
-                                    public_key: serde_json::from_str(&row.public_key)
+                                    encrypted_by: serde_json::from_str(&row.public_key)
                                         .map_err(GetUpdatesError::Deserialize)?,
                                     access_key: serde_json::from_str(&encrypted_key)
                                         .map_err(GetUpdatesError::Deserialize)?,
@@ -672,7 +672,7 @@ pub enum GetRootError {
 
 pub async fn get_root(
     transaction: &mut Transaction<'_, Postgres>,
-    public_key: &RSAPublicKey,
+    public_key: &PublicKey,
 ) -> Result<FileMetadata, GetRootError> {
     let row = sqlx::query!(
         r#"
@@ -712,7 +712,7 @@ WHERE
                     row.name.clone(),
                     UserAccessInfo {
                         username: row.name.clone(),
-                        public_key: serde_json::from_str(&row.public_key)
+                        encrypted_by: serde_json::from_str(&row.public_key)
                             .map_err(GetRootError::Deserialize)?,
                         access_key: serde_json::from_str(&encrypted_key)
                             .map_err(GetRootError::Deserialize)?,
@@ -738,7 +738,7 @@ pub enum NewAccountError {
 pub async fn new_account(
     transaction: &mut Transaction<'_, Postgres>,
     username: &str,
-    public_key: &RSAPublicKey,
+    public_key: &PublicKey,
 ) -> Result<(), NewAccountError> {
     match sqlx::query!(
         r#"
@@ -890,7 +890,7 @@ pub enum GetDataCapError {
 
 pub async fn get_account_data_cap(
     transaction: &mut Transaction<'_, Postgres>,
-    public_key: &RSAPublicKey,
+    public_key: &PublicKey,
 ) -> Result<u64, GetDataCapError> {
     match sqlx::query!(
         r#"
@@ -919,7 +919,7 @@ pub enum GetFileUsageError {
 
 pub async fn get_file_usages(
     transaction: &mut Transaction<'_, Postgres>,
-    public_key: &RSAPublicKey,
+    public_key: &PublicKey,
 ) -> Result<Vec<FileUsage>, GetFileUsageError> {
     sqlx::query!(
         r#"

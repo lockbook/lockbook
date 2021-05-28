@@ -45,14 +45,7 @@ namespace Core {
         [JsonProperty("api_url")]
         public string apiUrl;
         [JsonProperty("private_key")]
-        public RSAPrivateKey key;
-    }
-
-    public class RSAPrivateKey {
-        public List<long> n;
-        public List<long> e;
-        public List<long> d;
-        public List<List<long>> primes;
+        public byte[] key;
     }
 
     public enum FileType {

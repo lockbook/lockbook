@@ -9,16 +9,15 @@ use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 use lockbook_core::storage::db_provider::FileBackend;
 use lockbook_core::{
     DefaultAccountRepo, DefaultBackend, DefaultDbVersionRepo, DefaultDocumentRepo,
-    DefaultFileMetadataRepo, DefaultLocalChangesRepo,
+    DefaultFileMetadataRepo, DefaultLocalChangesRepo, DefaultPKCrypto,
 };
-use lockbook_crypto::clock_service::ClockImpl;
-use lockbook_crypto::crypto_service::{
-    AESImpl, PubKeyCryptoService, RSAImpl, SymmetricCryptoService,
-};
+
+use lockbook_crypto::pubkey::PubKeyCryptoService;
+use lockbook_crypto::symkey::{AESImpl, SymmetricCryptoService};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
-use rsa::{RSAPrivateKey, RSAPublicKey};
+
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -67,7 +66,7 @@ pub fn generate_account() -> Account {
     Account {
         username: random_username(),
         api_url: env::var("API_URL").expect("API_URL must be defined!"),
-        private_key: RSAImpl::<ClockImpl>::generate_key().unwrap(),
+        private_key: DefaultPKCrypto::generate_key(),
     }
 }
 
@@ -75,11 +74,14 @@ pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
     let id = Uuid::new_v4();
     let folder_key = AESImpl::generate_key();
 
-    let public_key = account.private_key.to_public_key();
+    let public_key = account.public_key();
     let user_access_info = UserAccessInfo {
         username: account.username.clone(),
-        public_key: public_key.clone(),
-        access_key: rsa_encrypt(&public_key, &folder_key),
+        encrypted_by: public_key.clone(),
+        access_key: aes_encrypt(
+            &DefaultPKCrypto::get_aes_key(&account.private_key, &account.public_key()).unwrap(),
+            &folder_key,
+        ),
     };
     let mut user_access_keys = HashMap::new();
     user_access_keys.insert(account.username.clone(), user_access_info);
@@ -144,20 +146,6 @@ pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
     to_decrypt: &AESEncrypted<T>,
 ) -> T {
     AESImpl::decrypt(&key, &to_decrypt).unwrap()
-}
-
-pub fn rsa_encrypt<T: Serialize + DeserializeOwned>(
-    key: &RSAPublicKey,
-    to_encrypt: &T,
-) -> RSAEncrypted<T> {
-    RSAImpl::<ClockImpl>::encrypt(key, to_encrypt).unwrap()
-}
-
-pub fn rsa_decrypt<T: Serialize + DeserializeOwned>(
-    key: &RSAPrivateKey,
-    to_decrypt: &RSAEncrypted<T>,
-) -> T {
-    RSAImpl::<ClockImpl>::decrypt(key, to_decrypt).unwrap()
 }
 
 pub fn assert_dbs_eq(db1: &Config, db2: &Config) {

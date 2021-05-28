@@ -3,12 +3,12 @@ mod integration_test;
 #[cfg(test)]
 mod get_root_tests {
     use crate::integration_test::{api_url, random_uuid, test_config};
+    use libsecp256k1::PublicKey;
     use lockbook_models::file_metadata::FileMetadata;
     use lockbook_server_lib::config::Config;
     use lockbook_server_lib::file_index_repo;
-    use rsa::RSAPublicKey;
 
-    async fn get_user_root(pub_key: &RSAPublicKey) -> FileMetadata {
+    async fn get_user_root(pub_key: &PublicKey) -> FileMetadata {
         let fake_config = Config::from_env_vars().index_db;
         let pg_client = file_index_repo::connect(&fake_config).await.unwrap();
         let mut transaction = pg_client.begin().await.unwrap();
@@ -37,13 +37,11 @@ mod get_root_tests {
         .unwrap();
         lockbook_core::sync_all(&cfg2, None).unwrap();
 
-        let server_root =
-            tokio_test::block_on(get_user_root(&account1.private_key.to_public_key()));
+        let server_root = tokio_test::block_on(get_user_root(&account1.public_key()));
         let core_root = lockbook_core::get_root(&cfg1).unwrap();
         assert_eq!(server_root, core_root);
 
-        let server_root =
-            tokio_test::block_on(get_user_root(&account2.private_key.to_public_key()));
+        let server_root = tokio_test::block_on(get_user_root(&account2.public_key()));
         let core_root = lockbook_core::get_root(&cfg2).unwrap();
         assert_eq!(server_root, core_root);
     }
