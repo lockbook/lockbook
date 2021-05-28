@@ -6,10 +6,10 @@ pub mod file_service;
 pub mod loggers;
 pub mod utils;
 
-use rsa::RSAPublicKey;
-
 #[macro_use]
 extern crate log;
+
+use libsecp256k1::PublicKey;
 
 #[derive(Clone)]
 pub struct ServerState {
@@ -21,5 +21,5 @@ pub struct ServerState {
 pub struct RequestContext<'a, TRequest> {
     pub server_state: &'a mut ServerState,
     pub request: TRequest,
-    pub public_key: RSAPublicKey,
+    pub public_key: PublicKey,
 }
