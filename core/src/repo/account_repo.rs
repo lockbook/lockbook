@@ -66,8 +66,9 @@ mod unit_tests {
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::storage::db_provider::FileBackend;
-    use lockbook_crypto::clock_service::ClockImpl;
-    use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSAImpl};
+    use crate::DefaultPKCrypto;
+
+    use lockbook_crypto::pubkey::PubKeyCryptoService;
     use lockbook_models::account::Account;
 
     type DefaultAccountRepo = AccountRepoImpl;
@@ -77,7 +78,7 @@ mod unit_tests {
         let test_account = Account {
             username: "parth".to_string(),
             api_url: "ftp://uranus.net".to_string(),
-            private_key: RSAImpl::<ClockImpl>::generate_key().expect("Key generation failure"),
+            private_key: DefaultPKCrypto::generate_key(),
         };
 
         let config = temp_config();

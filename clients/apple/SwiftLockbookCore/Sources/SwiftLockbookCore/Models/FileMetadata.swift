@@ -41,7 +41,7 @@ public struct FolderAccessInfo: Codable {
 
 public struct UserAccessInfo: Codable {
     var username: Account.Username
-    var publicKey: RSAPublicKey
+    var encryptedBy: String
     var accessKey: EncryptedValue
 }
 
@@ -57,9 +57,4 @@ public struct EncryptedValueWithNonce: Codable {
 
 public struct EncryptedValue: Codable {
     var value: [UInt]
-}
-
-public struct RSAPublicKey: Codable {
-    var n: [UInt]
-    var e: [UInt]
 }

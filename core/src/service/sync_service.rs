@@ -25,7 +25,7 @@ use crate::service::sync_service::WorkExecutionError::{
     SaveDocumentError, WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
-use lockbook_crypto::crypto_service::RSASignError;
+use lockbook_crypto::pubkey::ECSignError;
 use lockbook_models::account::Account;
 use lockbook_models::api;
 use lockbook_models::api::{
@@ -87,7 +87,7 @@ pub enum WorkExecutionError {
     ExpiredAuth,
     InternalError,
     BadRequest,
-    Sign(RSASignError),
+    Sign(ECSignError),
     Serialize(serde_json::error::Error),
     SendFailed(reqwest::Error),
     ReceiveFailed(reqwest::Error),

@@ -10,6 +10,10 @@ aes-gcm = "0.5.0"
 bincode = "1.2.1"
 lockbook-models = { path = "../models" }
 rand = "0.7"
-rsa = { version = "^0.2", features = ["serde1"] }
-sha2 = "0.8.0"
+libsecp256k1 = "0.5.0"
+sha2 = "0.9.0"
 serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+uuid = { version = "0.8.1", features = ["v4", "serde"] }
+serde_json = "1.0.44"
