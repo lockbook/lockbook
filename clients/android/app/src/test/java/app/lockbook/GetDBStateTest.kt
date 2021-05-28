@@ -1,6 +1,7 @@
 package app.lockbook
 
-import app.lockbook.core.calculateWork
+import app.lockbook.core.getAccount
+import app.lockbook.core.getDBState
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
@@ -9,7 +10,7 @@ import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
 
-class CalculateWorkTest {
+class GetDBStateTest {
     var config = Config(createRandomPath())
 
     companion object {
@@ -26,21 +27,20 @@ class CalculateWorkTest {
     }
 
     @Test
-    fun calculateWorkOk() {
+    fun getDBStateOk() {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
-        assertType<WorkCalculated>(
-            CoreModel.calculateWork(config).component1()
+
+        assertType<State>(
+            CoreModel.getDBState(config).component1()
         )
     }
 
     @Test
-    fun calculateWorkUnexpectedError() {
-        assertType<CalculateWorkError.Unexpected>(
-            Klaxon().converter(calculateWorkConverter).parse<Result<WorkCalculated, CalculateWorkError>>(
-                calculateWork("")
-            )?.component2()
+    fun getDBStateUnexpectedError() {
+        assertType<GetStateError.Unexpected>(
+            Klaxon().converter(getStateConverter).parse<Result<State, GetStateError>>(getDBState(""))?.component2()
         )
     }
 }

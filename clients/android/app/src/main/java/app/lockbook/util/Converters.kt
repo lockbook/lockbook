@@ -350,21 +350,21 @@ val getLastSyncedHumanStringConverter = object : Converter {
             if (ok != null) {
                 Ok(ok)
             } else {
-                Err(GetLastSynced.Unexpected("calculateLastSyncedConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
+                Err(GetLastSyncedError.Unexpected("calculateLastSyncedConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
             }
         }
         errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
             unexpectedTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {
-                    Err(GetLastSynced.Unexpected(error))
+                    Err(GetLastSyncedError.Unexpected(error))
                 } else {
-                    Err(GetLastSynced.Unexpected("calculateLastSyncedConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                    Err(GetLastSyncedError.Unexpected("calculateLastSyncedConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
                 }
             }
-            else -> Err(GetLastSynced.Unexpected("calculateLastSyncedConverter $unmatchedErrorTag $errorTag"))
+            else -> Err(GetLastSyncedError.Unexpected("calculateLastSyncedConverter $unmatchedErrorTag $errorTag"))
         }
-        else -> Err(GetLastSynced.Unexpected("calculateLastSyncedConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+        else -> Err(GetLastSyncedError.Unexpected("calculateLastSyncedConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)

@@ -99,20 +99,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(&env, translate(get_usage(&config)))
-}
-
-#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsageHumanString(
     env: JNIEnv,
     _: JClass,
@@ -260,20 +246,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_setLastSynced(
         &env,
         translate(set_last_synced(&config, jlastsynced as u64)),
     )
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getLastSyncedHumanString(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(&env, translate(get_last_synced_human_string(&config)))
 }
 
 #[no_mangle]
