@@ -1,8 +1,9 @@
-use crate::account::{Account, Username};
+use crate::account::Account;
+use crate::account::Username;
 use crate::crypto::*;
 use crate::file_metadata::FileMetadata;
+use libsecp256k1::PublicKey;
 use reqwest::Method;
-use rsa::RSAPublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -15,7 +16,7 @@ pub trait Request {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RequestWrapper<T: Request> {
-    pub signed_request: RSASigned<T>,
+    pub signed_request: ECSigned<T>,
     pub client_version: String,
 }
 
@@ -80,7 +81,7 @@ pub enum CreateDocumentError {
     FileIdTaken,
     DocumentPathTaken,
     ParentNotFound,
-    AncestorDeleted
+    AncestorDeleted,
 }
 
 impl CreateDocumentRequest {
@@ -402,7 +403,7 @@ pub struct GetPublicKeyRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetPublicKeyResponse {
-    pub key: RSAPublicKey,
+    pub key: PublicKey,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -478,10 +479,27 @@ impl Request for GetUpdatesRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
     pub username: Username,
-    pub public_key: RSAPublicKey,
+    pub public_key: PublicKey,
     pub folder_id: Uuid,
     pub parent_access_key: FolderAccessInfo,
     pub user_access_key: EncryptedUserAccessKey,
+}
+
+impl NewAccountRequest {
+    pub fn new(account: &Account, root_metadata: &FileMetadata) -> Self {
+        NewAccountRequest {
+            username: account.username.clone(),
+            public_key: account.public_key(),
+            folder_id: root_metadata.id,
+            parent_access_key: root_metadata.folder_access_keys.clone(),
+            user_access_key: root_metadata
+                .user_access_keys
+                .get(&account.username)
+                .expect("file metadata for new account request must have user access key") // TODO: handle better
+                .access_key
+                .clone(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -496,23 +514,6 @@ pub enum NewAccountError {
     InvalidUserAccessKey,
     InvalidUsername,
     FileIdTaken,
-}
-
-impl NewAccountRequest {
-    pub fn new(account: &Account, root_metadata: &FileMetadata) -> Self {
-        NewAccountRequest {
-            username: account.username.clone(),
-            public_key: account.private_key.to_public_key(),
-            folder_id: root_metadata.id,
-            parent_access_key: root_metadata.folder_access_keys.clone(),
-            user_access_key: root_metadata
-                .user_access_keys
-                .get(&account.username)
-                .expect("file metadata for new account request must have user access key") // TODO: handle better
-                .access_key
-                .clone(),
-        }
-    }
 }
 
 impl Request for NewAccountRequest {
