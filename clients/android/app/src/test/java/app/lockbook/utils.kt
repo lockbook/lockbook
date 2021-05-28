@@ -69,7 +69,7 @@ val checkIfAllErrorsPresentConverter = object : Converter {
     override fun fromJson(jv: JsonValue): Any? {
         val jsonObject = jv.obj!!
 
-        for(error in errorsToCheck) {
+        for (error in errorsToCheck) {
             var variantsToCheck = error.nestedClasses.filter { kClass -> kClass.simpleName != "Unexpected" }
 
             jsonObject.array<String>(error.simpleName!!)!!.forEach { variant ->

@@ -1,6 +1,5 @@
 package app.lockbook
 
-import app.lockbook.core.getAccount
 import app.lockbook.core.getUsageHumanString
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*

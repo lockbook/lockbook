@@ -1,6 +1,5 @@
 package app.lockbook
 
-import app.lockbook.core.getDBState
 import app.lockbook.core.migrateDB
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
