@@ -1,5 +1,6 @@
 use crate::service::code_version_service::CodeVersion;
-use lockbook_crypto::crypto_service::{PubKeyCryptoService, RSASignError};
+use lockbook_crypto::pubkey::ECSignError;
+use lockbook_crypto::pubkey::PubKeyCryptoService;
 use lockbook_models::account::Account;
 use lockbook_models::api::*;
 use reqwest::blocking::Client as ReqwestClient;
@@ -15,7 +16,7 @@ pub enum ApiError<E> {
     ExpiredAuth,
     InternalError,
     BadRequest,
-    Sign(RSASignError),
+    Sign(ECSignError),
     Serialize(serde_json::error::Error),
     SendFailed(ReqwestError),
     ReceiveFailed(ReqwestError),
