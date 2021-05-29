@@ -4,10 +4,8 @@ use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
 use lockbook_core::service::account_service::AccountService;
 use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::storage::db_provider::{Backend, DbProvider};
 use lockbook_core::{
-    DefaultAccountService, DefaultDbProvider, DefaultFileMetadataRepo, DefaultFileService,
-    DefaultSyncService,
+    DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
 };
 use lockbook_models::file_metadata::FileType::Document;
 use rand::distributions::Alphanumeric;
@@ -23,11 +21,9 @@ fn random_string() -> String {
         .collect()
 }
 pub fn bench_throughput(c: &mut Criterion) {
-    let cfg_file = &Config {
+    let config = &Config {
         writeable_path: format!("/tmp/throughput{}", random_string()),
     };
-
-    let config = &Backend::File(cfg_file);
 
     let mut group = c.benchmark_group("Throughput");
 

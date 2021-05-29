@@ -1,0 +1,9 @@
+[workspace]
+
+members = [
+	"core",
+	"server/server",
+	"server/admin",
+	"clients/linux",
+	"clients/cli"
+]

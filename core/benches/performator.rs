@@ -34,10 +34,8 @@ pub fn bench_performator(c: &mut Criterion) {
         writeable_path: format!("/tmp/perf-{}", Uuid::new_v4().to_string()),
     };
 
-    let config = FileBackend::connect_to_db(config);
-
     let _ = DefaultAccountService::create_account(
-        config,
+        &config,
         "performator",
         env::var("API_URL")
             .expect("API_URL must be defined!")
