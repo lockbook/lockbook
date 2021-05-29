@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::model::state::Config;
 use crate::storage::db_provider::FileBackend;
-use lockbook_crypto::clock_service::Clock;
+use lockbook_crypto::clock_service::TimeGetter;
 use lockbook_models::crypto::{EncryptedDocument, UserAccessInfo};
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::local_changes::{Edited, LocalChange, Moved, Renamed};
@@ -20,18 +20,20 @@ pub enum DbError {
 pub trait LocalChangesRepo {
     fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, DbError>;
     fn get_local_changes(config: &Config, id: Uuid) -> Result<Option<LocalChange>, DbError>;
-    fn track_new_file(config: &Config, id: Uuid) -> Result<(), DbError>;
+    fn track_new_file(config: &Config, id: Uuid, now: TimeGetter) -> Result<(), DbError>;
     fn track_rename(
         config: &Config,
         id: Uuid,
         old_name: &str,
         new_name: &str,
+        now: TimeGetter,
     ) -> Result<(), DbError>;
     fn track_move(
         config: &Config,
         id: Uuid,
         old_parent: Uuid,
         new_parent: Uuid,
+        now: TimeGetter,
     ) -> Result<(), DbError>;
     fn track_edit(
         config: &Config,
@@ -40,8 +42,14 @@ pub trait LocalChangesRepo {
         access_info_for_old_version: &UserAccessInfo,
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
+        now: TimeGetter,
     ) -> Result<(), DbError>;
-    fn track_delete(config: &Config, id: Uuid, file_type: FileType) -> Result<(), DbError>;
+    fn track_delete(
+        config: &Config,
+        id: Uuid,
+        file_type: FileType,
+        now: TimeGetter,
+    ) -> Result<(), DbError>;
     fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), DbError>;
     fn untrack_rename(config: &Config, id: Uuid) -> Result<(), DbError>;
     fn untrack_move(config: &Config, id: Uuid) -> Result<(), DbError>;
@@ -49,13 +57,11 @@ pub trait LocalChangesRepo {
     fn delete(config: &Config, id: Uuid) -> Result<(), DbError>;
 }
 
-pub struct LocalChangesRepoImpl<Time: Clock> {
-    _clock: Time,
-}
+pub struct LocalChangesRepoImpl {}
 
 static LOCAL_CHANGES: &[u8; 13] = b"local_changes";
 
-impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
+impl LocalChangesRepo for LocalChangesRepoImpl {
     fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, DbError> {
         let mut value = FileBackend::dump::<_, Vec<u8>>(config, LOCAL_CHANGES)
             .map_err(DbError::BackendError)?
@@ -82,9 +88,9 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         }
     }
 
-    fn track_new_file(config: &Config, id: Uuid) -> Result<(), DbError> {
+    fn track_new_file(config: &Config, id: Uuid, now: TimeGetter) -> Result<(), DbError> {
         let new_local_change = LocalChange {
-            timestamp: Time::get_time(),
+            timestamp: now().0,
             id,
             renamed: None,
             moved: None,
@@ -108,6 +114,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         id: Uuid,
         old_name: &str,
         new_name: &str,
+        now: TimeGetter,
     ) -> Result<(), DbError> {
         if old_name == new_name {
             return Ok(());
@@ -116,7 +123,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         match Self::get_local_changes(config, id)? {
             None => {
                 let new_local_change = LocalChange {
-                    timestamp: Time::get_time(),
+                    timestamp: now().0,
                     id,
                     renamed: Some(Renamed::from(old_name)),
                     moved: None,
@@ -162,6 +169,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         id: Uuid,
         old_parent: Uuid,
         new_parent: Uuid,
+        now: TimeGetter,
     ) -> Result<(), DbError> {
         if old_parent == new_parent {
             return Ok(());
@@ -170,7 +178,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         match Self::get_local_changes(config, id)? {
             None => {
                 let new_local_change = LocalChange {
-                    timestamp: Time::get_time(),
+                    timestamp: now().0,
                     id,
                     renamed: None,
                     moved: Some(Moved::from(old_parent)),
@@ -218,6 +226,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         access_info_for_old_version: &UserAccessInfo,
         old_content_checksum: Vec<u8>,
         new_content_checksum: Vec<u8>,
+        now: TimeGetter,
     ) -> Result<(), DbError> {
         if old_content_checksum == new_content_checksum {
             return Ok(());
@@ -226,7 +235,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         match Self::get_local_changes(config, id)? {
             None => {
                 let new_local_change = LocalChange {
-                    timestamp: Time::get_time(),
+                    timestamp: now().0,
                     id,
                     renamed: None,
                     moved: None,
@@ -274,14 +283,19 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
         }
     }
 
-    fn track_delete(config: &Config, id: Uuid, file_type: FileType) -> Result<(), DbError> {
+    fn track_delete(
+        config: &Config,
+        id: Uuid,
+        file_type: FileType,
+        now: TimeGetter,
+    ) -> Result<(), DbError> {
         // Added to ensure that a prior move is at least 1ms older than this delete
         thread::sleep(time::Duration::from_millis(1));
 
         match Self::get_local_changes(config, id)? {
             None => {
                 let new_local_change = LocalChange {
-                    timestamp: Time::get_time(),
+                    timestamp: now().0,
                     id,
                     renamed: None,
                     moved: None,
@@ -308,7 +322,7 @@ impl<Time: Clock> LocalChangesRepo for LocalChangesRepoImpl<Time> {
                     } else {
                         // If a document was deleted, don't bother pushing it's rename / move
                         let delete_tracked = LocalChange {
-                            timestamp: Time::get_time(),
+                            timestamp: now().0,
                             id,
                             renamed: None,
                             moved: None,
@@ -448,26 +462,18 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::state::temp_config;
-    use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
-    use crate::DefaultBackend;
-    use lockbook_crypto::clock_service::Clock;
+    use crate::repo::local_changes_repo::{LocalChangesRepo};
+    use crate::{DefaultBackend, DefaultLocalChangesRepo};
+    use lockbook_crypto::clock_service::Timestamp;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use lockbook_models::local_changes::{LocalChange, Moved, Renamed};
 
-    pub struct TestClock;
-
-    impl Clock for TestClock {
-        fn get_time() -> i64 {
-            0
-        }
-    }
-
-    pub type TestLocalChangesRepo = LocalChangesRepoImpl<TestClock>;
+    static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(0);
 
     macro_rules! assert_total_local_changes (
         ($db:expr, $total:literal) => {
             assert_eq!(
-                TestLocalChangesRepo::get_all_local_changes($db)
+                DefaultLocalChangesRepo::get_all_local_changes($db)
                     .unwrap()
                     .len(),
                 $total
@@ -483,11 +489,11 @@ mod unit_tests {
         assert_total_local_changes!(db, 0);
 
         let id = Uuid::new_v4();
-        TestLocalChangesRepo::track_new_file(db, id).unwrap();
-        TestLocalChangesRepo::track_new_file(db, id).unwrap();
-        TestLocalChangesRepo::track_new_file(db, id).unwrap();
+        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -500,9 +506,10 @@ mod unit_tests {
         );
         assert_total_local_changes!(db, 1);
 
-        TestLocalChangesRepo::track_rename(db, id, "old_file", "unused_name").unwrap();
+        DefaultLocalChangesRepo::track_rename(db, id, "old_file", "unused_name", EARLY_CLOCK)
+            .unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -516,9 +523,9 @@ mod unit_tests {
         assert_total_local_changes!(db, 1);
 
         let id2 = Uuid::new_v4();
-        TestLocalChangesRepo::track_move(db, id, id2, Uuid::new_v4()).unwrap();
+        DefaultLocalChangesRepo::track_move(db, id, id2, Uuid::new_v4(), EARLY_CLOCK).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -532,9 +539,9 @@ mod unit_tests {
 
         assert_total_local_changes!(db, 1);
 
-        TestLocalChangesRepo::untrack_edit(db, id).unwrap();
+        DefaultLocalChangesRepo::untrack_edit(db, id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -546,9 +553,9 @@ mod unit_tests {
             })
         );
 
-        TestLocalChangesRepo::untrack_rename(db, id).unwrap();
+        DefaultLocalChangesRepo::untrack_rename(db, id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -560,9 +567,9 @@ mod unit_tests {
             })
         );
 
-        TestLocalChangesRepo::untrack_move(db, id).unwrap();
+        DefaultLocalChangesRepo::untrack_move(db, id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -574,17 +581,17 @@ mod unit_tests {
             })
         );
 
-        TestLocalChangesRepo::untrack_new_file(db, id).unwrap();
+        DefaultLocalChangesRepo::untrack_new_file(db, id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             None
         );
         assert_total_local_changes!(db, 0);
 
         // Deleting a file should unset it's other fields
-        TestLocalChangesRepo::track_rename(db, id, "old", "new").unwrap();
+        DefaultLocalChangesRepo::track_rename(db, id, "old", "new", EARLY_CLOCK).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -597,9 +604,9 @@ mod unit_tests {
         );
         assert_total_local_changes!(db, 1);
 
-        TestLocalChangesRepo::track_delete(db, id, Document).unwrap();
+        DefaultLocalChangesRepo::track_delete(db, id, Document, EARLY_CLOCK).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -619,10 +626,10 @@ mod unit_tests {
         let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let id = Uuid::new_v4();
-        TestLocalChangesRepo::track_new_file(db, id).unwrap();
+        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -633,10 +640,10 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        TestLocalChangesRepo::track_delete(db, id, Document).unwrap();
+        DefaultLocalChangesRepo::track_delete(db, id, Document, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             None
         );
     }
@@ -647,10 +654,10 @@ mod unit_tests {
         let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let id = Uuid::new_v4();
-        TestLocalChangesRepo::track_new_file(db, id).unwrap();
+        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -661,10 +668,10 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        TestLocalChangesRepo::track_delete(db, id, Folder).unwrap();
+        DefaultLocalChangesRepo::track_delete(db, id, Folder, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -683,28 +690,28 @@ mod unit_tests {
         let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let id1 = Uuid::new_v4();
-        TestLocalChangesRepo::track_new_file(db, id1).unwrap();
+        DefaultLocalChangesRepo::track_new_file(db, id1, EARLY_CLOCK).unwrap();
         assert_total_local_changes!(db, 1);
 
         let id2 = Uuid::new_v4();
-        TestLocalChangesRepo::track_rename(db, id2, "old", "new").unwrap();
+        DefaultLocalChangesRepo::track_rename(db, id2, "old", "new", EARLY_CLOCK).unwrap();
         assert_total_local_changes!(db, 2);
 
         let id3 = Uuid::new_v4();
-        TestLocalChangesRepo::track_move(db, id3, id3, Uuid::new_v4()).unwrap();
+        DefaultLocalChangesRepo::track_move(db, id3, id3, Uuid::new_v4(), EARLY_CLOCK).unwrap();
         assert_total_local_changes!(db, 3);
 
         let id4 = Uuid::new_v4();
-        TestLocalChangesRepo::track_delete(db, id4, Document).unwrap();
+        DefaultLocalChangesRepo::track_delete(db, id4, Document, EARLY_CLOCK).unwrap();
         assert_total_local_changes!(db, 4);
 
-        TestLocalChangesRepo::untrack_new_file(db, id1).unwrap();
+        DefaultLocalChangesRepo::untrack_new_file(db, id1).unwrap();
         assert_total_local_changes!(db, 3);
 
-        TestLocalChangesRepo::untrack_rename(db, id2).unwrap();
+        DefaultLocalChangesRepo::untrack_rename(db, id2).unwrap();
         assert_total_local_changes!(db, 2);
 
-        TestLocalChangesRepo::untrack_move(db, id3).unwrap();
+        DefaultLocalChangesRepo::untrack_move(db, id3).unwrap();
         assert_total_local_changes!(db, 1);
 
         // Untrack not supported because no one can undelete files
@@ -717,12 +724,12 @@ mod unit_tests {
 
         let the_wrong_id = Uuid::new_v4();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, the_wrong_id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, the_wrong_id).unwrap(),
             None
         );
-        TestLocalChangesRepo::untrack_edit(db, the_wrong_id).unwrap();
+        DefaultLocalChangesRepo::untrack_edit(db, the_wrong_id).unwrap();
         assert_eq!(
-            TestLocalChangesRepo::get_local_changes(db, the_wrong_id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(db, the_wrong_id).unwrap(),
             None
         );
         assert_total_local_changes!(db, 0);
@@ -735,13 +742,13 @@ mod unit_tests {
 
         let id = Uuid::new_v4();
 
-        TestLocalChangesRepo::track_rename(db, id, "old_file", "new_name").unwrap();
+        DefaultLocalChangesRepo::track_rename(db, id, "old_file", "new_name", EARLY_CLOCK).unwrap();
         assert_total_local_changes!(db, 1);
 
-        TestLocalChangesRepo::track_rename(db, id, "garbage", "garbage2").unwrap();
+        DefaultLocalChangesRepo::track_rename(db, id, "garbage", "garbage2", EARLY_CLOCK).unwrap();
         assert_total_local_changes!(db, 1);
 
-        TestLocalChangesRepo::track_rename(db, id, "garbage", "old_file").unwrap();
+        DefaultLocalChangesRepo::track_rename(db, id, "garbage", "old_file", EARLY_CLOCK).unwrap();
         assert_total_local_changes!(db, 0);
     }
 
@@ -753,13 +760,14 @@ mod unit_tests {
         let id = Uuid::new_v4();
         let og = Uuid::new_v4();
 
-        TestLocalChangesRepo::track_move(db, id, og, Uuid::new_v4()).unwrap();
+        DefaultLocalChangesRepo::track_move(db, id, og, Uuid::new_v4(), EARLY_CLOCK).unwrap();
         assert_total_local_changes!(db, 1);
 
-        TestLocalChangesRepo::track_move(db, id, Uuid::new_v4(), Uuid::new_v4()).unwrap();
+        DefaultLocalChangesRepo::track_move(db, id, Uuid::new_v4(), Uuid::new_v4(), EARLY_CLOCK)
+            .unwrap();
         assert_total_local_changes!(db, 1);
 
-        TestLocalChangesRepo::track_move(db, id, Uuid::new_v4(), og).unwrap();
+        DefaultLocalChangesRepo::track_move(db, id, Uuid::new_v4(), og, EARLY_CLOCK).unwrap();
         assert_total_local_changes!(db, 0);
     }
 }

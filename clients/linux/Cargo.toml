@@ -4,10 +4,6 @@ version = "0.1.2"
 authors = ["steverusso <steverusso@pm.me"]
 edition = "2018"
 
-[[bin]]
-name = "lockbook"
-path = "src/main.rs"
-
 [dependencies]
 fuzzy-matcher = "*"
 lockbook-core = { path = "../../core" }

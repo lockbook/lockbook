@@ -17,7 +17,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use crate::client::{ApiError, ClientImpl};
+use crate::client::ApiError;
 use crate::model::state::Config;
 use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
 use crate::repo::db_version_repo::DbVersionRepoImpl;
@@ -49,7 +49,7 @@ use crate::service::usage_service::{
 };
 use crate::service::{db_state_service, file_service, usage_service};
 use crate::storage::db_provider::FileBackend;
-use lockbook_crypto::clock_service::{Clock, ClockImpl};
+use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
 use lockbook_models::crypto::DecryptedDocument;
@@ -65,7 +65,6 @@ use crate::repo::local_changes_repo;
 use crate::service::drawing_service::{
     DrawingError, DrawingService, DrawingServiceImpl, SupportedImageFormats,
 };
-use lockbook_crypto::pubkey::ElipticCurve;
 use lockbook_models::drawing::Drawing;
 use serde_json::error::Category;
 use Error::UiError;
@@ -733,7 +732,7 @@ pub fn get_last_synced_human_string(config: &Config) -> Result<String, Error<Get
     let last_synced = get_last_synced(config)?;
 
     Ok(if last_synced != 0 {
-        Duration::milliseconds(DefaultClock::get_time() - last_synced)
+        Duration::milliseconds(clock_service::get_time().0 - last_synced)
             .format_human()
             .to_string()
     } else {
@@ -1031,42 +1030,28 @@ pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
 
-pub type DefaultClock = ClockImpl;
-pub type DefaultPKCrypto = ElipticCurve<DefaultClock>;
 pub type DefaultSymmetric = AESImpl;
 pub type DefaultBackend = FileBackend;
 pub type DefaultCodeVersion = CodeVersionImpl;
-pub type DefaultClient = ClientImpl<DefaultPKCrypto, DefaultCodeVersion>;
 pub type DefaultAccountRepo = AccountRepoImpl;
-pub type DefaultUsageService = UsageServiceImpl<
-    DefaultFileMetadataRepo,
-    DefaultFileService,
-    DefaultAccountRepo,
-    DefaultClient,
->;
+pub type DefaultUsageService =
+    UsageServiceImpl<DefaultFileMetadataRepo, DefaultFileService, DefaultAccountRepo>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService, DefaultFileMetadataRepo>;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl;
 pub type DefaultDbStateService =
     DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo, DefaultCodeVersion>;
-pub type DefaultAccountService = AccountServiceImpl<
-    DefaultPKCrypto,
-    DefaultAccountRepo,
-    DefaultClient,
-    DefaultFileEncryptionService,
-    DefaultFileMetadataRepo,
->;
+pub type DefaultAccountService =
+    AccountServiceImpl<DefaultAccountRepo, DefaultFileEncryptionService, DefaultFileMetadataRepo>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
-pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock>;
+pub type DefaultLocalChangesRepo = LocalChangesRepoImpl;
 pub type DefaultDocumentRepo = DocumentRepoImpl;
-pub type DefaultFileEncryptionService =
-    FileEncryptionServiceImpl<DefaultPKCrypto, DefaultSymmetric>;
+pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultSymmetric>;
 pub type DefaultFileCompressionService = FileCompressionServiceImpl;
 pub type DefaultSyncService = FileSyncService<
     DefaultFileMetadataRepo,
     DefaultLocalChangesRepo,
     DefaultDocumentRepo,
     DefaultAccountRepo,
-    DefaultClient,
     DefaultFileService,
     DefaultFileEncryptionService,
     DefaultFileCompressionService,

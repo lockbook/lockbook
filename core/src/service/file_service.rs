@@ -31,6 +31,7 @@ use crate::service::file_service::NewFileFromPathError::{
     FailedToCreateChild, FileAlreadyExists, NoRoot, PathContainsEmptyFile, PathDoesntStartWithRoot,
 };
 use crate::service::file_service::ReadDocumentError::DocumentReadError;
+use lockbook_crypto::clock_service;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
@@ -240,7 +241,7 @@ impl<
                 .map_err(FileCryptoError)?;
 
         FileMetadataDb::insert(config, &new_metadata).map_err(MetadataRepoError)?;
-        ChangesDb::track_new_file(config, new_metadata.id)
+        ChangesDb::track_new_file(config, new_metadata.id, clock_service::get_time)
             .map_err(NewFileError::FailedToRecordChange)?;
 
         if file_type == Document {
@@ -378,6 +379,7 @@ impl<
                 &permanent_access_info,
                 Sha256::digest(&decompressed).to_vec(),
                 Sha256::digest(&content).to_vec(),
+                clock_service::get_time,
             )
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
         };
@@ -413,8 +415,14 @@ impl<
                     }
                 }
 
-                ChangesDb::track_rename(config, file.id, &file.name, new_name)
-                    .map_err(DocumentRenameError::FailedToRecordChange)?;
+                ChangesDb::track_rename(
+                    config,
+                    file.id,
+                    &file.name,
+                    new_name,
+                    clock_service::get_time,
+                )
+                .map_err(DocumentRenameError::FailedToRecordChange)?;
 
                 file.name = new_name.to_string();
                 FileMetadataDb::insert(config, &file).map_err(DocumentRenameError::DbError)?;
@@ -489,8 +497,14 @@ impl<
                         )
                         .map_err(FailedToReEncryptKey)?;
 
-                        ChangesDb::track_move(config, file.id, file.parent, parent_metadata.id)
-                            .map_err(FileMoveError::FailedToRecordChange)?;
+                        ChangesDb::track_move(
+                            config,
+                            file.id,
+                            file.parent,
+                            parent_metadata.id,
+                            clock_service::get_time,
+                        )
+                        .map_err(FileMoveError::FailedToRecordChange)?;
                         file.parent = parent_metadata.id;
                         file.folder_access_keys = new_access_info;
 
@@ -556,7 +570,7 @@ impl<
         }
 
         FileDb::delete(config, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
-        ChangesDb::track_delete(config, id, file_metadata.file_type)
+        ChangesDb::track_delete(config, id, file_metadata.file_type, clock_service::get_time)
             .map_err(DeleteDocumentError::FailedToTrackDelete)?;
 
         Ok(())
@@ -575,7 +589,7 @@ impl<
             return Err(DeleteFolderError::DocumentTreatedAsFolder);
         }
 
-        ChangesDb::track_delete(config, id, file_metadata.file_type)
+        ChangesDb::track_delete(config, id, file_metadata.file_type, clock_service::get_time)
             .map_err(DeleteFolderError::FailedToRecordChange)?;
 
         let files_to_delete = FileMetadataDb::get_and_get_children_recursively(config, id)

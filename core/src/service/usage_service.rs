@@ -1,5 +1,4 @@
 use crate::client;
-use crate::client::Client;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo::{DbError, FileMetadataRepo};
@@ -64,21 +63,14 @@ pub struct UsageServiceImpl<
     FileMetadataDb: FileMetadataRepo,
     Files: FileService,
     AccountDb: AccountRepo,
-    ApiClient: Client,
 > {
     _accounts: AccountDb,
-
-    _client: ApiClient,
     _files: Files,
     _files_db: FileMetadataDb,
 }
 
-impl<
-        FileMetadataDb: FileMetadataRepo,
-        Files: FileService,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-    > UsageService for UsageServiceImpl<FileMetadataDb, Files, AccountDb, ApiClient>
+impl<FileMetadataDb: FileMetadataRepo, Files: FileService, AccountDb: AccountRepo> UsageService
+    for UsageServiceImpl<FileMetadataDb, Files, AccountDb>
 {
     fn bytes_to_human(size: u64) -> String {
         let (unit, abbr) = match size {
@@ -95,7 +87,7 @@ impl<
     fn server_usage(config: &Config) -> Result<GetUsageResponse, GetUsageError> {
         let acc = AccountDb::get_account(config).map_err(GetUsageError::AccountRetrievalError)?;
 
-        ApiClient::request(&acc, GetUsageRequest {}).map_err(GetUsageError::ApiError)
+        client::request(&acc, GetUsageRequest {}).map_err(GetUsageError::ApiError)
     }
 
     fn get_usage_human_string(config: &Config, exact: bool) -> Result<String, GetUsageError> {
@@ -162,142 +154,40 @@ impl<
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::client::{ApiError, Client};
-    use crate::model::state::Config;
-    use crate::repo::account_repo::{AccountRepo, AccountRepoError};
-    use crate::service::usage_service::{UsageService, UsageServiceImpl};
-    use crate::{DefaultFileMetadataRepo, DefaultFileService, DefaultPKCrypto};
+    
+    
+    
+    use crate::service::usage_service::{UsageService};
+    use crate::{DefaultUsageService};
 
-    use lockbook_crypto::pubkey::PubKeyCryptoService;
-    use lockbook_models::account::{Account, ApiUrl};
-    use lockbook_models::api::{FileUsage, GetUsageResponse, Request};
-    use serde::de::DeserializeOwned;
-    use serde::Serialize;
-    use uuid::Uuid;
+    
+    
+    
+    
+    
 
     const BYTES_SMALL: u64 = 1000;
     const BYTES_MEDIUM: u64 = 1000000;
     const BYTES_LARGE: u64 = 1000000000;
 
-    struct MockAccountRepo {}
-
-    impl AccountRepo for MockAccountRepo {
-        fn insert_account(_config: &Config, _account: &Account) -> Result<(), AccountRepoError> {
-            unimplemented!()
-        }
-
-        fn maybe_get_account(_config: &Config) -> Result<Option<Account>, AccountRepoError> {
-            unimplemented!()
-        }
-
-        fn get_account(_config: &Config) -> Result<Account, AccountRepoError> {
-            Ok(Account {
-                username: "".to_string(),
-                api_url: "".to_string(),
-                private_key: DefaultPKCrypto::generate_key(),
-            })
-        }
-
-        fn get_api_url(_config: &Config) -> Result<ApiUrl, AccountRepoError> {
-            unimplemented!()
-        }
-    }
-
-    trait BytesHelper {
-        fn get_bytes_count() -> u64;
-    }
-
-    struct BytesHelperSmall;
-
-    impl BytesHelper for BytesHelperSmall {
-        fn get_bytes_count() -> u64 {
-            BYTES_SMALL
-        }
-    }
-
-    struct BytesHelperMedium;
-
-    impl BytesHelper for BytesHelperMedium {
-        fn get_bytes_count() -> u64 {
-            BYTES_MEDIUM
-        }
-    }
-
-    struct BytesHelperLarge;
-
-    impl BytesHelper for BytesHelperLarge {
-        fn get_bytes_count() -> u64 {
-            BYTES_LARGE
-        }
-    }
-
-    struct MockClient<MyByteHelper: BytesHelper> {
-        _byte_helper: MyByteHelper,
-    }
-
-    impl<MyByteHelper: BytesHelper> Client for MockClient<MyByteHelper> {
-        fn request<
-            T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
-        >(
-            _account: &Account,
-            _request: T,
-        ) -> Result<<T as Request>::Response, ApiError<<T as Request>::Error>> {
-            let file_usage = FileUsage {
-                file_id: Uuid::nil(),
-                size_bytes: MyByteHelper::get_bytes_count(),
-            };
-
-            let get_usage_response = GetUsageResponse {
-                usages: vec![file_usage.clone(), file_usage],
-                cap: 100000,
-            };
-
-            let serialized = serde_json::to_string(&get_usage_response).unwrap();
-            let deserialized: T::Response = serde_json::from_str(&serialized).unwrap();
-
-            Ok(deserialized)
-        }
-    }
-
-    fn get_usage_of_size<T: BytesHelper>(exact: bool) -> String {
-        UsageServiceImpl::<
-            DefaultFileMetadataRepo,
-            DefaultFileService,
-            MockAccountRepo,
-            MockClient<T>,
-        >::get_usage_human_string(
-            &Config {
-                writeable_path: "".to_string(),
-            },
-            exact,
-        )
-        .unwrap()
-    }
-
     #[test]
     fn usage_human_string_sanity_check() {
-        let bytes_small_result = get_usage_of_size::<BytesHelperSmall>(false);
-        let bytes_small_exact_result = get_usage_of_size::<BytesHelperSmall>(true);
         let bytes_small_total = BYTES_SMALL * 2;
-
-        assert_eq!(bytes_small_result, format!("{}.000 KB", 2));
-        assert_eq!(bytes_small_exact_result, format!("{} B", bytes_small_total));
-
-        let bytes_medium_result = get_usage_of_size::<BytesHelperMedium>(false);
-        let bytes_medium_exact_result = get_usage_of_size::<BytesHelperMedium>(true);
-        let bytes_medium_total = BYTES_MEDIUM * 2;
-
-        assert_eq!(bytes_medium_result, format!("{}.000 MB", 2));
         assert_eq!(
-            bytes_medium_exact_result,
-            format!("{} B", bytes_medium_total)
+            DefaultUsageService::bytes_to_human(bytes_small_total),
+            format!("{}.000 KB", 2)
         );
 
-        let bytes_large_result = get_usage_of_size::<BytesHelperLarge>(false);
-        let bytes_large_exact_result = get_usage_of_size::<BytesHelperLarge>(true);
-        let bytes_large_total = BYTES_LARGE * 2;
+        let bytes_medium_total = BYTES_MEDIUM * 2;
+        assert_eq!(
+            DefaultUsageService::bytes_to_human(bytes_medium_total),
+            format!("{}.000 MB", 2)
+        );
 
-        assert_eq!(bytes_large_result, format!("{}.000 GB", 2));
-        assert_eq!(bytes_large_exact_result, format!("{} B", bytes_large_total));
+        let bytes_large_total = BYTES_LARGE * 2;
+        assert_eq!(
+            DefaultUsageService::bytes_to_human(bytes_large_total),
+            format!("{}.000 GB", 2)
+        );
     }
 }

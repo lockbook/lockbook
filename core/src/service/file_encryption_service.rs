@@ -1,4 +1,4 @@
-use lockbook_crypto::pubkey::{GetAesKeyError, PubKeyCryptoService};
+use lockbook_crypto::pubkey::GetAesKeyError;
 use lockbook_crypto::symkey::AESDecryptError;
 use lockbook_crypto::symkey::AESEncryptError;
 use lockbook_crypto::symkey::SymmetricCryptoService;
@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::service::file_encryption_service::UnableToGetKeyForUser::UnableToDecryptKey;
+use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
@@ -112,14 +113,11 @@ pub trait FileEncryptionService {
     ) -> Result<DecryptedDocument, UnableToReadFileAsUser>;
 }
 
-pub struct FileEncryptionServiceImpl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> {
-    _pk: PK,
+pub struct FileEncryptionServiceImpl<AES: SymmetricCryptoService> {
     _aes: AES,
 }
 
-impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
-    for FileEncryptionServiceImpl<PK, AES>
-{
+impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServiceImpl<AES> {
     fn decrypt_key_for_file(
         account: &Account,
         id: Uuid,
@@ -143,7 +141,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
             }
             Some(user_access) => {
                 let access_key_key =
-                    PK::get_aes_key(&account.private_key, &user_access.encrypted_by)
+                    pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by)
                         .map_err(KeyDecryptionFailure::SharedSecretError)?;
                 let key = AES::decrypt(&access_key_key, &user_access.access_key)
                     .map_err(KeyDecryptionFailure::KeyDecryptionError)?;
@@ -179,7 +177,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
 
         let public_key = account.public_key();
 
-        let key_encryption_key = PK::get_aes_key(&account.private_key, &account.public_key())
+        let key_encryption_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
             .map_err(UnableToGetKeyForUser::SharedSecretError)?;
 
         let access_key = AES::encrypt(&key_encryption_key, &key)
@@ -227,7 +225,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
     ) -> Result<FileMetadata, RootFolderCreationError> {
         let id = Uuid::new_v4();
         let key = AES::generate_key();
-        let key_encryption_key = PK::get_aes_key(&account.private_key, &account.public_key())
+        let key_encryption_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
             .map_err(RootFolderCreationError::SharedSecretError)?;
         let encrypted_access_key = AES::encrypt(&key_encryption_key, &key)
             .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?;
@@ -286,7 +284,7 @@ impl<PK: PubKeyCryptoService, AES: SymmetricCryptoService> FileEncryptionService
         user_access_info: &UserAccessInfo,
     ) -> Result<DecryptedDocument, UnableToReadFileAsUser> {
         let key_decryption_key =
-            PK::get_aes_key(&account.private_key, &user_access_info.encrypted_by)
+            pubkey::get_aes_key(&account.private_key, &user_access_info.encrypted_by)
                 .map_err(UnableToReadFileAsUser::SharedSecretError)?;
         let key = AES::decrypt(&key_decryption_key, &user_access_info.access_key)
             .map_err(UnableToReadFileAsUser::AesKeyDecryptionFailed)?;
@@ -302,14 +300,14 @@ mod unit_tests {
     use std::collections::HashMap;
 
     use crate::service::file_encryption_service::FileEncryptionService;
-    use crate::{DefaultFileEncryptionService, DefaultPKCrypto};
-    use lockbook_crypto::pubkey::PubKeyCryptoService;
+    use crate::DefaultFileEncryptionService;
+    use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
 
     #[test]
     fn test_root_folder() {
-        let keys = DefaultPKCrypto::generate_key();
+        let keys = pubkey::generate_key();
 
         let account = Account {
             username: String::from("username"),

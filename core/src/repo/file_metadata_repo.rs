@@ -547,9 +547,9 @@ mod unit_tests {
     use crate::service::file_service::FileService;
     use crate::{
         DefaultAccountRepo, DefaultFileEncryptionService, DefaultFileMetadataRepo,
-        DefaultFileService, DefaultPKCrypto,
+        DefaultFileService,
     };
-    use lockbook_crypto::pubkey::PubKeyCryptoService;
+    use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
     use lockbook_models::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
     use lockbook_models::file_metadata::FileType::{Document, Folder};
@@ -704,7 +704,7 @@ mod unit_tests {
     fn test_orphaned_children() {
         let config = &temp_config();
 
-        let keys = DefaultPKCrypto::generate_key();
+        let keys = pubkey::generate_key();
 
         let account = Account {
             username: String::from("username"),

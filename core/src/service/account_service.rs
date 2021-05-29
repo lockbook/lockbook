@@ -1,5 +1,4 @@
 use crate::client;
-use crate::client::Client;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepo;
@@ -12,7 +11,7 @@ use crate::service::account_service::AccountImportError::{
     FailedToVerifyAccountServerSide, PublicKeyMismatch,
 };
 use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
-use lockbook_crypto::pubkey::PubKeyCryptoService;
+use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
     GetPublicKeyError, GetPublicKeyRequest, NewAccountError, NewAccountRequest,
@@ -57,27 +56,17 @@ pub trait AccountService {
 }
 
 pub struct AccountServiceImpl<
-    Crypto: PubKeyCryptoService,
     AccountDb: AccountRepo,
-    ApiClient: Client,
     FileCrypto: FileEncryptionService,
     FileMetadata: FileMetadataRepo,
 > {
-    _encryption: Crypto,
     _accounts: AccountDb,
-    _client: ApiClient,
     _file_crypto: FileCrypto,
     _file_db: FileMetadata,
 }
 
-impl<
-        Crypto: PubKeyCryptoService,
-        AccountDb: AccountRepo,
-        ApiClient: Client,
-        FileCrypto: FileEncryptionService,
-        FileMetadata: FileMetadataRepo,
-    > AccountService
-    for AccountServiceImpl<Crypto, AccountDb, ApiClient, FileCrypto, FileMetadata>
+impl<AccountDb: AccountRepo, FileCrypto: FileEncryptionService, FileMetadata: FileMetadataRepo>
+    AccountService for AccountServiceImpl<AccountDb, FileCrypto, FileMetadata>
 {
     fn create_account(
         config: &Config,
@@ -95,7 +84,7 @@ impl<
         info!("Creating new account for {}", username);
 
         info!("Generating Key...");
-        let keys = Crypto::generate_key();
+        let keys = pubkey::generate_key();
 
         let account = Account {
             username: String::from(username),
@@ -108,10 +97,9 @@ impl<
             .map_err(AccountCreationError::FolderError)?;
 
         info!("Sending username & public key to server");
-        let version =
-            ApiClient::request(&account, NewAccountRequest::new(&account, &file_metadata))
-                .map_err(AccountCreationError::ApiError)?
-                .folder_metadata_version;
+        let version = client::request(&account, NewAccountRequest::new(&account, &file_metadata))
+            .map_err(AccountCreationError::ApiError)?
+            .folder_metadata_version;
         info!("Account creation success!");
 
         file_metadata.metadata_version = version;
@@ -158,7 +146,7 @@ impl<
             "Checking this username, public_key pair exists at {}",
             account.api_url
         );
-        let server_public_key = ApiClient::request(
+        let server_public_key = client::request(
             &account,
             GetPublicKeyRequest {
                 username: account.username.clone(),

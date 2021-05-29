@@ -9,15 +9,15 @@ use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 use lockbook_core::storage::db_provider::FileBackend;
 use lockbook_core::{
     DefaultAccountRepo, DefaultBackend, DefaultDbVersionRepo, DefaultDocumentRepo,
-    DefaultFileMetadataRepo, DefaultLocalChangesRepo, DefaultPKCrypto,
+    DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
 
-use lockbook_crypto::pubkey::PubKeyCryptoService;
 use lockbook_crypto::symkey::{AESImpl, SymmetricCryptoService};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 
+use lockbook_crypto::pubkey;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -66,7 +66,7 @@ pub fn generate_account() -> Account {
     Account {
         username: random_username(),
         api_url: env::var("API_URL").expect("API_URL must be defined!"),
-        private_key: DefaultPKCrypto::generate_key(),
+        private_key: pubkey::generate_key(),
     }
 }
 
@@ -79,7 +79,7 @@ pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
         username: account.username.clone(),
         encrypted_by: public_key.clone(),
         access_key: aes_encrypt(
-            &DefaultPKCrypto::get_aes_key(&account.private_key, &account.public_key()).unwrap(),
+            &pubkey::get_aes_key(&account.private_key, &account.public_key()).unwrap(),
             &folder_key,
         ),
     };

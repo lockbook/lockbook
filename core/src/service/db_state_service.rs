@@ -43,6 +43,10 @@ pub struct DbStateServiceImpl<
     _version: Version,
 }
 
+pub fn get_code_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
 impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo, Version: CodeVersion> DbStateService
     for DbStateServiceImpl<AccountDb, VersionDb, Version>
 {

@@ -6,8 +6,8 @@ mod create_document_tests {
     use crate::integration_test::{
         aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
     };
-    use lockbook_core::client::{ApiError, Client};
-    use lockbook_core::DefaultClient;
+    use lockbook_core::client;
+    use lockbook_core::client::ApiError;
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
     use uuid::Uuid;
@@ -17,11 +17,11 @@ mod create_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        client::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
@@ -36,11 +36,11 @@ mod create_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        client::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
@@ -50,7 +50,7 @@ mod create_document_tests {
         .unwrap();
 
         // create document with same id and key
-        let result = DefaultClient::request(
+        let result = client::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
@@ -70,11 +70,11 @@ mod create_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        client::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
@@ -86,7 +86,7 @@ mod create_document_tests {
         // create document with same path
         let (mut doc2, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc2.name = doc.name;
-        let result = DefaultClient::request(
+        let result = client::request(
             &account,
             CreateDocumentRequest::new(
                 &doc2,
@@ -107,13 +107,13 @@ mod create_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc.parent = Uuid::new_v4();
-        let result = DefaultClient::request(
+        let result = client::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,

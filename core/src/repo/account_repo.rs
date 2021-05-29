@@ -66,9 +66,8 @@ mod unit_tests {
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
     use crate::storage::db_provider::FileBackend;
-    use crate::DefaultPKCrypto;
 
-    use lockbook_crypto::pubkey::PubKeyCryptoService;
+    use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
 
     type DefaultAccountRepo = AccountRepoImpl;
@@ -78,7 +77,7 @@ mod unit_tests {
         let test_account = Account {
             username: "parth".to_string(),
             api_url: "ftp://uranus.net".to_string(),
-            private_key: DefaultPKCrypto::generate_key(),
+            private_key: pubkey::generate_key(),
         };
 
         let config = temp_config();

@@ -4,17 +4,17 @@ mod integration_test;
 mod get_public_key_tests {
     use crate::assert_matches;
     use crate::integration_test::{generate_account, generate_root_metadata};
-    use lockbook_core::client::{ApiError, Client};
-    use lockbook_core::DefaultClient;
+    use lockbook_core::client;
+    use lockbook_core::client::ApiError;
     use lockbook_models::api::*;
 
     #[test]
     fn get_public_key() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        let result = DefaultClient::request(
+        let result = client::request(
             &account,
             GetPublicKeyRequest {
                 username: account.username.clone(),
@@ -29,7 +29,7 @@ mod get_public_key_tests {
     fn get_public_key_not_found() {
         let account = generate_account();
 
-        let result = DefaultClient::request(
+        let result = client::request(
             &account,
             GetPublicKeyRequest {
                 username: account.username.clone(),
