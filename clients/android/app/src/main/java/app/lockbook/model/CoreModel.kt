@@ -176,6 +176,8 @@ object CoreModel {
         return Err(GetUsageError.Unexpected("getLocalAndServerUsageConverter was unable to be called!"))
     }
 
+    fun makeBytesReadable(bytes: Long): String = app.lockbook.core.makeBytesReadable(bytes)
+
     fun getChildren(
         config: Config,
         parentId: String

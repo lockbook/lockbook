@@ -10,6 +10,7 @@ external fun getAccount(config: String): String
 external fun setLastSynced(config: String, lastSynced: Long): String
 external fun convertToHumanDuration(metadataVersion: Long): String
 external fun getLocalAndServerUsage(config: String, exact: Boolean): String
+external fun makeBytesReadable(bytes: Long): String
 external fun getRoot(config: String): String
 external fun getChildren(config: String, id: String): String
 external fun getFileById(config: String, id: String): String

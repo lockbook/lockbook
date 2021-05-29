@@ -3,7 +3,6 @@ package app.lockbook.ui
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
-import android.provider.Settings.Global.getString
 import android.util.AttributeSet
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
@@ -35,30 +34,33 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
     private fun setUpUsagePreference(holder: PreferenceViewHolder) {
         val usageInfo = holder.itemView.usage_info
 
-        when (val getUsageResult = CoreModel.getLocalAndServerUsage(config, false)) {
+        when (val getUsageResult = CoreModel.getLocalAndServerUsage(config, true)) {
             is Ok -> {
                 val localAndServerUsages = getUsageResult.value
                 val resources = holder.itemView.resources
+                Timber.e("${localAndServerUsages.uncompressedUsage} ${localAndServerUsages.serverUsage} ${localAndServerUsages.dataCap}")
 
-                usageInfo.text = spannable {
-                    resources.getString(R.string.settings_usage_current).bold() + " " + localAndServerUsages.serverUsage + "\n" + resources.getString(R.string.settings_usage_data_cap).bold() + " " + localAndServerUsages.dataCap + "\n" + resources.getString(R.string.settings_usage_uncompressed_usage).bold() + " " + localAndServerUsages.uncompressedUsage
-                }
+                val dataCapDot = localAndServerUsages.dataCap.indexOf(" ")
+                val serverUsageDot = localAndServerUsages.serverUsage.indexOf(" ")
+                val uncompressedUsageDot = localAndServerUsages.uncompressedUsage.indexOf(" ")
 
-                val dataCapDot = localAndServerUsages.dataCap.indexOf(".")
-                val serverUsageDot = localAndServerUsages.serverUsage.indexOf(".")
-
-                if (dataCapDot == -1 || serverUsageDot == -1) {
+                if (dataCapDot == -1 || serverUsageDot == -1 || uncompressedUsageDot == -1) {
                     AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Error! Could not set up usage bar.", OnFinishAlert.DoNothingOnFinishAlert)
                 }
 
-                val dataCapNum = localAndServerUsages.dataCap.substring(0, dataCapDot).toIntOrNull()
-                val serverUsageNum = localAndServerUsages.dataCap.substring(0, serverUsageDot).toIntOrNull()
+                val dataCapNum = localAndServerUsages.dataCap.substring(0, dataCapDot).toLongOrNull()
+                val serverUsageNum = localAndServerUsages.dataCap.substring(0, serverUsageDot).toLongOrNull()
+                val uncompressedUsageNum = localAndServerUsages.uncompressedUsage.substring(0, uncompressedUsageDot).toLongOrNull()
 
-                if (dataCapNum == null || serverUsageNum == null) {
+                if (dataCapNum == null || serverUsageNum == null || uncompressedUsageNum == null) {
                     AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Error! Could not set up usage bar.", OnFinishAlert.DoNothingOnFinishAlert)
                 } else {
-                    holder.itemView.usage_bar.max = dataCapNum
-                    holder.itemView.usage_bar.progress = serverUsageNum
+                    holder.itemView.usage_bar.max = dataCapNum.toInt()
+                    holder.itemView.usage_bar.progress = serverUsageNum.toInt()
+
+                    usageInfo.text = spannable {
+                        resources.getString(R.string.settings_usage_current).bold() + " " + CoreModel.makeBytesReadable(serverUsageNum) + "\n" + resources.getString(R.string.settings_usage_data_cap).bold() + " " + CoreModel.makeBytesReadable(dataCapNum) + "\n" + resources.getString(R.string.settings_usage_uncompressed_usage).bold() + " " + CoreModel.makeBytesReadable(uncompressedUsageNum)
+                    }
                 }
             }
             is Err -> when (val error = getUsageResult.error) {
