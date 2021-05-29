@@ -10,7 +10,7 @@ object CoreModel {
 
     private const val QA_API_URL = "http://qa.lockbook.app:8000"
     private const val PROD_API_URL = "http://api.lockbook.app:8000"
-    fun getAPIURL(): String = System.getenv("API_URL") ?: QA_API_URL
+    fun getAPIURL(): String = "http://10.0.0.225:8000"
 
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
         val initLoggerResult: Result<Unit, InitLoggerError>? =
@@ -161,19 +161,19 @@ object CoreModel {
         metadataVersion: Long
     ): String = app.lockbook.core.convertToHumanDuration(metadataVersion)
 
-    fun getUsageHumanString(
+    fun getLocalAndServerUsage(
         config: Config,
         exact: Boolean
-    ): Result<String, GetUsageError> {
-        val getUsageHumanString: Result<String, GetUsageError>? =
-            Klaxon().converter(getUsageHumanStringConverter)
-                .parse(getUsageHumanString(Klaxon().toJsonString(config), exact))
+    ): Result<LocalAndServerUsages, GetUsageError> {
+        val getUsageResult: Result<LocalAndServerUsages, GetUsageError>? =
+            Klaxon().converter(getLocalAndServerUsageConverter)
+                .parse(getLocalAndServerUsage(Klaxon().toJsonString(config), exact))
 
-        if (getUsageHumanString != null) {
-            return getUsageHumanString
+        if (getUsageResult != null) {
+            return getUsageResult
         }
 
-        return Err(GetUsageError.Unexpected("getUsageHumanStringConverter was unable to be called!"))
+        return Err(GetUsageError.Unexpected("getLocalAndServerUsageConverter was unable to be called!"))
     }
 
     fun getChildren(

@@ -1,6 +1,6 @@
 package app.lockbook
 
-import app.lockbook.core.getUsageHumanString
+import app.lockbook.core.getLocalAndServerUsage
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
@@ -26,42 +26,42 @@ class GetUsageTest {
     }
 
     @Test
-    fun getUsageHumanStringOk() {
+    fun getLocalAndServerUsageOk() {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertType<String>(
-            CoreModel.getUsageHumanString(config, true).component1()
+            CoreModel.getLocalAndServerUsage(config, true).component1()
         )
 
         assertType<String>(
-            CoreModel.getUsageHumanString(config, false).component1()
+            CoreModel.getLocalAndServerUsage(config, false).component1()
         )
     }
 
     @Test
-    fun getUsageHumanStringNoAccount() {
+    fun getLocalAndServerUsageNoAccount() {
         assertType<String>(
-            CoreModel.getUsageHumanString(config, true).component1()
+            CoreModel.getLocalAndServerUsage(config, true).component1()
         )
 
         assertType<String>(
-            CoreModel.getUsageHumanString(config, false).component1()
+            CoreModel.getLocalAndServerUsage(config, false).component1()
         )
     }
 
     @Test
-    fun getUsageHumanStringUnexpectedError() {
+    fun getLocalAndServerUsageUnexpectedError() {
         assertType<GetAccountError.Unexpected>(
-            Klaxon().converter(getUsageHumanStringConverter).parse<Result<Account, GetAccountError>>(
-                getUsageHumanString("", false)
+            Klaxon().converter(getLocalAndServerUsageConverter).parse<Result<Account, GetAccountError>>(
+                getLocalAndServerUsage("", false)
             )?.component2()
         )
 
         assertType<GetAccountError.Unexpected>(
-            Klaxon().converter(getUsageHumanStringConverter).parse<Result<Account, GetAccountError>>(
-                getUsageHumanString("", true)
+            Klaxon().converter(getLocalAndServerUsageConverter).parse<Result<Account, GetAccountError>>(
+                getLocalAndServerUsage("", true)
             )?.component2()
         )
     }

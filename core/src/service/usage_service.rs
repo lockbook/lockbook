@@ -9,6 +9,7 @@ use lockbook_models::api::{GetUsageRequest, GetUsageResponse};
 use lockbook_models::file_metadata::FileType::Document;
 
 use crate::model::state::Config;
+use serde::Serialize;
 use std::convert::TryInto;
 use std::num::TryFromIntError;
 use uuid::Uuid;
@@ -43,9 +44,10 @@ pub enum LocalAndServerUsageError {
     UncompressedNumberTooLarge(TryFromIntError),
 }
 
+#[derive(Serialize)]
 pub struct LocalAndServerUsages {
     pub server_usage: String,
-    pub uncomressed_usage: String,
+    pub uncompressed_usage: String,
     pub data_cap: String,
 }
 
@@ -141,13 +143,13 @@ impl<
         let usages = if exact {
             LocalAndServerUsages {
                 server_usage: format!("{} B", server_usage),
-                uncomressed_usage: format!("{} bytes", local_usage),
+                uncompressed_usage: format!("{} bytes", local_usage),
                 data_cap: format!("{} B", cap),
             }
         } else {
             LocalAndServerUsages {
                 server_usage: Self::bytes_to_human(server_usage),
-                uncomressed_usage: Self::bytes_to_human(
+                uncompressed_usage: Self::bytes_to_human(
                     local_usage
                         .try_into()
                         .map_err(LocalAndServerUsageError::UncompressedNumberTooLarge)?,
