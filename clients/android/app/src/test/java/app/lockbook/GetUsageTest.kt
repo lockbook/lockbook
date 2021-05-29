@@ -31,36 +31,36 @@ class GetUsageTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        assertType<String>(
+        assertType<LocalAndServerUsages>(
             CoreModel.getLocalAndServerUsage(config, true).component1()
         )
 
-        assertType<String>(
+        assertType<LocalAndServerUsages>(
             CoreModel.getLocalAndServerUsage(config, false).component1()
         )
     }
 
     @Test
     fun getLocalAndServerUsageNoAccount() {
-        assertType<String>(
-            CoreModel.getLocalAndServerUsage(config, true).component1()
+        assertType<GetUsageError.NoAccount>(
+            CoreModel.getLocalAndServerUsage(config, true).component2()
         )
 
-        assertType<String>(
-            CoreModel.getLocalAndServerUsage(config, false).component1()
+        assertType<GetUsageError.NoAccount>(
+            CoreModel.getLocalAndServerUsage(config, false).component2()
         )
     }
 
     @Test
     fun getLocalAndServerUsageUnexpectedError() {
-        assertType<GetAccountError.Unexpected>(
-            Klaxon().converter(getLocalAndServerUsageConverter).parse<Result<Account, GetAccountError>>(
+        assertType<GetUsageError.Unexpected>(
+            Klaxon().converter(getLocalAndServerUsageConverter).parse<Result<LocalAndServerUsages, GetUsageError>>(
                 getLocalAndServerUsage("", false)
             )?.component2()
         )
 
-        assertType<GetAccountError.Unexpected>(
-            Klaxon().converter(getLocalAndServerUsageConverter).parse<Result<Account, GetAccountError>>(
+        assertType<GetUsageError.Unexpected>(
+            Klaxon().converter(getLocalAndServerUsageConverter).parse<Result<LocalAndServerUsages, GetUsageError>>(
                 getLocalAndServerUsage("", true)
             )?.component2()
         )

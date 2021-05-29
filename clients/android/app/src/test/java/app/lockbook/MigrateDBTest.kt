@@ -27,6 +27,10 @@ class MigrateDBTest {
 
     @Test
     fun migrateDBOk() {
+        assertType<State>(
+            CoreModel.getDBState(config).component1()
+        )
+
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
