@@ -2,13 +2,13 @@ mod integration_test;
 
 #[cfg(test)]
 mod change_document_content_tests {
-    use crate::assert_matches;
-    use crate::integration_test::{
+    use lockbook_core::assert_matches;
+    use lockbook_core::client;
+    use lockbook_core::client::ApiError;
+    use lockbook_core::service::test_utils::{
         aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
     };
-    use lockbook_core::client::{ApiError, Client};
-    use lockbook_core::DefaultClient;
-    use lockbook_crypto::symkey::{AESImpl, SymmetricCryptoService};
+    use lockbook_crypto::symkey;
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
     use uuid::Uuid;
@@ -18,12 +18,12 @@ mod change_document_content_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.metadata_version = DefaultClient::request(
+        doc.metadata_version = client::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
@@ -34,7 +34,7 @@ mod change_document_content_tests {
         .new_metadata_and_content_version;
 
         // change document content
-        DefaultClient::request(
+        client::request(
             &account,
             ChangeDocumentContentRequest {
                 id: doc.id,
@@ -50,16 +50,16 @@ mod change_document_content_tests {
         // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // change content of document we never created
-        let result = DefaultClient::request(
+        let result = client::request(
             &account,
             ChangeDocumentContentRequest {
                 id: Uuid::new_v4(),
                 old_metadata_version: 0,
                 new_content: aes_encrypt(
-                    &AESImpl::generate_key(),
+                    &symkey::generate_key(),
                     &String::from("new doc content").into_bytes(),
                 ),
             },
