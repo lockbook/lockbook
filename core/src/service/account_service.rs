@@ -8,7 +8,8 @@ use crate::service::account_service::AccountCreationError::{
 use crate::service::account_service::AccountImportError::{
     FailedToVerifyAccountServerSide, PublicKeyMismatch,
 };
-use crate::service::file_encryption_service::{FileEncryptionService, RootFolderCreationError};
+use crate::service::file_encryption_service;
+use crate::service::file_encryption_service::RootFolderCreationError;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
@@ -53,11 +54,9 @@ pub trait AccountService {
     fn export_account(config: &Config) -> Result<String, AccountExportError>;
 }
 
-pub struct AccountServiceImpl<FileCrypto: FileEncryptionService> {
-    _file_crypto: FileCrypto,
-}
+pub struct AccountServiceImpl {}
 
-impl<FileCrypto: FileEncryptionService> AccountService for AccountServiceImpl<FileCrypto> {
+impl AccountService for AccountServiceImpl {
     fn create_account(
         config: &Config,
         username: &str,
@@ -83,7 +82,7 @@ impl<FileCrypto: FileEncryptionService> AccountService for AccountServiceImpl<Fi
         };
 
         info!("Generating Root Folder");
-        let mut file_metadata = FileCrypto::create_metadata_for_root_folder(&account)
+        let mut file_metadata = file_encryption_service::create_metadata_for_root_folder(&account)
             .map_err(AccountCreationError::FolderError)?;
 
         info!("Sending username & public key to server");

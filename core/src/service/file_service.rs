@@ -9,7 +9,7 @@ use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_compression_service::FileCompressionService;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
-    FileCreationError, FileEncryptionService, KeyDecryptionFailure, UnableToGetKeyForUser,
+    FileCreationError, KeyDecryptionFailure, UnableToGetKeyForUser,
 };
 use crate::service::file_service::DocumentRenameError::{CannotRenameRoot, FileDoesNotExist};
 use crate::service::file_service::DocumentUpdateError::{
@@ -21,7 +21,7 @@ use crate::service::file_service::FileMoveError::{
     TargetParentDoesNotExist,
 };
 use crate::service::file_service::NewFileError::{
-    DocumentTreatedAsFolder, FailedToWriteFileContent, FileCryptoError, FileNameContainsSlash,
+    DocumentTreatedAsFolder, FailedToWriteFileContent, FileEncryptionError, FileNameContainsSlash,
     FileNameEmpty, FileNameNotAvailable, MetadataRepoError,
 };
 use crate::service::file_service::NewFileFromPathError::{
@@ -37,7 +37,7 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 pub enum NewFileError {
     AccountRetrievalError(account_repo::AccountRepoError),
     CouldNotFindParents(FindingParentsFailed),
-    FileCryptoError(file_encryption_service::FileCreationError),
+    FileEncryptionError(file_encryption_service::FileCreationError),
     MetadataRepoError(file_metadata_repo::DbError),
     FailedToWriteFileContent(DocumentUpdateError),
     FailedToRecordChange(local_changes_repo::DbError),
@@ -64,7 +64,7 @@ pub enum DocumentUpdateError {
     CouldNotFindFile,
     CouldNotFindParents(FindingParentsFailed),
     FolderTreatedAsDocument,
-    FileCryptoError(file_encryption_service::FileWriteError),
+    FileEncryptionError(file_encryption_service::FileWriteError),
     FileCompressionError(std::io::Error),
     FileDecompressionError(std::io::Error),
     DocumentWriteError(document_repo::Error),
@@ -83,7 +83,7 @@ pub enum ReadDocumentError {
     TreatedFolderAsDocument,
     DocumentReadError(document_repo::Error),
     CouldNotFindParents(FindingParentsFailed),
-    FileCryptoError(file_encryption_service::UnableToReadFile),
+    FileEncryptionError(file_encryption_service::UnableToReadFile),
     FileDecompressionError(std::io::Error),
 }
 
@@ -171,17 +171,11 @@ pub trait FileService {
     fn delete_folder(config: &Config, id: Uuid) -> Result<(), DeleteFolderError>;
 }
 
-pub struct FileServiceImpl<
-    FileCrypto: FileEncryptionService,
-    FileCompression: FileCompressionService,
-> {
-    _file_crypto: FileCrypto,
+pub struct FileServiceImpl<FileCompression: FileCompressionService> {
     _file_compression: FileCompression,
 }
 
-impl<FileCrypto: FileEncryptionService, FileCompression: FileCompressionService> FileService
-    for FileServiceImpl<FileCrypto, FileCompression>
-{
+impl<FileCompression: FileCompressionService> FileService for FileServiceImpl<FileCompression> {
     fn create(
         config: &Config,
         name: &str,
@@ -218,9 +212,10 @@ impl<FileCrypto: FileEncryptionService, FileCompression: FileCompressionService>
             }
         }
 
-        let new_metadata =
-            FileCrypto::create_file_metadata(name, file_type, parent, &account, parents)
-                .map_err(FileCryptoError)?;
+        let new_metadata = file_encryption_service::create_file_metadata(
+            name, file_type, parent, &account, parents,
+        )
+        .map_err(FileEncryptionError)?;
 
         file_metadata_repo::insert(config, &new_metadata).map_err(MetadataRepoError)?;
         local_changes_repo::track_new_file(config, new_metadata.id, clock_service::get_time)
@@ -330,20 +325,20 @@ impl<FileCrypto: FileEncryptionService, FileCompression: FileCompressionService>
         let compressed_content = FileCompression::compress(content)
             .map_err(DocumentUpdateError::FileCompressionError)?;
 
-        let new_file = FileCrypto::write_to_document(
+        let new_file = file_encryption_service::write_to_document(
             &account,
             &compressed_content,
             &file_metadata,
             parents.clone(),
         )
-        .map_err(DocumentUpdateError::FileCryptoError)?;
+        .map_err(DocumentUpdateError::FileEncryptionError)?;
 
         file_metadata_repo::insert(config, &file_metadata).map_err(DbError)?;
 
         if let Some(old_encrypted) =
             document_repo::maybe_get(config, id).map_err(FetchOldVersionError)?
         {
-            let decrypted = FileCrypto::read_document(
+            let decrypted = file_encryption_service::read_document(
                 &account,
                 &old_encrypted,
                 &file_metadata,
@@ -353,8 +348,9 @@ impl<FileCrypto: FileEncryptionService, FileCompression: FileCompressionService>
             let decompressed = FileCompression::decompress(&decrypted)
                 .map_err(DocumentUpdateError::FileDecompressionError)?;
 
-            let permanent_access_info = FileCrypto::get_key_for_user(&account, id, parents)
-                .map_err(AccessInfoCreationError)?;
+            let permanent_access_info =
+                file_encryption_service::get_key_for_user(&account, id, parents)
+                    .map_err(AccessInfoCreationError)?;
 
             local_changes_repo::track_edit(
                 config,
@@ -466,15 +462,18 @@ impl<FileCrypto: FileEncryptionService, FileCompression: FileCompressionService>
                         let old_parents = file_metadata_repo::get_with_all_parents(config, file.id)
                             .map_err(FileMoveError::CouldNotFindParents)?;
 
-                        let access_key =
-                            FileCrypto::decrypt_key_for_file(&account, file.id, old_parents)
-                                .map_err(FailedToDecryptKey)?;
+                        let access_key = file_encryption_service::decrypt_key_for_file(
+                            &account,
+                            file.id,
+                            old_parents,
+                        )
+                        .map_err(FailedToDecryptKey)?;
 
                         let new_parents =
                             file_metadata_repo::get_with_all_parents(config, parent_metadata.id)
                                 .map_err(FileMoveError::CouldNotFindParents)?;
 
-                        let new_access_info = FileCrypto::re_encrypt_key_for_file(
+                        let new_access_info = file_encryption_service::re_encrypt_key_for_file(
                             &account,
                             access_key,
                             parent_metadata.id,
@@ -520,8 +519,8 @@ impl<FileCrypto: FileEncryptionService, FileCompression: FileCompressionService>
             .map_err(ReadDocumentError::CouldNotFindParents)?;
 
         let compressed_content =
-            FileCrypto::read_document(&account, &document, &file_metadata, parents)
-                .map_err(ReadDocumentError::FileCryptoError)?;
+            file_encryption_service::read_document(&account, &document, &file_metadata, parents)
+                .map_err(ReadDocumentError::FileEncryptionError)?;
 
         let content = FileCompression::decompress(&compressed_content)
             .map_err(ReadDocumentError::FileDecompressionError)?;
@@ -631,13 +630,11 @@ mod unit_tests {
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
     use crate::repo::local_changes_repo;
     use crate::repo::{account_repo, document_repo, file_metadata_repo};
-    use crate::service::file_encryption_service::FileEncryptionService;
+    use crate::service::file_encryption_service;
     use crate::service::file_service::{
         DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
-    use crate::{
-        init_logger, DefaultFileEncryptionService, DefaultFileService, NewFileFromPathError,
-    };
+    use crate::{init_logger, DefaultFileService, NewFileFromPathError};
     use libsecp256k1::SecretKey;
     use lockbook_models::account::Account;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
@@ -689,7 +686,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
         assert!(file_metadata_repo::get_root(config).unwrap().is_none());
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
         assert!(file_metadata_repo::get_root(config).unwrap().is_some());
         assert_no_metadata_problems!(config);
@@ -743,7 +740,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
         assert_total_filtered_paths!(config, None, 0);
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
         assert_total_filtered_paths!(config, None, 1);
         assert_eq!(
@@ -799,7 +796,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         let folder1 = DefaultFileService::create(config, "TestFolder1", root.id, Folder).unwrap();
@@ -852,7 +849,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         let paths_with_empties = ["username//", "username/path//to///file.md"];
@@ -933,7 +930,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         DefaultFileService::create_at_path(config, "username/test.txt").unwrap();
@@ -949,7 +946,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(config, "username/test.txt").unwrap();
@@ -965,7 +962,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         DefaultFileService::create_at_path(config, "username/test.txt").unwrap();
@@ -981,7 +978,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(config, "username/test.txt").unwrap();
@@ -997,7 +994,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
         assert!(DefaultFileService::create(config, "oops/txt", root.id, Document).is_err());
 
@@ -1011,7 +1008,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
@@ -1096,7 +1093,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
@@ -1160,7 +1157,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
@@ -1188,7 +1185,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
 
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(config, "username/file1.md").unwrap();
@@ -1225,7 +1222,7 @@ mod unit_tests {
 
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         let doc1 = DefaultFileService::create(config, "test1.md", root.id, Document).unwrap();
@@ -1251,7 +1248,7 @@ mod unit_tests {
 
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         let doc1 = DefaultFileService::create(config, "test1.md", root.id, Document).unwrap();
@@ -1283,7 +1280,7 @@ mod unit_tests {
 
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         DefaultFileService::create_at_path(config, &format!("{}/a/b/c/d/", account.username))
@@ -1320,7 +1317,7 @@ mod unit_tests {
 
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         let folder1 = DefaultFileService::create(config, "folder1", root.id, Folder).unwrap();
@@ -1360,7 +1357,7 @@ mod unit_tests {
 
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         let folder1 = DefaultFileService::create(config, "folder1", root.id, Folder).unwrap();
@@ -1405,7 +1402,7 @@ mod unit_tests {
 
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         assert!(matches!(

@@ -9,7 +9,6 @@ use crate::client::ApiError;
 use crate::model::state::Config;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::file_compression_service::FileCompressionService;
-use crate::service::file_encryption_service::FileEncryptionService;
 use crate::service::file_service::{FileService, NewFileFromPathError};
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
@@ -120,21 +119,13 @@ pub struct SyncProgress {
     pub current_work_unit: WorkUnit,
 }
 
-pub struct FileSyncService<
-    Files: FileService,
-    FileCrypto: FileEncryptionService,
-    FileCompression: FileCompressionService,
-> {
+pub struct FileSyncService<Files: FileService, FileCompression: FileCompressionService> {
     _file: Files,
-    _file_crypto: FileCrypto,
     _file_compression: FileCompression,
 }
 
-impl<
-        Files: FileService,
-        FileCrypto: FileEncryptionService,
-        FileCompression: FileCompressionService,
-    > SyncService for FileSyncService<Files, FileCrypto, FileCompression>
+impl<Files: FileService, FileCompression: FileCompressionService> SyncService
+    for FileSyncService<Files, FileCompression>
 {
     fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -277,9 +268,8 @@ impl<
 /// Helper functions
 impl<
         Files: FileService,
-        FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > FileSyncService<Files, FileCrypto, FileCompression>
+    > FileSyncService<Files, FileCompression>
 {
     /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
     /// there are not going to be path conflicts. If there are, we find the file that is conflicting
@@ -395,7 +385,7 @@ impl<
     ) -> Result<(), WorkExecutionError> {
         if metadata.name.ends_with(".md") || metadata.name.ends_with(".txt") {
             let common_ancestor = {
-                let compressed_common_ancestor = FileCrypto::user_read_document(
+                let compressed_common_ancestor = file_encryption_service::user_read_document(
                     &account,
                     &edited_locally.old_value,
                     &edited_locally.access_info,
@@ -420,7 +410,7 @@ impl<
                 .map_err(WorkExecutionError::from)?
                 .content;
 
-                let compressed_server_version = FileCrypto::user_read_document(
+                let compressed_server_version = file_encryption_service::user_read_document(
                     &account,
                     &server_document,
                     &edited_locally.access_info,

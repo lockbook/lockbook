@@ -29,7 +29,6 @@ use crate::service::account_service::{
 };
 use crate::service::db_state_service::State;
 use crate::service::file_compression_service::FileCompressionServiceImpl;
-use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{
     DocumentRenameError, DocumentUpdateError, FileMoveError, FileService, FileServiceImpl,
     NewFileError, NewFileFromPathError, ReadDocumentError as FSReadDocumentError,
@@ -264,7 +263,7 @@ pub fn create_file_at_path(
                 UiError(CreateFileAtPathError::DocumentTreatedAsFolder)
             }
             NewFileError::CouldNotFindParents(_)
-            | NewFileError::FileCryptoError(_)
+            | NewFileError::FileEncryptionError(_)
             | NewFileError::MetadataRepoError(_)
             | NewFileError::FailedToWriteFileContent(_)
             | NewFileError::FailedToRecordChange(_)
@@ -301,7 +300,7 @@ pub fn write_document(
             UiError(WriteToDocumentError::FolderTreatedAsDocument)
         }
         DocumentUpdateError::CouldNotFindParents(_)
-        | DocumentUpdateError::FileCryptoError(_)
+        | DocumentUpdateError::FileEncryptionError(_)
         | DocumentUpdateError::FileCompressionError(_)
         | DocumentUpdateError::FileDecompressionError(_)
         | DocumentUpdateError::DocumentWriteError(_)
@@ -339,7 +338,7 @@ pub fn create_file(
         NewFileError::FileNameNotAvailable => UiError(CreateFileError::FileNameNotAvailable),
         NewFileError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
         NewFileError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
-        NewFileError::FileCryptoError(_)
+        NewFileError::FileEncryptionError(_)
         | NewFileError::MetadataRepoError(_)
         | NewFileError::FailedToWriteFileContent(_)
         | NewFileError::FailedToRecordChange(_) => unexpected!("{:#?}", e),
@@ -508,7 +507,7 @@ pub fn read_document(
         FSReadDocumentError::DbError(_)
         | FSReadDocumentError::DocumentReadError(_)
         | FSReadDocumentError::CouldNotFindParents(_)
-        | FSReadDocumentError::FileCryptoError(_)
+        | FSReadDocumentError::FileEncryptionError(_)
         | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", e),
     })
 }
@@ -849,7 +848,7 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
             FSReadDocumentError::DbError(_)
             | FSReadDocumentError::DocumentReadError(_)
             | FSReadDocumentError::CouldNotFindParents(_)
-            | FSReadDocumentError::FileCryptoError(_)
+            | FSReadDocumentError::FileEncryptionError(_)
             | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
         },
         DrawingError::FailedToSaveDrawing(_)
@@ -895,7 +894,7 @@ pub fn save_drawing(
                     UiError(SaveDrawingError::FolderTreatedAsDrawing)
                 }
                 DocumentUpdateError::CouldNotFindParents(_)
-                | DocumentUpdateError::FileCryptoError(_)
+                | DocumentUpdateError::FileEncryptionError(_)
                 | DocumentUpdateError::FileCompressionError(_)
                 | DocumentUpdateError::FileDecompressionError(_)
                 | DocumentUpdateError::DocumentWriteError(_)
@@ -951,7 +950,7 @@ pub fn export_drawing(
                 FSReadDocumentError::DbError(_)
                 | FSReadDocumentError::DocumentReadError(_)
                 | FSReadDocumentError::CouldNotFindParents(_)
-                | FSReadDocumentError::FileCryptoError(_)
+                | FSReadDocumentError::FileEncryptionError(_)
                 | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
             },
             DrawingError::FailedToSaveDrawing(_)
@@ -1024,13 +1023,7 @@ static LOG_FILE: &str = "lockbook.log";
 
 pub type DefaultUsageService = UsageServiceImpl<DefaultFileService>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService>;
-pub type DefaultAccountService = AccountServiceImpl<DefaultFileEncryptionService>;
-pub type DefaultFileEncryptionService = FileEncryptionServiceImpl;
+pub type DefaultAccountService = AccountServiceImpl;
 pub type DefaultFileCompressionService = FileCompressionServiceImpl;
-pub type DefaultSyncService = FileSyncService<
-    DefaultFileService,
-    DefaultFileEncryptionService,
-    DefaultFileCompressionService,
->;
-pub type DefaultFileService =
-    FileServiceImpl<DefaultFileEncryptionService, DefaultFileCompressionService>;
+pub type DefaultSyncService = FileSyncService<DefaultFileService, DefaultFileCompressionService>;
+pub type DefaultFileService = FileServiceImpl<DefaultFileCompressionService>;

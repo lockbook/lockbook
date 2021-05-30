@@ -507,9 +507,9 @@ mod unit_tests {
     use crate::repo::file_metadata_repo::Problem;
     use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
     use crate::repo::{account_repo, file_metadata_repo};
-    use crate::service::file_encryption_service::FileEncryptionService;
+    use crate::service::file_encryption_service;
     use crate::service::file_service::FileService;
-    use crate::{DefaultFileEncryptionService, DefaultFileService};
+    use crate::DefaultFileService;
     use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
     use lockbook_models::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
@@ -673,7 +673,7 @@ mod unit_tests {
         };
 
         account_repo::insert_account(config, &account).unwrap();
-        let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
         DefaultFileService::create_at_path(config, "username/folder1/file1.txt").unwrap();
