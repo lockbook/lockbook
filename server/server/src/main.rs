@@ -98,22 +98,23 @@ macro_rules! route_handler {
             <$TRequest>::ROUTE
         );
 
-
-        let unpacked = unpack(&$server_state, $hyper_request).await;
-        let result = match unpacked {
+        pack::<$TRequest>(match unpack(&$server_state, $hyper_request).await {
             Ok((request, public_key)) => {
-                wrap_err::<$TRequest>(
-                    $handler(&mut RequestContext {
-                        server_state: &$server_state,
-                        request,
-                        public_key,
-                    })
-                    .await,
-                )
-            }
+                let request_string = format!("{:?}", request);
+                let result = 
+                $handler(&mut RequestContext {
+                    server_state: &$server_state,
+                    request,
+                    public_key,
+                })
+                .await;
+                if let Err(Err(ref e)) = result {
+                    error!("Internal error! Request: {}, Error: {}", request_string, e);
+                }
+                wrap_err::<$TRequest>(result)
+            },
             Err(e) => Err(e),
-        };
-        pack::<$TRequest>(result)
+        })
     }};
 }
 
@@ -220,12 +221,12 @@ async fn route(
 }
 
 fn wrap_err<TRequest: Request>(
-    result: Result<TRequest::Response, Option<TRequest::Error>>,
+    result: Result<TRequest::Response, Result<TRequest::Error, String>>,
 ) -> Result<TRequest::Response, ErrorWrapper<TRequest::Error>> {
     match result {
         Ok(response) => Ok(response),
-        Err(Some(e)) => Err(ErrorWrapper::Endpoint(e)),
-        Err(None) => Err(ErrorWrapper::InternalError),
+        Err(Ok(e)) => Err(ErrorWrapper::Endpoint(e)),
+        Err(Err(_)) => Err(ErrorWrapper::InternalError),
     }
 }
 

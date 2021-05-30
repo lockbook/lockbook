@@ -6,7 +6,6 @@ pub mod file_service;
 pub mod loggers;
 pub mod utils;
 
-#[macro_use]
 extern crate log;
 
 use libsecp256k1::PublicKey;

@@ -28,7 +28,7 @@ pub async fn connect(config: &IndexDbConfig) -> Result<PgPool, ConnectError> {
         .port(config.port)
         .database(&config.db)
         .application_name("lockbook-server");
-    pool_options.log_statements(log::LevelFilter::Debug);
+    pool_options.disable_statement_logging();
 
     if config.cert.as_str() != "" {
         pool_options = pool_options.ssl_root_cert_from_pem(config.cert.clone().into_bytes());
