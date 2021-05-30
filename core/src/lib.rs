@@ -20,7 +20,6 @@ use crate::client::ApiError;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepoError;
-use crate::repo::db_version_repo::DbVersionRepoImpl;
 use crate::repo::document_repo::DocumentRepoImpl;
 use crate::repo::file_metadata_repo::{
     DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingChildrenFailed,
@@ -1029,8 +1028,7 @@ static LOG_FILE: &str = "lockbook.log";
 
 pub type DefaultUsageService = UsageServiceImpl<DefaultFileMetadataRepo, DefaultFileService>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService, DefaultFileMetadataRepo>;
-pub type DefaultDbVersionRepo = DbVersionRepoImpl;
-pub type DefaultDbStateService = DbStateServiceImpl<DefaultDbVersionRepo>;
+pub type DefaultDbStateService = DbStateServiceImpl;
 pub type DefaultAccountService =
     AccountServiceImpl<DefaultFileEncryptionService, DefaultFileMetadataRepo>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;

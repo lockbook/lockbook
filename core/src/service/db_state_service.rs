@@ -1,5 +1,4 @@
 use crate::model::state::Config;
-use crate::repo::db_version_repo::DbVersionRepo;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::db_state_service;
 use crate::service::db_state_service::State::{
@@ -32,26 +31,24 @@ pub trait DbStateService {
     fn perform_migration(config: &Config) -> Result<(), MigrationError>;
 }
 
-pub struct DbStateServiceImpl<VersionDb: DbVersionRepo> {
-    _repo: VersionDb,
-}
+pub struct DbStateServiceImpl {}
 
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-impl<VersionDb: DbVersionRepo> DbStateService for DbStateServiceImpl<VersionDb> {
+impl DbStateService for DbStateServiceImpl {
     fn get_state(config: &Config) -> Result<State, GetStateError> {
         if account_repo::maybe_get_account(config)
             .map_err(GetStateError::AccountRepoError)?
             .is_none()
         {
-            VersionDb::set(config, db_state_service::get_code_version())
+            db_version_repo::set(config, db_state_service::get_code_version())
                 .map_err(GetStateError::RepoError)?;
             return Ok(Empty);
         }
 
-        match VersionDb::get(config).map_err(GetStateError::RepoError)? {
+        match db_version_repo::get(config).map_err(GetStateError::RepoError)? {
             None => Ok(StateRequiresClearing),
             Some(state_version) => {
                 if state_version == db_state_service::get_code_version() {
@@ -70,17 +67,20 @@ impl<VersionDb: DbVersionRepo> DbStateService for DbStateServiceImpl<VersionDb> 
 
     fn perform_migration(config: &Config) -> Result<(), MigrationError> {
         loop {
-            let db_version = match VersionDb::get(config).map_err(MigrationError::RepoError)? {
-                None => return Err(MigrationError::StateRequiresClearing),
-                Some(version) => version,
-            };
+            let db_version =
+                match db_version_repo::get(config).map_err(MigrationError::RepoError)? {
+                    None => return Err(MigrationError::StateRequiresClearing),
+                    Some(version) => version,
+                };
 
             if db_version == db_state_service::get_code_version() {
                 return Ok(());
             }
 
             match db_version.as_str() {
-                "0.1.0" => VersionDb::set(config, "0.1.1").map_err(MigrationError::RepoError)?,
+                "0.1.0" => {
+                    db_version_repo::set(config, "0.1.1").map_err(MigrationError::RepoError)?
+                }
                 "0.1.1" => return Err(MigrationError::StateRequiresClearing), // If you wanted to remove this, write a migration for PR #332
                 "0.1.2" => return Ok(()),
                 _ => return Err(MigrationError::StateRequiresClearing),
@@ -92,21 +92,21 @@ impl<VersionDb: DbVersionRepo> DbStateService for DbStateServiceImpl<VersionDb> 
 #[cfg(test)]
 mod unit_tests {
     use crate::model::state::temp_config;
-    use crate::repo::db_version_repo::DbVersionRepo;
+    use crate::repo::db_version_repo;
     use crate::service::db_state_service;
     use crate::service::db_state_service::DbStateService;
     use crate::service::db_state_service::State::Empty;
-    use crate::{DefaultDbStateService, DefaultDbVersionRepo};
+    use crate::DefaultDbStateService;
 
     #[test]
     fn test_initial_state() {
         let config = temp_config();
 
-        assert!(DefaultDbVersionRepo::get(&config).unwrap().is_none());
+        assert!(db_version_repo::get(&config).unwrap().is_none());
         assert_eq!(DefaultDbStateService::get_state(&config).unwrap(), Empty);
         assert_eq!(DefaultDbStateService::get_state(&config).unwrap(), Empty);
         assert_eq!(
-            DefaultDbVersionRepo::get(&config).unwrap().unwrap(),
+            db_version_repo::get(&config).unwrap().unwrap(),
             db_state_service::get_code_version()
         );
     }
