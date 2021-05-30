@@ -9,7 +9,7 @@ use crate::client::ApiError;
 use crate::model::state::Config;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::file_compression_service;
-use crate::service::file_service::{FileService, NewFileFromPathError};
+use crate::service::file_service::NewFileFromPathError;
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
     MetadataRepoError,
@@ -119,13 +119,9 @@ pub struct SyncProgress {
     pub current_work_unit: WorkUnit,
 }
 
-pub struct FileSyncService<Files: FileService> {
-    _file: Files,
-}
+pub struct FileSyncService {}
 
-impl<Files: FileService> SyncService
-    for FileSyncService<Files>
-{
+impl SyncService for FileSyncService {
     fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
         let mut work_units: Vec<WorkUnit> = vec![];
@@ -265,9 +261,7 @@ impl<Files: FileService> SyncService
 }
 
 /// Helper functions
-impl<Files: FileService>
-    FileSyncService<Files>
-{
+impl FileSyncService {
     /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
     /// there are not going to be path conflicts. If there are, we find the file that is conflicting
     /// locally and rename it
@@ -285,7 +279,7 @@ impl<Files: FileService>
 
         // There should only be one of these
         for conflicting_file in conflicting_files {
-            Files::rename_file(
+            file_service::rename_file(
                 config,
                 conflicting_file.id,
                 &format!(
@@ -393,8 +387,8 @@ impl<Files: FileService>
                     .map_err(DecompressingForMergeError)?
             };
 
-            let current_version =
-                Files::read_document(config, metadata.id).map_err(ReadingCurrentVersionError)?;
+            let current_version = file_service::read_document(config, metadata.id)
+                .map_err(ReadingCurrentVersionError)?;
 
             let server_version = {
                 let server_document = client::request(
@@ -425,10 +419,11 @@ impl<Files: FileService>
                     Err(conflicts) => conflicts,
                 };
 
-            Files::write_document(config, metadata.id, &result).map_err(WritingMergedFileError)?;
+            file_service::write_document(config, metadata.id, &result)
+                .map_err(WritingMergedFileError)?;
         } else {
             // Create a new file
-            let new_file = Files::create(
+            let new_file = file_service::create(
                 config,
                 &format!(
                     "{}-CONTENT-CONFLICT-{}",

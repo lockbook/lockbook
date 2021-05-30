@@ -28,8 +28,8 @@ use crate::service::account_service::{
 };
 use crate::service::db_state_service::State;
 use crate::service::file_service::{
-    DocumentRenameError, DocumentUpdateError, FileMoveError, FileService, FileServiceImpl,
-    NewFileError, NewFileFromPathError, ReadDocumentError as FSReadDocumentError,
+    DocumentRenameError, DocumentUpdateError, FileMoveError, NewFileError, NewFileFromPathError,
+    ReadDocumentError as FSReadDocumentError,
 };
 use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, FileSyncService, SyncError, SyncProgress,
@@ -238,7 +238,7 @@ pub fn create_file_at_path(
     config: &Config,
     path_and_name: &str,
 ) -> Result<FileMetadata, Error<CreateFileAtPathError>> {
-    DefaultFileService::create_at_path(&config, path_and_name).map_err(|e| match e {
+    file_service::create_at_path(&config, path_and_name).map_err(|e| match e {
         NewFileFromPathError::PathDoesntStartWithRoot => {
             UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
         }
@@ -286,7 +286,7 @@ pub fn write_document(
     id: Uuid,
     content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
-    DefaultFileService::write_document(&config, id, content).map_err(|e| match e {
+    file_service::write_document(&config, id, content).map_err(|e| match e {
         DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 unexpected!("{:#?}", account_err)
@@ -326,7 +326,7 @@ pub fn create_file(
     parent: Uuid,
     file_type: FileType,
 ) -> Result<FileMetadata, Error<CreateFileError>> {
-    DefaultFileService::create(&config, name, parent, file_type).map_err(|e| match e {
+    file_service::create(&config, name, parent, file_type).map_err(|e| match e {
         NewFileError::AccountRetrievalError(_) => UiError(CreateFileError::NoAccount),
         NewFileError::DocumentTreatedAsFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
         NewFileError::CouldNotFindParents(parent_error) => match parent_error {
@@ -444,7 +444,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
     match file_metadata_repo::get(&config, id) {
         Ok(meta) => match meta.file_type {
             FileType::Document => {
-                DefaultFileService::delete_document(&config, id).map_err(|err| match err {
+                file_service::delete_document(&config, id).map_err(|err| match err {
                     file_service::DeleteDocumentError::CouldNotFindFile
                     | file_service::DeleteDocumentError::FolderTreatedAsDocument
                     | file_service::DeleteDocumentError::FailedToRecordChange(_)
@@ -456,24 +456,22 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
                     }
                 })
             }
-            FileType::Folder => {
-                DefaultFileService::delete_folder(&config, id).map_err(|err| match err {
-                    file_service::DeleteFolderError::CannotDeleteRoot => {
-                        UiError(FileDeleteError::CannotDeleteRoot)
-                    }
-                    file_service::DeleteFolderError::MetadataError(_)
-                    | file_service::DeleteFolderError::CouldNotFindFile
-                    | file_service::DeleteFolderError::FailedToDeleteMetadata(_)
-                    | file_service::DeleteFolderError::FindingChildrenFailed(_)
-                    | file_service::DeleteFolderError::FailedToRecordChange(_)
-                    | file_service::DeleteFolderError::CouldNotFindParents(_)
-                    | file_service::DeleteFolderError::DocumentTreatedAsFolder
-                    | file_service::DeleteFolderError::FailedToDeleteDocument(_)
-                    | file_service::DeleteFolderError::FailedToDeleteChangeEntry(_) => {
-                        unexpected!("{:#?}", err)
-                    }
-                })
-            }
+            FileType::Folder => file_service::delete_folder(&config, id).map_err(|err| match err {
+                file_service::DeleteFolderError::CannotDeleteRoot => {
+                    UiError(FileDeleteError::CannotDeleteRoot)
+                }
+                file_service::DeleteFolderError::MetadataError(_)
+                | file_service::DeleteFolderError::CouldNotFindFile
+                | file_service::DeleteFolderError::FailedToDeleteMetadata(_)
+                | file_service::DeleteFolderError::FindingChildrenFailed(_)
+                | file_service::DeleteFolderError::FailedToRecordChange(_)
+                | file_service::DeleteFolderError::CouldNotFindParents(_)
+                | file_service::DeleteFolderError::DocumentTreatedAsFolder
+                | file_service::DeleteFolderError::FailedToDeleteDocument(_)
+                | file_service::DeleteFolderError::FailedToDeleteChangeEntry(_) => {
+                    unexpected!("{:#?}", err)
+                }
+            }),
         },
         Err(_) => Err(UiError(FileDeleteError::FileDoesNotExist)),
     }
@@ -490,7 +488,7 @@ pub fn read_document(
     config: &Config,
     id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    DefaultFileService::read_document(&config, id).map_err(|e| match e {
+    file_service::read_document(&config, id).map_err(|e| match e {
         FSReadDocumentError::TreatedFolderAsDocument => {
             UiError(ReadDocumentError::TreatedFolderAsDocument)
         }
@@ -545,7 +543,7 @@ pub fn rename_file(
     id: Uuid,
     new_name: &str,
 ) -> Result<(), Error<RenameFileError>> {
-    DefaultFileService::rename_file(&config, id, new_name).map_err(|e| match e {
+    file_service::rename_file(&config, id, new_name).map_err(|e| match e {
         DocumentRenameError::FileDoesNotExist => UiError(RenameFileError::FileDoesNotExist),
         DocumentRenameError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
         DocumentRenameError::FileNameContainsSlash => {
@@ -571,7 +569,7 @@ pub enum MoveFileError {
 }
 
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-    DefaultFileService::move_file(&config, id, new_parent).map_err(|e| match e {
+    file_service::move_file(&config, id, new_parent).map_err(|e| match e {
         FileMoveError::DocumentTreatedAsFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
         FileMoveError::FolderMovedIntoItself => UiError(MoveFileError::FolderMovedIntoItself),
         FileMoveError::AccountRetrievalError(account_err) => match account_err {
@@ -1019,7 +1017,6 @@ pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
 
-pub type DefaultUsageService = UsageServiceImpl<DefaultFileService>;
-pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService>;
-pub type DefaultSyncService = FileSyncService<DefaultFileService>;
-pub type DefaultFileService = FileServiceImpl;
+pub type DefaultUsageService = UsageServiceImpl;
+pub type DefaultDrawingService = DrawingServiceImpl;
+pub type DefaultSyncService = FileSyncService;

@@ -1,12 +1,13 @@
 use crate::client;
 use crate::repo::file_metadata_repo::DbError;
 use crate::repo::{account_repo, file_metadata_repo};
-use crate::service::file_service::{FileService, ReadDocumentError};
+use crate::service::file_service::ReadDocumentError;
 use lockbook_models::api;
 use lockbook_models::api::{GetUsageRequest, GetUsageResponse};
 use lockbook_models::file_metadata::FileType::Document;
 
 use crate::model::state::Config;
+use crate::service::file_service;
 use std::convert::TryInto;
 use std::num::TryFromIntError;
 use uuid::Uuid;
@@ -58,11 +59,9 @@ pub trait UsageService {
     ) -> Result<LocalAndServerUsages, LocalAndServerUsageError>;
 }
 
-pub struct UsageServiceImpl<Files: FileService> {
-    _files: Files,
-}
+pub struct UsageServiceImpl {}
 
-impl<Files: FileService> UsageService for UsageServiceImpl<Files> {
+impl UsageService for UsageServiceImpl {
     fn bytes_to_human(size: u64) -> String {
         let (unit, abbr) = match size {
             0..=KILOBYTE => (BYTE, ""),
@@ -102,7 +101,7 @@ impl<Files: FileService> UsageService for UsageServiceImpl<Files> {
 
         let mut size: usize = 0;
         for id in doc_ids {
-            size += Files::read_document(&config, id)
+            size += file_service::read_document(&config, id)
                 .map_err(UncompressedError::FilesError)?
                 .len()
         }

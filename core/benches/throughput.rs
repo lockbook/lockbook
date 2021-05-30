@@ -1,10 +1,9 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::file_metadata_repo;
-use lockbook_core::service::account_service;
-use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::{DefaultFileService, DefaultSyncService};
+use lockbook_core::service::{account_service, file_service};
+use lockbook_core::DefaultSyncService;
 use lockbook_models::file_metadata::FileType::Document;
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
@@ -47,8 +46,7 @@ pub fn bench_throughput(c: &mut Criterion) {
 
         // File to be used in benchmark
         let file =
-            DefaultFileService::create(config, &Uuid::new_v4().to_string(), root.id, Document)
-                .unwrap();
+            file_service::create(config, &Uuid::new_v4().to_string(), root.id, Document).unwrap();
 
         group.throughput(Throughput::Bytes(bytes.len() as u64));
         group.bench_with_input(
@@ -56,8 +54,7 @@ pub fn bench_throughput(c: &mut Criterion) {
             &bytes,
             |b, _| {
                 b.iter(|| {
-                    let _ = DefaultFileService::write_document(config, file.id, &bytes.clone())
-                        .unwrap();
+                    let _ = file_service::write_document(config, file.id, &bytes.clone()).unwrap();
                 });
             },
         );
@@ -66,9 +63,9 @@ pub fn bench_throughput(c: &mut Criterion) {
             BenchmarkId::new(format!("{}-Read", config_string), bytes.len()),
             &bytes,
             |b, _| {
-                DefaultFileService::write_document(config, file.id, &bytes.clone()).unwrap();
+                file_service::write_document(config, file.id, &bytes.clone()).unwrap();
                 b.iter(|| {
-                    let _ = DefaultFileService::read_document(config, file.id).unwrap();
+                    let _ = file_service::read_document(config, file.id).unwrap();
                 });
             },
         );

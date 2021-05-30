@@ -1,10 +1,11 @@
-use crate::service::file_service::{DocumentUpdateError, FileService, ReadDocumentError};
+use crate::service::file_service::{DocumentUpdateError, ReadDocumentError};
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::farbfeld::FarbfeldEncoder;
 
 use crate::model::state::Config;
+use crate::service::file_service;
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
@@ -44,7 +45,7 @@ macro_rules! hashmap {
     }}
 }
 
-pub trait DrawingService<MyFileService: FileService> {
+pub trait DrawingService {
     fn save_drawing(
         config: &Config,
         id: Uuid,
@@ -58,25 +59,21 @@ pub trait DrawingService<MyFileService: FileService> {
     ) -> Result<Vec<u8>, DrawingError>;
 }
 
-pub struct DrawingServiceImpl<MyFileService: FileService> {
-    _file_service: MyFileService,
-}
+pub struct DrawingServiceImpl {}
 
-impl<MyFileService: FileService> DrawingService<MyFileService>
-    for DrawingServiceImpl<MyFileService>
-{
+impl DrawingService for DrawingServiceImpl {
     fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), DrawingError> {
         let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
         serde_json::from_str::<Drawing>(drawing_string.as_str()) // validating json
             .map_err(DrawingError::InvalidDrawingError)?;
 
-        MyFileService::write_document(config, id, drawing_bytes)
+        file_service::write_document(config, id, drawing_bytes)
             .map_err(DrawingError::FailedToSaveDrawing)
     }
 
     fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, DrawingError> {
-        let drawing_bytes = MyFileService::read_document(config, id)
+        let drawing_bytes = file_service::read_document(config, id)
             .map_err(DrawingError::FailedToRetrieveDrawing)?;
 
         let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
@@ -237,7 +234,7 @@ impl<MyFileService: FileService> DrawingService<MyFileService>
     }
 }
 
-impl<MyFileService: FileService> DrawingServiceImpl<MyFileService> {
+impl DrawingServiceImpl {
     fn u32_byte_to_u8_bytes(u32_byte: u32) -> (u8, u8, u8, u8) {
         let mut byte_1 = (u32_byte >> 16) & 0xffu32;
         let mut byte_2 = (u32_byte >> 8) & 0xffu32;
@@ -299,9 +296,7 @@ mod unit_tests {
     use crate::service::drawing_service::{
         DrawingService, DrawingServiceImpl, SupportedImageFormats,
     };
-    use crate::service::file_encryption_service;
-    use crate::service::file_service::FileService;
-    use crate::DefaultFileService;
+    use crate::service::{file_encryption_service, file_service};
     use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
     use lockbook_models::drawing::{ColorAlias, Drawing, Stroke};
@@ -318,9 +313,7 @@ mod unit_tests {
         };
 
         assert_eq!(
-            DrawingServiceImpl::<DefaultFileService>::get_drawing_bounds(
-                empty_drawing.strokes.as_slice()
-            ),
+            DrawingServiceImpl::get_drawing_bounds(empty_drawing.strokes.as_slice()),
             (20, 20)
         );
 
@@ -339,9 +332,7 @@ mod unit_tests {
         };
 
         assert_eq!(
-            DrawingServiceImpl::<DefaultFileService>::get_drawing_bounds(
-                small_drawing.strokes.as_slice()
-            ),
+            DrawingServiceImpl::get_drawing_bounds(small_drawing.strokes.as_slice()),
             (121, 121)
         );
 
@@ -360,9 +351,7 @@ mod unit_tests {
         };
 
         assert_eq!(
-            DrawingServiceImpl::<DefaultFileService>::get_drawing_bounds(
-                large_drawing.strokes.as_slice()
-            ),
+            DrawingServiceImpl::get_drawing_bounds(large_drawing.strokes.as_slice()),
             (2021, 2021)
         );
     }
@@ -382,8 +371,8 @@ mod unit_tests {
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
-        let folder = DefaultFileService::create(config, "folder", root.id, Folder).unwrap();
-        let document = DefaultFileService::create(config, "doc", folder.id, Document).unwrap();
+        let folder = file_service::create(config, "folder", root.id, Folder).unwrap();
+        let document = file_service::create(config, "doc", folder.id, Document).unwrap();
 
         let drawing = Drawing {
             scale: 0.0,
@@ -399,19 +388,15 @@ mod unit_tests {
             theme: None,
         };
 
-        DefaultFileService::write_document(
+        file_service::write_document(
             config,
             document.id,
             serde_json::to_string(&drawing).unwrap().as_bytes(),
         )
         .unwrap();
 
-        DrawingServiceImpl::<DefaultFileService>::export_drawing(
-            config,
-            document.id,
-            SupportedImageFormats::Png,
-        )
-        .unwrap();
+        DrawingServiceImpl::export_drawing(config, document.id, SupportedImageFormats::Png)
+            .unwrap();
     }
 
     #[test]
@@ -429,8 +414,8 @@ mod unit_tests {
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
-        let folder = DefaultFileService::create(config, "folder", root.id, Folder).unwrap();
-        let document = DefaultFileService::create(config, "doc", folder.id, Document).unwrap();
+        let folder = file_service::create(config, "folder", root.id, Folder).unwrap();
+        let document = file_service::create(config, "doc", folder.id, Document).unwrap();
 
         let drawing = Drawing {
             scale: 0.0,
@@ -446,18 +431,14 @@ mod unit_tests {
             theme: None,
         };
 
-        DefaultFileService::write_document(
+        file_service::write_document(
             config,
             document.id,
             serde_json::to_string(&drawing).unwrap().as_bytes(),
         )
         .unwrap();
 
-        DrawingServiceImpl::<DefaultFileService>::export_drawing(
-            config,
-            document.id,
-            SupportedImageFormats::Png,
-        )
-        .unwrap_err();
+        DrawingServiceImpl::export_drawing(config, document.id, SupportedImageFormats::Png)
+            .unwrap_err();
     }
 }

@@ -507,9 +507,7 @@ mod unit_tests {
     use crate::repo::file_metadata_repo::Problem;
     use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
     use crate::repo::{account_repo, file_metadata_repo};
-    use crate::service::file_encryption_service;
-    use crate::service::file_service::FileService;
-    use crate::DefaultFileService;
+    use crate::service::{file_encryption_service, file_service};
     use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
     use lockbook_models::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
@@ -676,11 +674,11 @@ mod unit_tests {
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
-        DefaultFileService::create_at_path(config, "username/folder1/file1.txt").unwrap();
-        DefaultFileService::create_at_path(config, "username/folder2/file2.txt").unwrap();
-        DefaultFileService::create_at_path(config, "username/folder2/file3.txt").unwrap();
-        DefaultFileService::create_at_path(config, "username/folder2/file4.txt").unwrap();
-        DefaultFileService::create_at_path(config, "username/folder3/file5.txt").unwrap();
+        file_service::create_at_path(config, "username/folder1/file1.txt").unwrap();
+        file_service::create_at_path(config, "username/folder2/file2.txt").unwrap();
+        file_service::create_at_path(config, "username/folder2/file3.txt").unwrap();
+        file_service::create_at_path(config, "username/folder2/file4.txt").unwrap();
+        file_service::create_at_path(config, "username/folder3/file5.txt").unwrap();
 
         assert!(file_metadata_repo::test_repo_integrity(config)
             .unwrap()
