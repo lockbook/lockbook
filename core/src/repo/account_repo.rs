@@ -10,66 +10,51 @@ pub enum AccountRepoError {
     NoAccount,
 }
 
-pub trait AccountRepo {
-    fn insert_account(config: &Config, account: &Account) -> Result<(), AccountRepoError>;
-    fn maybe_get_account(config: &Config) -> Result<Option<Account>, AccountRepoError>;
-    fn get_account(config: &Config) -> Result<Account, AccountRepoError>;
-    fn get_api_url(config: &Config) -> Result<ApiUrl, AccountRepoError>;
-}
-
-pub struct AccountRepoImpl;
-
 static ACCOUNT: &str = "account";
 static YOU: &str = "you";
 
-impl AccountRepo for AccountRepoImpl {
-    fn insert_account(config: &Config, account: &Account) -> Result<(), AccountRepoError> {
-        local_storage::write(
-            config,
-            ACCOUNT,
-            YOU,
-            serde_json::to_vec(account).map_err(AccountRepoError::SerdeError)?,
-        )
-        .map_err(AccountRepoError::BackendError)
-    }
+pub fn insert_account(config: &Config, account: &Account) -> Result<(), AccountRepoError> {
+    local_storage::write(
+        config,
+        ACCOUNT,
+        YOU,
+        serde_json::to_vec(account).map_err(AccountRepoError::SerdeError)?,
+    )
+    .map_err(AccountRepoError::BackendError)
+}
 
-    fn maybe_get_account(config: &Config) -> Result<Option<Account>, AccountRepoError> {
-        match Self::get_account(config) {
-            Ok(account) => Ok(Some(account)),
-            Err(err) => match err {
-                AccountRepoError::NoAccount => Ok(None),
-                other => Err(other),
-            },
+pub fn maybe_get_account(config: &Config) -> Result<Option<Account>, AccountRepoError> {
+    match get_account(config) {
+        Ok(account) => Ok(Some(account)),
+        Err(err) => match err {
+            AccountRepoError::NoAccount => Ok(None),
+            other => Err(other),
+        },
+    }
+}
+
+pub fn get_account(config: &Config) -> Result<Account, AccountRepoError> {
+    let maybe_value: Option<Vec<u8>> =
+        local_storage::read(config, ACCOUNT, YOU).map_err(AccountRepoError::BackendError)?;
+    match maybe_value {
+        None => Err(NoAccount),
+        Some(account) => {
+            Ok(serde_json::from_slice(account.as_ref()).map_err(AccountRepoError::SerdeError)?)
         }
     }
+}
 
-    fn get_account(config: &Config) -> Result<Account, AccountRepoError> {
-        let maybe_value: Option<Vec<u8>> =
-            local_storage::read(config, ACCOUNT, YOU).map_err(AccountRepoError::BackendError)?;
-        match maybe_value {
-            None => Err(NoAccount),
-            Some(account) => {
-                Ok(serde_json::from_slice(account.as_ref())
-                    .map_err(AccountRepoError::SerdeError)?)
-            }
-        }
-    }
-
-    fn get_api_url(config: &Config) -> Result<ApiUrl, AccountRepoError> {
-        Self::get_account(config).map(|account| account.api_url)
-    }
+pub fn get_api_url(config: &Config) -> Result<ApiUrl, AccountRepoError> {
+    get_account(config).map(|account| account.api_url)
 }
 
 #[cfg(test)]
 mod unit_tests {
-    use super::AccountRepoImpl;
     use crate::model::state::temp_config;
-    use crate::repo::account_repo::AccountRepo;
 
+    use crate::repo::account_repo;
     use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
-
-    type DefaultAccountRepo = AccountRepoImpl;
 
     #[test]
     fn insert_account() {
@@ -80,12 +65,12 @@ mod unit_tests {
         };
 
         let config = temp_config();
-        let res = DefaultAccountRepo::get_account(&config);
+        let res = account_repo::get_account(&config);
         assert!(res.is_err());
 
-        DefaultAccountRepo::insert_account(&config, &test_account).unwrap();
+        account_repo::insert_account(&config, &test_account).unwrap();
 
-        let db_account = DefaultAccountRepo::get_account(&config).unwrap();
+        let db_account = account_repo::get_account(&config).unwrap();
         assert_eq!(test_account, db_account);
     }
 }

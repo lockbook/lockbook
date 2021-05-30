@@ -7,7 +7,6 @@ use uuid::Uuid;
 use crate::client;
 use crate::client::ApiError;
 use crate::model::state::Config;
-use crate::repo::account_repo::AccountRepo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
@@ -128,7 +127,6 @@ pub struct FileSyncService<
     FileMetadataDb: FileMetadataRepo,
     ChangeDb: LocalChangesRepo,
     DocsDb: DocumentRepo,
-    AccountDb: AccountRepo,
     Files: FileService,
     FileCrypto: FileEncryptionService,
     FileCompression: FileCompressionService,
@@ -136,7 +134,6 @@ pub struct FileSyncService<
     _metadatas: FileMetadataDb,
     _changes: ChangeDb,
     _docs: DocsDb,
-    _accounts: AccountDb,
     _file: Files,
     _file_crypto: FileCrypto,
     _file_compression: FileCompression,
@@ -146,26 +143,17 @@ impl<
         FileMetadataDb: FileMetadataRepo,
         ChangeDb: LocalChangesRepo,
         DocsDb: DocumentRepo,
-        AccountDb: AccountRepo,
         Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
     > SyncService
-    for FileSyncService<
-        FileMetadataDb,
-        ChangeDb,
-        DocsDb,
-        AccountDb,
-        Files,
-        FileCrypto,
-        FileCompression,
-    >
+    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, Files, FileCrypto, FileCompression>
 {
     fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
         let mut work_units: Vec<WorkUnit> = vec![];
 
-        let account = AccountDb::get_account(config).map_err(AccountRetrievalError)?;
+        let account = account_repo::get_account(config).map_err(AccountRetrievalError)?;
         let last_sync = FileMetadataDb::get_last_updated(config).map_err(GetMetadataError)?;
 
         let server_updates = client::request(
@@ -235,7 +223,8 @@ impl<
     }
 
     fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), SyncError> {
-        let account = AccountDb::get_account(config).map_err(SyncError::AccountRetrievalError)?;
+        let account =
+            account_repo::get_account(config).map_err(SyncError::AccountRetrievalError)?;
 
         let mut sync_errors: HashMap<Uuid, WorkExecutionError> = HashMap::new();
 
@@ -299,12 +288,10 @@ impl<
         FileMetadataDb: FileMetadataRepo,
         ChangeDb: LocalChangesRepo,
         DocsDb: DocumentRepo,
-        AccountDb: AccountRepo,
         Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    >
-    FileSyncService<FileMetadataDb, ChangeDb, DocsDb, AccountDb, Files, FileCrypto, FileCompression>
+    > FileSyncService<FileMetadataDb, ChangeDb, DocsDb, Files, FileCrypto, FileCompression>
 {
     /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
     /// there are not going to be path conflicts. If there are, we find the file that is conflicting

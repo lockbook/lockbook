@@ -1,7 +1,6 @@
 use crate::client;
 use crate::model::state::Config;
 use crate::repo::account_repo;
-use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::account_service::AccountCreationError::{
@@ -55,18 +54,13 @@ pub trait AccountService {
     fn export_account(config: &Config) -> Result<String, AccountExportError>;
 }
 
-pub struct AccountServiceImpl<
-    AccountDb: AccountRepo,
-    FileCrypto: FileEncryptionService,
-    FileMetadata: FileMetadataRepo,
-> {
-    _accounts: AccountDb,
+pub struct AccountServiceImpl<FileCrypto: FileEncryptionService, FileMetadata: FileMetadataRepo> {
     _file_crypto: FileCrypto,
     _file_db: FileMetadata,
 }
 
-impl<AccountDb: AccountRepo, FileCrypto: FileEncryptionService, FileMetadata: FileMetadataRepo>
-    AccountService for AccountServiceImpl<AccountDb, FileCrypto, FileMetadata>
+impl<FileCrypto: FileEncryptionService, FileMetadata: FileMetadataRepo> AccountService
+    for AccountServiceImpl<FileCrypto, FileMetadata>
 {
     fn create_account(
         config: &Config,
@@ -74,7 +68,7 @@ impl<AccountDb: AccountRepo, FileCrypto: FileEncryptionService, FileMetadata: Fi
         api_url: &str,
     ) -> Result<Account, AccountCreationError> {
         info!("Checking if account already exists");
-        if AccountDb::maybe_get_account(config)
+        if account_repo::maybe_get_account(config)
             .map_err(AccountRepoError)?
             .is_some()
         {
@@ -114,7 +108,7 @@ impl<AccountDb: AccountRepo, FileCrypto: FileEncryptionService, FileMetadata: Fi
         );
 
         info!("Saving account locally");
-        AccountDb::insert_account(config, &account)
+        account_repo::insert_account(config, &account)
             .map_err(AccountCreationError::AccountRepoError)?;
 
         Ok(account)
@@ -125,7 +119,7 @@ impl<AccountDb: AccountRepo, FileCrypto: FileEncryptionService, FileMetadata: Fi
         account_string: &str,
     ) -> Result<Account, AccountImportError> {
         info!("Checking if account already exists");
-        if AccountDb::maybe_get_account(config)
+        if account_repo::maybe_get_account(config)
             .map_err(AccountImportError::AccountRepoError)?
             .is_some()
         {
@@ -160,7 +154,7 @@ impl<AccountDb: AccountRepo, FileCrypto: FileEncryptionService, FileMetadata: Fi
         }
 
         info!("Account String seems valid, saving now");
-        AccountDb::insert_account(config, &account)
+        account_repo::insert_account(config, &account)
             .map_err(AccountImportError::PersistenceError)?;
 
         info!("Account imported successfully");
@@ -168,8 +162,8 @@ impl<AccountDb: AccountRepo, FileCrypto: FileEncryptionService, FileMetadata: Fi
     }
 
     fn export_account(config: &Config) -> Result<String, AccountExportError> {
-        let account =
-            &AccountDb::get_account(config).map_err(AccountExportError::AccountRetrievalError)?;
+        let account = &account_repo::get_account(config)
+            .map_err(AccountExportError::AccountRetrievalError)?;
         let encoded: Vec<u8> = bincode::serialize(&account)
             .map_err(AccountExportError::AccountStringFailedToSerialize)?;
         Ok(base64::encode(&encoded))

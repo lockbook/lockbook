@@ -18,7 +18,8 @@ use uuid::Uuid;
 
 use crate::client::ApiError;
 use crate::model::state::Config;
-use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
+use crate::repo::account_repo;
+use crate::repo::account_repo::AccountRepoError;
 use crate::repo::db_version_repo::DbVersionRepoImpl;
 use crate::repo::document_repo::DocumentRepoImpl;
 use crate::repo::file_metadata_repo::{
@@ -222,7 +223,7 @@ pub enum GetAccountError {
 }
 
 pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
-    DefaultAccountRepo::get_account(&config).map_err(|e| match e {
+    account_repo::get_account(&config).map_err(|e| match e {
         AccountRepoError::NoAccount => UiError(GetAccountError::NoAccount),
         AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
             unexpected!("{:#?}", e)
@@ -1026,14 +1027,12 @@ pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
 
-pub type DefaultAccountRepo = AccountRepoImpl;
-pub type DefaultUsageService =
-    UsageServiceImpl<DefaultFileMetadataRepo, DefaultFileService, DefaultAccountRepo>;
+pub type DefaultUsageService = UsageServiceImpl<DefaultFileMetadataRepo, DefaultFileService>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService, DefaultFileMetadataRepo>;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl;
-pub type DefaultDbStateService = DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo>;
+pub type DefaultDbStateService = DbStateServiceImpl<DefaultDbVersionRepo>;
 pub type DefaultAccountService =
-    AccountServiceImpl<DefaultAccountRepo, DefaultFileEncryptionService, DefaultFileMetadataRepo>;
+    AccountServiceImpl<DefaultFileEncryptionService, DefaultFileMetadataRepo>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultLocalChangesRepo = LocalChangesRepoImpl;
 pub type DefaultDocumentRepo = DocumentRepoImpl;
@@ -1043,7 +1042,6 @@ pub type DefaultSyncService = FileSyncService<
     DefaultFileMetadataRepo,
     DefaultLocalChangesRepo,
     DefaultDocumentRepo,
-    DefaultAccountRepo,
     DefaultFileService,
     DefaultFileEncryptionService,
     DefaultFileCompressionService,
@@ -1052,7 +1050,6 @@ pub type DefaultFileService = FileServiceImpl<
     DefaultFileMetadataRepo,
     DefaultDocumentRepo,
     DefaultLocalChangesRepo,
-    DefaultAccountRepo,
     DefaultFileEncryptionService,
     DefaultFileCompressionService,
 >;

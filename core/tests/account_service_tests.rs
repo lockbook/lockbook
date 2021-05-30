@@ -3,12 +3,12 @@ mod integration_test;
 #[cfg(test)]
 mod account_tests {
     use lockbook_core::client::ApiError;
-    use lockbook_core::repo::account_repo::AccountRepo;
+    use lockbook_core::repo::account_repo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::service::account_service::{AccountCreationError, AccountService};
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::{
-        create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
+        create_account, export_account, import_account, DefaultAccountService,
         DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
     };
     use lockbook_models::account::Account;
@@ -99,7 +99,7 @@ mod account_tests {
         let db2 = test_config();
         assert!(DefaultAccountService::export_account(&db2).is_err());
         DefaultAccountService::import_account(&db2, &account_string).unwrap();
-        assert_eq!(DefaultAccountRepo::get_account(&db2).unwrap(), account);
+        assert_eq!(account_repo::get_account(&db2).unwrap(), account);
         assert_eq!(DefaultFileMetadataRepo::get_last_updated(&db2).unwrap(), 0);
 
         let work = DefaultSyncService::calculate_work(&db2).unwrap();
@@ -212,7 +212,7 @@ mod account_tests {
                 username: random_username(),
                 private_key: generated_account.private_key,
             };
-            DefaultAccountRepo::insert_account(&cfg2, &account).unwrap();
+            account_repo::insert_account(&cfg2, &account).unwrap();
         } // release lock on db
 
         let account_string = export_account(&cfg2).unwrap();
@@ -255,7 +255,7 @@ mod account_tests {
             )
             .unwrap();
             account2.username = account1.username;
-            DefaultAccountRepo::insert_account(&db2, &account2).unwrap();
+            account_repo::insert_account(&db2, &account2).unwrap();
             DefaultAccountService::export_account(&db2).unwrap()
         };
 

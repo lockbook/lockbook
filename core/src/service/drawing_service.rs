@@ -300,17 +300,14 @@ impl<MyFileService: FileService, FileMetadataDb: FileMetadataRepo>
 #[cfg(test)]
 mod unit_tests {
     use crate::model::state::temp_config;
-    use crate::repo::account_repo::AccountRepo;
+    use crate::repo::account_repo;
     use crate::repo::file_metadata_repo::FileMetadataRepo;
     use crate::service::drawing_service::{
         DrawingService, DrawingServiceImpl, SupportedImageFormats,
     };
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::{
-        DefaultAccountRepo, DefaultFileEncryptionService, DefaultFileMetadataRepo,
-        DefaultFileService,
-    };
+    use crate::{DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService};
     use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
     use lockbook_models::drawing::{ColorAlias, Drawing, Stroke};
@@ -387,7 +384,7 @@ mod unit_tests {
             private_key: keys,
         };
 
-        DefaultAccountRepo::insert_account(config, &account).unwrap();
+        account_repo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(config, &root).unwrap();
 
@@ -434,7 +431,7 @@ mod unit_tests {
             private_key: keys,
         };
 
-        DefaultAccountRepo::insert_account(config, &account).unwrap();
+        account_repo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
         DefaultFileMetadataRepo::insert(config, &root).unwrap();
 

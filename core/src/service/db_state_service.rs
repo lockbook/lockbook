@@ -1,5 +1,4 @@
 use crate::model::state::Config;
-use crate::repo::account_repo::AccountRepo;
 use crate::repo::db_version_repo::DbVersionRepo;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::db_state_service;
@@ -33,8 +32,7 @@ pub trait DbStateService {
     fn perform_migration(config: &Config) -> Result<(), MigrationError>;
 }
 
-pub struct DbStateServiceImpl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> {
-    _account: AccountDb,
+pub struct DbStateServiceImpl<VersionDb: DbVersionRepo> {
     _repo: VersionDb,
 }
 
@@ -42,11 +40,9 @@ pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-impl<AccountDb: AccountRepo, VersionDb: DbVersionRepo> DbStateService
-    for DbStateServiceImpl<AccountDb, VersionDb>
-{
+impl<VersionDb: DbVersionRepo> DbStateService for DbStateServiceImpl<VersionDb> {
     fn get_state(config: &Config) -> Result<State, GetStateError> {
-        if AccountDb::maybe_get_account(config)
+        if account_repo::maybe_get_account(config)
             .map_err(GetStateError::AccountRepoError)?
             .is_none()
         {

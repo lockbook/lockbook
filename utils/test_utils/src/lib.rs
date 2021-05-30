@@ -1,22 +1,20 @@
 #![allow(dead_code)]
 
 use lockbook_core::model::state::Config;
-use lockbook_core::repo::account_repo::AccountRepo;
 use lockbook_core::repo::db_version_repo::DbVersionRepo;
 use lockbook_core::repo::document_repo::DocumentRepo;
 use lockbook_core::repo::file_metadata_repo::{FileMetadataRepo, FILE_METADATA};
 use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 
 use lockbook_core::{
-    DefaultAccountRepo, DefaultDbVersionRepo, DefaultDocumentRepo, DefaultFileMetadataRepo,
-    DefaultLocalChangesRepo,
+    DefaultDbVersionRepo, DefaultDocumentRepo, DefaultFileMetadataRepo, DefaultLocalChangesRepo,
 };
 
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 
-use lockbook_core::repo::local_storage;
+use lockbook_core::repo::{account_repo, local_storage};
 use lockbook_crypto::{pubkey, symkey};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -159,8 +157,8 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     assert_eq!(value1, value2);
 
     assert_eq!(
-        DefaultAccountRepo::get_account(&db1).unwrap(),
-        DefaultAccountRepo::get_account(&db2).unwrap()
+        account_repo::get_account(&db1).unwrap(),
+        account_repo::get_account(&db2).unwrap()
     );
 
     assert_eq!(

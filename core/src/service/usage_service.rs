@@ -1,6 +1,5 @@
 use crate::client;
 use crate::repo::account_repo;
-use crate::repo::account_repo::AccountRepo;
 use crate::repo::file_metadata_repo::{DbError, FileMetadataRepo};
 use crate::service::file_service::{FileService, ReadDocumentError};
 use lockbook_models::api;
@@ -59,18 +58,13 @@ pub trait UsageService {
     ) -> Result<LocalAndServerUsages, LocalAndServerUsageError>;
 }
 
-pub struct UsageServiceImpl<
-    FileMetadataDb: FileMetadataRepo,
-    Files: FileService,
-    AccountDb: AccountRepo,
-> {
-    _accounts: AccountDb,
+pub struct UsageServiceImpl<FileMetadataDb: FileMetadataRepo, Files: FileService> {
     _files: Files,
     _files_db: FileMetadataDb,
 }
 
-impl<FileMetadataDb: FileMetadataRepo, Files: FileService, AccountDb: AccountRepo> UsageService
-    for UsageServiceImpl<FileMetadataDb, Files, AccountDb>
+impl<FileMetadataDb: FileMetadataRepo, Files: FileService> UsageService
+    for UsageServiceImpl<FileMetadataDb, Files>
 {
     fn bytes_to_human(size: u64) -> String {
         let (unit, abbr) = match size {
@@ -85,7 +79,8 @@ impl<FileMetadataDb: FileMetadataRepo, Files: FileService, AccountDb: AccountRep
     }
 
     fn server_usage(config: &Config) -> Result<GetUsageResponse, GetUsageError> {
-        let acc = AccountDb::get_account(config).map_err(GetUsageError::AccountRetrievalError)?;
+        let acc =
+            account_repo::get_account(config).map_err(GetUsageError::AccountRetrievalError)?;
 
         client::request(&acc, GetUsageRequest {}).map_err(GetUsageError::ApiError)
     }
