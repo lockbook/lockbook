@@ -37,9 +37,11 @@ use crate::service::sync_service::{
 };
 use crate::service::usage_service::{
     GetUsageError as USGetUsageError, LocalAndServerUsageError as USLocalAndServerUsageError,
-    LocalAndServerUsages, UsageService, UsageServiceImpl,
+    LocalAndServerUsages,
 };
-use crate::service::{account_service, db_state_service, file_service, usage_service};
+use crate::service::{
+    account_service, db_state_service, drawing_service, file_service, usage_service,
+};
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
@@ -53,9 +55,7 @@ pub enum Error<U: Serialize> {
     Unexpected(String),
 }
 use crate::repo::local_changes_repo;
-use crate::service::drawing_service::{
-    DrawingError, DrawingService, DrawingServiceImpl, SupportedImageFormats,
-};
+use crate::service::drawing_service::{DrawingError, SupportedImageFormats};
 use lockbook_models::drawing::Drawing;
 use serde_json::error::Category;
 use Error::UiError;
@@ -736,7 +736,7 @@ pub enum GetUsageError {
 }
 
 pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>> {
-    DefaultUsageService::server_usage(&config)
+    usage_service::server_usage(&config)
         .map(|resp| resp.usages)
         .map_err(|err| match err {
             usage_service::GetUsageError::AccountRetrievalError(db_err) => match db_err {
@@ -765,7 +765,7 @@ pub fn get_usage_human_string(
     config: &Config,
     exact: bool,
 ) -> Result<String, Error<GetUsageError>> {
-    DefaultUsageService::get_usage_human_string(&config, exact).map_err(|err| match err {
+    usage_service::get_usage_human_string(&config, exact).map_err(|err| match err {
         USGetUsageError::AccountRetrievalError(db_err) => match db_err {
             AccountRepoError::NoAccount => UiError(GetUsageError::NoAccount),
             AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
@@ -792,7 +792,7 @@ pub fn get_local_and_server_usage(
     config: &Config,
     exact: bool,
 ) -> Result<LocalAndServerUsages, Error<GetUsageError>> {
-    DefaultUsageService::local_and_server_usages(&config, exact).map_err(|err| match err {
+    usage_service::local_and_server_usages(&config, exact).map_err(|err| match err {
         USLocalAndServerUsageError::GetUsageError(gue) => match gue {
             USGetUsageError::AccountRetrievalError(_) => UiError(GetUsageError::NoAccount),
             USGetUsageError::ApiError(api_err) => match api_err {
@@ -823,7 +823,7 @@ pub enum GetDrawingError {
 }
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    DefaultDrawingService::get_drawing(&config, id).map_err(|drawing_err| match drawing_err {
+    drawing_service::get_drawing(&config, id).map_err(|drawing_err| match drawing_err {
         DrawingError::InvalidDrawingError(err) => match err.classify() {
             Category::Io => unexpected!("{:#?}", err),
             Category::Syntax | Category::Data | Category::Eof => {
@@ -868,7 +868,7 @@ pub fn save_drawing(
     id: Uuid,
     drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
-    DefaultDrawingService::save_drawing(&config, id, drawing_bytes).map_err(|drawing_err| {
+    drawing_service::save_drawing(&config, id, drawing_bytes).map_err(|drawing_err| {
         match drawing_err {
             DrawingError::InvalidDrawingError(err) => match err.classify() {
                 Category::Io => unexpected!("{:#?}", err),
@@ -922,39 +922,35 @@ pub fn export_drawing(
     id: Uuid,
     format: SupportedImageFormats,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    DefaultDrawingService::export_drawing(&config, id, format).map_err(|drawing_err| {
-        match drawing_err {
-            DrawingError::InvalidDrawingError(err) => match err.classify() {
-                Category::Io => unexpected!("{:#?}", err),
-                Category::Syntax | Category::Data | Category::Eof => {
-                    UiError(ExportDrawingError::InvalidDrawing)
+    drawing_service::export_drawing(&config, id, format).map_err(|drawing_err| match drawing_err {
+        DrawingError::InvalidDrawingError(err) => match err.classify() {
+            Category::Io => unexpected!("{:#?}", err),
+            Category::Syntax | Category::Data | Category::Eof => {
+                UiError(ExportDrawingError::InvalidDrawing)
+            }
+        },
+        DrawingError::FailedToRetrieveDrawing(err) => match err {
+            FSReadDocumentError::TreatedFolderAsDocument => {
+                UiError(ExportDrawingError::FolderTreatedAsDrawing)
+            }
+            FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
+                AccountRepoError::NoAccount => UiError(ExportDrawingError::NoAccount),
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                    unexpected!("{:#?}", account_error)
                 }
             },
-            DrawingError::FailedToRetrieveDrawing(err) => match err {
-                FSReadDocumentError::TreatedFolderAsDocument => {
-                    UiError(ExportDrawingError::FolderTreatedAsDrawing)
-                }
-                FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
-                    AccountRepoError::NoAccount => UiError(ExportDrawingError::NoAccount),
-                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                        unexpected!("{:#?}", account_error)
-                    }
-                },
-                FSReadDocumentError::CouldNotFindFile => {
-                    UiError(ExportDrawingError::FileDoesNotExist)
-                }
-                FSReadDocumentError::DbError(_)
-                | FSReadDocumentError::DocumentReadError(_)
-                | FSReadDocumentError::CouldNotFindParents(_)
-                | FSReadDocumentError::FileEncryptionError(_)
-                | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
-            },
-            DrawingError::FailedToSaveDrawing(_)
-            | DrawingError::CorruptedDrawing
-            | DrawingError::UnequalPointsAndGirthMetrics
-            | DrawingError::UnableToGetColorFromAlias
-            | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
-        }
+            FSReadDocumentError::CouldNotFindFile => UiError(ExportDrawingError::FileDoesNotExist),
+            FSReadDocumentError::DbError(_)
+            | FSReadDocumentError::DocumentReadError(_)
+            | FSReadDocumentError::CouldNotFindParents(_)
+            | FSReadDocumentError::FileEncryptionError(_)
+            | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
+        },
+        DrawingError::FailedToSaveDrawing(_)
+        | DrawingError::CorruptedDrawing
+        | DrawingError::UnequalPointsAndGirthMetrics
+        | DrawingError::UnableToGetColorFromAlias
+        | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
     })
 }
 
@@ -1017,6 +1013,4 @@ pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
 
-pub type DefaultUsageService = UsageServiceImpl;
-pub type DefaultDrawingService = DrawingServiceImpl;
 pub type DefaultSyncService = FileSyncService;
