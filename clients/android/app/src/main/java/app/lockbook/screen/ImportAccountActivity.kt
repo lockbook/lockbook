@@ -6,7 +6,7 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
-import app.lockbook.R
+import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.model.OnFinishAlert
@@ -19,27 +19,32 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.google.zxing.integration.android.IntentIntegrator
-import kotlinx.android.synthetic.main.activity_import_account.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 
 class ImportAccountActivity : AppCompatActivity() {
+    private var _binding: ActivityImportAccountBinding? = null
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_import_account)
+        _binding = ActivityImportAccountBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        import_lockbook.setOnClickListener {
+        binding.importLockbook.setOnClickListener {
             onClickImportAccount()
         }
 
-        qr_import_button.setOnClickListener {
+        binding.qrImportButton.setOnClickListener {
             navigateToQRCodeScanner()
         }
 
-        text_import_account_string.setOnEditorActionListener { _, actionId, _ ->
+        binding.textImportAccountString.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 onClickImportAccount()
             }
@@ -49,13 +54,13 @@ class ImportAccountActivity : AppCompatActivity() {
     }
 
     private fun onClickImportAccount() {
-        import_account_progress_bar.visibility = View.VISIBLE
+        binding.importAccountProgressBar.visibility = View.VISIBLE
         uiScope.launch {
             withContext(Dispatchers.IO) {
                 handleImportResult(
                     CoreModel.importAccount(
                         Config(filesDir.absolutePath),
-                        text_import_account_string.text.toString()
+                        binding.textImportAccountString.text.toString()
                     )
                 )
             }
@@ -72,36 +77,36 @@ class ImportAccountActivity : AppCompatActivity() {
         withContext(Dispatchers.Main) {
             when (importAccountResult) {
                 is Ok -> {
-                    import_account_progress_bar.visibility = View.GONE
+                    binding.importAccountProgressBar.visibility = View.GONE
                     setUpLoggedInImportState()
                     startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                     finishAffinity()
                 }
                 is Err -> {
-                    import_account_progress_bar.visibility = View.GONE
+                    binding.importAccountProgressBar.visibility = View.GONE
                     when (val error = importAccountResult.error) {
                         is ImportError.AccountStringCorrupted -> AlertModel.errorHasOccurred(
-                            import_account_layout,
+                            binding.importAccountLayout,
                             "Invalid account string!", OnFinishAlert.DoNothingOnFinishAlert
                         )
                         is ImportError.AccountExistsAlready -> AlertModel.errorHasOccurred(
-                            import_account_layout,
+                            binding.importAccountLayout,
                             "Account already exists!", OnFinishAlert.DoNothingOnFinishAlert
                         )
                         is ImportError.AccountDoesNotExist -> AlertModel.errorHasOccurred(
-                            import_account_layout,
+                            binding.importAccountLayout,
                             "That account does not exist on this server!", OnFinishAlert.DoNothingOnFinishAlert
                         )
                         is ImportError.UsernamePKMismatch -> AlertModel.errorHasOccurred(
-                            import_account_layout,
+                            binding.importAccountLayout,
                             "That username does not correspond with that public_key on this server!", OnFinishAlert.DoNothingOnFinishAlert
                         )
                         is ImportError.CouldNotReachServer -> AlertModel.errorHasOccurred(
-                            import_account_layout,
+                            binding.importAccountLayout,
                             "Could not reach server!", OnFinishAlert.DoNothingOnFinishAlert
                         )
                         is ImportError.ClientUpdateRequired -> AlertModel.errorHasOccurred(
-                            import_account_layout,
+                            binding.importAccountLayout,
                             "Update required!", OnFinishAlert.DoNothingOnFinishAlert
                         )
                         is ImportError.Unexpected -> {

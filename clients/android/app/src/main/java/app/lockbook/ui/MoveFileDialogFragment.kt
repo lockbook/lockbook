@@ -5,17 +5,18 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
+import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.MoveFileAdapter
 import app.lockbook.model.MoveFileViewModel
 import app.lockbook.model.OnFinishAlert
 import app.lockbook.modelfactory.MoveFileViewModelFactory
 import app.lockbook.util.BASIC_ERROR
-import kotlinx.android.synthetic.main.dialog_move_file.*
 
 data class MoveFileInfo(
     val ids: Array<String>,
@@ -24,9 +25,14 @@ data class MoveFileInfo(
 
 class MoveFileDialogFragment : DialogFragment() {
 
-    lateinit var ids: Array<String>
-    lateinit var names: Array<String>
-    lateinit var moveFileViewModel: MoveFileViewModel
+    private var _binding: DialogMoveFileBinding? = null
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+
+    private lateinit var ids: Array<String>
+    private lateinit var names: Array<String>
+    private lateinit var moveFileViewModel: MoveFileViewModel
 
     companion object {
 
@@ -50,11 +56,16 @@ class MoveFileDialogFragment : DialogFragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? = inflater.inflate(
-        R.layout.dialog_move_file,
-        container,
-        false
-    )
+    ): View {
+        _binding = DataBindingUtil.inflate(
+            inflater,
+            R.layout.dialog_move_file,
+            container,
+            false
+        )
+
+        return binding.root
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -65,7 +76,7 @@ class MoveFileDialogFragment : DialogFragment() {
             ids = nullableIds
             names = nullableNames
         } else {
-            AlertModel.errorHasOccurred(move_file_dialog, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
+            AlertModel.errorHasOccurred(binding.moveFileDialog, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
         }
 
         val application = requireNotNull(this.activity).application
@@ -76,17 +87,17 @@ class MoveFileDialogFragment : DialogFragment() {
         val adapter =
             MoveFileAdapter(moveFileViewModel)
 
-        move_file_list.layoutManager = LinearLayoutManager(context)
-        move_file_list.adapter = adapter
-        move_file_cancel.setOnClickListener {
+        binding.moveFileList.layoutManager = LinearLayoutManager(context)
+        binding.moveFileList.adapter = adapter
+        binding.moveFileCancel.setOnClickListener {
             dismiss()
         }
-        move_file_confirm.setOnClickListener {
-            move_file_progress_bar.visibility = View.VISIBLE
+        binding.moveFileConfirm.setOnClickListener {
+            binding.moveFileProgressBar.visibility = View.VISIBLE
             moveFileViewModel.moveFilesToFolder()
         }
 
-        dialog?.setCanceledOnTouchOutside(false) ?: AlertModel.errorHasOccurred(move_file_dialog, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+        dialog?.setCanceledOnTouchOutside(false) ?: AlertModel.errorHasOccurred(binding.moveFileDialog, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
 
         moveFileViewModel.ids = ids
         moveFileViewModel.names = names
@@ -100,14 +111,14 @@ class MoveFileDialogFragment : DialogFragment() {
         moveFileViewModel.closeDialog.observe(
             viewLifecycleOwner
         ) {
-            move_file_progress_bar.visibility = View.GONE
+            binding.moveFileProgressBar.visibility = View.GONE
             dismiss()
         }
 
         moveFileViewModel.errorHasOccurred.observe(
             viewLifecycleOwner
         ) { errorText ->
-            AlertModel.errorHasOccurred(move_file_dialog, errorText, OnFinishAlert.DoNothingOnFinishAlert)
+            AlertModel.errorHasOccurred(binding.moveFileDialog, errorText, OnFinishAlert.DoNothingOnFinishAlert)
         }
 
         moveFileViewModel.unexpectedErrorHasOccurred.observe(

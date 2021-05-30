@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.PopupWindow
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -33,7 +34,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
-import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
 import timber.log.Timber
 import java.io.File
 
@@ -161,7 +161,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     view as ViewGroup,
                     false
                 )
-                qrCodeView.qr_code.setImageBitmap(bitmap)
+                qrCodeView.findViewById<ImageView>(R.id.qr_code).setImageBitmap(bitmap)
                 val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
                 popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
             }

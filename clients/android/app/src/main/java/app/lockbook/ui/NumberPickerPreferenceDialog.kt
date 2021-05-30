@@ -3,15 +3,15 @@ package app.lockbook.ui
 import android.os.Bundle
 import android.view.View
 import android.widget.NumberPicker
+import android.widget.TextView
 import androidx.preference.PreferenceDialogFragmentCompat
 import app.lockbook.R
-import kotlinx.android.synthetic.main.dialog_duration_picker.view.*
 import timber.log.Timber
 
 class NumberPickerPreferenceDialog : PreferenceDialogFragmentCompat() {
-    var dayNumberPicker: NumberPicker? = null
-    var hourNumberPicker: NumberPicker? = null
-    var minuteNumberPicker: NumberPicker? = null
+    private var dayNumberPicker: NumberPicker? = null
+    private var hourNumberPicker: NumberPicker? = null
+    private var minuteNumberPicker: NumberPicker? = null
 
     companion object {
         fun newInstance(key: String): NumberPickerPreferenceDialog {
@@ -28,11 +28,9 @@ class NumberPickerPreferenceDialog : PreferenceDialogFragmentCompat() {
 
         if (durationInMinutes < 15) {
             minuteNumberPicker?.value = 15
-            layoutView?.duration_error?.visibility = View.VISIBLE
-        }
-
-        if (durationInMinutes >= 15 && layoutView?.duration_error?.visibility == View.VISIBLE) {
-            layoutView.duration_error?.visibility = View.GONE
+            layoutView?.findViewById<TextView>(R.id.duration_error)?.visibility = View.VISIBLE
+        } else if (layoutView?.findViewById<TextView>(R.id.duration_error)?.visibility == View.VISIBLE) {
+            layoutView.findViewById<TextView>(R.id.duration_error)?.visibility = View.GONE
         }
     }
 

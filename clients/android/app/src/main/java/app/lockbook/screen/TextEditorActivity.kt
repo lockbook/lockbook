@@ -12,6 +12,7 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
+import app.lockbook.databinding.ActivityTextEditorBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.OnFinishAlert
 import app.lockbook.model.TextEditorViewModel
@@ -21,12 +22,20 @@ import app.lockbook.util.exhaustive
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
-import kotlinx.android.synthetic.main.activity_text_editor.*
 import timber.log.Timber
 import java.util.*
 import java.util.concurrent.Executors
 
 class TextEditorActivity : AppCompatActivity() {
+    private var _binding: ActivityTextEditorBinding? = null
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+
+    private val textEditorLayout get() = binding.textEditorLayout
+    private val textEditorToolbar get() = binding.textEditorToolbar
+    private val textField get() = binding.textEditorTextField
+
     private lateinit var textEditorViewModel: TextEditorViewModel
     private var isFirstLaunch = true
     private var timer: Timer = Timer()
@@ -39,7 +48,8 @@ class TextEditorActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_text_editor)
+        _binding = ActivityTextEditorBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         val id = intent.getStringExtra("id")
 
@@ -74,7 +84,7 @@ class TextEditorActivity : AppCompatActivity() {
         textEditorViewModel.errorHasOccurred.observe(
             this,
             { errorText ->
-                AlertModel.errorHasOccurred(text_editor_layout, errorText, OnFinishAlert.DoNothingOnFinishAlert)
+                AlertModel.errorHasOccurred(textEditorLayout, errorText, OnFinishAlert.DoNothingOnFinishAlert)
             }
         )
 
@@ -93,7 +103,7 @@ class TextEditorActivity : AppCompatActivity() {
             object : TimerTask() {
                 override fun run() {
                     handler.post {
-                        textEditorViewModel.saveText(text_editor_text_field.text.toString())
+                        textEditorViewModel.saveText(textField.text.toString())
                     }
                 }
             },
@@ -105,14 +115,14 @@ class TextEditorActivity : AppCompatActivity() {
     private fun setUpView(id: String) {
         val name = intent.getStringExtra("name")
         if (name == null) {
-            AlertModel.errorHasOccurred(text_editor_layout, "Unable to retrieve file name.", OnFinishAlert.DoSomethingOnFinishAlert(::finish))
+            AlertModel.errorHasOccurred(textEditorLayout, "Unable to retrieve file name.", OnFinishAlert.DoSomethingOnFinishAlert(::finish))
             return
         }
 
-        text_editor_toolbar.title = name
-        setSupportActionBar(text_editor_toolbar)
+        textEditorToolbar.title = name
+        setSupportActionBar(textEditorToolbar)
 
-        if (text_editor_toolbar.title.endsWith(".md")) {
+        if (textEditorToolbar.title.endsWith(".md")) {
             menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
             val markdownEditor = MarkwonEditor.builder(Markwon.create(this))
                 .punctuationSpan(
@@ -128,21 +138,21 @@ class TextEditorActivity : AppCompatActivity() {
                 }
                 .build()
 
-            markdown_toolbar.visibility = View.VISIBLE
+            binding.markdownToolbar.visibility = View.VISIBLE
 
-            text_editor_text_field.addTextChangedListener(
+            textField.addTextChangedListener(
                 MarkwonEditorTextWatcher.withPreRender(
                     markdownEditor,
                     Executors.newCachedThreadPool(),
-                    text_editor_text_field
+                    textField
                 )
             )
         }
 
         val contents = textEditorViewModel.readDocument(id)
         if (contents != null) {
-            text_editor_text_field.setText(contents)
-            text_editor_text_field.addTextChangedListener(textEditorViewModel)
+            textField.setText(contents)
+            textField.addTextChangedListener(textEditorViewModel)
 
             isFirstLaunch = false
             startBackgroundSave()
@@ -151,84 +161,84 @@ class TextEditorActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (text_editor_toolbar.title.endsWith(".md")) {
+        if (textEditorToolbar.title.endsWith(".md")) {
             setMarkdownButtonListeners()
         }
     }
 
     private fun setMarkdownButtonListeners() {
-        menu_markdown_title.setOnClickListener {
-            text_editor_text_field.text.replace(text_editor_text_field.selectionStart, text_editor_text_field.selectionStart, "# ")
+        binding.menuMarkdownTitle.setOnClickListener {
+            textField.text.replace(textField.selectionStart, textField.selectionStart, "# ")
         }
 
-        menu_markdown_bold.setOnClickListener {
-            val selectionStart = text_editor_text_field.selectionStart
-            val selectionEnd = text_editor_text_field.selectionEnd
+        binding.menuMarkdownBold.setOnClickListener {
+            val selectionStart = textField.selectionStart
+            val selectionEnd = textField.selectionEnd
             if (selectionStart == selectionEnd) {
-                text_editor_text_field.text.replace(selectionStart, selectionStart, "****")
-                text_editor_text_field.setSelection(selectionStart + 2)
+                textField.text.replace(selectionStart, selectionStart, "****")
+                textField.setSelection(selectionStart + 2)
             } else {
-                text_editor_text_field.text.replace(selectionStart, selectionStart, "**")
+                textField.text.replace(selectionStart, selectionStart, "**")
                 val newSelectionEnd = selectionEnd + 2
-                text_editor_text_field.text.replace(newSelectionEnd, newSelectionEnd, "**")
-                text_editor_text_field.setSelection(newSelectionEnd)
+                textField.text.replace(newSelectionEnd, newSelectionEnd, "**")
+                textField.setSelection(newSelectionEnd)
             }
         }
 
-        menu_markdown_italics.setOnClickListener {
-            val selectionStart = text_editor_text_field.selectionStart
-            val selectionEnd = text_editor_text_field.selectionEnd
+        binding.menuMarkdownItalics.setOnClickListener {
+            val selectionStart = textField.selectionStart
+            val selectionEnd = textField.selectionEnd
             if (selectionStart == selectionEnd) {
-                text_editor_text_field.text.replace(selectionStart, selectionStart, "__")
-                text_editor_text_field.setSelection(selectionStart + 1)
+                textField.text.replace(selectionStart, selectionStart, "__")
+                textField.setSelection(selectionStart + 1)
             } else {
-                text_editor_text_field.text.replace(selectionStart, selectionStart, "_")
+                textField.text.replace(selectionStart, selectionStart, "_")
                 val newSelectionEnd = selectionEnd + 1
-                text_editor_text_field.text.replace(newSelectionEnd, newSelectionEnd, "_")
-                text_editor_text_field.setSelection(newSelectionEnd)
+                textField.text.replace(newSelectionEnd, newSelectionEnd, "_")
+                textField.setSelection(newSelectionEnd)
             }
         }
 
-        menu_markdown_image.setOnClickListener {
-            val selectionStart = text_editor_text_field.selectionStart
-            text_editor_text_field.text.replace(selectionStart, text_editor_text_field.selectionEnd, "![]()")
-            text_editor_text_field.setSelection(selectionStart + 2)
+        binding.menuMarkdownImage.setOnClickListener {
+            val selectionStart = textField.selectionStart
+            textField.text.replace(selectionStart, textField.selectionEnd, "![]()")
+            textField.setSelection(selectionStart + 2)
         }
 
-        menu_markdown_link.setOnClickListener {
-            val selectionStart = text_editor_text_field.selectionStart
-            text_editor_text_field.text.replace(selectionStart, text_editor_text_field.selectionEnd, "[]()")
-            text_editor_text_field.setSelection(selectionStart + 1)
+        binding.menuMarkdownLink.setOnClickListener {
+            val selectionStart = textField.selectionStart
+            textField.text.replace(selectionStart, textField.selectionEnd, "[]()")
+            textField.setSelection(selectionStart + 1)
         }
 
-        menu_markdown_code.setOnClickListener {
-            val selectionStart = text_editor_text_field.selectionStart
-            val selectionEnd = text_editor_text_field.selectionEnd
+        binding.menuMarkdownCode.setOnClickListener {
+            val selectionStart = textField.selectionStart
+            val selectionEnd = textField.selectionEnd
             if (selectionStart == selectionEnd) {
-                text_editor_text_field.text.replace(selectionStart, selectionStart, "``")
-                text_editor_text_field.setSelection(selectionStart + 1)
+                textField.text.replace(selectionStart, selectionStart, "``")
+                textField.setSelection(selectionStart + 1)
             } else {
-                text_editor_text_field.text.replace(selectionStart, selectionStart, "`")
+                textField.text.replace(selectionStart, selectionStart, "`")
                 val newSelectionEnd = selectionEnd + 1
-                text_editor_text_field.text.replace(newSelectionEnd, newSelectionEnd, "`")
-                text_editor_text_field.setSelection(newSelectionEnd)
+                textField.text.replace(newSelectionEnd, newSelectionEnd, "`")
+                textField.setSelection(newSelectionEnd)
             }
         }
     }
 
     private fun viewMarkdown() {
-        if (text_editor_scroller.visibility == View.VISIBLE) {
+        if (binding.textEditorScroller.visibility == View.VISIBLE) {
             val markdown = Markwon.create(this)
-            markdown.setMarkdown(markdown_viewer, text_editor_text_field.text.toString())
+            markdown.setMarkdown(binding.markdownViewer, textField.text.toString())
             menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = false
             menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = false
-            markdown_toolbar.isVisible = false
-            text_editor_scroller.visibility = View.GONE
-            markdown_viewer_scroller.visibility = View.VISIBLE
+            binding.markdownToolbar.isVisible = false
+            binding.textEditorScroller.visibility = View.GONE
+            binding.markdownViewerScroller.visibility = View.VISIBLE
         } else {
-            markdown_viewer_scroller.visibility = View.GONE
-            text_editor_scroller.visibility = View.VISIBLE
-            markdown_toolbar.isVisible = true
+            binding.markdownViewerScroller.visibility = View.GONE
+            binding.textEditorScroller.visibility = View.VISIBLE
+            binding.markdownToolbar.isVisible = true
             menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = true
             menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = true
         }
@@ -239,7 +249,7 @@ class TextEditorActivity : AppCompatActivity() {
         this.menu = menu
         menu?.findItem(R.id.menu_text_editor_undo)?.isEnabled = false
         menu?.findItem(R.id.menu_text_editor_redo)?.isEnabled = false
-        if (text_editor_toolbar.title.endsWith(".md")) {
+        if (textEditorToolbar.title.endsWith(".md")) {
             menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
         }
         return true
@@ -253,7 +263,7 @@ class TextEditorActivity : AppCompatActivity() {
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
                 AlertModel.errorHasOccurred(
-                    text_editor_layout,
+                    textEditorLayout,
                     BASIC_ERROR,
                     OnFinishAlert.DoNothingOnFinishAlert
                 )
@@ -264,28 +274,28 @@ class TextEditorActivity : AppCompatActivity() {
     }
 
     private fun handleTextRedo() {
-        val selectionPosition = text_editor_text_field.selectionStart
+        val selectionPosition = textField.selectionStart
         val newText = textEditorViewModel.redo()
-        val diff = text_editor_text_field.text.toString().length - newText.length
+        val diff = textField.text.toString().length - newText.length
         textEditorViewModel.ignoreChange = true
-        text_editor_text_field.setText(newText)
-        text_editor_text_field.setSelection(selectionPosition - diff)
+        textField.setText(newText)
+        textField.setSelection(selectionPosition - diff)
     }
 
     private fun handleTextUndo() {
-        val selectionPosition = text_editor_text_field.selectionStart
+        val selectionPosition = textField.selectionStart
         val newText = textEditorViewModel.undo()
-        val diff = text_editor_text_field.text.toString().length - newText.length
+        val diff = textField.text.toString().length - newText.length
         textEditorViewModel.ignoreChange = true
-        text_editor_text_field.setText(newText)
-        text_editor_text_field.setSelection(selectionPosition - diff)
+        textField.setText(newText)
+        textField.setSelection(selectionPosition - diff)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         timer.cancel()
         if (!isFirstLaunch) {
-            textEditorViewModel.saveText(text_editor_text_field.text.toString())
+            textEditorViewModel.saveText(textField.text.toString())
         }
     }
 }
