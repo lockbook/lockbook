@@ -2,16 +2,13 @@ mod integration_test;
 
 #[cfg(test)]
 mod db_state_service_tests {
-    use crate::integration_test::{generate_account, test_config};
-    use lockbook_core::repo::db_version_repo::DbVersionRepo;
-    use lockbook_core::service::code_version_service::{CodeVersion, CodeVersionImpl};
-    use lockbook_core::service::db_state_service::DbStateService;
+    use lockbook_core::repo::db_version_repo;
+    use lockbook_core::service::db_state_service;
     use lockbook_core::service::db_state_service::State::{
         Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
     };
-    use lockbook_core::{
-        create_account, get_db_state, DefaultDbStateService, DefaultDbVersionRepo,
-    };
+    use lockbook_core::service::test_utils::{generate_account, test_config};
+    use lockbook_core::{create_account, get_db_state};
 
     #[test]
     fn initial_state() {
@@ -27,28 +24,28 @@ mod db_state_service_tests {
         .unwrap();
         assert_eq!(get_db_state(&config).unwrap(), ReadyToUse);
 
-        DefaultDbVersionRepo::set(&config, "0.1.0").unwrap();
+        db_version_repo::set(&config, "0.1.0").unwrap();
         assert_ne!(
-            DefaultDbVersionRepo::get(&config).unwrap().unwrap(),
-            CodeVersionImpl::get_code_version()
+            db_version_repo::get(&config).unwrap().unwrap(),
+            db_state_service::get_code_version()
         );
 
         assert_eq!(
-            DefaultDbStateService::get_state(&config).unwrap(),
+            db_state_service::get_state(&config).unwrap(),
             MigrationRequired
         );
         assert_eq!(
-            DefaultDbStateService::get_state(&config).unwrap(),
+            db_state_service::get_state(&config).unwrap(),
             MigrationRequired
         );
 
-        assert!(DefaultDbStateService::perform_migration(&config).is_err());
+        assert!(db_state_service::perform_migration(&config).is_err());
         assert_eq!(
-            DefaultDbStateService::get_state(&config).unwrap(),
+            db_state_service::get_state(&config).unwrap(),
             StateRequiresClearing
         );
         assert_eq!(
-            DefaultDbStateService::get_state(&config).unwrap(),
+            db_state_service::get_state(&config).unwrap(),
             StateRequiresClearing
         );
     }
