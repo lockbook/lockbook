@@ -32,15 +32,14 @@ use crate::service::file_service::{
     ReadDocumentError as FSReadDocumentError,
 };
 use crate::service::sync_service::{
-    CalculateWorkError as SSCalculateWorkError, FileSyncService, SyncError, SyncProgress,
-    SyncService, WorkCalculated,
+    CalculateWorkError as SSCalculateWorkError, SyncError, SyncProgress, WorkCalculated,
 };
 use crate::service::usage_service::{
     GetUsageError as USGetUsageError, LocalAndServerUsageError as USLocalAndServerUsageError,
     LocalAndServerUsages,
 };
 use crate::service::{
-    account_service, db_state_service, drawing_service, file_service, usage_service,
+    account_service, db_state_service, drawing_service, file_service, sync_service, usage_service,
 };
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
@@ -604,7 +603,7 @@ pub fn sync_all(
     config: &Config,
     f: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), Error<SyncAllError>> {
-    DefaultSyncService::sync(&config, f).map_err(|e| match e {
+    sync_service::sync(&config, f).map_err(|e| match e {
         SyncError::AccountRetrievalError(err) => match err {
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 unexpected!("{:#?}", err)
@@ -668,7 +667,7 @@ pub enum CalculateWorkError {
 }
 
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-    DefaultSyncService::calculate_work(&config).map_err(|e| match e {
+    sync_service::calculate_work(&config).map_err(|e| match e {
         SSCalculateWorkError::LocalChangesRepoError(_)
         | SSCalculateWorkError::MetadataRepoError(_)
         | SSCalculateWorkError::GetMetadataError(_) => unexpected!("{:#?}", e),
@@ -1012,5 +1011,3 @@ pub mod service;
 pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
-
-pub type DefaultSyncService = FileSyncService;

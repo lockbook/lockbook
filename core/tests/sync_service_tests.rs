@@ -3,10 +3,8 @@ mod integration_test;
 #[cfg(test)]
 mod sync_tests {
     use lockbook_core::repo::{document_repo, file_metadata_repo, local_changes_repo};
-    use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
-    use lockbook_core::service::{account_service, file_service};
-    use lockbook_core::DefaultSyncService;
+    use lockbook_core::service::{account_service, file_service, sync_service};
     use lockbook_models::file_metadata::FileType::Folder;
     use lockbook_models::work_unit::WorkUnit;
 
@@ -21,10 +19,7 @@ mod sync_tests {
     macro_rules! assert_n_work_units {
         ($db:expr, $n:literal) => {
             assert_eq!(
-                DefaultSyncService::calculate_work(&$db)
-                    .unwrap()
-                    .work_units
-                    .len(),
+                sync_service::calculate_work(&$db).unwrap().work_units.len(),
                 $n
             );
         };
@@ -70,10 +65,10 @@ mod sync_tests {
     #[macro_export]
     macro_rules! sync {
         ($config:expr, $f:expr) => {
-            DefaultSyncService::sync($config, $f).unwrap()
+            sync_service::sync($config, $f).unwrap()
         };
         ($config:expr) => {
-            DefaultSyncService::sync($config, None).unwrap()
+            sync_service::sync($config, None).unwrap()
         };
     }
 
@@ -122,7 +117,7 @@ mod sync_tests {
         assert_n_work_units!(db, 1);
         println!("2nd calculate work, db1, 1 dirty file");
 
-        match DefaultSyncService::calculate_work(&db)
+        match sync_service::calculate_work(&db)
             .unwrap()
             .work_units
             .get(0)
@@ -147,7 +142,7 @@ mod sync_tests {
 
         let edited_file = file_metadata_repo::get(&db, file.id).unwrap();
 
-        match DefaultSyncService::calculate_work(&db2)
+        match sync_service::calculate_work(&db2)
             .unwrap()
             .work_units
             .get(0)
@@ -352,7 +347,7 @@ mod sync_tests {
 
         file_service::rename_file(&db1, file2.id, "test3.txt").unwrap();
         // Just operate on the server work
-        DefaultSyncService::calculate_work(&db1)
+        sync_service::calculate_work(&db1)
             .unwrap()
             .work_units
             .into_iter()
@@ -360,7 +355,7 @@ mod sync_tests {
                 WorkUnit::LocalChange { .. } => false,
                 WorkUnit::ServerChange { .. } => true,
             })
-            .for_each(|work| DefaultSyncService::execute_work(&db1, &account, work).unwrap());
+            .for_each(|work| sync_service::execute_work(&db1, &account, work).unwrap());
 
         assert!(file_metadata_repo::test_repo_integrity(&db1)
             .unwrap()
@@ -408,7 +403,7 @@ mod sync_tests {
         )
         .unwrap();
 
-        DefaultSyncService::calculate_work(&db2)
+        sync_service::calculate_work(&db2)
             .unwrap()
             .work_units
             .into_iter()
@@ -416,7 +411,7 @@ mod sync_tests {
                 WorkUnit::LocalChange { .. } => false,
                 WorkUnit::ServerChange { .. } => true,
             })
-            .for_each(|work| DefaultSyncService::execute_work(&db2, &account, work).unwrap());
+            .for_each(|work| sync_service::execute_work(&db2, &account, work).unwrap());
 
         assert!(file_metadata_repo::test_repo_integrity(&db2)
             .unwrap()
@@ -453,15 +448,15 @@ mod sync_tests {
         sync!(&db1);
 
         file_service::write_document(&db2, file.id, "some offline content".as_bytes()).unwrap();
-        let works = DefaultSyncService::calculate_work(&db2).unwrap();
+        let works = sync_service::calculate_work(&db2).unwrap();
 
         assert_eq!(works.work_units.len(), 2);
 
         for work in works.clone().work_units {
-            DefaultSyncService::execute_work(&db2, &account, work).unwrap();
+            sync_service::execute_work(&db2, &account, work).unwrap();
         }
 
-        let works = DefaultSyncService::calculate_work(&db2).unwrap();
+        let works = sync_service::calculate_work(&db2).unwrap();
         assert_eq!(works.work_units.len(), 1);
 
         match works.work_units.get(0).unwrap() {
@@ -1150,11 +1145,11 @@ mod sync_tests {
 
         file_service::delete_document(&db1, file.id).unwrap();
 
-        let work = DefaultSyncService::calculate_work(&db1).unwrap();
+        let work = sync_service::calculate_work(&db1).unwrap();
 
         assert_n_work_units!(&db1, 1);
 
-        DefaultSyncService::execute_work(&db1, &account, work.work_units[0].clone()).unwrap();
+        sync_service::execute_work(&db1, &account, work.work_units[0].clone()).unwrap();
 
         assert_n_work_units!(&db1, 0);
     }
@@ -1205,14 +1200,14 @@ mod sync_tests {
         make_and_sync_new_client!(db2, db1);
 
         file_service::create(&db2, "child2", parent.id, Folder).unwrap();
-        let work = DefaultSyncService::calculate_work(&db2).unwrap().work_units; // 1 piece of work, the new child
+        let work = sync_service::calculate_work(&db2).unwrap().work_units; // 1 piece of work, the new child
         assert_n_work_units!(db2, 1);
 
         file_service::delete_folder(&db1, parent.id).unwrap();
         sync!(&db1);
 
         for wu in work {
-            DefaultSyncService::execute_work(&db2, &account, wu).unwrap_err();
+            sync_service::execute_work(&db2, &account, wu).unwrap_err();
         }
 
         // Uninstall and fresh sync
@@ -1220,7 +1215,7 @@ mod sync_tests {
         account_service::import_account(&db3, &account_service::export_account(&db1).unwrap())
             .unwrap();
 
-        DefaultSyncService::sync(&db3, None).unwrap();
+        sync_service::sync(&db3, None).unwrap();
         assert_no_metadata_problems!(&db3);
     }
 

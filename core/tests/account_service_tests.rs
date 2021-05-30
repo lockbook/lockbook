@@ -4,13 +4,10 @@ mod integration_test;
 mod account_tests {
     use lockbook_core::client::ApiError;
     use lockbook_core::repo::{account_repo, file_metadata_repo};
-    use lockbook_core::service::account_service;
     use lockbook_core::service::account_service::AccountCreationError;
-    use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
-    use lockbook_core::{
-        create_account, export_account, import_account, DefaultSyncService, Error, ImportError,
-    };
+    use lockbook_core::service::{account_service, sync_service};
+    use lockbook_core::{create_account, export_account, import_account, Error, ImportError};
     use lockbook_models::account::Account;
     use lockbook_models::api::NewAccountError;
 
@@ -100,11 +97,11 @@ mod account_tests {
         assert_eq!(account_repo::get_account(&db2).unwrap(), account);
         assert_eq!(file_metadata_repo::get_last_updated(&db2).unwrap(), 0);
 
-        let work = DefaultSyncService::calculate_work(&db2).unwrap();
+        let work = sync_service::calculate_work(&db2).unwrap();
         assert_ne!(work.most_recent_update_from_server, 0);
         assert_eq!(work.work_units.len(), 1);
         assert!(file_metadata_repo::get_root(&db2).unwrap().is_none());
-        DefaultSyncService::sync(&db2, None).unwrap();
+        sync_service::sync(&db2, None).unwrap();
         assert!(file_metadata_repo::get_root(&db2).unwrap().is_some());
         let home_folders2 = file_metadata_repo::get_root(&db2).unwrap().unwrap();
         assert_eq!(home_folders1, home_folders2);
