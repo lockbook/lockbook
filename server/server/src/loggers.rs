@@ -196,17 +196,20 @@ fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>
 ) {
     let events = EventsV2::new(api_key.to_string(), Some("lockbook-server".to_string())).unwrap();
 
-    futures::executor::block_on(async {
-        handle
-            .spawn(async move {
-                events
-                    .event(event)
-                    .await
-                    .err()
-                    .map(|err| eprintln!("Failed reporting event to PagerDuty! {}", err))
-            })
-            .await
-            .err()
-            .map(|err| eprintln!("Failed spawning task in Tokio runtime! {}", err))
+    // https://github.com/neonphog/tokio_safe_block_on/blob/074d40929ccab649b0dcc83a4ebdbdcb70b317fb/src/lib.rs#L72-L86
+    tokio::task::block_in_place(move || {
+        futures::executor::block_on(async {
+            handle
+                .spawn(async move {
+                    events
+                        .event(event)
+                        .await
+                        .err()
+                        .map(|err| eprintln!("Failed reporting event to PagerDuty! {}", err))
+                })
+                .await
+                .err()
+                .map(|err| eprintln!("Failed spawning task in Tokio runtime! {}", err))
+        })
     });
 }

@@ -18,6 +18,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::convert::Infallible;
 use std::path::Path;
+use std::sync::Arc;
 use tokio::runtime::Handle;
 
 static LOG_FILE: &str = "lockbook_server.log";
@@ -55,19 +56,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     debug!("Connected to files_db");
 
     let port = config.server.port;
-    let server_state = ServerState {
+    let server_state = Arc::new(ServerState {
         config,
         index_db_client,
         files_db_client,
-    };
+    });
     let addr = format!("0.0.0.0:{}", port).parse()?;
 
-    let make_service = make_service_fn(|_| {
-        let server_state = server_state.clone();
-        async move {
+    // https://www.fpcomplete.com/blog/ownership-puzzle-rust-async-hyper/
+    let make_service = make_service_fn(move |_| {
+        let server_state = Arc::clone(&server_state);
+        async {
             Ok::<_, Infallible>(service_fn(move |req: hyper::Request<Body>| {
-                let server_state = server_state.clone();
-                route(server_state, req)
+                let server_state = Arc::clone(&server_state);
+                async move { route(&server_state, req).await }
             }))
         }
     });
@@ -89,19 +91,20 @@ macro_rules! route_case {
 }
 
 macro_rules! route_handler {
-    ($TRequest:ty, $handler:path, $hyper_request:ident, $s: ident) => {{
+    ($TRequest:ty, $handler:path, $hyper_request:ident, $server_state: ident) => {{
         info!(
             "Request matched {}{}",
             <$TRequest>::METHOD,
             <$TRequest>::ROUTE
         );
 
-        let result = match unpack(&$s, $hyper_request).await {
+
+        let unpacked = unpack(&$server_state, $hyper_request).await;
+        let result = match unpacked {
             Ok((request, public_key)) => {
-                debug!("Request: {:?}", request);
                 wrap_err::<$TRequest>(
                     $handler(&mut RequestContext {
-                        server_state: &mut $s,
+                        server_state: &$server_state,
                         request,
                         public_key,
                     })
@@ -110,101 +113,98 @@ macro_rules! route_handler {
             }
             Err(e) => Err(e),
         };
-        debug!("Response: {:?}", result);
         pack::<$TRequest>(result)
     }};
 }
 
 async fn route(
-    server_state: ServerState,
+    server_state: &ServerState,
     hyper_request: hyper::Request<Body>,
 ) -> Result<Response<Body>, hyper::http::Error> {
-    let mut s = server_state.clone();
-    reconnect(&mut s).await;
     match (hyper_request.method(), hyper_request.uri().path()) {
         route_case!(ChangeDocumentContentRequest) => route_handler!(
             ChangeDocumentContentRequest,
             file_service::change_document_content,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(CreateDocumentRequest) => route_handler!(
             CreateDocumentRequest,
             file_service::create_document,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(DeleteDocumentRequest) => route_handler!(
             DeleteDocumentRequest,
             file_service::delete_document,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(MoveDocumentRequest) => route_handler!(
             MoveDocumentRequest,
             file_service::move_document,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(RenameDocumentRequest) => route_handler!(
             RenameDocumentRequest,
             file_service::rename_document,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(GetDocumentRequest) => route_handler!(
             GetDocumentRequest,
             file_service::get_document,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(CreateFolderRequest) => route_handler!(
             CreateFolderRequest,
             file_service::create_folder,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(DeleteFolderRequest) => route_handler!(
             DeleteFolderRequest,
             file_service::delete_folder,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(MoveFolderRequest) => route_handler!(
             MoveFolderRequest,
             file_service::move_folder,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(RenameFolderRequest) => route_handler!(
             RenameFolderRequest,
             file_service::rename_folder,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(GetPublicKeyRequest) => route_handler!(
             GetPublicKeyRequest,
             account_service::get_public_key,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(GetUpdatesRequest) => route_handler!(
             GetUpdatesRequest,
             file_service::get_updates,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(NewAccountRequest) => route_handler!(
             NewAccountRequest,
             account_service::new_account,
             hyper_request,
-            s
+            server_state
         ),
         route_case!(GetUsageRequest) => route_handler!(
             GetUsageRequest,
             account_service::get_usage,
             hyper_request,
-            s
+            server_state
         ),
         _ => {
             warn!(
@@ -226,20 +226,6 @@ fn wrap_err<TRequest: Request>(
         Ok(response) => Ok(response),
         Err(Some(e)) => Err(ErrorWrapper::Endpoint(e)),
         Err(None) => Err(ErrorWrapper::InternalError),
-    }
-}
-
-async fn reconnect(server_state: &mut ServerState) {
-    if server_state.index_db_client.is_closed() {
-        match file_index_repo::connect(&server_state.config.index_db).await {
-            Err(e) => {
-                error!("Failed to reconnect to postgres: {:?}", e);
-            }
-            Ok(client) => {
-                server_state.index_db_client = client;
-                info!("Reconnected to index_db");
-            }
-        }
     }
 }
 
