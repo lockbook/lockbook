@@ -8,8 +8,7 @@ mod unit_tests_file {
 
     #[test]
     fn read() {
-        let cfg = &temp_config();
-        let config = &FileBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let result = FileBackend::read::<_, _, Vec<u8>>(config, "files", "notes.txt").unwrap();
 
@@ -18,8 +17,7 @@ mod unit_tests_file {
 
     #[test]
     fn write_and_read() {
-        let cfg = &temp_config();
-        let config = &FileBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let data = "noice";
 
@@ -34,10 +32,9 @@ mod unit_tests_file {
 
     #[test]
     fn write_and_dump() {
-        let cfg = &temp_config();
-        let config = &FileBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
-        println!("{:?}", cfg);
+        println!("{:?}", config);
 
         let data = "noice";
 
@@ -57,8 +54,7 @@ mod unit_tests_file {
 
     #[test]
     fn write_read_delete() {
-        let cfg = &temp_config();
-        let config = &FileBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let data = "noice";
 

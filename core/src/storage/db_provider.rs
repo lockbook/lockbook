@@ -9,10 +9,6 @@ use std::path::Path;
 pub struct FileBackend;
 
 impl FileBackend {
-    pub fn connect_to_db(config: &Config) -> Result<Config, Error> {
-        Ok(config.clone())
-    }
-
     pub fn write<N, K, V>(db: &Config, namespace: N, key: K, value: V) -> Result<(), Error>
     where
         N: AsRef<[u8]>,

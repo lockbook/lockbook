@@ -463,7 +463,7 @@ mod unit_tests {
 
     use crate::model::state::temp_config;
     use crate::repo::local_changes_repo::LocalChangesRepo;
-    use crate::{DefaultBackend, DefaultLocalChangesRepo};
+    use crate::{DefaultLocalChangesRepo};
     use lockbook_crypto::clock_service::Timestamp;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use lockbook_models::local_changes::{LocalChange, Moved, Renamed};
@@ -484,16 +484,15 @@ mod unit_tests {
     #[test]
     fn set_and_unset_fields() {
         let cfg = &temp_config();
-        let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
-        assert_total_local_changes!(db, 0);
+        assert_total_local_changes!(cfg, 0);
 
         let id = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
-        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
-        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -504,12 +503,12 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        assert_total_local_changes!(db, 1);
+        assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_rename(db, id, "old_file", "unused_name", EARLY_CLOCK)
+        DefaultLocalChangesRepo::track_rename(cfg, id, "old_file", "unused_name", EARLY_CLOCK)
             .unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -520,12 +519,12 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        assert_total_local_changes!(db, 1);
+        assert_total_local_changes!(cfg, 1);
 
         let id2 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_move(db, id, id2, Uuid::new_v4(), EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_move(cfg, id, id2, Uuid::new_v4(), EARLY_CLOCK).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -537,11 +536,11 @@ mod unit_tests {
             })
         );
 
-        assert_total_local_changes!(db, 1);
+        assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::untrack_edit(db, id).unwrap();
+        DefaultLocalChangesRepo::untrack_edit(cfg, id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -553,9 +552,9 @@ mod unit_tests {
             })
         );
 
-        DefaultLocalChangesRepo::untrack_rename(db, id).unwrap();
+        DefaultLocalChangesRepo::untrack_rename(cfg, id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -567,9 +566,9 @@ mod unit_tests {
             })
         );
 
-        DefaultLocalChangesRepo::untrack_move(db, id).unwrap();
+        DefaultLocalChangesRepo::untrack_move(cfg, id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -581,17 +580,17 @@ mod unit_tests {
             })
         );
 
-        DefaultLocalChangesRepo::untrack_new_file(db, id).unwrap();
+        DefaultLocalChangesRepo::untrack_new_file(cfg, id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             None
         );
-        assert_total_local_changes!(db, 0);
+        assert_total_local_changes!(cfg, 0);
 
         // Deleting a file should unset it's other fields
-        DefaultLocalChangesRepo::track_rename(db, id, "old", "new", EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_rename(cfg, id, "old", "new", EARLY_CLOCK).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -602,11 +601,11 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        assert_total_local_changes!(db, 1);
+        assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_delete(db, id, Document, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_delete(cfg, id, Document, EARLY_CLOCK).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -617,19 +616,18 @@ mod unit_tests {
                 deleted: true,
             })
         );
-        assert_total_local_changes!(db, 1);
+        assert_total_local_changes!(cfg, 1);
     }
 
     #[test]
     fn new_document_deleted() {
         let cfg = &temp_config();
-        let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let id = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -640,10 +638,10 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        DefaultLocalChangesRepo::track_delete(db, id, Document, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_delete(cfg, id, Document, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             None
         );
     }
@@ -651,13 +649,12 @@ mod unit_tests {
     #[test]
     fn new_folder_deleted() {
         let cfg = &temp_config();
-        let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let id = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_new_file(db, id, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -668,10 +665,10 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        DefaultLocalChangesRepo::track_delete(db, id, Folder, EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_delete(cfg, id, Folder, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -687,32 +684,31 @@ mod unit_tests {
     #[test]
     fn track_changes_on_multiple_files() {
         let cfg = &temp_config();
-        let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let id1 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_new_file(db, id1, EARLY_CLOCK).unwrap();
-        assert_total_local_changes!(db, 1);
+        DefaultLocalChangesRepo::track_new_file(cfg, id1, EARLY_CLOCK).unwrap();
+        assert_total_local_changes!(cfg, 1);
 
         let id2 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_rename(db, id2, "old", "new", EARLY_CLOCK).unwrap();
-        assert_total_local_changes!(db, 2);
+        DefaultLocalChangesRepo::track_rename(cfg, id2, "old", "new", EARLY_CLOCK).unwrap();
+        assert_total_local_changes!(cfg, 2);
 
         let id3 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_move(db, id3, id3, Uuid::new_v4(), EARLY_CLOCK).unwrap();
-        assert_total_local_changes!(db, 3);
+        DefaultLocalChangesRepo::track_move(cfg, id3, id3, Uuid::new_v4(), EARLY_CLOCK).unwrap();
+        assert_total_local_changes!(cfg, 3);
 
         let id4 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_delete(db, id4, Document, EARLY_CLOCK).unwrap();
-        assert_total_local_changes!(db, 4);
+        DefaultLocalChangesRepo::track_delete(cfg, id4, Document, EARLY_CLOCK).unwrap();
+        assert_total_local_changes!(cfg, 4);
 
-        DefaultLocalChangesRepo::untrack_new_file(db, id1).unwrap();
-        assert_total_local_changes!(db, 3);
+        DefaultLocalChangesRepo::untrack_new_file(cfg, id1).unwrap();
+        assert_total_local_changes!(cfg, 3);
 
-        DefaultLocalChangesRepo::untrack_rename(db, id2).unwrap();
-        assert_total_local_changes!(db, 2);
+        DefaultLocalChangesRepo::untrack_rename(cfg, id2).unwrap();
+        assert_total_local_changes!(cfg, 2);
 
-        DefaultLocalChangesRepo::untrack_move(db, id3).unwrap();
-        assert_total_local_changes!(db, 1);
+        DefaultLocalChangesRepo::untrack_move(cfg, id3).unwrap();
+        assert_total_local_changes!(cfg, 1);
 
         // Untrack not supported because no one can undelete files
     }
@@ -720,54 +716,51 @@ mod unit_tests {
     #[test]
     fn unknown_id() {
         let cfg = &temp_config();
-        let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let the_wrong_id = Uuid::new_v4();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, the_wrong_id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, the_wrong_id).unwrap(),
             None
         );
-        DefaultLocalChangesRepo::untrack_edit(db, the_wrong_id).unwrap();
+        DefaultLocalChangesRepo::untrack_edit(cfg, the_wrong_id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(db, the_wrong_id).unwrap(),
+            DefaultLocalChangesRepo::get_local_changes(cfg, the_wrong_id).unwrap(),
             None
         );
-        assert_total_local_changes!(db, 0);
+        assert_total_local_changes!(cfg, 0);
     }
 
     #[test]
     fn rename_back_to_original() {
         let cfg = &temp_config();
-        let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let id = Uuid::new_v4();
 
-        DefaultLocalChangesRepo::track_rename(db, id, "old_file", "new_name", EARLY_CLOCK).unwrap();
-        assert_total_local_changes!(db, 1);
+        DefaultLocalChangesRepo::track_rename(cfg, id, "old_file", "new_name", EARLY_CLOCK).unwrap();
+        assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_rename(db, id, "garbage", "garbage2", EARLY_CLOCK).unwrap();
-        assert_total_local_changes!(db, 1);
+        DefaultLocalChangesRepo::track_rename(cfg, id, "garbage", "garbage2", EARLY_CLOCK).unwrap();
+        assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_rename(db, id, "garbage", "old_file", EARLY_CLOCK).unwrap();
-        assert_total_local_changes!(db, 0);
+        DefaultLocalChangesRepo::track_rename(cfg, id, "garbage", "old_file", EARLY_CLOCK).unwrap();
+        assert_total_local_changes!(cfg, 0);
     }
 
     #[test]
     fn move_back_to_original() {
         let cfg = &temp_config();
-        let db = &DefaultBackend::connect_to_db(cfg).unwrap();
 
         let id = Uuid::new_v4();
         let og = Uuid::new_v4();
 
-        DefaultLocalChangesRepo::track_move(db, id, og, Uuid::new_v4(), EARLY_CLOCK).unwrap();
-        assert_total_local_changes!(db, 1);
+        DefaultLocalChangesRepo::track_move(cfg, id, og, Uuid::new_v4(), EARLY_CLOCK).unwrap();
+        assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_move(db, id, Uuid::new_v4(), Uuid::new_v4(), EARLY_CLOCK)
+        DefaultLocalChangesRepo::track_move(cfg, id, Uuid::new_v4(), Uuid::new_v4(), EARLY_CLOCK)
             .unwrap();
-        assert_total_local_changes!(db, 1);
+        assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_move(db, id, Uuid::new_v4(), og, EARLY_CLOCK).unwrap();
-        assert_total_local_changes!(db, 0);
+        DefaultLocalChangesRepo::track_move(cfg, id, Uuid::new_v4(), og, EARLY_CLOCK).unwrap();
+        assert_total_local_changes!(cfg, 0);
     }
 }

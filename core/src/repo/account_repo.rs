@@ -65,7 +65,7 @@ mod unit_tests {
     use super::AccountRepoImpl;
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
-    use crate::storage::db_provider::FileBackend;
+    
 
     use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
@@ -81,7 +81,6 @@ mod unit_tests {
         };
 
         let config = temp_config();
-        let config = FileBackend::connect_to_db(&config).unwrap();
         let res = DefaultAccountRepo::get_account(&config);
         assert!(res.is_err());
 

@@ -72,7 +72,7 @@ mod unit_tests {
 
     use crate::model::state::temp_config;
     use crate::repo::document_repo::DocumentRepo;
-    use crate::{DefaultBackend, DefaultDocumentRepo};
+    use crate::{DefaultDocumentRepo};
     use lockbook_models::crypto::*;
 
     #[test]
@@ -80,23 +80,22 @@ mod unit_tests {
         let test_document = EncryptedDocument::new("something", "nonce1");
 
         let config = temp_config();
-        let db = DefaultBackend::connect_to_db(&config).unwrap();
 
         let document_id = Uuid::new_v4();
 
-        DefaultDocumentRepo::insert(&db, document_id, &test_document).unwrap();
+        DefaultDocumentRepo::insert(&config, document_id, &test_document).unwrap();
 
-        let document = DefaultDocumentRepo::get(&db, document_id).unwrap();
+        let document = DefaultDocumentRepo::get(&config, document_id).unwrap();
         assert_eq!(document, EncryptedDocument::new("something", "nonce1"),);
 
         DefaultDocumentRepo::insert(
-            &db,
+            &config,
             document_id,
             &EncryptedDocument::new("updated", "nonce2"),
         )
         .unwrap();
 
-        let file_updated = DefaultDocumentRepo::get(&db, document_id).unwrap();
+        let file_updated = DefaultDocumentRepo::get(&config, document_id).unwrap();
 
         assert_eq!(file_updated, EncryptedDocument::new("updated", "nonce2"));
     }

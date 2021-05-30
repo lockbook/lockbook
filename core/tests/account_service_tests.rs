@@ -9,15 +9,15 @@ mod account_tests {
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::{
         create_account, export_account, import_account, DefaultAccountRepo, DefaultAccountService,
-        DefaultBackend, DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
+        DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
     };
     use lockbook_models::account::Account;
     use lockbook_models::api::NewAccountError;
-    use test_utils::{generate_account, random_username, test_config, test_db};
+    use test_utils::{generate_account, random_username, test_config};
 
     #[test]
     fn create_account_successfully() {
-        let db = test_db();
+        let db = test_config();
         let generated_account = generate_account();
         DefaultAccountService::create_account(
             &db,
@@ -29,8 +29,8 @@ mod account_tests {
 
     #[test]
     fn username_taken_test() {
-        let db1 = test_db();
-        let db2 = test_db();
+        let db1 = test_config();
+        let db2 = test_config();
         let generated_account = generate_account();
         DefaultAccountService::create_account(
             &db1,
@@ -59,7 +59,7 @@ mod account_tests {
 
     #[test]
     fn invalid_username_test() {
-        let db = test_db();
+        let db = test_config();
 
         let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
@@ -84,7 +84,7 @@ mod account_tests {
 
     #[test]
     fn import_sync() {
-        let db1 = test_db();
+        let db1 = test_config();
         let generated_account = generate_account();
         let account = DefaultAccountService::create_account(
             &db1,
@@ -96,7 +96,7 @@ mod account_tests {
         let account_string = DefaultAccountService::export_account(&db1).unwrap();
         let home_folders1 = DefaultFileMetadataRepo::get_root(&db1).unwrap().unwrap();
 
-        let db2 = test_db();
+        let db2 = test_config();
         assert!(DefaultAccountService::export_account(&db2).is_err());
         DefaultAccountService::import_account(&db2, &account_string).unwrap();
         assert_eq!(DefaultAccountRepo::get_account(&db2).unwrap(), account);
@@ -118,7 +118,7 @@ mod account_tests {
 
     #[test]
     fn test_new_account_when_one_exists() {
-        let db = test_db();
+        let db = test_config();
         let generated_account = generate_account();
 
         DefaultAccountService::create_account(
@@ -212,8 +212,7 @@ mod account_tests {
                 username: random_username(),
                 private_key: generated_account.private_key,
             };
-            let db = DefaultBackend::connect_to_db(&cfg2).unwrap();
-            DefaultAccountRepo::insert_account(&db, &account).unwrap();
+            DefaultAccountRepo::insert_account(&cfg2, &account).unwrap();
         } // release lock on db
 
         let account_string = export_account(&cfg2).unwrap();
@@ -239,8 +238,8 @@ mod account_tests {
     #[test]
     fn test_account_public_key_mismatch_import() {
         let bad_account_string = {
-            let db1 = test_db();
-            let db2 = test_db();
+            let db1 = test_config();
+            let db2 = test_config();
             let generated_account1 = generate_account();
             let generated_account2 = generate_account();
             let account1 = DefaultAccountService::create_account(
