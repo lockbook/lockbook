@@ -96,11 +96,8 @@ class DeleteFileTest {
 
     @Test
     fun deleteFileUnexpectedError() {
-        val fileDelete: Result<Unit, FileDeleteError>? =
-            Klaxon().converter(deleteFileConverter).parse(deleteFile("", ""))
-
         assertType<FileDeleteError.Unexpected>(
-            fileDelete?.component2()
+            Klaxon().converter(deleteFileConverter).parse<Result<Unit, FileDeleteError>>(deleteFile("", ""))?.component2()
         )
     }
 }

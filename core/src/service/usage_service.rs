@@ -8,6 +8,7 @@ use lockbook_models::file_metadata::FileType::Document;
 
 use crate::model::state::Config;
 use crate::service::file_service;
+use serde::Serialize;
 use std::convert::TryInto;
 use std::num::TryFromIntError;
 use uuid::Uuid;
@@ -23,9 +24,10 @@ pub const MEGABYTE_PLUS_ONE: u64 = MEGABYTE + 1;
 pub const GIGABYTE_PLUS_ONE: u64 = GIGABYTE + 1;
 pub const TERABYTE_PLUS_ONE: u64 = TERABYTE + 1;
 
+#[derive(Serialize)]
 pub struct LocalAndServerUsages {
     pub server_usage: String,
-    pub uncomressed_usage: String,
+    pub uncompressed_usage: String,
     pub data_cap: String,
 }
 
@@ -109,13 +111,13 @@ pub fn local_and_server_usages(
     let usages = if exact {
         LocalAndServerUsages {
             server_usage: format!("{} B", server_usage),
-            uncomressed_usage: format!("{} bytes", local_usage),
+            uncompressed_usage: format!("{} bytes", local_usage),
             data_cap: format!("{} B", cap),
         }
     } else {
         LocalAndServerUsages {
             server_usage: bytes_to_human(server_usage),
-            uncomressed_usage: bytes_to_human(
+            uncompressed_usage: bytes_to_human(
                 local_usage
                     .try_into()
                     .map_err(LocalAndServerUsageError::UncompressedNumberTooLarge)?,

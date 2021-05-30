@@ -75,11 +75,8 @@ class SyncAllTest {
 
     @Test
     fun syncAllUnexpectedError() {
-        val syncResult: Result<Unit, SyncAllError>? =
-            Klaxon().converter(syncConverter).parse(backgroundSync(Klaxon().toJsonString("")))
-
         assertType<SyncAllError.Unexpected>(
-            syncResult?.component2()
+            Klaxon().converter(syncConverter).parse<Result<Unit, SyncAllError>>(backgroundSync(Klaxon().toJsonString("")))?.component2()
         )
     }
 }
