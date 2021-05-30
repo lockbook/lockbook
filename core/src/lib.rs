@@ -25,7 +25,6 @@ use crate::repo::file_metadata_repo::{
 use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
-    AccountService, AccountServiceImpl,
 };
 use crate::service::db_state_service::State;
 use crate::service::file_compression_service::FileCompressionServiceImpl;
@@ -41,7 +40,7 @@ use crate::service::usage_service::{
     GetUsageError as USGetUsageError, LocalAndServerUsageError as USLocalAndServerUsageError,
     LocalAndServerUsages, UsageService, UsageServiceImpl,
 };
-use crate::service::{db_state_service, file_service, usage_service};
+use crate::service::{account_service, db_state_service, file_service, usage_service};
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
@@ -122,7 +121,7 @@ pub fn create_account(
     username: &str,
     api_url: &str,
 ) -> Result<Account, Error<CreateAccountError>> {
-    DefaultAccountService::create_account(&config, username, api_url).map_err(|e| match e {
+    account_service::create_account(&config, username, api_url).map_err(|e| match e {
         AccountCreationError::AccountExistsAlready => {
             UiError(CreateAccountError::AccountExistsAlready)
         }
@@ -166,7 +165,7 @@ pub fn import_account(
     config: &Config,
     account_string: &str,
 ) -> Result<Account, Error<ImportError>> {
-    DefaultAccountService::import_account(&config, account_string).map_err(|e| match e {
+    account_service::import_account(&config, account_string).map_err(|e| match e {
         AccountImportError::AccountStringCorrupted(_)
         | AccountImportError::AccountStringFailedToDeserialize(_) => {
             UiError(ImportError::AccountStringCorrupted)
@@ -201,7 +200,7 @@ pub enum AccountExportError {
 }
 
 pub fn export_account(config: &Config) -> Result<String, Error<AccountExportError>> {
-    DefaultAccountService::export_account(&config).map_err(|e| match e {
+    account_service::export_account(&config).map_err(|e| match e {
         ASAccountExportError::AccountRetrievalError(db_err) => match db_err {
             AccountRepoError::NoAccount => UiError(AccountExportError::NoAccount),
             AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
@@ -1023,7 +1022,6 @@ static LOG_FILE: &str = "lockbook.log";
 
 pub type DefaultUsageService = UsageServiceImpl<DefaultFileService>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService>;
-pub type DefaultAccountService = AccountServiceImpl;
 pub type DefaultFileCompressionService = FileCompressionServiceImpl;
 pub type DefaultSyncService = FileSyncService<DefaultFileService, DefaultFileCompressionService>;
 pub type DefaultFileService = FileServiceImpl<DefaultFileCompressionService>;

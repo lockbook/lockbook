@@ -3,11 +3,11 @@ mod integration_test;
 #[cfg(test)]
 mod sync_tests {
     use lockbook_core::repo::{document_repo, file_metadata_repo, local_changes_repo};
-    use lockbook_core::service::account_service::AccountService;
+    use lockbook_core::service::account_service;
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
-    use lockbook_core::{DefaultAccountService, DefaultFileService, DefaultSyncService};
+    use lockbook_core::{DefaultFileService, DefaultSyncService};
     use lockbook_models::file_metadata::FileType::Folder;
     use lockbook_models::work_unit::WorkUnit;
 
@@ -34,7 +34,7 @@ mod sync_tests {
     macro_rules! make_account {
         ($db:expr) => {{
             let generated_account = generate_account();
-            let account = DefaultAccountService::create_account(
+            let account = account_service::create_account(
                 &$db,
                 &generated_account.username,
                 &generated_account.api_url,
@@ -53,9 +53,9 @@ mod sync_tests {
     macro_rules! make_new_client {
         ($new_client:ident, $old_client:expr) => {
             let $new_client = test_config();
-            DefaultAccountService::import_account(
+            account_service::import_account(
                 &$new_client,
-                &DefaultAccountService::export_account(&$old_client).unwrap(),
+                &account_service::export_account(&$old_client).unwrap(),
             )
             .unwrap();
         };
@@ -1267,11 +1267,8 @@ mod sync_tests {
 
         // Uninstall and fresh sync
         let db3 = test_config();
-        DefaultAccountService::import_account(
-            &db3,
-            &DefaultAccountService::export_account(&db1).unwrap(),
-        )
-        .unwrap();
+        account_service::import_account(&db3, &account_service::export_account(&db1).unwrap())
+            .unwrap();
 
         DefaultSyncService::sync(&db3, None).unwrap();
         assert_no_metadata_problems!(&db3);

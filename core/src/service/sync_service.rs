@@ -266,10 +266,8 @@ impl<Files: FileService, FileCompression: FileCompressionService> SyncService
 }
 
 /// Helper functions
-impl<
-        Files: FileService,
-        FileCompression: FileCompressionService,
-    > FileSyncService<Files, FileCompression>
+impl<Files: FileService, FileCompression: FileCompressionService>
+    FileSyncService<Files, FileCompression>
 {
     /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
     /// there are not going to be path conflicts. If there are, we find the file that is conflicting

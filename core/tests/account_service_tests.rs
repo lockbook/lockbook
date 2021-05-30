@@ -4,12 +4,12 @@ mod integration_test;
 mod account_tests {
     use lockbook_core::client::ApiError;
     use lockbook_core::repo::{account_repo, file_metadata_repo};
-    use lockbook_core::service::account_service::{AccountCreationError, AccountService};
+    use lockbook_core::service::account_service;
+    use lockbook_core::service::account_service::AccountCreationError;
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
     use lockbook_core::{
-        create_account, export_account, import_account, DefaultAccountService, DefaultSyncService,
-        Error, ImportError,
+        create_account, export_account, import_account, DefaultSyncService, Error, ImportError,
     };
     use lockbook_models::account::Account;
     use lockbook_models::api::NewAccountError;
@@ -18,7 +18,7 @@ mod account_tests {
     fn create_account_successfully() {
         let db = test_config();
         let generated_account = generate_account();
-        DefaultAccountService::create_account(
+        account_service::create_account(
             &db,
             &generated_account.username,
             &generated_account.api_url,
@@ -31,14 +31,14 @@ mod account_tests {
         let db1 = test_config();
         let db2 = test_config();
         let generated_account = generate_account();
-        DefaultAccountService::create_account(
+        account_service::create_account(
             &db1,
             &generated_account.username,
             &generated_account.api_url,
         )
         .unwrap();
 
-        let err = DefaultAccountService::create_account(
+        let err = account_service::create_account(
             &db2,
             &generated_account.username,
             &generated_account.api_url,
@@ -63,9 +63,8 @@ mod account_tests {
         let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
         for uname in &invalid_unames {
-            let err =
-                DefaultAccountService::create_account(&db, uname, &generate_account().api_url)
-                    .unwrap_err();
+            let err = account_service::create_account(&db, uname, &generate_account().api_url)
+                .unwrap_err();
 
             assert!(
                 matches!(
@@ -85,19 +84,19 @@ mod account_tests {
     fn import_sync() {
         let db1 = test_config();
         let generated_account = generate_account();
-        let account = DefaultAccountService::create_account(
+        let account = account_service::create_account(
             &db1,
             &generated_account.username,
             &generated_account.api_url,
         )
         .unwrap();
 
-        let account_string = DefaultAccountService::export_account(&db1).unwrap();
+        let account_string = account_service::export_account(&db1).unwrap();
         let home_folders1 = file_metadata_repo::get_root(&db1).unwrap().unwrap();
 
         let db2 = test_config();
-        assert!(DefaultAccountService::export_account(&db2).is_err());
-        DefaultAccountService::import_account(&db2, &account_string).unwrap();
+        assert!(account_service::export_account(&db2).is_err());
+        account_service::import_account(&db2, &account_string).unwrap();
         assert_eq!(account_repo::get_account(&db2).unwrap(), account);
         assert_eq!(file_metadata_repo::get_last_updated(&db2).unwrap(), 0);
 
@@ -120,13 +119,13 @@ mod account_tests {
         let db = test_config();
         let generated_account = generate_account();
 
-        DefaultAccountService::create_account(
+        account_service::create_account(
             &db,
             &generated_account.username,
             &generated_account.api_url,
         )
         .unwrap();
-        match DefaultAccountService::create_account(
+        match account_service::create_account(
             &db,
             &generated_account.username,
             &generated_account.api_url,
@@ -241,13 +240,13 @@ mod account_tests {
             let db2 = test_config();
             let generated_account1 = generate_account();
             let generated_account2 = generate_account();
-            let account1 = DefaultAccountService::create_account(
+            let account1 = account_service::create_account(
                 &db1,
                 &generated_account1.username,
                 &generated_account1.api_url,
             )
             .unwrap();
-            let mut account2 = DefaultAccountService::create_account(
+            let mut account2 = account_service::create_account(
                 &db2,
                 &generated_account2.username,
                 &generated_account2.api_url,
@@ -255,7 +254,7 @@ mod account_tests {
             .unwrap();
             account2.username = account1.username;
             account_repo::insert_account(&db2, &account2).unwrap();
-            DefaultAccountService::export_account(&db2).unwrap()
+            account_service::export_account(&db2).unwrap()
         };
 
         match import_account(&test_config(), &bad_account_string) {

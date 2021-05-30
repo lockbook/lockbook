@@ -3,10 +3,10 @@ use criterion::profiler::Profiler;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use lockbook_core::model::state::Config;
 use lockbook_core::repo::file_metadata_repo;
-use lockbook_core::service::account_service::AccountService;
+use lockbook_core::service::account_service;
 use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::{DefaultAccountService, DefaultFileService, DefaultSyncService};
+use lockbook_core::{DefaultFileService, DefaultSyncService};
 use lockbook_models::file_metadata::FileType::Document;
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
@@ -32,7 +32,7 @@ pub fn bench_performator(c: &mut Criterion) {
         writeable_path: format!("/tmp/perf-{}", Uuid::new_v4().to_string()),
     };
 
-    let _ = DefaultAccountService::create_account(
+    let _ = account_service::create_account(
         &config,
         "performator",
         env::var("API_URL")
