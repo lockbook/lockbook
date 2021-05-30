@@ -94,11 +94,8 @@ class WriteToDocumentTest {
 
     @Test
     fun writeToDocumentUnexpectedError() {
-        val writeResult: Result<Unit, WriteToDocumentError>? =
-            Klaxon().converter(writeDocumentConverter).parse(writeDocument("", "", ""))
-
         assertType<WriteToDocumentError.Unexpected>(
-            writeResult?.component2()
+            Klaxon().converter(writeDocumentConverter).parse<Result<Unit, WriteToDocumentError>>(writeDocument("", "", ""))?.component2()
         )
     }
 }

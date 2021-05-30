@@ -42,12 +42,9 @@ class GetChildrenTest {
 
     @Test
     fun getChildrenUnexpectedError() {
-        val getChildrenResult: Result<List<FileMetadata>, GetChildrenError>? =
-            Klaxon().converter(getChildrenConverter)
-                .parse(getChildren("", ""))
-
         assertType<GetChildrenError.Unexpected>(
-            getChildrenResult?.component2()
+            Klaxon().converter(getChildrenConverter)
+                .parse<Result<List<FileMetadata>, GetChildrenError>>(getChildren("", ""))?.component2()
         )
     }
 }

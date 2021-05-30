@@ -157,12 +157,9 @@ class CreateFileTest {
 
     @Test
     fun createFileUnexpectedError() {
-        val createFileResult: Result<FileMetadata, CreateFileError>? =
-            Klaxon().converter(createFileConverter)
-                .parse(createFile("", "", "", ""))
-
         assertType<CreateFileError.Unexpected>(
-            createFileResult?.component2()
+            Klaxon().converter(createFileConverter)
+                .parse<Result<FileMetadata, CreateFileError>>(createFile("", "", "", ""))?.component2()
         )
     }
 }

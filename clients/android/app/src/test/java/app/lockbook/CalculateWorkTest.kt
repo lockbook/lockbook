@@ -37,11 +37,10 @@ class CalculateWorkTest {
 
     @Test
     fun calculateWorkUnexpectedError() {
-        val calculateSyncWorkResult: Result<WorkCalculated, CalculateWorkError>? =
-            Klaxon().converter(calculateWorkConverter).parse(calculateWork(""))
-
         assertType<CalculateWorkError.Unexpected>(
-            calculateSyncWorkResult?.component2()
+            Klaxon().converter(calculateWorkConverter).parse<Result<WorkCalculated, CalculateWorkError>>(
+                calculateWork("")
+            )?.component2()
         )
     }
 }
