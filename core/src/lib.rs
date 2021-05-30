@@ -30,7 +30,7 @@ use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
     AccountService, AccountServiceImpl,
 };
-use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
+use crate::service::db_state_service::State;
 use crate::service::file_compression_service::FileCompressionServiceImpl;
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
 use crate::service::file_service::{
@@ -95,7 +95,7 @@ pub enum GetStateError {
 }
 
 pub fn get_db_state(config: &Config) -> Result<State, Error<GetStateError>> {
-    DefaultDbStateService::get_state(&config).map_err(|err| unexpected!("{:#?}", err))
+    db_state_service::get_state(&config).map_err(|err| unexpected!("{:#?}", err))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -104,7 +104,7 @@ pub enum MigrationError {
 }
 
 pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
-    DefaultDbStateService::perform_migration(&config).map_err(|e| match e {
+    db_state_service::perform_migration(&config).map_err(|e| match e {
         db_state_service::MigrationError::StateRequiresClearing => {
             UiError(MigrationError::StateRequiresCleaning)
         }
@@ -1028,7 +1028,6 @@ static LOG_FILE: &str = "lockbook.log";
 
 pub type DefaultUsageService = UsageServiceImpl<DefaultFileMetadataRepo, DefaultFileService>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService, DefaultFileMetadataRepo>;
-pub type DefaultDbStateService = DbStateServiceImpl;
 pub type DefaultAccountService =
     AccountServiceImpl<DefaultFileEncryptionService, DefaultFileMetadataRepo>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
