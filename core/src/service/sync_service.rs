@@ -8,7 +8,6 @@ use crate::client;
 use crate::client::ApiError;
 use crate::model::state::Config;
 use crate::repo::document_repo::DocumentRepo;
-use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::file_compression_service::FileCompressionService;
@@ -124,14 +123,12 @@ pub struct SyncProgress {
 }
 
 pub struct FileSyncService<
-    FileMetadataDb: FileMetadataRepo,
     ChangeDb: LocalChangesRepo,
     DocsDb: DocumentRepo,
     Files: FileService,
     FileCrypto: FileEncryptionService,
     FileCompression: FileCompressionService,
 > {
-    _metadatas: FileMetadataDb,
     _changes: ChangeDb,
     _docs: DocsDb,
     _file: Files,
@@ -140,21 +137,19 @@ pub struct FileSyncService<
 }
 
 impl<
-        FileMetadataDb: FileMetadataRepo,
         ChangeDb: LocalChangesRepo,
         DocsDb: DocumentRepo,
         Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > SyncService
-    for FileSyncService<FileMetadataDb, ChangeDb, DocsDb, Files, FileCrypto, FileCompression>
+    > SyncService for FileSyncService<ChangeDb, DocsDb, Files, FileCrypto, FileCompression>
 {
     fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
         let mut work_units: Vec<WorkUnit> = vec![];
 
         let account = account_repo::get_account(config).map_err(AccountRetrievalError)?;
-        let last_sync = FileMetadataDb::get_last_updated(config).map_err(GetMetadataError)?;
+        let last_sync = file_metadata_repo::get_last_updated(config).map_err(GetMetadataError)?;
 
         let server_updates = client::request(
             &account,
@@ -171,7 +166,7 @@ impl<
                 most_recent_update_from_server = metadata.metadata_version;
             }
 
-            match FileMetadataDb::maybe_get(config, metadata.id).map_err(GetMetadataError)? {
+            match file_metadata_repo::maybe_get(config, metadata.id).map_err(GetMetadataError)? {
                 None => {
                     if !metadata.deleted {
                         // no work for files we don't have that have been deleted
@@ -195,8 +190,8 @@ impl<
         let changes = ChangeDb::get_all_local_changes(config).map_err(LocalChangesRepoError)?;
 
         for change_description in changes {
-            let metadata =
-                FileMetadataDb::get(config, change_description.id).map_err(MetadataRepoError)?;
+            let metadata = file_metadata_repo::get(config, change_description.id)
+                .map_err(MetadataRepoError)?;
 
             work_units.push(LocalChange { metadata });
         }
@@ -257,7 +252,7 @@ impl<
             }
 
             if sync_errors.is_empty() {
-                FileMetadataDb::set_last_synced(
+                file_metadata_repo::set_last_synced(
                     config,
                     work_calculated.most_recent_update_from_server,
                 )
@@ -273,8 +268,11 @@ impl<
         }
 
         if sync_errors.is_empty() {
-            FileMetadataDb::set_last_synced(config, work_calculated.most_recent_update_from_server)
-                .map_err(SyncError::MetadataUpdateError)?;
+            file_metadata_repo::set_last_synced(
+                config,
+                work_calculated.most_recent_update_from_server,
+            )
+            .map_err(SyncError::MetadataUpdateError)?;
             Ok(())
         } else {
             error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
@@ -285,13 +283,12 @@ impl<
 
 /// Helper functions
 impl<
-        FileMetadataDb: FileMetadataRepo,
         ChangeDb: LocalChangesRepo,
         DocsDb: DocumentRepo,
         Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > FileSyncService<FileMetadataDb, ChangeDb, DocsDb, Files, FileCrypto, FileCompression>
+    > FileSyncService<ChangeDb, DocsDb, Files, FileCrypto, FileCompression>
 {
     /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
     /// there are not going to be path conflicts. If there are, we find the file that is conflicting
@@ -301,7 +298,7 @@ impl<
         metadata: &FileMetadata,
     ) -> Result<(), WorkExecutionError> {
         let conflicting_files =
-            FileMetadataDb::get_children_non_recursively(config, metadata.parent)
+            file_metadata_repo::get_children_non_recursively(config, metadata.parent)
                 .map_err(WorkExecutionError::MetadataRepoError)?
                 .into_iter()
                 .filter(|potential_conflict| potential_conflict.name == metadata.name)
@@ -330,7 +327,8 @@ impl<
         account: &Account,
         metadata: &FileMetadata,
     ) -> Result<(), WorkExecutionError> {
-        FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+        file_metadata_repo::insert(config, &metadata)
+            .map_err(WorkExecutionError::MetadataRepoError)?;
 
         if metadata.file_type == Document {
             let document = client::request(
@@ -355,7 +353,7 @@ impl<
     ) -> Result<(), WorkExecutionError> {
         if metadata.file_type == Document {
             // A deleted document
-            FileMetadataDb::non_recursive_delete(config, metadata.id)
+            file_metadata_repo::non_recursive_delete(config, metadata.id)
                 .map_err(WorkExecutionError::MetadataRepoError)?;
 
             ChangeDb::delete(config, metadata.id)
@@ -365,13 +363,14 @@ impl<
         } else {
             // A deleted folder
             let delete_errors =
-                FileMetadataDb::get_and_get_children_recursively(config, metadata.id)
+                file_metadata_repo::get_and_get_children_recursively(config, metadata.id)
                     .map_err(WorkExecutionError::FindingChildrenFailed)?
                     .into_iter()
                     .map(|file_metadata| -> Option<String> {
                         match DocsDb::delete(config, file_metadata.id) {
                             Ok(_) => {
-                                match FileMetadataDb::non_recursive_delete(config, metadata.id) {
+                                match file_metadata_repo::non_recursive_delete(config, metadata.id)
+                                {
                                     Ok(_) => match ChangeDb::delete(config, metadata.id) {
                                         Ok(_) => None,
                                         Err(err) => Some(format!("{:?}", err)),
@@ -547,7 +546,7 @@ impl<
     ) -> Result<(), WorkExecutionError> {
         Self::rename_local_conflicting_files(&config, &metadata)?;
 
-        match FileMetadataDb::maybe_get(config, metadata.id)
+        match file_metadata_repo::maybe_get(config, metadata.id)
             .map_err(WorkExecutionError::MetadataRepoError)?
         {
             None => {
@@ -581,7 +580,7 @@ impl<
                                 &local_changes,
                             )?;
 
-                            FileMetadataDb::insert(config, &metadata)
+                            file_metadata_repo::insert(config, &metadata)
                                 .map_err(WorkExecutionError::MetadataRepoError)?;
                         } else if metadata.deleted {
                             // Adding checks here is how you can protect local state from being deleted
@@ -627,7 +626,7 @@ impl<
                             metadata.content_version = version;
                         }
 
-                        FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                        file_metadata_repo::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                         ChangeDb::untrack_new_file(config, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
@@ -652,7 +651,7 @@ impl<
                                 .map_err(WorkExecutionError::from)?.new_metadata_version
                         };
                         metadata.metadata_version = version;
-                        FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                        file_metadata_repo::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                         ChangeDb::untrack_rename(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                         local_change.renamed = None;
@@ -666,7 +665,7 @@ impl<
                         };
 
                         metadata.metadata_version = version;
-                        FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                        file_metadata_repo::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                         ChangeDb::untrack_move(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                         local_change.moved = None;
@@ -681,7 +680,7 @@ impl<
 
                         metadata.content_version = version;
                         metadata.metadata_version = version;
-                        FileMetadataDb::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
+                        file_metadata_repo::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
                         ChangeDb::untrack_edit(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                         local_change.content_edited = None;
@@ -698,7 +697,7 @@ impl<
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                         local_change.deleted = false;
 
-                        FileMetadataDb::non_recursive_delete(config, metadata.id)
+                        file_metadata_repo::non_recursive_delete(config, metadata.id)
                             .map_err(WorkExecutionError::MetadataRepoError)?; // Now it's safe to delete this locally
                     }
                 }

@@ -3,13 +3,12 @@ mod integration_test;
 #[cfg(test)]
 mod account_tests {
     use lockbook_core::client::ApiError;
-    use lockbook_core::repo::account_repo;
-    use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
+    use lockbook_core::repo::{account_repo, file_metadata_repo};
     use lockbook_core::service::account_service::{AccountCreationError, AccountService};
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::{
-        create_account, export_account, import_account, DefaultAccountService,
-        DefaultFileMetadataRepo, DefaultSyncService, Error, ImportError,
+        create_account, export_account, import_account, DefaultAccountService, DefaultSyncService,
+        Error, ImportError,
     };
     use lockbook_models::account::Account;
     use lockbook_models::api::NewAccountError;
@@ -94,25 +93,25 @@ mod account_tests {
         .unwrap();
 
         let account_string = DefaultAccountService::export_account(&db1).unwrap();
-        let home_folders1 = DefaultFileMetadataRepo::get_root(&db1).unwrap().unwrap();
+        let home_folders1 = file_metadata_repo::get_root(&db1).unwrap().unwrap();
 
         let db2 = test_config();
         assert!(DefaultAccountService::export_account(&db2).is_err());
         DefaultAccountService::import_account(&db2, &account_string).unwrap();
         assert_eq!(account_repo::get_account(&db2).unwrap(), account);
-        assert_eq!(DefaultFileMetadataRepo::get_last_updated(&db2).unwrap(), 0);
+        assert_eq!(file_metadata_repo::get_last_updated(&db2).unwrap(), 0);
 
         let work = DefaultSyncService::calculate_work(&db2).unwrap();
         assert_ne!(work.most_recent_update_from_server, 0);
         assert_eq!(work.work_units.len(), 1);
-        assert!(DefaultFileMetadataRepo::get_root(&db2).unwrap().is_none());
+        assert!(file_metadata_repo::get_root(&db2).unwrap().is_none());
         DefaultSyncService::sync(&db2, None).unwrap();
-        assert!(DefaultFileMetadataRepo::get_root(&db2).unwrap().is_some());
-        let home_folders2 = DefaultFileMetadataRepo::get_root(&db2).unwrap().unwrap();
+        assert!(file_metadata_repo::get_root(&db2).unwrap().is_some());
+        let home_folders2 = file_metadata_repo::get_root(&db2).unwrap().unwrap();
         assert_eq!(home_folders1, home_folders2);
         assert_eq!(
-            DefaultFileMetadataRepo::get_all(&db1).unwrap(),
-            DefaultFileMetadataRepo::get_all(&db2).unwrap()
+            file_metadata_repo::get_all(&db1).unwrap(),
+            file_metadata_repo::get_all(&db2).unwrap()
         );
     }
 

@@ -2,7 +2,6 @@ use crate::client;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::file_metadata_repo;
-use crate::repo::file_metadata_repo::FileMetadataRepo;
 use crate::service::account_service::AccountCreationError::{
     AccountExistsAlready, AccountRepoError,
 };
@@ -54,14 +53,11 @@ pub trait AccountService {
     fn export_account(config: &Config) -> Result<String, AccountExportError>;
 }
 
-pub struct AccountServiceImpl<FileCrypto: FileEncryptionService, FileMetadata: FileMetadataRepo> {
+pub struct AccountServiceImpl<FileCrypto: FileEncryptionService> {
     _file_crypto: FileCrypto,
-    _file_db: FileMetadata,
 }
 
-impl<FileCrypto: FileEncryptionService, FileMetadata: FileMetadataRepo> AccountService
-    for AccountServiceImpl<FileCrypto, FileMetadata>
-{
+impl<FileCrypto: FileEncryptionService> AccountService for AccountServiceImpl<FileCrypto> {
     fn create_account(
         config: &Config,
         username: &str,
@@ -99,7 +95,7 @@ impl<FileCrypto: FileEncryptionService, FileMetadata: FileMetadataRepo> AccountS
         file_metadata.metadata_version = version;
         file_metadata.content_version = version;
 
-        FileMetadata::insert(config, &file_metadata)
+        file_metadata_repo::insert(config, &file_metadata)
             .map_err(AccountCreationError::MetadataRepoError)?;
 
         debug!(

@@ -1,12 +1,10 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use lockbook_core::model::state::Config;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
+use lockbook_core::repo::file_metadata_repo;
 use lockbook_core::service::account_service::AccountService;
 use lockbook_core::service::file_service::FileService;
 use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::{
-    DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
-};
+use lockbook_core::{DefaultAccountService, DefaultFileService, DefaultSyncService};
 use lockbook_models::file_metadata::FileType::Document;
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
@@ -38,7 +36,7 @@ pub fn bench_throughput(c: &mut Criterion) {
     )
     .unwrap();
     let _ = DefaultSyncService::sync(config, None).unwrap();
-    let root = DefaultFileMetadataRepo::get_root(config).unwrap().unwrap();
+    let root = file_metadata_repo::get_root(config).unwrap().unwrap();
 
     for x in vec![1, 1000, 10000, 100000, 1000000] {
         let bytes = rand::thread_rng()

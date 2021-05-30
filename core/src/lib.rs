@@ -18,14 +18,13 @@ use uuid::Uuid;
 
 use crate::client::ApiError;
 use crate::model::state::Config;
-use crate::repo::account_repo;
 use crate::repo::account_repo::AccountRepoError;
 use crate::repo::document_repo::DocumentRepoImpl;
 use crate::repo::file_metadata_repo::{
-    DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingChildrenFailed,
-    FindingParentsFailed, GetError as FileMetadataRepoError,
+    DbError, Filter, FindingChildrenFailed, FindingParentsFailed, GetError as FileMetadataRepoError,
 };
 use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
+use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
     AccountService, AccountServiceImpl,
@@ -355,7 +354,7 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<FileMetadata, Error<GetRootError>> {
-    match DefaultFileMetadataRepo::get_root(&config) {
+    match file_metadata_repo::get_root(&config) {
         Ok(file_metadata) => match file_metadata {
             None => Err(UiError(GetRootError::NoRoot)),
             Some(file_metadata) => Ok(file_metadata),
@@ -373,7 +372,7 @@ pub fn get_children(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, Error<GetChildrenError>> {
-    DefaultFileMetadataRepo::get_children_non_recursively(&config, id)
+    file_metadata_repo::get_children_non_recursively(&config, id)
         .map_err(|e| unexpected!("{:#?}", e))
 }
 
@@ -387,7 +386,7 @@ pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
-    DefaultFileMetadataRepo::get_and_get_children_recursively(&config, id).map_err(|e| match e {
+    file_metadata_repo::get_and_get_children_recursively(&config, id).map_err(|e| match e {
         FindingChildrenFailed::FileDoesNotExist => {
             UiError(GetAndGetChildrenError::FileDoesNotExist)
         }
@@ -404,7 +403,7 @@ pub enum GetFileByIdError {
 }
 
 pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, Error<GetFileByIdError>> {
-    DefaultFileMetadataRepo::get(&config, id).map_err(|e| match e {
+    file_metadata_repo::get(&config, id).map_err(|e| match e {
         FileMetadataRepoError::FileRowMissing => UiError(GetFileByIdError::NoFileWithThatId),
         FileMetadataRepoError::DbError(_) => unexpected!("{:#?}", e),
     })
@@ -419,7 +418,7 @@ pub fn get_file_by_path(
     config: &Config,
     path: &str,
 ) -> Result<FileMetadata, Error<GetFileByPathError>> {
-    match DefaultFileMetadataRepo::get_by_path(&config, path) {
+    match file_metadata_repo::get_by_path(&config, path) {
         Ok(maybe_file_metadata) => match maybe_file_metadata {
             None => Err(UiError(GetFileByPathError::NoFileAtThatPath)),
             Some(file_metadata) => Ok(file_metadata),
@@ -437,7 +436,7 @@ pub fn insert_file(
     config: &Config,
     file_metadata: FileMetadata,
 ) -> Result<(), Error<InsertFileError>> {
-    DefaultFileMetadataRepo::insert(&config, &file_metadata).map_err(|e| unexpected!("{:#?}", e))
+    file_metadata_repo::insert(&config, &file_metadata).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -447,7 +446,7 @@ pub enum FileDeleteError {
 }
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-    match DefaultFileMetadataRepo::get(&config, id) {
+    match file_metadata_repo::get(&config, id) {
         Ok(meta) => match meta.file_type {
             FileType::Document => {
                 DefaultFileService::delete_document(&config, id).map_err(|err| match err {
@@ -525,7 +524,7 @@ pub fn list_paths(
     config: &Config,
     filter: Option<Filter>,
 ) -> Result<Vec<String>, Error<ListPathsError>> {
-    DefaultFileMetadataRepo::get_all_paths(&config, filter).map_err(|e| unexpected!("{:#?}", e))
+    file_metadata_repo::get_all_paths(&config, filter).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -534,7 +533,7 @@ pub enum ListMetadatasError {
 }
 
 pub fn list_metadatas(config: &Config) -> Result<Vec<FileMetadata>, Error<ListMetadatasError>> {
-    DefaultFileMetadataRepo::get_all(&config).map_err(|e| unexpected!("{:#?}", e))
+    file_metadata_repo::get_all(&config).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -708,8 +707,7 @@ pub enum SetLastSyncedError {
 }
 
 pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), Error<SetLastSyncedError>> {
-    DefaultFileMetadataRepo::set_last_synced(&config, last_sync)
-        .map_err(|e| unexpected!("{:#?}", e))
+    file_metadata_repo::set_last_synced(&config, last_sync).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -718,7 +716,7 @@ pub enum GetLastSyncedError {
 }
 
 pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>> {
-    DefaultFileMetadataRepo::get_last_updated(&config)
+    file_metadata_repo::get_last_updated(&config)
         .map(|n| n as i64)
         .map_err(|err| match err {
             DbError::BackendError(_) | DbError::SerdeError(_) => unexpected!("{:#?}", err),
@@ -1026,17 +1024,14 @@ pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
 
-pub type DefaultUsageService = UsageServiceImpl<DefaultFileMetadataRepo, DefaultFileService>;
-pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService, DefaultFileMetadataRepo>;
-pub type DefaultAccountService =
-    AccountServiceImpl<DefaultFileEncryptionService, DefaultFileMetadataRepo>;
-pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
+pub type DefaultUsageService = UsageServiceImpl<DefaultFileService>;
+pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService>;
+pub type DefaultAccountService = AccountServiceImpl<DefaultFileEncryptionService>;
 pub type DefaultLocalChangesRepo = LocalChangesRepoImpl;
 pub type DefaultDocumentRepo = DocumentRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl;
 pub type DefaultFileCompressionService = FileCompressionServiceImpl;
 pub type DefaultSyncService = FileSyncService<
-    DefaultFileMetadataRepo,
     DefaultLocalChangesRepo,
     DefaultDocumentRepo,
     DefaultFileService,
@@ -1044,7 +1039,6 @@ pub type DefaultSyncService = FileSyncService<
     DefaultFileCompressionService,
 >;
 pub type DefaultFileService = FileServiceImpl<
-    DefaultFileMetadataRepo,
     DefaultDocumentRepo,
     DefaultLocalChangesRepo,
     DefaultFileEncryptionService,

@@ -1,6 +1,6 @@
 use crate::client;
-use crate::repo::account_repo;
-use crate::repo::file_metadata_repo::{DbError, FileMetadataRepo};
+use crate::repo::file_metadata_repo::DbError;
+use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::file_service::{FileService, ReadDocumentError};
 use lockbook_models::api;
 use lockbook_models::api::{GetUsageRequest, GetUsageResponse};
@@ -58,14 +58,11 @@ pub trait UsageService {
     ) -> Result<LocalAndServerUsages, LocalAndServerUsageError>;
 }
 
-pub struct UsageServiceImpl<FileMetadataDb: FileMetadataRepo, Files: FileService> {
+pub struct UsageServiceImpl<Files: FileService> {
     _files: Files,
-    _files_db: FileMetadataDb,
 }
 
-impl<FileMetadataDb: FileMetadataRepo, Files: FileService> UsageService
-    for UsageServiceImpl<FileMetadataDb, Files>
-{
+impl<Files: FileService> UsageService for UsageServiceImpl<Files> {
     fn bytes_to_human(size: u64) -> String {
         let (unit, abbr) = match size {
             0..=KILOBYTE => (BYTE, ""),
@@ -96,7 +93,7 @@ impl<FileMetadataDb: FileMetadataRepo, Files: FileService> UsageService
     }
 
     fn get_uncompressed_usage(config: &Config) -> Result<usize, UncompressedError> {
-        let doc_ids: Vec<Uuid> = FileMetadataDb::get_all(&config)
+        let doc_ids: Vec<Uuid> = file_metadata_repo::get_all(&config)
             .map_err(UncompressedError::FileMetadataDb)?
             .into_iter()
             .filter(|f| f.file_type == Document)

@@ -69,414 +69,378 @@ pub enum Problem {
     DocumentTreatedAsFolder(Uuid),
 }
 
-pub trait FileMetadataRepo {
-    fn insert(config: &Config, file: &FileMetadata) -> Result<(), DbError>;
-    fn get_root(config: &Config) -> Result<Option<FileMetadata>, DbError>;
-    fn get(config: &Config, id: Uuid) -> Result<FileMetadata, GetError>;
-    fn maybe_get(config: &Config, id: Uuid) -> Result<Option<FileMetadata>, DbError>;
-    fn get_by_path(config: &Config, path: &str) -> Result<Option<FileMetadata>, DbError>;
-    fn get_with_all_parents(
-        config: &Config,
-        id: Uuid,
-    ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed>;
-    fn get_and_get_children_recursively(
-        config: &Config,
-        id: Uuid,
-    ) -> Result<Vec<FileMetadata>, FindingChildrenFailed>;
-    fn get_all(config: &Config) -> Result<Vec<FileMetadata>, DbError>;
-    fn get_all_paths(
-        config: &Config,
-        filter: Option<Filter>,
-    ) -> Result<Vec<String>, FindingParentsFailed>;
-    fn non_recursive_delete(config: &Config, id: Uuid) -> Result<(), DbError>;
-    fn get_children_non_recursively(
-        config: &Config,
-        id: Uuid,
-    ) -> Result<Vec<FileMetadata>, DbError>;
-    fn set_last_synced(config: &Config, last_updated: u64) -> Result<(), DbError>;
-    fn get_last_updated(config: &Config) -> Result<u64, DbError>;
-    fn test_repo_integrity(config: &Config) -> Result<Vec<Problem>, DbError>;
-}
-
-pub struct FileMetadataRepoImpl;
-
 pub static FILE_METADATA: &[u8; 13] = b"file_metadata";
 static ROOT: &[u8; 4] = b"ROOT";
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
-impl FileMetadataRepo for FileMetadataRepoImpl {
-    fn insert(config: &Config, file: &FileMetadata) -> Result<(), DbError> {
-        local_storage::write(
-            config,
-            FILE_METADATA,
-            file.id.to_string().as_str(),
-            serde_json::to_vec(&file).map_err(DbError::SerdeError)?,
-        )
-        .map_err(DbError::BackendError)?;
-        if file.id == file.parent {
-            debug!("saving root folder: {:?}", &file.id);
-            local_storage::write(config, ROOT, ROOT, file.id.to_string().as_str())
-                .map_err(DbError::BackendError)?;
-        }
-        Ok(())
+pub fn insert(config: &Config, file: &FileMetadata) -> Result<(), DbError> {
+    local_storage::write(
+        config,
+        FILE_METADATA,
+        file.id.to_string().as_str(),
+        serde_json::to_vec(&file).map_err(DbError::SerdeError)?,
+    )
+    .map_err(DbError::BackendError)?;
+    if file.id == file.parent {
+        debug!("saving root folder: {:?}", &file.id);
+        local_storage::write(config, ROOT, ROOT, file.id.to_string().as_str())
+            .map_err(DbError::BackendError)?;
     }
+    Ok(())
+}
 
-    fn get_root(config: &Config) -> Result<Option<FileMetadata>, DbError> {
-        let maybe_value: Option<Vec<u8>> =
-            local_storage::read(config, ROOT, ROOT).map_err(DbError::BackendError)?;
-        match maybe_value {
-            None => Ok(None),
-            Some(value) => match String::from_utf8(value.clone()) {
-                Ok(id) => match Uuid::parse_str(&id) {
-                    Ok(uuid) => Self::maybe_get(&config, uuid),
-                    Err(err) => {
-                        error!("Failed to parse {:?} into a UUID. Error: {:?}", id, err);
-                        Ok(None)
-                    }
-                },
+pub fn get_root(config: &Config) -> Result<Option<FileMetadata>, DbError> {
+    let maybe_value: Option<Vec<u8>> =
+        local_storage::read(config, ROOT, ROOT).map_err(DbError::BackendError)?;
+    match maybe_value {
+        None => Ok(None),
+        Some(value) => match String::from_utf8(value.clone()) {
+            Ok(id) => match Uuid::parse_str(&id) {
+                Ok(uuid) => maybe_get(&config, uuid),
                 Err(err) => {
-                    error!("Failed parsing {:?} into a UUID. Error: {:?}", &value, err);
+                    error!("Failed to parse {:?} into a UUID. Error: {:?}", id, err);
                     Ok(None)
                 }
             },
-        }
-    }
-
-    fn get(config: &Config, id: Uuid) -> Result<FileMetadata, GetError> {
-        let maybe_value: Option<Vec<u8>> =
-            local_storage::read(config, FILE_METADATA, id.to_string().as_str())
-                .map_err(DbError::BackendError)
-                .map_err(GetError::DbError)?;
-        let value = maybe_value.ok_or(GetError::FileRowMissing)?;
-        let file_metadata: FileMetadata = serde_json::from_slice(value.as_ref())
-            .map_err(DbError::SerdeError)
-            .map_err(GetError::DbError)?;
-        Ok(file_metadata)
-    }
-
-    fn maybe_get(config: &Config, id: Uuid) -> Result<Option<FileMetadata>, DbError> {
-        let maybe_value: Option<Vec<u8>> =
-            local_storage::read(config, FILE_METADATA, id.to_string().as_str())
-                .map_err(DbError::BackendError)?;
-        Ok(maybe_value.and_then(|value| {
-            serde_json::from_slice(value.as_ref())
-                .map_err(DbError::SerdeError)
-                .ok()?
-        }))
-    }
-
-    fn get_by_path(config: &Config, path: &str) -> Result<Option<FileMetadata>, DbError> {
-        debug!("Path: {}", path);
-        let root = match Self::get_root(config)? {
-            None => return Ok(None),
-            Some(root) => root,
-        };
-
-        let mut current = root;
-        let paths: Vec<&str> = path
-            .split('/')
-            .collect::<Vec<&str>>()
-            .into_iter()
-            .filter(|s| !s.is_empty()) // Remove the trailing empty element in the case this is a folder
-            .collect::<Vec<&str>>();
-
-        debug!("Split length: {}", &paths.len());
-
-        for (i, value) in paths.clone().into_iter().enumerate() {
-            if value != current.name {
-                return Ok(None);
+            Err(err) => {
+                error!("Failed parsing {:?} into a UUID. Error: {:?}", &value, err);
+                Ok(None)
             }
-
-            if i + 1 == paths.len() {
-                return Ok(Some(current));
-            }
-
-            let children = Self::get_children_non_recursively(config, current.id)?;
-            let mut found_child = false;
-            for child in children {
-                if child.name == paths[i + 1] {
-                    current = child;
-                    found_child = true;
-                }
-            }
-
-            if !found_child {
-                return Ok(None);
-            }
-        }
-
-        Ok(Some(current)) // This path is never visited
+        },
     }
+}
 
-    fn get_with_all_parents(
-        config: &Config,
-        id: Uuid,
-    ) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed> {
-        let mut parents = HashMap::new();
-        let mut current_id = id;
-        debug!("Finding parents for: {}", current_id);
-
-        loop {
-            match Self::maybe_get(config, current_id).map_err(FindingParentsFailed::DbError)? {
-                Some(found) => {
-                    debug!("Current id exists: {:?}", &found);
-                    parents.insert(current_id, found.clone());
-                    if found.id == found.parent {
-                        return Ok(parents);
-                    } else {
-                        current_id = found.parent;
-                        continue;
-                    }
-                }
-                None => return Err(AncestorMissing),
-            }
-        }
-    }
-
-    fn get_and_get_children_recursively(
-        config: &Config,
-        id: Uuid,
-    ) -> Result<Vec<FileMetadata>, FindingChildrenFailed> {
-        let all = Self::get_all(config).map_err(FindingChildrenFailed::DbError)?;
-        let target_file = all
-            .clone()
-            .into_iter()
-            .find(|file| file.id == id)
-            .ok_or(FindingChildrenFailed::FileDoesNotExist)?;
-        let mut result = vec![target_file.clone()];
-
-        if target_file.file_type == Document {
-            return Err(FindingChildrenFailed::DocumentTreatedAsFolder);
-        }
-
-        let mut to_explore = all
-            .clone()
-            .into_iter()
-            .filter(|file| file.parent == target_file.id && file.id != target_file.id)
-            .collect::<Vec<FileMetadata>>();
-
-        while !to_explore.is_empty() {
-            let mut explore_next_round = vec![];
-
-            for file in to_explore {
-                if file.file_type == Folder {
-                    // Explore this folder's children
-                    all.clone()
-                        .into_iter()
-                        .filter(|maybe_child| maybe_child.parent == file.id)
-                        .for_each(|f| explore_next_round.push(f));
-                }
-
-                result.push(file.clone());
-            }
-
-            to_explore = explore_next_round;
-        }
-
-        Ok(result)
-    }
-
-    fn get_all(config: &Config) -> Result<Vec<FileMetadata>, DbError> {
-        let files = local_storage::dump::<_, Vec<u8>>(config, FILE_METADATA)
-            .map_err(DbError::BackendError)?
-            .into_iter()
-            .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
-            .collect::<Result<Vec<FileMetadata>, DbError>>();
-
-        let mut files = files?;
-        files.retain(|file| !file.deleted);
-
-        Ok(files)
-    }
-
-    fn get_all_paths(
-        config: &Config,
-        filter: Option<Filter>,
-    ) -> Result<Vec<String>, FindingParentsFailed> {
-        let mut cache = HashMap::new();
-        let mut path_cache = HashMap::new();
-
-        // Populate metadata cache
-        Self::get_all(config)
-            .map_err(FindingParentsFailed::DbError)?
-            .into_iter()
-            .for_each(|meta| {
-                cache.insert(meta.id, meta);
-            });
-
-        for meta in cache.values() {
-            saturate_path_cache(&meta, &cache, &mut path_cache)?;
-        }
-
-        let paths = match filter {
-            None => path_cache.values().cloned().collect(),
-            Some(filter) => match filter {
-                Filter::DocumentsOnly => {
-                    let mut paths = vec![];
-                    for (_, meta) in cache {
-                        if meta.file_type == Document {
-                            if let Some(path) = path_cache.get(&meta.id) {
-                                paths.push(path.to_owned())
-                            }
-                        }
-                    }
-                    paths
-                }
-                Filter::LeafNodesOnly => {
-                    let mut paths = vec![];
-                    for meta in cache.values() {
-                        if is_leaf_node(meta.id, &cache) {
-                            if let Some(path) = path_cache.get(&meta.id) {
-                                paths.push(path.to_owned())
-                            }
-                        }
-                    }
-                    paths
-                }
-                Filter::FoldersOnly => {
-                    let mut paths = vec![];
-                    for (_, meta) in cache {
-                        if meta.file_type == Folder {
-                            if let Some(path) = path_cache.get(&meta.id) {
-                                paths.push(path.to_owned())
-                            }
-                        }
-                    }
-                    paths
-                }
-            },
-        };
-
-        Ok(paths)
-    }
-
-    fn non_recursive_delete(config: &Config, id: Uuid) -> Result<(), DbError> {
-        local_storage::delete(config, FILE_METADATA, id.to_string().as_str())
+pub fn get(config: &Config, id: Uuid) -> Result<FileMetadata, GetError> {
+    let maybe_value: Option<Vec<u8>> =
+        local_storage::read(config, FILE_METADATA, id.to_string().as_str())
             .map_err(DbError::BackendError)
-    }
+            .map_err(GetError::DbError)?;
+    let value = maybe_value.ok_or(GetError::FileRowMissing)?;
+    let file_metadata: FileMetadata = serde_json::from_slice(value.as_ref())
+        .map_err(DbError::SerdeError)
+        .map_err(GetError::DbError)?;
+    Ok(file_metadata)
+}
 
-    fn get_children_non_recursively(
-        config: &Config,
-        id: Uuid,
-    ) -> Result<Vec<FileMetadata>, DbError> {
-        Ok(Self::get_all(config)?
-            .into_iter()
-            .filter(|file| file.parent == id && file.parent != file.id)
-            .collect::<Vec<FileMetadata>>())
-    }
-
-    fn set_last_synced(config: &Config, last_updated: u64) -> Result<(), DbError> {
-        debug!("Setting last updated to: {}", last_updated);
-        local_storage::write(
-            config,
-            LAST_UPDATED,
-            LAST_UPDATED,
-            serde_json::to_vec(&last_updated).map_err(DbError::SerdeError)?,
-        )
-        .map_err(DbError::BackendError)
-    }
-
-    fn get_last_updated(config: &Config) -> Result<u64, DbError> {
-        let maybe_value: Option<Vec<u8>> = local_storage::read(config, LAST_UPDATED, LAST_UPDATED)
+pub fn maybe_get(config: &Config, id: Uuid) -> Result<Option<FileMetadata>, DbError> {
+    let maybe_value: Option<Vec<u8>> =
+        local_storage::read(config, FILE_METADATA, id.to_string().as_str())
             .map_err(DbError::BackendError)?;
-        match maybe_value {
-            None => Ok(0),
-            Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?),
+    Ok(maybe_value.and_then(|value| {
+        serde_json::from_slice(value.as_ref())
+            .map_err(DbError::SerdeError)
+            .ok()?
+    }))
+}
+
+pub fn get_by_path(config: &Config, path: &str) -> Result<Option<FileMetadata>, DbError> {
+    debug!("Path: {}", path);
+    let root = match get_root(config)? {
+        None => return Ok(None),
+        Some(root) => root,
+    };
+
+    let mut current = root;
+    let paths: Vec<&str> = path
+        .split('/')
+        .collect::<Vec<&str>>()
+        .into_iter()
+        .filter(|s| !s.is_empty()) // Remove the trailing empty element in the case this is a folder
+        .collect::<Vec<&str>>();
+
+    debug!("Split length: {}", &paths.len());
+
+    for (i, value) in paths.clone().into_iter().enumerate() {
+        if value != current.name {
+            return Ok(None);
+        }
+
+        if i + 1 == paths.len() {
+            return Ok(Some(current));
+        }
+
+        let children = get_children_non_recursively(config, current.id)?;
+        let mut found_child = false;
+        for child in children {
+            if child.name == paths[i + 1] {
+                current = child;
+                found_child = true;
+            }
+        }
+
+        if !found_child {
+            return Ok(None);
         }
     }
 
-    fn test_repo_integrity(config: &Config) -> Result<Vec<Problem>, DbError> {
-        let all = Self::get_all(config)?;
-        let mut probs = vec![];
-        match Self::get_root(config)? {
-            None => {
-                if all.is_empty() {
-                    probs.push(NoRootFolder);
+    Ok(Some(current)) // This path is never visited
+}
+
+pub fn get_with_all_parents(
+    config: &Config,
+    id: Uuid,
+) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed> {
+    let mut parents = HashMap::new();
+    let mut current_id = id;
+    debug!("Finding parents for: {}", current_id);
+
+    loop {
+        match maybe_get(config, current_id).map_err(FindingParentsFailed::DbError)? {
+            Some(found) => {
+                debug!("Current id exists: {:?}", &found);
+                parents.insert(current_id, found.clone());
+                if found.id == found.parent {
+                    return Ok(parents);
                 } else {
-                    for file in all {
-                        probs.push(FileOrphaned(file.id));
-                        if file.name.is_empty() {
-                            probs.push(FileNameEmpty(file.id));
-                        } else if file.name.contains('/') {
-                            probs.push(FileNameContainsSlash(file.id));
+                    current_id = found.parent;
+                    continue;
+                }
+            }
+            None => return Err(AncestorMissing),
+        }
+    }
+}
+
+pub fn get_and_get_children_recursively(
+    config: &Config,
+    id: Uuid,
+) -> Result<Vec<FileMetadata>, FindingChildrenFailed> {
+    let all = get_all(config).map_err(FindingChildrenFailed::DbError)?;
+    let target_file = all
+        .clone()
+        .into_iter()
+        .find(|file| file.id == id)
+        .ok_or(FindingChildrenFailed::FileDoesNotExist)?;
+    let mut result = vec![target_file.clone()];
+
+    if target_file.file_type == Document {
+        return Err(FindingChildrenFailed::DocumentTreatedAsFolder);
+    }
+
+    let mut to_explore = all
+        .clone()
+        .into_iter()
+        .filter(|file| file.parent == target_file.id && file.id != target_file.id)
+        .collect::<Vec<FileMetadata>>();
+
+    while !to_explore.is_empty() {
+        let mut explore_next_round = vec![];
+
+        for file in to_explore {
+            if file.file_type == Folder {
+                // Explore this folder's children
+                all.clone()
+                    .into_iter()
+                    .filter(|maybe_child| maybe_child.parent == file.id)
+                    .for_each(|f| explore_next_round.push(f));
+            }
+
+            result.push(file.clone());
+        }
+
+        to_explore = explore_next_round;
+    }
+
+    Ok(result)
+}
+
+pub fn get_all(config: &Config) -> Result<Vec<FileMetadata>, DbError> {
+    let files = local_storage::dump::<_, Vec<u8>>(config, FILE_METADATA)
+        .map_err(DbError::BackendError)?
+        .into_iter()
+        .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
+        .collect::<Result<Vec<FileMetadata>, DbError>>();
+
+    let mut files = files?;
+    files.retain(|file| !file.deleted);
+
+    Ok(files)
+}
+
+pub fn get_all_paths(
+    config: &Config,
+    filter: Option<Filter>,
+) -> Result<Vec<String>, FindingParentsFailed> {
+    let mut cache = HashMap::new();
+    let mut path_cache = HashMap::new();
+
+    // Populate metadata cache
+    get_all(config)
+        .map_err(FindingParentsFailed::DbError)?
+        .into_iter()
+        .for_each(|meta| {
+            cache.insert(meta.id, meta);
+        });
+
+    for meta in cache.values() {
+        saturate_path_cache(&meta, &cache, &mut path_cache)?;
+    }
+
+    let paths = match filter {
+        None => path_cache.values().cloned().collect(),
+        Some(filter) => match filter {
+            Filter::DocumentsOnly => {
+                let mut paths = vec![];
+                for (_, meta) in cache {
+                    if meta.file_type == Document {
+                        if let Some(path) = path_cache.get(&meta.id) {
+                            paths.push(path.to_owned())
                         }
                     }
                 }
+                paths
             }
-            Some(root) => {
-                let mut cache = HashMap::new();
-
-                // Saturate a cache
-                for file in all.clone() {
-                    cache.insert(file.id, file);
+            Filter::LeafNodesOnly => {
+                let mut paths = vec![];
+                for meta in cache.values() {
+                    if is_leaf_node(meta.id, &cache) {
+                        if let Some(path) = path_cache.get(&meta.id) {
+                            paths.push(path.to_owned())
+                        }
+                    }
                 }
+                paths
+            }
+            Filter::FoldersOnly => {
+                let mut paths = vec![];
+                for (_, meta) in cache {
+                    if meta.file_type == Folder {
+                        if let Some(path) = path_cache.get(&meta.id) {
+                            paths.push(path.to_owned())
+                        }
+                    }
+                }
+                paths
+            }
+        },
+    };
 
-                // Find files with invalid names
-                for file in all.clone() {
+    Ok(paths)
+}
+
+pub fn non_recursive_delete(config: &Config, id: Uuid) -> Result<(), DbError> {
+    local_storage::delete(config, FILE_METADATA, id.to_string().as_str())
+        .map_err(DbError::BackendError)
+}
+
+pub fn get_children_non_recursively(
+    config: &Config,
+    id: Uuid,
+) -> Result<Vec<FileMetadata>, DbError> {
+    Ok(get_all(config)?
+        .into_iter()
+        .filter(|file| file.parent == id && file.parent != file.id)
+        .collect::<Vec<FileMetadata>>())
+}
+
+pub fn set_last_synced(config: &Config, last_updated: u64) -> Result<(), DbError> {
+    debug!("Setting last updated to: {}", last_updated);
+    local_storage::write(
+        config,
+        LAST_UPDATED,
+        LAST_UPDATED,
+        serde_json::to_vec(&last_updated).map_err(DbError::SerdeError)?,
+    )
+    .map_err(DbError::BackendError)
+}
+
+pub fn get_last_updated(config: &Config) -> Result<u64, DbError> {
+    let maybe_value: Option<Vec<u8>> =
+        local_storage::read(config, LAST_UPDATED, LAST_UPDATED).map_err(DbError::BackendError)?;
+    match maybe_value {
+        None => Ok(0),
+        Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?),
+    }
+}
+
+pub fn test_repo_integrity(config: &Config) -> Result<Vec<Problem>, DbError> {
+    let all = get_all(config)?;
+    let mut probs = vec![];
+    match get_root(config)? {
+        None => {
+            if all.is_empty() {
+                probs.push(NoRootFolder);
+            } else {
+                for file in all {
+                    probs.push(FileOrphaned(file.id));
                     if file.name.is_empty() {
                         probs.push(FileNameEmpty(file.id));
                     } else if file.name.contains('/') {
                         probs.push(FileNameContainsSlash(file.id));
                     }
                 }
+            }
+        }
+        Some(root) => {
+            let mut cache = HashMap::new();
 
-                // Find naming conflicts
-                {
-                    let mut children = HashMap::new();
-                    for file in all.clone() {
-                        if children.contains_key(&format!(
-                            "{}.{}",
-                            file.parent.to_string(),
-                            file.name
-                        )) {
-                            probs.push(NameConflictDetected(file.id));
-                        }
-                        children.insert(format!("{}.{}", file.parent, file.name), file.file_type);
-                    }
+            // Saturate a cache
+            for file in all.clone() {
+                cache.insert(file.id, file);
+            }
+
+            // Find files with invalid names
+            for file in all.clone() {
+                if file.name.is_empty() {
+                    probs.push(FileNameEmpty(file.id));
+                } else if file.name.contains('/') {
+                    probs.push(FileNameContainsSlash(file.id));
                 }
+            }
 
-                // Find Documents treated as Folders
+            // Find naming conflicts
+            {
+                let mut children = HashMap::new();
                 for file in all.clone() {
-                    if file.file_type == Document {
-                        for potential_child in all.clone() {
-                            if file.id == potential_child.parent {
-                                probs.push(DocumentTreatedAsFolder(file.id));
-                            }
+                    if children.contains_key(&format!("{}.{}", file.parent.to_string(), file.name))
+                    {
+                        probs.push(NameConflictDetected(file.id));
+                    }
+                    children.insert(format!("{}.{}", file.parent, file.name), file.file_type);
+                }
+            }
+
+            // Find Documents treated as Folders
+            for file in all.clone() {
+                if file.file_type == Document {
+                    for potential_child in all.clone() {
+                        if file.id == potential_child.parent {
+                            probs.push(DocumentTreatedAsFolder(file.id));
                         }
                     }
                 }
+            }
 
-                // Find files that don't descend from root
-                {
-                    let mut not_orphaned = HashMap::new();
-                    not_orphaned.insert(root.id, root);
+            // Find files that don't descend from root
+            {
+                let mut not_orphaned = HashMap::new();
+                not_orphaned.insert(root.id, root);
 
-                    for file in all.clone() {
-                        let mut visited: HashMap<Uuid, FileMetadata> = HashMap::new();
-                        let mut current = file.clone();
-                        'parent_finder: loop {
-                            if visited.contains_key(&current.id) {
-                                probs.push(CycleDetected(current.id));
+                for file in all.clone() {
+                    let mut visited: HashMap<Uuid, FileMetadata> = HashMap::new();
+                    let mut current = file.clone();
+                    'parent_finder: loop {
+                        if visited.contains_key(&current.id) {
+                            probs.push(CycleDetected(current.id));
+                            break 'parent_finder;
+                        }
+                        visited.insert(current.id, current.clone());
+
+                        match cache.get(&current.parent) {
+                            None => {
+                                probs.push(FileOrphaned(current.id));
                                 break 'parent_finder;
                             }
-                            visited.insert(current.id, current.clone());
-
-                            match cache.get(&current.parent) {
-                                None => {
-                                    probs.push(FileOrphaned(current.id));
-                                    break 'parent_finder;
-                                }
-                                Some(parent) => {
-                                    // No Problems
-                                    if not_orphaned.contains_key(&parent.id) {
-                                        for node in visited.values() {
-                                            not_orphaned.insert(node.id, node.clone());
-                                        }
-
-                                        break 'parent_finder;
-                                    } else {
-                                        current = parent.clone();
+                            Some(parent) => {
+                                // No Problems
+                                if not_orphaned.contains_key(&parent.id) {
+                                    for node in visited.values() {
+                                        not_orphaned.insert(node.id, node.clone());
                                     }
+
+                                    break 'parent_finder;
+                                } else {
+                                    current = parent.clone();
                                 }
                             }
                         }
@@ -484,9 +448,9 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
                 }
             }
         }
-
-        Ok(probs)
     }
+
+    Ok(probs)
 }
 
 fn saturate_path_cache(
@@ -540,12 +504,12 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::state::{temp_config, Config};
-    use crate::repo::account_repo;
+    use crate::repo::file_metadata_repo::Problem;
     use crate::repo::file_metadata_repo::Problem::{CycleDetected, NameConflictDetected};
-    use crate::repo::file_metadata_repo::{FileMetadataRepo, Problem};
+    use crate::repo::{account_repo, file_metadata_repo};
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::FileService;
-    use crate::{DefaultFileEncryptionService, DefaultFileMetadataRepo, DefaultFileService};
+    use crate::{DefaultFileEncryptionService, DefaultFileService};
     use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
     use lockbook_models::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
@@ -579,7 +543,7 @@ mod unit_tests {
             parent: root_id,
             ..base_test_file_metadata()
         };
-        DefaultFileMetadataRepo::insert(config, &fmd).unwrap();
+        file_metadata_repo::insert(config, &fmd).unwrap();
         fmd
     }
 
@@ -596,7 +560,7 @@ mod unit_tests {
             parent,
             ..base_test_file_metadata()
         };
-        DefaultFileMetadataRepo::insert(config, &fmd).unwrap();
+        file_metadata_repo::insert(config, &fmd).unwrap();
         fmd
     }
 
@@ -607,14 +571,14 @@ mod unit_tests {
         let root = insert_test_metadata_root(config, "root_folder");
         let test_file = insert_test_metadata(config, FileType::Document, root.id, "test.txt");
 
-        let retrieved_file_metadata = DefaultFileMetadataRepo::get(config, test_file.id).unwrap();
+        let retrieved_file_metadata = file_metadata_repo::get(config, test_file.id).unwrap();
         assert_eq!(test_file.name, retrieved_file_metadata.name);
         assert_eq!(test_file.parent, retrieved_file_metadata.parent);
 
-        DefaultFileMetadataRepo::maybe_get(config, test_file.id)
+        file_metadata_repo::maybe_get(config, test_file.id)
             .unwrap()
             .unwrap();
-        assert!(DefaultFileMetadataRepo::maybe_get(config, Uuid::new_v4())
+        assert!(file_metadata_repo::maybe_get(config, Uuid::new_v4())
             .unwrap()
             .is_none());
     }
@@ -639,17 +603,17 @@ mod unit_tests {
             ..base_test_file_metadata()
         };
 
-        DefaultFileMetadataRepo::insert(config, &test_meta).unwrap();
+        file_metadata_repo::insert(config, &test_meta).unwrap();
         assert_eq!(
             test_meta.content_version,
-            DefaultFileMetadataRepo::get(config, test_meta.id)
+            file_metadata_repo::get(config, test_meta.id)
                 .unwrap()
                 .content_version
         );
-        DefaultFileMetadataRepo::insert(config, &test_meta_updated).unwrap();
+        file_metadata_repo::insert(config, &test_meta_updated).unwrap();
         assert_eq!(
             test_meta_updated.content_version,
-            DefaultFileMetadataRepo::get(config, test_meta_updated.id)
+            file_metadata_repo::get(config, test_meta_updated.id)
                 .unwrap()
                 .content_version
         );
@@ -667,14 +631,13 @@ mod unit_tests {
         let test_file4 =
             insert_test_metadata(config, FileType::Document, test_folder.id, "test.txt");
 
-        let parents = DefaultFileMetadataRepo::get_with_all_parents(config, test_file4.id).unwrap();
+        let parents = file_metadata_repo::get_with_all_parents(config, test_file4.id).unwrap();
         assert_eq!(parents.len(), 3);
         assert!(parents.contains_key(&root.id));
         assert!(parents.contains_key(&test_folder.id));
         assert!(parents.contains_key(&test_file4.id));
 
-        let children =
-            DefaultFileMetadataRepo::get_children_non_recursively(config, root.id).unwrap();
+        let children = file_metadata_repo::get_children_non_recursively(config, root.id).unwrap();
         assert_eq!(children.len(), 2);
     }
 
@@ -684,7 +647,7 @@ mod unit_tests {
 
         let _ = insert_test_metadata_root(config, "rootdir");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
+        let probs = file_metadata_repo::test_repo_integrity(config).unwrap();
         assert!(probs.is_empty());
     }
 
@@ -692,7 +655,7 @@ mod unit_tests {
     fn test_no_root() {
         let config = temp_config();
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(&config).unwrap();
+        let probs = file_metadata_repo::test_repo_integrity(&config).unwrap();
         assert_eq!(probs.len(), 1);
         assert_eq!(probs.get(0).unwrap(), &Problem::NoRootFolder);
     }
@@ -711,7 +674,7 @@ mod unit_tests {
 
         account_repo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         DefaultFileService::create_at_path(config, "username/folder1/file1.txt").unwrap();
         DefaultFileService::create_at_path(config, "username/folder2/file2.txt").unwrap();
@@ -719,19 +682,19 @@ mod unit_tests {
         DefaultFileService::create_at_path(config, "username/folder2/file4.txt").unwrap();
         DefaultFileService::create_at_path(config, "username/folder3/file5.txt").unwrap();
 
-        assert!(DefaultFileMetadataRepo::test_repo_integrity(config)
+        assert!(file_metadata_repo::test_repo_integrity(config)
             .unwrap()
             .is_empty());
 
         let orphan = insert_test_metadata(config, FileType::Document, Uuid::new_v4(), "test");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
+        let probs = file_metadata_repo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 1);
         assert_eq!(probs.get(0).unwrap(), &Problem::FileOrphaned(orphan.id));
 
         let _ = insert_test_metadata(config, FileType::Document, Uuid::new_v4(), "test");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
+        let probs = file_metadata_repo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 2);
     }
 
@@ -743,7 +706,7 @@ mod unit_tests {
         let has_slash = insert_test_metadata(config, FileType::Document, root.id, "uh/oh");
         let empty_name = insert_test_metadata(config, FileType::Document, root.id, "");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
+        let probs = file_metadata_repo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 2);
         assert!(probs.contains(&Problem::FileNameContainsSlash(has_slash.id)));
         assert!(probs.contains(&Problem::FileNameEmpty(empty_name.id)));
@@ -757,7 +720,7 @@ mod unit_tests {
         let folder1 = Uuid::new_v4();
         let folder2 = Uuid::new_v4();
 
-        DefaultFileMetadataRepo::insert(
+        file_metadata_repo::insert(
             config,
             &FileMetadata {
                 id: folder2,
@@ -769,7 +732,7 @@ mod unit_tests {
         )
         .unwrap();
 
-        DefaultFileMetadataRepo::insert(
+        file_metadata_repo::insert(
             config,
             &FileMetadata {
                 id: folder1,
@@ -782,7 +745,7 @@ mod unit_tests {
         .unwrap();
 
         assert_eq!(
-            DefaultFileMetadataRepo::test_repo_integrity(config)
+            file_metadata_repo::test_repo_integrity(config)
                 .unwrap()
                 .into_iter()
                 .filter(|prob| *prob == CycleDetected(folder1) || *prob == CycleDetected(folder2))
@@ -799,7 +762,7 @@ mod unit_tests {
         let doc1 = insert_test_metadata(config, FileType::Document, root.id, "a");
         let doc2 = insert_test_metadata(config, FileType::Document, root.id, "a");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
+        let probs = file_metadata_repo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 1);
 
         let p = probs.get(0).unwrap();
@@ -814,7 +777,7 @@ mod unit_tests {
         let doc = insert_test_metadata(config, FileType::Document, root.id, "a");
         let _ = insert_test_metadata(config, FileType::Document, doc.id, "b");
 
-        let probs = DefaultFileMetadataRepo::test_repo_integrity(config).unwrap();
+        let probs = file_metadata_repo::test_repo_integrity(config).unwrap();
         assert_eq!(probs.len(), 1);
         assert!(probs.contains(&Problem::DocumentTreatedAsFolder(doc.id)));
     }
@@ -824,7 +787,7 @@ mod unit_tests {
         let config = &temp_config();
         let root = insert_test_metadata_root(config, "root");
         let children_of_root =
-            DefaultFileMetadataRepo::get_and_get_children_recursively(config, root.id).unwrap();
+            file_metadata_repo::get_and_get_children_recursively(config, root.id).unwrap();
         assert_eq!(children_of_root, vec![root])
     }
 
@@ -837,48 +800,37 @@ mod unit_tests {
         let doc = insert_test_metadata(
             config,
             Document,
-            DefaultFileMetadataRepo::get_root(config)
-                .unwrap()
-                .unwrap()
-                .id,
+            file_metadata_repo::get_root(config).unwrap().unwrap().id,
             "child doc",
         );
 
         {
             let mut children_of_root =
-                DefaultFileMetadataRepo::get_and_get_children_recursively(config, root.id).unwrap();
+                file_metadata_repo::get_and_get_children_recursively(config, root.id).unwrap();
             children_of_root.sort_by(|f1, f2| f1.name.cmp(&f2.name));
             assert_eq!(children_of_root, vec![doc.clone(), root.clone()]);
-            assert!(
-                DefaultFileMetadataRepo::get_and_get_children_recursively(config, doc.id).is_err()
-            );
+            assert!(file_metadata_repo::get_and_get_children_recursively(config, doc.id).is_err());
         }
 
         let folder = insert_test_metadata(
             config,
             Folder,
-            DefaultFileMetadataRepo::get_root(config)
-                .unwrap()
-                .unwrap()
-                .id,
+            file_metadata_repo::get_root(config).unwrap().unwrap().id,
             "child folder",
         );
 
         {
             let mut children_of_root =
-                DefaultFileMetadataRepo::get_and_get_children_recursively(config, root.id).unwrap();
+                file_metadata_repo::get_and_get_children_recursively(config, root.id).unwrap();
             children_of_root.sort_by(|f1, f2| f1.name.cmp(&f2.name));
             assert_eq!(
                 children_of_root,
                 vec![doc.clone(), folder.clone(), root.clone()]
             );
-            assert!(
-                DefaultFileMetadataRepo::get_and_get_children_recursively(config, doc.id).is_err()
-            );
+            assert!(file_metadata_repo::get_and_get_children_recursively(config, doc.id).is_err());
 
             assert_eq!(
-                DefaultFileMetadataRepo::get_and_get_children_recursively(config, folder.id)
-                    .unwrap(),
+                file_metadata_repo::get_and_get_children_recursively(config, folder.id).unwrap(),
                 vec![folder.clone()]
             );
         }
@@ -897,8 +849,7 @@ mod unit_tests {
 
         {
             let mut children_of_folder =
-                DefaultFileMetadataRepo::get_and_get_children_recursively(config, folder.id)
-                    .unwrap();
+                file_metadata_repo::get_and_get_children_recursively(config, folder.id).unwrap();
             children_of_folder.sort_by(|f1, f2| f1.name.cmp(&f2.name));
             assert_eq!(
                 children_of_folder,

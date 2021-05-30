@@ -5,7 +5,7 @@ use crate::model::state::Config;
 use crate::repo::document_repo;
 use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo;
-use crate::repo::file_metadata_repo::{FileMetadataRepo, FindingParentsFailed};
+use crate::repo::file_metadata_repo::FindingParentsFailed;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_compression_service::FileCompressionService;
@@ -174,13 +174,11 @@ pub trait FileService {
 }
 
 pub struct FileServiceImpl<
-    FileMetadataDb: FileMetadataRepo,
     FileDb: DocumentRepo,
     ChangesDb: LocalChangesRepo,
     FileCrypto: FileEncryptionService,
     FileCompression: FileCompressionService,
 > {
-    _metadatas: FileMetadataDb,
     _files: FileDb,
     _changes_db: ChangesDb,
     _file_crypto: FileCrypto,
@@ -188,13 +186,11 @@ pub struct FileServiceImpl<
 }
 
 impl<
-        FileMetadataDb: FileMetadataRepo,
         FileDb: DocumentRepo,
         ChangesDb: LocalChangesRepo,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > FileService
-    for FileServiceImpl<FileMetadataDb, FileDb, ChangesDb, FileCrypto, FileCompression>
+    > FileService for FileServiceImpl<FileDb, ChangesDb, FileCrypto, FileCompression>
 {
     fn create(
         config: &Config,
@@ -213,7 +209,7 @@ impl<
         let account =
             account_repo::get_account(config).map_err(NewFileError::AccountRetrievalError)?;
 
-        let parents = FileMetadataDb::get_with_all_parents(config, parent)
+        let parents = file_metadata_repo::get_with_all_parents(config, parent)
             .map_err(NewFileError::CouldNotFindParents)?;
 
         // Make sure parent is in fact a folder
@@ -224,7 +220,7 @@ impl<
         }
 
         // Check that this file name is available
-        for child in FileMetadataDb::get_children_non_recursively(config, parent)
+        for child in file_metadata_repo::get_children_non_recursively(config, parent)
             .map_err(MetadataRepoError)?
         {
             if child.name == name {
@@ -236,7 +232,7 @@ impl<
             FileCrypto::create_file_metadata(name, file_type, parent, &account, parents)
                 .map_err(FileCryptoError)?;
 
-        FileMetadataDb::insert(config, &new_metadata).map_err(MetadataRepoError)?;
+        file_metadata_repo::insert(config, &new_metadata).map_err(MetadataRepoError)?;
         ChangesDb::track_new_file(config, new_metadata.id, clock_service::get_time)
             .map_err(NewFileError::FailedToRecordChange)?;
 
@@ -265,7 +261,7 @@ impl<
         let is_folder = path_and_name.ends_with('/');
         debug!("is folder: {}", is_folder);
 
-        let mut current = FileMetadataDb::get_root(config)
+        let mut current = file_metadata_repo::get_root(config)
             .map_err(NewFileFromPathError::DbError)?
             .ok_or(NoRoot)?;
 
@@ -279,7 +275,7 @@ impl<
 
         // We're going to look ahead, and find or create the right child
         'path: for index in 0..path_components.len() - 1 {
-            let children = FileMetadataDb::get_children_non_recursively(config, current.id)
+            let children = file_metadata_repo::get_children_non_recursively(config, current.id)
                 .map_err(NewFileFromPathError::DbError)?;
             debug!(
                 "children: {:?}",
@@ -330,7 +326,7 @@ impl<
         let account = account_repo::get_account(config)
             .map_err(DocumentUpdateError::AccountRetrievalError)?;
 
-        let file_metadata = FileMetadataDb::maybe_get(config, id)
+        let file_metadata = file_metadata_repo::maybe_get(config, id)
             .map_err(DbError)?
             .ok_or(CouldNotFindFile)?;
 
@@ -338,7 +334,7 @@ impl<
             return Err(FolderTreatedAsDocument);
         }
 
-        let parents = FileMetadataDb::get_with_all_parents(config, id)
+        let parents = file_metadata_repo::get_with_all_parents(config, id)
             .map_err(DocumentUpdateError::CouldNotFindParents)?;
 
         let compressed_content = FileCompression::compress(content)
@@ -352,7 +348,7 @@ impl<
         )
         .map_err(DocumentUpdateError::FileCryptoError)?;
 
-        FileMetadataDb::insert(config, &file_metadata).map_err(DbError)?;
+        file_metadata_repo::insert(config, &file_metadata).map_err(DbError)?;
 
         if let Some(old_encrypted) = FileDb::maybe_get(config, id).map_err(FetchOldVersionError)? {
             let decrypted = FileCrypto::read_document(
@@ -394,15 +390,16 @@ impl<
             return Err(DocumentRenameError::FileNameContainsSlash);
         }
 
-        match FileMetadataDb::maybe_get(config, id).map_err(DocumentRenameError::DbError)? {
+        match file_metadata_repo::maybe_get(config, id).map_err(DocumentRenameError::DbError)? {
             None => Err(FileDoesNotExist),
             Some(mut file) => {
                 if file.id == file.parent {
                     return Err(CannotRenameRoot);
                 }
 
-                let siblings = FileMetadataDb::get_children_non_recursively(config, file.parent)
-                    .map_err(DocumentRenameError::DbError)?;
+                let siblings =
+                    file_metadata_repo::get_children_non_recursively(config, file.parent)
+                        .map_err(DocumentRenameError::DbError)?;
 
                 // Check that this file name is available
                 for child in siblings {
@@ -421,7 +418,7 @@ impl<
                 .map_err(DocumentRenameError::FailedToRecordChange)?;
 
                 file.name = new_name.to_string();
-                FileMetadataDb::insert(config, &file).map_err(DocumentRenameError::DbError)?;
+                file_metadata_repo::insert(config, &file).map_err(DocumentRenameError::DbError)?;
 
                 Ok(())
             }
@@ -432,14 +429,14 @@ impl<
         let account =
             account_repo::get_account(config).map_err(FileMoveError::AccountRetrievalError)?;
 
-        match FileMetadataDb::maybe_get(config, id).map_err(FileMoveError::DbError)? {
+        match file_metadata_repo::maybe_get(config, id).map_err(FileMoveError::DbError)? {
             None => Err(FileDNE),
             Some(mut file) => {
                 if file.id == file.parent {
                     return Err(CannotMoveRoot);
                 }
 
-                match FileMetadataDb::maybe_get(config, new_parent)
+                match file_metadata_repo::maybe_get(config, new_parent)
                     .map_err(FileMoveError::DbError)?
                 {
                     None => Err(TargetParentDoesNotExist),
@@ -448,7 +445,7 @@ impl<
                             return Err(FileMoveError::DocumentTreatedAsFolder);
                         }
 
-                        let siblings = FileMetadataDb::get_children_non_recursively(
+                        let siblings = file_metadata_repo::get_children_non_recursively(
                             config,
                             parent_metadata.id,
                         )
@@ -464,7 +461,7 @@ impl<
                         // Checking if a folder is being moved into itself or its children
                         if file.file_type == FileType::Folder {
                             let children =
-                                FileMetadataDb::get_and_get_children_recursively(config, id)
+                                file_metadata_repo::get_and_get_children_recursively(config, id)
                                     .map_err(FileMoveError::FindingChildrenFailed)?;
                             for child in children {
                                 if child.id == new_parent {
@@ -474,7 +471,7 @@ impl<
                         }
 
                         // Good to move
-                        let old_parents = FileMetadataDb::get_with_all_parents(config, file.id)
+                        let old_parents = file_metadata_repo::get_with_all_parents(config, file.id)
                             .map_err(FileMoveError::CouldNotFindParents)?;
 
                         let access_key =
@@ -482,7 +479,7 @@ impl<
                                 .map_err(FailedToDecryptKey)?;
 
                         let new_parents =
-                            FileMetadataDb::get_with_all_parents(config, parent_metadata.id)
+                            file_metadata_repo::get_with_all_parents(config, parent_metadata.id)
                                 .map_err(FileMoveError::CouldNotFindParents)?;
 
                         let new_access_info = FileCrypto::re_encrypt_key_for_file(
@@ -504,7 +501,8 @@ impl<
                         file.parent = parent_metadata.id;
                         file.folder_access_keys = new_access_info;
 
-                        FileMetadataDb::insert(config, &file).map_err(FileMoveError::DbError)?;
+                        file_metadata_repo::insert(config, &file)
+                            .map_err(FileMoveError::DbError)?;
                         Ok(())
                     }
                 }
@@ -516,7 +514,7 @@ impl<
         let account =
             account_repo::get_account(config).map_err(ReadDocumentError::AccountRetrievalError)?;
 
-        let file_metadata = FileMetadataDb::maybe_get(config, id)
+        let file_metadata = file_metadata_repo::maybe_get(config, id)
             .map_err(ReadDocumentError::DbError)?
             .ok_or(ReadDocumentError::CouldNotFindFile)?;
 
@@ -526,7 +524,7 @@ impl<
 
         let document = FileDb::get(config, id).map_err(DocumentReadError)?;
 
-        let parents = FileMetadataDb::get_with_all_parents(config, id)
+        let parents = file_metadata_repo::get_with_all_parents(config, id)
             .map_err(ReadDocumentError::CouldNotFindParents)?;
 
         let compressed_content =
@@ -540,7 +538,7 @@ impl<
     }
 
     fn delete_document(config: &Config, id: Uuid) -> Result<(), DeleteDocumentError> {
-        let mut file_metadata = FileMetadataDb::maybe_get(config, id)
+        let mut file_metadata = file_metadata_repo::maybe_get(config, id)
             .map_err(DeleteDocumentError::DbError)?
             .ok_or(DeleteDocumentError::CouldNotFindFile)?;
 
@@ -558,10 +556,10 @@ impl<
 
         if !new {
             file_metadata.deleted = true;
-            FileMetadataDb::insert(config, &file_metadata)
+            file_metadata_repo::insert(config, &file_metadata)
                 .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
         } else {
-            FileMetadataDb::non_recursive_delete(config, id)
+            file_metadata_repo::non_recursive_delete(config, id)
                 .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
         }
 
@@ -573,7 +571,7 @@ impl<
     }
 
     fn delete_folder(config: &Config, id: Uuid) -> Result<(), DeleteFolderError> {
-        let file_metadata = FileMetadataDb::maybe_get(config, id)
+        let file_metadata = file_metadata_repo::maybe_get(config, id)
             .map_err(DeleteFolderError::MetadataError)?
             .ok_or(DeleteFolderError::CouldNotFindFile)?;
 
@@ -588,7 +586,7 @@ impl<
         ChangesDb::track_delete(config, id, file_metadata.file_type, clock_service::get_time)
             .map_err(DeleteFolderError::FailedToRecordChange)?;
 
-        let files_to_delete = FileMetadataDb::get_and_get_children_recursively(config, id)
+        let files_to_delete = file_metadata_repo::get_and_get_children_recursively(config, id)
             .map_err(DeleteFolderError::FindingChildrenFailed)?;
 
         // Server has told us we have the most recent version of all children in this directory and that we can delete now
@@ -607,14 +605,14 @@ impl<
             };
 
             if file.id != id && !moved {
-                FileMetadataDb::non_recursive_delete(config, file.id)
+                file_metadata_repo::non_recursive_delete(config, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
 
                 ChangesDb::delete(config, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?;
             } else {
                 file.deleted = true;
-                FileMetadataDb::insert(config, &file)
+                file_metadata_repo::insert(config, &file)
                     .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
             }
         }
@@ -630,7 +628,7 @@ mod unit_tests {
     use crate::model::state::temp_config;
     use crate::repo::account_repo;
     use crate::repo::document_repo::DocumentRepo;
-    use crate::repo::file_metadata_repo::FileMetadataRepo;
+    use crate::repo::file_metadata_repo;
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
     use crate::repo::local_changes_repo::LocalChangesRepo;
     use crate::service::file_encryption_service::FileEncryptionService;
@@ -638,8 +636,8 @@ mod unit_tests {
         DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
     use crate::{
-        init_logger, DefaultDocumentRepo, DefaultFileEncryptionService, DefaultFileMetadataRepo,
-        DefaultFileService, DefaultLocalChangesRepo, NewFileFromPathError,
+        init_logger, DefaultDocumentRepo, DefaultFileEncryptionService, DefaultFileService,
+        DefaultLocalChangesRepo, NewFileFromPathError,
     };
     use libsecp256k1::SecretKey;
     use lockbook_models::account::Account;
@@ -648,7 +646,7 @@ mod unit_tests {
 
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
-            assert!(DefaultFileMetadataRepo::test_repo_integrity($db)
+            assert!(file_metadata_repo::test_repo_integrity($db)
                 .unwrap()
                 .is_empty());
         }
@@ -668,7 +666,7 @@ mod unit_tests {
     macro_rules! assert_total_filtered_paths (
         ($db:expr, $filter:expr, $total:literal) => {
             assert_eq!(
-                DefaultFileMetadataRepo::get_all_paths($db, $filter)
+                file_metadata_repo::get_all_paths($db, $filter)
                     .unwrap()
                     .len(),
                 $total
@@ -690,11 +688,11 @@ mod unit_tests {
 
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
-        assert!(DefaultFileMetadataRepo::get_root(config).unwrap().is_none());
+        assert!(file_metadata_repo::get_root(config).unwrap().is_none());
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
-        assert!(DefaultFileMetadataRepo::get_root(config).unwrap().is_some());
+        file_metadata_repo::insert(config, &root).unwrap();
+        assert!(file_metadata_repo::get_root(config).unwrap().is_some());
         assert_no_metadata_problems!(config);
 
         assert!(matches!(
@@ -747,10 +745,10 @@ mod unit_tests {
         assert_total_filtered_paths!(config, None, 0);
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
         assert_total_filtered_paths!(config, None, 1);
         assert_eq!(
-            DefaultFileMetadataRepo::get_all_paths(config, None)
+            file_metadata_repo::get_all_paths(config, None)
                 .unwrap()
                 .get(0)
                 .unwrap(),
@@ -761,10 +759,10 @@ mod unit_tests {
 
         let folder1 = DefaultFileService::create(config, "TestFolder1", root.id, Folder).unwrap();
         assert_total_filtered_paths!(config, None, 2);
-        assert!(DefaultFileMetadataRepo::get_all_paths(config, None)
+        assert!(file_metadata_repo::get_all_paths(config, None)
             .unwrap()
             .contains(&"username/".to_string()));
-        assert!(DefaultFileMetadataRepo::get_all_paths(config, None)
+        assert!(file_metadata_repo::get_all_paths(config, None)
             .unwrap()
             .contains(&"username/TestFolder1/".to_string()));
 
@@ -785,10 +783,10 @@ mod unit_tests {
         DefaultFileService::create(config, "test5.text", folder2.id, Document).unwrap();
         assert_no_metadata_problems!(config);
 
-        assert!(DefaultFileMetadataRepo::get_all_paths(config, None)
+        assert!(file_metadata_repo::get_all_paths(config, None)
             .unwrap()
             .contains(&"username/TestFolder1/TestFolder2/test3.text".to_string()));
-        assert!(DefaultFileMetadataRepo::get_all_paths(config, None)
+        assert!(file_metadata_repo::get_all_paths(config, None)
             .unwrap()
             .contains(
                 &"username/TestFolder1/TestFolder2/TestFolder3/TestFolder4/test1.text".to_string()
@@ -803,7 +801,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         let folder1 = DefaultFileService::create(config, "TestFolder1", root.id, Folder).unwrap();
         let folder2 =
@@ -820,30 +818,27 @@ mod unit_tests {
         DefaultFileService::create(config, "test4.text", folder2.id, Document).unwrap();
         DefaultFileService::create(config, "test5.text", folder2.id, Document).unwrap();
 
-        assert!(DefaultFileMetadataRepo::get_by_path(config, "invalid")
+        assert!(file_metadata_repo::get_by_path(config, "invalid")
             .unwrap()
             .is_none());
-        assert!(DefaultFileMetadataRepo::get_by_path(
+        assert!(file_metadata_repo::get_by_path(
             config,
             "username/TestFolder1/TestFolder2/test3.text",
         )
         .unwrap()
         .is_some());
         assert_eq!(
-            DefaultFileMetadataRepo::get_by_path(
-                config,
-                "username/TestFolder1/TestFolder2/test3.text",
-            )
-            .unwrap()
-            .unwrap(),
+            file_metadata_repo::get_by_path(config, "username/TestFolder1/TestFolder2/test3.text",)
+                .unwrap()
+                .unwrap(),
             file
         );
 
-        DefaultFileMetadataRepo::get_all_paths(config, None)
+        file_metadata_repo::get_all_paths(config, None)
             .unwrap()
             .into_iter()
             .for_each(|path| {
-                assert!(DefaultFileMetadataRepo::get_by_path(config, &path)
+                assert!(file_metadata_repo::get_by_path(config, &path)
                     .unwrap()
                     .is_some())
             });
@@ -859,7 +854,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         let paths_with_empties = ["username//", "username/path//to///file.md"];
         for path in &paths_with_empties {
@@ -908,13 +903,11 @@ mod unit_tests {
         assert_total_filtered_paths!(config, None, 7);
         assert_eq!(file.name, "test3.txt");
         assert_eq!(
-            DefaultFileMetadataRepo::get(config, file.parent)
-                .unwrap()
-                .name,
+            file_metadata_repo::get(config, file.parent).unwrap().name,
             "folder2"
         );
         assert_eq!(
-            DefaultFileMetadataRepo::get(config, file.parent)
+            file_metadata_repo::get(config, file.parent)
                 .unwrap()
                 .file_type,
             Folder
@@ -942,7 +935,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         DefaultFileService::create_at_path(config, "username/test.txt").unwrap();
         assert!(DefaultFileService::create_at_path(config, "username/test.txt").is_err());
@@ -958,7 +951,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(config, "username/test.txt").unwrap();
         assert!(DefaultFileService::create(config, "test.txt", file.parent, Document).is_err());
@@ -974,7 +967,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         DefaultFileService::create_at_path(config, "username/test.txt").unwrap();
         assert!(DefaultFileService::create_at_path(config, "username/test.txt/oops.txt").is_err());
@@ -990,7 +983,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(config, "username/test.txt").unwrap();
         assert!(DefaultFileService::create(config, "oops.txt", file.id, Document).is_err());
@@ -1006,7 +999,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
         assert!(DefaultFileService::create(config, "oops/txt", root.id, Document).is_err());
 
         assert_no_metadata_problems!(config);
@@ -1020,7 +1013,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
         assert!(matches!(
@@ -1083,14 +1076,14 @@ mod unit_tests {
         assert!(DefaultFileService::rename_file(config, file.id, "file/1.txt").is_err());
         assert_total_local_changes!(config, 0);
         assert_eq!(
-            DefaultFileMetadataRepo::get(config, file.id).unwrap().name,
+            file_metadata_repo::get(config, file.id).unwrap().name,
             "file1.txt"
         );
 
         let file2 =
             DefaultFileService::create_at_path(config, "username/folder1/file2.txt").unwrap();
         assert_eq!(
-            DefaultFileMetadataRepo::get(config, file2.id).unwrap().name,
+            file_metadata_repo::get(config, file2.id).unwrap().name,
             "file2.txt"
         );
         assert!(DefaultFileService::rename_file(config, file2.id, "file1.txt").is_err());
@@ -1105,7 +1098,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
         assert!(matches!(
@@ -1144,9 +1137,7 @@ mod unit_tests {
         assert_no_metadata_problems!(config);
 
         assert_eq!(
-            DefaultFileMetadataRepo::get(config, file1.id)
-                .unwrap()
-                .parent,
+            file_metadata_repo::get(config, file1.id).unwrap().parent,
             folder1.id
         );
         assert_total_local_changes!(config, 1);
@@ -1171,7 +1162,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
         let folder1 = DefaultFileService::create_at_path(config, "username/folder1/").unwrap();
@@ -1199,7 +1190,7 @@ mod unit_tests {
         account_repo::insert_account(config, &account).unwrap();
 
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         let file = DefaultFileService::create_at_path(config, "username/file1.md").unwrap();
         DefaultFileService::write_document(config, file.id, "fresh content".as_bytes()).unwrap();
@@ -1236,7 +1227,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         let doc1 = DefaultFileService::create(config, "test1.md", root.id, Document).unwrap();
 
@@ -1248,7 +1239,7 @@ mod unit_tests {
             .unwrap()
             .is_none());
 
-        assert!(DefaultFileMetadataRepo::maybe_get(config, doc1.id)
+        assert!(file_metadata_repo::maybe_get(config, doc1.id)
             .unwrap()
             .is_none());
 
@@ -1264,7 +1255,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         let doc1 = DefaultFileService::create(config, "test1.md", root.id, Document).unwrap();
 
@@ -1282,7 +1273,7 @@ mod unit_tests {
         );
 
         assert!(
-            DefaultFileMetadataRepo::maybe_get(config, doc1.id)
+            file_metadata_repo::maybe_get(config, doc1.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1296,26 +1287,25 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         DefaultFileService::create_at_path(config, &format!("{}/a/b/c/d/", account.username))
             .unwrap();
         let folder1 =
-            DefaultFileMetadataRepo::get_by_path(config, &format!("{}/a/b/c/d/", account.username))
+            file_metadata_repo::get_by_path(config, &format!("{}/a/b/c/d/", account.username))
                 .unwrap()
                 .unwrap();
         let folder2 =
-            DefaultFileMetadataRepo::get_by_path(config, &format!("{}/a/b/c/", account.username))
+            file_metadata_repo::get_by_path(config, &format!("{}/a/b/c/", account.username))
                 .unwrap()
                 .unwrap();
         let folder3 =
-            DefaultFileMetadataRepo::get_by_path(config, &format!("{}/a/b/", account.username))
+            file_metadata_repo::get_by_path(config, &format!("{}/a/b/", account.username))
                 .unwrap()
                 .unwrap();
-        let folder4 =
-            DefaultFileMetadataRepo::get_by_path(config, &format!("{}/a/", account.username))
-                .unwrap()
-                .unwrap();
+        let folder4 = file_metadata_repo::get_by_path(config, &format!("{}/a/", account.username))
+            .unwrap()
+            .unwrap();
 
         assert_eq!(
             DefaultLocalChangesRepo::get_all_local_changes(config)
@@ -1334,7 +1324,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         let folder1 = DefaultFileService::create(config, "folder1", root.id, Folder).unwrap();
         let document1 = DefaultFileService::create(config, "doc1", folder1.id, Document).unwrap();
@@ -1346,13 +1336,13 @@ mod unit_tests {
         DefaultFileService::delete_folder(config, folder1.id).unwrap();
         assert_total_local_changes!(config, 1);
 
-        assert!(DefaultFileMetadataRepo::maybe_get(config, document1.id)
+        assert!(file_metadata_repo::maybe_get(config, document1.id)
             .unwrap()
             .is_none());
-        assert!(DefaultFileMetadataRepo::maybe_get(config, document2.id)
+        assert!(file_metadata_repo::maybe_get(config, document2.id)
             .unwrap()
             .is_none());
-        assert!(DefaultFileMetadataRepo::maybe_get(config, document3.id)
+        assert!(file_metadata_repo::maybe_get(config, document3.id)
             .unwrap()
             .is_none());
 
@@ -1374,7 +1364,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         let folder1 = DefaultFileService::create(config, "folder1", root.id, Folder).unwrap();
         DefaultFileService::create(config, "doc1", folder1.id, Document).unwrap();
@@ -1391,13 +1381,13 @@ mod unit_tests {
         DefaultFileService::delete_folder(config, folder1.id).unwrap();
         assert_total_local_changes!(config, 5);
 
-        assert!(DefaultFileMetadataRepo::maybe_get(config, document4.id)
+        assert!(file_metadata_repo::maybe_get(config, document4.id)
             .unwrap()
             .is_some());
-        assert!(DefaultFileMetadataRepo::maybe_get(config, document5.id)
+        assert!(file_metadata_repo::maybe_get(config, document5.id)
             .unwrap()
             .is_some());
-        assert!(DefaultFileMetadataRepo::maybe_get(config, document6.id)
+        assert!(file_metadata_repo::maybe_get(config, document6.id)
             .unwrap()
             .is_some());
 
@@ -1419,7 +1409,7 @@ mod unit_tests {
         let account = test_account();
         account_repo::insert_account(config, &account).unwrap();
         let root = DefaultFileEncryptionService::create_metadata_for_root_folder(&account).unwrap();
-        DefaultFileMetadataRepo::insert(config, &root).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
 
         assert!(matches!(
             DefaultFileService::delete_folder(config, root.id).unwrap_err(),
