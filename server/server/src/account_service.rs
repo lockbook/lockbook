@@ -10,6 +10,8 @@ use lockbook_models::file_metadata::FileType;
 pub async fn new_account(
     context: &mut RequestContext<'_, NewAccountRequest>,
 ) -> Result<NewAccountResponse, Result<NewAccountError, String>> {
+    return Err(Err(String::from("testy test")));
+
     let request = &context.request;
     let server_state = &mut context.server_state;
     if !username_is_valid(&request.username) {
@@ -19,10 +21,7 @@ pub async fn new_account(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -31,10 +30,7 @@ pub async fn new_account(
             .await;
     new_account_result.map_err(|e| match e {
         file_index_repo::NewAccountError::UsernameTaken => Ok(NewAccountError::UsernameTaken),
-        _ => Err(format!(
-            "Internal server error! Cannot create account in Postgres: {:?}",
-            e
-        )),
+        _ => Err(format!("Cannot create account in Postgres: {:?}", e)),
     })?;
 
     let create_folder_result = file_index_repo::create_file(
@@ -51,7 +47,7 @@ pub async fn new_account(
     let new_version = create_folder_result.map_err(|e| match e {
         file_index_repo::CreateFileError::IdTaken => Ok(NewAccountError::FileIdTaken),
         _ => Err(format!(
-            "Internal server error! Cannot create account root folder in Postgres: {:?}",
+            "Cannot create account root folder in Postgres: {:?}",
             e
         )),
     })?;
@@ -64,7 +60,7 @@ pub async fn new_account(
     .await;
     new_user_access_key_result.map_err(|e| {
         Err(format!(
-            "Internal server error! Cannot create access keys for user in Postgres: {:?}",
+            "Cannot create access keys for user in Postgres: {:?}",
             e
         ))
     })?;
@@ -73,10 +69,7 @@ pub async fn new_account(
         Ok(()) => Ok(NewAccountResponse {
             folder_metadata_version: new_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -88,27 +81,18 @@ pub async fn get_public_key(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
     let result = file_index_repo::get_public_key(&mut transaction, &request.username).await;
     let key = result.map_err(|e| match e {
         file_index_repo::PublicKeyError::UserNotFound => Ok(GetPublicKeyError::UserNotFound),
-        _ => Err(format!(
-            "Internal server error! Cannot get public key from Postgres: {:?}",
-            e
-        )),
+        _ => Err(format!("Cannot get public key from Postgres: {:?}", e)),
     })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(GetPublicKeyResponse { key: key }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -119,10 +103,7 @@ pub async fn get_usage(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:#?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:#?}", e)));
         }
     };
 

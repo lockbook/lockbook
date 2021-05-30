@@ -15,10 +15,7 @@ pub async fn change_document_content(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -42,7 +39,7 @@ pub async fn change_document_content(
         }
         ChangeDocumentVersionAndSizeError::Postgres(_)
         | ChangeDocumentVersionAndSizeError::Deserialize(_) => Err(format!(
-            "Internal server error! Cannot change document content version in Postgres: {:?}",
+            "Cannot change document content version in Postgres: {:?}",
             e
         )),
     })?;
@@ -56,7 +53,7 @@ pub async fn change_document_content(
     .await;
     if create_result.is_err() {
         return Err(Err(format!(
-            "Internal server error! Cannot create file in S3: {:?}",
+            "Cannot create file in S3: {:?}",
             create_result
         )));
     };
@@ -69,7 +66,7 @@ pub async fn change_document_content(
     .await;
     if delete_result.is_err() {
         return Err(Err(format!(
-            "Internal server error! Cannot delete file in S3: {:?}",
+            "Cannot delete file in S3: {:?}",
             delete_result
         )));
     };
@@ -78,10 +75,7 @@ pub async fn change_document_content(
         Ok(()) => Ok(ChangeDocumentContentResponse {
             new_metadata_and_content_version: new_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -93,10 +87,7 @@ pub async fn create_document(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -117,10 +108,9 @@ pub async fn create_document(
         CreateFileError::OwnerDoesNotExist => Ok(CreateDocumentError::UserNotFound),
         CreateFileError::ParentDoesNotExist => Ok(CreateDocumentError::ParentNotFound),
         CreateFileError::AncestorDeleted => Ok(CreateDocumentError::AncestorDeleted),
-        CreateFileError::Postgres(_) | CreateFileError::Serialize(_) => Err(format!(
-            "Internal server error! Cannot create document in Postgres: {:?}",
-            e
-        )),
+        CreateFileError::Postgres(_) | CreateFileError::Serialize(_) => {
+            Err(format!("Cannot create document in Postgres: {:?}", e))
+        }
     })?;
 
     let files_result = file_content_client::create(
@@ -132,20 +122,14 @@ pub async fn create_document(
     .await;
 
     if files_result.is_err() {
-        return Err(Err(format!(
-            "Internal server error! Cannot create file in S3: {:?}",
-            files_result
-        )));
+        return Err(Err(format!("Cannot create file in S3: {:?}", files_result)));
     };
 
     match transaction.commit().await {
         Ok(()) => Ok(CreateDocumentResponse {
             new_metadata_and_content_version: new_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -157,10 +141,7 @@ pub async fn delete_document(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -172,17 +153,16 @@ pub async fn delete_document(
         | DeleteFileError::Postgres(_)
         | DeleteFileError::Serialize(_)
         | DeleteFileError::Deserialize(_)
-        | DeleteFileError::UuidDeserialize(_) => Err(format!(
-            "Internal server error! Cannot delete document in Postgres: {:?}",
-            e
-        )),
+        | DeleteFileError::UuidDeserialize(_) => {
+            Err(format!("Cannot delete document in Postgres: {:?}", e))
+        }
     })?;
 
     let single_index_response = if let Some(result) = index_responses.iter().last() {
         result
     } else {
         return Err(Err(String::from(
-            "Internal server error! Unexpected zero or multiple postgres rows during delete document"
+            "Unexpected zero or multiple postgres rows during delete document",
         )));
     };
 
@@ -193,20 +173,14 @@ pub async fn delete_document(
     )
     .await;
     if files_result.is_err() {
-        return Err(Err(format!(
-            "Internal server error! Cannot delete file in S3: {:?}",
-            files_result
-        )));
+        return Err(Err(format!("Cannot delete file in S3: {:?}", files_result)));
     };
 
     match transaction.commit().await {
         Ok(()) => Ok(DeleteDocumentResponse {
             new_metadata_and_content_version: single_index_response.new_metadata_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -218,10 +192,7 @@ pub async fn move_document(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -243,20 +214,14 @@ pub async fn move_document(
         MoveFileError::FolderMovedIntoDescendants
         | MoveFileError::IllegalRootChange
         | MoveFileError::Postgres(_)
-        | MoveFileError::Serialize(_) => Err(format!(
-            "Internal server error! Cannot move document in Postgres: {:?}",
-            e
-        )),
+        | MoveFileError::Serialize(_) => Err(format!("Cannot move document in Postgres: {:?}", e)),
     })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(MoveDocumentResponse {
             new_metadata_version: new_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -268,10 +233,7 @@ pub async fn rename_document(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -290,20 +252,16 @@ pub async fn rename_document(
         RenameFileError::PathTaken => Ok(RenameDocumentError::DocumentPathTaken),
         RenameFileError::IllegalRootChange
         | RenameFileError::Postgres(_)
-        | RenameFileError::Serialize(_) => Err(format!(
-            "Internal server error! Cannot rename document in Postgres: {:?}",
-            e
-        )),
+        | RenameFileError::Serialize(_) => {
+            Err(format!("Cannot rename document in Postgres: {:?}", e))
+        }
     })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(RenameDocumentResponse {
             new_metadata_version: new_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -323,10 +281,7 @@ pub async fn get_document(
         Err(file_content_client::Error::NoSuchKey(_)) => {
             Err(Ok(GetDocumentError::DocumentNotFound))
         }
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot get file from S3: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot get file from S3: {:?}", e))),
     }
 }
 
@@ -338,10 +293,7 @@ pub async fn create_folder(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -362,20 +314,16 @@ pub async fn create_folder(
         CreateFileError::OwnerDoesNotExist => Ok(CreateFolderError::UserNotFound),
         CreateFileError::ParentDoesNotExist => Ok(CreateFolderError::ParentNotFound),
         CreateFileError::AncestorDeleted => Ok(CreateFolderError::AncestorDeleted),
-        CreateFileError::Postgres(_) | CreateFileError::Serialize(_) => Err(format!(
-            "Internal server error! Cannot create folder in Postgres: {:?}",
-            e
-        )),
+        CreateFileError::Postgres(_) | CreateFileError::Serialize(_) => {
+            Err(format!("Cannot create folder in Postgres: {:?}", e))
+        }
     })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(CreateFolderResponse {
             new_metadata_version: new_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -387,10 +335,7 @@ pub async fn delete_folder(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -402,10 +347,9 @@ pub async fn delete_folder(
         DeleteFileError::Postgres(_)
         | DeleteFileError::Serialize(_)
         | DeleteFileError::Deserialize(_)
-        | DeleteFileError::UuidDeserialize(_) => Err(format!(
-            "Internal server error! Cannot delete folder in Postgres: {:?}",
-            e
-        )),
+        | DeleteFileError::UuidDeserialize(_) => {
+            Err(format!("Cannot delete folder in Postgres: {:?}", e))
+        }
     })?;
 
     let root_result =
@@ -413,8 +357,8 @@ pub async fn delete_folder(
             result
         } else {
             return Err(Err(String::from(
-            "Internal server error! Unexpected zero or multiple postgres rows during delete folder",
-        )));
+                "Unexpected zero or multiple postgres rows during delete folder",
+            )));
         };
 
     for r in index_responses.iter() {
@@ -426,10 +370,7 @@ pub async fn delete_folder(
             )
             .await;
             if files_result.is_err() {
-                return Err(Err(format!(
-                    "Internal server error! Cannot delete file in S3: {:?}",
-                    files_result
-                )));
+                return Err(Err(format!("Cannot delete file in S3: {:?}", files_result)));
             };
         }
     }
@@ -438,10 +379,7 @@ pub async fn delete_folder(
         Ok(()) => Ok(DeleteFolderResponse {
             new_metadata_version: root_result.new_metadata_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -453,10 +391,7 @@ pub async fn move_folder(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -477,20 +412,16 @@ pub async fn move_folder(
         MoveFileError::ParentDeleted => Ok(MoveFolderError::ParentDeleted),
         MoveFileError::FolderMovedIntoDescendants => Ok(MoveFolderError::CannotMoveIntoDescendant),
         MoveFileError::IllegalRootChange => Ok(MoveFolderError::CannotMoveRoot),
-        MoveFileError::Postgres(_) | MoveFileError::Serialize(_) => Err(format!(
-            "Internal server error! Cannot move folder in Postgres: {:?}",
-            e
-        )),
+        MoveFileError::Postgres(_) | MoveFileError::Serialize(_) => {
+            Err(format!("Cannot move folder in Postgres: {:?}", e))
+        }
     })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(MoveFolderResponse {
             new_metadata_version: new_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -502,10 +433,7 @@ pub async fn rename_folder(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -523,20 +451,16 @@ pub async fn rename_folder(
         RenameFileError::Deleted => Ok(RenameFolderError::FolderDeleted),
         RenameFileError::PathTaken => Ok(RenameFolderError::FolderPathTaken),
         RenameFileError::IllegalRootChange => Ok(RenameFolderError::CannotRenameRoot),
-        RenameFileError::Postgres(_) | RenameFileError::Serialize(_) => Err(format!(
-            "Internal server error! Cannot rename folder in Postgres: {:?}",
-            e
-        )),
+        RenameFileError::Postgres(_) | RenameFileError::Serialize(_) => {
+            Err(format!("Cannot rename folder in Postgres: {:?}", e))
+        }
     })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(RenameFolderResponse {
             new_metadata_version: new_version,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
@@ -548,10 +472,7 @@ pub async fn get_updates(
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!(
-                "Internal server error! Cannot begin transaction: {:?}",
-                e
-            )));
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
         }
     };
     let result = file_index_repo::get_updates(
@@ -560,20 +481,12 @@ pub async fn get_updates(
         request.since_metadata_version,
     )
     .await;
-    let updates = result.map_err(|e| {
-        Err(format!(
-            "Internal server error! Cannot get updates from Postgres: {:?}",
-            e
-        ))
-    })?;
+    let updates = result.map_err(|e| Err(format!("Cannot get updates from Postgres: {:?}", e)))?;
 
     match transaction.commit().await {
         Ok(()) => Ok(GetUpdatesResponse {
             file_metadata: updates,
         }),
-        Err(e) => Err(Err(format!(
-            "Internal server error! Cannot commit transaction: {:?}",
-            e
-        ))),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }

@@ -74,17 +74,17 @@ pub fn init(
     })
 }
 
-fn pd_logger(build: &String, pd_api_key: &String, handle: Handle) -> Dispatch {
-    let _ = notify(
+fn pd_logger(build: &str, pd_api_key: &str, handle: Handle) -> Dispatch {
+    notify(
         pd_api_key,
         &handle,
         Event::Change(Change {
             payload: ChangePayload {
-                summary: "Lockbook Server is starting up...".to_string(),
+                summary: String::from("Lockbook Server is starting up..."),
                 timestamp: SystemTime::now().into(),
-                source: Some("localhost".to_string()), // TODO: Hostname
+                source: Some(String::from("localhost")), // TODO: Hostname
                 custom_details: Some(ChangeDetail {
-                    build: build.to_string(),
+                    build: String::from(build),
                 }),
             },
             links: None,
@@ -92,9 +92,9 @@ fn pd_logger(build: &String, pd_api_key: &String, handle: Handle) -> Dispatch {
     );
 
     let pdl = PDLogger {
-        key: pd_api_key.to_string(),
+        key: String::from(pd_api_key),
         handle: handle,
-        build: build.to_string(),
+        build: String::from(build),
     };
 
     fern::Dispatch::new()
@@ -123,7 +123,11 @@ impl Log for PDLogger {
                 Event::AlertTrigger(AlertTrigger {
                     payload: AlertTriggerPayload {
                         severity: level_to_severity(record.level()),
-                        summary: record.args().to_string(),
+                        summary: {
+                            let mut s = String::from(&record.args().to_string()[..1021]);
+                            s.push_str("...");
+                            s
+                        },
                         source: "localhost".to_string(), // TODO: Hostname
                         timestamp: Some(SystemTime::now().into()),
                         component: None,
@@ -190,11 +194,11 @@ struct ChangeDetail {
 }
 
 fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>(
-    api_key: &String,
+    api_key: &str,
     handle: &Handle,
     event: Event<T>,
 ) {
-    let events = EventsV2::new(api_key.to_string(), Some("lockbook-server".to_string())).unwrap();
+    let events = EventsV2::new(String::from(api_key), Some("lockbook-server".to_string())).unwrap();
 
     // https://github.com/neonphog/tokio_safe_block_on/blob/074d40929ccab649b0dcc83a4ebdbdcb70b317fb/src/lib.rs#L72-L86
     tokio::task::block_in_place(move || {
