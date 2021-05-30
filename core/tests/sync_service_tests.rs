@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_tests {
-    use lockbook_core::repo::document_repo::DocumentRepo;
+    use lockbook_core::repo::document_repo;
     use lockbook_core::repo::file_metadata_repo;
     use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
     use lockbook_core::service::account_service::AccountService;
@@ -10,8 +10,7 @@ mod sync_tests {
     use lockbook_core::service::sync_service::SyncService;
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::{
-        DefaultAccountService, DefaultDocumentRepo, DefaultFileService, DefaultLocalChangesRepo,
-        DefaultSyncService,
+        DefaultAccountService, DefaultFileService, DefaultLocalChangesRepo, DefaultSyncService,
     };
     use lockbook_models::file_metadata::FileType::Folder;
     use lockbook_models::work_unit::WorkUnit;
@@ -765,9 +764,7 @@ mod sync_tests {
         assert!(file_metadata_repo::maybe_get(&db1, file.id)
             .unwrap()
             .is_none());
-        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
-            .unwrap()
-            .is_none());
+        assert!(document_repo::maybe_get(&db1, file.id).unwrap().is_none());
         assert!(DefaultFileService::read_document(&db1, file.id).is_err());
     }
 
@@ -795,12 +792,8 @@ mod sync_tests {
             .unwrap()
             .is_none());
 
-        assert!(DefaultDocumentRepo::maybe_get(&db1, file.id)
-            .unwrap()
-            .is_none());
-        assert!(DefaultDocumentRepo::maybe_get(&db2, file.id)
-            .unwrap()
-            .is_none());
+        assert!(document_repo::maybe_get(&db1, file.id).unwrap().is_none());
+        assert!(document_repo::maybe_get(&db2, file.id).unwrap().is_none());
 
         assert!(DefaultLocalChangesRepo::get_local_changes(&db1, file.id)
             .unwrap()

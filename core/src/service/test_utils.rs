@@ -1,17 +1,18 @@
 #![allow(dead_code)]
 
 use crate::model::state::Config;
-use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo::FILE_METADATA;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 
-use crate::{DefaultDocumentRepo, DefaultLocalChangesRepo};
+use crate::DefaultLocalChangesRepo;
 
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 
-use crate::repo::{account_repo, db_version_repo, file_metadata_repo, local_storage};
+use crate::repo::{
+    account_repo, db_version_repo, document_repo, file_metadata_repo, local_storage,
+};
 use lockbook_crypto::{pubkey, symkey};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -68,7 +69,7 @@ pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
     let public_key = account.public_key();
     let user_access_info = UserAccessInfo {
         username: account.username.clone(),
-        encrypted_by: public_key.clone(),
+        encrypted_by: public_key,
         access_key: aes_encrypt(
             &pubkey::get_aes_key(&account.private_key, &account.public_key()).unwrap(),
             &folder_key,
@@ -174,13 +175,13 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     );
 
     let value1: Vec<EncryptedDocument> =
-        local_storage::dump::<_, Vec<u8>>(&db1, DefaultDocumentRepo::NAMESPACE)
+        local_storage::dump::<_, Vec<u8>>(&db1, document_repo::NAMESPACE)
             .unwrap()
             .iter()
             .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
             .collect();
     let value2: Vec<EncryptedDocument> =
-        local_storage::dump::<_, Vec<u8>>(&db2, DefaultDocumentRepo::NAMESPACE)
+        local_storage::dump::<_, Vec<u8>>(&db2, document_repo::NAMESPACE)
             .unwrap()
             .iter()
             .map(|s| serde_json::from_slice(s.as_ref()).unwrap())

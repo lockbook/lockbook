@@ -3,7 +3,6 @@ use uuid::Uuid;
 
 use crate::model::state::Config;
 use crate::repo::document_repo;
-use crate::repo::document_repo::DocumentRepo;
 use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::FindingParentsFailed;
 use crate::repo::local_changes_repo::LocalChangesRepo;
@@ -174,23 +173,20 @@ pub trait FileService {
 }
 
 pub struct FileServiceImpl<
-    FileDb: DocumentRepo,
     ChangesDb: LocalChangesRepo,
     FileCrypto: FileEncryptionService,
     FileCompression: FileCompressionService,
 > {
-    _files: FileDb,
     _changes_db: ChangesDb,
     _file_crypto: FileCrypto,
     _file_compression: FileCompression,
 }
 
 impl<
-        FileDb: DocumentRepo,
         ChangesDb: LocalChangesRepo,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > FileService for FileServiceImpl<FileDb, ChangesDb, FileCrypto, FileCompression>
+    > FileService for FileServiceImpl<ChangesDb, FileCrypto, FileCompression>
 {
     fn create(
         config: &Config,
@@ -350,7 +346,9 @@ impl<
 
         file_metadata_repo::insert(config, &file_metadata).map_err(DbError)?;
 
-        if let Some(old_encrypted) = FileDb::maybe_get(config, id).map_err(FetchOldVersionError)? {
+        if let Some(old_encrypted) =
+            document_repo::maybe_get(config, id).map_err(FetchOldVersionError)?
+        {
             let decrypted = FileCrypto::read_document(
                 &account,
                 &old_encrypted,
@@ -376,7 +374,7 @@ impl<
             .map_err(DocumentUpdateError::FailedToRecordChange)?;
         };
 
-        FileDb::insert(config, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
+        document_repo::insert(config, file_metadata.id, &new_file).map_err(DocumentWriteError)?;
 
         Ok(())
     }
@@ -522,7 +520,7 @@ impl<
             return Err(ReadDocumentError::TreatedFolderAsDocument);
         }
 
-        let document = FileDb::get(config, id).map_err(DocumentReadError)?;
+        let document = document_repo::get(config, id).map_err(DocumentReadError)?;
 
         let parents = file_metadata_repo::get_with_all_parents(config, id)
             .map_err(ReadDocumentError::CouldNotFindParents)?;
@@ -563,7 +561,7 @@ impl<
                 .map_err(DeleteDocumentError::FailedToUpdateMetadata)?;
         }
 
-        FileDb::delete(config, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
+        document_repo::delete(config, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
         ChangesDb::track_delete(config, id, file_metadata.file_type, clock_service::get_time)
             .map_err(DeleteDocumentError::FailedToTrackDelete)?;
 
@@ -592,7 +590,7 @@ impl<
         // Server has told us we have the most recent version of all children in this directory and that we can delete now
         for mut file in files_to_delete {
             if file.file_type == Document {
-                FileDb::delete(config, file.id)
+                document_repo::delete(config, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteDocument)?;
             }
 
@@ -626,18 +624,16 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::state::temp_config;
-    use crate::repo::account_repo;
-    use crate::repo::document_repo::DocumentRepo;
-    use crate::repo::file_metadata_repo;
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
     use crate::repo::local_changes_repo::LocalChangesRepo;
+    use crate::repo::{account_repo, document_repo, file_metadata_repo};
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::{
         DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
     use crate::{
-        init_logger, DefaultDocumentRepo, DefaultFileEncryptionService, DefaultFileService,
-        DefaultLocalChangesRepo, NewFileFromPathError,
+        init_logger, DefaultFileEncryptionService, DefaultFileService, DefaultLocalChangesRepo,
+        NewFileFromPathError,
     };
     use libsecp256k1::SecretKey;
     use lockbook_models::account::Account;
@@ -1243,9 +1239,7 @@ mod unit_tests {
             .unwrap()
             .is_none());
 
-        assert!(DefaultDocumentRepo::maybe_get(config, doc1.id)
-            .unwrap()
-            .is_none());
+        assert!(document_repo::maybe_get(config, doc1.id).unwrap().is_none());
     }
 
     #[test]
@@ -1346,13 +1340,13 @@ mod unit_tests {
             .unwrap()
             .is_none());
 
-        assert!(DefaultDocumentRepo::maybe_get(config, document1.id)
+        assert!(document_repo::maybe_get(config, document1.id)
             .unwrap()
             .is_none());
-        assert!(DefaultDocumentRepo::maybe_get(config, document2.id)
+        assert!(document_repo::maybe_get(config, document2.id)
             .unwrap()
             .is_none());
-        assert!(DefaultDocumentRepo::maybe_get(config, document3.id)
+        assert!(document_repo::maybe_get(config, document3.id)
             .unwrap()
             .is_none());
     }
@@ -1391,13 +1385,13 @@ mod unit_tests {
             .unwrap()
             .is_some());
 
-        assert!(DefaultDocumentRepo::maybe_get(config, document4.id)
+        assert!(document_repo::maybe_get(config, document4.id)
             .unwrap()
             .is_some());
-        assert!(DefaultDocumentRepo::maybe_get(config, document5.id)
+        assert!(document_repo::maybe_get(config, document5.id)
             .unwrap()
             .is_some());
-        assert!(DefaultDocumentRepo::maybe_get(config, document6.id)
+        assert!(document_repo::maybe_get(config, document6.id)
             .unwrap()
             .is_some());
     }

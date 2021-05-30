@@ -7,7 +7,6 @@ use uuid::Uuid;
 use crate::client;
 use crate::client::ApiError;
 use crate::model::state::Config;
-use crate::repo::document_repo::DocumentRepo;
 use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::file_compression_service::FileCompressionService;
@@ -124,13 +123,11 @@ pub struct SyncProgress {
 
 pub struct FileSyncService<
     ChangeDb: LocalChangesRepo,
-    DocsDb: DocumentRepo,
     Files: FileService,
     FileCrypto: FileEncryptionService,
     FileCompression: FileCompressionService,
 > {
     _changes: ChangeDb,
-    _docs: DocsDb,
     _file: Files,
     _file_crypto: FileCrypto,
     _file_compression: FileCompression,
@@ -138,11 +135,10 @@ pub struct FileSyncService<
 
 impl<
         ChangeDb: LocalChangesRepo,
-        DocsDb: DocumentRepo,
         Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > SyncService for FileSyncService<ChangeDb, DocsDb, Files, FileCrypto, FileCompression>
+    > SyncService for FileSyncService<ChangeDb, Files, FileCrypto, FileCompression>
 {
     fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -284,11 +280,10 @@ impl<
 /// Helper functions
 impl<
         ChangeDb: LocalChangesRepo,
-        DocsDb: DocumentRepo,
         Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > FileSyncService<ChangeDb, DocsDb, Files, FileCrypto, FileCompression>
+    > FileSyncService<ChangeDb, Files, FileCrypto, FileCompression>
 {
     /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
     /// there are not going to be path conflicts. If there are, we find the file that is conflicting
@@ -341,7 +336,7 @@ impl<
             .map_err(WorkExecutionError::from)?
             .content;
 
-            DocsDb::insert(config, metadata.id, &document).map_err(SaveDocumentError)?;
+            document_repo::insert(config, metadata.id, &document).map_err(SaveDocumentError)?;
         }
 
         Ok(())
@@ -359,7 +354,7 @@ impl<
             ChangeDb::delete(config, metadata.id)
                 .map_err(WorkExecutionError::LocalChangesRepoError)?;
 
-            DocsDb::delete(config, metadata.id).map_err(SaveDocumentError)?
+            document_repo::delete(config, metadata.id).map_err(SaveDocumentError)?
         } else {
             // A deleted folder
             let delete_errors =
@@ -367,7 +362,7 @@ impl<
                     .map_err(WorkExecutionError::FindingChildrenFailed)?
                     .into_iter()
                     .map(|file_metadata| -> Option<String> {
-                        match DocsDb::delete(config, file_metadata.id) {
+                        match document_repo::delete(config, file_metadata.id) {
                             Ok(_) => {
                                 match file_metadata_repo::non_recursive_delete(config, metadata.id)
                                 {
@@ -460,10 +455,10 @@ impl<
             .map_err(ResolveConflictByCreatingNewFileError)?;
 
             // Copy the local copy over
-            DocsDb::insert(
+            document_repo::insert(
                 config,
                 new_file.id,
-                &DocsDb::get(config, local_changes.id).map_err(SaveDocumentError)?,
+                &document_repo::get(config, local_changes.id).map_err(SaveDocumentError)?,
             )
             .map_err(SaveDocumentError)?;
 
@@ -478,7 +473,7 @@ impl<
             .map_err(WorkExecutionError::from)?
             .content;
 
-            DocsDb::insert(config, metadata.id, &new_content).map_err(SaveDocumentError)?;
+            document_repo::insert(config, metadata.id, &new_content).map_err(SaveDocumentError)?;
 
             // Mark content as synced
             ChangeDb::untrack_edit(config, metadata.id)
@@ -604,7 +599,7 @@ impl<
                 Some(mut local_change) => {
                     if local_change.new {
                         if metadata.file_type == Document {
-                            let content = DocsDb::get(config, metadata.id).map_err(SaveDocumentError)?;
+                            let content = document_repo::get(config, metadata.id).map_err(SaveDocumentError)?;
                             let version = client::request(
                                 &account,
                                 CreateDocumentRequest::new(&metadata, content),
@@ -675,7 +670,7 @@ impl<
                         let version = client::request(&account, ChangeDocumentContentRequest{
                             id: metadata.id,
                             old_metadata_version: metadata.metadata_version,
-                            new_content: DocsDb::get(config, metadata.id).map_err(SaveDocumentError)?,
+                            new_content: document_repo::get(config, metadata.id).map_err(SaveDocumentError)?,
                         }).map_err(WorkExecutionError::from)?.new_metadata_and_content_version;
 
                         metadata.content_version = version;

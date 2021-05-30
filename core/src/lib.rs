@@ -19,7 +19,6 @@ use uuid::Uuid;
 use crate::client::ApiError;
 use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepoError;
-use crate::repo::document_repo::DocumentRepoImpl;
 use crate::repo::file_metadata_repo::{
     DbError, Filter, FindingChildrenFailed, FindingParentsFailed, GetError as FileMetadataRepoError,
 };
@@ -1028,18 +1027,15 @@ pub type DefaultUsageService = UsageServiceImpl<DefaultFileService>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService>;
 pub type DefaultAccountService = AccountServiceImpl<DefaultFileEncryptionService>;
 pub type DefaultLocalChangesRepo = LocalChangesRepoImpl;
-pub type DefaultDocumentRepo = DocumentRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl;
 pub type DefaultFileCompressionService = FileCompressionServiceImpl;
 pub type DefaultSyncService = FileSyncService<
     DefaultLocalChangesRepo,
-    DefaultDocumentRepo,
     DefaultFileService,
     DefaultFileEncryptionService,
     DefaultFileCompressionService,
 >;
 pub type DefaultFileService = FileServiceImpl<
-    DefaultDocumentRepo,
     DefaultLocalChangesRepo,
     DefaultFileEncryptionService,
     DefaultFileCompressionService,
