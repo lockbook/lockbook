@@ -7,8 +7,8 @@ mod db_state_service_tests {
     use lockbook_core::service::db_state_service::State::{
         Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
     };
+    use lockbook_core::service::test_utils::{generate_account, test_config};
     use lockbook_core::{create_account, get_db_state};
-    use test_utils::{generate_account, test_config};
 
     #[test]
     fn initial_state() {

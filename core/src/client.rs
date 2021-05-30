@@ -89,9 +89,11 @@ mod request_common_tests {
         NewAccountRequest,
     };
 
+    use crate::assert_matches;
     use crate::client::{request_helper, ApiError};
     use crate::model::state::temp_config;
     use crate::service::db_state_service::get_code_version;
+    use crate::service::test_utils;
 
     static CODE_VERSION: fn() -> &'static str = || "0.0.0";
 
@@ -117,7 +119,7 @@ mod request_common_tests {
         )
         .map(|r: GetPublicKeyResponse| r.key);
 
-        test_utils::assert_matches!(
+        assert_matches!(
             result,
             Err(ApiError::<GetPublicKeyError>::ClientUpdateRequired)
         );
@@ -136,7 +138,7 @@ mod request_common_tests {
             get_code_version,
             EARLY_CLOCK,
         );
-        test_utils::assert_matches!(result, Err(ApiError::<NewAccountError>::ExpiredAuth));
+        assert_matches!(result, Err(ApiError::<NewAccountError>::ExpiredAuth));
     }
 
     // TODO add a test for bad signatures

@@ -45,19 +45,18 @@ strum_macros = "0.19.4"
 tempfile = { version = "3.1.0" }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 
-[profile.release]
-debug = true
+#[profile.release]
+#debug = true
 
 [dev-dependencies]
 criterion = "0.3.3"
 cpuprofiler = "0.0.4"
 libsecp256k1 = "0.5.0"
-test_utils = { path = "../utils/test_utils" }
 
-[[bench]]
-name = "performator"
-harness = false
-
-[[bench]]
-name = "throughput"
-harness = false
+#[[bench]]
+#name = "performator"
+#harness = false
+#
+#[[bench]]
+#name = "throughput"
+#harness = false

@@ -1,17 +1,17 @@
 #![allow(dead_code)]
 
-use lockbook_core::model::state::Config;
-use lockbook_core::repo::document_repo::DocumentRepo;
-use lockbook_core::repo::file_metadata_repo::FILE_METADATA;
-use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
+use crate::model::state::Config;
+use crate::repo::document_repo::DocumentRepo;
+use crate::repo::file_metadata_repo::FILE_METADATA;
+use crate::repo::local_changes_repo::LocalChangesRepo;
 
-use lockbook_core::{DefaultDocumentRepo, DefaultLocalChangesRepo};
+use crate::{DefaultDocumentRepo, DefaultLocalChangesRepo};
 
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 
-use lockbook_core::repo::{account_repo, db_version_repo, file_metadata_repo, local_storage};
+use crate::repo::{account_repo, db_version_repo, file_metadata_repo, local_storage};
 use lockbook_crypto::{pubkey, symkey};
 use serde::de::DeserializeOwned;
 use serde::Serialize;

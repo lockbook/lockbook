@@ -6,13 +6,13 @@ mod account_tests {
     use lockbook_core::repo::{account_repo, file_metadata_repo};
     use lockbook_core::service::account_service::{AccountCreationError, AccountService};
     use lockbook_core::service::sync_service::SyncService;
+    use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
     use lockbook_core::{
         create_account, export_account, import_account, DefaultAccountService, DefaultSyncService,
         Error, ImportError,
     };
     use lockbook_models::account::Account;
     use lockbook_models::api::NewAccountError;
-    use test_utils::{generate_account, random_username, test_config};
 
     #[test]
     fn create_account_successfully() {

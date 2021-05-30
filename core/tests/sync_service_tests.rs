@@ -8,13 +8,13 @@ mod sync_tests {
     use lockbook_core::service::account_service::AccountService;
     use lockbook_core::service::file_service::FileService;
     use lockbook_core::service::sync_service::SyncService;
+    use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::{
         DefaultAccountService, DefaultDocumentRepo, DefaultFileService, DefaultLocalChangesRepo,
         DefaultSyncService,
     };
     use lockbook_models::file_metadata::FileType::Folder;
     use lockbook_models::work_unit::WorkUnit;
-    use test_utils::{assert_dbs_eq, generate_account, test_config};
 
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {

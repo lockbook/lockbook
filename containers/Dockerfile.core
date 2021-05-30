@@ -1,5 +1,5 @@
 ARG HASH
-FROM rust AS core-build
+FROM rust:1.52 AS core-build
 
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
