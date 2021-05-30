@@ -83,3 +83,12 @@ enum class State {
     MigrationRequired,
     StateRequiresClearing
 }
+
+data class LocalAndServerUsages(
+    @Json(name = "server_usage")
+    val serverUsage: String,
+    @Json(name = "uncompressed_usage")
+    val uncompressedUsage: String,
+    @Json(name = "data_cap")
+    val dataCap: String,
+)

@@ -1,6 +1,6 @@
 package app.lockbook
 
-import app.lockbook.core.setLastSynced
+import app.lockbook.core.migrateDB
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
@@ -9,7 +9,7 @@ import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
 
-class SetLastSyncedTest {
+class MigrateDBTest {
     var config = Config(createRandomPath())
 
     companion object {
@@ -26,20 +26,24 @@ class SetLastSyncedTest {
     }
 
     @Test
-    fun setLastSyncedOk() {
+    fun migrateDBOk() {
+        assertType<State>(
+            CoreModel.getDBState(config).component1()
+        )
+
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
         assertType<Unit>(
-            CoreModel.setLastSynced(config, 1).component1()
+            CoreModel.migrateDB(config).component1()
         )
     }
 
     @Test
-    fun setLastSyncedUnexpectedError() {
-        assertType<SetLastSyncedError.Unexpected>(
-            Klaxon().converter(setLastSyncedConverter).parse<Result<Unit, SetLastSyncedError>>(setLastSynced("", 0))?.component2()
+    fun getDBStateUnexpectedError() {
+        assertType<MigrationError.Unexpected>(
+            Klaxon().converter(migrateDBConverter).parse<Result<Unit, MigrationError>>(migrateDB(""))?.component2()
         )
     }
 }

@@ -51,12 +51,9 @@ class ImportAccountTest {
 
     @Test
     fun importAccountUnexpectedError() {
-        val importResult: Result<Unit, ImportError>? =
-            Klaxon().converter(importAccountConverter)
-                .parse(importAccount("", ""))
-
         assertType<ImportError.Unexpected>(
-            importResult?.component2()
+            Klaxon().converter(importAccountConverter)
+                .parse<Result<Unit, ImportError>>(importAccount("", ""))?.component2()
         )
     }
 }

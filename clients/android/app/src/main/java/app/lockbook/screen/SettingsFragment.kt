@@ -10,7 +10,6 @@ import android.view.ViewGroup
 import android.widget.PopupWindow
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
-import androidx.biometric.BiometricPrompt.*
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.*
 import app.lockbook.R
@@ -24,7 +23,6 @@ import app.lockbook.util.*
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
-import app.lockbook.util.SharedPreferences.BYTE_USAGE_KEY
 import app.lockbook.util.SharedPreferences.CLEAR_LOGS_KEY
 import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
 import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
@@ -34,6 +32,7 @@ import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
+import kotlinx.android.synthetic.main.preference_usage_bar.*
 import timber.log.Timber
 import java.io.File
 
@@ -67,38 +66,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 true
             )
 
-        setCurrentUsage()
-
         if (!isBiometricsOptionsAvailable()) {
             findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
         }
-    }
-
-    private fun setCurrentUsage() {
-        when (val getUsageHumanStringResult = CoreModel.getUsageHumanString(config, false)) {
-            is Ok -> findPreference<Preference>(BYTE_USAGE_KEY)?.summary = getUsageHumanStringResult.value
-            is Err -> when (val error = getUsageHumanStringResult.error) {
-                GetUsageError.NoAccount -> {
-                    AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Error! No account.", OnFinishAlert.DoNothingOnFinishAlert)
-                    findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
-                        "Error! No account."
-                }
-                GetUsageError.CouldNotReachServer -> {
-                    AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "You are offline.", OnFinishAlert.DoNothingOnFinishAlert)
-                    findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
-                        resources.getString(R.string.list_files_offline_snackbar)
-                }
-                GetUsageError.ClientUpdateRequired -> {
-                    AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Update required.", OnFinishAlert.DoNothingOnFinishAlert)
-                    findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
-                        "Update required."
-                }
-                is GetUsageError.Unexpected -> {
-                    AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), error.error, OnFinishAlert.DoNothingOnFinishAlert)
-                    Timber.e("Unable to get usage: ${error.error}")
-                }
-            }
-        }.exhaustive
     }
 
     override fun onDisplayPreferenceDialog(preference: Preference?) {

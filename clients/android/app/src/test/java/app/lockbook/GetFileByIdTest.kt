@@ -83,12 +83,9 @@ class GetFileByIdTest {
 
     @Test
     fun getFileByIdUnexpectedError() {
-        val getFileByIdResult: Result<FileMetadata, GetFileByIdError>? =
-            Klaxon().converter(getFileByIdConverter)
-                .parse(exportAccount(""))
-
         assertType<GetFileByIdError.Unexpected>(
-            getFileByIdResult?.component2()
+            Klaxon().converter(getFileByIdConverter)
+                .parse<Result<FileMetadata, GetFileByIdError>>(exportAccount(""))?.component2()
         )
     }
 }

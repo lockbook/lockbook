@@ -45,11 +45,8 @@ class GetAccountTest {
 
     @Test
     fun getAccountUnexpectedError() {
-        val getAccountResult: Result<Account, GetAccountError>? =
-            Klaxon().converter(getAccountConverter).parse(getAccount(""))
-
         assertType<GetAccountError.Unexpected>(
-            getAccountResult?.component2()
+            Klaxon().converter(getAccountConverter).parse<Result<Account, GetAccountError>>(getAccount(""))?.component2()
         )
     }
 }

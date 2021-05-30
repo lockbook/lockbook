@@ -139,6 +139,10 @@
     <string name="settings_preference_debug">Debug</string>
     <string name="settings_preference_usage">Usage</string>
     <string name="settings_bytes_usage">Bytes used</string>
+    <string name="settings_usage_current">Usage:</string>
+    <string name="settings_usage_data_cap">Data Cap:</string>
+    <string name="settings_usage_uncompressed_usage">Uncompressed Usage:</string>
+    <string name="settings_usage_info">"<b>Usage</b>: %s\n<b>Data Cap</b>: %s\n<b>Uncompressed Usage</b>: %s"</string>
     <string name="drawing_erase">Erase</string>
     <string name="menu_list_files_rename">Rename file</string>
     <string name="menu_list_files_delete">Delete file</string>

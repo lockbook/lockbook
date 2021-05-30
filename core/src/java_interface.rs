@@ -10,12 +10,12 @@ use uuid::Uuid;
 use crate::json_interface::translate;
 use crate::model::state::Config;
 use crate::service::sync_service::SyncProgress;
+use crate::service::usage_service::bytes_to_human;
 use crate::{
     calculate_work, create_account, create_file, delete_file, export_account, get_account,
-    get_all_error_variants, get_children, get_db_state, get_file_by_id,
-    get_last_synced_human_string, get_root, get_usage, get_usage_human_string, import_account,
-    init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced,
-    sync_all, write_document, Error,
+    get_all_error_variants, get_children, get_db_state, get_file_by_id, get_local_and_server_usage,
+    get_root, import_account, init_logger, insert_file, migrate_db, move_file, read_document,
+    rename_file, set_last_synced, sync_all, write_document, Error,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -99,21 +99,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(&env, translate(get_usage(&config)))
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsageHumanString(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getLocalAndServerUsage(
     env: JNIEnv,
     _: JClass,
     jconfig: JString,
@@ -139,7 +125,16 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsageHumanString(
         }
     };
 
-    string_to_jstring(&env, translate(get_usage_human_string(&config, exact)))
+    string_to_jstring(&env, translate(get_local_and_server_usage(&config, exact)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_makeBytesReadable(
+    env: JNIEnv,
+    _: JClass,
+    bytes: jlong,
+) -> jstring {
+    string_to_jstring(&env, bytes_to_human(bytes as u64))
 }
 
 #[no_mangle]
@@ -260,20 +255,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_setLastSynced(
         &env,
         translate(set_last_synced(&config, jlastsynced as u64)),
     )
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getLastSyncedHumanString(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(&env, translate(get_last_synced_human_string(&config)))
 }
 
 #[no_mangle]

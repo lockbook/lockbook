@@ -65,12 +65,9 @@ class CreateAccountTest {
 
     @Test
     fun createAccountUnexpectedError() {
-        val createAccountOk: Result<Unit, CreateAccountError>? =
-            Klaxon().converter(createAccountConverter)
-                .parse(createAccount("", "", getAPIURL()))
-
         assertType<CreateAccountError.Unexpected>(
-            createAccountOk?.component2()
+            Klaxon().converter(createAccountConverter)
+                .parse<Result<Unit, CreateAccountError>>(createAccount("", "", getAPIURL()))?.component2()
         )
     }
 }

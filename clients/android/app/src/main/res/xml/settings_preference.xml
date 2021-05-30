@@ -22,10 +22,9 @@
         android:key="usage_category"
         android:title="@string/settings_preference_usage"
         android:icon="@drawable/ic_baseline_data_usage_24">
-        <Preference
-            android:key="usage_amount"
-            android:title="@string/settings_bytes_usage"
-            app:iconSpaceReserved="false" />
+        <app.lockbook.ui.UsageBarPreference
+            android:key="usage_bar"
+            app:iconSpaceReserved="false"/>
     </PreferenceCategory>
 
     <PreferenceCategory

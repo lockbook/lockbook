@@ -24,18 +24,6 @@ object CoreModel {
         return Err(InitLoggerError.Unexpected("initLoggerConverter was unable to be called!"))
     }
 
-    fun getUsage(config: Config): Result<List<FileUsage>, GetUsageError> {
-        val getUsageResult: Result<List<FileUsage>, GetUsageError>? =
-            Klaxon().converter(getUsageConverter)
-                .parse(getUsage(Klaxon().toJsonString(config)))
-
-        if (getUsageResult != null) {
-            return getUsageResult
-        }
-
-        return Err(GetUsageError.Unexpected("getUsageConverter was unable to be called!"))
-    }
-
     fun getDBState(config: Config): Result<State, GetStateError> {
         val getStateResult: Result<State, GetStateError>? =
             Klaxon().converter(getStateConverter)
@@ -173,34 +161,22 @@ object CoreModel {
         metadataVersion: Long
     ): String = app.lockbook.core.convertToHumanDuration(metadataVersion)
 
-    fun getLastSyncedHumanString(
-        config: Config,
-    ): Result<String, GetLastSynced> {
-        val getLastSyncedHumanString: Result<String, GetLastSynced>? =
-            Klaxon().converter(getLastSyncedHumanStringConverter)
-                .parse(getLastSyncedHumanString(Klaxon().toJsonString(config)))
-
-        if (getLastSyncedHumanString != null) {
-            return getLastSyncedHumanString
-        }
-
-        return Err(GetLastSynced.Unexpected("getLastSyncedHumanString was unable to be called!"))
-    }
-
-    fun getUsageHumanString(
+    fun getLocalAndServerUsage(
         config: Config,
         exact: Boolean
-    ): Result<String, GetUsageError> {
-        val getUsageHumanString: Result<String, GetUsageError>? =
-            Klaxon().converter(getUsageHumanStringConverter)
-                .parse(getUsageHumanString(Klaxon().toJsonString(config), exact))
+    ): Result<LocalAndServerUsages, GetUsageError> {
+        val getUsageResult: Result<LocalAndServerUsages, GetUsageError>? =
+            Klaxon().converter(getLocalAndServerUsageConverter)
+                .parse(getLocalAndServerUsage(Klaxon().toJsonString(config), exact))
 
-        if (getUsageHumanString != null) {
-            return getUsageHumanString
+        if (getUsageResult != null) {
+            return getUsageResult
         }
 
-        return Err(GetUsageError.Unexpected("getUsageHumanStringConverter was unable to be called!"))
+        return Err(GetUsageError.Unexpected("getLocalAndServerUsageConverter was unable to be called!"))
     }
+
+    fun makeBytesReadable(bytes: Long): String = app.lockbook.core.makeBytesReadable(bytes)
 
     fun getChildren(
         config: Config,
