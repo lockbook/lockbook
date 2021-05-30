@@ -12,13 +12,10 @@ WORKDIR core
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
 COPY containers/dummy.rs src/lib.rs
 COPY core/Cargo.toml .
-COPY core/Cargo.lock .
 COPY containers/dummy.rs libs/models/src/lib.rs
 COPY core/libs/models/Cargo.toml libs/models/.
-COPY core/libs/models/Cargo.lock libs/models/.
 COPY containers/dummy.rs libs/crypto/src/lib.rs
 COPY core/libs/crypto/Cargo.toml libs/crypto/.
-COPY core/libs/crypto/Cargo.lock libs/crypto/.
 COPY core/benches ./benches
 RUN cargo test --release
 

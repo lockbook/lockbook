@@ -9,8 +9,8 @@ use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
 use libsecp256k1::PublicKey;
-use lockbook_crypto::clock_service::ClockImpl;
-use lockbook_crypto::pubkey::{ECVerifyError, ElipticCurve, PubKeyCryptoService};
+use lockbook_crypto::pubkey::ECVerifyError;
+use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::*;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
@@ -327,11 +327,12 @@ fn verify_auth<TRequest: Request + Serialize>(
     server_state: &ServerState,
     request: &RequestWrapper<TRequest>,
 ) -> Result<(), ECVerifyError> {
-    ElipticCurve::<ClockImpl>::verify(
+    pubkey::verify(
         &request.signed_request.public_key,
         &request.signed_request,
         server_state.config.server.max_auth_delay as u64,
         server_state.config.server.max_auth_delay as u64,
+        clock_service::get_time,
     )
 }
 

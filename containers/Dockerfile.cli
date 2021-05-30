@@ -8,22 +8,18 @@ RUN rustup component add clippy --toolchain stable
 
 # CLI depends on core via a relative import
 COPY core/Cargo.toml /core/Cargo.toml
-COPY core/Cargo.lock /core/Cargo.lock
 COPY containers/dummy.rs /core/src/lib.rs
 
 COPY containers/dummy.rs /core/libs/models/src/lib.rs
 COPY core/libs/models/Cargo.toml /core/libs/models/Cargo.toml
-COPY core/libs/models/Cargo.lock /core/libs/models/Cargo.lock
 COPY containers/dummy.rs /core/libs/crypto/src/lib.rs
 COPY core/libs/crypto/Cargo.toml /core/libs/crypto/Cargo.toml
-COPY core/libs/crypto/Cargo.lock /core/libs/crypto/Cargo.lock
 
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
 COPY containers/dummy.rs /clients/cli/src/main.rs
 COPY clients/cli/Cargo.toml /clients/cli/Cargo.toml
-COPY clients/cli/Cargo.lock /clients/cli/Cargo.lock
 
 WORKDIR /clients/cli
 RUN cargo build --release
