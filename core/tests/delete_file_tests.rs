@@ -2,12 +2,12 @@ mod integration_test;
 
 #[cfg(test)]
 mod delete_document_tests {
-    use crate::assert_matches;
-    use crate::integration_test::{
+    use lockbook_core::assert_matches;
+    use lockbook_core::client;
+    use lockbook_core::client::ApiError;
+    use lockbook_core::service::test_utils::{
         aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
     };
-    use lockbook_core::client::{ApiError, Client};
-    use lockbook_core::DefaultClient;
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
 
@@ -16,11 +16,11 @@ mod delete_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        client::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
@@ -30,7 +30,7 @@ mod delete_document_tests {
         .unwrap();
 
         // delete document
-        DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
+        client::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
     }
 
     #[test]
@@ -38,11 +38,11 @@ mod delete_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // delete document that wasn't created
         let (doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let result = DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id });
+        let result = client::request(&account, DeleteDocumentRequest { id: doc.id });
         assert_matches!(
             result,
             Err(ApiError::<DeleteDocumentError>::Endpoint(
@@ -56,11 +56,11 @@ mod delete_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        DefaultClient::request(
+        client::request(
             &account,
             CreateDocumentRequest::new(
                 &doc,
@@ -70,10 +70,10 @@ mod delete_document_tests {
         .unwrap();
 
         // delete document
-        DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
+        client::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
 
         // delete document again
-        let result = DefaultClient::request(&account, DeleteDocumentRequest { id: doc.id });
+        let result = client::request(&account, DeleteDocumentRequest { id: doc.id });
         assert_matches!(
             result,
             Err(ApiError::<DeleteDocumentError>::Endpoint(
@@ -87,13 +87,12 @@ mod delete_document_tests {
         // new account
         let account = generate_account();
         let (mut root, _root_key) = generate_root_metadata(&account);
-        root.metadata_version =
-            DefaultClient::request(&account, NewAccountRequest::new(&account, &root))
-                .unwrap()
-                .folder_metadata_version;
+        root.metadata_version = client::request(&account, NewAccountRequest::new(&account, &root))
+            .unwrap()
+            .folder_metadata_version;
 
         // delete root
-        let result = DefaultClient::request(&account, DeleteFolderRequest { id: root.id });
+        let result = client::request(&account, DeleteFolderRequest { id: root.id });
         assert_matches!(
             result,
             Err(ApiError::<DeleteFolderError>::Endpoint(

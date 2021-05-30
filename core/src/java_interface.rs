@@ -15,11 +15,11 @@ use crate::{
     get_all_error_variants, get_children, get_db_state, get_file_by_id,
     get_last_synced_human_string, get_root, get_usage, get_usage_human_string, import_account,
     init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced,
-    sync_all, write_document, DefaultClock, Error,
+    sync_all, write_document, Error,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
-use lockbook_crypto::clock_service::Clock;
+use lockbook_crypto::clock_service;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -418,7 +418,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
     string_to_jstring(
         &env,
         if metadata_version != 0 {
-            Duration::milliseconds(DefaultClock::get_time() - metadata_version)
+            Duration::milliseconds(clock_service::get_time().0 - metadata_version)
                 .format_human()
                 .to_string()
         } else {

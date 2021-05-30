@@ -2,13 +2,8 @@ use cpuprofiler::PROFILER;
 use criterion::profiler::Profiler;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use lockbook_core::model::state::Config;
-use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
-use lockbook_core::service::account_service::AccountService;
-use lockbook_core::service::file_service::FileService;
-use lockbook_core::service::sync_service::SyncService;
-use lockbook_core::{
-    DefaultAccountService, DefaultFileMetadataRepo, DefaultFileService, DefaultSyncService,
-};
+use lockbook_core::repo::file_metadata_repo;
+use lockbook_core::service::{account_service, file_service, sync_service};
 use lockbook_models::file_metadata::FileType::Document;
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
@@ -34,18 +29,16 @@ pub fn bench_performator(c: &mut Criterion) {
         writeable_path: format!("/tmp/perf-{}", Uuid::new_v4().to_string()),
     };
 
-    let config = FileBackend::connect_to_db(config);
-
-    let _ = DefaultAccountService::create_account(
-        config,
+    let _ = account_service::create_account(
+        &config,
         "performator",
         env::var("API_URL")
             .expect("API_URL must be defined!")
             .as_str(),
     )
     .unwrap();
-    let _ = DefaultSyncService::sync(config, None).unwrap();
-    let root = DefaultFileMetadataRepo::get_root(config).unwrap().unwrap();
+    let _ = sync_service::sync(config, None).unwrap();
+    let root = file_metadata_repo::get_root(config).unwrap().unwrap();
 
     let mut group = c.benchmark_group("simple");
 
@@ -58,13 +51,12 @@ pub fn bench_performator(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(bytes.len() as u64));
     group.bench_function("create_write_read", |b| {
         b.iter(|| {
-            let file =
-                DefaultFileService::create(config, &Uuid::new_v4().to_string(), root.id, Document)
-                    .unwrap();
+            let file = file_service::create(config, &Uuid::new_v4().to_string(), root.id, Document)
+                .unwrap();
 
-            let _ = DefaultFileService::write_document(config, file.id, &bytes.clone()).unwrap();
+            let _ = file_service::write_document(config, file.id, &bytes.clone()).unwrap();
 
-            let _ = DefaultFileService::read_document(config, file.id).unwrap();
+            let _ = file_service::read_document(config, file.id).unwrap();
         });
     });
 

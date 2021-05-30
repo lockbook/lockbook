@@ -2,11 +2,11 @@ mod integration_test;
 
 #[cfg(test)]
 mod get_usage_tests {
-    use crate::integration_test::{generate_account, random_filename, test_config};
-    use lockbook_core::repo::document_repo::DocumentRepo;
+    use lockbook_core::repo::document_repo;
+    use lockbook_core::service::test_utils::{generate_account, random_filename, test_config};
     use lockbook_core::{
         create_account, create_file, delete_file, get_root, get_usage, init_logger, sync_all,
-        write_document, DefaultDocumentRepo,
+        write_document,
     };
     use lockbook_models::file_metadata::FileType;
     use lockbook_models::file_metadata::FileType::Folder;
@@ -44,7 +44,7 @@ mod get_usage_tests {
 
         sync_all!(config).unwrap();
 
-        let local_encrypted = DefaultDocumentRepo::get(&config, file.id).unwrap().value;
+        let local_encrypted = document_repo::get(&config, file.id).unwrap().value;
 
         assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
         assert_eq!(get_usage(config).unwrap().len(), 1);
@@ -103,7 +103,7 @@ mod get_usage_tests {
         delete_file(config, folder.id).unwrap();
         sync_all!(config).unwrap();
 
-        let local_encrypted = DefaultDocumentRepo::get(&config, file.id).unwrap().value;
+        let local_encrypted = document_repo::get(&config, file.id).unwrap().value;
 
         let usages = get_usage(config).unwrap();
         let mut total_usage = 0;

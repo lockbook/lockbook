@@ -1,0 +1,11 @@
+[workspace]
+
+members = [
+	"core",
+	"core/libs/crypto",
+	"core/libs/models",
+	"server/server",
+	"server/admin",
+	"clients/linux",
+	"clients/cli",
+]

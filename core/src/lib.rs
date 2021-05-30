@@ -4,7 +4,6 @@
 extern crate log;
 extern crate reqwest;
 
-use lockbook_crypto::symkey::AESImpl;
 use std::env;
 use std::path::Path;
 use std::str::FromStr;
@@ -17,39 +16,32 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use crate::client::{ApiError, ClientImpl};
+use crate::client::ApiError;
 use crate::model::state::Config;
-use crate::repo::account_repo::{AccountRepo, AccountRepoError, AccountRepoImpl};
-use crate::repo::db_version_repo::DbVersionRepoImpl;
-use crate::repo::document_repo::DocumentRepoImpl;
+use crate::repo::account_repo::AccountRepoError;
 use crate::repo::file_metadata_repo::{
-    DbError, FileMetadataRepo, FileMetadataRepoImpl, Filter, FindingChildrenFailed,
-    FindingParentsFailed, GetError as FileMetadataRepoError,
+    DbError, Filter, FindingChildrenFailed, FindingParentsFailed, GetError as FileMetadataRepoError,
 };
-use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
+use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
-    AccountService, AccountServiceImpl,
 };
-use crate::service::code_version_service::CodeVersionImpl;
-use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
-use crate::service::file_compression_service::FileCompressionServiceImpl;
-use crate::service::file_encryption_service::FileEncryptionServiceImpl;
+use crate::service::db_state_service::State;
 use crate::service::file_service::{
-    DocumentRenameError, DocumentUpdateError, FileMoveError, FileService, FileServiceImpl,
-    NewFileError, NewFileFromPathError, ReadDocumentError as FSReadDocumentError,
+    DocumentRenameError, DocumentUpdateError, FileMoveError, NewFileError, NewFileFromPathError,
+    ReadDocumentError as FSReadDocumentError,
 };
 use crate::service::sync_service::{
-    CalculateWorkError as SSCalculateWorkError, FileSyncService, SyncError, SyncProgress,
-    SyncService, WorkCalculated,
+    CalculateWorkError as SSCalculateWorkError, SyncError, SyncProgress, WorkCalculated,
 };
 use crate::service::usage_service::{
     GetUsageError as USGetUsageError, LocalAndServerUsageError as USLocalAndServerUsageError,
-    LocalAndServerUsages, UsageService, UsageServiceImpl,
+    LocalAndServerUsages,
 };
-use crate::service::{db_state_service, file_service, usage_service};
-use crate::storage::db_provider::FileBackend;
-use lockbook_crypto::clock_service::{Clock, ClockImpl};
+use crate::service::{
+    account_service, db_state_service, drawing_service, file_service, sync_service, usage_service,
+};
+use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
 use lockbook_models::crypto::DecryptedDocument;
@@ -62,10 +54,7 @@ pub enum Error<U: Serialize> {
     Unexpected(String),
 }
 use crate::repo::local_changes_repo;
-use crate::service::drawing_service::{
-    DrawingError, DrawingService, DrawingServiceImpl, SupportedImageFormats,
-};
-use lockbook_crypto::pubkey::ElipticCurve;
+use crate::service::drawing_service::{DrawingError, SupportedImageFormats};
 use lockbook_models::drawing::Drawing;
 use serde_json::error::Category;
 use Error::UiError;
@@ -99,7 +88,7 @@ pub enum GetStateError {
 }
 
 pub fn get_db_state(config: &Config) -> Result<State, Error<GetStateError>> {
-    DefaultDbStateService::get_state(&config).map_err(|err| unexpected!("{:#?}", err))
+    db_state_service::get_state(&config).map_err(|err| unexpected!("{:#?}", err))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -108,7 +97,7 @@ pub enum MigrationError {
 }
 
 pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
-    DefaultDbStateService::perform_migration(&config).map_err(|e| match e {
+    db_state_service::perform_migration(&config).map_err(|e| match e {
         db_state_service::MigrationError::StateRequiresClearing => {
             UiError(MigrationError::StateRequiresCleaning)
         }
@@ -130,7 +119,7 @@ pub fn create_account(
     username: &str,
     api_url: &str,
 ) -> Result<Account, Error<CreateAccountError>> {
-    DefaultAccountService::create_account(&config, username, api_url).map_err(|e| match e {
+    account_service::create_account(&config, username, api_url).map_err(|e| match e {
         AccountCreationError::AccountExistsAlready => {
             UiError(CreateAccountError::AccountExistsAlready)
         }
@@ -174,7 +163,7 @@ pub fn import_account(
     config: &Config,
     account_string: &str,
 ) -> Result<Account, Error<ImportError>> {
-    DefaultAccountService::import_account(&config, account_string).map_err(|e| match e {
+    account_service::import_account(&config, account_string).map_err(|e| match e {
         AccountImportError::AccountStringCorrupted(_)
         | AccountImportError::AccountStringFailedToDeserialize(_) => {
             UiError(ImportError::AccountStringCorrupted)
@@ -209,7 +198,7 @@ pub enum AccountExportError {
 }
 
 pub fn export_account(config: &Config) -> Result<String, Error<AccountExportError>> {
-    DefaultAccountService::export_account(&config).map_err(|e| match e {
+    account_service::export_account(&config).map_err(|e| match e {
         ASAccountExportError::AccountRetrievalError(db_err) => match db_err {
             AccountRepoError::NoAccount => UiError(AccountExportError::NoAccount),
             AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
@@ -226,7 +215,7 @@ pub enum GetAccountError {
 }
 
 pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
-    DefaultAccountRepo::get_account(&config).map_err(|e| match e {
+    account_repo::get_account(&config).map_err(|e| match e {
         AccountRepoError::NoAccount => UiError(GetAccountError::NoAccount),
         AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
             unexpected!("{:#?}", e)
@@ -248,7 +237,7 @@ pub fn create_file_at_path(
     config: &Config,
     path_and_name: &str,
 ) -> Result<FileMetadata, Error<CreateFileAtPathError>> {
-    DefaultFileService::create_at_path(&config, path_and_name).map_err(|e| match e {
+    file_service::create_at_path(&config, path_and_name).map_err(|e| match e {
         NewFileFromPathError::PathDoesntStartWithRoot => {
             UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
         }
@@ -271,7 +260,7 @@ pub fn create_file_at_path(
                 UiError(CreateFileAtPathError::DocumentTreatedAsFolder)
             }
             NewFileError::CouldNotFindParents(_)
-            | NewFileError::FileCryptoError(_)
+            | NewFileError::FileEncryptionError(_)
             | NewFileError::MetadataRepoError(_)
             | NewFileError::FailedToWriteFileContent(_)
             | NewFileError::FailedToRecordChange(_)
@@ -296,7 +285,7 @@ pub fn write_document(
     id: Uuid,
     content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
-    DefaultFileService::write_document(&config, id, content).map_err(|e| match e {
+    file_service::write_document(&config, id, content).map_err(|e| match e {
         DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 unexpected!("{:#?}", account_err)
@@ -308,7 +297,7 @@ pub fn write_document(
             UiError(WriteToDocumentError::FolderTreatedAsDocument)
         }
         DocumentUpdateError::CouldNotFindParents(_)
-        | DocumentUpdateError::FileCryptoError(_)
+        | DocumentUpdateError::FileEncryptionError(_)
         | DocumentUpdateError::FileCompressionError(_)
         | DocumentUpdateError::FileDecompressionError(_)
         | DocumentUpdateError::DocumentWriteError(_)
@@ -336,7 +325,7 @@ pub fn create_file(
     parent: Uuid,
     file_type: FileType,
 ) -> Result<FileMetadata, Error<CreateFileError>> {
-    DefaultFileService::create(&config, name, parent, file_type).map_err(|e| match e {
+    file_service::create(&config, name, parent, file_type).map_err(|e| match e {
         NewFileError::AccountRetrievalError(_) => UiError(CreateFileError::NoAccount),
         NewFileError::DocumentTreatedAsFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
         NewFileError::CouldNotFindParents(parent_error) => match parent_error {
@@ -346,7 +335,7 @@ pub fn create_file(
         NewFileError::FileNameNotAvailable => UiError(CreateFileError::FileNameNotAvailable),
         NewFileError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
         NewFileError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
-        NewFileError::FileCryptoError(_)
+        NewFileError::FileEncryptionError(_)
         | NewFileError::MetadataRepoError(_)
         | NewFileError::FailedToWriteFileContent(_)
         | NewFileError::FailedToRecordChange(_) => unexpected!("{:#?}", e),
@@ -359,7 +348,7 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<FileMetadata, Error<GetRootError>> {
-    match DefaultFileMetadataRepo::get_root(&config) {
+    match file_metadata_repo::get_root(&config) {
         Ok(file_metadata) => match file_metadata {
             None => Err(UiError(GetRootError::NoRoot)),
             Some(file_metadata) => Ok(file_metadata),
@@ -377,7 +366,7 @@ pub fn get_children(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, Error<GetChildrenError>> {
-    DefaultFileMetadataRepo::get_children_non_recursively(&config, id)
+    file_metadata_repo::get_children_non_recursively(&config, id)
         .map_err(|e| unexpected!("{:#?}", e))
 }
 
@@ -391,7 +380,7 @@ pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
-    DefaultFileMetadataRepo::get_and_get_children_recursively(&config, id).map_err(|e| match e {
+    file_metadata_repo::get_and_get_children_recursively(&config, id).map_err(|e| match e {
         FindingChildrenFailed::FileDoesNotExist => {
             UiError(GetAndGetChildrenError::FileDoesNotExist)
         }
@@ -408,7 +397,7 @@ pub enum GetFileByIdError {
 }
 
 pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, Error<GetFileByIdError>> {
-    DefaultFileMetadataRepo::get(&config, id).map_err(|e| match e {
+    file_metadata_repo::get(&config, id).map_err(|e| match e {
         FileMetadataRepoError::FileRowMissing => UiError(GetFileByIdError::NoFileWithThatId),
         FileMetadataRepoError::DbError(_) => unexpected!("{:#?}", e),
     })
@@ -423,7 +412,7 @@ pub fn get_file_by_path(
     config: &Config,
     path: &str,
 ) -> Result<FileMetadata, Error<GetFileByPathError>> {
-    match DefaultFileMetadataRepo::get_by_path(&config, path) {
+    match file_metadata_repo::get_by_path(&config, path) {
         Ok(maybe_file_metadata) => match maybe_file_metadata {
             None => Err(UiError(GetFileByPathError::NoFileAtThatPath)),
             Some(file_metadata) => Ok(file_metadata),
@@ -441,7 +430,7 @@ pub fn insert_file(
     config: &Config,
     file_metadata: FileMetadata,
 ) -> Result<(), Error<InsertFileError>> {
-    DefaultFileMetadataRepo::insert(&config, &file_metadata).map_err(|e| unexpected!("{:#?}", e))
+    file_metadata_repo::insert(&config, &file_metadata).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -451,10 +440,10 @@ pub enum FileDeleteError {
 }
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-    match DefaultFileMetadataRepo::get(&config, id) {
+    match file_metadata_repo::get(&config, id) {
         Ok(meta) => match meta.file_type {
             FileType::Document => {
-                DefaultFileService::delete_document(&config, id).map_err(|err| match err {
+                file_service::delete_document(&config, id).map_err(|err| match err {
                     file_service::DeleteDocumentError::CouldNotFindFile
                     | file_service::DeleteDocumentError::FolderTreatedAsDocument
                     | file_service::DeleteDocumentError::FailedToRecordChange(_)
@@ -466,24 +455,22 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
                     }
                 })
             }
-            FileType::Folder => {
-                DefaultFileService::delete_folder(&config, id).map_err(|err| match err {
-                    file_service::DeleteFolderError::CannotDeleteRoot => {
-                        UiError(FileDeleteError::CannotDeleteRoot)
-                    }
-                    file_service::DeleteFolderError::MetadataError(_)
-                    | file_service::DeleteFolderError::CouldNotFindFile
-                    | file_service::DeleteFolderError::FailedToDeleteMetadata(_)
-                    | file_service::DeleteFolderError::FindingChildrenFailed(_)
-                    | file_service::DeleteFolderError::FailedToRecordChange(_)
-                    | file_service::DeleteFolderError::CouldNotFindParents(_)
-                    | file_service::DeleteFolderError::DocumentTreatedAsFolder
-                    | file_service::DeleteFolderError::FailedToDeleteDocument(_)
-                    | file_service::DeleteFolderError::FailedToDeleteChangeEntry(_) => {
-                        unexpected!("{:#?}", err)
-                    }
-                })
-            }
+            FileType::Folder => file_service::delete_folder(&config, id).map_err(|err| match err {
+                file_service::DeleteFolderError::CannotDeleteRoot => {
+                    UiError(FileDeleteError::CannotDeleteRoot)
+                }
+                file_service::DeleteFolderError::MetadataError(_)
+                | file_service::DeleteFolderError::CouldNotFindFile
+                | file_service::DeleteFolderError::FailedToDeleteMetadata(_)
+                | file_service::DeleteFolderError::FindingChildrenFailed(_)
+                | file_service::DeleteFolderError::FailedToRecordChange(_)
+                | file_service::DeleteFolderError::CouldNotFindParents(_)
+                | file_service::DeleteFolderError::DocumentTreatedAsFolder
+                | file_service::DeleteFolderError::FailedToDeleteDocument(_)
+                | file_service::DeleteFolderError::FailedToDeleteChangeEntry(_) => {
+                    unexpected!("{:#?}", err)
+                }
+            }),
         },
         Err(_) => Err(UiError(FileDeleteError::FileDoesNotExist)),
     }
@@ -500,7 +487,7 @@ pub fn read_document(
     config: &Config,
     id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    DefaultFileService::read_document(&config, id).map_err(|e| match e {
+    file_service::read_document(&config, id).map_err(|e| match e {
         FSReadDocumentError::TreatedFolderAsDocument => {
             UiError(ReadDocumentError::TreatedFolderAsDocument)
         }
@@ -515,7 +502,7 @@ pub fn read_document(
         FSReadDocumentError::DbError(_)
         | FSReadDocumentError::DocumentReadError(_)
         | FSReadDocumentError::CouldNotFindParents(_)
-        | FSReadDocumentError::FileCryptoError(_)
+        | FSReadDocumentError::FileEncryptionError(_)
         | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", e),
     })
 }
@@ -529,7 +516,7 @@ pub fn list_paths(
     config: &Config,
     filter: Option<Filter>,
 ) -> Result<Vec<String>, Error<ListPathsError>> {
-    DefaultFileMetadataRepo::get_all_paths(&config, filter).map_err(|e| unexpected!("{:#?}", e))
+    file_metadata_repo::get_all_paths(&config, filter).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -538,7 +525,7 @@ pub enum ListMetadatasError {
 }
 
 pub fn list_metadatas(config: &Config) -> Result<Vec<FileMetadata>, Error<ListMetadatasError>> {
-    DefaultFileMetadataRepo::get_all(&config).map_err(|e| unexpected!("{:#?}", e))
+    file_metadata_repo::get_all(&config).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -555,7 +542,7 @@ pub fn rename_file(
     id: Uuid,
     new_name: &str,
 ) -> Result<(), Error<RenameFileError>> {
-    DefaultFileService::rename_file(&config, id, new_name).map_err(|e| match e {
+    file_service::rename_file(&config, id, new_name).map_err(|e| match e {
         DocumentRenameError::FileDoesNotExist => UiError(RenameFileError::FileDoesNotExist),
         DocumentRenameError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
         DocumentRenameError::FileNameContainsSlash => {
@@ -581,7 +568,7 @@ pub enum MoveFileError {
 }
 
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-    DefaultFileService::move_file(&config, id, new_parent).map_err(|e| match e {
+    file_service::move_file(&config, id, new_parent).map_err(|e| match e {
         FileMoveError::DocumentTreatedAsFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
         FileMoveError::FolderMovedIntoItself => UiError(MoveFileError::FolderMovedIntoItself),
         FileMoveError::AccountRetrievalError(account_err) => match account_err {
@@ -616,7 +603,7 @@ pub fn sync_all(
     config: &Config,
     f: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), Error<SyncAllError>> {
-    DefaultSyncService::sync(&config, f).map_err(|e| match e {
+    sync_service::sync(&config, f).map_err(|e| match e {
         SyncError::AccountRetrievalError(err) => match err {
             AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                 unexpected!("{:#?}", err)
@@ -659,7 +646,7 @@ pub enum GetLocalChangesError {
 }
 
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, Error<GetLocalChangesError>> {
-    Ok(DefaultLocalChangesRepo::get_all_local_changes(&config)
+    Ok(local_changes_repo::get_all_local_changes(&config)
         .map_err(|err| match err {
             local_changes_repo::DbError::TimeError(_)
             | local_changes_repo::DbError::BackendError(_)
@@ -680,7 +667,7 @@ pub enum CalculateWorkError {
 }
 
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-    DefaultSyncService::calculate_work(&config).map_err(|e| match e {
+    sync_service::calculate_work(&config).map_err(|e| match e {
         SSCalculateWorkError::LocalChangesRepoError(_)
         | SSCalculateWorkError::MetadataRepoError(_)
         | SSCalculateWorkError::GetMetadataError(_) => unexpected!("{:#?}", e),
@@ -712,8 +699,7 @@ pub enum SetLastSyncedError {
 }
 
 pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), Error<SetLastSyncedError>> {
-    DefaultFileMetadataRepo::set_last_synced(&config, last_sync)
-        .map_err(|e| unexpected!("{:#?}", e))
+    file_metadata_repo::set_last_synced(&config, last_sync).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -722,7 +708,7 @@ pub enum GetLastSyncedError {
 }
 
 pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>> {
-    DefaultFileMetadataRepo::get_last_updated(&config)
+    file_metadata_repo::get_last_updated(&config)
         .map(|n| n as i64)
         .map_err(|err| match err {
             DbError::BackendError(_) | DbError::SerdeError(_) => unexpected!("{:#?}", err),
@@ -733,7 +719,7 @@ pub fn get_last_synced_human_string(config: &Config) -> Result<String, Error<Get
     let last_synced = get_last_synced(config)?;
 
     Ok(if last_synced != 0 {
-        Duration::milliseconds(DefaultClock::get_time() - last_synced)
+        Duration::milliseconds(clock_service::get_time().0 - last_synced)
             .format_human()
             .to_string()
     } else {
@@ -749,7 +735,7 @@ pub enum GetUsageError {
 }
 
 pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>> {
-    DefaultUsageService::server_usage(&config)
+    usage_service::server_usage(&config)
         .map(|resp| resp.usages)
         .map_err(|err| match err {
             usage_service::GetUsageError::AccountRetrievalError(db_err) => match db_err {
@@ -778,7 +764,7 @@ pub fn get_usage_human_string(
     config: &Config,
     exact: bool,
 ) -> Result<String, Error<GetUsageError>> {
-    DefaultUsageService::get_usage_human_string(&config, exact).map_err(|err| match err {
+    usage_service::get_usage_human_string(&config, exact).map_err(|err| match err {
         USGetUsageError::AccountRetrievalError(db_err) => match db_err {
             AccountRepoError::NoAccount => UiError(GetUsageError::NoAccount),
             AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
@@ -805,7 +791,7 @@ pub fn get_local_and_server_usage(
     config: &Config,
     exact: bool,
 ) -> Result<LocalAndServerUsages, Error<GetUsageError>> {
-    DefaultUsageService::local_and_server_usages(&config, exact).map_err(|err| match err {
+    usage_service::local_and_server_usages(&config, exact).map_err(|err| match err {
         USLocalAndServerUsageError::GetUsageError(gue) => match gue {
             USGetUsageError::AccountRetrievalError(_) => UiError(GetUsageError::NoAccount),
             USGetUsageError::ApiError(api_err) => match api_err {
@@ -836,7 +822,7 @@ pub enum GetDrawingError {
 }
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    DefaultDrawingService::get_drawing(&config, id).map_err(|drawing_err| match drawing_err {
+    drawing_service::get_drawing(&config, id).map_err(|drawing_err| match drawing_err {
         DrawingError::InvalidDrawingError(err) => match err.classify() {
             Category::Io => unexpected!("{:#?}", err),
             Category::Syntax | Category::Data | Category::Eof => {
@@ -857,7 +843,7 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
             FSReadDocumentError::DbError(_)
             | FSReadDocumentError::DocumentReadError(_)
             | FSReadDocumentError::CouldNotFindParents(_)
-            | FSReadDocumentError::FileCryptoError(_)
+            | FSReadDocumentError::FileEncryptionError(_)
             | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
         },
         DrawingError::FailedToSaveDrawing(_)
@@ -881,7 +867,7 @@ pub fn save_drawing(
     id: Uuid,
     drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
-    DefaultDrawingService::save_drawing(&config, id, drawing_bytes).map_err(|drawing_err| {
+    drawing_service::save_drawing(&config, id, drawing_bytes).map_err(|drawing_err| {
         match drawing_err {
             DrawingError::InvalidDrawingError(err) => match err.classify() {
                 Category::Io => unexpected!("{:#?}", err),
@@ -903,7 +889,7 @@ pub fn save_drawing(
                     UiError(SaveDrawingError::FolderTreatedAsDrawing)
                 }
                 DocumentUpdateError::CouldNotFindParents(_)
-                | DocumentUpdateError::FileCryptoError(_)
+                | DocumentUpdateError::FileEncryptionError(_)
                 | DocumentUpdateError::FileCompressionError(_)
                 | DocumentUpdateError::FileDecompressionError(_)
                 | DocumentUpdateError::DocumentWriteError(_)
@@ -935,39 +921,35 @@ pub fn export_drawing(
     id: Uuid,
     format: SupportedImageFormats,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    DefaultDrawingService::export_drawing(&config, id, format).map_err(|drawing_err| {
-        match drawing_err {
-            DrawingError::InvalidDrawingError(err) => match err.classify() {
-                Category::Io => unexpected!("{:#?}", err),
-                Category::Syntax | Category::Data | Category::Eof => {
-                    UiError(ExportDrawingError::InvalidDrawing)
+    drawing_service::export_drawing(&config, id, format).map_err(|drawing_err| match drawing_err {
+        DrawingError::InvalidDrawingError(err) => match err.classify() {
+            Category::Io => unexpected!("{:#?}", err),
+            Category::Syntax | Category::Data | Category::Eof => {
+                UiError(ExportDrawingError::InvalidDrawing)
+            }
+        },
+        DrawingError::FailedToRetrieveDrawing(err) => match err {
+            FSReadDocumentError::TreatedFolderAsDocument => {
+                UiError(ExportDrawingError::FolderTreatedAsDrawing)
+            }
+            FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
+                AccountRepoError::NoAccount => UiError(ExportDrawingError::NoAccount),
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                    unexpected!("{:#?}", account_error)
                 }
             },
-            DrawingError::FailedToRetrieveDrawing(err) => match err {
-                FSReadDocumentError::TreatedFolderAsDocument => {
-                    UiError(ExportDrawingError::FolderTreatedAsDrawing)
-                }
-                FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
-                    AccountRepoError::NoAccount => UiError(ExportDrawingError::NoAccount),
-                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                        unexpected!("{:#?}", account_error)
-                    }
-                },
-                FSReadDocumentError::CouldNotFindFile => {
-                    UiError(ExportDrawingError::FileDoesNotExist)
-                }
-                FSReadDocumentError::DbError(_)
-                | FSReadDocumentError::DocumentReadError(_)
-                | FSReadDocumentError::CouldNotFindParents(_)
-                | FSReadDocumentError::FileCryptoError(_)
-                | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
-            },
-            DrawingError::FailedToSaveDrawing(_)
-            | DrawingError::CorruptedDrawing
-            | DrawingError::UnequalPointsAndGirthMetrics
-            | DrawingError::UnableToGetColorFromAlias
-            | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
-        }
+            FSReadDocumentError::CouldNotFindFile => UiError(ExportDrawingError::FileDoesNotExist),
+            FSReadDocumentError::DbError(_)
+            | FSReadDocumentError::DocumentReadError(_)
+            | FSReadDocumentError::CouldNotFindParents(_)
+            | FSReadDocumentError::FileEncryptionError(_)
+            | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
+        },
+        DrawingError::FailedToSaveDrawing(_)
+        | DrawingError::CorruptedDrawing
+        | DrawingError::UnequalPointsAndGirthMetrics
+        | DrawingError::UnableToGetColorFromAlias
+        | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
     })
 }
 
@@ -1025,57 +1007,7 @@ pub mod loggers;
 pub mod model;
 pub mod repo;
 pub mod service;
-pub mod storage;
 
 pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
-
-pub type DefaultClock = ClockImpl;
-pub type DefaultPKCrypto = ElipticCurve<DefaultClock>;
-pub type DefaultSymmetric = AESImpl;
-pub type DefaultBackend = FileBackend;
-pub type DefaultCodeVersion = CodeVersionImpl;
-pub type DefaultClient = ClientImpl<DefaultPKCrypto, DefaultCodeVersion>;
-pub type DefaultAccountRepo = AccountRepoImpl;
-pub type DefaultUsageService = UsageServiceImpl<
-    DefaultFileMetadataRepo,
-    DefaultFileService,
-    DefaultAccountRepo,
-    DefaultClient,
->;
-pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService, DefaultFileMetadataRepo>;
-pub type DefaultDbVersionRepo = DbVersionRepoImpl;
-pub type DefaultDbStateService =
-    DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo, DefaultCodeVersion>;
-pub type DefaultAccountService = AccountServiceImpl<
-    DefaultPKCrypto,
-    DefaultAccountRepo,
-    DefaultClient,
-    DefaultFileEncryptionService,
-    DefaultFileMetadataRepo,
->;
-pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
-pub type DefaultLocalChangesRepo = LocalChangesRepoImpl<DefaultClock>;
-pub type DefaultDocumentRepo = DocumentRepoImpl;
-pub type DefaultFileEncryptionService =
-    FileEncryptionServiceImpl<DefaultPKCrypto, DefaultSymmetric>;
-pub type DefaultFileCompressionService = FileCompressionServiceImpl;
-pub type DefaultSyncService = FileSyncService<
-    DefaultFileMetadataRepo,
-    DefaultLocalChangesRepo,
-    DefaultDocumentRepo,
-    DefaultAccountRepo,
-    DefaultClient,
-    DefaultFileService,
-    DefaultFileEncryptionService,
-    DefaultFileCompressionService,
->;
-pub type DefaultFileService = FileServiceImpl<
-    DefaultFileMetadataRepo,
-    DefaultDocumentRepo,
-    DefaultLocalChangesRepo,
-    DefaultAccountRepo,
-    DefaultFileEncryptionService,
-    DefaultFileCompressionService,
->;
