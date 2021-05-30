@@ -2,9 +2,7 @@
 
 use crate::model::state::Config;
 use crate::repo::file_metadata_repo::FILE_METADATA;
-use crate::repo::local_changes_repo::LocalChangesRepo;
-
-use crate::DefaultLocalChangesRepo;
+use crate::repo::local_changes_repo;
 
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
@@ -160,8 +158,8 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     );
 
     assert_eq!(
-        DefaultLocalChangesRepo::get_all_local_changes(&db1).unwrap(),
-        DefaultLocalChangesRepo::get_all_local_changes(&db2).unwrap()
+        local_changes_repo::get_all_local_changes(&db1).unwrap(),
+        local_changes_repo::get_all_local_changes(&db2).unwrap()
     );
 
     assert_eq!(

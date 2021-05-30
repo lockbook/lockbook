@@ -7,7 +7,6 @@ use uuid::Uuid;
 use crate::client;
 use crate::client::ApiError;
 use crate::model::state::Config;
-use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::file_compression_service::FileCompressionService;
 use crate::service::file_encryption_service::FileEncryptionService;
@@ -122,23 +121,20 @@ pub struct SyncProgress {
 }
 
 pub struct FileSyncService<
-    ChangeDb: LocalChangesRepo,
     Files: FileService,
     FileCrypto: FileEncryptionService,
     FileCompression: FileCompressionService,
 > {
-    _changes: ChangeDb,
     _file: Files,
     _file_crypto: FileCrypto,
     _file_compression: FileCompression,
 }
 
 impl<
-        ChangeDb: LocalChangesRepo,
         Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > SyncService for FileSyncService<ChangeDb, Files, FileCrypto, FileCompression>
+    > SyncService for FileSyncService<Files, FileCrypto, FileCompression>
 {
     fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -183,7 +179,8 @@ impl<
                 .cmp(&f2.get_metadata().metadata_version)
         });
 
-        let changes = ChangeDb::get_all_local_changes(config).map_err(LocalChangesRepoError)?;
+        let changes =
+            local_changes_repo::get_all_local_changes(config).map_err(LocalChangesRepoError)?;
 
         for change_description in changes {
             let metadata = file_metadata_repo::get(config, change_description.id)
@@ -279,11 +276,10 @@ impl<
 
 /// Helper functions
 impl<
-        ChangeDb: LocalChangesRepo,
         Files: FileService,
         FileCrypto: FileEncryptionService,
         FileCompression: FileCompressionService,
-    > FileSyncService<ChangeDb, Files, FileCrypto, FileCompression>
+    > FileSyncService<Files, FileCrypto, FileCompression>
 {
     /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
     /// there are not going to be path conflicts. If there are, we find the file that is conflicting
@@ -351,7 +347,7 @@ impl<
             file_metadata_repo::non_recursive_delete(config, metadata.id)
                 .map_err(WorkExecutionError::MetadataRepoError)?;
 
-            ChangeDb::delete(config, metadata.id)
+            local_changes_repo::delete(config, metadata.id)
                 .map_err(WorkExecutionError::LocalChangesRepoError)?;
 
             document_repo::delete(config, metadata.id).map_err(SaveDocumentError)?
@@ -366,10 +362,12 @@ impl<
                             Ok(_) => {
                                 match file_metadata_repo::non_recursive_delete(config, metadata.id)
                                 {
-                                    Ok(_) => match ChangeDb::delete(config, metadata.id) {
-                                        Ok(_) => None,
-                                        Err(err) => Some(format!("{:?}", err)),
-                                    },
+                                    Ok(_) => {
+                                        match local_changes_repo::delete(config, metadata.id) {
+                                            Ok(_) => None,
+                                            Err(err) => Some(format!("{:?}", err)),
+                                        }
+                                    }
                                     Err(err) => Some(format!("{:?}", err)),
                                 }
                             }
@@ -476,7 +474,7 @@ impl<
             document_repo::insert(config, metadata.id, &new_content).map_err(SaveDocumentError)?;
 
             // Mark content as synced
-            ChangeDb::untrack_edit(config, metadata.id)
+            local_changes_repo::untrack_edit(config, metadata.id)
                 .map_err(WorkExecutionError::LocalChangesRepoError)?;
         }
 
@@ -493,7 +491,7 @@ impl<
         if let Some(renamed_locally) = &local_changes.renamed {
             // Check if both renamed, if so, server wins
             if metadata.name != renamed_locally.old_value {
-                ChangeDb::untrack_rename(config, metadata.id)
+                local_changes_repo::untrack_rename(config, metadata.id)
                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
             } else {
                 metadata.name = local_metadata.name.clone();
@@ -504,7 +502,7 @@ impl<
         if let Some(moved_locally) = &local_changes.moved {
             // Check if both moved, if so server wins
             if metadata.parent != moved_locally.old_value {
-                ChangeDb::untrack_move(config, metadata.id)
+                local_changes_repo::untrack_move(config, metadata.id)
                     .map_err(WorkExecutionError::LocalChangesRepoError)?;
             } else {
                 metadata.parent = local_metadata.parent;
@@ -555,7 +553,7 @@ impl<
                 }
             }
             Some(local_metadata) => {
-                match ChangeDb::get_local_changes(config, metadata.id)
+                match local_changes_repo::get_local_changes(config, metadata.id)
                     .map_err(WorkExecutionError::LocalChangesRepoError)?
                 {
                     None => {
@@ -594,8 +592,8 @@ impl<
         account: &Account,
         metadata: &mut FileMetadata,
     ) -> Result<(), WorkExecutionError> {
-        match ChangeDb::get_local_changes(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)? {
-                None => debug!("Calculate work indicated there was work to be done, but ChangeDb didn't give us anything. It must have been unset by a server change. id: {:?}", metadata.id),
+        match local_changes_repo::get_local_changes(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)? {
+                None => debug!("Calculate work indicated there was work to be done, but local_changes_repo didn't give us anything. It must have been unset by a server change. id: {:?}", metadata.id),
                 Some(mut local_change) => {
                     if local_change.new {
                         if metadata.file_type == Document {
@@ -623,7 +621,7 @@ impl<
 
                         file_metadata_repo::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                        ChangeDb::untrack_new_file(config, metadata.id)
+                        local_changes_repo::untrack_new_file(config, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                         local_change.new = false;
                         local_change.renamed = None;
@@ -648,7 +646,7 @@ impl<
                         metadata.metadata_version = version;
                         file_metadata_repo::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                        ChangeDb::untrack_rename(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                        local_changes_repo::untrack_rename(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                         local_change.renamed = None;
                     }
 
@@ -662,7 +660,7 @@ impl<
                         metadata.metadata_version = version;
                         file_metadata_repo::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                        ChangeDb::untrack_move(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                        local_changes_repo::untrack_move(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                         local_change.moved = None;
                     }
 
@@ -677,7 +675,7 @@ impl<
                         metadata.metadata_version = version;
                         file_metadata_repo::insert(config, &metadata).map_err(WorkExecutionError::MetadataRepoError)?;
 
-                        ChangeDb::untrack_edit(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
+                        local_changes_repo::untrack_edit(config, metadata.id).map_err(WorkExecutionError::LocalChangesRepoError)?;
                         local_change.content_edited = None;
                     }
 
@@ -688,7 +686,7 @@ impl<
                             client::request(&account, DeleteFolderRequest{ id: metadata.id }).map_err(WorkExecutionError::from)?;
                         }
 
-                        ChangeDb::delete(config, metadata.id)
+                        local_changes_repo::delete(config, metadata.id)
                             .map_err(WorkExecutionError::LocalChangesRepoError)?;
                         local_change.deleted = false;
 

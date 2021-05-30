@@ -22,7 +22,6 @@ use crate::repo::account_repo::AccountRepoError;
 use crate::repo::file_metadata_repo::{
     DbError, Filter, FindingChildrenFailed, FindingParentsFailed, GetError as FileMetadataRepoError,
 };
-use crate::repo::local_changes_repo::{LocalChangesRepo, LocalChangesRepoImpl};
 use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
@@ -653,7 +652,7 @@ pub enum GetLocalChangesError {
 }
 
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, Error<GetLocalChangesError>> {
-    Ok(DefaultLocalChangesRepo::get_all_local_changes(&config)
+    Ok(local_changes_repo::get_all_local_changes(&config)
         .map_err(|err| match err {
             local_changes_repo::DbError::TimeError(_)
             | local_changes_repo::DbError::BackendError(_)
@@ -1026,17 +1025,12 @@ static LOG_FILE: &str = "lockbook.log";
 pub type DefaultUsageService = UsageServiceImpl<DefaultFileService>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService>;
 pub type DefaultAccountService = AccountServiceImpl<DefaultFileEncryptionService>;
-pub type DefaultLocalChangesRepo = LocalChangesRepoImpl;
 pub type DefaultFileEncryptionService = FileEncryptionServiceImpl;
 pub type DefaultFileCompressionService = FileCompressionServiceImpl;
 pub type DefaultSyncService = FileSyncService<
-    DefaultLocalChangesRepo,
     DefaultFileService,
     DefaultFileEncryptionService,
     DefaultFileCompressionService,
 >;
-pub type DefaultFileService = FileServiceImpl<
-    DefaultLocalChangesRepo,
-    DefaultFileEncryptionService,
-    DefaultFileCompressionService,
->;
+pub type DefaultFileService =
+    FileServiceImpl<DefaultFileEncryptionService, DefaultFileCompressionService>;

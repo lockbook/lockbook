@@ -17,442 +17,398 @@ pub enum DbError {
     SerdeError(serde_json::Error),
 }
 
-pub trait LocalChangesRepo {
-    fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, DbError>;
-    fn get_local_changes(config: &Config, id: Uuid) -> Result<Option<LocalChange>, DbError>;
-    fn track_new_file(config: &Config, id: Uuid, now: TimeGetter) -> Result<(), DbError>;
-    fn track_rename(
-        config: &Config,
-        id: Uuid,
-        old_name: &str,
-        new_name: &str,
-        now: TimeGetter,
-    ) -> Result<(), DbError>;
-    fn track_move(
-        config: &Config,
-        id: Uuid,
-        old_parent: Uuid,
-        new_parent: Uuid,
-        now: TimeGetter,
-    ) -> Result<(), DbError>;
-    fn track_edit(
-        config: &Config,
-        id: Uuid,
-        old_version: &EncryptedDocument,
-        access_info_for_old_version: &UserAccessInfo,
-        old_content_checksum: Vec<u8>,
-        new_content_checksum: Vec<u8>,
-        now: TimeGetter,
-    ) -> Result<(), DbError>;
-    fn track_delete(
-        config: &Config,
-        id: Uuid,
-        file_type: FileType,
-        now: TimeGetter,
-    ) -> Result<(), DbError>;
-    fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), DbError>;
-    fn untrack_rename(config: &Config, id: Uuid) -> Result<(), DbError>;
-    fn untrack_move(config: &Config, id: Uuid) -> Result<(), DbError>;
-    fn untrack_edit(config: &Config, id: Uuid) -> Result<(), DbError>;
-    fn delete(config: &Config, id: Uuid) -> Result<(), DbError>;
+pub static LOCAL_CHANGES: &[u8; 13] = b"local_changes";
+
+pub fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, DbError> {
+    let mut value = local_storage::dump::<_, Vec<u8>>(config, LOCAL_CHANGES)
+        .map_err(DbError::BackendError)?
+        .into_iter()
+        .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
+        .collect::<Result<Vec<LocalChange>, DbError>>()?;
+
+    value.sort_by(|change1, change2| change1.timestamp.cmp(&change2.timestamp));
+
+    Ok(value)
 }
 
-pub struct LocalChangesRepoImpl {}
-
-static LOCAL_CHANGES: &[u8; 13] = b"local_changes";
-
-impl LocalChangesRepo for LocalChangesRepoImpl {
-    fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, DbError> {
-        let mut value = local_storage::dump::<_, Vec<u8>>(config, LOCAL_CHANGES)
-            .map_err(DbError::BackendError)?
-            .into_iter()
-            .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
-            .collect::<Result<Vec<LocalChange>, DbError>>()?;
-
-        value.sort_by(|change1, change2| change1.timestamp.cmp(&change2.timestamp));
-
-        Ok(value)
-    }
-
-    fn get_local_changes(config: &Config, id: Uuid) -> Result<Option<LocalChange>, DbError> {
-        let maybe_value: Option<Vec<u8>> =
-            local_storage::read(config, LOCAL_CHANGES, id.to_string().as_str())
-                .map_err(DbError::BackendError)?;
-        match maybe_value {
-            None => Ok(None),
-            Some(value) => {
-                let change: LocalChange =
-                    serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?;
-                Ok(Some(change))
-            }
+pub fn get_local_changes(config: &Config, id: Uuid) -> Result<Option<LocalChange>, DbError> {
+    let maybe_value: Option<Vec<u8>> =
+        local_storage::read(config, LOCAL_CHANGES, id.to_string().as_str())
+            .map_err(DbError::BackendError)?;
+    match maybe_value {
+        None => Ok(None),
+        Some(value) => {
+            let change: LocalChange =
+                serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?;
+            Ok(Some(change))
         }
     }
+}
 
-    fn track_new_file(config: &Config, id: Uuid, now: TimeGetter) -> Result<(), DbError> {
-        let new_local_change = LocalChange {
-            timestamp: now().0,
-            id,
-            renamed: None,
-            moved: None,
-            new: true,
-            content_edited: None,
-            deleted: false,
-        };
+pub fn track_new_file(config: &Config, id: Uuid, now: TimeGetter) -> Result<(), DbError> {
+    let new_local_change = LocalChange {
+        timestamp: now().0,
+        id,
+        renamed: None,
+        moved: None,
+        new: true,
+        content_edited: None,
+        deleted: false,
+    };
 
-        local_storage::write(
-            config,
-            LOCAL_CHANGES,
-            id.to_string().as_str(),
-            serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-        )
-        .map_err(DbError::BackendError)?;
-        Ok(())
+    local_storage::write(
+        config,
+        LOCAL_CHANGES,
+        id.to_string().as_str(),
+        serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+    )
+    .map_err(DbError::BackendError)?;
+    Ok(())
+}
+
+pub fn track_rename(
+    config: &Config,
+    id: Uuid,
+    old_name: &str,
+    new_name: &str,
+    now: TimeGetter,
+) -> Result<(), DbError> {
+    if old_name == new_name {
+        return Ok(());
     }
 
-    fn track_rename(
-        config: &Config,
-        id: Uuid,
-        old_name: &str,
-        new_name: &str,
-        now: TimeGetter,
-    ) -> Result<(), DbError> {
-        if old_name == new_name {
-            return Ok(());
-        }
+    match get_local_changes(config, id)? {
+        None => {
+            let new_local_change = LocalChange {
+                timestamp: now().0,
+                id,
+                renamed: Some(Renamed::from(old_name)),
+                moved: None,
+                new: false,
+                content_edited: None,
+                deleted: false,
+            };
 
-        match Self::get_local_changes(config, id)? {
+            local_storage::write(
+                config,
+                LOCAL_CHANGES,
+                id.to_string().as_str(),
+                serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+            )
+            .map_err(DbError::BackendError)?;
+            Ok(())
+        }
+        Some(mut change) => match change.renamed {
             None => {
-                let new_local_change = LocalChange {
-                    timestamp: now().0,
-                    id,
-                    renamed: Some(Renamed::from(old_name)),
-                    moved: None,
-                    new: false,
-                    content_edited: None,
-                    deleted: false,
-                };
-
+                change.renamed = Some(Renamed::from(old_name));
                 local_storage::write(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+                    serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                 )
                 .map_err(DbError::BackendError)?;
                 Ok(())
             }
-            Some(mut change) => match change.renamed {
-                None => {
-                    change.renamed = Some(Renamed::from(old_name));
-                    local_storage::write(
-                        config,
-                        LOCAL_CHANGES,
-                        id.to_string().as_str(),
-                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::BackendError)?;
+            Some(renamed) => {
+                if new_name == renamed.old_value {
+                    untrack_rename(config, id)
+                } else {
                     Ok(())
                 }
-                Some(renamed) => {
-                    if new_name == renamed.old_value {
-                        Self::untrack_rename(config, id)
-                    } else {
-                        Ok(())
-                    }
-                }
-            },
-        }
+            }
+        },
+    }
+}
+
+pub fn track_move(
+    config: &Config,
+    id: Uuid,
+    old_parent: Uuid,
+    new_parent: Uuid,
+    now: TimeGetter,
+) -> Result<(), DbError> {
+    if old_parent == new_parent {
+        return Ok(());
     }
 
-    fn track_move(
-        config: &Config,
-        id: Uuid,
-        old_parent: Uuid,
-        new_parent: Uuid,
-        now: TimeGetter,
-    ) -> Result<(), DbError> {
-        if old_parent == new_parent {
-            return Ok(());
+    match get_local_changes(config, id)? {
+        None => {
+            let new_local_change = LocalChange {
+                timestamp: now().0,
+                id,
+                renamed: None,
+                moved: Some(Moved::from(old_parent)),
+                new: false,
+                content_edited: None,
+                deleted: false,
+            };
+
+            local_storage::write(
+                config,
+                LOCAL_CHANGES,
+                id.to_string().as_str(),
+                serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+            )
+            .map_err(DbError::BackendError)?;
+            Ok(())
         }
-
-        match Self::get_local_changes(config, id)? {
+        Some(mut change) => match change.moved {
             None => {
-                let new_local_change = LocalChange {
-                    timestamp: now().0,
-                    id,
-                    renamed: None,
-                    moved: Some(Moved::from(old_parent)),
-                    new: false,
-                    content_edited: None,
-                    deleted: false,
-                };
-
+                change.moved = Some(Moved::from(old_parent));
                 local_storage::write(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+                    serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                 )
                 .map_err(DbError::BackendError)?;
                 Ok(())
             }
-            Some(mut change) => match change.moved {
-                None => {
-                    change.moved = Some(Moved::from(old_parent));
-                    local_storage::write(
-                        config,
-                        LOCAL_CHANGES,
-                        id.to_string().as_str(),
-                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::BackendError)?;
+            Some(moved) => {
+                if moved.old_value == new_parent {
+                    untrack_move(config, id)
+                } else {
                     Ok(())
                 }
-                Some(moved) => {
-                    if moved.old_value == new_parent {
-                        Self::untrack_move(config, id)
-                    } else {
-                        Ok(())
-                    }
-                }
-            },
-        }
+            }
+        },
+    }
+}
+
+pub fn track_edit(
+    config: &Config,
+    id: Uuid,
+    old_version: &EncryptedDocument,
+    access_info_for_old_version: &UserAccessInfo,
+    old_content_checksum: Vec<u8>,
+    new_content_checksum: Vec<u8>,
+    now: TimeGetter,
+) -> Result<(), DbError> {
+    if old_content_checksum == new_content_checksum {
+        return Ok(());
     }
 
-    fn track_edit(
-        config: &Config,
-        id: Uuid,
-        old_version: &EncryptedDocument,
-        access_info_for_old_version: &UserAccessInfo,
-        old_content_checksum: Vec<u8>,
-        new_content_checksum: Vec<u8>,
-        now: TimeGetter,
-    ) -> Result<(), DbError> {
-        if old_content_checksum == new_content_checksum {
-            return Ok(());
+    match get_local_changes(config, id)? {
+        None => {
+            let new_local_change = LocalChange {
+                timestamp: now().0,
+                id,
+                renamed: None,
+                moved: None,
+                new: false,
+                content_edited: Some(Edited {
+                    old_value: old_version.clone(),
+                    access_info: access_info_for_old_version.clone(),
+                    old_content_checksum,
+                }),
+                deleted: false,
+            };
+            local_storage::write(
+                config,
+                LOCAL_CHANGES,
+                id.to_string().as_str(),
+                serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+            )
+            .map_err(DbError::BackendError)?;
+            Ok(())
         }
-
-        match Self::get_local_changes(config, id)? {
+        Some(mut change) => match change.content_edited {
             None => {
-                let new_local_change = LocalChange {
-                    timestamp: now().0,
-                    id,
-                    renamed: None,
-                    moved: None,
-                    new: false,
-                    content_edited: Some(Edited {
-                        old_value: old_version.clone(),
-                        access_info: access_info_for_old_version.clone(),
-                        old_content_checksum,
-                    }),
-                    deleted: false,
-                };
+                change.content_edited = Some(Edited {
+                    old_value: old_version.clone(),
+                    access_info: access_info_for_old_version.clone(),
+                    old_content_checksum,
+                });
                 local_storage::write(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+                    serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                 )
                 .map_err(DbError::BackendError)?;
                 Ok(())
             }
-            Some(mut change) => match change.content_edited {
-                None => {
-                    change.content_edited = Some(Edited {
-                        old_value: old_version.clone(),
-                        access_info: access_info_for_old_version.clone(),
-                        old_content_checksum,
-                    });
+            Some(edited) => {
+                if edited.old_content_checksum == new_content_checksum {
+                    untrack_edit(config, id)
+                } else {
+                    Ok(())
+                }
+            }
+        },
+    }
+}
+
+pub fn track_delete(
+    config: &Config,
+    id: Uuid,
+    file_type: FileType,
+    now: TimeGetter,
+) -> Result<(), DbError> {
+    // Added to ensure that a prior move is at least 1ms older than this delete
+    thread::sleep(time::Duration::from_millis(1));
+
+    match get_local_changes(config, id)? {
+        None => {
+            let new_local_change = LocalChange {
+                timestamp: now().0,
+                id,
+                renamed: None,
+                moved: None,
+                new: false,
+                content_edited: None,
+                deleted: true,
+            };
+            local_storage::write(
+                config,
+                LOCAL_CHANGES,
+                id.to_string().as_str(),
+                serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+            )
+            .map_err(DbError::BackendError)?;
+            Ok(())
+        }
+        Some(mut change) => {
+            if change.deleted {
+                Ok(())
+            } else if file_type == FileType::Document {
+                if change.new {
+                    // If a document was created and deleted, just forget about it
+                    delete(config, id)
+                } else {
+                    // If a document was deleted, don't bother pushing it's rename / move
+                    let delete_tracked = LocalChange {
+                        timestamp: now().0,
+                        id,
+                        renamed: None,
+                        moved: None,
+                        new: false,
+                        content_edited: None,
+                        deleted: true,
+                    };
                     local_storage::write(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
-                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
+                        serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
                     )
                     .map_err(DbError::BackendError)?;
                     Ok(())
                 }
-                Some(edited) => {
-                    if edited.old_content_checksum == new_content_checksum {
-                        Self::untrack_edit(config, id)
-                    } else {
-                        Ok(())
-                    }
-                }
-            },
-        }
-    }
-
-    fn track_delete(
-        config: &Config,
-        id: Uuid,
-        file_type: FileType,
-        now: TimeGetter,
-    ) -> Result<(), DbError> {
-        // Added to ensure that a prior move is at least 1ms older than this delete
-        thread::sleep(time::Duration::from_millis(1));
-
-        match Self::get_local_changes(config, id)? {
-            None => {
-                let new_local_change = LocalChange {
-                    timestamp: now().0,
-                    id,
-                    renamed: None,
-                    moved: None,
-                    new: false,
-                    content_edited: None,
-                    deleted: true,
-                };
+            } else {
+                change.deleted = true;
                 local_storage::write(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
+                    serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
                 )
                 .map_err(DbError::BackendError)?;
                 Ok(())
             }
-            Some(mut change) => {
-                if change.deleted {
-                    Ok(())
-                } else if file_type == FileType::Document {
-                    if change.new {
-                        // If a document was created and deleted, just forget about it
-                        Self::delete(config, id)
-                    } else {
-                        // If a document was deleted, don't bother pushing it's rename / move
-                        let delete_tracked = LocalChange {
-                            timestamp: now().0,
-                            id,
-                            renamed: None,
-                            moved: None,
-                            new: false,
-                            content_edited: None,
-                            deleted: true,
-                        };
-                        local_storage::write(
-                            config,
-                            LOCAL_CHANGES,
-                            id.to_string().as_str(),
-                            serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
-                        )
-                        .map_err(DbError::BackendError)?;
-                        Ok(())
-                    }
-                } else {
-                    change.deleted = true;
-                    local_storage::write(
-                        config,
-                        LOCAL_CHANGES,
-                        id.to_string().as_str(),
-                        serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::BackendError)?;
-                    Ok(())
-                }
-            }
         }
     }
+}
 
-    fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), DbError> {
-        match Self::get_local_changes(config, id)? {
-            None => Ok(()),
-            Some(mut new) => {
-                new.new = false;
+pub fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), DbError> {
+    match get_local_changes(config, id)? {
+        None => Ok(()),
+        Some(mut new) => {
+            new.new = false;
 
-                if !new.deleted {
-                    Self::delete(config, new.id)?
-                } else {
-                    local_storage::write(
-                        config,
-                        LOCAL_CHANGES,
-                        id.to_string().as_str(),
-                        serde_json::to_vec(&new).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::BackendError)?;
-                }
-
-                Ok(())
+            if !new.deleted {
+                delete(config, new.id)?
+            } else {
+                local_storage::write(
+                    config,
+                    LOCAL_CHANGES,
+                    id.to_string().as_str(),
+                    serde_json::to_vec(&new).map_err(DbError::SerdeError)?,
+                )
+                .map_err(DbError::BackendError)?;
             }
+
+            Ok(())
         }
     }
+}
 
-    fn untrack_rename(config: &Config, id: Uuid) -> Result<(), DbError> {
-        match Self::get_local_changes(config, id)? {
-            None => Ok(()),
-            Some(mut edit) => {
-                edit.renamed = None;
+pub fn untrack_rename(config: &Config, id: Uuid) -> Result<(), DbError> {
+    match get_local_changes(config, id)? {
+        None => Ok(()),
+        Some(mut edit) => {
+            edit.renamed = None;
 
-                if edit.ready_to_be_deleted() {
-                    Self::delete(config, edit.id)?
-                } else {
-                    local_storage::write(
-                        config,
-                        LOCAL_CHANGES,
-                        id.to_string().as_str(),
-                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::BackendError)?;
-                }
-                Ok(())
+            if edit.ready_to_be_deleted() {
+                delete(config, edit.id)?
+            } else {
+                local_storage::write(
+                    config,
+                    LOCAL_CHANGES,
+                    id.to_string().as_str(),
+                    serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                )
+                .map_err(DbError::BackendError)?;
             }
+            Ok(())
         }
     }
+}
 
-    fn untrack_move(config: &Config, id: Uuid) -> Result<(), DbError> {
-        match Self::get_local_changes(config, id)? {
-            None => Ok(()),
-            Some(mut edit) => {
-                edit.moved = None;
+pub fn untrack_move(config: &Config, id: Uuid) -> Result<(), DbError> {
+    match get_local_changes(config, id)? {
+        None => Ok(()),
+        Some(mut edit) => {
+            edit.moved = None;
 
-                if edit.ready_to_be_deleted() {
-                    Self::delete(config, edit.id)?
-                } else {
-                    local_storage::write(
-                        config,
-                        LOCAL_CHANGES,
-                        id.to_string().as_str(),
-                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::BackendError)?;
-                }
-
-                Ok(())
+            if edit.ready_to_be_deleted() {
+                delete(config, edit.id)?
+            } else {
+                local_storage::write(
+                    config,
+                    LOCAL_CHANGES,
+                    id.to_string().as_str(),
+                    serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                )
+                .map_err(DbError::BackendError)?;
             }
+
+            Ok(())
         }
     }
+}
 
-    fn untrack_edit(config: &Config, id: Uuid) -> Result<(), DbError> {
-        match Self::get_local_changes(config, id)? {
-            None => Ok(()),
-            Some(mut edit) => {
-                edit.content_edited = None;
+pub fn untrack_edit(config: &Config, id: Uuid) -> Result<(), DbError> {
+    match get_local_changes(config, id)? {
+        None => Ok(()),
+        Some(mut edit) => {
+            edit.content_edited = None;
 
-                if edit.ready_to_be_deleted() {
-                    Self::delete(config, edit.id)?
-                } else {
-                    local_storage::write(
-                        config,
-                        LOCAL_CHANGES,
-                        id.to_string().as_str(),
-                        serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::BackendError)?;
-                }
-
-                Ok(())
+            if edit.ready_to_be_deleted() {
+                delete(config, edit.id)?
+            } else {
+                local_storage::write(
+                    config,
+                    LOCAL_CHANGES,
+                    id.to_string().as_str(),
+                    serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
+                )
+                .map_err(DbError::BackendError)?;
             }
+
+            Ok(())
         }
     }
+}
 
-    fn delete(config: &Config, id: Uuid) -> Result<(), DbError> {
-        match Self::get_local_changes(config, id)? {
-            None => Ok(()),
-            Some(_) => {
-                local_storage::delete(config, LOCAL_CHANGES, id.to_string().as_str())
-                    .map_err(DbError::BackendError)?;
-                Ok(())
-            }
+pub fn delete(config: &Config, id: Uuid) -> Result<(), DbError> {
+    match get_local_changes(config, id)? {
+        None => Ok(()),
+        Some(_) => {
+            local_storage::delete(config, LOCAL_CHANGES, id.to_string().as_str())
+                .map_err(DbError::BackendError)?;
+            Ok(())
         }
     }
 }
@@ -461,9 +417,8 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
 mod unit_tests {
     use uuid::Uuid;
 
+    use crate::local_changes_repo;
     use crate::model::state::temp_config;
-    use crate::repo::local_changes_repo::LocalChangesRepo;
-    use crate::DefaultLocalChangesRepo;
     use lockbook_crypto::clock_service::Timestamp;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use lockbook_models::local_changes::{LocalChange, Moved, Renamed};
@@ -473,7 +428,7 @@ mod unit_tests {
     macro_rules! assert_total_local_changes (
         ($db:expr, $total:literal) => {
             assert_eq!(
-                DefaultLocalChangesRepo::get_all_local_changes($db)
+                local_changes_repo::get_all_local_changes($db)
                     .unwrap()
                     .len(),
                 $total
@@ -488,11 +443,11 @@ mod unit_tests {
         assert_total_local_changes!(cfg, 0);
 
         let id = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
-        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
-        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -505,10 +460,9 @@ mod unit_tests {
         );
         assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_rename(cfg, id, "old_file", "unused_name", EARLY_CLOCK)
-            .unwrap();
+        local_changes_repo::track_rename(cfg, id, "old_file", "unused_name", EARLY_CLOCK).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -522,9 +476,9 @@ mod unit_tests {
         assert_total_local_changes!(cfg, 1);
 
         let id2 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_move(cfg, id, id2, Uuid::new_v4(), EARLY_CLOCK).unwrap();
+        local_changes_repo::track_move(cfg, id, id2, Uuid::new_v4(), EARLY_CLOCK).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -538,9 +492,9 @@ mod unit_tests {
 
         assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::untrack_edit(cfg, id).unwrap();
+        local_changes_repo::untrack_edit(cfg, id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -552,9 +506,9 @@ mod unit_tests {
             })
         );
 
-        DefaultLocalChangesRepo::untrack_rename(cfg, id).unwrap();
+        local_changes_repo::untrack_rename(cfg, id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -566,9 +520,9 @@ mod unit_tests {
             })
         );
 
-        DefaultLocalChangesRepo::untrack_move(cfg, id).unwrap();
+        local_changes_repo::untrack_move(cfg, id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -580,17 +534,17 @@ mod unit_tests {
             })
         );
 
-        DefaultLocalChangesRepo::untrack_new_file(cfg, id).unwrap();
+        local_changes_repo::untrack_new_file(cfg, id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             None
         );
         assert_total_local_changes!(cfg, 0);
 
         // Deleting a file should unset it's other fields
-        DefaultLocalChangesRepo::track_rename(cfg, id, "old", "new", EARLY_CLOCK).unwrap();
+        local_changes_repo::track_rename(cfg, id, "old", "new", EARLY_CLOCK).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -603,9 +557,9 @@ mod unit_tests {
         );
         assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_delete(cfg, id, Document, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_delete(cfg, id, Document, EARLY_CLOCK).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -624,10 +578,10 @@ mod unit_tests {
         let cfg = &temp_config();
 
         let id = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -638,10 +592,10 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        DefaultLocalChangesRepo::track_delete(cfg, id, Document, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_delete(cfg, id, Document, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             None
         );
     }
@@ -651,10 +605,10 @@ mod unit_tests {
         let cfg = &temp_config();
 
         let id = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -665,10 +619,10 @@ mod unit_tests {
                 deleted: false,
             })
         );
-        DefaultLocalChangesRepo::track_delete(cfg, id, Folder, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_delete(cfg, id, Folder, EARLY_CLOCK).unwrap();
 
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, id).unwrap(),
             Some(LocalChange {
                 timestamp: 0,
                 id,
@@ -686,28 +640,28 @@ mod unit_tests {
         let cfg = &temp_config();
 
         let id1 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_new_file(cfg, id1, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_new_file(cfg, id1, EARLY_CLOCK).unwrap();
         assert_total_local_changes!(cfg, 1);
 
         let id2 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_rename(cfg, id2, "old", "new", EARLY_CLOCK).unwrap();
+        local_changes_repo::track_rename(cfg, id2, "old", "new", EARLY_CLOCK).unwrap();
         assert_total_local_changes!(cfg, 2);
 
         let id3 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_move(cfg, id3, id3, Uuid::new_v4(), EARLY_CLOCK).unwrap();
+        local_changes_repo::track_move(cfg, id3, id3, Uuid::new_v4(), EARLY_CLOCK).unwrap();
         assert_total_local_changes!(cfg, 3);
 
         let id4 = Uuid::new_v4();
-        DefaultLocalChangesRepo::track_delete(cfg, id4, Document, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_delete(cfg, id4, Document, EARLY_CLOCK).unwrap();
         assert_total_local_changes!(cfg, 4);
 
-        DefaultLocalChangesRepo::untrack_new_file(cfg, id1).unwrap();
+        local_changes_repo::untrack_new_file(cfg, id1).unwrap();
         assert_total_local_changes!(cfg, 3);
 
-        DefaultLocalChangesRepo::untrack_rename(cfg, id2).unwrap();
+        local_changes_repo::untrack_rename(cfg, id2).unwrap();
         assert_total_local_changes!(cfg, 2);
 
-        DefaultLocalChangesRepo::untrack_move(cfg, id3).unwrap();
+        local_changes_repo::untrack_move(cfg, id3).unwrap();
         assert_total_local_changes!(cfg, 1);
 
         // Untrack not supported because no one can undelete files
@@ -719,12 +673,12 @@ mod unit_tests {
 
         let the_wrong_id = Uuid::new_v4();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, the_wrong_id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, the_wrong_id).unwrap(),
             None
         );
-        DefaultLocalChangesRepo::untrack_edit(cfg, the_wrong_id).unwrap();
+        local_changes_repo::untrack_edit(cfg, the_wrong_id).unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(cfg, the_wrong_id).unwrap(),
+            local_changes_repo::get_local_changes(cfg, the_wrong_id).unwrap(),
             None
         );
         assert_total_local_changes!(cfg, 0);
@@ -736,14 +690,13 @@ mod unit_tests {
 
         let id = Uuid::new_v4();
 
-        DefaultLocalChangesRepo::track_rename(cfg, id, "old_file", "new_name", EARLY_CLOCK)
-            .unwrap();
+        local_changes_repo::track_rename(cfg, id, "old_file", "new_name", EARLY_CLOCK).unwrap();
         assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_rename(cfg, id, "garbage", "garbage2", EARLY_CLOCK).unwrap();
+        local_changes_repo::track_rename(cfg, id, "garbage", "garbage2", EARLY_CLOCK).unwrap();
         assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_rename(cfg, id, "garbage", "old_file", EARLY_CLOCK).unwrap();
+        local_changes_repo::track_rename(cfg, id, "garbage", "old_file", EARLY_CLOCK).unwrap();
         assert_total_local_changes!(cfg, 0);
     }
 
@@ -754,14 +707,14 @@ mod unit_tests {
         let id = Uuid::new_v4();
         let og = Uuid::new_v4();
 
-        DefaultLocalChangesRepo::track_move(cfg, id, og, Uuid::new_v4(), EARLY_CLOCK).unwrap();
+        local_changes_repo::track_move(cfg, id, og, Uuid::new_v4(), EARLY_CLOCK).unwrap();
         assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_move(cfg, id, Uuid::new_v4(), Uuid::new_v4(), EARLY_CLOCK)
+        local_changes_repo::track_move(cfg, id, Uuid::new_v4(), Uuid::new_v4(), EARLY_CLOCK)
             .unwrap();
         assert_total_local_changes!(cfg, 1);
 
-        DefaultLocalChangesRepo::track_move(cfg, id, Uuid::new_v4(), og, EARLY_CLOCK).unwrap();
+        local_changes_repo::track_move(cfg, id, Uuid::new_v4(), og, EARLY_CLOCK).unwrap();
         assert_total_local_changes!(cfg, 0);
     }
 }

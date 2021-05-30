@@ -5,7 +5,6 @@ use crate::model::state::Config;
 use crate::repo::document_repo;
 use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::FindingParentsFailed;
-use crate::repo::local_changes_repo::LocalChangesRepo;
 use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_compression_service::FileCompressionService;
 use crate::service::file_encryption_service;
@@ -173,20 +172,15 @@ pub trait FileService {
 }
 
 pub struct FileServiceImpl<
-    ChangesDb: LocalChangesRepo,
     FileCrypto: FileEncryptionService,
     FileCompression: FileCompressionService,
 > {
-    _changes_db: ChangesDb,
     _file_crypto: FileCrypto,
     _file_compression: FileCompression,
 }
 
-impl<
-        ChangesDb: LocalChangesRepo,
-        FileCrypto: FileEncryptionService,
-        FileCompression: FileCompressionService,
-    > FileService for FileServiceImpl<ChangesDb, FileCrypto, FileCompression>
+impl<FileCrypto: FileEncryptionService, FileCompression: FileCompressionService> FileService
+    for FileServiceImpl<FileCrypto, FileCompression>
 {
     fn create(
         config: &Config,
@@ -229,7 +223,7 @@ impl<
                 .map_err(FileCryptoError)?;
 
         file_metadata_repo::insert(config, &new_metadata).map_err(MetadataRepoError)?;
-        ChangesDb::track_new_file(config, new_metadata.id, clock_service::get_time)
+        local_changes_repo::track_new_file(config, new_metadata.id, clock_service::get_time)
             .map_err(NewFileError::FailedToRecordChange)?;
 
         if file_type == Document {
@@ -362,7 +356,7 @@ impl<
             let permanent_access_info = FileCrypto::get_key_for_user(&account, id, parents)
                 .map_err(AccessInfoCreationError)?;
 
-            ChangesDb::track_edit(
+            local_changes_repo::track_edit(
                 config,
                 file_metadata.id,
                 &old_encrypted,
@@ -406,7 +400,7 @@ impl<
                     }
                 }
 
-                ChangesDb::track_rename(
+                local_changes_repo::track_rename(
                     config,
                     file.id,
                     &file.name,
@@ -488,7 +482,7 @@ impl<
                         )
                         .map_err(FailedToReEncryptKey)?;
 
-                        ChangesDb::track_move(
+                        local_changes_repo::track_move(
                             config,
                             file.id,
                             file.parent,
@@ -544,7 +538,7 @@ impl<
             return Err(DeleteDocumentError::FolderTreatedAsDocument);
         }
 
-        let new = if let Some(change) = ChangesDb::get_local_changes(config, id)
+        let new = if let Some(change) = local_changes_repo::get_local_changes(config, id)
             .map_err(DeleteDocumentError::FailedToTrackDelete)?
         {
             change.new
@@ -562,8 +556,13 @@ impl<
         }
 
         document_repo::delete(config, id).map_err(DeleteDocumentError::FailedToDeleteDocument)?;
-        ChangesDb::track_delete(config, id, file_metadata.file_type, clock_service::get_time)
-            .map_err(DeleteDocumentError::FailedToTrackDelete)?;
+        local_changes_repo::track_delete(
+            config,
+            id,
+            file_metadata.file_type,
+            clock_service::get_time,
+        )
+        .map_err(DeleteDocumentError::FailedToTrackDelete)?;
 
         Ok(())
     }
@@ -581,8 +580,13 @@ impl<
             return Err(DeleteFolderError::DocumentTreatedAsFolder);
         }
 
-        ChangesDb::track_delete(config, id, file_metadata.file_type, clock_service::get_time)
-            .map_err(DeleteFolderError::FailedToRecordChange)?;
+        local_changes_repo::track_delete(
+            config,
+            id,
+            file_metadata.file_type,
+            clock_service::get_time,
+        )
+        .map_err(DeleteFolderError::FailedToRecordChange)?;
 
         let files_to_delete = file_metadata_repo::get_and_get_children_recursively(config, id)
             .map_err(DeleteFolderError::FindingChildrenFailed)?;
@@ -594,7 +598,7 @@ impl<
                     .map_err(DeleteFolderError::FailedToDeleteDocument)?;
             }
 
-            let moved = if let Some(change) = ChangesDb::get_local_changes(config, file.id)
+            let moved = if let Some(change) = local_changes_repo::get_local_changes(config, file.id)
                 .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?
             {
                 change.moved.is_some()
@@ -606,7 +610,7 @@ impl<
                 file_metadata_repo::non_recursive_delete(config, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteMetadata)?;
 
-                ChangesDb::delete(config, file.id)
+                local_changes_repo::delete(config, file.id)
                     .map_err(DeleteFolderError::FailedToDeleteChangeEntry)?;
             } else {
                 file.deleted = true;
@@ -625,15 +629,14 @@ mod unit_tests {
 
     use crate::model::state::temp_config;
     use crate::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
-    use crate::repo::local_changes_repo::LocalChangesRepo;
+    use crate::repo::local_changes_repo;
     use crate::repo::{account_repo, document_repo, file_metadata_repo};
     use crate::service::file_encryption_service::FileEncryptionService;
     use crate::service::file_service::{
         DeleteFolderError, DocumentRenameError, FileMoveError, FileService, NewFileError,
     };
     use crate::{
-        init_logger, DefaultFileEncryptionService, DefaultFileService, DefaultLocalChangesRepo,
-        NewFileFromPathError,
+        init_logger, DefaultFileEncryptionService, DefaultFileService, NewFileFromPathError,
     };
     use libsecp256k1::SecretKey;
     use lockbook_models::account::Account;
@@ -651,7 +654,7 @@ mod unit_tests {
     macro_rules! assert_total_local_changes (
         ($db:expr, $total:literal) => {
             assert_eq!(
-                DefaultLocalChangesRepo::get_all_local_changes($db)
+                local_changes_repo::get_all_local_changes($db)
                     .unwrap()
                     .len(),
                 $total
@@ -1020,13 +1023,13 @@ mod unit_tests {
         let file =
             DefaultFileService::create_at_path(config, "username/folder1/file1.txt").unwrap();
         assert!(
-            DefaultLocalChangesRepo::get_local_changes(config, file.id)
+            local_changes_repo::get_local_changes(config, file.id)
                 .unwrap()
                 .unwrap()
                 .new
         );
         assert!(
-            DefaultLocalChangesRepo::get_local_changes(config, file.parent)
+            local_changes_repo::get_local_changes(config, file.parent)
                 .unwrap()
                 .unwrap()
                 .new
@@ -1034,13 +1037,13 @@ mod unit_tests {
         assert_total_local_changes!(config, 2);
         assert_no_metadata_problems!(config);
 
-        DefaultLocalChangesRepo::untrack_new_file(config, file.id).unwrap();
-        DefaultLocalChangesRepo::untrack_new_file(config, file.parent).unwrap();
+        local_changes_repo::untrack_new_file(config, file.id).unwrap();
+        local_changes_repo::untrack_new_file(config, file.parent).unwrap();
         assert_total_local_changes!(config, 0);
 
         DefaultFileService::rename_file(config, file.id, "file2.txt").unwrap();
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(config, file.id)
+            local_changes_repo::get_local_changes(config, file.id)
                 .unwrap()
                 .unwrap()
                 .renamed
@@ -1054,7 +1057,7 @@ mod unit_tests {
         DefaultFileService::rename_file(config, file.id, "file23.txt").unwrap();
         assert_total_local_changes!(config, 1);
         assert_eq!(
-            DefaultLocalChangesRepo::get_local_changes(config, file.id)
+            local_changes_repo::get_local_changes(config, file.id)
                 .unwrap()
                 .unwrap()
                 .renamed
@@ -1118,9 +1121,9 @@ mod unit_tests {
         assert_total_local_changes!(config, 3);
         assert_no_metadata_problems!(config);
 
-        DefaultLocalChangesRepo::untrack_new_file(config, file1.id).unwrap();
-        DefaultLocalChangesRepo::untrack_new_file(config, file1.parent).unwrap();
-        DefaultLocalChangesRepo::untrack_new_file(config, folder1.id).unwrap();
+        local_changes_repo::untrack_new_file(config, file1.id).unwrap();
+        local_changes_repo::untrack_new_file(config, file1.parent).unwrap();
+        local_changes_repo::untrack_new_file(config, folder1.id).unwrap();
         assert_total_local_changes!(config, 0);
 
         DefaultFileService::move_file(config, file1.id, folder1.id).unwrap();
@@ -1192,26 +1195,26 @@ mod unit_tests {
         DefaultFileService::write_document(config, file.id, "fresh content".as_bytes()).unwrap();
 
         assert!(
-            DefaultLocalChangesRepo::get_local_changes(config, file.id)
+            local_changes_repo::get_local_changes(config, file.id)
                 .unwrap()
                 .unwrap()
                 .new
         );
 
-        DefaultLocalChangesRepo::untrack_new_file(config, file.id).unwrap();
-        assert!(DefaultLocalChangesRepo::get_local_changes(config, file.id)
+        local_changes_repo::untrack_new_file(config, file.id).unwrap();
+        assert!(local_changes_repo::get_local_changes(config, file.id)
             .unwrap()
             .is_none());
         assert_total_local_changes!(config, 0);
 
         DefaultFileService::write_document(config, file.id, "fresh content2".as_bytes()).unwrap();
-        assert!(DefaultLocalChangesRepo::get_local_changes(config, file.id)
+        assert!(local_changes_repo::get_local_changes(config, file.id)
             .unwrap()
             .unwrap()
             .content_edited
             .is_some());
         DefaultFileService::write_document(config, file.id, "fresh content".as_bytes()).unwrap();
-        assert!(DefaultLocalChangesRepo::get_local_changes(config, file.id)
+        assert!(local_changes_repo::get_local_changes(config, file.id)
             .unwrap()
             .is_none());
     }
@@ -1231,7 +1234,7 @@ mod unit_tests {
             .unwrap();
         DefaultFileService::delete_document(config, doc1.id).unwrap();
         assert_total_local_changes!(config, 0);
-        assert!(DefaultLocalChangesRepo::get_local_changes(config, doc1.id)
+        assert!(local_changes_repo::get_local_changes(config, doc1.id)
             .unwrap()
             .is_none());
 
@@ -1255,12 +1258,12 @@ mod unit_tests {
 
         DefaultFileService::write_document(config, doc1.id, &String::from("content").into_bytes())
             .unwrap();
-        DefaultLocalChangesRepo::delete(config, doc1.id).unwrap();
+        local_changes_repo::delete(config, doc1.id).unwrap();
 
         DefaultFileService::delete_document(config, doc1.id).unwrap();
         assert_total_local_changes!(config, 1);
         assert!(
-            DefaultLocalChangesRepo::get_local_changes(config, doc1.id)
+            local_changes_repo::get_local_changes(config, doc1.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1302,7 +1305,7 @@ mod unit_tests {
             .unwrap();
 
         assert_eq!(
-            DefaultLocalChangesRepo::get_all_local_changes(config)
+            local_changes_repo::get_all_local_changes(config)
                 .unwrap()
                 .into_iter()
                 .map(|change| change.id)
