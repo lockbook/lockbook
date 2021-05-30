@@ -181,8 +181,8 @@ pub async fn delete_document(
     let single_index_response = if let Some(result) = index_responses.iter().last() {
         result
     } else {
-        return Err(Err(format!(
-            "Internal server error! Unexpected zero or multiple postgres rows"
+        return Err(Err(String::from(
+            "Internal server error! Unexpected zero or multiple postgres rows during delete document"
         )));
     };
 
@@ -413,7 +413,9 @@ pub async fn delete_folder(
     {
         result
     } else {
-        return Err(Err(format!("Internal server error! Unexpected zero or multiple postgres rows for delete folder root")));
+        return Err(Err(String::from(
+            "Internal server error! Unexpected zero or multiple postgres rows during delete folder",
+        )));
     };
 
     for r in index_responses.iter() {
