@@ -101,8 +101,7 @@ macro_rules! route_handler {
         pack::<$TRequest>(match unpack(&$server_state, $hyper_request).await {
             Ok((request, public_key)) => {
                 let request_string = format!("{:?}", request);
-                let result = 
-                $handler(&mut RequestContext {
+                let result = $handler(&mut RequestContext {
                     server_state: &$server_state,
                     request,
                     public_key,
@@ -112,7 +111,7 @@ macro_rules! route_handler {
                     error!("Internal error! Request: {}, Error: {}", request_string, e);
                 }
                 wrap_err::<$TRequest>(result)
-            },
+            }
             Err(e) => Err(e),
         })
     }};
