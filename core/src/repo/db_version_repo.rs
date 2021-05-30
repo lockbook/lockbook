@@ -1,5 +1,5 @@
 use crate::model::state::Config;
-use crate::storage::db_provider::FileBackend;
+use crate::repo::local_storage;
 
 #[derive(Debug)]
 pub enum Error {
@@ -18,7 +18,7 @@ static DB_VERSION: &str = "DB_VERSION";
 
 impl DbVersionRepo for DbVersionRepoImpl {
     fn set(config: &Config, version: &str) -> Result<(), Error> {
-        FileBackend::write(
+        local_storage::write(
             config,
             DB_VERSION,
             DB_VERSION.as_bytes(),
@@ -29,7 +29,7 @@ impl DbVersionRepo for DbVersionRepoImpl {
 
     fn get(config: &Config) -> Result<Option<String>, Error> {
         let maybe_value: Option<Vec<u8>> =
-            FileBackend::read(config, DB_VERSION, DB_VERSION.as_bytes())
+            local_storage::read(config, DB_VERSION, DB_VERSION.as_bytes())
                 .map_err(Error::BackendError)?;
         match maybe_value {
             None => Ok(None),

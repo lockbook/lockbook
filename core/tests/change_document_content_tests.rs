@@ -4,7 +4,7 @@ mod integration_test;
 mod change_document_content_tests {
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
-    use lockbook_crypto::symkey::{AESImpl, SymmetricCryptoService};
+    use lockbook_crypto::symkey;
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
     use test_utils::assert_matches;
@@ -59,7 +59,7 @@ mod change_document_content_tests {
                 id: Uuid::new_v4(),
                 old_metadata_version: 0,
                 new_content: aes_encrypt(
-                    &AESImpl::generate_key(),
+                    &symkey::generate_key(),
                     &String::from("new doc content").into_bytes(),
                 ),
             },

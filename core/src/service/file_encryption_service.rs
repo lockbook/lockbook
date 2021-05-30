@@ -1,13 +1,12 @@
 use lockbook_crypto::pubkey::GetAesKeyError;
 use lockbook_crypto::symkey::AESDecryptError;
 use lockbook_crypto::symkey::AESEncryptError;
-use lockbook_crypto::symkey::SymmetricCryptoService;
 use std::collections::HashMap;
 
 use uuid::Uuid;
 
 use crate::service::file_encryption_service::UnableToGetKeyForUser::UnableToDecryptKey;
-use lockbook_crypto::pubkey;
+use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
@@ -113,11 +112,9 @@ pub trait FileEncryptionService {
     ) -> Result<DecryptedDocument, UnableToReadFileAsUser>;
 }
 
-pub struct FileEncryptionServiceImpl<AES: SymmetricCryptoService> {
-    _aes: AES,
-}
+pub struct FileEncryptionServiceImpl {}
 
-impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServiceImpl<AES> {
+impl FileEncryptionService for FileEncryptionServiceImpl {
     fn decrypt_key_for_file(
         account: &Account,
         id: Uuid,
@@ -134,7 +131,7 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
                 let decrypted_parent =
                     Self::decrypt_key_for_file(account, folder_access.folder_id, parents)?;
 
-                let key = AES::decrypt(&decrypted_parent, &folder_access.access_key)
+                let key = symkey::decrypt(&decrypted_parent, &folder_access.access_key)
                     .map_err(KeyDecryptionFailure::KeyDecryptionError)?;
 
                 Ok(key)
@@ -143,7 +140,7 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
                 let access_key_key =
                     pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by)
                         .map_err(KeyDecryptionFailure::SharedSecretError)?;
-                let key = AES::decrypt(&access_key_key, &user_access.access_key)
+                let key = symkey::decrypt(&access_key_key, &user_access.access_key)
                     .map_err(KeyDecryptionFailure::KeyDecryptionError)?;
                 Ok(key)
             }
@@ -159,8 +156,8 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
         let parent_key = Self::decrypt_key_for_file(&personal_key, new_parent_id, parents)
             .map_err(FileCreationError::ParentKeyDecryptionFailed)?;
 
-        let access_key =
-            AES::encrypt(&parent_key, &file_key).map_err(FileCreationError::AesEncryptionFailed)?;
+        let access_key = symkey::encrypt(&parent_key, &file_key)
+            .map_err(FileCreationError::AesEncryptionFailed)?;
 
         Ok(FolderAccessInfo {
             folder_id: new_parent_id,
@@ -180,7 +177,7 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
         let key_encryption_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
             .map_err(UnableToGetKeyForUser::SharedSecretError)?;
 
-        let access_key = AES::encrypt(&key_encryption_key, &key)
+        let access_key = symkey::encrypt(&key_encryption_key, &key)
             .map_err(UnableToGetKeyForUser::KeyEncryptionError)?;
 
         Ok(UserAccessInfo {
@@ -199,7 +196,7 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
     ) -> Result<FileMetadata, FileCreationError> {
         let parent_key = Self::decrypt_key_for_file(&account, parent_id, parents)
             .map_err(FileCreationError::ParentKeyDecryptionFailed)?;
-        let access_key = AES::encrypt(&parent_key, &AES::generate_key())
+        let access_key = symkey::encrypt(&parent_key, &symkey::generate_key())
             .map_err(FileCreationError::AesEncryptionFailed)?;
         let id = Uuid::new_v4();
 
@@ -224,10 +221,10 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
         account: &Account,
     ) -> Result<FileMetadata, RootFolderCreationError> {
         let id = Uuid::new_v4();
-        let key = AES::generate_key();
+        let key = symkey::generate_key();
         let key_encryption_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
             .map_err(RootFolderCreationError::SharedSecretError)?;
-        let encrypted_access_key = AES::encrypt(&key_encryption_key, &key)
+        let encrypted_access_key = symkey::encrypt(&key_encryption_key, &key)
             .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?;
         let use_access_key = UserAccessInfo {
             username: account.username.clone(),
@@ -250,7 +247,7 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
             user_access_keys,
             folder_access_keys: FolderAccessInfo {
                 folder_id: id,
-                access_key: AES::encrypt(&AES::generate_key(), &key)
+                access_key: symkey::encrypt(&symkey::generate_key(), &key)
                     .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
             },
         })
@@ -264,7 +261,7 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
     ) -> Result<EncryptedDocument, FileWriteError> {
         let key = Self::decrypt_key_for_file(&account, metadata.id, parents)
             .map_err(FileWriteError::FileKeyDecryptionFailed)?;
-        AES::encrypt(&key, &content.to_vec()).map_err(FileWriteError::AesEncryptionFailed)
+        symkey::encrypt(&key, &content.to_vec()).map_err(FileWriteError::AesEncryptionFailed)
     }
 
     fn read_document(
@@ -275,7 +272,7 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
     ) -> Result<DecryptedDocument, UnableToReadFile> {
         let key = Self::decrypt_key_for_file(&account, metadata.id, parents)
             .map_err(UnableToReadFile::FileKeyDecryptionFailed)?;
-        AES::decrypt(&key, file).map_err(UnableToReadFile::AesDecryptionFailed)
+        symkey::decrypt(&key, file).map_err(UnableToReadFile::AesDecryptionFailed)
     }
 
     fn user_read_document(
@@ -286,11 +283,11 @@ impl<AES: SymmetricCryptoService> FileEncryptionService for FileEncryptionServic
         let key_decryption_key =
             pubkey::get_aes_key(&account.private_key, &user_access_info.encrypted_by)
                 .map_err(UnableToReadFileAsUser::SharedSecretError)?;
-        let key = AES::decrypt(&key_decryption_key, &user_access_info.access_key)
+        let key = symkey::decrypt(&key_decryption_key, &user_access_info.access_key)
             .map_err(UnableToReadFileAsUser::AesKeyDecryptionFailed)?;
 
-        let content =
-            AES::decrypt(&key, file).map_err(UnableToReadFileAsUser::AesContentDecryptionFailed)?;
+        let content = symkey::decrypt(&key, file)
+            .map_err(UnableToReadFileAsUser::AesContentDecryptionFailed)?;
         Ok(content)
     }
 }

@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use crate::model::state::Config;
-use crate::storage::db_provider::FileBackend;
+use crate::repo::local_storage;
 use lockbook_models::crypto::*;
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ pub struct DocumentRepoImpl;
 
 impl DocumentRepo for DocumentRepoImpl {
     fn insert(config: &Config, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
-        FileBackend::write(
+        local_storage::write(
             config,
             Self::NAMESPACE,
             id.to_string().as_str(),
@@ -40,7 +40,7 @@ impl DocumentRepo for DocumentRepoImpl {
 
     fn get(config: &Config, id: Uuid) -> Result<EncryptedDocument, Error> {
         let maybe_data: Option<Vec<u8>> =
-            FileBackend::read(config, Self::NAMESPACE, id.to_string().as_str())
+            local_storage::read(config, Self::NAMESPACE, id.to_string().as_str())
                 .map_err(Error::BackendError)?;
         match maybe_data {
             None => Err(Error::FileRowMissing(())),
@@ -50,7 +50,7 @@ impl DocumentRepo for DocumentRepoImpl {
 
     fn maybe_get(config: &Config, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
         let maybe_data: Option<Vec<u8>> =
-            FileBackend::read(config, Self::NAMESPACE, id.to_string().as_str())
+            local_storage::read(config, Self::NAMESPACE, id.to_string().as_str())
                 .map_err(DbError::BackendError)?;
         match maybe_data {
             None => Ok(None),
@@ -61,7 +61,7 @@ impl DocumentRepo for DocumentRepoImpl {
     }
 
     fn delete(config: &Config, id: Uuid) -> Result<(), Error> {
-        FileBackend::delete(config, Self::NAMESPACE, id.to_string().as_str())
+        local_storage::delete(config, Self::NAMESPACE, id.to_string().as_str())
             .map_err(Error::BackendError)
     }
 }
@@ -72,7 +72,7 @@ mod unit_tests {
 
     use crate::model::state::temp_config;
     use crate::repo::document_repo::DocumentRepo;
-    use crate::{DefaultDocumentRepo};
+    use crate::DefaultDocumentRepo;
     use lockbook_models::crypto::*;
 
     #[test]

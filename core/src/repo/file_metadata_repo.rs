@@ -8,7 +8,7 @@ use crate::repo::file_metadata_repo::Problem::{
     CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty, FileOrphaned,
     NameConflictDetected, NoRootFolder,
 };
-use crate::storage::db_provider::FileBackend;
+use crate::repo::local_storage;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 
@@ -106,7 +106,7 @@ static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
 impl FileMetadataRepo for FileMetadataRepoImpl {
     fn insert(config: &Config, file: &FileMetadata) -> Result<(), DbError> {
-        FileBackend::write(
+        local_storage::write(
             config,
             FILE_METADATA,
             file.id.to_string().as_str(),
@@ -115,7 +115,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
         .map_err(DbError::BackendError)?;
         if file.id == file.parent {
             debug!("saving root folder: {:?}", &file.id);
-            FileBackend::write(config, ROOT, ROOT, file.id.to_string().as_str())
+            local_storage::write(config, ROOT, ROOT, file.id.to_string().as_str())
                 .map_err(DbError::BackendError)?;
         }
         Ok(())
@@ -123,7 +123,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     fn get_root(config: &Config) -> Result<Option<FileMetadata>, DbError> {
         let maybe_value: Option<Vec<u8>> =
-            FileBackend::read(config, ROOT, ROOT).map_err(DbError::BackendError)?;
+            local_storage::read(config, ROOT, ROOT).map_err(DbError::BackendError)?;
         match maybe_value {
             None => Ok(None),
             Some(value) => match String::from_utf8(value.clone()) {
@@ -144,7 +144,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     fn get(config: &Config, id: Uuid) -> Result<FileMetadata, GetError> {
         let maybe_value: Option<Vec<u8>> =
-            FileBackend::read(config, FILE_METADATA, id.to_string().as_str())
+            local_storage::read(config, FILE_METADATA, id.to_string().as_str())
                 .map_err(DbError::BackendError)
                 .map_err(GetError::DbError)?;
         let value = maybe_value.ok_or(GetError::FileRowMissing)?;
@@ -156,7 +156,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     fn maybe_get(config: &Config, id: Uuid) -> Result<Option<FileMetadata>, DbError> {
         let maybe_value: Option<Vec<u8>> =
-            FileBackend::read(config, FILE_METADATA, id.to_string().as_str())
+            local_storage::read(config, FILE_METADATA, id.to_string().as_str())
                 .map_err(DbError::BackendError)?;
         Ok(maybe_value.and_then(|value| {
             serde_json::from_slice(value.as_ref())
@@ -277,7 +277,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn get_all(config: &Config) -> Result<Vec<FileMetadata>, DbError> {
-        let files = FileBackend::dump::<_, Vec<u8>>(config, FILE_METADATA)
+        let files = local_storage::dump::<_, Vec<u8>>(config, FILE_METADATA)
             .map_err(DbError::BackendError)?
             .into_iter()
             .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
@@ -351,7 +351,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn non_recursive_delete(config: &Config, id: Uuid) -> Result<(), DbError> {
-        FileBackend::delete(config, FILE_METADATA, id.to_string().as_str())
+        local_storage::delete(config, FILE_METADATA, id.to_string().as_str())
             .map_err(DbError::BackendError)
     }
 
@@ -367,7 +367,7 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
 
     fn set_last_synced(config: &Config, last_updated: u64) -> Result<(), DbError> {
         debug!("Setting last updated to: {}", last_updated);
-        FileBackend::write(
+        local_storage::write(
             config,
             LAST_UPDATED,
             LAST_UPDATED,
@@ -377,8 +377,8 @@ impl FileMetadataRepo for FileMetadataRepoImpl {
     }
 
     fn get_last_updated(config: &Config) -> Result<u64, DbError> {
-        let maybe_value: Option<Vec<u8>> =
-            FileBackend::read(config, LAST_UPDATED, LAST_UPDATED).map_err(DbError::BackendError)?;
+        let maybe_value: Option<Vec<u8>> = local_storage::read(config, LAST_UPDATED, LAST_UPDATED)
+            .map_err(DbError::BackendError)?;
         match maybe_value {
             None => Ok(0),
             Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?),

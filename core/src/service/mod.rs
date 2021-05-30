@@ -1,5 +1,4 @@
 pub mod account_service;
-pub mod code_version_service;
 pub mod db_state_service;
 pub mod drawing_service;
 pub mod file_compression_service;

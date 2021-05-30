@@ -4,7 +4,6 @@
 extern crate log;
 extern crate reqwest;
 
-use lockbook_crypto::symkey::AESImpl;
 use std::env;
 use std::path::Path;
 use std::str::FromStr;
@@ -31,7 +30,6 @@ use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
     AccountService, AccountServiceImpl,
 };
-use crate::service::code_version_service::CodeVersionImpl;
 use crate::service::db_state_service::{DbStateService, DbStateServiceImpl, State};
 use crate::service::file_compression_service::FileCompressionServiceImpl;
 use crate::service::file_encryption_service::FileEncryptionServiceImpl;
@@ -48,7 +46,6 @@ use crate::service::usage_service::{
     LocalAndServerUsages, UsageService, UsageServiceImpl,
 };
 use crate::service::{db_state_service, file_service, usage_service};
-use crate::storage::db_provider::FileBackend;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
@@ -1024,28 +1021,23 @@ pub mod loggers;
 pub mod model;
 pub mod repo;
 pub mod service;
-pub mod storage;
 
 pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
 
-pub type DefaultSymmetric = AESImpl;
-pub type DefaultBackend = FileBackend;
-pub type DefaultCodeVersion = CodeVersionImpl;
 pub type DefaultAccountRepo = AccountRepoImpl;
 pub type DefaultUsageService =
     UsageServiceImpl<DefaultFileMetadataRepo, DefaultFileService, DefaultAccountRepo>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService, DefaultFileMetadataRepo>;
 pub type DefaultDbVersionRepo = DbVersionRepoImpl;
-pub type DefaultDbStateService =
-    DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo, DefaultCodeVersion>;
+pub type DefaultDbStateService = DbStateServiceImpl<DefaultAccountRepo, DefaultDbVersionRepo>;
 pub type DefaultAccountService =
     AccountServiceImpl<DefaultAccountRepo, DefaultFileEncryptionService, DefaultFileMetadataRepo>;
 pub type DefaultFileMetadataRepo = FileMetadataRepoImpl;
 pub type DefaultLocalChangesRepo = LocalChangesRepoImpl;
 pub type DefaultDocumentRepo = DocumentRepoImpl;
-pub type DefaultFileEncryptionService = FileEncryptionServiceImpl<DefaultSymmetric>;
+pub type DefaultFileEncryptionService = FileEncryptionServiceImpl;
 pub type DefaultFileCompressionService = FileCompressionServiceImpl;
 pub type DefaultSyncService = FileSyncService<
     DefaultFileMetadataRepo,

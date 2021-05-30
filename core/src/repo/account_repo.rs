@@ -1,6 +1,6 @@
 use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepoError::NoAccount;
-use crate::storage::db_provider::FileBackend;
+use crate::repo::local_storage;
 use lockbook_models::account::{Account, ApiUrl};
 
 #[derive(Debug)]
@@ -24,7 +24,7 @@ static YOU: &str = "you";
 
 impl AccountRepo for AccountRepoImpl {
     fn insert_account(config: &Config, account: &Account) -> Result<(), AccountRepoError> {
-        FileBackend::write(
+        local_storage::write(
             config,
             ACCOUNT,
             YOU,
@@ -45,7 +45,7 @@ impl AccountRepo for AccountRepoImpl {
 
     fn get_account(config: &Config) -> Result<Account, AccountRepoError> {
         let maybe_value: Option<Vec<u8>> =
-            FileBackend::read(config, ACCOUNT, YOU).map_err(AccountRepoError::BackendError)?;
+            local_storage::read(config, ACCOUNT, YOU).map_err(AccountRepoError::BackendError)?;
         match maybe_value {
             None => Err(NoAccount),
             Some(account) => {
@@ -65,7 +65,6 @@ mod unit_tests {
     use super::AccountRepoImpl;
     use crate::model::state::temp_config;
     use crate::repo::account_repo::AccountRepo;
-    
 
     use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;

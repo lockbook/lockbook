@@ -3,7 +3,7 @@ use std::time::SystemTimeError;
 use uuid::Uuid;
 
 use crate::model::state::Config;
-use crate::storage::db_provider::FileBackend;
+use crate::repo::local_storage;
 use lockbook_crypto::clock_service::TimeGetter;
 use lockbook_models::crypto::{EncryptedDocument, UserAccessInfo};
 use lockbook_models::file_metadata::FileType;
@@ -63,7 +63,7 @@ static LOCAL_CHANGES: &[u8; 13] = b"local_changes";
 
 impl LocalChangesRepo for LocalChangesRepoImpl {
     fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, DbError> {
-        let mut value = FileBackend::dump::<_, Vec<u8>>(config, LOCAL_CHANGES)
+        let mut value = local_storage::dump::<_, Vec<u8>>(config, LOCAL_CHANGES)
             .map_err(DbError::BackendError)?
             .into_iter()
             .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
@@ -76,7 +76,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
 
     fn get_local_changes(config: &Config, id: Uuid) -> Result<Option<LocalChange>, DbError> {
         let maybe_value: Option<Vec<u8>> =
-            FileBackend::read(config, LOCAL_CHANGES, id.to_string().as_str())
+            local_storage::read(config, LOCAL_CHANGES, id.to_string().as_str())
                 .map_err(DbError::BackendError)?;
         match maybe_value {
             None => Ok(None),
@@ -99,7 +99,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
             deleted: false,
         };
 
-        FileBackend::write(
+        local_storage::write(
             config,
             LOCAL_CHANGES,
             id.to_string().as_str(),
@@ -132,7 +132,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     deleted: false,
                 };
 
-                FileBackend::write(
+                local_storage::write(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
@@ -144,7 +144,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
             Some(mut change) => match change.renamed {
                 None => {
                     change.renamed = Some(Renamed::from(old_name));
-                    FileBackend::write(
+                    local_storage::write(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
@@ -187,7 +187,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     deleted: false,
                 };
 
-                FileBackend::write(
+                local_storage::write(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
@@ -199,7 +199,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
             Some(mut change) => match change.moved {
                 None => {
                     change.moved = Some(Moved::from(old_parent));
-                    FileBackend::write(
+                    local_storage::write(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
@@ -247,7 +247,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     }),
                     deleted: false,
                 };
-                FileBackend::write(
+                local_storage::write(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
@@ -263,7 +263,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                         access_info: access_info_for_old_version.clone(),
                         old_content_checksum,
                     });
-                    FileBackend::write(
+                    local_storage::write(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
@@ -303,7 +303,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     content_edited: None,
                     deleted: true,
                 };
-                FileBackend::write(
+                local_storage::write(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
@@ -330,7 +330,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                             content_edited: None,
                             deleted: true,
                         };
-                        FileBackend::write(
+                        local_storage::write(
                             config,
                             LOCAL_CHANGES,
                             id.to_string().as_str(),
@@ -341,7 +341,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                     }
                 } else {
                     change.deleted = true;
-                    FileBackend::write(
+                    local_storage::write(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
@@ -363,7 +363,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 if !new.deleted {
                     Self::delete(config, new.id)?
                 } else {
-                    FileBackend::write(
+                    local_storage::write(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
@@ -386,7 +386,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 if edit.ready_to_be_deleted() {
                     Self::delete(config, edit.id)?
                 } else {
-                    FileBackend::write(
+                    local_storage::write(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
@@ -408,7 +408,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 if edit.ready_to_be_deleted() {
                     Self::delete(config, edit.id)?
                 } else {
-                    FileBackend::write(
+                    local_storage::write(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
@@ -431,7 +431,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
                 if edit.ready_to_be_deleted() {
                     Self::delete(config, edit.id)?
                 } else {
-                    FileBackend::write(
+                    local_storage::write(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
@@ -449,7 +449,7 @@ impl LocalChangesRepo for LocalChangesRepoImpl {
         match Self::get_local_changes(config, id)? {
             None => Ok(()),
             Some(_) => {
-                FileBackend::delete(config, LOCAL_CHANGES, id.to_string().as_str())
+                local_storage::delete(config, LOCAL_CHANGES, id.to_string().as_str())
                     .map_err(DbError::BackendError)?;
                 Ok(())
             }
@@ -463,7 +463,7 @@ mod unit_tests {
 
     use crate::model::state::temp_config;
     use crate::repo::local_changes_repo::LocalChangesRepo;
-    use crate::{DefaultLocalChangesRepo};
+    use crate::DefaultLocalChangesRepo;
     use lockbook_crypto::clock_service::Timestamp;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use lockbook_models::local_changes::{LocalChange, Moved, Renamed};
@@ -736,7 +736,8 @@ mod unit_tests {
 
         let id = Uuid::new_v4();
 
-        DefaultLocalChangesRepo::track_rename(cfg, id, "old_file", "new_name", EARLY_CLOCK).unwrap();
+        DefaultLocalChangesRepo::track_rename(cfg, id, "old_file", "new_name", EARLY_CLOCK)
+            .unwrap();
         assert_total_local_changes!(cfg, 1);
 
         DefaultLocalChangesRepo::track_rename(cfg, id, "garbage", "garbage2", EARLY_CLOCK).unwrap();

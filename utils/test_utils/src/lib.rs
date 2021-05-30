@@ -8,16 +8,16 @@ use lockbook_core::repo::file_metadata_repo::{FileMetadataRepo, FILE_METADATA};
 use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
 
 use lockbook_core::{
-    DefaultAccountRepo, DefaultBackend, DefaultDbVersionRepo, DefaultDocumentRepo,
-    DefaultFileMetadataRepo, DefaultLocalChangesRepo,
+    DefaultAccountRepo, DefaultDbVersionRepo, DefaultDocumentRepo, DefaultFileMetadataRepo,
+    DefaultLocalChangesRepo,
 };
 
-use lockbook_crypto::symkey::{AESImpl, SymmetricCryptoService};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 
-use lockbook_crypto::pubkey;
+use lockbook_core::repo::local_storage;
+use lockbook_crypto::{pubkey, symkey};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -68,7 +68,7 @@ pub fn generate_account() -> Account {
 
 pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
     let id = Uuid::new_v4();
-    let folder_key = AESImpl::generate_key();
+    let folder_key = symkey::generate_key();
 
     let public_key = account.public_key();
     let user_access_info = UserAccessInfo {
@@ -109,7 +109,7 @@ pub fn generate_file_metadata(
     file_type: FileType,
 ) -> (FileMetadata, AESKey) {
     let id = Uuid::new_v4();
-    let file_key = AESImpl::generate_key();
+    let file_key = symkey::generate_key();
     (
         FileMetadata {
             file_type,
@@ -134,24 +134,24 @@ pub fn aes_encrypt<T: Serialize + DeserializeOwned>(
     key: &AESKey,
     to_encrypt: &T,
 ) -> AESEncrypted<T> {
-    AESImpl::encrypt(key, to_encrypt).unwrap()
+    symkey::encrypt(key, to_encrypt).unwrap()
 }
 
 pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
     key: &AESKey,
     to_decrypt: &AESEncrypted<T>,
 ) -> T {
-    AESImpl::decrypt(&key, &to_decrypt).unwrap()
+    symkey::decrypt(&key, &to_decrypt).unwrap()
 }
 
 pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
-    let value1: Vec<FileMetadata> = DefaultBackend::dump::<_, Vec<u8>>(&db1, FILE_METADATA)
+    let value1: Vec<FileMetadata> = local_storage::dump::<_, Vec<u8>>(&db1, FILE_METADATA)
         .unwrap()
         .iter()
         .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
         .collect();
 
-    let value2: Vec<FileMetadata> = DefaultBackend::dump::<_, Vec<u8>>(&db2, FILE_METADATA)
+    let value2: Vec<FileMetadata> = local_storage::dump::<_, Vec<u8>>(&db2, FILE_METADATA)
         .unwrap()
         .iter()
         .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
@@ -179,13 +179,13 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     );
 
     let value1: Vec<EncryptedDocument> =
-        DefaultBackend::dump::<_, Vec<u8>>(&db1, DefaultDocumentRepo::NAMESPACE)
+        local_storage::dump::<_, Vec<u8>>(&db1, DefaultDocumentRepo::NAMESPACE)
             .unwrap()
             .iter()
             .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
             .collect();
     let value2: Vec<EncryptedDocument> =
-        DefaultBackend::dump::<_, Vec<u8>>(&db2, DefaultDocumentRepo::NAMESPACE)
+        local_storage::dump::<_, Vec<u8>>(&db2, DefaultDocumentRepo::NAMESPACE)
             .unwrap()
             .iter()
             .map(|s| serde_json::from_slice(s.as_ref()).unwrap())

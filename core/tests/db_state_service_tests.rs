@@ -3,7 +3,7 @@ mod integration_test;
 #[cfg(test)]
 mod db_state_service_tests {
     use lockbook_core::repo::db_version_repo::DbVersionRepo;
-    use lockbook_core::service::code_version_service::{CodeVersion, CodeVersionImpl};
+    use lockbook_core::service::db_state_service;
     use lockbook_core::service::db_state_service::DbStateService;
     use lockbook_core::service::db_state_service::State::{
         Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
@@ -30,7 +30,7 @@ mod db_state_service_tests {
         DefaultDbVersionRepo::set(&config, "0.1.0").unwrap();
         assert_ne!(
             DefaultDbVersionRepo::get(&config).unwrap().unwrap(),
-            CodeVersionImpl::get_code_version()
+            db_state_service::get_code_version()
         );
 
         assert_eq!(
