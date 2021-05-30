@@ -154,17 +154,9 @@ impl<FileMetadataDb: FileMetadataRepo, Files: FileService, AccountDb: AccountRep
 
 #[cfg(test)]
 mod unit_tests {
-    
-    
-    
-    use crate::service::usage_service::{UsageService};
-    use crate::{DefaultUsageService};
 
-    
-    
-    
-    
-    
+    use crate::service::usage_service::UsageService;
+    use crate::DefaultUsageService;
 
     const BYTES_SMALL: u64 = 1000;
     const BYTES_MEDIUM: u64 = 1000000;

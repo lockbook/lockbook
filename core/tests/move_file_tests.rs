@@ -2,14 +2,14 @@ mod integration_test;
 
 #[cfg(test)]
 mod move_document_tests {
-    use crate::assert_matches;
-    use crate::integration_test::{
-        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
-    };
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
+    use test_utils::assert_matches;
+    use test_utils::{
+        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+    };
 
     #[test]
     fn move_document() {

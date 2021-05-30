@@ -2,7 +2,6 @@ mod integration_test;
 
 #[cfg(test)]
 mod db_state_service_tests {
-    use crate::integration_test::{generate_account, test_config};
     use lockbook_core::repo::db_version_repo::DbVersionRepo;
     use lockbook_core::service::code_version_service::{CodeVersion, CodeVersionImpl};
     use lockbook_core::service::db_state_service::DbStateService;
@@ -12,6 +11,7 @@ mod db_state_service_tests {
     use lockbook_core::{
         create_account, get_db_state, DefaultDbStateService, DefaultDbVersionRepo,
     };
+    use test_utils::{generate_account, test_config};
 
     #[test]
     fn initial_state() {

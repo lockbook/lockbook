@@ -2,11 +2,11 @@ mod integration_test;
 
 #[cfg(test)]
 mod new_account_tests {
-    use crate::assert_matches;
-    use crate::integration_test::{generate_account, generate_root_metadata};
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
     use lockbook_models::api::*;
+    use test_utils::assert_matches;
+    use test_utils::{generate_account, generate_root_metadata};
 
     #[test]
     fn new_account() {

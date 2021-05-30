@@ -80,79 +80,6 @@ fn request_helper<
 #[cfg(test)]
 mod request_common_tests {
 
-    // TODO make a test only crate
-    pub fn random_username() -> String {
-        Uuid::new_v4()
-            .to_string()
-            .chars()
-            .filter(|c| c.is_alphanumeric())
-            .collect()
-    }
-
-    pub fn generate_account() -> Account {
-        Account {
-            username: random_username(),
-            api_url: env::var("API_URL").expect("API_URL must be defined!"),
-            private_key: generate_key(),
-        }
-    }
-
-    pub fn aes_encrypt<T: Serialize + DeserializeOwned>(
-        key: &AESKey,
-        to_encrypt: &T,
-    ) -> AESEncrypted<T> {
-        AESImpl::encrypt(key, to_encrypt).unwrap()
-    }
-
-    // TODO make a test only crate
-    pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
-        let id = Uuid::new_v4();
-        let folder_key = AESImpl::generate_key();
-
-        let public_key = account.public_key();
-        let user_access_info = UserAccessInfo {
-            username: account.username.clone(),
-            encrypted_by: public_key.clone(),
-            access_key: aes_encrypt(
-                &pubkey::get_aes_key(&account.private_key, &account.public_key()).unwrap(),
-                &folder_key,
-            ),
-        };
-        let mut user_access_keys = HashMap::new();
-        user_access_keys.insert(account.username.clone(), user_access_info);
-
-        (
-            FileMetadata {
-                file_type: FileType::Folder,
-                id,
-                name: account.username.clone(),
-                owner: account.username.clone(),
-                parent: id,
-                content_version: 0,
-                metadata_version: 0,
-                deleted: false,
-                user_access_keys,
-                folder_access_keys: FolderAccessInfo {
-                    folder_id: id,
-                    access_key: aes_encrypt(&folder_key, &folder_key),
-                },
-            },
-            folder_key,
-        )
-    }
-
-    #[macro_export]
-    macro_rules! assert_matches (
-    ($actual:expr, $expected:pat) => {
-        // Only compute actual once
-        let actual_value = $actual;
-        match actual_value {
-            $expected => {},
-            _ => panic!("assertion failed: {:?} did not match expectation", actual_value)
-            }
-        }
-    );
-
     use crate::{create_account, get_account};
     use libsecp256k1::PublicKey;
     use lockbook_crypto::clock_service::{get_time, Timestamp};
@@ -165,24 +92,13 @@ mod request_common_tests {
     use crate::client::{request_helper, ApiError};
     use crate::model::state::temp_config;
     use crate::service::db_state_service::get_code_version;
-    use lockbook_crypto::pubkey;
-    use lockbook_crypto::pubkey::generate_key;
-    use lockbook_crypto::symkey::{AESImpl, SymmetricCryptoService};
-    use lockbook_models::account::Account;
-    use lockbook_models::crypto::{AESEncrypted, AESKey, FolderAccessInfo, UserAccessInfo};
-    use lockbook_models::file_metadata::{FileMetadata, FileType};
-    use serde::de::DeserializeOwned;
-    use serde::Serialize;
-    use std::collections::HashMap;
-    use std::env;
-    use uuid::Uuid;
 
     static CODE_VERSION: fn() -> &'static str = || "0.0.0";
 
     #[test]
     fn forced_upgrade() {
         let cfg = temp_config();
-        let generated_account = generate_account();
+        let generated_account = test_utils::generate_account();
         create_account(
             &cfg,
             &generated_account.username,
@@ -201,7 +117,7 @@ mod request_common_tests {
         )
         .map(|r: GetPublicKeyResponse| r.key);
 
-        assert_matches!(
+        test_utils::assert_matches!(
             result,
             Err(ApiError::<GetPublicKeyError>::ClientUpdateRequired)
         );
@@ -211,8 +127,8 @@ mod request_common_tests {
 
     #[test]
     fn expired_request() {
-        let account = generate_account();
-        let (root, _) = generate_root_metadata(&account);
+        let account = test_utils::generate_account();
+        let (root, _) = test_utils::generate_root_metadata(&account);
 
         let result = request_helper(
             &account,
@@ -220,7 +136,7 @@ mod request_common_tests {
             get_code_version,
             EARLY_CLOCK,
         );
-        assert_matches!(result, Err(ApiError::<NewAccountError>::ExpiredAuth));
+        test_utils::assert_matches!(result, Err(ApiError::<NewAccountError>::ExpiredAuth));
     }
 
     // TODO add a test for bad signatures

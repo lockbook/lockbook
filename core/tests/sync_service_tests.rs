@@ -2,7 +2,6 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_tests {
-    use crate::integration_test::{assert_dbs_eq, generate_account, test_db};
     use lockbook_core::repo::document_repo::DocumentRepo;
     use lockbook_core::repo::file_metadata_repo::FileMetadataRepo;
     use lockbook_core::repo::local_changes_repo::LocalChangesRepo;
@@ -15,6 +14,7 @@ mod sync_tests {
     };
     use lockbook_models::file_metadata::FileType::Folder;
     use lockbook_models::work_unit::WorkUnit;
+    use test_utils::{assert_dbs_eq, generate_account, test_db};
 
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {

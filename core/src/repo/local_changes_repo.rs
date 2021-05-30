@@ -462,7 +462,7 @@ mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::state::temp_config;
-    use crate::repo::local_changes_repo::{LocalChangesRepo};
+    use crate::repo::local_changes_repo::LocalChangesRepo;
     use crate::{DefaultBackend, DefaultLocalChangesRepo};
     use lockbook_crypto::clock_service::Timestamp;
     use lockbook_models::file_metadata::FileType::{Document, Folder};

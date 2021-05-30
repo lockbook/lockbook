@@ -2,15 +2,15 @@ mod integration_test;
 
 #[cfg(test)]
 mod change_document_content_tests {
-    use crate::assert_matches;
-    use crate::integration_test::{
-        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
-    };
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
     use lockbook_crypto::symkey::{AESImpl, SymmetricCryptoService};
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
+    use test_utils::assert_matches;
+    use test_utils::{
+        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+    };
     use uuid::Uuid;
 
     #[test]

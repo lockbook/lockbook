@@ -2,8 +2,11 @@
 
 members = [
 	"core",
+	"core/libs/crypto",
+	"core/libs/models",
+    "utils/test_utils",
 	"server/server",
 	"server/admin",
 	"clients/linux",
-	"clients/cli"
+	"clients/cli",
 ]
