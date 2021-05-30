@@ -408,15 +408,14 @@ pub async fn delete_folder(
         )),
     })?;
 
-    let root_result = if let Some(result) =
-        index_responses.iter().filter(|r| r.id == request.id).last()
-    {
-        result
-    } else {
-        return Err(Err(String::from(
+    let root_result =
+        if let Some(result) = index_responses.iter().filter(|r| r.id == request.id).last() {
+            result
+        } else {
+            return Err(Err(String::from(
             "Internal server error! Unexpected zero or multiple postgres rows during delete folder",
         )));
-    };
+        };
 
     for r in index_responses.iter() {
         if !r.is_folder {
