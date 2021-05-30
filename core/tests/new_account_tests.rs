@@ -2,26 +2,26 @@ mod integration_test;
 
 #[cfg(test)]
 mod new_account_tests {
-    use crate::assert_matches;
-    use crate::integration_test::{generate_account, generate_root_metadata};
-    use lockbook_core::client::{ApiError, Client};
-    use lockbook_core::DefaultClient;
+    use lockbook_core::assert_matches;
+    use lockbook_core::client;
+    use lockbook_core::client::ApiError;
+    use lockbook_core::service::test_utils::{generate_account, generate_root_metadata};
     use lockbook_models::api::*;
 
     #[test]
     fn new_account() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
     }
 
     #[test]
     fn new_account_duplicate() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        DefaultClient::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        let result = DefaultClient::request(&account, NewAccountRequest::new(&account, &root));
+        let result = client::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
             result,
             Err(ApiError::<NewAccountError>::Endpoint(
@@ -40,7 +40,7 @@ mod new_account_tests {
         root.user_access_keys
             .insert(account.username.clone(), access_key);
 
-        let result = DefaultClient::request(&account, NewAccountRequest::new(&account, &root));
+        let result = client::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
             result,
             Err(ApiError::<NewAccountError>::Endpoint(
