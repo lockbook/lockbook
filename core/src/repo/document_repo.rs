@@ -16,7 +16,7 @@ pub enum DbError {
     BackendError(std::io::Error),
     SerdeError(serde_json::Error),
 }
-pub const NAMESPACE: &'static [u8] = b"documents";
+pub const NAMESPACE: &[u8; 9] = b"documents";
 
 pub fn insert(config: &Config, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
     local_storage::write(

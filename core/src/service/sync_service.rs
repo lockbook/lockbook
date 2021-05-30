@@ -8,7 +8,7 @@ use crate::client;
 use crate::client::ApiError;
 use crate::model::state::Config;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
-use crate::service::file_compression_service::FileCompressionService;
+use crate::service::file_compression_service;
 use crate::service::file_service::{FileService, NewFileFromPathError};
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
@@ -119,13 +119,12 @@ pub struct SyncProgress {
     pub current_work_unit: WorkUnit,
 }
 
-pub struct FileSyncService<Files: FileService, FileCompression: FileCompressionService> {
+pub struct FileSyncService<Files: FileService> {
     _file: Files,
-    _file_compression: FileCompression,
 }
 
-impl<Files: FileService, FileCompression: FileCompressionService> SyncService
-    for FileSyncService<Files, FileCompression>
+impl<Files: FileService> SyncService
+    for FileSyncService<Files>
 {
     fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
         info!("Calculating Work");
@@ -266,8 +265,8 @@ impl<Files: FileService, FileCompression: FileCompressionService> SyncService
 }
 
 /// Helper functions
-impl<Files: FileService, FileCompression: FileCompressionService>
-    FileSyncService<Files, FileCompression>
+impl<Files: FileService>
+    FileSyncService<Files>
 {
     /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
     /// there are not going to be path conflicts. If there are, we find the file that is conflicting
@@ -390,7 +389,7 @@ impl<Files: FileService, FileCompression: FileCompressionService>
                 )
                 .map_err(DecryptingOldVersionForMergeError)?;
 
-                FileCompression::decompress(&compressed_common_ancestor)
+                file_compression_service::decompress(&compressed_common_ancestor)
                     .map_err(DecompressingForMergeError)?
             };
 
@@ -416,7 +415,7 @@ impl<Files: FileService, FileCompression: FileCompressionService>
                 .map_err(DecryptingOldVersionForMergeError)?;
                 // This assumes that a file is never re-keyed.
 
-                FileCompression::decompress(&compressed_server_version)
+                file_compression_service::decompress(&compressed_server_version)
                     .map_err(DecompressingForMergeError)?
             };
 

@@ -27,7 +27,6 @@ use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
 };
 use crate::service::db_state_service::State;
-use crate::service::file_compression_service::FileCompressionServiceImpl;
 use crate::service::file_service::{
     DocumentRenameError, DocumentUpdateError, FileMoveError, FileService, FileServiceImpl,
     NewFileError, NewFileFromPathError, ReadDocumentError as FSReadDocumentError,
@@ -1022,6 +1021,5 @@ static LOG_FILE: &str = "lockbook.log";
 
 pub type DefaultUsageService = UsageServiceImpl<DefaultFileService>;
 pub type DefaultDrawingService = DrawingServiceImpl<DefaultFileService>;
-pub type DefaultFileCompressionService = FileCompressionServiceImpl;
-pub type DefaultSyncService = FileSyncService<DefaultFileService, DefaultFileCompressionService>;
-pub type DefaultFileService = FileServiceImpl<DefaultFileCompressionService>;
+pub type DefaultSyncService = FileSyncService<DefaultFileService>;
+pub type DefaultFileService = FileServiceImpl;

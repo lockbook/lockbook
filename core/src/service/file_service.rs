@@ -6,7 +6,7 @@ use crate::repo::document_repo;
 use crate::repo::file_metadata_repo;
 use crate::repo::file_metadata_repo::FindingParentsFailed;
 use crate::repo::{account_repo, local_changes_repo};
-use crate::service::file_compression_service::FileCompressionService;
+use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
     FileCreationError, KeyDecryptionFailure, UnableToGetKeyForUser,
@@ -171,11 +171,9 @@ pub trait FileService {
     fn delete_folder(config: &Config, id: Uuid) -> Result<(), DeleteFolderError>;
 }
 
-pub struct FileServiceImpl<FileCompression: FileCompressionService> {
-    _file_compression: FileCompression,
-}
+pub struct FileServiceImpl {}
 
-impl<FileCompression: FileCompressionService> FileService for FileServiceImpl<FileCompression> {
+impl FileService for FileServiceImpl {
     fn create(
         config: &Config,
         name: &str,
@@ -322,7 +320,7 @@ impl<FileCompression: FileCompressionService> FileService for FileServiceImpl<Fi
         let parents = file_metadata_repo::get_with_all_parents(config, id)
             .map_err(DocumentUpdateError::CouldNotFindParents)?;
 
-        let compressed_content = FileCompression::compress(content)
+        let compressed_content = file_compression_service::compress(content)
             .map_err(DocumentUpdateError::FileCompressionError)?;
 
         let new_file = file_encryption_service::write_to_document(
@@ -345,7 +343,7 @@ impl<FileCompression: FileCompressionService> FileService for FileServiceImpl<Fi
                 parents.clone(),
             )
             .map_err(DocumentUpdateError::DecryptOldVersionError)?;
-            let decompressed = FileCompression::decompress(&decrypted)
+            let decompressed = file_compression_service::decompress(&decrypted)
                 .map_err(DocumentUpdateError::FileDecompressionError)?;
 
             let permanent_access_info =
@@ -522,7 +520,7 @@ impl<FileCompression: FileCompressionService> FileService for FileServiceImpl<Fi
             file_encryption_service::read_document(&account, &document, &file_metadata, parents)
                 .map_err(ReadDocumentError::FileEncryptionError)?;
 
-        let content = FileCompression::decompress(&compressed_content)
+        let content = file_compression_service::decompress(&compressed_content)
             .map_err(ReadDocumentError::FileDecompressionError)?;
 
         Ok(content)
