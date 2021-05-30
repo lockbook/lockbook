@@ -510,7 +510,7 @@ mod unit_tests {
     use crate::service::{file_encryption_service, file_service};
     use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
-    use lockbook_models::crypto::{EncryptedFolderAccessKey, FolderAccessInfo};
+    use lockbook_models::crypto::EncryptedFolderAccessKey;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use lockbook_models::file_metadata::{FileMetadata, FileType};
 
@@ -524,10 +524,7 @@ mod unit_tests {
             content_version: 0,
             metadata_version: 0,
             user_access_keys: Default::default(),
-            folder_access_keys: FolderAccessInfo {
-                folder_id: Default::default(),
-                access_key: EncryptedFolderAccessKey::new("", ""),
-            },
+            folder_access_keys: EncryptedFolderAccessKey::new("", ""),
             deleted: false,
         }
     }

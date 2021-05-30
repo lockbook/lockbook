@@ -1,7 +1,7 @@
 use crate::config::IndexDbConfig;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
-use lockbook_models::crypto::{EncryptedUserAccessKey, FolderAccessInfo, UserAccessInfo};
+use lockbook_models::crypto::{EncryptedFolderAccessKey, EncryptedUserAccessKey, UserAccessInfo};
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -127,7 +127,7 @@ pub async fn create_file(
     file_type: FileType,
     name: &str,
     public_key: &PublicKey,
-    access_key: &FolderAccessInfo,
+    access_key: &EncryptedFolderAccessKey,
     maybe_document_bytes: Option<u64>,
 ) -> Result<u64, CreateFileError> {
     match sqlx::query!(
@@ -333,7 +333,7 @@ pub async fn move_file(
     id: Uuid,
     old_metadata_version: u64,
     parent: Uuid,
-    access_key: FolderAccessInfo,
+    access_key: EncryptedFolderAccessKey,
 ) -> Result<u64, MoveFileError> {
     match sqlx::query!(
         r#"

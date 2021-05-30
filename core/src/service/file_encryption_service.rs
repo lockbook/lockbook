@@ -33,9 +33,9 @@ pub fn decrypt_key_for_file(
         None => {
             let folder_access = access_key.folder_access_keys.clone();
 
-            let decrypted_parent = decrypt_key_for_file(account, folder_access.folder_id, parents)?;
+            let decrypted_parent = decrypt_key_for_file(account, access_key.parent, parents)?;
 
-            let key = symkey::decrypt(&decrypted_parent, &folder_access.access_key)
+            let key = symkey::decrypt(&decrypted_parent, &folder_access)
                 .map_err(KeyDecryptionFailure::KeyDecryptionError)?;
 
             Ok(key)
@@ -62,17 +62,14 @@ pub fn re_encrypt_key_for_file(
     file_key: AESKey,
     new_parent_id: Uuid,
     parents: HashMap<Uuid, FileMetadata>,
-) -> Result<FolderAccessInfo, FileCreationError> {
+) -> Result<EncryptedFolderAccessKey, FileCreationError> {
     let parent_key = decrypt_key_for_file(&personal_key, new_parent_id, parents)
         .map_err(FileCreationError::ParentKeyDecryptionFailed)?;
 
     let access_key =
         symkey::encrypt(&parent_key, &file_key).map_err(FileCreationError::AesEncryptionFailed)?;
 
-    Ok(FolderAccessInfo {
-        folder_id: new_parent_id,
-        access_key,
-    })
+    Ok(access_key)
 }
 
 #[derive(Debug)]
@@ -107,13 +104,13 @@ pub fn get_key_for_user(
 pub fn create_file_metadata(
     name: &str,
     file_type: FileType,
-    parent_id: Uuid,
+    parent: Uuid,
     account: &Account,
     parents: HashMap<Uuid, FileMetadata>,
 ) -> Result<FileMetadata, FileCreationError> {
-    let parent_key = decrypt_key_for_file(&account, parent_id, parents)
+    let parent_key = decrypt_key_for_file(&account, parent, parents)
         .map_err(FileCreationError::ParentKeyDecryptionFailed)?;
-    let access_key = symkey::encrypt(&parent_key, &symkey::generate_key())
+    let folder_access_keys = symkey::encrypt(&parent_key, &symkey::generate_key())
         .map_err(FileCreationError::AesEncryptionFailed)?;
     let id = Uuid::new_v4();
 
@@ -122,15 +119,12 @@ pub fn create_file_metadata(
         id,
         name: name.to_string(),
         owner: account.username.to_string(),
-        parent: parent_id,
+        parent,
         content_version: 0,
         metadata_version: 0,
         deleted: false,
         user_access_keys: Default::default(),
-        folder_access_keys: FolderAccessInfo {
-            folder_id: parent_id,
-            access_key,
-        },
+        folder_access_keys,
     })
 }
 
@@ -168,11 +162,8 @@ pub fn create_metadata_for_root_folder(
         metadata_version: 0,
         deleted: false,
         user_access_keys,
-        folder_access_keys: FolderAccessInfo {
-            folder_id: id,
-            access_key: symkey::encrypt(&symkey::generate_key(), &key)
-                .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
-        },
+        folder_access_keys: symkey::encrypt(&symkey::generate_key(), &key)
+            .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
     })
 }
 
@@ -256,7 +247,6 @@ mod unit_tests {
         assert_eq!(root.id, root.parent);
         assert_eq!(root.file_type, Folder);
         assert!(root.user_access_keys.contains_key("username"));
-        assert_eq!(root.folder_access_keys.folder_id, root.id);
 
         let mut parents = HashMap::new();
 

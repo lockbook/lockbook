@@ -87,10 +87,7 @@ pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
             metadata_version: 0,
             deleted: false,
             user_access_keys,
-            folder_access_keys: FolderAccessInfo {
-                folder_id: id,
-                access_key: aes_encrypt(&folder_key, &folder_key),
-            },
+            folder_access_keys: aes_encrypt(&folder_key, &folder_key),
         },
         folder_key,
     )
@@ -115,10 +112,7 @@ pub fn generate_file_metadata(
             metadata_version: 0,
             deleted: false,
             user_access_keys: Default::default(),
-            folder_access_keys: FolderAccessInfo {
-                folder_id: id,
-                access_key: aes_encrypt(parent_key, &file_key),
-            },
+            folder_access_keys: aes_encrypt(parent_key, &file_key),
         },
         file_key,
     )

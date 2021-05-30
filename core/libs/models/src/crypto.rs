@@ -3,7 +3,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use uuid::Uuid;
 
 pub type AESKey = [u8; 32];
 pub type DecryptedDocument = Vec<u8>;
@@ -51,11 +50,4 @@ pub struct UserAccessInfo {
     pub username: String,
     pub encrypted_by: PublicKey,
     pub access_key: EncryptedUserAccessKey,
-}
-
-// TODO: remove all of this struct
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct FolderAccessInfo {
-    pub folder_id: Uuid, // TODO remove this?
-    pub access_key: EncryptedFolderAccessKey,
 }
