@@ -16,10 +16,6 @@ sealed class GetUsageError : CoreError() {
     data class Unexpected(val error: String) : GetUsageError()
 }
 
-sealed class GetLastSynced : CoreError() {
-    data class Unexpected(val error: String) : GetLastSynced()
-}
-
 sealed class GetStateError : CoreError() {
     data class Unexpected(val error: String) : GetStateError()
 }
