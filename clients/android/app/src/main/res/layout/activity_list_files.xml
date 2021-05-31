@@ -1,28 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/list_files_activity_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    tools:context=".screen.WelcomeActivity">
 
-    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:tools="http://schemas.android.com/tools"
-        android:id="@+id/list_files_activity_layout"
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/list_files_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        android:theme="@style/Main.Widget.Actionbar" />
+
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/files_fragment"
+        android:name="app.lockbook.screen.ListFilesFragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
-        tools:context=".screen.WelcomeActivity">
+        tools:layout="@layout/fragment_list_files" />
 
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/list_files_toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="?attr/actionBarSize"
-            android:theme="@style/Main.Widget.Actionbar" />
-
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/files_fragment"
-            android:name="app.lockbook.screen.ListFilesFragment"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            tools:layout="@layout/fragment_list_files" />
-
-    </LinearLayout>
-</layout>
+</LinearLayout>

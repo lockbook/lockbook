@@ -1,60 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Main.Widget.Dialog"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="5dp">
 
-    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        style="@style/Main.Widget.Dialog"
+    <TextView
+        style="@style/Main.Text.Medium"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="@string/popup_info_title" />
+
+    <TextView
+        android:id="@+id/popup_info_name"
+        style="@style/Main.Text.Small"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="5dp">
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:paddingBottom="15dp"
+        android:text="@string/default_value" />
 
-        <TextView
-            style="@style/Main.Text.Medium"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:text="@string/popup_info_title" />
+    <TextView
+        android:id="@+id/popup_info_id"
+        style="@style/Main.Text.Small"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="15dp"
+        android:text="@string/default_value" />
 
-        <TextView
-            android:id="@+id/popup_info_name"
-            style="@style/Main.Text.Small"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:paddingBottom="15dp"
-            android:text="@string/default_value" />
+    <TextView
+        android:id="@+id/popup_info_file_type"
+        style="@style/Main.Text.Small"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="15dp"
+        android:text="@string/default_value" />
 
-        <TextView
-            android:id="@+id/popup_info_id"
-            style="@style/Main.Text.Small"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="15dp"
-            android:text="@string/default_value" />
+    <TextView
+        android:id="@+id/popup_info_metadata_version"
+        style="@style/Main.Text.Small"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="15dp"
+        android:text="@string/default_value" />
 
-        <TextView
-            android:id="@+id/popup_info_file_type"
-            style="@style/Main.Text.Small"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="15dp"
-            android:text="@string/default_value" />
+    <TextView
+        android:id="@+id/popup_info_content_version"
+        style="@style/Main.Text.Small"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="15dp"
+        android:text="@string/default_value" />
 
-        <TextView
-            android:id="@+id/popup_info_metadata_version"
-            style="@style/Main.Text.Small"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="15dp"
-            android:text="@string/default_value" />
-
-        <TextView
-            android:id="@+id/popup_info_content_version"
-            style="@style/Main.Text.Small"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingBottom="15dp"
-            android:text="@string/default_value" />
-
-    </LinearLayout>
-</layout>
+</LinearLayout>

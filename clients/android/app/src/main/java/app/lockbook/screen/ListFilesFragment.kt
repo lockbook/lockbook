@@ -9,7 +9,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout.HORIZONTAL
-import androidx.databinding.DataBindingUtil
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModelProvider
@@ -21,20 +21,24 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.model.*
 import app.lockbook.modelfactory.ListFilesViewModelFactory
-import app.lockbook.screen.RequestResultCodes.DRAWING_REQUEST_CODE
-import app.lockbook.screen.RequestResultCodes.TEXT_EDITOR_REQUEST_CODE
 import app.lockbook.ui.*
 import app.lockbook.util.*
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
+import kotlinx.coroutines.launch
 import java.util.*
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
     private var _binding: FragmentListFilesBinding? = null
+
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
+
+    var onActivityResult = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
+        listFilesViewModel.onOpenedActivityEnd()
+    }
 
     private var updatedLastSyncedDescription = Timer()
     private val handler = Handler(requireNotNull(Looper.myLooper()))
@@ -78,9 +82,8 @@ class ListFilesFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = DataBindingUtil.inflate(
+        _binding = FragmentListFilesBinding.inflate(
             inflater,
-            R.layout.fragment_list_files,
             container,
             false
         )
@@ -93,9 +96,7 @@ class ListFilesFragment : Fragment() {
             ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
         LinearRecyclerViewAdapter(listFilesViewModel, filesDir)
 
-        binding.listFilesViewModel = listFilesViewModel
         var adapter = setFileAdapter(binding, filesDir)
-        binding.lifecycleOwner = this
 
         binding.listFilesRefresh.setOnRefreshListener {
             listFilesViewModel.onSwipeToRefresh()
@@ -112,6 +113,22 @@ class ListFilesFragment : Fragment() {
             30000,
             30000
         )
+
+        binding.listFilesFab.setOnClickListener {
+            listFilesViewModel.collapseExpandFAB()
+        }
+
+        binding.listFilesFabFolder.setOnClickListener {
+            listFilesViewModel.onNewFolderFABClicked()
+        }
+
+        binding.listFilesFabDocument.setOnClickListener {
+            listFilesViewModel.onNewDocumentFABClicked(false)
+        }
+
+        binding.listFilesFabDrawing.setOnClickListener {
+            listFilesViewModel.onNewDocumentFABClicked(true)
+        }
 
         listFilesViewModel.files.observe(
             viewLifecycleOwner,
@@ -233,7 +250,11 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             { errorText ->
                 if (container != null) {
-                    AlertModel.errorHasOccurred(container, errorText, OnFinishAlert.DoNothingOnFinishAlert)
+                    AlertModel.errorHasOccurred(
+                        container,
+                        errorText,
+                        OnFinishAlert.DoNothingOnFinishAlert
+                    )
                 }
             }
         )
@@ -241,7 +262,11 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.unexpectedErrorHasOccurred.observe(
             viewLifecycleOwner,
             { errorText ->
-                AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), errorText, OnFinishAlert.DoNothingOnFinishAlert)
+                AlertModel.unexpectedCoreErrorHasOccurred(
+                    requireContext(),
+                    errorText,
+                    OnFinishAlert.DoNothingOnFinishAlert
+                )
             }
         )
 
@@ -260,6 +285,8 @@ class ListFilesFragment : Fragment() {
         if (resources.configuration.orientation == ORIENTATION_LANDSCAPE && resources.configuration.screenLayout == SCREENLAYOUT_SIZE_SMALL) {
             binding.listFilesFabHolder.orientation = HORIZONTAL
         }
+
+        setUpAfterConfigChange()
     }
 
     override fun onDestroy() {
@@ -275,16 +302,10 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.onMenuItemPressed(id)
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        listFilesViewModel.onOpenedActivityEnd()
-    }
-
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
-        setUpAfterConfigChange()
-    }
-
-    private fun setFileAdapter(binding: FragmentListFilesBinding, filesDir: String): GeneralViewAdapter {
+    private fun setFileAdapter(
+        binding: FragmentListFilesBinding,
+        filesDir: String
+    ): GeneralViewAdapter {
         val config = resources.configuration
 
         val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
@@ -427,21 +448,25 @@ class ListFilesFragment : Fragment() {
         val intent = Intent(context, TextEditorActivity::class.java)
         intent.putExtra("name", editableFile.name)
         intent.putExtra("id", editableFile.id)
-        startActivityForResult(intent, TEXT_EDITOR_REQUEST_CODE)
+        onActivityResult.launch(intent)
     }
 
     private fun moreOptionsMenu() {
         if (activity is ListFilesActivity) {
             (activity as ListFilesActivity).switchMenu()
         } else {
-            AlertModel.errorHasOccurred(binding.fragmentListFiles, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+            AlertModel.errorHasOccurred(
+                binding.fragmentListFiles,
+                BASIC_ERROR,
+                OnFinishAlert.DoNothingOnFinishAlert
+            )
         }
     }
 
     private fun navigateToDrawing(editableFile: EditableFile) {
         val intent = Intent(context, DrawingActivity::class.java)
         intent.putExtra("id", editableFile.id)
-        startActivityForResult(intent, DRAWING_REQUEST_CODE)
+        onActivityResult.launch(intent)
     }
 
     private fun showMoreInfoDialog(fileMetadata: FileMetadata) {

@@ -10,9 +10,7 @@ import android.os.Looper
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
-import android.widget.ImageButton
 import android.widget.SeekBar
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.lifecycle.ViewModelProvider
@@ -25,7 +23,6 @@ import app.lockbook.modelfactory.DrawingViewModelFactory
 import app.lockbook.screen.TextEditorActivity.Companion.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import app.lockbook.ui.DrawingView
 import app.lockbook.util.*
-import com.google.android.material.button.MaterialButton
 import java.util.*
 
 class DrawingActivity : AppCompatActivity() {
@@ -34,18 +31,20 @@ class DrawingActivity : AppCompatActivity() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
-    private val whiteButton get() = binding.drawingToolbar.findViewById<MaterialButton>(R.id.drawing_color_white)
-    private val blackButton get() = binding.drawingToolbar.findViewById<MaterialButton>(R.id.drawing_color_black)
-    private val blueButton get() = binding.drawingToolbar.findViewById<MaterialButton>(R.id.drawing_color_blue)
-    private val cyanButton get() = binding.drawingToolbar.findViewById<MaterialButton>(R.id.drawing_color_cyan)
-    private val greenButton get() = binding.drawingToolbar.findViewById<MaterialButton>(R.id.drawing_color_green)
-    private val magentaButton get() = binding.drawingToolbar.findViewById<MaterialButton>(R.id.drawing_color_magenta)
-    private val yellowButton get() = binding.drawingToolbar.findViewById<MaterialButton>(R.id.drawing_color_yellow)
-    private val redButton get() = binding.drawingToolbar.findViewById<MaterialButton>(R.id.drawing_color_red)
+    private val whiteButton get() = binding.drawingToolbar.drawingColorWhite
+    private val blackButton get() = binding.drawingToolbar.drawingColorBlack
+    private val blueButton get() = binding.drawingToolbar.drawingColorBlue
+    private val cyanButton get() = binding.drawingToolbar.drawingColorCyan
+    private val greenButton get() = binding.drawingToolbar.drawingColorGreen
+    private val magentaButton get() = binding.drawingToolbar.drawingColorMagenta
+    private val yellowButton get() = binding.drawingToolbar.drawingColorYellow
+    private val redButton get() = binding.drawingToolbar.drawingColorRed
 
-    private val eraser get() = binding.drawingToolbar.findViewById<ImageButton>(R.id.drawing_erase)
-    private val penSizeChooser get() = binding.drawingToolbar.findViewById<AppCompatSeekBar>(R.id.drawing_pen_size)
-    private val penSizeIndicator get() = binding.drawingToolbar.findViewById<TextView>(R.id.drawing_pen_size_marker)
+    private val eraser get() = binding.drawingToolbar.drawingErase
+    private val penSizeChooser get() = binding.drawingToolbar.drawingPenSize as AppCompatSeekBar
+    private val penSizeIndicator get() = binding.drawingToolbar.drawingPenSizeMarker
+
+    private val toolbar get() = binding.drawingToolbar.drawingToolsMenu
 
     private val drawingView get() = binding.drawingView
     private lateinit var drawingViewModel: DrawingViewModel
@@ -189,9 +188,8 @@ class DrawingActivity : AppCompatActivity() {
     private fun selectedNewPenSize(
         newPenSize: Int
     ) {
-        val penSizeSeekBar = penSizeChooser
-        if (penSizeSeekBar.progress + 1 != newPenSize) {
-            penSizeSeekBar.progress = newPenSize
+        if (penSizeChooser.progress + 1 != newPenSize) {
+            penSizeChooser.progress = newPenSize
         }
 
         drawingView.setPenSize(newPenSize)
@@ -208,12 +206,12 @@ class DrawingActivity : AppCompatActivity() {
         val onAnimationEnd = object : Animator.AnimatorListener {
             override fun onAnimationStart(animation: Animator?) {
                 if (newVisibility == View.VISIBLE) {
-                    binding.drawingToolbar.visibility = newVisibility
+                    toolbar.visibility = newVisibility
                 }
             }
             override fun onAnimationEnd(animation: Animator?) {
                 if (newVisibility == View.GONE) {
-                    binding.drawingToolbar.visibility = newVisibility
+                    toolbar.visibility = newVisibility
                 }
             }
 
@@ -221,7 +219,7 @@ class DrawingActivity : AppCompatActivity() {
             override fun onAnimationRepeat(animation: Animator?) {}
         }
 
-        binding.drawingToolbar.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f).setListener(onAnimationEnd).start()
+        toolbar.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f).setListener(onAnimationEnd).start()
     }
 
     private fun initializeDrawing() {
@@ -261,7 +259,7 @@ class DrawingActivity : AppCompatActivity() {
         blueButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(blue))
         yellowButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(yellow))
 
-        binding.drawingToolbar.visibility = View.VISIBLE
+        toolbar.visibility = View.VISIBLE
 
         isFirstLaunch = false
         binding.drawingLoadingView.visibility = View.GONE
@@ -336,7 +334,7 @@ class DrawingActivity : AppCompatActivity() {
                 override fun onShowPress(e: MotionEvent?) {}
 
                 override fun onSingleTapUp(e: MotionEvent?): Boolean {
-                    drawingViewModel.handleTouchEvent(binding.drawingToolbar.visibility)
+                    drawingViewModel.handleTouchEvent(toolbar.visibility)
                     return true
                 }
 

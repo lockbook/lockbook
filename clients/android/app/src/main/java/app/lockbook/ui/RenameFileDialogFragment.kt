@@ -6,9 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.DialogFragment
-import app.lockbook.R
 import app.lockbook.databinding.DialogRenameFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
@@ -63,9 +61,8 @@ class RenameFileDialogFragment : DialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = DataBindingUtil.inflate(
+        _binding = DialogRenameFileBinding.inflate(
             inflater,
-            R.layout.dialog_rename_file,
             container,
             false
         )

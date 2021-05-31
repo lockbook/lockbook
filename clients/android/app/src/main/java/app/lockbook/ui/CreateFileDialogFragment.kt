@@ -6,7 +6,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.DialogFragment
 import app.lockbook.R
 import app.lockbook.databinding.DialogCreateFileBinding
@@ -73,9 +72,8 @@ class CreateFileDialogFragment : DialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = DataBindingUtil.inflate(
+        _binding = DialogCreateFileBinding.inflate(
             inflater,
-            R.layout.dialog_create_file,
             container,
             false
         )

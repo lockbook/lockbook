@@ -53,7 +53,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
             if (newValue is String) {
                 newValueForPref = newValue
 
-                BiometricModel.verify(requireContext(), requireActivity().findViewById(android.R.id.content), activity as FragmentActivity, ::matchKey)
+                BiometricModel.verify(
+                    requireContext(),
+                    requireActivity().findViewById(android.R.id.content),
+                    activity as FragmentActivity,
+                    ::matchKey
+                )
             }
 
             false
@@ -76,25 +81,43 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun setCurrentUsage() {
         when (val getUsageHumanStringResult = CoreModel.getUsageHumanString(config, false)) {
-            is Ok -> findPreference<Preference>(BYTE_USAGE_KEY)?.summary = getUsageHumanStringResult.value
+            is Ok ->
+                findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
+                    getUsageHumanStringResult.value
             is Err -> when (val error = getUsageHumanStringResult.error) {
                 GetUsageError.NoAccount -> {
-                    AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Error! No account.", OnFinishAlert.DoNothingOnFinishAlert)
+                    AlertModel.errorHasOccurred(
+                        requireActivity().findViewById(android.R.id.content),
+                        "Error! No account.",
+                        OnFinishAlert.DoNothingOnFinishAlert
+                    )
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
                         "Error! No account."
                 }
                 GetUsageError.CouldNotReachServer -> {
-                    AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "You are offline.", OnFinishAlert.DoNothingOnFinishAlert)
+                    AlertModel.errorHasOccurred(
+                        requireActivity().findViewById(android.R.id.content),
+                        "You are offline.",
+                        OnFinishAlert.DoNothingOnFinishAlert
+                    )
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
                         resources.getString(R.string.list_files_offline_snackbar)
                 }
                 GetUsageError.ClientUpdateRequired -> {
-                    AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), "Update required.", OnFinishAlert.DoNothingOnFinishAlert)
+                    AlertModel.errorHasOccurred(
+                        requireActivity().findViewById(android.R.id.content),
+                        "Update required.",
+                        OnFinishAlert.DoNothingOnFinishAlert
+                    )
                     findPreference<Preference>(BYTE_USAGE_KEY)?.summary =
                         "Update required."
                 }
                 is GetUsageError.Unexpected -> {
-                    AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), error.error, OnFinishAlert.DoNothingOnFinishAlert)
+                    AlertModel.unexpectedCoreErrorHasOccurred(
+                        requireContext(),
+                        error.error,
+                        OnFinishAlert.DoNothingOnFinishAlert
+                    )
                     Timber.e("Unable to get usage: ${error.error}")
                 }
             }
@@ -105,6 +128,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         if (preference is NumberPickerPreference) {
             val numberPickerPreferenceDialog =
                 NumberPickerPreferenceDialog.newInstance(preference.key)
+            @Suppress("DEPRECATION")
             numberPickerPreferenceDialog.setTargetFragment(this, 0)
             numberPickerPreferenceDialog.show(parentFragmentManager, null)
         } else {
@@ -117,10 +141,17 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> {
-                BiometricModel.verify(requireContext(), requireActivity().findViewById(android.R.id.content), activity as FragmentActivity, ::matchKey)
+                BiometricModel.verify(
+                    requireContext(),
+                    requireActivity().findViewById(android.R.id.content),
+                    activity as FragmentActivity,
+                    ::matchKey
+                )
             }
             VIEW_LOGS_KEY -> startActivity(Intent(context, LogActivity::class.java))
-            CLEAR_LOGS_KEY -> File("${config.writeable_path}/${LogActivity.LOG_FILE_NAME}").writeText("")
+            CLEAR_LOGS_KEY -> File("${config.writeable_path}/${LogActivity.LOG_FILE_NAME}").writeText(
+                ""
+            )
             BACKGROUND_SYNC_ENABLED_KEY ->
                 findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
                     (preference as SwitchPreference).isChecked
@@ -137,7 +168,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
             BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValueForPref)
             else -> {
                 Timber.e("Shared preference key not matched: $selectedKey")
-                AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                AlertModel.errorHasOccurred(
+                    requireActivity().findViewById(android.R.id.content),
+                    BASIC_ERROR,
+                    OnFinishAlert.DoNothingOnFinishAlert
+                )
             }
         }.exhaustive
     }
@@ -173,7 +208,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         OnFinishAlert.DoNothingOnFinishAlert
                     )
                     is AccountExportError.Unexpected -> {
-                        AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), error.error, OnFinishAlert.DoNothingOnFinishAlert)
+                        AlertModel.unexpectedCoreErrorHasOccurred(
+                            requireContext(),
+                            error.error,
+                            OnFinishAlert.DoNothingOnFinishAlert
+                        )
                         Timber.e("Unable to export account: ${error.error}")
                     }
                 }
@@ -199,7 +238,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     "Error! No account!", OnFinishAlert.DoNothingOnFinishAlert
                 )
                 is AccountExportError.Unexpected -> {
-                    AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), error.error, OnFinishAlert.DoNothingOnFinishAlert)
+                    AlertModel.unexpectedCoreErrorHasOccurred(
+                        requireContext(),
+                        error.error,
+                        OnFinishAlert.DoNothingOnFinishAlert
+                    )
                     Timber.e("Unable to export account: ${error.error}")
                 }
             }

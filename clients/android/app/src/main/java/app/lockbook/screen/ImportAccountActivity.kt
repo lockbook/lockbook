@@ -1,9 +1,11 @@
 package app.lockbook.screen
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.databinding.ActivityImportAccountBinding
@@ -30,6 +32,27 @@ class ImportAccountActivity : AppCompatActivity() {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
+
+    var onQRCodeResult = registerForActivityResult(StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            uiScope.launch {
+                withContext(Dispatchers.IO) {
+                    val intentResult =
+                        IntentIntegrator.parseActivityResult(result.resultCode, result.resultCode, result.data)
+                    if (intentResult != null) {
+                        intentResult.contents?.let { account ->
+                            handleImportResult(
+                                CoreModel.importAccount(
+                                    Config(filesDir.absolutePath),
+                                    account
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,9 +91,11 @@ class ImportAccountActivity : AppCompatActivity() {
     }
 
     private fun navigateToQRCodeScanner() {
-        IntentIntegrator(this)
-            .setPrompt("Scan the account string QR Code.")
-            .initiateScan()
+        onQRCodeResult.launch(
+            IntentIntegrator(this)
+                .setPrompt("Scan the account string QR Code.")
+                .createScanIntent()
+        )
     }
 
     private suspend fun handleImportResult(importAccountResult: Result<Unit, ImportError>) {
@@ -116,27 +141,6 @@ class ImportAccountActivity : AppCompatActivity() {
                     }
                 }
             }.exhaustive
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                val intentResult =
-                    IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
-                if (intentResult != null) {
-                    intentResult.contents?.let { account ->
-                        handleImportResult(
-                            CoreModel.importAccount(
-                                Config(filesDir.absolutePath),
-                                account
-                            )
-                        )
-                    }
-                } else {
-                    super.onActivityResult(requestCode, resultCode, data)
-                }
-            }
         }
     }
 

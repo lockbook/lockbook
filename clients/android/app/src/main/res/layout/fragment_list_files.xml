@@ -1,120 +1,106 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/fragment_list_files"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
 
-    <data>
-        <variable
-            name="listFilesViewModel"
-            type="app.lockbook.model.ListFilesViewModel" />
-    </data>
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/fragment_list_files"
+    <app.lockbook.ui.BreadCrumbView
+        android:id="@+id/files_breadcrumb_bar"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="30dp"
+        android:layout_gravity="top"
+        app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:text_color="@color/textColor"
+        app:text_size="15" />
 
-        <app.lockbook.ui.BreadCrumbView
-            android:id="@+id/files_breadcrumb_bar"
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/files_breadcrumb_bar">
+
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/list_files_refresh"
             android:layout_width="match_parent"
-            android:layout_height="30dp"
-            android:layout_gravity="top"
-            app:text_size="15"
-            app:text_color="@color/textColor"
-            app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            android:layout_height="match_parent">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/files_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/list_files_frame_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:animateLayoutChanges="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/files_breadcrumb_bar">
+
+        <TextView
+            android:id="@+id/list_files_empty_folder"
+            style="@style/Main.Text.Caption"
+            android:layout_width="150dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:text="@string/empty_folder"
+            android:visibility="gone" />
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_gravity="center"
-            android:orientation="vertical"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/files_breadcrumb_bar"
-            app:layout_constraintBottom_toBottomOf="parent">
+            android:id="@+id/list_files_fab_holder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:gravity="center"
+            android:orientation="vertical">
 
-            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-                android:id="@+id/list_files_refresh"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/list_files_fab_drawing"
+                style="@style/Main.Widget.FAB"
+                android:contentDescription="@string/list_files_create_document"
+                android:src="@drawable/ic_baseline_border_color_24"
+                android:visibility="gone" />
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/files_list"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/list_files_fab_document"
+                style="@style/Main.Widget.FAB"
+                android:contentDescription="@string/list_files_create_document"
+                android:src="@drawable/ic_baseline_insert_drive_file_24"
+                android:visibility="gone" />
 
-            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-        </LinearLayout>
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/list_files_fab_folder"
+                style="@style/Main.Widget.FAB"
+                android:contentDescription="@string/list_files_create_folder"
+                android:src="@drawable/round_folder_white_18dp"
+                android:visibility="gone" />
 
-        <FrameLayout
-            android:id="@+id/list_files_frame_layout"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:animateLayoutChanges="true"
-            app:layout_constraintTop_toTopOf="@+id/files_breadcrumb_bar"
-            app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent">
-
-            <TextView
-                android:id="@+id/list_files_empty_folder"
-                android:visibility="gone"
-                android:layout_width="150dp"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                style="@style/Main.Text.Caption"
-                android:gravity="center"
-                android:text="@string/empty_folder" />
-
-            <LinearLayout
-                android:id="@+id/list_files_fab_holder"
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/list_files_fab"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="bottom|end"
-                android:gravity="center"
-                android:orientation="vertical">
+                android:layout_margin="10dp"
+                android:contentDescription="@string/list_files_create_file"
+                android:src="@drawable/ic_baseline_add_24"
+                app:backgroundTint="@color/colorPrimary"
+                app:rippleColor="@color/colorPrimaryDark"
+                app:tint="@color/white" />
 
-                <com.google.android.material.floatingactionbutton.FloatingActionButton
-                    android:id="@+id/list_files_fab_drawing"
-                    style="@style/Main.Widget.FAB"
-                    android:contentDescription="@string/list_files_create_document"
-                    android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked(true)}"
-                    android:visibility="gone"
-                    android:src="@drawable/ic_baseline_border_color_24" />
-
-                <com.google.android.material.floatingactionbutton.FloatingActionButton
-                    android:id="@+id/list_files_fab_document"
-                    style="@style/Main.Widget.FAB"
-                    android:contentDescription="@string/list_files_create_document"
-                    android:onClick="@{() -> listFilesViewModel.onNewDocumentFABClicked(false)}"
-                    android:visibility="gone"
-                    android:src="@drawable/ic_baseline_insert_drive_file_24" />
-
-                <com.google.android.material.floatingactionbutton.FloatingActionButton
-                    android:id="@+id/list_files_fab_folder"
-                    style="@style/Main.Widget.FAB"
-                    android:contentDescription="@string/list_files_create_folder"
-                    android:onClick="@{() -> listFilesViewModel.onNewFolderFABClicked()}"
-                    android:visibility="gone"
-                    android:src="@drawable/round_folder_white_18dp" />
-
-                <com.google.android.material.floatingactionbutton.FloatingActionButton
-                    android:id="@+id/list_files_fab"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_margin="10dp"
-                    app:backgroundTint="@color/colorPrimary"
-                    android:contentDescription="@string/list_files_create_file"
-                    android:onClick="@{() -> listFilesViewModel.collapseExpandFAB()}"
-                    android:src="@drawable/ic_baseline_add_24"
-                    app:tint="@color/white"
-                    app:rippleColor="@color/colorPrimaryDark" />
-
-            </LinearLayout>
-        </FrameLayout>
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-</layout>
+        </LinearLayout>
+    </FrameLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

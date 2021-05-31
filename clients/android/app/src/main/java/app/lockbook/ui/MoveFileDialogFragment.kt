@@ -5,11 +5,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
-import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.MoveFileAdapter
@@ -57,9 +55,8 @@ class MoveFileDialogFragment : DialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = DataBindingUtil.inflate(
+        _binding = DialogMoveFileBinding.inflate(
             inflater,
-            R.layout.dialog_move_file,
             container,
             false
         )

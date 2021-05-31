@@ -1,7 +1,6 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'androidx.navigation.safeargs'
-apply plugin: 'kotlin-android'
 apply plugin: "org.jmailen.kotlinter"
 
 android {
@@ -28,7 +27,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-	    zipAlignEnabled true
+	        zipAlignEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -55,17 +54,17 @@ android {
         }
     }
 
-    android.buildFeatures.dataBinding = true
+    android.buildFeatures.viewBinding = true
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
     // Ui Libraries
     implementation "com.google.android.material:material:$material_ui_version"
     implementation "com.afollestad.material-dialogs:core:$dialog_version"
     implementation "androidx.preference:preference-ktx:$preference_version"
+    implementation "androidx.fragment:fragment-ktx:$fragment_version"
 
     // Support Libraries
     implementation "androidx.constraintlayout:constraintlayout:$constraint_layout_version"

@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.view.View
 import android.widget.NumberPicker
 import android.widget.TextView
+import androidx.core.os.bundleOf
+import androidx.fragment.app.setFragmentResult
 import androidx.preference.PreferenceDialogFragmentCompat
 import app.lockbook.R
 import timber.log.Timber
@@ -84,5 +86,7 @@ class NumberPickerPreferenceDialog : PreferenceDialogFragmentCompat() {
         } else if (preference == null) {
             Timber.e("Unable to access preference.")
         }
+
+        this.setFragmentResult(preference.key, bundleOf())
     }
 }

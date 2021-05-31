@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.DialogFragment
 import app.lockbook.R
 import app.lockbook.databinding.DialogFileInfoBinding
@@ -47,9 +46,8 @@ class FileInfoDialogFragment : DialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = DataBindingUtil.inflate(
+        _binding = DialogFileInfoBinding.inflate(
             inflater,
-            R.layout.dialog_file_info,
             container,
             false
         )
