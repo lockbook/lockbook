@@ -22,6 +22,7 @@ use std::sync::Arc;
 use tokio::runtime::Handle;
 
 static LOG_FILE: &str = "lockbook_server.log";
+static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -34,14 +35,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         true,
         &config.server.pd_api_key,
         handle,
-        &config.build,
+        CARGO_PKG_VERSION,
     )
     .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str())
     .level(log::LevelFilter::Info)
     .level_for("lockbook_server", log::LevelFilter::Debug)
     .apply()
     .expect("Failed setting logger!");
-    info!("Server starting with build: {}", &config.build);
+    info!("Server starting with build: {}", CARGO_PKG_VERSION);
 
     debug!("Connecting to index_db...");
     let index_db_client = file_index_repo::connect(&config.index_db)
