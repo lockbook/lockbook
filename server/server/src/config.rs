@@ -93,9 +93,6 @@ fn env_or_panic(var_name: &str) -> String {
 fn env_or_empty(var_name: &str) -> Option<String> {
     match env::var(var_name) {
         Ok(var) => Some(var),
-        Err(_) => {
-            println!("Missing environment variable {}", var_name);
-            None
-        }
+        Err(_) => None,
     }
 }
