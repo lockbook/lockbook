@@ -71,6 +71,7 @@ impl ServerConfig {
 
 #[derive(Clone)]
 pub struct Config {
+    pub build: String,
     pub index_db: IndexDbConfig,
     pub files_db: FilesDbConfig,
     pub server: ServerConfig,
@@ -79,6 +80,7 @@ pub struct Config {
 impl Config {
     pub fn from_env_vars() -> Config {
         Config {
+            build: env_or_panic("CARGO_PKG_VERSION"),
             index_db: IndexDbConfig::from_env_vars(),
             files_db: FilesDbConfig::from_env_vars(),
             server: ServerConfig::from_env_vars(),

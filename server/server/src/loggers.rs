@@ -13,11 +13,11 @@ use tokio::runtime::Handle;
 
 pub fn init(
     log_path: &Path,
-    log_name: String,
+    log_name: &str,
     std_colors: bool,
     pd_api_key: &Option<String>,
     handle: Handle,
-    build: &String,
+    build: &str,
 ) -> Result<Dispatch, io::Error> {
     let colors_level = ColoredLevelConfig::new()
         .error(Color::Red)
@@ -141,7 +141,7 @@ impl Log for PDLogger {
                             build: self.build.to_string(),
                         }),
                     },
-                    dedup_key: Some(dedup_key(record, self.build.to_string())),
+                    dedup_key: None,
                     images: None,
                     links: None,
                     client: None,
@@ -161,21 +161,6 @@ fn level_to_severity(level: Level) -> Severity {
         Level::Info => Severity::Info,
         Level::Debug => Severity::Info,
         Level::Trace => Severity::Info,
-    }
-}
-
-fn dedup_key(record: &Record, build: String) -> String {
-    match (record.file(), record.line()) {
-        (Some(file), Some(line)) => {
-            format!("{}-{}#{}", build, file, line)
-        }
-        (_, _) => build
-            .chars()
-            .chain(record.target().chars().take(30))
-            .chain("::".chars())
-            .chain(record.args().to_string().chars())
-            .take(255)
-            .collect(),
     }
 }
 

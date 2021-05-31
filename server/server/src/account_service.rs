@@ -10,8 +10,6 @@ use lockbook_models::file_metadata::FileType;
 pub async fn new_account(
     context: &mut RequestContext<'_, NewAccountRequest>,
 ) -> Result<NewAccountResponse, Result<NewAccountError, String>> {
-    return Err(Err(String::from("testy test")));
-
     let request = &context.request;
     let server_state = &mut context.server_state;
     if !username_is_valid(&request.username) {

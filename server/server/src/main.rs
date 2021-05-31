@@ -27,22 +27,21 @@ static LOG_FILE: &str = "lockbook_server.log";
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let handle = Handle::current();
     let config = Config::from_env_vars();
-    let build = option_env!("SERVER_BUILD").unwrap_or("MISSING");
 
     loggers::init(
         Path::new(&config.server.log_path),
-        LOG_FILE.to_string(),
+        LOG_FILE,
         true,
         &config.server.pd_api_key,
         handle,
-        &build.to_string(),
+        &config.build,
     )
     .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str())
     .level(log::LevelFilter::Info)
     .level_for("lockbook_server", log::LevelFilter::Debug)
     .apply()
     .expect("Failed setting logger!");
-    info!("Server starting with build: {}", build);
+    info!("Server starting with build: {}", &config.build);
 
     debug!("Connecting to index_db...");
     let index_db_client = file_index_repo::connect(&config.index_db)
