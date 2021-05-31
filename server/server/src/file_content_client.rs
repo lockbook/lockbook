@@ -50,7 +50,6 @@ pub fn create_client(config: &FilesDbConfig) -> Result<S3Client, Error> {
     match (&config.scheme, &config.host, &config.port) {
         (Some(scheme), Some(host), Some(port)) => {
             let url = format!("{}://{}:{}", scheme, host, port);
-            println!("Url {}", url);
             S3Client::new_with_path_style(
                 &config.bucket,
                 Region::Custom {
