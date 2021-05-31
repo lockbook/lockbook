@@ -80,7 +80,7 @@ pub struct Config {
 impl Config {
     pub fn from_env_vars() -> Config {
         Config {
-            build: env_or_panic("CARGO_PKG_VERSION"),
+            build: String::from(env!("CARGO_PKG_VERSION")),
             index_db: IndexDbConfig::from_env_vars(),
             files_db: FilesDbConfig::from_env_vars(),
             server: ServerConfig::from_env_vars(),
