@@ -26,17 +26,6 @@ pub enum SupportedImageFormats {
     Bmp,
 }
 
-#[derive(Debug)]
-pub enum DrawingError {
-    InvalidDrawingError(serde_json::error::Error),
-    FailedToSaveDrawing(DocumentUpdateError),
-    FailedToRetrieveDrawing(ReadDocumentError),
-    FailedToEncodeImage(ImageError),
-    UnequalPointsAndGirthMetrics,
-    UnableToGetColorFromAlias,
-    CorruptedDrawing,
-}
-
 macro_rules! hashmap {
     ($( $key: expr => $val: expr ),*) => {{
          let mut map = ::std::collections::HashMap::new();
@@ -45,32 +34,59 @@ macro_rules! hashmap {
     }}
 }
 
-pub fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), DrawingError> {
+#[derive(Debug)]
+pub enum SaveDrawingError {
+    InvalidDrawingError(serde_json::error::Error),
+    FailedToSaveJson(DocumentUpdateError),
+}
+
+pub fn save_drawing(
+    config: &Config,
+    id: Uuid,
+    drawing_bytes: &[u8],
+) -> Result<(), SaveDrawingError> {
     let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
     serde_json::from_str::<Drawing>(drawing_string.as_str()) // validating json
-        .map_err(DrawingError::InvalidDrawingError)?;
+        .map_err(SaveDrawingError::InvalidDrawingError)?;
 
     file_service::write_document(config, id, drawing_bytes)
-        .map_err(DrawingError::FailedToSaveDrawing)
+        .map_err(SaveDrawingError::FailedToSaveJson)
 }
 
-pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, DrawingError> {
+#[derive(Debug)]
+pub enum GetDrawingError {
+    InvalidDrawingError(serde_json::error::Error),
+    FailedToRetrieveJson(ReadDocumentError),
+}
+
+pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, GetDrawingError> {
     let drawing_bytes =
-        file_service::read_document(config, id).map_err(DrawingError::FailedToRetrieveDrawing)?;
+        file_service::read_document(config, id).map_err(GetDrawingError::FailedToRetrieveJson)?;
 
     let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
     serde_json::from_str::<Drawing>(drawing_string.as_str())
-        .map_err(DrawingError::InvalidDrawingError)
+        .map_err(GetDrawingError::InvalidDrawingError)
+}
+
+#[derive(Debug)]
+pub enum ExportDrawingError {
+    GetDrawingError(GetDrawingError),
+    UnableToGetColorFromAlias,
+    UnableToGetStrokePoint,
+    UnableToGetStrokeGirth,
+    UnequalPointsAndGirthMetrics,
+    InvalidAlphaValue,
+    FailedToEncodeImage(ImageError),
 }
 
 pub fn export_drawing(
     config: &Config,
     id: Uuid,
     format: SupportedImageFormats,
-) -> Result<Vec<u8>, DrawingError> {
-    let drawing = get_drawing(config, id)?;
+) -> Result<Vec<u8>, ExportDrawingError> {
+    let drawing = get_drawing(config, id).map_err(ExportDrawingError::GetDrawingError)?;
 
     let theme = drawing.theme.unwrap_or_else(|| {
         hashmap![
@@ -92,16 +108,16 @@ pub fn export_drawing(
     for stroke in drawing.strokes {
         let color_rgb = theme
             .get(&stroke.color)
-            .ok_or(DrawingError::UnableToGetColorFromAlias)?;
+            .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?;
 
         if stroke.points_x.len() != stroke.points_y.len()
             || stroke.points_y.len() != stroke.points_girth.len()
         {
-            return Err(DrawingError::UnequalPointsAndGirthMetrics);
+            return Err(ExportDrawingError::UnequalPointsAndGirthMetrics);
         }
 
         if stroke.alpha > 1.0 || stroke.alpha < 0.0 {
-            return Err(DrawingError::CorruptedDrawing);
+            return Err(ExportDrawingError::InvalidAlphaValue);
         }
 
         for point_index in 0..stroke.points_x.len() - 1 {
@@ -109,22 +125,22 @@ pub fn export_drawing(
             let x1 = stroke
                 .points_x
                 .get(point_index)
-                .ok_or(DrawingError::CorruptedDrawing)?
+                .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?
                 .to_owned();
             let y1 = stroke
                 .points_y
                 .get(point_index)
-                .ok_or(DrawingError::CorruptedDrawing)?
+                .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?
                 .to_owned();
             let x2 = stroke
                 .points_x
                 .get(point_index + 1)
-                .ok_or(DrawingError::CorruptedDrawing)?
+                .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?
                 .to_owned();
             let y2 = stroke
                 .points_y
                 .get(point_index + 1)
-                .ok_or(DrawingError::CorruptedDrawing)?
+                .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?
                 .to_owned();
 
             pb.move_to(x1, y1);
@@ -147,7 +163,7 @@ pub fn export_drawing(
                     width: stroke
                         .points_girth
                         .get(point_index)
-                        .ok_or(DrawingError::CorruptedDrawing)?
+                        .ok_or(ExportDrawingError::UnableToGetStrokeGirth)?
                         .to_owned(),
                     miter_limit: 10.0,
                     dash_array: Vec::new(),
@@ -207,7 +223,7 @@ pub fn export_drawing(
             ColorType::Rgba8,
         ),
     }
-    .map_err(DrawingError::FailedToEncodeImage)?;
+    .map_err(ExportDrawingError::FailedToEncodeImage)?;
 
     std::mem::drop(buf_writer);
 
