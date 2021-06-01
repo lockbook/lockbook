@@ -54,7 +54,7 @@ pub enum Error<U: Serialize> {
     Unexpected(String),
 }
 use crate::repo::local_changes_repo;
-use crate::service::drawing_service::{DrawingError, SupportedImageFormats};
+use crate::service::drawing_service::SupportedImageFormats;
 use lockbook_models::drawing::Drawing;
 use serde_json::error::Category;
 use Error::UiError;
@@ -823,13 +823,13 @@ pub enum GetDrawingError {
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
     drawing_service::get_drawing(&config, id).map_err(|drawing_err| match drawing_err {
-        DrawingError::InvalidDrawingError(err) => match err.classify() {
+        drawing_service::GetDrawingError::InvalidDrawingError(err) => match err.classify() {
             Category::Io => unexpected!("{:#?}", err),
             Category::Syntax | Category::Data | Category::Eof => {
                 UiError(GetDrawingError::InvalidDrawing)
             }
         },
-        DrawingError::FailedToRetrieveDrawing(err) => match err {
+        drawing_service::GetDrawingError::FailedToRetrieveJson(err) => match err {
             FSReadDocumentError::TreatedFolderAsDocument => {
                 UiError(GetDrawingError::FolderTreatedAsDrawing)
             }
@@ -846,11 +846,6 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
             | FSReadDocumentError::FileEncryptionError(_)
             | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
         },
-        DrawingError::FailedToSaveDrawing(_)
-        | DrawingError::CorruptedDrawing
-        | DrawingError::UnequalPointsAndGirthMetrics
-        | DrawingError::UnableToGetColorFromAlias
-        | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
     })
 }
 
@@ -869,13 +864,13 @@ pub fn save_drawing(
 ) -> Result<(), Error<SaveDrawingError>> {
     drawing_service::save_drawing(&config, id, drawing_bytes).map_err(|drawing_err| {
         match drawing_err {
-            DrawingError::InvalidDrawingError(err) => match err.classify() {
+            drawing_service::SaveDrawingError::InvalidDrawingError(err) => match err.classify() {
                 Category::Io => unexpected!("{:#?}", err),
                 Category::Syntax | Category::Data | Category::Eof => {
                     UiError(SaveDrawingError::InvalidDrawing)
                 }
             },
-            DrawingError::FailedToSaveDrawing(err) => match err {
+            drawing_service::SaveDrawingError::FailedToSaveJson(err) => match err {
                 DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
                     AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
                         unexpected!("{:#?}", account_err)
@@ -899,11 +894,6 @@ pub fn save_drawing(
                 | DocumentUpdateError::AccessInfoCreationError(_)
                 | DocumentUpdateError::FailedToRecordChange(_) => unexpected!("{:#?}", err),
             },
-            DrawingError::FailedToRetrieveDrawing(_)
-            | DrawingError::CorruptedDrawing
-            | DrawingError::UnequalPointsAndGirthMetrics
-            | DrawingError::UnableToGetColorFromAlias
-            | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
         }
     })
 }
@@ -921,35 +911,55 @@ pub fn export_drawing(
     id: Uuid,
     format: SupportedImageFormats,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    drawing_service::export_drawing(&config, id, format).map_err(|drawing_err| match drawing_err {
-        DrawingError::InvalidDrawingError(err) => match err.classify() {
-            Category::Io => unexpected!("{:#?}", err),
-            Category::Syntax | Category::Data | Category::Eof => {
-                UiError(ExportDrawingError::InvalidDrawing)
-            }
-        },
-        DrawingError::FailedToRetrieveDrawing(err) => match err {
-            FSReadDocumentError::TreatedFolderAsDocument => {
-                UiError(ExportDrawingError::FolderTreatedAsDrawing)
-            }
-            FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
-                AccountRepoError::NoAccount => UiError(ExportDrawingError::NoAccount),
-                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                    unexpected!("{:#?}", account_error)
+    drawing_service::export_drawing(&config, id, format).map_err(|export_drawing_err| {
+        match export_drawing_err {
+            drawing_service::ExportDrawingError::GetDrawingError(get_drawing_err) => {
+                match get_drawing_err {
+                    drawing_service::GetDrawingError::InvalidDrawingError(err) => {
+                        match err.classify() {
+                            Category::Io => unexpected!("{:#?}", err),
+                            Category::Syntax | Category::Data | Category::Eof => {
+                                UiError(ExportDrawingError::InvalidDrawing)
+                            }
+                        }
+                    }
+                    drawing_service::GetDrawingError::FailedToRetrieveJson(err) => match err {
+                        FSReadDocumentError::TreatedFolderAsDocument => {
+                            UiError(ExportDrawingError::FolderTreatedAsDrawing)
+                        }
+                        FSReadDocumentError::AccountRetrievalError(account_error) => {
+                            match account_error {
+                                AccountRepoError::NoAccount => {
+                                    UiError(ExportDrawingError::NoAccount)
+                                }
+                                AccountRepoError::BackendError(_)
+                                | AccountRepoError::SerdeError(_) => {
+                                    unexpected!("{:#?}", account_error)
+                                }
+                            }
+                        }
+                        FSReadDocumentError::CouldNotFindFile => {
+                            UiError(ExportDrawingError::FileDoesNotExist)
+                        }
+                        FSReadDocumentError::DbError(_)
+                        | FSReadDocumentError::DocumentReadError(_)
+                        | FSReadDocumentError::CouldNotFindParents(_)
+                        | FSReadDocumentError::FileEncryptionError(_)
+                        | FSReadDocumentError::FileDecompressionError(_) => {
+                            unexpected!("{:#?}", err)
+                        }
+                    },
                 }
-            },
-            FSReadDocumentError::CouldNotFindFile => UiError(ExportDrawingError::FileDoesNotExist),
-            FSReadDocumentError::DbError(_)
-            | FSReadDocumentError::DocumentReadError(_)
-            | FSReadDocumentError::CouldNotFindParents(_)
-            | FSReadDocumentError::FileEncryptionError(_)
-            | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", err),
-        },
-        DrawingError::FailedToSaveDrawing(_)
-        | DrawingError::CorruptedDrawing
-        | DrawingError::UnequalPointsAndGirthMetrics
-        | DrawingError::UnableToGetColorFromAlias
-        | DrawingError::FailedToEncodeImage(_) => unexpected!("{:#?}", drawing_err),
+            }
+            drawing_service::ExportDrawingError::UnableToGetColorFromAlias
+            | drawing_service::ExportDrawingError::UnableToGetStrokePoint
+            | drawing_service::ExportDrawingError::UnableToGetStrokeGirth
+            | drawing_service::ExportDrawingError::UnequalPointsAndGirthMetrics
+            | drawing_service::ExportDrawingError::InvalidAlphaValue
+            | drawing_service::ExportDrawingError::FailedToEncodeImage(_) => {
+                unexpected!("{:#?}", export_drawing_err)
+            }
+        }
     })
 }
 
