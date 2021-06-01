@@ -1,9 +1,9 @@
 package app.lockbook.screen
 
 import android.os.Bundle
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
-import kotlinx.android.synthetic.main.activity_debug.*
 import java.io.File
 
 class LogActivity : AppCompatActivity() {
@@ -20,6 +20,6 @@ class LogActivity : AppCompatActivity() {
     }
 
     private fun getDebugContent() {
-        debug_text.text = File("$filesDir/$LOG_FILE_NAME").readText()
+        this.findViewById<TextView>(R.id.debug_text).text = File("$filesDir/$LOG_FILE_NAME").readText()
     }
 }

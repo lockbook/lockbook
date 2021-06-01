@@ -2,6 +2,8 @@ package app.lockbook.model
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
@@ -9,7 +11,6 @@ import app.lockbook.R
 import app.lockbook.util.FileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.ListFilesClickInterface
-import kotlinx.android.synthetic.main.grid_layout_file_item.view.*
 
 class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) :
     GeneralViewAdapter(listFilesClickInterface) {
@@ -37,7 +38,9 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val item = files[position]
         holder.fileMetadata = item
-        holder.cardView.grid_file_name.text = item.name
+        holder.cardView.findViewById<TextView>(R.id.grid_file_name).text = item.name
+
+        val fileIcon = holder.cardView.findViewById<ImageView>(R.id.grid_file_icon)
 
         when {
             selectedFiles[position] -> {
@@ -48,7 +51,7 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
                         App.instance.theme
                     )
                 )
-                holder.cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_check_24)
+                fileIcon.setImageResource(R.drawable.ic_baseline_check_24)
             }
             item.fileType == FileType.Document && item.name.endsWith(".draw") -> {
                 holder.cardView.background.setTint(
@@ -58,7 +61,7 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
                         App.instance.theme
                     )
                 )
-                holder.cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_border_color_24)
+                fileIcon.setImageResource(R.drawable.ic_baseline_border_color_24)
             }
             item.fileType == FileType.Document -> {
                 holder.cardView.background.setTint(
@@ -68,7 +71,7 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
                         App.instance.theme
                     )
                 )
-                holder.cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                fileIcon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
             }
             else -> {
                 holder.cardView.background.setTint(
@@ -78,7 +81,7 @@ class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) 
                         App.instance.theme
                     )
                 )
-                holder.cardView.grid_file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+                fileIcon.setImageResource(R.drawable.round_folder_white_18dp)
             }
         }
     }

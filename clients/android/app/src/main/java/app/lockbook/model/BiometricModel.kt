@@ -10,7 +10,6 @@ import androidx.preference.PreferenceManager
 import app.lockbook.util.BASIC_ERROR
 import app.lockbook.util.SharedPreferences
 import app.lockbook.util.exhaustive
-import kotlinx.android.synthetic.main.splash_screen.*
 import timber.log.Timber
 
 object BiometricModel {
