@@ -4,28 +4,26 @@ mod integration_test;
 #[cfg(test)]
 mod unit_tests_file {
     use lockbook_core::model::state::temp_config;
-    use lockbook_core::storage::db_provider::FileBackend;
+    use lockbook_core::repo::local_storage;
 
     #[test]
     fn read() {
-        let cfg = &temp_config();
-        let config = &FileBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
-        let result = FileBackend::read::<_, _, Vec<u8>>(config, "files", "notes.txt").unwrap();
+        let result = local_storage::read::<_, _, Vec<u8>>(config, "files", "notes.txt").unwrap();
 
         assert_eq!(result, None);
     }
 
     #[test]
     fn write_and_read() {
-        let cfg = &temp_config();
-        let config = &FileBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let data = "noice";
 
-        FileBackend::write(config, "files", "notes.txt", data).unwrap();
+        local_storage::write(config, "files", "notes.txt", data).unwrap();
 
-        let result = FileBackend::read::<_, _, Vec<u8>>(config, "files", "notes.txt")
+        let result = local_storage::read::<_, _, Vec<u8>>(config, "files", "notes.txt")
             .unwrap()
             .unwrap();
 
@@ -34,16 +32,15 @@ mod unit_tests_file {
 
     #[test]
     fn write_and_dump() {
-        let cfg = &temp_config();
-        let config = &FileBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
-        println!("{:?}", cfg);
+        println!("{:?}", config);
 
         let data = "noice";
 
-        FileBackend::write(config, "files", "a.txt", data).unwrap();
-        FileBackend::write(config, "files", "b.txt", data).unwrap();
-        FileBackend::write(config, "files", "c.txt", data).unwrap();
+        local_storage::write(config, "files", "a.txt", data).unwrap();
+        local_storage::write(config, "files", "b.txt", data).unwrap();
+        local_storage::write(config, "files", "c.txt", data).unwrap();
 
         assert_eq!(
             vec![
@@ -51,31 +48,30 @@ mod unit_tests_file {
                 data.as_bytes().to_vec(),
                 data.as_bytes().to_vec()
             ],
-            FileBackend::dump::<_, Vec<u8>>(config, "files").unwrap()
+            local_storage::dump::<_, Vec<u8>>(config, "files").unwrap()
         )
     }
 
     #[test]
     fn write_read_delete() {
-        let cfg = &temp_config();
-        let config = &FileBackend::connect_to_db(cfg).unwrap();
+        let config = &temp_config();
 
         let data = "noice";
 
-        FileBackend::write(config, "files", "notes.txt", data).unwrap();
+        local_storage::write(config, "files", "notes.txt", data).unwrap();
 
         assert_eq!(
             data.as_bytes().to_vec(),
-            FileBackend::read::<_, _, Vec<u8>>(config, "files", "notes.txt")
+            local_storage::read::<_, _, Vec<u8>>(config, "files", "notes.txt")
                 .unwrap()
                 .unwrap()
         );
 
-        FileBackend::delete(config, "files", "notes.txt").unwrap();
+        local_storage::delete(config, "files", "notes.txt").unwrap();
 
         assert_eq!(
             None,
-            FileBackend::read::<_, _, Vec<u8>>(config, "files", "notes.txt").unwrap()
+            local_storage::read::<_, _, Vec<u8>>(config, "files", "notes.txt").unwrap()
         );
     }
 }

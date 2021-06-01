@@ -94,11 +94,8 @@ class ReadDocumentTest {
 
     @Test
     fun readDocumentUnexpectedError() {
-        val getDocumentResult: Result<String, ReadDocumentError>? =
-            Klaxon().converter(readDocumentConverter).parse(readDocument("", ""))
-
         assertType<ReadDocumentError.Unexpected>(
-            getDocumentResult?.component2()
+            Klaxon().converter(readDocumentConverter).parse<Result<String, ReadDocumentError>>(readDocument("", ""))?.component2()
         )
     }
 }

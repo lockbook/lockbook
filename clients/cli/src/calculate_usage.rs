@@ -17,7 +17,7 @@ pub fn calculate_usage(exact: bool) -> CliResult<()> {
             },
         )?;
 
-    println!("Uncompressed File Size: {}", usage.uncomressed_usage);
+    println!("Uncompressed File Size: {}", usage.uncompressed_usage);
     println!("Server Utilization: {}", usage.server_usage);
     println!("Server Data Cap: {}", usage.data_cap);
     Ok(())

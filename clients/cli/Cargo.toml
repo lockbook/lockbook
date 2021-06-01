@@ -1,9 +1,12 @@
 [package]
-name = "lockbook"
+name = "lockbook-cli"
 version = "0.2.21"
 authors = ["parth"]
 edition = "2018"
 
+[[bin]]
+name = "lockbook"
+path = "src/main.rs"
 
 [dependencies]
 lockbook-core = { path = "../../core" }

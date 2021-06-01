@@ -10,16 +10,16 @@ use uuid::Uuid;
 use crate::json_interface::translate;
 use crate::model::state::Config;
 use crate::service::sync_service::SyncProgress;
+use crate::service::usage_service::bytes_to_human;
 use crate::{
     calculate_work, create_account, create_file, delete_file, export_account, get_account,
-    get_all_error_variants, get_children, get_db_state, get_file_by_id,
-    get_last_synced_human_string, get_root, get_usage, get_usage_human_string, import_account,
-    init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced,
-    sync_all, write_document, DefaultClock, Error,
+    get_all_error_variants, get_children, get_db_state, get_file_by_id, get_local_and_server_usage,
+    get_root, import_account, init_logger, insert_file, migrate_db, move_file, read_document,
+    rename_file, set_last_synced, sync_all, write_document, Error,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
-use lockbook_crypto::clock_service::Clock;
+use lockbook_crypto::clock_service;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -96,50 +96,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
     let path = Path::new(&absolute_path);
 
     string_to_jstring(&env, translate(init_logger(path)))
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(&env, translate(get_usage(&config)))
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsageHumanString(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jexact: jboolean,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let exact_int = jexact as u64;
-    let exact = match exact_int {
-        0 => false,
-        1 => true,
-        _ => {
-            return string_to_jstring(
-                &env,
-                translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
-                    "Couldn't successfully get exact:{}",
-                    exact_int
-                )))),
-            );
-        }
-    };
-
-    string_to_jstring(&env, translate(get_usage_human_string(&config, exact)))
 }
 
 #[no_mangle]
@@ -260,20 +216,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_setLastSynced(
         &env,
         translate(set_last_synced(&config, jlastsynced as u64)),
     )
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getLastSyncedHumanString(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(&env, translate(get_last_synced_human_string(&config)))
 }
 
 #[no_mangle]
@@ -418,13 +360,52 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
     string_to_jstring(
         &env,
         if metadata_version != 0 {
-            Duration::milliseconds(DefaultClock::get_time() - metadata_version)
+            Duration::milliseconds(clock_service::get_time().0 - metadata_version)
                 .format_human()
                 .to_string()
         } else {
             "never".to_string()
         },
     )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getLocalAndServerUsage(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jexact: jboolean,
+) -> jstring {
+    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let exact_int = jexact as u64;
+    let exact = match exact_int {
+        0 => false,
+        1 => true,
+        _ => {
+            return string_to_jstring(
+                &env,
+                translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
+                    "Couldn't successfully get exact:{}",
+                    exact_int
+                )))),
+            );
+        }
+    };
+
+    string_to_jstring(&env, translate(get_local_and_server_usage(&config, exact)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_makeBytesReadable(
+    env: JNIEnv,
+    _: JClass,
+    bytes: jlong,
+) -> jstring {
+    string_to_jstring(&env, bytes_to_human(bytes as u64))
 }
 
 #[no_mangle]
