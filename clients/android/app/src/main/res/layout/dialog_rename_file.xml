@@ -1,42 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_gravity="center"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rename_file_layout"
     style="@style/Main.Widget.Dialog"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
     android:orientation="vertical">
 
     <TextView
+        style="@style/Main.Text.Medium"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        style="@style/Main.Text.Medium"
         android:fontFamily="sans-serif"
         android:paddingTop="8dp"
-        android:textAlignment="center"
-        android:text="@string/dialog_rename_file_title" />
+        android:text="@string/dialog_rename_file_title"
+        android:textAlignment="center" />
 
     <EditText
         android:id="@+id/rename_file"
+        style="@style/Main.Text.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
         android:layout_marginLeft="4dp"
+        android:layout_marginTop="16dp"
         android:layout_marginRight="4dp"
         android:layout_marginBottom="4dp"
         android:hint="@string/dialog_file_name"
-        style="@style/Main.Text.Small"
-        android:inputType="text"
+        android:imeOptions="actionDone"
         android:importantForAutofill="no"
-        android:imeOptions="actionDone" />
+        android:inputType="text" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="end">
+        android:gravity="end"
+        android:orientation="horizontal">
 
         <Button
             android:id="@+id/rename_file_cancel"

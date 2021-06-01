@@ -1,5 +1,6 @@
 package app.lockbook.model
 
+import android.widget.ImageView
 import androidx.cardview.widget.CardView
 import androidx.core.content.res.ResourcesCompat
 import androidx.recyclerview.widget.RecyclerView
@@ -8,8 +9,6 @@ import app.lockbook.R
 import app.lockbook.util.FileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.ListFilesClickInterface
-import kotlinx.android.synthetic.main.grid_layout_file_item.view.*
-import kotlinx.android.synthetic.main.linear_layout_file_item.view.*
 
 abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInterface) : RecyclerView.Adapter<GeneralViewAdapter.FileViewHolder>() {
     abstract var files: List<FileMetadata>
@@ -39,6 +38,8 @@ abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInt
 
         private fun changeItemBasedOnSelection() {
             selectedFiles[adapterPosition] = !selectedFiles[adapterPosition]
+            val fileIcon = cardView.findViewById<ImageView>(R.id.linear_file_icon)
+            val gridIcon = cardView.findViewById<ImageView>(R.id.grid_file_icon)
 
             if (selectedFiles[adapterPosition]) {
                 cardView.background.setTint(
@@ -48,29 +49,30 @@ abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInt
                         App.instance.theme
                     )
                 )
-                if (cardView.linear_file_icon != null) {
-                    cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_check_24)
+
+                if (fileIcon != null) {
+                    fileIcon.setImageResource(R.drawable.ic_baseline_check_24)
                 } else {
-                    cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_check_24)
+                    gridIcon.setImageResource(R.drawable.ic_baseline_check_24)
                 }
             } else {
                 if (fileMetadata.fileType == FileType.Document && fileMetadata.name.endsWith(".draw")) {
-                    if (cardView.linear_file_icon != null) {
-                        cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_border_color_24)
+                    if (fileIcon != null) {
+                        fileIcon.setImageResource(R.drawable.ic_baseline_border_color_24)
                     } else {
-                        cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_border_color_24)
+                        gridIcon.setImageResource(R.drawable.ic_baseline_border_color_24)
                     }
                 } else if (fileMetadata.fileType == FileType.Document) {
-                    if (cardView.linear_file_icon != null) {
-                        cardView.linear_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                    if (fileIcon != null) {
+                        fileIcon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
                     } else {
-                        cardView.grid_file_icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                        gridIcon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
                     }
                 } else {
-                    if (cardView.linear_file_icon != null) {
-                        cardView.linear_file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+                    if (fileIcon != null) {
+                        fileIcon.setImageResource(R.drawable.round_folder_white_18dp)
                     } else {
-                        cardView.grid_file_icon.setImageResource(R.drawable.round_folder_white_18dp)
+                        gridIcon.setImageResource(R.drawable.round_folder_white_18dp)
                     }
                 }
                 cardView.background.setTintList(null)

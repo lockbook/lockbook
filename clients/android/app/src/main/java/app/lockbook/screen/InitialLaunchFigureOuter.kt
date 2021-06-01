@@ -6,7 +6,7 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricPrompt.*
 import androidx.preference.PreferenceManager
-import app.lockbook.R
+import app.lockbook.databinding.SplashScreenBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
@@ -16,11 +16,15 @@ import app.lockbook.util.SharedPreferences.BIOMETRIC_NONE
 import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import kotlinx.android.synthetic.main.splash_screen.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
+    private var _binding: SplashScreenBinding? = null
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
@@ -31,7 +35,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.splash_screen)
+        _binding = SplashScreenBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         Timber.plant(Timber.DebugTree())
 
         handleOnDBState()
@@ -48,17 +53,17 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     State.ReadyToUse -> startFromExistingAccount()
                     State.MigrationRequired -> {
                         AlertModel.notify(
-                            splash_screen,
+                            binding.splashScreen,
                             "Upgrading data...",
                             OnFinishAlert.DoNothingOnFinishAlert
                         )
-                        migrate_progress_bar.visibility = View.VISIBLE
+                        binding.migrateProgressBar.visibility = View.VISIBLE
                         migrateDB()
                     }
                     State.StateRequiresClearing -> {
                         Timber.e("DB state requires cleaning!")
                         AlertModel.errorHasOccurred(
-                            splash_screen,
+                            binding.splashScreen,
                             Companion.STATE_REQUIRES_CLEANING, OnFinishAlert.DoNothingOnFinishAlert
                         )
                     }
@@ -79,9 +84,9 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 when (val migrateDBResult = CoreModel.migrateDB(Config(filesDir.absolutePath))) {
                     is Ok -> {
                         withContext(Dispatchers.Main) {
-                            migrate_progress_bar.visibility = View.GONE
+                            binding.migrateProgressBar.visibility = View.GONE
                             AlertModel.notify(
-                                splash_screen,
+                                binding.splashScreen,
                                 "Your data has been migrated.",
                                 OnFinishAlert.DoSomethingOnFinishAlert(::startFromExistingAccount)
                             )
@@ -90,9 +95,9 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     is Err -> when (val error = migrateDBResult.error) {
                         is MigrationError.StateRequiresCleaning -> {
                             withContext(Dispatchers.Main) {
-                                migrate_progress_bar.visibility = View.GONE
+                                binding.migrateProgressBar.visibility = View.GONE
                                 AlertModel.errorHasOccurred(
-                                    splash_screen,
+                                    binding.splashScreen,
                                     Companion.STATE_REQUIRES_CLEANING,
                                     OnFinishAlert.DoSomethingOnFinishAlert(::finish)
                                 )
@@ -101,7 +106,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         }
                         is MigrationError.Unexpected -> {
                             withContext(Dispatchers.Main) {
-                                migrate_progress_bar.visibility = View.GONE
+                                binding.migrateProgressBar.visibility = View.GONE
                                 AlertModel.unexpectedCoreErrorHasOccurred(this@InitialLaunchFigureOuter, error.error, OnFinishAlert.DoSomethingOnFinishAlert(::finish))
                             }
                             Timber.e("Unable to migrate DB: ${error.error}")
@@ -125,7 +130,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 .apply()
         }
 
-        BiometricModel.verify(this, splash_screen, this, ::launchListFilesActivity)
+        BiometricModel.verify(this, binding.splashScreen, this, ::launchListFilesActivity)
     }
 
     private fun launchListFilesActivity() {

@@ -1,78 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_gravity="center"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/create_file_layout"
     style="@style/Main.Widget.Dialog"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
     android:orientation="vertical">
 
     <TextView
         android:id="@+id/create_file_title"
+        style="@style/Main.Text.Medium"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        style="@style/Main.Text.Medium"
         android:fontFamily="sans-serif"
         android:paddingTop="8dp"
-        android:textAlignment="center"
-        android:text="@string/new_file_title" />
+        android:text="@string/new_file_title"
+        android:textAlignment="center" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="end"
-        android:layout_marginTop="16dp"
         android:layout_marginLeft="4dp"
+        android:layout_marginTop="16dp"
         android:layout_marginRight="4dp"
-        android:layout_marginBottom="4dp">
+        android:layout_marginBottom="4dp"
+        android:gravity="end"
+        android:orientation="horizontal">
 
         <EditText
             android:id="@+id/create_file_text_part"
+            style="@style/Main.Text.Small"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:hint="@string/dialog_file_name"
-            style="@style/Main.Text.Small"
-            android:inputType="text"
-            android:layout_weight="1"
             android:layout_marginEnd="10dp"
+            android:layout_weight="1"
+            android:hint="@string/dialog_file_name"
+            android:imeOptions="actionNext"
             android:importantForAutofill="no"
-            android:imeOptions="actionNext" />
+            android:inputType="text" />
 
         <EditText
             android:id="@+id/create_file_extension"
+            style="@style/Main.Text.Small"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:hint="@string/dialog_file_extension"
-            style="@style/Main.Text.Small"
-            android:inputType="text"
             android:layout_weight="0.4"
+            android:hint="@string/dialog_file_extension"
+            android:imeOptions="actionDone"
             android:importantForAutofill="no"
-            android:imeOptions="actionDone" />
+            android:inputType="text" />
 
         <EditText
             android:id="@+id/create_file_text"
-            android:visibility="gone"
+            style="@style/Main.Text.Small"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            style="@style/Main.Text.Small"
-            android:hint="@string/create_file_default_file_hint"
-            android:inputType="text"
-            android:layout_weight="1"
             android:layout_marginEnd="10dp"
+            android:layout_weight="1"
+            android:hint="@string/create_file_default_file_hint"
+            android:imeOptions="actionDone"
             android:importantForAutofill="no"
-            android:imeOptions="actionDone" />
+            android:inputType="text"
+            android:visibility="gone" />
 
     </LinearLayout>
 
 
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="end">
+        android:gravity="end"
+        android:orientation="horizontal">
 
         <Button
             android:id="@+id/create_file_cancel"

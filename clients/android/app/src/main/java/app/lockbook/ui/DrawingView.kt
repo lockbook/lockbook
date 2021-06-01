@@ -13,7 +13,6 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.OnFinishAlert
 import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
-import kotlinx.android.synthetic.main.activity_drawing.*
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt

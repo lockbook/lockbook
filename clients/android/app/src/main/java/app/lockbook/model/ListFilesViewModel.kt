@@ -9,7 +9,6 @@ import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.R
-import app.lockbook.screen.ListFilesFragment
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.ui.CreateFileInfo
 import app.lockbook.ui.MoveFileInfo
@@ -124,10 +123,6 @@ class ListFilesViewModel(path: String, application: Application) :
     val syncModel = SyncModel(config, _showSnackBar, _errorHasOccurred, _unexpectedErrorHasOccurred)
 
     init {
-        init(null)
-    }
-
-    private fun init(listFilesFragment: ListFilesFragment?) {
         viewModelScope.launch(Dispatchers.IO) {
             setUpPreferenceChangeListener()
             isThisAnImport()

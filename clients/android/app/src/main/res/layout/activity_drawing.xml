@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/drawing_layout"
     android:layout_width="match_parent"
@@ -30,10 +29,10 @@
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@color/colorPrimaryDark"
             android:indeterminate="true"
             android:minHeight="20dp"
-            android:background="@color/colorPrimaryDark"
-            android:translationZ="2dp"/>
+            android:translationZ="2dp" />
 
         <View
             android:id="@+id/drawing_loading_view"
@@ -43,6 +42,7 @@
             android:translationZ="1dp" />
 
         <include
+            android:id="@+id/drawing_toolbar"
             layout="@layout/toolbar_drawing" />
 
     </FrameLayout>

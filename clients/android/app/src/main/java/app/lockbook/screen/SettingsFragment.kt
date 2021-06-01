@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.PopupWindow
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -31,8 +32,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
-import kotlinx.android.synthetic.main.activity_account_qr_code.view.*
-import kotlinx.android.synthetic.main.preference_usage_bar.*
 import timber.log.Timber
 import java.io.File
 
@@ -52,7 +51,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
             if (newValue is String) {
                 newValueForPref = newValue
 
-                BiometricModel.verify(requireContext(), requireActivity().findViewById(android.R.id.content), activity as FragmentActivity, ::matchKey)
+                BiometricModel.verify(
+                    requireContext(),
+                    requireActivity().findViewById(android.R.id.content),
+                    activity as FragmentActivity,
+                    ::matchKey
+                )
             }
 
             false
@@ -75,6 +79,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         if (preference is NumberPickerPreference) {
             val numberPickerPreferenceDialog =
                 NumberPickerPreferenceDialog.newInstance(preference.key)
+            @Suppress("DEPRECATION")
             numberPickerPreferenceDialog.setTargetFragment(this, 0)
             numberPickerPreferenceDialog.show(parentFragmentManager, null)
         } else {
@@ -87,10 +92,17 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> {
-                BiometricModel.verify(requireContext(), requireActivity().findViewById(android.R.id.content), activity as FragmentActivity, ::matchKey)
+                BiometricModel.verify(
+                    requireContext(),
+                    requireActivity().findViewById(android.R.id.content),
+                    activity as FragmentActivity,
+                    ::matchKey
+                )
             }
             VIEW_LOGS_KEY -> startActivity(Intent(context, LogActivity::class.java))
-            CLEAR_LOGS_KEY -> File("${config.writeable_path}/${LogActivity.LOG_FILE_NAME}").writeText("")
+            CLEAR_LOGS_KEY -> File("${config.writeable_path}/${LogActivity.LOG_FILE_NAME}").writeText(
+                ""
+            )
             BACKGROUND_SYNC_ENABLED_KEY ->
                 findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
                     (preference as SwitchPreference).isChecked
@@ -107,7 +119,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
             BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValueForPref)
             else -> {
                 Timber.e("Shared preference key not matched: $selectedKey")
-                AlertModel.errorHasOccurred(requireActivity().findViewById(android.R.id.content), BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                AlertModel.errorHasOccurred(
+                    requireActivity().findViewById(android.R.id.content),
+                    BASIC_ERROR,
+                    OnFinishAlert.DoNothingOnFinishAlert
+                )
             }
         }.exhaustive
     }
@@ -131,7 +147,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     view as ViewGroup,
                     false
                 )
-                qrCodeView.qr_code.setImageBitmap(bitmap)
+                qrCodeView.findViewById<ImageView>(R.id.qr_code).setImageBitmap(bitmap)
                 val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
                 popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
             }
@@ -143,7 +159,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         OnFinishAlert.DoNothingOnFinishAlert
                     )
                     is AccountExportError.Unexpected -> {
-                        AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), error.error, OnFinishAlert.DoNothingOnFinishAlert)
+                        AlertModel.unexpectedCoreErrorHasOccurred(
+                            requireContext(),
+                            error.error,
+                            OnFinishAlert.DoNothingOnFinishAlert
+                        )
                         Timber.e("Unable to export account: ${error.error}")
                     }
                 }
@@ -169,7 +189,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     "Error! No account!", OnFinishAlert.DoNothingOnFinishAlert
                 )
                 is AccountExportError.Unexpected -> {
-                    AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), error.error, OnFinishAlert.DoNothingOnFinishAlert)
+                    AlertModel.unexpectedCoreErrorHasOccurred(
+                        requireContext(),
+                        error.error,
+                        OnFinishAlert.DoNothingOnFinishAlert
+                    )
                     Timber.e("Unable to export account: ${error.error}")
                 }
             }

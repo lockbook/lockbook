@@ -3,19 +3,24 @@ package app.lockbook.screen
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import app.lockbook.R
-import kotlinx.android.synthetic.main.activity_main.*
+import app.lockbook.databinding.ActivityMainBinding
 
 class WelcomeActivity : AppCompatActivity() {
+    private var _binding: ActivityMainBinding? = null
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        _binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        welcome_new_lockbook.setOnClickListener {
+        binding.welcomeNewLockbook.setOnClickListener {
             launchNewAccount()
         }
 
-        welcome_import_lockbook.setOnClickListener {
+        binding.welcomeImportLockbook.setOnClickListener {
             launchImportAccount()
         }
     }
