@@ -99,45 +99,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getLocalAndServerUsage(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jexact: jboolean,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let exact_int = jexact as u64;
-    let exact = match exact_int {
-        0 => false,
-        1 => true,
-        _ => {
-            return string_to_jstring(
-                &env,
-                translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
-                    "Couldn't successfully get exact:{}",
-                    exact_int
-                )))),
-            );
-        }
-    };
-
-    string_to_jstring(&env, translate(get_local_and_server_usage(&config, exact)))
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_makeBytesReadable(
-    env: JNIEnv,
-    _: JClass,
-    bytes: jlong,
-) -> jstring {
-    string_to_jstring(&env, bytes_to_human(bytes as u64))
-}
-
-#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getDBState(
     env: JNIEnv,
     _: JClass,
@@ -406,6 +367,45 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
             "never".to_string()
         },
     )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getLocalAndServerUsage(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jexact: jboolean,
+) -> jstring {
+    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let exact_int = jexact as u64;
+    let exact = match exact_int {
+        0 => false,
+        1 => true,
+        _ => {
+            return string_to_jstring(
+                &env,
+                translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
+                    "Couldn't successfully get exact:{}",
+                    exact_int
+                )))),
+            );
+        }
+    };
+
+    string_to_jstring(&env, translate(get_local_and_server_usage(&config, exact)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_makeBytesReadable(
+    env: JNIEnv,
+    _: JClass,
+    bytes: jlong,
+) -> jstring {
+    string_to_jstring(&env, bytes_to_human(bytes as u64))
 }
 
 #[no_mangle]

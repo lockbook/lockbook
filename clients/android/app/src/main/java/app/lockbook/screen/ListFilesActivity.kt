@@ -8,6 +8,7 @@ import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
+import app.lockbook.databinding.ActivityListFilesBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.BASIC_ERROR
@@ -24,18 +25,20 @@ import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import kotlinx.android.synthetic.main.activity_list_files.*
-import kotlinx.android.synthetic.main.dialog_create_file.*
-import kotlinx.android.synthetic.main.fragment_list_files.*
 import timber.log.Timber
 
 class ListFilesActivity : AppCompatActivity() {
+    private var _binding: ActivityListFilesBinding? = null
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
     private var menu: Menu? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_list_files)
-        setSupportActionBar(list_files_toolbar)
+        _binding = ActivityListFilesBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        setSupportActionBar(binding.listFilesToolbar)
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -51,7 +54,7 @@ class ListFilesActivity : AppCompatActivity() {
             }
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")
-            AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+            AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
         }
 
         return true
@@ -77,7 +80,7 @@ class ListFilesActivity : AppCompatActivity() {
             SORT_FILES_TYPE -> menu?.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
             }
         }.exhaustive
 
@@ -97,7 +100,7 @@ class ListFilesActivity : AppCompatActivity() {
             GRID_LAYOUT -> menu?.findItem(R.id.menu_list_files_grid_view)?.isChecked = true
             else -> {
                 Timber.e("File layout shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
             }
         }
     }
@@ -121,7 +124,7 @@ class ListFilesActivity : AppCompatActivity() {
                     fragment.onMenuItemPressed(item.itemId)
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
-                    AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                    AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
                 }
                 true
             }
@@ -131,7 +134,7 @@ class ListFilesActivity : AppCompatActivity() {
                     fragment.onMenuItemPressed(item.itemId)
                 } else {
                     Timber.e("Unable to retrieve ListFilesFragment.")
-                    AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                    AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
                 }
                 true
             }
@@ -149,7 +152,7 @@ class ListFilesActivity : AppCompatActivity() {
             }
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")
-            AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+            AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
         }
     }
 
@@ -193,7 +196,7 @@ class ListFilesActivity : AppCompatActivity() {
             }
             null -> {
                 Timber.e("Unable to get result of back press.")
-                AlertModel.errorHasOccurred(list_files_activity_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
             }
         }.exhaustive
     }
