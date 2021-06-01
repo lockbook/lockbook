@@ -8,10 +8,9 @@ use lockbook_models::api::{
 use lockbook_models::file_metadata::FileType;
 
 pub async fn new_account(
-    context: &mut RequestContext<'_, NewAccountRequest>,
+    context: RequestContext<'_, NewAccountRequest>,
 ) -> Result<NewAccountResponse, Result<NewAccountError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    let (request, server_state) = (&context.request, context.server_state);
     if !username_is_valid(&request.username) {
         return Err(Ok(NewAccountError::InvalidUsername));
     }
@@ -72,10 +71,9 @@ pub async fn new_account(
 }
 
 pub async fn get_public_key(
-    context: &mut RequestContext<'_, GetPublicKeyRequest>,
+    context: RequestContext<'_, GetPublicKeyRequest>,
 ) -> Result<GetPublicKeyResponse, Result<GetPublicKeyError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -95,9 +93,9 @@ pub async fn get_public_key(
 }
 
 pub async fn get_usage(
-    context: &mut RequestContext<'_, GetUsageRequest>,
+    context: RequestContext<'_, GetUsageRequest>,
 ) -> Result<GetUsageResponse, Result<GetUsageError, String>> {
-    let server_state = &mut context.server_state;
+    let (_, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {

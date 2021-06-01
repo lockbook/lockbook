@@ -559,8 +559,8 @@ SELECT
     accounts.public_key,
     accounts.name AS username
 FROM files
-JOIN accounts ON files.owner = accounts.name
-LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id
+JOIN accounts ON files.owner = accounts.public_key
+LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee
 WHERE
     accounts.public_key = $1;
         "#,
@@ -630,8 +630,8 @@ SELECT
     accounts.public_key,
     accounts.name AS username
 FROM files
-JOIN accounts ON files.owner = accounts.name
-LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id
+JOIN accounts ON files.owner = accounts.public_key
+LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee
 WHERE
     accounts.public_key = $1 AND
     metadata_version > $2;
@@ -701,11 +701,11 @@ SELECT
     accounts.public_key,
     accounts.name AS username
 FROM files
-JOIN accounts ON files.owner = accounts.name
-LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id
+JOIN accounts ON files.owner = accounts.public_key
+LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee
 WHERE
-    accounts.public_key = $1 AND
-    id = parent;
+    files.owner = $1 AND
+    files.id = files.parent;
         "#,
         &serde_json::to_string(public_key).map_err(GetRootError::Serialize)?
     )
@@ -800,7 +800,7 @@ pub async fn create_user_access_key(
 ) -> Result<(), CreateUserAccessKeyError> {
     sqlx::query!(
         r#"
-INSERT INTO user_access_keys (file_id, sharee_id, encrypted_key) VALUES ($1, $2, $3);
+INSERT INTO user_access_keys (file_id, sharee, encrypted_key) VALUES ($1, $2, $3);
         "#,
         &folder_id
             .to_simple()
@@ -827,7 +827,7 @@ pub async fn delete_account_access_keys(
 ) -> Result<(), DeleteAccountAccessKeysError> {
     sqlx::query!(
         r#"
-DELETE FROM user_access_keys where sharee_id = $1
+DELETE FROM user_access_keys where sharee = $1
         "#,
         &username.to_string(),
     )
@@ -951,9 +951,8 @@ pub async fn get_file_usages(
         files.id,
         files.document_size AS "document_size!"
     FROM files
-    JOIN accounts ON files.owner = accounts.name
     WHERE
-        accounts.public_key = $1 AND
+        files.owner = $1 AND
         NOT files.is_folder;
         "#,
         &serde_json::to_string(public_key).map_err(GetFileUsageError::Serialize)?

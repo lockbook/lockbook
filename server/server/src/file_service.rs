@@ -7,11 +7,93 @@ use crate::{file_content_client, RequestContext};
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType;
 
+pub async fn apply_changes(
+    context: RequestContext<'_, Vec<FileUpdatesRequest>>,
+) -> Result<(), Result<FileError, String>> {
+    let (server_state, public_key) = (&context.server_state, context.public_key);
+    for request in context.request {
+        match request {
+            FileUpdatesRequest::ChangeDocumentContentRequest(request) => {
+                change_document_content(RequestContext {
+                    server_state,
+                    request,
+                    public_key,
+                })
+                .await?;
+            }
+            FileUpdatesRequest::CreateDocumentRequest(request) => {
+                create_document(RequestContext {
+                    server_state,
+                    request,
+                    public_key,
+                })
+                .await?;
+            }
+            FileUpdatesRequest::DeleteDocumentRequest(request) => {
+                delete_document(RequestContext {
+                    server_state,
+                    request,
+                    public_key,
+                })
+                .await?;
+            }
+            FileUpdatesRequest::MoveDocumentRequest(request) => {
+                move_document(RequestContext {
+                    server_state,
+                    request,
+                    public_key,
+                })
+                .await?;
+            }
+            FileUpdatesRequest::RenameDocumentRequest(request) => {
+                rename_document(RequestContext {
+                    server_state,
+                    request,
+                    public_key,
+                })
+                .await?;
+            }
+            FileUpdatesRequest::CreateFolderRequest(request) => {
+                create_folder(RequestContext {
+                    server_state,
+                    request,
+                    public_key,
+                })
+                .await?;
+            }
+            FileUpdatesRequest::DeleteFolderRequest(request) => {
+                delete_folder(RequestContext {
+                    server_state,
+                    request,
+                    public_key,
+                })
+                .await?;
+            }
+            FileUpdatesRequest::MoveFolderRequest(request) => {
+                move_folder(RequestContext {
+                    server_state,
+                    request,
+                    public_key,
+                })
+                .await?;
+            }
+            FileUpdatesRequest::RenameFolderRequest(request) => {
+                rename_folder(RequestContext {
+                    server_state,
+                    request,
+                    public_key,
+                })
+                .await?;
+            }
+        };
+    }
+    Ok(())
+}
+
 pub async fn change_document_content(
-    context: &mut RequestContext<'_, ChangeDocumentContentRequest>,
-) -> Result<ChangeDocumentContentResponse, Result<ChangeDocumentContentError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    context: RequestContext<'_, ChangeDocumentContentRequest>,
+) -> Result<(), Result<FileError, String>> {
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -28,15 +110,9 @@ pub async fn change_document_content(
     .await;
 
     let (old_content_version, new_version) = result.map_err(|e| match e {
-        ChangeDocumentVersionAndSizeError::DoesNotExist => {
-            Ok(ChangeDocumentContentError::DocumentNotFound)
-        }
-        ChangeDocumentVersionAndSizeError::IncorrectOldVersion => {
-            Ok(ChangeDocumentContentError::EditConflict)
-        }
-        ChangeDocumentVersionAndSizeError::Deleted => {
-            Ok(ChangeDocumentContentError::DocumentDeleted)
-        }
+        ChangeDocumentVersionAndSizeError::DoesNotExist => Ok(FileError::GetUpdatesRequired),
+        ChangeDocumentVersionAndSizeError::IncorrectOldVersion => Ok(FileError::GetUpdatesRequired),
+        ChangeDocumentVersionAndSizeError::Deleted => Ok(FileError::GetUpdatesRequired),
         ChangeDocumentVersionAndSizeError::Postgres(_)
         | ChangeDocumentVersionAndSizeError::Deserialize(_) => Err(format!(
             "Cannot change document content version in Postgres: {:?}",
@@ -72,18 +148,15 @@ pub async fn change_document_content(
     };
 
     match transaction.commit().await {
-        Ok(()) => Ok(ChangeDocumentContentResponse {
-            new_metadata_and_content_version: new_version,
-        }),
+        Ok(()) => Ok(()),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn create_document(
-    context: &mut RequestContext<'_, CreateDocumentRequest>,
-) -> Result<CreateDocumentResponse, Result<CreateDocumentError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    context: RequestContext<'_, CreateDocumentRequest>,
+) -> Result<(), Result<FileError, String>> {
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -103,11 +176,11 @@ pub async fn create_document(
     )
     .await;
     let new_version = index_result.map_err(|e| match e {
-        CreateFileError::IdTaken => Ok(CreateDocumentError::FileIdTaken),
-        CreateFileError::PathTaken => Ok(CreateDocumentError::DocumentPathTaken),
-        CreateFileError::OwnerDoesNotExist => Ok(CreateDocumentError::UserNotFound),
-        CreateFileError::ParentDoesNotExist => Ok(CreateDocumentError::ParentNotFound),
-        CreateFileError::AncestorDeleted => Ok(CreateDocumentError::AncestorDeleted),
+        CreateFileError::IdTaken => Ok(FileError::GetUpdatesRequired),
+        CreateFileError::PathTaken => Ok(FileError::GetUpdatesRequired),
+        CreateFileError::OwnerDoesNotExist => Ok(FileError::GetUpdatesRequired),
+        CreateFileError::ParentDoesNotExist => Ok(FileError::GetUpdatesRequired),
+        CreateFileError::AncestorDeleted => Ok(FileError::GetUpdatesRequired),
         CreateFileError::Postgres(_) | CreateFileError::Serialize(_) => {
             Err(format!("Cannot create document in Postgres: {:?}", e))
         }
@@ -126,18 +199,15 @@ pub async fn create_document(
     };
 
     match transaction.commit().await {
-        Ok(()) => Ok(CreateDocumentResponse {
-            new_metadata_and_content_version: new_version,
-        }),
+        Ok(()) => Ok(()),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn delete_document(
-    context: &mut RequestContext<'_, DeleteDocumentRequest>,
-) -> Result<DeleteDocumentResponse, Result<DeleteDocumentError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    context: RequestContext<'_, DeleteDocumentRequest>,
+) -> Result<(), Result<FileError, String>> {
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -147,8 +217,8 @@ pub async fn delete_document(
 
     let index_result = file_index_repo::delete_file(&mut transaction, request.id).await;
     let index_responses = index_result.map_err(|e| match e {
-        DeleteFileError::DoesNotExist => Ok(DeleteDocumentError::DocumentNotFound),
-        DeleteFileError::Deleted => Ok(DeleteDocumentError::DocumentDeleted),
+        DeleteFileError::DoesNotExist => Ok(FileError::GetUpdatesRequired),
+        DeleteFileError::Deleted => Ok(FileError::GetUpdatesRequired),
         DeleteFileError::IllegalRootChange
         | DeleteFileError::Postgres(_)
         | DeleteFileError::Serialize(_)
@@ -177,18 +247,15 @@ pub async fn delete_document(
     };
 
     match transaction.commit().await {
-        Ok(()) => Ok(DeleteDocumentResponse {
-            new_metadata_and_content_version: single_index_response.new_metadata_version,
-        }),
+        Ok(()) => Ok(()),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn move_document(
-    context: &mut RequestContext<'_, MoveDocumentRequest>,
-) -> Result<MoveDocumentResponse, Result<MoveDocumentError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    context: RequestContext<'_, MoveDocumentRequest>,
+) -> Result<(), Result<FileError, String>> {
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -204,13 +271,13 @@ pub async fn move_document(
         request.new_folder_access.clone(),
     )
     .await;
-    let new_version = result.map_err(|e| match e {
-        MoveFileError::DoesNotExist => Ok(MoveDocumentError::DocumentNotFound),
-        MoveFileError::IncorrectOldVersion => Ok(MoveDocumentError::EditConflict),
-        MoveFileError::Deleted => Ok(MoveDocumentError::DocumentDeleted),
-        MoveFileError::PathTaken => Ok(MoveDocumentError::DocumentPathTaken),
-        MoveFileError::ParentDoesNotExist => Ok(MoveDocumentError::ParentNotFound),
-        MoveFileError::ParentDeleted => Ok(MoveDocumentError::ParentDeleted),
+    result.map_err(|e| match e {
+        MoveFileError::DoesNotExist => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::IncorrectOldVersion => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::Deleted => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::PathTaken => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::ParentDoesNotExist => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::ParentDeleted => Ok(FileError::GetUpdatesRequired),
         MoveFileError::FolderMovedIntoDescendants
         | MoveFileError::IllegalRootChange
         | MoveFileError::Postgres(_)
@@ -218,18 +285,15 @@ pub async fn move_document(
     })?;
 
     match transaction.commit().await {
-        Ok(()) => Ok(MoveDocumentResponse {
-            new_metadata_version: new_version,
-        }),
+        Ok(()) => Ok(()),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn rename_document(
-    context: &mut RequestContext<'_, RenameDocumentRequest>,
-) -> Result<RenameDocumentResponse, Result<RenameDocumentError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    context: RequestContext<'_, RenameDocumentRequest>,
+) -> Result<(), Result<FileError, String>> {
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -245,11 +309,11 @@ pub async fn rename_document(
         &request.new_name,
     )
     .await;
-    let new_version = result.map_err(|e| match e {
-        RenameFileError::DoesNotExist => Ok(RenameDocumentError::DocumentNotFound),
-        RenameFileError::IncorrectOldVersion => Ok(RenameDocumentError::EditConflict),
-        RenameFileError::Deleted => Ok(RenameDocumentError::DocumentDeleted),
-        RenameFileError::PathTaken => Ok(RenameDocumentError::DocumentPathTaken),
+    result.map_err(|e| match e {
+        RenameFileError::DoesNotExist => Ok(FileError::GetUpdatesRequired),
+        RenameFileError::IncorrectOldVersion => Ok(FileError::GetUpdatesRequired),
+        RenameFileError::Deleted => Ok(FileError::GetUpdatesRequired),
+        RenameFileError::PathTaken => Ok(FileError::GetUpdatesRequired),
         RenameFileError::IllegalRootChange
         | RenameFileError::Postgres(_)
         | RenameFileError::Serialize(_) => {
@@ -258,18 +322,15 @@ pub async fn rename_document(
     })?;
 
     match transaction.commit().await {
-        Ok(()) => Ok(RenameDocumentResponse {
-            new_metadata_version: new_version,
-        }),
+        Ok(()) => Ok(()),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn get_document(
-    context: &mut RequestContext<'_, GetDocumentRequest>,
+    context: RequestContext<'_, GetDocumentRequest>,
 ) -> Result<GetDocumentResponse, Result<GetDocumentError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    let (request, server_state) = (&context.request, context.server_state);
     let files_result = file_content_client::get(
         &server_state.files_db_client,
         request.id,
@@ -278,18 +339,15 @@ pub async fn get_document(
     .await;
     match files_result {
         Ok(c) => Ok(GetDocumentResponse { content: c }),
-        Err(file_content_client::Error::NoSuchKey(_)) => {
-            Err(Ok(GetDocumentError::DocumentNotFound))
-        }
+        Err(file_content_client::Error::NoSuchKey(_)) => Err(Ok(GetDocumentError::DocumentNotFound)),
         Err(e) => Err(Err(format!("Cannot get file from S3: {:?}", e))),
     }
 }
 
 pub async fn create_folder(
-    context: &mut RequestContext<'_, CreateFolderRequest>,
-) -> Result<CreateFolderResponse, Result<CreateFolderError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    context: RequestContext<'_, CreateFolderRequest>,
+) -> Result<(), Result<FileError, String>> {
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -308,30 +366,27 @@ pub async fn create_folder(
         None,
     )
     .await;
-    let new_version = result.map_err(|e| match e {
-        CreateFileError::IdTaken => Ok(CreateFolderError::FileIdTaken),
-        CreateFileError::PathTaken => Ok(CreateFolderError::FolderPathTaken),
-        CreateFileError::OwnerDoesNotExist => Ok(CreateFolderError::UserNotFound),
-        CreateFileError::ParentDoesNotExist => Ok(CreateFolderError::ParentNotFound),
-        CreateFileError::AncestorDeleted => Ok(CreateFolderError::AncestorDeleted),
+    result.map_err(|e| match e {
+        CreateFileError::IdTaken => Ok(FileError::GetUpdatesRequired),
+        CreateFileError::PathTaken => Ok(FileError::GetUpdatesRequired),
+        CreateFileError::OwnerDoesNotExist => Ok(FileError::GetUpdatesRequired),
+        CreateFileError::ParentDoesNotExist => Ok(FileError::GetUpdatesRequired),
+        CreateFileError::AncestorDeleted => Ok(FileError::GetUpdatesRequired),
         CreateFileError::Postgres(_) | CreateFileError::Serialize(_) => {
             Err(format!("Cannot create folder in Postgres: {:?}", e))
         }
     })?;
 
     match transaction.commit().await {
-        Ok(()) => Ok(CreateFolderResponse {
-            new_metadata_version: new_version,
-        }),
+        Ok(()) => Ok(()),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn delete_folder(
-    context: &mut RequestContext<'_, DeleteFolderRequest>,
-) -> Result<DeleteFolderResponse, Result<DeleteFolderError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    context: RequestContext<'_, DeleteFolderRequest>,
+) -> Result<(), Result<FileError, String>> {
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -341,9 +396,9 @@ pub async fn delete_folder(
 
     let index_result = file_index_repo::delete_file(&mut transaction, request.id).await;
     let index_responses = index_result.map_err(|e| match e {
-        DeleteFileError::DoesNotExist => Ok(DeleteFolderError::FolderNotFound),
-        DeleteFileError::Deleted => Ok(DeleteFolderError::FolderDeleted),
-        DeleteFileError::IllegalRootChange => Ok(DeleteFolderError::CannotDeleteRoot),
+        DeleteFileError::DoesNotExist => Ok(FileError::GetUpdatesRequired),
+        DeleteFileError::Deleted => Ok(FileError::GetUpdatesRequired),
+        DeleteFileError::IllegalRootChange => Ok(FileError::GetUpdatesRequired),
         DeleteFileError::Postgres(_)
         | DeleteFileError::Serialize(_)
         | DeleteFileError::Deserialize(_)
@@ -352,14 +407,13 @@ pub async fn delete_folder(
         }
     })?;
 
-    let root_result =
-        if let Some(result) = index_responses.iter().filter(|r| r.id == request.id).last() {
-            result
-        } else {
-            return Err(Err(String::from(
-                "Unexpected zero or multiple postgres rows during delete folder",
-            )));
-        };
+    if let Some(result) = index_responses.iter().filter(|r| r.id == request.id).last() {
+        result
+    } else {
+        return Err(Err(String::from(
+            "Unexpected zero or multiple postgres rows during delete folder",
+        )));
+    };
 
     for r in index_responses.iter() {
         if !r.is_folder {
@@ -376,18 +430,15 @@ pub async fn delete_folder(
     }
 
     match transaction.commit().await {
-        Ok(()) => Ok(DeleteFolderResponse {
-            new_metadata_version: root_result.new_metadata_version,
-        }),
+        Ok(()) => Ok(()),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn move_folder(
-    context: &mut RequestContext<'_, MoveFolderRequest>,
-) -> Result<MoveFolderResponse, Result<MoveFolderError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    context: RequestContext<'_, MoveFolderRequest>,
+) -> Result<(), Result<FileError, String>> {
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -403,33 +454,30 @@ pub async fn move_folder(
         request.new_folder_access.clone(),
     )
     .await;
-    let new_version = result.map_err(|e| match e {
-        MoveFileError::DoesNotExist => Ok(MoveFolderError::FolderNotFound),
-        MoveFileError::IncorrectOldVersion => Ok(MoveFolderError::EditConflict),
-        MoveFileError::Deleted => Ok(MoveFolderError::FolderDeleted),
-        MoveFileError::PathTaken => Ok(MoveFolderError::FolderPathTaken),
-        MoveFileError::ParentDoesNotExist => Ok(MoveFolderError::ParentNotFound),
-        MoveFileError::ParentDeleted => Ok(MoveFolderError::ParentDeleted),
-        MoveFileError::FolderMovedIntoDescendants => Ok(MoveFolderError::CannotMoveIntoDescendant),
-        MoveFileError::IllegalRootChange => Ok(MoveFolderError::CannotMoveRoot),
+    result.map_err(|e| match e {
+        MoveFileError::DoesNotExist => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::IncorrectOldVersion => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::Deleted => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::PathTaken => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::ParentDoesNotExist => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::ParentDeleted => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::FolderMovedIntoDescendants => Ok(FileError::GetUpdatesRequired),
+        MoveFileError::IllegalRootChange => Ok(FileError::GetUpdatesRequired),
         MoveFileError::Postgres(_) | MoveFileError::Serialize(_) => {
             Err(format!("Cannot move folder in Postgres: {:?}", e))
         }
     })?;
 
     match transaction.commit().await {
-        Ok(()) => Ok(MoveFolderResponse {
-            new_metadata_version: new_version,
-        }),
+        Ok(()) => Ok(()),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn rename_folder(
-    context: &mut RequestContext<'_, RenameFolderRequest>,
-) -> Result<RenameFolderResponse, Result<RenameFolderError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    context: RequestContext<'_, RenameFolderRequest>,
+) -> Result<(), Result<FileError, String>> {
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -445,30 +493,27 @@ pub async fn rename_folder(
         &request.new_name,
     )
     .await;
-    let new_version = result.map_err(|e| match e {
-        RenameFileError::DoesNotExist => Ok(RenameFolderError::FolderNotFound),
-        RenameFileError::IncorrectOldVersion => Ok(RenameFolderError::EditConflict),
-        RenameFileError::Deleted => Ok(RenameFolderError::FolderDeleted),
-        RenameFileError::PathTaken => Ok(RenameFolderError::FolderPathTaken),
-        RenameFileError::IllegalRootChange => Ok(RenameFolderError::CannotRenameRoot),
+    result.map_err(|e| match e {
+        RenameFileError::DoesNotExist => Ok(FileError::GetUpdatesRequired),
+        RenameFileError::IncorrectOldVersion => Ok(FileError::GetUpdatesRequired),
+        RenameFileError::Deleted => Ok(FileError::GetUpdatesRequired),
+        RenameFileError::PathTaken => Ok(FileError::GetUpdatesRequired),
+        RenameFileError::IllegalRootChange => Ok(FileError::GetUpdatesRequired),
         RenameFileError::Postgres(_) | RenameFileError::Serialize(_) => {
             Err(format!("Cannot rename folder in Postgres: {:?}", e))
         }
     })?;
 
     match transaction.commit().await {
-        Ok(()) => Ok(RenameFolderResponse {
-            new_metadata_version: new_version,
-        }),
+        Ok(()) => Ok(()),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn get_updates(
-    context: &mut RequestContext<'_, GetUpdatesRequest>,
+    context: RequestContext<'_, GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, Result<GetUpdatesError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {

@@ -101,7 +101,7 @@ macro_rules! route_handler {
         pack::<$TRequest>(match unpack(&$server_state, $hyper_request).await {
             Ok((request, public_key)) => {
                 let request_string = format!("{:?}", request);
-                let result = $handler(&mut RequestContext {
+                let result = $handler(RequestContext {
                     server_state: &$server_state,
                     request,
                     public_key,
@@ -122,63 +122,15 @@ async fn route(
     hyper_request: hyper::Request<Body>,
 ) -> Result<Response<Body>, hyper::http::Error> {
     match (hyper_request.method(), hyper_request.uri().path()) {
-        route_case!(ChangeDocumentContentRequest) => route_handler!(
-            ChangeDocumentContentRequest,
-            file_service::change_document_content,
-            hyper_request,
-            server_state
-        ),
-        route_case!(CreateDocumentRequest) => route_handler!(
-            CreateDocumentRequest,
-            file_service::create_document,
-            hyper_request,
-            server_state
-        ),
-        route_case!(DeleteDocumentRequest) => route_handler!(
-            DeleteDocumentRequest,
-            file_service::delete_document,
-            hyper_request,
-            server_state
-        ),
-        route_case!(MoveDocumentRequest) => route_handler!(
-            MoveDocumentRequest,
-            file_service::move_document,
-            hyper_request,
-            server_state
-        ),
-        route_case!(RenameDocumentRequest) => route_handler!(
-            RenameDocumentRequest,
-            file_service::rename_document,
+        route_case!(Vec<FileUpdatesRequest>) => route_handler!(
+            Vec<FileUpdatesRequest>,
+            file_service::apply_changes,
             hyper_request,
             server_state
         ),
         route_case!(GetDocumentRequest) => route_handler!(
             GetDocumentRequest,
             file_service::get_document,
-            hyper_request,
-            server_state
-        ),
-        route_case!(CreateFolderRequest) => route_handler!(
-            CreateFolderRequest,
-            file_service::create_folder,
-            hyper_request,
-            server_state
-        ),
-        route_case!(DeleteFolderRequest) => route_handler!(
-            DeleteFolderRequest,
-            file_service::delete_folder,
-            hyper_request,
-            server_state
-        ),
-        route_case!(MoveFolderRequest) => route_handler!(
-            MoveFolderRequest,
-            file_service::move_folder,
-            hyper_request,
-            server_state
-        ),
-        route_case!(RenameFolderRequest) => route_handler!(
-            RenameFolderRequest,
-            file_service::rename_folder,
             hyper_request,
             server_state
         ),
