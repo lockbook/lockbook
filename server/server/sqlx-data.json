@@ -534,6 +534,34 @@
       ]
     }
   },
+  "b7b38d4a9e0ce3166d916688b677c58e0693236550c2facbe35f9216cbba8cdc": {
+    "query": "\nWITH\n    preconditions AS (\n        SELECT EXISTS(SELECT * FROM files WHERE id = $1 AND parent = $8) AS met\n            UNION ALL\n        SELECT EXISTS(SELECT * FROM files WHERE id = $1 AND name = $9) AS met\n    ),\n    insert AS (\n        INSERT INTO files (\n            id,\n            parent,\n            parent_access_key,\n            is_folder,\n            name,\n            owner,\n            signature,\n            deleted,\n            metadata_version,\n            content_version,\n            document_size\n        )\n        SELECT\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            $6,\n            'todo: real signature',\n            $7,\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            0\n        ON CONFLICT (id) DO UPDATE SET\n            metadata_version =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n                ELSE files.metadata_version END),\n            parent =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $2\n                ELSE files.parent END),\n            parent_access_key =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $3\n                ELSE files.parent_access_key END),\n            name =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $5\n                ELSE files.name END),\n            deleted =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $7\n                ELSE files.deleted END)\n    )\nSELECT BOOL_AND(met) FROM preconditions\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "bool_and",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text",
+          "Bool",
+          "Text",
+          "Text",
+          "Bool",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        null
+      ]
+    }
+  },
   "b9d28fb984c7871adfe5eeb0dd2c5bedb4ca3a45d448e3b6b68da796adc10b23": {
     "query": "\nDELETE FROM files\nWHERE owner = $1\nRETURNING\n    id AS id,\n    deleted AS old_deleted,\n    parent AS parent_id,\n    content_version AS old_content_version,\n    metadata_version AS new_metadata_version,\n    is_folder AS is_folder;\n        ",
     "describe": {

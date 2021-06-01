@@ -122,9 +122,15 @@ async fn route(
     hyper_request: hyper::Request<Body>,
 ) -> Result<Response<Body>, hyper::http::Error> {
     match (hyper_request.method(), hyper_request.uri().path()) {
-        route_case!(Vec<FileUpdatesRequest>) => route_handler!(
-            Vec<FileUpdatesRequest>,
-            file_service::apply_changes,
+        route_case!(FileMetadataUpsertsRequest) => route_handler!(
+            FileMetadataUpsertsRequest,
+            file_service::upsert_file_metadata,
+            hyper_request,
+            server_state
+        ),
+        route_case!(ChangeDocumentContentRequest) => route_handler!(
+            ChangeDocumentContentRequest,
+            file_service::change_document_content,
             hyper_request,
             server_state
         ),
@@ -140,6 +146,12 @@ async fn route(
             hyper_request,
             server_state
         ),
+        route_case!(GetUsageRequest) => route_handler!(
+            GetUsageRequest,
+            account_service::get_usage,
+            hyper_request,
+            server_state
+        ),
         route_case!(GetUpdatesRequest) => route_handler!(
             GetUpdatesRequest,
             file_service::get_updates,
@@ -149,12 +161,6 @@ async fn route(
         route_case!(NewAccountRequest) => route_handler!(
             NewAccountRequest,
             account_service::new_account,
-            hyper_request,
-            server_state
-        ),
-        route_case!(GetUsageRequest) => route_handler!(
-            GetUsageRequest,
-            account_service::get_usage,
             hyper_request,
             server_state
         ),

@@ -36,3 +36,15 @@ pub struct FileMetadata {
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
 }
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct FileMetadataDiff {
+    pub id: Uuid,
+    pub file_type: FileType,
+    pub old_parent: Option<Uuid>,
+    pub old_name: Option<String>,
+    pub new_parent: Uuid,
+    pub new_name: String,
+    pub new_deleted: bool,
+    pub new_folder_access_keys: FolderAccessInfo,
+}

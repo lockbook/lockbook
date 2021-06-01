@@ -1,7 +1,7 @@
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::file_metadata::FileMetadata;
+use crate::file_metadata::{FileMetadata, FileMetadataDiff};
 use libsecp256k1::PublicKey;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
@@ -31,27 +31,19 @@ pub enum ErrorWrapper<E> {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum FileUpdatesRequest {
-    ChangeDocumentContentRequest(ChangeDocumentContentRequest),
-    CreateDocumentRequest(CreateDocumentRequest),
-    DeleteDocumentRequest(DeleteDocumentRequest),
-    MoveDocumentRequest(MoveDocumentRequest),
-    RenameDocumentRequest(RenameDocumentRequest),
-    CreateFolderRequest(CreateFolderRequest),
-    DeleteFolderRequest(DeleteFolderRequest),
-    MoveFolderRequest(MoveFolderRequest),
-    RenameFolderRequest(RenameFolderRequest),
+pub struct FileMetadataUpsertsRequest {
+    pub updates: Vec<FileMetadataDiff>,
 }
 
-impl Request for Vec<FileUpdatesRequest> {
+impl Request for FileMetadataUpsertsRequest {
     type Response = ();
-    type Error = FileError;
+    type Error = FileMetadataUpsertsError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/edit-files";
+    const ROUTE: &'static str = "/upsert-file-metadata";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum FileError {
+pub enum FileMetadataUpsertsError {
     GetUpdatesRequired,
 }
 
@@ -63,65 +55,23 @@ pub struct ChangeDocumentContentRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct CreateDocumentRequest {
-    pub id: Uuid,
-    pub name: SecretFileName,
-    pub parent: Uuid,
-    pub content: EncryptedDocument,
-    pub parent_access_key: EncryptedFolderAccessKey,
-}
-
-impl CreateDocumentRequest {
-    pub fn new(file_metadata: &FileMetadata, content: EncryptedDocument) -> Self {
-        CreateDocumentRequest {
-            id: file_metadata.id,
-            name: file_metadata.name.clone(),
-            parent: file_metadata.parent,
-            content,
-            parent_access_key: file_metadata.folder_access_keys.clone(),
-        }
-    }
-}
+pub struct ChangeDocumentContentResponse;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct DeleteDocumentRequest {
-    pub id: Uuid,
+pub enum ChangeDocumentContentError {
+    InvalidUsername,
+    NotPermissioned,
+    UserNotFound,
+    DocumentNotFound,
+    EditConflict,
+    DocumentDeleted,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct MoveDocumentRequest {
-    pub id: Uuid,
-    pub old_metadata_version: u64,
-    pub new_parent: Uuid,
-    pub new_folder_access: EncryptedFolderAccessKey,
-}
-
-impl MoveDocumentRequest {
-    pub fn new(file_metadata: &FileMetadata) -> Self {
-        MoveDocumentRequest {
-            id: file_metadata.id,
-            old_metadata_version: file_metadata.metadata_version,
-            new_parent: file_metadata.parent,
-            new_folder_access: file_metadata.folder_access_keys.clone(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RenameDocumentRequest {
-    pub id: Uuid,
-    pub old_metadata_version: u64,
-    pub new_name: SecretFileName,
-}
-
-impl RenameDocumentRequest {
-    pub fn new(file_metadata: &FileMetadata) -> Self {
-        RenameDocumentRequest {
-            id: file_metadata.id,
-            old_metadata_version: file_metadata.metadata_version,
-            new_name: file_metadata.name.clone(),
-        }
-    }
+impl Request for ChangeDocumentContentRequest {
+    type Response = ChangeDocumentContentResponse;
+    type Error = ChangeDocumentContentError;
+    const METHOD: Method = Method::PUT;
+    const ROUTE: &'static str = "/change-document-content";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -145,66 +95,6 @@ impl Request for GetDocumentRequest {
     type Error = GetDocumentError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-document";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct CreateFolderRequest {
-    pub id: Uuid,
-    pub name: SecretFileName,
-    pub parent: Uuid,
-    pub parent_access_key: EncryptedFolderAccessKey,
-}
-
-impl CreateFolderRequest {
-    pub fn new(file_metadata: &FileMetadata) -> Self {
-        CreateFolderRequest {
-            id: file_metadata.id,
-            name: file_metadata.name.clone(),
-            parent: file_metadata.parent,
-            parent_access_key: file_metadata.folder_access_keys.clone(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct DeleteFolderRequest {
-    pub id: Uuid,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct MoveFolderRequest {
-    pub id: Uuid,
-    pub old_metadata_version: u64,
-    pub new_parent: Uuid,
-    pub new_folder_access: EncryptedFolderAccessKey,
-}
-
-impl MoveFolderRequest {
-    pub fn new(file_metadata: &FileMetadata) -> Self {
-        MoveFolderRequest {
-            id: file_metadata.id,
-            old_metadata_version: file_metadata.metadata_version,
-            new_parent: file_metadata.parent,
-            new_folder_access: file_metadata.folder_access_keys.clone(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RenameFolderRequest {
-    pub id: Uuid,
-    pub old_metadata_version: u64,
-    pub new_name: SecretFileName,
-}
-
-impl RenameFolderRequest {
-    pub fn new(file_metadata: &FileMetadata) -> Self {
-        RenameFolderRequest {
-            id: file_metadata.id,
-            old_metadata_version: file_metadata.metadata_version,
-            new_name: file_metadata.name.clone(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
