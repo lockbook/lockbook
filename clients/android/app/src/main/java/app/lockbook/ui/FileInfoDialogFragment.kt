@@ -7,11 +7,15 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.fragment.app.DialogFragment
 import app.lockbook.R
-import kotlinx.android.synthetic.main.dialog_file_info.view.*
+import app.lockbook.databinding.DialogFileInfoBinding
 import java.sql.Timestamp
 import java.util.*
 
 class FileInfoDialogFragment : DialogFragment() {
+    private var _binding: DialogFileInfoBinding? = null
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
 
     companion object {
 
@@ -41,13 +45,21 @@ class FileInfoDialogFragment : DialogFragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? = inflater.inflate(R.layout.dialog_file_info, container, false)
+    ): View {
+        _binding = DialogFileInfoBinding.inflate(
+            inflater,
+            container,
+            false
+        )
+
+        return binding.root
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val bundle = arguments
         if (bundle != null) {
-            setUpInfo(view, bundle)
+            setUpInfo(bundle)
         }
     }
 
@@ -59,7 +71,7 @@ class FileInfoDialogFragment : DialogFragment() {
         )
     }
 
-    private fun setUpInfo(view: View, bundle: Bundle) {
+    private fun setUpInfo(bundle: Bundle) {
         val name = bundle.getString(NAME_KEY)
         val id = bundle.getString(ID_KEY)
         val tempMetadataVersion = bundle.getString(METADATA_VERSION_KEY)
@@ -67,35 +79,35 @@ class FileInfoDialogFragment : DialogFragment() {
         val fileType = bundle.getString(FILE_TYPE_KEY)
         val metadataVersion = tempMetadataVersion?.toLongOrNull()
         val contentVersionError = tempContentVersion?.toLongOrNull()
-        if (metadataVersion == null) {
-            view.popup_info_metadata_version.text = getString(
+        binding.popupInfoMetadataVersion.text = if (metadataVersion == null) {
+            getString(
                 R.string.popup_info_metadata_version,
                 "ERROR"
             )
         } else {
             val dateMetadataVersion = Date(Timestamp(metadataVersion).time)
-            view.popup_info_metadata_version.text = getString(
+            getString(
                 R.string.popup_info_metadata_version,
                 if (dateMetadataVersion.time != 0L) dateMetadataVersion else resources.getString(R.string.pop_up_info_never_synced)
             )
         }
 
-        if (contentVersionError == null) {
-            view.popup_info_content_version.text = getString(
+        binding.popupInfoContentVersion.text = if (contentVersionError == null) {
+            getString(
                 R.string.popup_info_content_version,
                 "Error"
             )
         } else {
             val dateContentVersion = Date(Timestamp(contentVersionError).time)
-            view.popup_info_content_version.text = getString(
+            getString(
                 R.string.popup_info_content_version,
                 if (dateContentVersion.time != 0L) dateContentVersion else resources.getString(R.string.pop_up_info_never_synced)
             )
         }
 
-        view.popup_info_name.text = getString(R.string.popup_info_name, name)
-        view.popup_info_id.text = getString(R.string.popup_info_id, id)
-        view.popup_info_file_type.text =
+        binding.popupInfoName.text = getString(R.string.popup_info_name, name)
+        binding.popupInfoId.text = getString(R.string.popup_info_id, id)
+        binding.popupInfoFileType.text =
             getString(R.string.popup_info_file_type, fileType)
     }
 }

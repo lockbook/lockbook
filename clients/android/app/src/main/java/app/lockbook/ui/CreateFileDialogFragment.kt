@@ -8,6 +8,7 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import androidx.fragment.app.DialogFragment
 import app.lockbook.R
+import app.lockbook.databinding.DialogCreateFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.model.OnFinishAlert
@@ -15,7 +16,6 @@ import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import kotlinx.android.synthetic.main.dialog_create_file.*
 import kotlinx.coroutines.*
 import timber.log.Timber
 import kotlin.properties.Delegates
@@ -27,6 +27,18 @@ data class CreateFileInfo(
 )
 
 class CreateFileDialogFragment : DialogFragment() {
+
+    private var _binding: DialogCreateFileBinding? = null
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+    private val createFileLayout get() = binding.createFileLayout
+    private val createFileCancel get() = binding.createFileCancel
+    private val createFileCreate get() = binding.createFileCreate
+    private val createFileExtension get() = binding.createFileExtension
+    private val createFileText get() = binding.createFileText
+    private val createFileTextPart get() = binding.createFileTextPart
+    private val createFileTitle get() = binding.createFileTitle
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
@@ -59,11 +71,15 @@ class CreateFileDialogFragment : DialogFragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? = inflater.inflate(
-        R.layout.dialog_create_file,
-        container,
-        false
-    )
+    ): View {
+        _binding = DialogCreateFileBinding.inflate(
+            inflater,
+            container,
+            false
+        )
+
+        return binding.root
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val bundle = arguments
@@ -76,85 +92,85 @@ class CreateFileDialogFragment : DialogFragment() {
             fileType = nullableFileType
             isDrawing = nullableIsDrawing
         } else {
-            AlertModel.errorHasOccurred(create_file_layout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
+            AlertModel.errorHasOccurred(createFileLayout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
         }
 
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
 
-        create_file_cancel.setOnClickListener {
+        binding.createFileCancel.setOnClickListener {
             dismiss()
         }
 
         dialog?.setCanceledOnTouchOutside(false)
-            ?: AlertModel.errorHasOccurred(create_file_layout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+            ?: AlertModel.errorHasOccurred(createFileLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
 
         when (fileType) {
             Klaxon().toJsonString(FileType.Folder) -> {
-                create_file_extension.visibility = View.GONE
-                create_file_text_part.visibility = View.GONE
-                create_file_text.visibility = View.VISIBLE
+                createFileExtension.visibility = View.GONE
+                createFileTextPart.visibility = View.GONE
+                createFileText.visibility = View.VISIBLE
 
-                create_file_text.setOnEditorActionListener { _, actionId, _ ->
+                createFileText.setOnEditorActionListener { _, actionId, _ ->
                     if (actionId == EditorInfo.IME_ACTION_DONE) {
-                        handleCreateFileRequest(create_file_text.text.toString())
+                        handleCreateFileRequest(createFileText.text.toString())
                     }
 
                     true
                 }
 
-                create_file_create.setOnClickListener {
-                    handleCreateFileRequest(create_file_text.text.toString())
+                createFileCreate.setOnClickListener {
+                    handleCreateFileRequest(createFileText.text.toString())
                 }
 
-                create_file_create.setOnClickListener {
-                    handleCreateFileRequest(create_file_text.text.toString())
+                createFileCreate.setOnClickListener {
+                    handleCreateFileRequest(createFileText.text.toString())
                 }
 
-                create_file_title.setText(R.string.create_file_title_folder)
-                create_file_text.setHint(R.string.create_file_hint_folder)
+                createFileTitle.setText(R.string.create_file_title_folder)
+                createFileText.setHint(R.string.create_file_hint_folder)
             }
             Klaxon().toJsonString(FileType.Document) -> {
-                create_file_text_part.setOnEditorActionListener { _, actionId, _ ->
+                createFileTextPart.setOnEditorActionListener { _, actionId, _ ->
                     if (actionId == EditorInfo.IME_ACTION_NEXT) {
-                        create_file_extension.requestFocus()
-                        val extension = create_file_extension.text.toString()
+                        createFileExtension.requestFocus()
+                        val extension = createFileExtension.text.toString()
                         if (extension.isEmpty()) {
-                            create_file_extension.setText(".")
-                            create_file_extension.setSelection(1)
+                            createFileExtension.setText(".")
+                            createFileExtension.setSelection(1)
                         } else {
-                            create_file_extension.setSelection(extension.length)
+                            createFileExtension.setSelection(extension.length)
                         }
                     }
 
                     true
                 }
 
-                create_file_extension.setOnEditorActionListener { _, actionId, _ ->
+                createFileExtension.setOnEditorActionListener { _, actionId, _ ->
                     if (actionId == EditorInfo.IME_ACTION_DONE) {
-                        handleCreateFileRequest(create_file_text_part.text.toString() + create_file_extension.text.toString())
+                        handleCreateFileRequest(createFileTextPart.text.toString() + createFileExtension.text.toString())
                     }
 
                     true
                 }
 
-                create_file_create.setOnClickListener {
-                    handleCreateFileRequest(create_file_text_part.text.toString() + create_file_extension.text.toString())
+                createFileCreate.setOnClickListener {
+                    handleCreateFileRequest(createFileTextPart.text.toString() + createFileExtension.text.toString())
                 }
 
                 if (isDrawing) {
-                    create_file_title.setText(R.string.create_file_title_drawing)
-                    create_file_text_part.setHint(R.string.create_file_hint_drawing)
-                    create_file_extension.setHint(R.string.create_file_hint_drawing_extension)
-                    create_file_extension.setText(R.string.create_file_dialog_drawing_extension)
+                    createFileTitle.setText(R.string.create_file_title_drawing)
+                    createFileTextPart.setHint(R.string.create_file_hint_drawing)
+                    createFileExtension.setHint(R.string.create_file_hint_drawing_extension)
+                    createFileExtension.setText(R.string.create_file_dialog_drawing_extension)
                 } else {
-                    create_file_title.setText(R.string.create_file_title_document)
-                    create_file_text_part.setHint(R.string.create_file_hint_document)
-                    create_file_extension.setHint(R.string.create_file_hint_document_extension)
-                    create_file_extension.setText(R.string.create_file_dialog_document_extension)
+                    createFileTitle.setText(R.string.create_file_title_document)
+                    createFileTextPart.setHint(R.string.create_file_hint_document)
+                    createFileExtension.setHint(R.string.create_file_hint_document_extension)
+                    createFileExtension.setText(R.string.create_file_dialog_document_extension)
                 }
             }
             else -> {
-                AlertModel.errorHasOccurred(create_file_layout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
+                AlertModel.errorHasOccurred(createFileLayout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
             }
         }.exhaustive
     }
@@ -197,12 +213,12 @@ class CreateFileDialogFragment : DialogFragment() {
                 }
             }
             is Err -> when (val error = createFileResult.error) {
-                is CreateFileError.NoAccount -> AlertModel.errorHasOccurred(create_file_layout, "Error! No account!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.DocumentTreatedAsFolder -> AlertModel.errorHasOccurred(create_file_layout, "Error! Document is treated as folder!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.CouldNotFindAParent -> AlertModel.errorHasOccurred(create_file_layout, "Error! Could not find file parent!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.FileNameNotAvailable -> AlertModel.errorHasOccurred(create_file_layout, "Error! File name not available!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.FileNameContainsSlash -> AlertModel.errorHasOccurred(create_file_layout, "Error! File contains a slash!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.FileNameEmpty -> AlertModel.errorHasOccurred(create_file_layout, "Error! File cannot be empty!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.NoAccount -> AlertModel.errorHasOccurred(createFileLayout, "Error! No account!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.DocumentTreatedAsFolder -> AlertModel.errorHasOccurred(createFileLayout, "Error! Document is treated as folder!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.CouldNotFindAParent -> AlertModel.errorHasOccurred(createFileLayout, "Error! Could not find file parent!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.FileNameNotAvailable -> AlertModel.errorHasOccurred(createFileLayout, "Error! File name not available!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.FileNameContainsSlash -> AlertModel.errorHasOccurred(createFileLayout, "Error! File contains a slash!", OnFinishAlert.DoNothingOnFinishAlert)
+                is CreateFileError.FileNameEmpty -> AlertModel.errorHasOccurred(createFileLayout, "Error! File cannot be empty!", OnFinishAlert.DoNothingOnFinishAlert)
                 is CreateFileError.Unexpected -> {
                     Timber.e("Unable to create a file: ${error.error}")
                     withContext(Dispatchers.Main) {

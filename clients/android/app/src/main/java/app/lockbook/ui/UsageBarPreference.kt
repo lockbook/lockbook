@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.util.AttributeSet
+import android.widget.ProgressBar
+import android.widget.TextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
@@ -13,7 +15,6 @@ import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import kotlinx.android.synthetic.main.preference_usage_bar.view.*
 import timber.log.Timber
 
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
@@ -32,7 +33,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
 
     @SuppressLint("SetTextI18n") // temporary until I add full language support for all errors
     private fun setUpUsagePreference(holder: PreferenceViewHolder) {
-        val usageInfo = holder.itemView.usage_info
+        val usageInfo = holder.itemView.findViewById<TextView>(R.id.usage_info)
 
         when (val getUsageResult = CoreModel.getLocalAndServerUsage(config, true)) {
             is Ok -> {
@@ -55,8 +56,10 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                 if (dataCapNum == null || serverUsageNum == null || uncompressedUsageNum == null) {
                     AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Error! Could not set up usage bar.", OnFinishAlert.DoNothingOnFinishAlert)
                 } else {
-                    holder.itemView.usage_bar.max = dataCapNum.toInt()
-                    holder.itemView.usage_bar.progress = serverUsageNum.toInt()
+                    val usageBar = holder.itemView.findViewById<ProgressBar>(R.id.usage_bar)
+
+                    usageBar.max = dataCapNum.toInt()
+                    usageBar.progress = serverUsageNum.toInt()
 
                     usageInfo.text = spannable {
                         resources.getString(R.string.settings_usage_current).bold() + " " + CoreModel.makeBytesReadable(serverUsageNum) + "\n" + resources.getString(R.string.settings_usage_data_cap).bold() + " " + CoreModel.makeBytesReadable(dataCapNum) + "\n" + resources.getString(R.string.settings_usage_uncompressed_usage).bold() + " " + CoreModel.makeBytesReadable(uncompressedUsageNum)
@@ -84,9 +87,5 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                 }
             }.exhaustive
         }
-    }
-
-    override fun setLayoutResource(layoutResId: Int) {
-        super.setLayoutResource(layoutResId)
     }
 }
