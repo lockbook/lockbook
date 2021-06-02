@@ -213,6 +213,7 @@ pub unsafe extern "C" fn export_drawing(
         &config_from_ptr(writeable_path),
         uuid_from_ptr(id),
         SupportedImageFormats::Png,
+        None,
     )))
 }
 

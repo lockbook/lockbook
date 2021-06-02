@@ -14,6 +14,7 @@ use image::{ColorType, ImageError};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
+use std::collections::HashMap;
 use std::io::BufWriter;
 use uuid::Uuid;
 
@@ -85,21 +86,26 @@ pub fn export_drawing(
     config: &Config,
     id: Uuid,
     format: SupportedImageFormats,
+    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, ExportDrawingError> {
     let drawing = get_drawing(config, id).map_err(ExportDrawingError::GetDrawingError)?;
 
-    let theme = drawing.theme.unwrap_or_else(|| {
-        hashmap![
-            ColorAlias::White => ColorRGB{r: 0xFF, g: 0xFF, b: 0xFF},
-            ColorAlias::Black => ColorRGB{r: 0x00, g: 0x00, b: 0x00},
-            ColorAlias::Red => ColorRGB{r: 0xFF, g: 0x00, b: 0x00},
-            ColorAlias::Green => ColorRGB{r: 0x00, g: 0xFF, b: 0x00},
-            ColorAlias::Yellow => ColorRGB{r: 0xFF, g: 0xFF, b: 0x00},
-            ColorAlias::Blue => ColorRGB{r: 0x00, g: 0x00, b: 0xFF},
-            ColorAlias::Magenta => ColorRGB{r: 0xFF, g: 0x00, b: 0xFF},
-            ColorAlias::Cyan => ColorRGB{r: 0x00, g: 0xFF, b: 0xFF}
-        ]
-    });
+    let theme = match render_theme {
+        Some(theme) => theme,
+        None => match drawing.theme {
+            None => hashmap![
+                ColorAlias::White => ColorRGB{r: 0xFF, g: 0xFF, b: 0xFF},
+                ColorAlias::Black => ColorRGB{r: 0x00, g: 0x00, b: 0x00},
+                ColorAlias::Red => ColorRGB{r: 0xFF, g: 0x00, b: 0x00},
+                ColorAlias::Green => ColorRGB{r: 0x00, g: 0xFF, b: 0x00},
+                ColorAlias::Yellow => ColorRGB{r: 0xFF, g: 0xFF, b: 0x00},
+                ColorAlias::Blue => ColorRGB{r: 0x00, g: 0x00, b: 0xFF},
+                ColorAlias::Magenta => ColorRGB{r: 0xFF, g: 0x00, b: 0xFF},
+                ColorAlias::Cyan => ColorRGB{r: 0x00, g: 0xFF, b: 0xFF}
+            ],
+            Some(theme) => theme,
+        },
+    };
 
     let (width, height) = get_drawing_bounds(drawing.strokes.as_slice());
 
@@ -387,7 +393,8 @@ mod unit_tests {
         )
         .unwrap();
 
-        drawing_service::export_drawing(config, document.id, SupportedImageFormats::Png).unwrap();
+        drawing_service::export_drawing(config, document.id, SupportedImageFormats::Png, None)
+            .unwrap();
     }
 
     #[test]
@@ -429,7 +436,7 @@ mod unit_tests {
         )
         .unwrap();
 
-        drawing_service::export_drawing(config, document.id, SupportedImageFormats::Png)
+        drawing_service::export_drawing(config, document.id, SupportedImageFormats::Png, None)
             .unwrap_err();
     }
 }
