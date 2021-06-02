@@ -55,8 +55,9 @@ pub enum Error<U: Serialize> {
 }
 use crate::repo::local_changes_repo;
 use crate::service::drawing_service::SupportedImageFormats;
-use lockbook_models::drawing::Drawing;
+use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use serde_json::error::Category;
+use std::collections::HashMap;
 use Error::UiError;
 
 macro_rules! unexpected {
@@ -910,9 +911,10 @@ pub fn export_drawing(
     config: &Config,
     id: Uuid,
     format: SupportedImageFormats,
+    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    drawing_service::export_drawing(&config, id, format).map_err(|export_drawing_err| {
-        match export_drawing_err {
+    drawing_service::export_drawing(&config, id, format, render_theme).map_err(
+        |export_drawing_err| match export_drawing_err {
             drawing_service::ExportDrawingError::GetDrawingError(get_drawing_err) => {
                 match get_drawing_err {
                     drawing_service::GetDrawingError::InvalidDrawingError(err) => {
@@ -959,8 +961,8 @@ pub fn export_drawing(
             | drawing_service::ExportDrawingError::FailedToEncodeImage(_) => {
                 unexpected!("{:#?}", export_drawing_err)
             }
-        }
-    })
+        },
+    )
 }
 
 // This basically generates a function called `get_all_error_variants`,
