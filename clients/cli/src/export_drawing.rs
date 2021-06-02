@@ -15,8 +15,8 @@ pub fn export_drawing(lb_path: &str, format: &str) -> CliResult<()> {
     let lockbook_format = get_image_format(format);
 
     let drawing_bytes =
-        lockbook_core::export_drawing(&get_config(), file_metadata.id, lockbook_format).map_err(
-            |err| match err {
+        lockbook_core::export_drawing(&get_config(), file_metadata.id, lockbook_format, None)
+            .map_err(|err| match err {
                 CoreError::UiError(ui_err) => match ui_err {
                     ExportDrawingError::FolderTreatedAsDrawing => {
                         err!(FolderTreatedAsDoc(lb_path.to_string()))
@@ -26,8 +26,7 @@ pub fn export_drawing(lb_path: &str, format: &str) -> CliResult<()> {
                     ExportDrawingError::FileDoesNotExist => err!(FileNotFound(file_metadata.name)),
                 },
                 CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-            },
-        )?;
+            })?;
 
     stdout()
         .write_all(drawing_bytes.as_slice())
