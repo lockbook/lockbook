@@ -3,11 +3,13 @@ package app.lockbook.model
 import android.app.Application
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
+import app.lockbook.App
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.R
 import app.lockbook.ui.BreadCrumbItem
@@ -15,8 +17,6 @@ import app.lockbook.ui.CreateFileInfo
 import app.lockbook.ui.MoveFileInfo
 import app.lockbook.ui.RenameFileInfo
 import app.lockbook.util.*
-import app.lockbook.util.FileMetadata
-import app.lockbook.util.FileType
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
@@ -39,6 +39,8 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
+import java.io.File
+
 
 data class EditableFile(
     val name: String,
@@ -292,10 +294,21 @@ class ListFilesViewModel(path: String, application: Application) :
                         getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
 
                     val uris = ArrayList<Uri>()
+                    val imagesPath = File(App.instance.applicationContext.cacheDir, "images/")
+                    imagesPath.mkdirs()
+
+                    val docsPath = File(App.instance.applicationContext.cacheDir, "docs/")
+                    docsPath.mkdirs()
+
                     for (file in selectedFiles) {
                         if (file.name.endsWith(".draw")) {
                             when(val exportDrawingResult = CoreModel.exportDrawing(config, file.id, SupportedImageFormats.Jpeg)) {
-                                is Ok -> TODO()
+                                is Ok -> {
+                                    val image = File(imagesPath, file.name)
+                                    image.createNewFile()
+                                    image.writeBytes(exportDrawingResult.value)
+                                    uris.add(image.toUri())
+                                }
                                 is Err -> return@launch when(val error = exportDrawingResult.error) {
                                     ExportDrawingError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
                                     ExportDrawingError.FolderTreatedAsDrawing -> _errorHasOccurred.postValue("Error! Folder treated as document!")
@@ -303,15 +316,34 @@ class ListFilesViewModel(path: String, application: Application) :
                                     ExportDrawingError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
                                     is ExportDrawingError.Unexpected -> {
                                         Timber.e(error.error)
-                                        _unexpectedErrorHasOccurred.postValue("")
+                                        _unexpectedErrorHasOccurred.postValue(error.error)
                                     }
                                 }.exhaustive
                             }
                         } else {
-
+                            when (val readDocumentResult = CoreModel.readDocument(config, file.id)) {
+                                is Ok -> {
+                                    val doc = File(docsPath, file.name)
+                                    doc.createNewFile()
+                                    doc.writeText(readDocumentResult.value)
+                                    uris.add(doc.toUri())
+                                }
+                                is Err -> return@launch when (val error = readDocumentResult.error) {
+                                    is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
+                                    is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                                    is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
+                                    is ReadDocumentError.Unexpected -> {
+                                        Timber.e("Unable to get content of file: ${error.error}")
+                                        _unexpectedErrorHasOccurred.postValue(
+                                            error.error
+                                        )
+                                    }
+                                }.exhaustive
+                            }
                         }
                     }
 
+                    _shareDocument.postValue(uris)
                 }
                 else -> {
                     Timber.e("Unrecognized sort item id.")
