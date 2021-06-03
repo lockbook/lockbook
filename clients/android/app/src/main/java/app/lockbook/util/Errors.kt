@@ -106,6 +106,14 @@ sealed class ReadDocumentError : CoreError() {
     data class Unexpected(val error: String) : ReadDocumentError()
 }
 
+sealed class ExportDrawingError : CoreError() {
+    object FolderTreatedAsDrawing : ExportDrawingError()
+    object FileDoesNotExist : ExportDrawingError()
+    object NoAccount : ExportDrawingError()
+    object InvalidDrawing : ExportDrawingError()
+    data class Unexpected(val error: String) : ExportDrawingError()
+}
+
 sealed class RenameFileError : CoreError() {
     object FileDoesNotExist : RenameFileError()
     object NewNameContainsSlash : RenameFileError()

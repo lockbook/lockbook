@@ -209,7 +209,7 @@ object CoreModel {
         return Err(GetFileByIdError.Unexpected("getFileByIdConverter was unable to be called!"))
     }
 
-    fun getDocumentContent(
+    fun readDocument(
         config: Config,
         fileId: String
     ): Result<String, ReadDocumentError> {
@@ -222,6 +222,22 @@ object CoreModel {
         }
 
         return Err(ReadDocumentError.Unexpected("readDocumentConverter was unable to be called!"))
+    }
+
+    fun exportDrawing(
+        config: Config,
+        id: String,
+        format: SupportedImageFormats
+    ): Result<ByteArray, ExportDrawingError> {
+        val exportDrawingResult: Result<ByteArray, ExportDrawingError>? =
+            Klaxon().converter(exportDrawingConverter)
+                .parse(exportDrawing(Klaxon().toJsonString(config), id, format.name))
+
+        if (exportDrawingResult != null) {
+            return exportDrawingResult
+        }
+
+        return Err(ExportDrawingError.Unexpected("exportDrawingConverter was unable to be called!"))
     }
 
     fun createFile(

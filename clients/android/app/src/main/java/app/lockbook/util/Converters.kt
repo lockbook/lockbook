@@ -643,6 +643,45 @@ val readDocumentConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
+val exportDrawingConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
+        okTag -> {
+            val ok = jv.obj?.string("content")
+            if (ok != null) {
+                Ok(
+                    when (ok) {
+                        SupportedImageFormats.Jpeg.name -> SupportedImageFormats.Jpeg
+                        SupportedImageFormats.Png.name -> SupportedImageFormats.Png
+                        SupportedImageFormats.Bmp.name -> SupportedImageFormats.Bmp
+                        SupportedImageFormats.Pnm.name -> SupportedImageFormats.Pnm
+                        SupportedImageFormats.Farbfeld.name -> SupportedImageFormats.Farbfeld
+                        SupportedImageFormats.Tga.name -> SupportedImageFormats.Tga
+                        else -> ExportDrawingError.Unexpected("exportDrawingConverter $unmatchedOkEnum $ok")
+                    }
+                )
+            } else {
+                Err(ExportDrawingError.Unexpected("exportDrawingConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
+            }
+        }
+        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(ExportDrawingError.Unexpected(error))
+                } else {
+                    Err(ExportDrawingError.Unexpected("exportDrawingConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            else -> Err(ExportDrawingError.Unexpected("exportDrawingConverter $unmatchedErrorTag $errorTag"))
+        }
+        else -> Err(ExportDrawingError.Unexpected("exportDrawingConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
 val writeDocumentConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 

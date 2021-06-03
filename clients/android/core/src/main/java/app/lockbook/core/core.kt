@@ -19,6 +19,7 @@ external fun renameFile(config: String, id: String, name: String): String
 external fun createFile(config: String, id: String, fileType: String, name: String): String
 external fun deleteFile(config: String, id: String): String
 external fun readDocument(config: String, id: String): String
+external fun exportDrawing(config: String, id: String, format: String): String
 external fun writeDocument(config: String, id: String, content: String): String
 external fun moveFile(config: String, id: String, parentId: String): String
 external fun syncAll(config: String, fragment: Any): String

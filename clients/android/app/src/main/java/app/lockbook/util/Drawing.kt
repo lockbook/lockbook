@@ -86,6 +86,15 @@ data class ColorRGB(
     val b: Int,
 )
 
+enum class SupportedImageFormats {
+    Png,
+    Jpeg,
+    Pnm,
+    Tga,
+    Farbfeld,
+    Bmp,
+}
+
 val DEFAULT_THEME = linkedMapOf(
     Pair(ColorAlias.White.name, ColorRGB(0xFF, 0xFF, 0xFF)),
     Pair(ColorAlias.Black.name, ColorRGB(0x00, 0x00, 0x00)),
