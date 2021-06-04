@@ -2,6 +2,7 @@ package app.lockbook.screen
 
 import android.content.Intent
 import android.content.res.Configuration.*
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout.HORIZONTAL
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModelProvider
@@ -25,8 +27,9 @@ import app.lockbook.ui.*
 import app.lockbook.util.*
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
-import kotlinx.coroutines.launch
+import java.io.File
 import java.util.*
+
 
 class ListFilesFragment : Fragment() {
     lateinit var listFilesViewModel: ListFilesViewModel
@@ -239,6 +242,13 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.shareDocument.observe(
+            viewLifecycleOwner,
+            { files ->
+                shareDocuments(files)
+            }
+        )
+
         listFilesViewModel.updateSyncSnackBar.observe(
             viewLifecycleOwner,
             { progressAndTotal ->
@@ -357,6 +367,30 @@ class ListFilesFragment : Fragment() {
         parentFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
             false
+        )
+    }
+
+    private fun shareDocuments(files: ArrayList<File>) {
+        val uris = ArrayList<Uri>()
+
+        for(file in files) {
+            uris.add(
+                FileProvider.getUriForFile(
+                    requireContext(),
+                    "app.lockbook.fileprovider",
+                    file
+                )
+            )
+        }
+
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE)
+        intent.type = "*/*"
+        intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+        startActivity(
+            Intent.createChooser(
+                intent,
+                "Send multiple files."
+            )
         )
     }
 

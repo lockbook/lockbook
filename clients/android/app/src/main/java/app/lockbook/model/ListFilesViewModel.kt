@@ -3,7 +3,7 @@ package app.lockbook.model
 import android.app.Application
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import android.net.Uri
-import androidx.core.net.toUri
+import androidx.core.content.FileProvider.getUriForFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -66,7 +66,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showFileInfoDialog = SingleMutableLiveData<FileMetadata>()
     private val _showRenameFileDialog = SingleMutableLiveData<RenameFileInfo>()
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
-    private val _shareDocument = SingleMutableLiveData<ArrayList<Uri>>()
+    private val _shareDocument = SingleMutableLiveData<ArrayList<File>>()
     private val _showSnackBar = SingleMutableLiveData<String>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
@@ -116,7 +116,7 @@ class ListFilesViewModel(path: String, application: Application) :
     val updateBreadcrumbBar: LiveData<List<BreadCrumbItem>>
         get() = fileModel.updateBreadcrumbBar
 
-    val shareDocument: LiveData<ArrayList<Uri>>
+    val shareDocument: LiveData<ArrayList<File>>
         get() = _shareDocument
 
     val showSnackBar: LiveData<String>
@@ -293,7 +293,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     val selectedFiles =
                         getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
 
-                    val uris = ArrayList<Uri>()
+                    val files = ArrayList<File>()
                     val imagesPath = File(App.instance.applicationContext.cacheDir, "images/")
                     imagesPath.mkdirs()
 
@@ -307,7 +307,7 @@ class ListFilesViewModel(path: String, application: Application) :
                                     val image = File(imagesPath, file.name)
                                     image.createNewFile()
                                     image.writeBytes(exportDrawingResult.value)
-                                    uris.add(image.toUri())
+                                    files.add(image)
                                 }
                                 is Err -> return@launch when(val error = exportDrawingResult.error) {
                                     ExportDrawingError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
@@ -326,7 +326,7 @@ class ListFilesViewModel(path: String, application: Application) :
                                     val doc = File(docsPath, file.name)
                                     doc.createNewFile()
                                     doc.writeText(readDocumentResult.value)
-                                    uris.add(doc.toUri())
+                                    files.add(doc)
                                 }
                                 is Err -> return@launch when (val error = readDocumentResult.error) {
                                     is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
@@ -343,7 +343,7 @@ class ListFilesViewModel(path: String, application: Application) :
                         }
                     }
 
-                    _shareDocument.postValue(uris)
+                    _shareDocument.postValue(files)
                 }
                 else -> {
                     Timber.e("Unrecognized sort item id.")
