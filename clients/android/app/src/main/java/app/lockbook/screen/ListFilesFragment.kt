@@ -48,7 +48,6 @@ class ListFilesFragment : Fragment() {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             getListFilesActivity()?.showHideProgressOverlay(false)
             listFilesViewModel.shareModel.isLoadingOverlayVisible = false
-            listFilesViewModel.clearShareStorage()
         }
 
     private var updatedLastSyncedDescription = Timer()
@@ -310,8 +309,9 @@ class ListFilesFragment : Fragment() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
+        listFilesViewModel.clearShareStorage()
+        super.onDestroy()
     }
 
     fun onBackPressed(): Boolean {

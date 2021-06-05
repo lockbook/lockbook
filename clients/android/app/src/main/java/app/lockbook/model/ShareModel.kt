@@ -21,7 +21,7 @@ class ShareModel(
         File(App.instance.applicationContext.cacheDir, "docs/")
     )
 
-    fun clearStorage() {
+    fun clearShareStorage() {
         val (imagesFolder, docsFolder) = getShareStorageFolders()
 
         imagesFolder.deleteRecursively()

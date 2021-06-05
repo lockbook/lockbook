@@ -151,11 +151,13 @@ class ListFilesViewModel(path: String, application: Application) :
             setUpPreferenceChangeListener()
             isThisAnImport()
             fileModel.startUpInRoot()
-            shareModel.clearStorage()
         }
     }
 
     fun onBackPress(): Boolean = when {
+        shareModel.isLoadingOverlayVisible -> {
+            true
+        }
         selectedFiles.contains(true) -> {
             collapseMoreOptionsMenu()
             true
@@ -175,7 +177,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
     fun clearShareStorage() {
         viewModelScope.launch(Dispatchers.IO) {
-            shareModel.clearStorage()
+            shareModel.clearShareStorage()
         }
     }
 
