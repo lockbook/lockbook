@@ -10,7 +10,7 @@ object CoreModel {
 
     private const val QA_API_URL = "http://qa.lockbook.app:8000"
     private const val PROD_API_URL = "http://api.lockbook.app:8000"
-    fun getAPIURL(): String = "http://10.0.0.225:8000"
+    fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
         val initLoggerResult: Result<Unit, InitLoggerError>? =

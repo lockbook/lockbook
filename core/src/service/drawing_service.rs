@@ -14,10 +14,10 @@ use image::{ColorType, ImageError};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::BufWriter;
 use uuid::Uuid;
-use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub enum SupportedImageFormats {

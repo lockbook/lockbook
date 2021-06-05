@@ -9,16 +9,21 @@ use uuid::Uuid;
 
 use crate::json_interface::translate;
 use crate::model::state::Config;
+use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::bytes_to_human;
-use crate::{calculate_work, create_account, create_file, delete_file, export_account, get_account, get_all_error_variants, get_children, get_db_state, get_file_by_id, get_local_and_server_usage, get_root, import_account, init_logger, insert_file, migrate_db, move_file, read_document, rename_file, set_last_synced, sync_all, write_document, Error, export_drawing};
+use crate::{
+    calculate_work, create_account, create_file, delete_file, export_account, export_drawing,
+    get_account, get_all_error_variants, get_children, get_db_state, get_file_by_id,
+    get_local_and_server_usage, get_root, import_account, init_logger, insert_file, migrate_db,
+    move_file, read_document, rename_file, set_last_synced, sync_all, write_document, Error,
+};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use lockbook_crypto::clock_service;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use crate::service::drawing_service::SupportedImageFormats;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -452,24 +457,28 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawing(
     _: JClass,
     jconfig: JString,
     jid: JString,
-    jformat: JString
+    jformat: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    
+
     let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
 
-    let format = match deserialize::<SupportedImageFormats>(&env, jformat, "Couldn't successfully get the image format") {
+    let format = match deserialize::<SupportedImageFormats>(
+        &env,
+        jformat,
+        "Couldn't successfully get the image format",
+    ) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
 
-    string_to_jstring(&env, translate(export_drawing(&config, id, format)))
+    string_to_jstring(&env, translate(export_drawing(&config, id, format, None)))
 }
 
 #[no_mangle]
