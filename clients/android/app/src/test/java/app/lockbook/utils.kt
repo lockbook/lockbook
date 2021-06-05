@@ -61,6 +61,7 @@ val errorsToCheck = listOf<KClass<*>>(
     SetLastSyncedError::class,
     SyncAllError::class,
     WriteToDocumentError::class,
+    ExportDrawingError::class
 )
 
 val checkIfAllErrorsPresentConverter = object : Converter {

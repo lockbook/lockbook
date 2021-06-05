@@ -40,8 +40,8 @@ class ListFilesFragment : Fragment() {
     private val binding get() = _binding!!
 
     private var onActivityResult =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { activityResult ->
-            listFilesViewModel.onOpenedActivityEnd(activityResult)
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            listFilesViewModel.onOpenedActivityEnd()
         }
 
     var onShareResult =

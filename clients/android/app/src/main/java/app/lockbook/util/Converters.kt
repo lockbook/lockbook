@@ -656,6 +656,22 @@ val exportDrawingConverter = object : Converter {
             }
         }
         errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
+            uiErrorTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(
+                        when (error) {
+                            ExportDrawingError.InvalidDrawing::class.simpleName -> ExportDrawingError.InvalidDrawing
+                            ExportDrawingError.NoAccount::class.simpleName -> ExportDrawingError.NoAccount
+                            ExportDrawingError.FileDoesNotExist::class.simpleName -> ExportDrawingError.FileDoesNotExist
+                            ExportDrawingError.FolderTreatedAsDrawing::class.simpleName -> ExportDrawingError.FolderTreatedAsDrawing
+                            else -> ExportDrawingError.Unexpected("exportDrawingConverter $unmatchedUiError $error")
+                        }
+                    )
+                } else {
+                    Err(ExportDrawingError.Unexpected("exportDrawingConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+                }
+            }
             unexpectedTag -> {
                 val error = jv.obj?.obj("content")?.string("content")
                 if (error != null) {

@@ -2,7 +2,6 @@ package app.lockbook.model
 
 import android.app.Application
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
-import androidx.activity.result.ActivityResult
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -169,7 +168,7 @@ class ListFilesViewModel(path: String, application: Application) :
         else -> false
     }
 
-    fun onOpenedActivityEnd(activityResult: ActivityResult) {
+    fun onOpenedActivityEnd() {
         viewModelScope.launch(Dispatchers.IO) {
             syncModel.syncBasedOnPreferences()
         }
