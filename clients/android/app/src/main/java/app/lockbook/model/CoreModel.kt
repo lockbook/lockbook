@@ -228,10 +228,11 @@ object CoreModel {
         config: Config,
         id: String,
         format: SupportedImageFormats
-    ): Result<ByteArray, ExportDrawingError> {
-        val exportDrawingResult: Result<ByteArray, ExportDrawingError>? =
+    ): Result<List<Byte>, ExportDrawingError> {
+        val klaxon = Klaxon()
+        val exportDrawingResult: Result<List<Byte>, ExportDrawingError>? =
             Klaxon().converter(exportDrawingConverter)
-                .parse(exportDrawing(Klaxon().toJsonString(config), id, format.name))
+                .parse(exportDrawing(klaxon.toJsonString(config), id, klaxon.toJsonString(format)))
 
         if (exportDrawingResult != null) {
             return exportDrawingResult

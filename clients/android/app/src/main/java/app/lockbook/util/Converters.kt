@@ -648,19 +648,9 @@ val exportDrawingConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
         okTag -> {
-            val ok = jv.obj?.string("content")
+            val ok = jv.obj?.array<ByteArray>("content")
             if (ok != null) {
-                Ok(
-                    when (ok) {
-                        SupportedImageFormats.Jpeg.name -> SupportedImageFormats.Jpeg
-                        SupportedImageFormats.Png.name -> SupportedImageFormats.Png
-                        SupportedImageFormats.Bmp.name -> SupportedImageFormats.Bmp
-                        SupportedImageFormats.Pnm.name -> SupportedImageFormats.Pnm
-                        SupportedImageFormats.Farbfeld.name -> SupportedImageFormats.Farbfeld
-                        SupportedImageFormats.Tga.name -> SupportedImageFormats.Tga
-                        else -> ExportDrawingError.Unexpected("exportDrawingConverter $unmatchedOkEnum $ok")
-                    }
-                )
+                Ok(Klaxon().parseFromJsonArray<Byte>(ok))
             } else {
                 Err(ExportDrawingError.Unexpected("exportDrawingConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
             }

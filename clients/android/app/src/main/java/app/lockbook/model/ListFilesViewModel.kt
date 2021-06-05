@@ -2,14 +2,13 @@ package app.lockbook.model
 
 import android.app.Application
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener
-import android.net.Uri
-import androidx.core.content.FileProvider.getUriForFile
+import androidx.activity.result.ActivityResult
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
-import app.lockbook.App
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.R
 import app.lockbook.ui.BreadCrumbItem
@@ -35,12 +34,9 @@ import app.lockbook.util.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.util.SharedPreferences.SORT_FILES_Z_A
 import app.lockbook.util.SharedPreferences.SYNC_AUTOMATICALLY_KEY
 import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
 import java.io.File
-
 
 data class EditableFile(
     val name: String,
@@ -68,6 +64,9 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
     private val _shareDocument = SingleMutableLiveData<ArrayList<File>>()
     private val _showSnackBar = SingleMutableLiveData<String>()
+    private val _showSyncSnackBar = SingleMutableLiveData<Unit>()
+    private val _updateSyncSnackBar = SingleMutableLiveData<Pair<Int, Int>>()
+    private val _showHideProgressOverlay = MutableLiveData<Boolean>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
@@ -78,10 +77,10 @@ class ListFilesViewModel(path: String, application: Application) :
         get() = fileModel.files
 
     val showSyncSnackBar: LiveData<Unit>
-        get() = syncModel._showSyncSnackBar
+        get() = _showSyncSnackBar
 
     val updateSyncSnackBar: LiveData<Pair<Int, Int>>
-        get() = syncModel._updateSyncSnackBar
+        get() = _updateSyncSnackBar
 
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
@@ -122,6 +121,9 @@ class ListFilesViewModel(path: String, application: Application) :
     val showSnackBar: LiveData<String>
         get() = _showSnackBar
 
+    val showHideProgressOverlay: LiveData<Boolean>
+        get() = _showHideProgressOverlay
+
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
 
@@ -129,7 +131,21 @@ class ListFilesViewModel(path: String, application: Application) :
         get() = _unexpectedErrorHasOccurred
 
     private val fileModel = FileModel(config, _errorHasOccurred, _unexpectedErrorHasOccurred)
-    val syncModel = SyncModel(config, _showSnackBar, _errorHasOccurred, _unexpectedErrorHasOccurred)
+    private val shareModel = ShareModel(
+        config,
+        _shareDocument,
+        _showHideProgressOverlay,
+        _errorHasOccurred,
+        _unexpectedErrorHasOccurred
+    )
+    val syncModel = SyncModel(
+        config,
+        _showSyncSnackBar,
+        _updateSyncSnackBar,
+        _showSnackBar,
+        _errorHasOccurred,
+        _unexpectedErrorHasOccurred
+    )
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -151,7 +167,7 @@ class ListFilesViewModel(path: String, application: Application) :
         else -> false
     }
 
-    fun onOpenedActivityEnd() {
+    fun onOpenedActivityEnd(activityResult: ActivityResult) {
         viewModelScope.launch(Dispatchers.IO) {
             syncModel.syncBasedOnPreferences()
         }
@@ -293,57 +309,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     val selectedFiles =
                         getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
 
-                    val files = ArrayList<File>()
-                    val imagesPath = File(App.instance.applicationContext.cacheDir, "images/")
-                    imagesPath.mkdirs()
-
-                    val docsPath = File(App.instance.applicationContext.cacheDir, "docs/")
-                    docsPath.mkdirs()
-
-                    for (file in selectedFiles) {
-                        if (file.name.endsWith(".draw")) {
-                            when(val exportDrawingResult = CoreModel.exportDrawing(config, file.id, SupportedImageFormats.Jpeg)) {
-                                is Ok -> {
-                                    val image = File(imagesPath, file.name)
-                                    image.createNewFile()
-                                    image.writeBytes(exportDrawingResult.value)
-                                    files.add(image)
-                                }
-                                is Err -> return@launch when(val error = exportDrawingResult.error) {
-                                    ExportDrawingError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                                    ExportDrawingError.FolderTreatedAsDrawing -> _errorHasOccurred.postValue("Error! Folder treated as document!")
-                                    ExportDrawingError.InvalidDrawing -> _errorHasOccurred.postValue("Error! Invalid drawing!")
-                                    ExportDrawingError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                                    is ExportDrawingError.Unexpected -> {
-                                        Timber.e(error.error)
-                                        _unexpectedErrorHasOccurred.postValue(error.error)
-                                    }
-                                }.exhaustive
-                            }
-                        } else {
-                            when (val readDocumentResult = CoreModel.readDocument(config, file.id)) {
-                                is Ok -> {
-                                    val doc = File(docsPath, file.name)
-                                    doc.createNewFile()
-                                    doc.writeText(readDocumentResult.value)
-                                    files.add(doc)
-                                }
-                                is Err -> return@launch when (val error = readDocumentResult.error) {
-                                    is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
-                                    is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                                    is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                                    is ReadDocumentError.Unexpected -> {
-                                        Timber.e("Unable to get content of file: ${error.error}")
-                                        _unexpectedErrorHasOccurred.postValue(
-                                            error.error
-                                        )
-                                    }
-                                }.exhaustive
-                            }
-                        }
-                    }
-
-                    _shareDocument.postValue(files)
+                    shareModel.shareDocument(selectedFiles)
                 }
                 else -> {
                     Timber.e("Unrecognized sort item id.")
@@ -391,7 +357,7 @@ class ListFilesViewModel(path: String, application: Application) :
             fileModel.refreshFiles()
 
             if (newDocument != null && PreferenceManager.getDefaultSharedPreferences(getApplication())
-                    .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
+                .getBoolean(OPEN_NEW_DOC_AUTOMATICALLY_KEY, true)
             ) {
                 enterDocument(newDocument)
             }
@@ -413,7 +379,7 @@ class ListFilesViewModel(path: String, application: Application) :
 
     private fun isThisAnImport() {
         if (PreferenceManager.getDefaultSharedPreferences(getApplication())
-                .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
+            .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
         ) {
             syncModel.trySync()
             PreferenceManager.getDefaultSharedPreferences(getApplication()).edit().putBoolean(

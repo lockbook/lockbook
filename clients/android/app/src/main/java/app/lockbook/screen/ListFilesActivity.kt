@@ -5,12 +5,14 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.databinding.ActivityListFilesBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.OnFinishAlert
+import app.lockbook.util.Animate
 import app.lockbook.util.BASIC_ERROR
 import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
 import app.lockbook.util.SharedPreferences.GRID_LAYOUT
@@ -22,9 +24,6 @@ import app.lockbook.util.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.util.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.util.SharedPreferences.SORT_FILES_Z_A
 import app.lockbook.util.exhaustive
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
 import timber.log.Timber
 
 private val menuItemsNoneSelected = listOf(
@@ -190,6 +189,10 @@ class ListFilesActivity : AppCompatActivity() {
         for (menuItem in menuItemsOneSelected) {
             menu?.findItem(menuItem)?.isVisible = false
         }
+
+        for (menuItem in menuItemsNoneSelected) {
+            menu?.findItem(menuItem)?.isVisible = true
+        }
     }
 
     private fun getListFilesFragment(): ListFilesFragment? {
@@ -209,8 +212,16 @@ class ListFilesActivity : AppCompatActivity() {
         }
     }
 
+    fun showHideProgressOverlay(show: Boolean) {
+        if (show) {
+            Animate.animateVisibility(binding.progressOverlay.root, View.VISIBLE, 0.4f, 500)
+        } else {
+            Animate.animateVisibility(binding.progressOverlay.root, View.GONE, 0f, 500)
+        }
+    }
+
     override fun onBackPressed() {
-        if(getListFilesFragment()?.onBackPressed() == false) {
+        if (getListFilesFragment()?.onBackPressed() == false) {
             super.onBackPressed()
         }
     }

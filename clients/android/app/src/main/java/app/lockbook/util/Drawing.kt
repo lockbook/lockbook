@@ -105,3 +105,5 @@ val DEFAULT_THEME = linkedMapOf(
     Pair(ColorAlias.Magenta.name, ColorRGB(0xFF, 0x00, 0xFF)),
     Pair(ColorAlias.Cyan.name, ColorRGB(0x00, 0xFF, 0xFF)),
 )
+
+val IMAGE_EXPORT_TYPE = SupportedImageFormats.Jpeg
