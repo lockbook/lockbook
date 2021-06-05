@@ -5,7 +5,6 @@ import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import androidx.activity.result.ActivityResult
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
@@ -66,7 +65,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showSnackBar = SingleMutableLiveData<String>()
     private val _showSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _updateSyncSnackBar = SingleMutableLiveData<Pair<Int, Int>>()
-    private val _showHideProgressOverlay = MutableLiveData<Boolean>()
+    private val _showHideProgressOverlay = SingleMutableLiveData<Boolean>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
@@ -131,7 +130,7 @@ class ListFilesViewModel(path: String, application: Application) :
         get() = _unexpectedErrorHasOccurred
 
     private val fileModel = FileModel(config, _errorHasOccurred, _unexpectedErrorHasOccurred)
-    private val shareModel = ShareModel(
+    val shareModel = ShareModel(
         config,
         _shareDocument,
         _showHideProgressOverlay,
@@ -152,6 +151,7 @@ class ListFilesViewModel(path: String, application: Application) :
             setUpPreferenceChangeListener()
             isThisAnImport()
             fileModel.startUpInRoot()
+            shareModel.clearStorage()
         }
     }
 
@@ -170,6 +170,12 @@ class ListFilesViewModel(path: String, application: Application) :
     fun onOpenedActivityEnd(activityResult: ActivityResult) {
         viewModelScope.launch(Dispatchers.IO) {
             syncModel.syncBasedOnPreferences()
+        }
+    }
+
+    fun clearShareStorage() {
+        viewModelScope.launch(Dispatchers.IO) {
+            shareModel.clearStorage()
         }
     }
 

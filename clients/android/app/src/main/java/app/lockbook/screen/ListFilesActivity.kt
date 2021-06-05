@@ -214,9 +214,9 @@ class ListFilesActivity : AppCompatActivity() {
 
     fun showHideProgressOverlay(show: Boolean) {
         if (show) {
-            Animate.animateVisibility(binding.progressOverlay.root, View.VISIBLE, 0.4f, 500)
+            Animate.animateVisibility(binding.progressOverlay.root, View.VISIBLE, 102, 500)
         } else {
-            Animate.animateVisibility(binding.progressOverlay.root, View.GONE, 0f, 500)
+            Animate.animateVisibility(binding.progressOverlay.root, View.GONE, 0, 500)
         }
     }
 

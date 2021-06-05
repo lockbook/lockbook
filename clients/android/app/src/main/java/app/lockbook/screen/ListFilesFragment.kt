@@ -39,7 +39,7 @@ class ListFilesFragment : Fragment() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    var onActivityResult =
+    private var onActivityResult =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { activityResult ->
             listFilesViewModel.onOpenedActivityEnd(activityResult)
         }
@@ -47,6 +47,8 @@ class ListFilesFragment : Fragment() {
     var onShareResult =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             getListFilesActivity()?.showHideProgressOverlay(false)
+            listFilesViewModel.shareModel.isLoadingOverlayVisible = false
+            listFilesViewModel.clearShareStorage()
         }
 
     private var updatedLastSyncedDescription = Timer()
@@ -366,10 +368,15 @@ class ListFilesFragment : Fragment() {
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
 
-        if (listFilesViewModel.syncModel.syncStatus is SyncStatus.IsSyncing) {
-            val status = listFilesViewModel.syncModel.syncStatus as SyncStatus.IsSyncing
+        val syncStatus = listFilesViewModel.syncModel.syncStatus
+        if (syncStatus is SyncStatus.IsSyncing) {
             showSyncSnackBar()
-            updateProgressSnackBar(status.total, status.progress)
+            updateProgressSnackBar(syncStatus.total, syncStatus.progress)
+        }
+
+        val isLoadingOverlayVisible = listFilesViewModel.shareModel.isLoadingOverlayVisible
+        if (isLoadingOverlayVisible) {
+            showHideProgressOverlay(isLoadingOverlayVisible)
         }
 
         parentFragmentManager.registerFragmentLifecycleCallbacks(
