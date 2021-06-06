@@ -12,6 +12,7 @@ use crate::repo::{
     account_repo, db_version_repo, document_repo, file_metadata_repo, local_storage,
 };
 use lockbook_crypto::{pubkey, symkey};
+use lockbook_models::file_metadata::FileType::Folder;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -44,12 +45,14 @@ pub fn random_username() -> String {
         .collect()
 }
 
-pub fn random_filename() -> String {
-    Uuid::new_v4()
+pub fn random_filename() -> SecretFileName {
+    let name: String = Uuid::new_v4()
         .to_string()
         .chars()
         .filter(|c| c.is_alphanumeric())
-        .collect()
+        .collect();
+
+    symkey::encrypt_and_hmac(&symkey::generate_key(), &name).unwrap()
 }
 
 pub fn generate_account() -> Account {
@@ -62,34 +65,34 @@ pub fn generate_account() -> Account {
 
 pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
     let id = Uuid::new_v4();
-    let folder_key = symkey::generate_key();
-
-    let public_key = account.public_key();
-    let user_access_info = UserAccessInfo {
+    let key = symkey::generate_key();
+    let name = symkey::encrypt_and_hmac(&key, &account.username.clone()).unwrap();
+    let key_encryption_key =
+        pubkey::get_aes_key(&account.private_key, &account.public_key()).unwrap();
+    let encrypted_access_key = symkey::encrypt(&key_encryption_key, &key).unwrap();
+    let use_access_key = UserAccessInfo {
         username: account.username.clone(),
-        encrypted_by: public_key,
-        access_key: aes_encrypt(
-            &pubkey::get_aes_key(&account.private_key, &account.public_key()).unwrap(),
-            &folder_key,
-        ),
+        encrypted_by: account.public_key(),
+        access_key: encrypted_access_key,
     };
+
     let mut user_access_keys = HashMap::new();
-    user_access_keys.insert(account.username.clone(), user_access_info);
+    user_access_keys.insert(account.username.clone(), use_access_key);
 
     (
         FileMetadata {
-            file_type: FileType::Folder,
+            file_type: Folder,
             id,
-            name: account.username.clone(),
+            name,
             owner: account.username.clone(),
             parent: id,
             content_version: 0,
             metadata_version: 0,
             deleted: false,
             user_access_keys,
-            folder_access_keys: aes_encrypt(&folder_key, &folder_key),
+            folder_access_keys: symkey::encrypt(&symkey::generate_key(), &key).unwrap(),
         },
-        folder_key,
+        key,
     )
 }
 

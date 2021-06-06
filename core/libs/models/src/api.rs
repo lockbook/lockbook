@@ -62,7 +62,7 @@ impl Request for ChangeDocumentContentRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateDocumentRequest {
     pub id: Uuid,
-    pub name: String,
+    pub name: SecretFileName,
     pub parent: Uuid,
     pub content: EncryptedDocument,
     pub parent_access_key: EncryptedFolderAccessKey,
@@ -179,7 +179,7 @@ impl Request for MoveDocumentRequest {
 pub struct RenameDocumentRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
-    pub new_name: String,
+    pub new_name: SecretFileName,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -241,7 +241,7 @@ impl Request for GetDocumentRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateFolderRequest {
     pub id: Uuid,
-    pub name: String,
+    pub name: SecretFileName,
     pub parent: Uuid,
     pub parent_access_key: EncryptedFolderAccessKey,
 }
@@ -359,7 +359,7 @@ impl Request for MoveFolderRequest {
 pub struct RenameFolderRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
-    pub new_name: String,
+    pub new_name: SecretFileName,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

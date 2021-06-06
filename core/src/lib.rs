@@ -20,7 +20,7 @@ use crate::client::ApiError;
 use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepoError;
 use crate::repo::file_metadata_repo::{
-    DbError, Filter, FindingChildrenFailed, FindingParentsFailed, GetError as FileMetadataRepoError,
+    DbError, FindingChildrenFailed, GetError as FileMetadataRepoError,
 };
 use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::account_service::{
@@ -28,7 +28,7 @@ use crate::service::account_service::{
 };
 use crate::service::db_state_service::State;
 use crate::service::file_service::{
-    DocumentRenameError, DocumentUpdateError, FileMoveError, NewFileError, NewFileFromPathError,
+    DocumentRenameError, DocumentUpdateError, FileMoveError, NewFileError,
     ReadDocumentError as FSReadDocumentError,
 };
 use crate::service::sync_service::{
@@ -39,7 +39,8 @@ use crate::service::usage_service::{
     LocalAndServerUsages,
 };
 use crate::service::{
-    account_service, db_state_service, drawing_service, file_service, sync_service, usage_service,
+    account_service, db_state_service, drawing_service, file_service, path_service, sync_service,
+    usage_service,
 };
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
@@ -55,6 +56,8 @@ pub enum Error<U: Serialize> {
 }
 use crate::repo::local_changes_repo;
 use crate::service::drawing_service::SupportedImageFormats;
+use crate::service::path_service::{GetByPathError, NewFileFromPathError};
+use crate::GetFileByPathError::NoFileAtThatPath;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use serde_json::error::Category;
 use std::collections::HashMap;
@@ -128,25 +131,13 @@ pub fn create_account(
             ApiError::Endpoint(api_err) => match api_err {
                 NewAccountError::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
                 NewAccountError::InvalidUsername => UiError(CreateAccountError::InvalidUsername),
-                NewAccountError::InvalidPublicKey
-                | NewAccountError::InvalidUserAccessKey
-                | NewAccountError::FileIdTaken => unexpected!("{:#?}", api_err),
+                _ => unexpected!("{:#?}", api_err),
             },
             ApiError::SendFailed(_) => UiError(CreateAccountError::CouldNotReachServer),
             ApiError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
-            ApiError::Serialize(_)
-            | ApiError::ReceiveFailed(_)
-            | ApiError::Deserialize(_)
-            | ApiError::Sign(_)
-            | ApiError::InternalError
-            | ApiError::BadRequest
-            | ApiError::InvalidAuth
-            | ApiError::ExpiredAuth => unexpected!("{:#?}", network),
+            _ => unexpected!("{:#?}", network),
         },
-        AccountCreationError::AccountRepoError(_)
-        | AccountCreationError::FolderError(_)
-        | AccountCreationError::MetadataRepoError(_)
-        | AccountCreationError::KeySerializationError(_) => unexpected!("{:#?}", e),
+        _ => unexpected!("{:#?}", e),
     })
 }
 
@@ -238,37 +229,37 @@ pub fn create_file_at_path(
     config: &Config,
     path_and_name: &str,
 ) -> Result<FileMetadata, Error<CreateFileAtPathError>> {
-    file_service::create_at_path(&config, path_and_name).map_err(|e| match e {
-        NewFileFromPathError::PathDoesntStartWithRoot => {
+    path_service::create_at_path(&config, path_and_name).map_err(|e| match e {
+        path_service::NewFileFromPathError::PathDoesntStartWithRoot => {
             UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
         }
-        NewFileFromPathError::PathContainsEmptyFile => {
+        path_service::NewFileFromPathError::PathContainsEmptyFile => {
             UiError(CreateFileAtPathError::PathContainsEmptyFile)
         }
-        NewFileFromPathError::FileAlreadyExists => {
+        path_service::NewFileFromPathError::FileAlreadyExists => {
             UiError(CreateFileAtPathError::FileAlreadyExists)
         }
-        NewFileFromPathError::NoRoot => UiError(CreateFileAtPathError::NoRoot),
-        NewFileFromPathError::FailedToCreateChild(failed_to_create) => match failed_to_create {
-            NewFileError::AccountRetrievalError(account_error) => match account_error {
-                AccountRepoError::NoAccount => UiError(CreateFileAtPathError::NoAccount),
-                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                    unexpected!("{:#?}", account_error)
+        path_service::NewFileFromPathError::NoRoot => UiError(CreateFileAtPathError::NoRoot),
+        path_service::NewFileFromPathError::FailedToCreateChild(failed_to_create) => {
+            match failed_to_create {
+                NewFileError::AccountRetrievalError(account_error) => match account_error {
+                    AccountRepoError::NoAccount => UiError(CreateFileAtPathError::NoAccount),
+                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                        unexpected!("{:#?}", account_error)
+                    }
+                },
+                NewFileError::FileNameNotAvailable => {
+                    UiError(CreateFileAtPathError::FileAlreadyExists)
                 }
-            },
-            NewFileError::FileNameNotAvailable => UiError(CreateFileAtPathError::FileAlreadyExists),
-            NewFileError::DocumentTreatedAsFolder => {
-                UiError(CreateFileAtPathError::DocumentTreatedAsFolder)
+                NewFileError::DocumentTreatedAsFolder => {
+                    UiError(CreateFileAtPathError::DocumentTreatedAsFolder)
+                }
+                _ => unexpected!("{:#?}", failed_to_create),
             }
-            NewFileError::CouldNotFindParents(_)
-            | NewFileError::FileEncryptionError(_)
-            | NewFileError::MetadataRepoError(_)
-            | NewFileError::FailedToWriteFileContent(_)
-            | NewFileError::FailedToRecordChange(_)
-            | NewFileError::FileNameEmpty
-            | NewFileError::FileNameContainsSlash => unexpected!("{:#?}", failed_to_create),
-        },
-        NewFileFromPathError::FailedToRecordChange(_) | NewFileFromPathError::DbError(_) => {
+        }
+        path_service::NewFileFromPathError::FailedToRecordChange(_)
+        | path_service::NewFileFromPathError::DbError(_)
+        | NewFileFromPathError::GetNameOfFileError(_) => {
             unexpected!("{:#?}", e)
         }
     })
@@ -287,18 +278,11 @@ pub fn write_document(
     content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
     file_service::write_document(&config, id, content).map_err(|e| match e {
-        DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
-            AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                unexpected!("{:#?}", account_err)
-            }
-            AccountRepoError::NoAccount => UiError(WriteToDocumentError::NoAccount),
-        },
         DocumentUpdateError::CouldNotFindFile => UiError(WriteToDocumentError::FileDoesNotExist),
         DocumentUpdateError::FolderTreatedAsDocument => {
             UiError(WriteToDocumentError::FolderTreatedAsDocument)
         }
-        DocumentUpdateError::CouldNotFindParents(_)
-        | DocumentUpdateError::FileEncryptionError(_)
+        DocumentUpdateError::FileEncryptionError(_)
         | DocumentUpdateError::FileCompressionError(_)
         | DocumentUpdateError::FileDecompressionError(_)
         | DocumentUpdateError::DocumentWriteError(_)
@@ -329,16 +313,14 @@ pub fn create_file(
     file_service::create(&config, name, parent, file_type).map_err(|e| match e {
         NewFileError::AccountRetrievalError(_) => UiError(CreateFileError::NoAccount),
         NewFileError::DocumentTreatedAsFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
-        NewFileError::CouldNotFindParents(parent_error) => match parent_error {
-            FindingParentsFailed::AncestorMissing => UiError(CreateFileError::CouldNotFindAParent),
-            FindingParentsFailed::DbError(_) => unexpected!("{:#?}", parent_error),
-        },
         NewFileError::FileNameNotAvailable => UiError(CreateFileError::FileNameNotAvailable),
         NewFileError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
         NewFileError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
         NewFileError::FileEncryptionError(_)
         | NewFileError::MetadataRepoError(_)
         | NewFileError::FailedToWriteFileContent(_)
+        | NewFileError::CouldNotFindParents
+        | NewFileError::NameDecryptionError(_)
         | NewFileError::FailedToRecordChange(_) => unexpected!("{:#?}", e),
     })
 }
@@ -413,12 +395,14 @@ pub fn get_file_by_path(
     config: &Config,
     path: &str,
 ) -> Result<FileMetadata, Error<GetFileByPathError>> {
-    match file_metadata_repo::get_by_path(&config, path) {
-        Ok(maybe_file_metadata) => match maybe_file_metadata {
-            None => Err(UiError(GetFileByPathError::NoFileAtThatPath)),
-            Some(file_metadata) => Ok(file_metadata),
+    match path_service::get_by_path(&config, path) {
+        Ok(file_metadata) => Ok(file_metadata),
+        Err(err) => match err {
+            GetByPathError::FileNotFound(_) => Err(UiError(GetFileByPathError::NoFileAtThatPath)),
+            GetByPathError::NoRoot
+            | GetByPathError::FileMetadataError(_)
+            | GetByPathError::NameDecryptionError(_) => Err(unexpected!("{:#?}", err)),
         },
-        Err(err) => Err(unexpected!("{:#?}", err)),
     }
 }
 
@@ -515,9 +499,9 @@ pub enum ListPathsError {
 
 pub fn list_paths(
     config: &Config,
-    filter: Option<Filter>,
+    filter: Option<path_service::Filter>,
 ) -> Result<Vec<String>, Error<ListPathsError>> {
-    file_metadata_repo::get_all_paths(&config, filter).map_err(|e| unexpected!("{:#?}", e))
+    path_service::get_all_paths(&config, filter).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -551,7 +535,7 @@ pub fn rename_file(
         }
         DocumentRenameError::FileNameNotAvailable => UiError(RenameFileError::FileNameNotAvailable),
         DocumentRenameError::CannotRenameRoot => UiError(RenameFileError::CannotRenameRoot),
-        DocumentRenameError::DbError(_) | DocumentRenameError::FailedToRecordChange(_) => {
+        _ => {
             unexpected!("{:#?}", e)
         }
     })
@@ -872,20 +856,13 @@ pub fn save_drawing(
                 }
             },
             drawing_service::SaveDrawingError::FailedToSaveJson(err) => match err {
-                DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
-                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                        unexpected!("{:#?}", account_err)
-                    }
-                    AccountRepoError::NoAccount => UiError(SaveDrawingError::NoAccount),
-                },
                 DocumentUpdateError::CouldNotFindFile => {
                     UiError(SaveDrawingError::FileDoesNotExist)
                 }
                 DocumentUpdateError::FolderTreatedAsDocument => {
                     UiError(SaveDrawingError::FolderTreatedAsDrawing)
                 }
-                DocumentUpdateError::CouldNotFindParents(_)
-                | DocumentUpdateError::FileEncryptionError(_)
+                DocumentUpdateError::FileEncryptionError(_)
                 | DocumentUpdateError::FileCompressionError(_)
                 | DocumentUpdateError::FileDecompressionError(_)
                 | DocumentUpdateError::DocumentWriteError(_)
