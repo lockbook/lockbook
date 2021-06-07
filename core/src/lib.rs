@@ -57,7 +57,7 @@ pub enum Error<U: Serialize> {
 use crate::repo::local_changes_repo;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::path_service::{GetByPathError, NewFileFromPathError};
-use crate::GetFileByPathError::NoFileAtThatPath;
+
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use serde_json::error::Category;
 use std::collections::HashMap;

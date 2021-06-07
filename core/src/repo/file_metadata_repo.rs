@@ -213,21 +213,14 @@ pub fn get_last_updated(config: &Config) -> Result<u64, DbError> {
     }
 }
 
-fn is_leaf_node(config: &Config, id: Uuid) -> Result<bool, DbError> {
-    let mut files = get_all(&config)?;
-    files.retain(|f| f.parent == id);
-    Ok(files.is_empty())
-}
-
 #[cfg(test)]
 mod unit_tests {
     use uuid::Uuid;
 
     use crate::model::state::{temp_config, Config};
-    use crate::repo::{account_repo, file_metadata_repo};
-    use crate::service::{file_encryption_service, file_service};
-    use lockbook_crypto::{pubkey, symkey};
-    use lockbook_models::account::Account;
+    use crate::repo::file_metadata_repo;
+
+    use lockbook_crypto::symkey;
     use lockbook_models::crypto::EncryptedFolderAccessKey;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use lockbook_models::file_metadata::{FileMetadata, FileType};
@@ -509,7 +502,7 @@ mod unit_tests {
         );
 
         {
-            let mut children_of_root =
+            let children_of_root =
                 file_metadata_repo::get_and_get_children_recursively(config, root.id).unwrap();
             // TODO assert specific children here.
             assert_eq!(children_of_root.len(), 2);
@@ -523,7 +516,7 @@ mod unit_tests {
         );
 
         {
-            let mut children_of_root =
+            let children_of_root =
                 file_metadata_repo::get_and_get_children_recursively(config, root.id).unwrap();
             assert_eq!(children_of_root.len(), 3);
             assert!(file_metadata_repo::get_and_get_children_recursively(config, doc.id).is_err());
@@ -534,20 +527,20 @@ mod unit_tests {
             );
         }
 
-        let doc2 = insert_test_metadata(config, Document, folder.id);
+        let _doc2 = insert_test_metadata(config, Document, folder.id);
 
-        let doc3 = insert_test_metadata(config, Document, folder.id);
+        let _doc3 = insert_test_metadata(config, Document, folder.id);
 
-        let doc4 = insert_test_metadata(config, Document, folder.id);
+        let _doc4 = insert_test_metadata(config, Document, folder.id);
 
-        let doc5 = insert_test_metadata(config, Document, folder.id);
+        let _doc5 = insert_test_metadata(config, Document, folder.id);
 
-        let doc6 = insert_test_metadata(config, Document, folder.id);
+        let _doc6 = insert_test_metadata(config, Document, folder.id);
 
-        let doc7 = insert_test_metadata(config, Document, folder.id);
+        let _doc7 = insert_test_metadata(config, Document, folder.id);
 
         {
-            let mut children_of_folder =
+            let children_of_folder =
                 file_metadata_repo::get_and_get_children_recursively(config, folder.id).unwrap();
             assert_eq!(children_of_folder.len(), 7);
         }

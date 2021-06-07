@@ -59,7 +59,8 @@ pub fn create(
         return Err(FileNameContainsSlash);
     }
 
-    let account = account_repo::get_account(config).map_err(NewFileError::AccountRetrievalError)?;
+    let _account =
+        account_repo::get_account(config).map_err(NewFileError::AccountRetrievalError)?;
 
     let parent = file_metadata_repo::maybe_get(&config, parent)
         .map_err(NewFileError::MetadataRepoError)?
@@ -243,7 +244,7 @@ pub enum FileMoveError {
 }
 
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), FileMoveError> {
-    let account =
+    let _account =
         account_repo::get_account(config).map_err(FileMoveError::AccountRetrievalError)?;
 
     let mut file = file_metadata_repo::maybe_get(config, id)
@@ -318,7 +319,7 @@ pub enum ReadDocumentError {
 }
 
 pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, ReadDocumentError> {
-    let account =
+    let _account =
         account_repo::get_account(config).map_err(ReadDocumentError::AccountRetrievalError)?;
 
     let file_metadata = file_metadata_repo::maybe_get(config, id)
@@ -331,7 +332,7 @@ pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, Rea
 
     let document = document_repo::get(config, id).map_err(DocumentReadError)?;
 
-    let parents = file_metadata_repo::get_with_all_parents(config, id)
+    let _parents = file_metadata_repo::get_with_all_parents(config, id)
         .map_err(ReadDocumentError::CouldNotFindParents)?;
 
     let compressed_content =
