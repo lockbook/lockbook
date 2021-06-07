@@ -4,15 +4,19 @@ mod integration_test;
 mod sync_tests {
     use lockbook_core::repo::{document_repo, file_metadata_repo, local_changes_repo};
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
-    use lockbook_core::service::{account_service, file_service, sync_service};
+    use lockbook_core::service::{
+        account_service, file_encryption_service, file_service, integrity_service, path_service,
+        sync_service,
+    };
     use lockbook_models::file_metadata::FileType::Folder;
     use lockbook_models::work_unit::WorkUnit;
 
+    // TODO this can be moved to test_utils
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
-            assert!(file_metadata_repo::test_repo_integrity($db)
-                .unwrap()
-                .is_empty());
+            assert!(integrity_service::test_repo_integrity($db)
+                .is_ok()
+               );
         }
     );
 
@@ -79,7 +83,7 @@ mod sync_tests {
 
         assert_n_work_units!(db, 0);
 
-        file_service::create_at_path(&db, &format!("{}/a/b/c/test", account.username)).unwrap();
+        path_service::create_at_path(&db, &format!("{}/a/b/c/test", account.username)).unwrap();
         assert_n_work_units!(db, 4);
 
         sync!(&db);
@@ -104,7 +108,7 @@ mod sync_tests {
         println!("1st calculate work");
 
         let file =
-            file_service::create_at_path(&db, &format!("{}/a/b/c/test", account.username)).unwrap();
+            path_service::create_at_path(&db, &format!("{}/a/b/c/test", account.username)).unwrap();
 
         sync!(&db);
         println!("1st sync done");
@@ -175,7 +179,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
+            path_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
                 .unwrap();
 
         file_service::write_document(&db1, file.id, "nice document".as_bytes()).unwrap();
@@ -185,7 +189,7 @@ mod sync_tests {
         assert_dbs_eq(&db1, &db2);
 
         let new_folder =
-            file_service::create_at_path(&db1, &format!("{}/folder2/", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/folder2/", account.username)).unwrap();
 
         file_service::move_file(&db1, file.id, new_folder.id).unwrap();
         assert_n_work_units!(db1, 2);
@@ -216,16 +220,16 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
+            path_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
                 .unwrap();
 
         file_service::write_document(&db1, file.id, "Wow, what a doc".as_bytes()).unwrap();
 
         let new_folder1 =
-            file_service::create_at_path(&db1, &format!("{}/folder2/", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/folder2/", account.username)).unwrap();
 
         let new_folder2 =
-            file_service::create_at_path(&db1, &format!("{}/folder3/", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/folder3/", account.username)).unwrap();
 
         sync!(&db1);
 
@@ -254,7 +258,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
+            path_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
                 .unwrap();
 
         file_service::rename_file(&db1, file.parent, "folder1-new").unwrap();
@@ -262,19 +266,16 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db1);
 
+        let file_from_path =
+            path_service::get_by_path(&db2, &format!("{}/folder1-new", account.username)).unwrap();
+
+        let name = file_encryption_service::get_name(&db2, &file_from_path).unwrap();
+        assert_eq!(name, "folder1-new");
         assert_eq!(
-            file_metadata_repo::get_by_path(&db2, &format!("{}/folder1-new", account.username),)
-                .unwrap()
+            path_service::get_by_path(&db2, &format!("{}/folder1-new/", account.username),)
                 .unwrap()
                 .name,
-            "folder1-new"
-        );
-        assert_eq!(
-            file_metadata_repo::get_by_path(&db2, &format!("{}/folder1-new/", account.username),)
-                .unwrap()
-                .unwrap()
-                .name,
-            "folder1-new"
+            file_from_path.name
         );
         assert_dbs_eq(&db1, &db2);
     }
@@ -285,7 +286,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
+            path_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
                 .unwrap();
         sync!(&db1);
 
@@ -298,17 +299,21 @@ mod sync_tests {
         sync!(&db1);
 
         assert_eq!(
-            file_metadata_repo::get_by_path(&db2, &format!("{}/folder2-new", account.username),)
-                .unwrap()
-                .unwrap()
-                .name,
+            file_encryption_service::get_name(
+                &db2,
+                &path_service::get_by_path(&db2, &format!("{}/folder2-new", account.username),)
+                    .unwrap()
+            )
+            .unwrap(),
             "folder2-new"
         );
         assert_eq!(
-            file_metadata_repo::get_by_path(&db2, &format!("{}/folder2-new/", account.username),)
-                .unwrap()
-                .unwrap()
-                .name,
+            file_encryption_service::get_name(
+                &db2,
+                &path_service::get_by_path(&db2, &format!("{}/folder2-new/", account.username),)
+                    .unwrap()
+            )
+            .unwrap(),
             "folder2-new"
         );
         assert_dbs_eq(&db1, &db2);
@@ -320,7 +325,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/test.txt", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/test.txt", account.username)).unwrap();
         sync!(&db1);
 
         file_service::rename_file(&db1, file.id, "new_name.txt").unwrap();
@@ -336,9 +341,9 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file1 =
-            file_service::create_at_path(&db1, &format!("{}/test.txt", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/test.txt", account.username)).unwrap();
         let file2 =
-            file_service::create_at_path(&db1, &format!("{}/test2.txt", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/test2.txt", account.username)).unwrap();
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
@@ -357,9 +362,7 @@ mod sync_tests {
             })
             .for_each(|work| sync_service::execute_work(&db1, &account, work).unwrap());
 
-        assert!(file_metadata_repo::test_repo_integrity(&db1)
-            .unwrap()
-            .is_empty());
+        assert!(integrity_service::test_repo_integrity(&db1).is_ok());
 
         assert_n_work_units!(db1, 1);
 
@@ -379,9 +382,9 @@ mod sync_tests {
         let db1 = test_config();
         let account = make_account!(db1);
 
-        let file1 = file_service::create_at_path(&db1, &format!("{}/a/test.txt", account.username))
+        let file1 = path_service::create_at_path(&db1, &format!("{}/a/test.txt", account.username))
             .unwrap();
-        let file2 = file_service::create_at_path(&db1, &format!("{}/b/test.txt", account.username))
+        let file2 = path_service::create_at_path(&db1, &format!("{}/b/test.txt", account.username))
             .unwrap();
 
         sync!(&db1);
@@ -413,9 +416,7 @@ mod sync_tests {
             })
             .for_each(|work| sync_service::execute_work(&db2, &account, work).unwrap());
 
-        assert!(file_metadata_repo::test_repo_integrity(&db2)
-            .unwrap()
-            .is_empty());
+        assert!(integrity_service::test_repo_integrity(&db2).is_ok());
 
         assert_n_work_units!(db1, 0);
         assert_n_work_units!(db2, 1);
@@ -437,7 +438,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/test.bin", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/test.bin", account.username)).unwrap();
 
         file_service::write_document(&db1, file.id, "some good content".as_bytes()).unwrap();
 
@@ -461,7 +462,8 @@ mod sync_tests {
 
         match works.work_units.get(0).unwrap() {
             WorkUnit::LocalChange { metadata } => {
-                assert!(metadata.name.contains("CONTENT-CONFLICT"))
+                let name = file_encryption_service::get_name(&db2, &metadata).unwrap();
+                assert!(name.contains("CONTENT-CONFLICT"))
             }
             WorkUnit::ServerChange { .. } => panic!("This should not be the work type"),
         }
@@ -478,7 +480,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
+            path_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
                 .unwrap();
 
         file_service::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
@@ -515,7 +517,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
+            path_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
                 .unwrap();
 
         file_service::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
@@ -526,7 +528,7 @@ mod sync_tests {
         file_service::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         sync!(&db1);
         let folder =
-            file_service::create_at_path(&db2, &format!("{}/folder1/", account.username)).unwrap();
+            path_service::create_at_path(&db2, &format!("{}/folder1/", account.username)).unwrap();
         file_service::move_file(&db2, file.id, folder.id).unwrap();
         file_service::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes()).unwrap();
 
@@ -554,7 +556,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
+            path_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
                 .unwrap();
 
         file_service::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
@@ -565,7 +567,7 @@ mod sync_tests {
         file_service::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         sync!(&db1);
         let folder =
-            file_service::create_at_path(&db2, &format!("{}/folder1/", account.username)).unwrap();
+            path_service::create_at_path(&db2, &format!("{}/folder1/", account.username)).unwrap();
         file_service::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes()).unwrap();
         file_service::move_file(&db2, file.id, folder.id).unwrap();
 
@@ -593,7 +595,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
+            path_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
                 .unwrap();
 
         file_service::write_document(&db1, file.id, "Line 1\n".as_bytes()).unwrap();
@@ -603,7 +605,7 @@ mod sync_tests {
 
         file_service::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         let folder =
-            file_service::create_at_path(&db1, &format!("{}/folder1/", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/folder1/", account.username)).unwrap();
         file_service::move_file(&db1, file.id, folder.id).unwrap();
         sync!(&db1);
         file_service::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes()).unwrap();
@@ -632,7 +634,7 @@ mod sync_tests {
         let account = make_account!(db);
 
         let file =
-            file_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
+            path_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
 
         file_service::write_document(&db, file.id, "original".as_bytes()).unwrap();
         sync!(&db);
@@ -648,7 +650,7 @@ mod sync_tests {
         let account = make_account!(db);
 
         let file =
-            file_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
+            path_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
 
         sync!(&db);
         assert_n_work_units!(db, 0);
@@ -663,7 +665,7 @@ mod sync_tests {
         let account = make_account!(db);
 
         let file =
-            file_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
+            path_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
 
         sync!(&db);
         assert_n_work_units!(db, 0);
@@ -678,7 +680,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
 
         sync!(&db1);
         file_service::delete_document(&db1, file.id).unwrap();
@@ -706,7 +708,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
 
         file_service::delete_document(&db1, file.id).unwrap();
         assert_n_work_units!(db1, 0);
@@ -725,7 +727,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
+            path_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
@@ -768,23 +770,20 @@ mod sync_tests {
         let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
-        let file1_delete = file_service::create_at_path(&db1, &path("delete/file1.md")).unwrap();
-        let file2_delete = file_service::create_at_path(&db1, &path("delete/file2.md")).unwrap();
-        let file3_delete = file_service::create_at_path(&db1, &path("delete/file3.md")).unwrap();
+        let file1_delete = path_service::create_at_path(&db1, &path("delete/file1.md")).unwrap();
+        let file2_delete = path_service::create_at_path(&db1, &path("delete/file2.md")).unwrap();
+        let file3_delete = path_service::create_at_path(&db1, &path("delete/file3.md")).unwrap();
 
-        let file1_stay = file_service::create_at_path(&db1, &path("stay/file1.md")).unwrap();
-        let file2_stay = file_service::create_at_path(&db1, &path("stay/file2.md")).unwrap();
-        let file3_stay = file_service::create_at_path(&db1, &path("stay/file3.md")).unwrap();
+        let file1_stay = path_service::create_at_path(&db1, &path("stay/file1.md")).unwrap();
+        let file2_stay = path_service::create_at_path(&db1, &path("stay/file2.md")).unwrap();
+        let file3_stay = path_service::create_at_path(&db1, &path("stay/file3.md")).unwrap();
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
 
         file_service::delete_folder(
             &db2,
-            file_metadata_repo::get_by_path(&db2, &path("delete"))
-                .unwrap()
-                .unwrap()
-                .id,
+            path_service::get_by_path(&db2, &path("delete")).unwrap().id,
         )
         .unwrap();
 
@@ -894,13 +893,13 @@ mod sync_tests {
         let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
-        let file1_delete = file_service::create_at_path(&db1, &path("delete/file1.md")).unwrap();
-        let file2_delete = file_service::create_at_path(&db1, &path("delete/file2A.md")).unwrap();
-        let file3_delete = file_service::create_at_path(&db1, &path("delete/file3.md")).unwrap();
+        let file1_delete = path_service::create_at_path(&db1, &path("delete/file1.md")).unwrap();
+        let file2_delete = path_service::create_at_path(&db1, &path("delete/file2A.md")).unwrap();
+        let file3_delete = path_service::create_at_path(&db1, &path("delete/file3.md")).unwrap();
 
-        let file1_stay = file_service::create_at_path(&db1, &path("stay/file1.md")).unwrap();
-        let file2_stay = file_service::create_at_path(&db1, &path("stay/file2.md")).unwrap();
-        let file3_stay = file_service::create_at_path(&db1, &path("stay/file3.md")).unwrap();
+        let file1_stay = path_service::create_at_path(&db1, &path("stay/file1.md")).unwrap();
+        let file2_stay = path_service::create_at_path(&db1, &path("stay/file2.md")).unwrap();
+        let file3_stay = path_service::create_at_path(&db1, &path("stay/file3.md")).unwrap();
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
@@ -908,10 +907,7 @@ mod sync_tests {
         file_service::move_file(&db2, file2_delete.id, file1_stay.parent).unwrap();
         file_service::delete_folder(
             &db2,
-            file_metadata_repo::get_by_path(&db2, &path("delete"))
-                .unwrap()
-                .unwrap()
-                .id,
+            path_service::get_by_path(&db2, &path("delete")).unwrap().id,
         )
         .unwrap();
 
@@ -1016,14 +1012,14 @@ mod sync_tests {
         let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
-        let file1_delete = file_service::create_at_path(&db1, &path("old/file1.md")).unwrap();
-        let file2_delete = file_service::create_at_path(&db1, &path("old/file2.md")).unwrap();
-        let file3_delete = file_service::create_at_path(&db1, &path("old/file3.md")).unwrap();
-        let file4_delete = file_service::create_at_path(&db1, &path("old/file4.md")).unwrap();
+        let file1_delete = path_service::create_at_path(&db1, &path("old/file1.md")).unwrap();
+        let file2_delete = path_service::create_at_path(&db1, &path("old/file2.md")).unwrap();
+        let file3_delete = path_service::create_at_path(&db1, &path("old/file3.md")).unwrap();
+        let file4_delete = path_service::create_at_path(&db1, &path("old/file4.md")).unwrap();
 
         sync!(&db1);
 
-        let new_folder = file_service::create_at_path(&db1, &path("new/")).unwrap();
+        let new_folder = path_service::create_at_path(&db1, &path("new/")).unwrap();
         file_service::move_file(&db1, file2_delete.id, new_folder.id).unwrap();
         file_service::move_file(&db1, file4_delete.id, new_folder.id).unwrap();
         file_service::delete_folder(&db1, new_folder.id).unwrap();
@@ -1092,7 +1088,7 @@ mod sync_tests {
         let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
-        let file1 = file_service::create_at_path(&db1, &path("file1.md")).unwrap();
+        let file1 = path_service::create_at_path(&db1, &path("file1.md")).unwrap();
 
         sync!(&db1);
         file_service::delete_document(&db1, file1.id).unwrap();
@@ -1106,13 +1102,13 @@ mod sync_tests {
         let account = make_account!(db1);
         let path = |path: &str| -> String { format!("{}/{}", &account.username, path) };
 
-        let file1 = file_service::create_at_path(&db1, &path("file1.md")).unwrap();
+        let file1 = path_service::create_at_path(&db1, &path("file1.md")).unwrap();
         sync!(&db1);
 
         file_service::delete_document(&db1, file1.id).unwrap();
         sync!(&db1);
 
-        file_service::create_at_path(&db1, &path("file1.md")).unwrap();
+        path_service::create_at_path(&db1, &path("file1.md")).unwrap();
         sync!(&db1);
     }
 
@@ -1121,13 +1117,11 @@ mod sync_tests {
         let db1 = test_config();
         let account = make_account!(db1);
 
-        file_service::create_at_path(&db1, path!(account, "test/folder/document.md")).unwrap();
+        path_service::create_at_path(&db1, path!(account, "test/folder/document.md")).unwrap();
         sync!(&db1);
         make_and_sync_new_client!(db2, db1);
 
-        let folder_to_delete = file_metadata_repo::get_by_path(&db1, path!(account, "test"))
-            .unwrap()
-            .unwrap();
+        let folder_to_delete = path_service::get_by_path(&db1, path!(account, "test")).unwrap();
         file_service::delete_folder(&db1, folder_to_delete.id).unwrap();
         sync!(&db1);
 
@@ -1140,7 +1134,7 @@ mod sync_tests {
         let account = make_account!(db1);
 
         let file =
-            file_service::create_at_path(&db1, path!(account, "test/folder/document.md")).unwrap();
+            path_service::create_at_path(&db1, path!(account, "test/folder/document.md")).unwrap();
         sync!(&db1);
 
         file_service::delete_document(&db1, file.id).unwrap();
@@ -1167,16 +1161,14 @@ mod sync_tests {
         make_and_sync_new_client!(db2, db1);
 
         for i in 1..100 {
-            file_service::create_at_path(&db1, &format!("{}/tmp/{}/", account.username, i))
+            path_service::create_at_path(&db1, &format!("{}/tmp/{}/", account.username, i))
                 .unwrap();
         }
 
         sync!(&db1);
         sync!(&db2);
 
-        let file_to_break = file_metadata_repo::get_by_path(&db1, path!(account, "tmp"))
-            .unwrap()
-            .unwrap();
+        let file_to_break = path_service::get_by_path(&db1, path!(account, "tmp")).unwrap();
 
         // 1 Client renames and syncs
         file_service::rename_file(&db1, file_to_break.id, "tmp2").unwrap();
@@ -1192,7 +1184,7 @@ mod sync_tests {
         let db1 = test_config();
         let account = make_account!(db1);
 
-        let parent = file_service::create_at_path(&db1, path!(account, "tmp/")).unwrap();
+        let parent = path_service::create_at_path(&db1, path!(account, "tmp/")).unwrap();
         file_service::create(&db1, "child", parent.id, Folder).unwrap();
 
         sync!(&db1);
@@ -1224,7 +1216,7 @@ mod sync_tests {
         let db1 = test_config();
         let account = make_account!(db1);
 
-        file_service::create_at_path(&db1, &format!("{}/{}/", account.username, account.username))
+        path_service::create_at_path(&db1, &format!("{}/{}/", account.username, account.username))
             .unwrap();
 
         sync!(&db1);

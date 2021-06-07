@@ -2,13 +2,20 @@ mod integration_test;
 
 #[cfg(test)]
 mod unit_tests {
+    use crate::unit_tests::path_service::Filter::DocumentsOnly;
+    use crate::unit_tests::path_service::Filter::FoldersOnly;
+    use crate::unit_tests::path_service::Filter::LeafNodesOnly;
+    use crate::unit_tests::path_service::*;
     use libsecp256k1::SecretKey;
     use lockbook_core::init_logger;
     use lockbook_core::model::state::temp_config;
     use lockbook_core::repo::{
         account_repo, document_repo, file_metadata_repo, local_changes_repo,
     };
-    use lockbook_core::service::{file_encryption_service, file_service};
+    use lockbook_core::service::file_service::*;
+    use lockbook_core::service::{
+        file_encryption_service, file_service, integrity_service, path_service,
+    };
     use lockbook_models::account::Account;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use rand::rngs::OsRng;
@@ -16,8 +23,7 @@ mod unit_tests {
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
             assert!(integrity_service::test_repo_integrity($db)
-                .unwrap()
-                .is_empty());
+                .is_ok());
         }
     );
 
@@ -113,7 +119,7 @@ mod unit_tests {
         file_metadata_repo::insert(config, &root).unwrap();
         assert_total_filtered_paths!(config, None, 1);
         assert_eq!(
-            file_metadata_repo::get_all_paths(config, None)
+            path_service::get_all_paths(config, None)
                 .unwrap()
                 .get(0)
                 .unwrap(),
@@ -124,10 +130,10 @@ mod unit_tests {
 
         let folder1 = file_service::create(config, "TestFolder1", root.id, Folder).unwrap();
         assert_total_filtered_paths!(config, None, 2);
-        assert!(file_metadata_repo::get_all_paths(config, None)
+        assert!(path_service::get_all_paths(config, None)
             .unwrap()
             .contains(&"username/".to_string()));
-        assert!(file_metadata_repo::get_all_paths(config, None)
+        assert!(path_service::get_all_paths(config, None)
             .unwrap()
             .contains(&"username/TestFolder1/".to_string()));
 
@@ -145,14 +151,12 @@ mod unit_tests {
         file_service::create(config, "test5.text", folder2.id, Document).unwrap();
         assert_no_metadata_problems!(config);
 
-        assert!(file_metadata_repo::get_all_paths(config, None)
+        assert!(path_service::get_all_paths(config, None)
             .unwrap()
             .contains(&"username/TestFolder1/TestFolder2/test3.text".to_string()));
-        assert!(file_metadata_repo::get_all_paths(config, None)
-            .unwrap()
-            .contains(
-                &"username/TestFolder1/TestFolder2/TestFolder3/TestFolder4/test1.text".to_string()
-            ));
+        assert!(path_service::get_all_paths(config, None).unwrap().contains(
+            &"username/TestFolder1/TestFolder2/TestFolder3/TestFolder4/test1.text".to_string()
+        ));
     }
 
     #[test]
@@ -177,29 +181,23 @@ mod unit_tests {
         file_service::create(config, "test4.text", folder2.id, Document).unwrap();
         file_service::create(config, "test5.text", folder2.id, Document).unwrap();
 
-        assert!(file_metadata_repo::get_by_path(config, "invalid")
-            .unwrap()
-            .is_none());
-        assert!(file_metadata_repo::get_by_path(
-            config,
-            "username/TestFolder1/TestFolder2/test3.text",
-        )
-        .unwrap()
-        .is_some());
+        // match on this error more finely
+        assert!(path_service::get_by_path(config, "invalid").is_err());
+        assert!(
+            path_service::get_by_path(config, "username/TestFolder1/TestFolder2/test3.text")
+                .is_ok()
+        );
         assert_eq!(
-            file_metadata_repo::get_by_path(config, "username/TestFolder1/TestFolder2/test3.text",)
-                .unwrap()
+            path_service::get_by_path(config, "username/TestFolder1/TestFolder2/test3.text",)
                 .unwrap(),
             file
         );
 
-        file_metadata_repo::get_all_paths(config, None)
+        path_service::get_all_paths(config, None)
             .unwrap()
             .into_iter()
             .for_each(|path| {
-                assert!(file_metadata_repo::get_by_path(config, &path)
-                    .unwrap()
-                    .is_some())
+                path_service::get_by_path(config, &path).unwrap();
             });
         assert_no_metadata_problems!(config);
     }
@@ -217,7 +215,7 @@ mod unit_tests {
 
         let paths_with_empties = ["username//", "username/path//to///file.md"];
         for path in &paths_with_empties {
-            let err = file_service::create_at_path(config, path).unwrap_err();
+            let err = path_service::create_at_path(config, path).unwrap_err();
             assert!(
                 matches!(err, NewFileFromPathError::PathContainsEmptyFile),
                 "Expected path \"{}\" to return PathContainsEmptyFile but instead it was {:?}",
@@ -226,15 +224,15 @@ mod unit_tests {
             );
         }
 
-        assert!(file_service::create_at_path(config, "garbage").is_err());
-        assert!(file_service::create_at_path(config, "username/").is_err());
-        assert!(file_service::create_at_path(config, "username/").is_err());
+        assert!(path_service::create_at_path(config, "garbage").is_err());
+        assert!(path_service::create_at_path(config, "username/").is_err());
+        assert!(path_service::create_at_path(config, "username/").is_err());
         assert_total_filtered_paths!(config, None, 1);
 
         assert_eq!(
             file_encryption_service::get_name(
                 config,
-                &file_service::create_at_path(config, "username/test.txt").unwrap()
+                &path_service::create_at_path(config, "username/test.txt").unwrap()
             )
             .unwrap(),
             "test.txt"
@@ -248,7 +246,7 @@ mod unit_tests {
         assert_eq!(
             file_encryption_service::get_name(
                 &config,
-                &file_service::create_at_path(config, "username/folder1/folder2/folder3/test2.txt")
+                &path_service::create_at_path(config, "username/folder1/folder2/folder3/test2.txt")
                     .unwrap()
             )
             .unwrap(),
@@ -260,7 +258,7 @@ mod unit_tests {
         assert_no_metadata_problems!(config);
 
         let file =
-            file_service::create_at_path(config, "username/folder1/folder2/test3.txt").unwrap();
+            path_service::create_at_path(config, "username/folder1/folder2/test3.txt").unwrap();
         assert_total_filtered_paths!(config, None, 7);
         assert_eq!(
             file_encryption_service::get_name(&config, &file).unwrap(),
@@ -284,7 +282,7 @@ mod unit_tests {
         assert_total_filtered_paths!(config, Some(LeafNodesOnly), 3);
 
         assert_eq!(
-            file_service::create_at_path(config, "username/folder1/folder2/folder3/folder4/")
+            path_service::create_at_path(config, "username/folder1/folder2/folder3/folder4/")
                 .unwrap()
                 .file_type,
             Folder
@@ -305,8 +303,8 @@ mod unit_tests {
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
-        file_service::create_at_path(config, "username/test.txt").unwrap();
-        assert!(file_service::create_at_path(config, "username/test.txt").is_err());
+        path_service::create_at_path(config, "username/test.txt").unwrap();
+        assert!(path_service::create_at_path(config, "username/test.txt").is_err());
 
         assert_no_metadata_problems!(config);
     }
@@ -321,7 +319,7 @@ mod unit_tests {
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
-        let file = file_service::create_at_path(config, "username/test.txt").unwrap();
+        let file = path_service::create_at_path(config, "username/test.txt").unwrap();
         assert!(file_service::create(config, "test.txt", file.parent, Document).is_err());
 
         assert_no_metadata_problems!(config);
@@ -337,8 +335,8 @@ mod unit_tests {
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
-        file_service::create_at_path(config, "username/test.txt").unwrap();
-        assert!(file_service::create_at_path(config, "username/test.txt/oops.txt").is_err());
+        path_service::create_at_path(config, "username/test.txt").unwrap();
+        assert!(path_service::create_at_path(config, "username/test.txt/oops.txt").is_err());
 
         assert_no_metadata_problems!(config);
     }
@@ -353,7 +351,7 @@ mod unit_tests {
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
-        let file = file_service::create_at_path(config, "username/test.txt").unwrap();
+        let file = path_service::create_at_path(config, "username/test.txt").unwrap();
         assert!(file_service::create(config, "oops.txt", file.id, Document).is_err());
 
         assert_no_metadata_problems!(config);
@@ -389,7 +387,7 @@ mod unit_tests {
             DocumentRenameError::CannotRenameRoot
         ));
 
-        let file = file_service::create_at_path(config, "username/folder1/file1.txt").unwrap();
+        let file = path_service::create_at_path(config, "username/folder1/file1.txt").unwrap();
         assert!(
             local_changes_repo::get_local_changes(config, file.id)
                 .unwrap()
@@ -451,7 +449,7 @@ mod unit_tests {
             "file1.txt"
         );
 
-        let file2 = file_service::create_at_path(config, "username/folder1/file2.txt").unwrap();
+        let file2 = path_service::create_at_path(config, "username/folder1/file2.txt").unwrap();
         assert_eq!(
             file_encryption_service::get_name(
                 &config,
@@ -480,9 +478,9 @@ mod unit_tests {
             FileMoveError::CannotMoveRoot
         ));
 
-        let file1 = file_service::create_at_path(config, "username/folder1/file.txt").unwrap();
+        let file1 = path_service::create_at_path(config, "username/folder1/file.txt").unwrap();
         let og_folder = file1.parent;
-        let folder1 = file_service::create_at_path(config, "username/folder2/").unwrap();
+        let folder1 = path_service::create_at_path(config, "username/folder2/").unwrap();
         assert!(
             file_service::write_document(config, folder1.id, &"should fail".as_bytes(),).is_err()
         );
@@ -514,7 +512,7 @@ mod unit_tests {
         );
         assert_total_local_changes!(config, 1);
 
-        let file2 = file_service::create_at_path(config, "username/folder3/file.txt").unwrap();
+        let file2 = path_service::create_at_path(config, "username/folder3/file.txt").unwrap();
         assert!(file_service::move_file(config, file1.id, file2.parent).is_err());
         assert!(file_service::move_file(config, Uuid::new_v4(), file2.parent).is_err());
         assert!(file_service::move_file(config, file1.id, Uuid::new_v4()).is_err());
@@ -536,8 +534,8 @@ mod unit_tests {
         file_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
-        let folder1 = file_service::create_at_path(config, "username/folder1/").unwrap();
-        let folder2 = file_service::create_at_path(config, "username/folder1/folder2/").unwrap();
+        let folder1 = path_service::create_at_path(config, "username/folder1/").unwrap();
+        let folder2 = path_service::create_at_path(config, "username/folder1/folder2/").unwrap();
 
         assert_total_local_changes!(config, 2);
 
@@ -562,7 +560,7 @@ mod unit_tests {
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
-        let file = file_service::create_at_path(config, "username/file1.md").unwrap();
+        let file = path_service::create_at_path(config, "username/file1.md").unwrap();
         file_service::write_document(config, file.id, "fresh content".as_bytes()).unwrap();
 
         assert!(
@@ -657,22 +655,15 @@ mod unit_tests {
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
         file_metadata_repo::insert(config, &root).unwrap();
 
-        file_service::create_at_path(config, &format!("{}/a/b/c/d/", account.username)).unwrap();
+        path_service::create_at_path(config, &format!("{}/a/b/c/d/", account.username)).unwrap();
         let folder1 =
-            file_metadata_repo::get_by_path(config, &format!("{}/a/b/c/d/", account.username))
-                .unwrap()
-                .unwrap();
+            path_service::get_by_path(config, &format!("{}/a/b/c/d/", account.username)).unwrap();
         let folder2 =
-            file_metadata_repo::get_by_path(config, &format!("{}/a/b/c/", account.username))
-                .unwrap()
-                .unwrap();
+            path_service::get_by_path(config, &format!("{}/a/b/c/", account.username)).unwrap();
         let folder3 =
-            file_metadata_repo::get_by_path(config, &format!("{}/a/b/", account.username))
-                .unwrap()
-                .unwrap();
-        let folder4 = file_metadata_repo::get_by_path(config, &format!("{}/a/", account.username))
-            .unwrap()
-            .unwrap();
+            path_service::get_by_path(config, &format!("{}/a/b/", account.username)).unwrap();
+        let folder4 =
+            path_service::get_by_path(config, &format!("{}/a/", account.username)).unwrap();
 
         assert_eq!(
             local_changes_repo::get_all_local_changes(config)
