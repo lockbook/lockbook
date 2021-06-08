@@ -1,6 +1,7 @@
 package app.lockbook
 
 import app.lockbook.core.exportDrawing
+import app.lockbook.core.exportDrawingToDisk
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
@@ -11,6 +12,8 @@ import org.junit.Test
 
 class ExportDrawingTest {
     var config = Config(createRandomPath())
+
+    private fun generateUniqueName() = "/tmp/${System.currentTimeMillis()}"
 
     companion object {
         @BeforeClass
@@ -55,12 +58,20 @@ class ExportDrawingTest {
         assertType<List<Byte>>(
             CoreModel.exportDrawing(config, document.id, SupportedImageFormats.Jpeg).component1()
         )
+
+        assertType<Unit>(
+            CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, generateUniqueName()).component1()
+        )
     }
 
     @Test
     fun exportDrawingNoAccount() {
         assertType<ExportDrawingError.NoAccount>(
             CoreModel.exportDrawing(config, generateId(), SupportedImageFormats.Jpeg).component2()
+        )
+
+        assertType<ExportDrawingToDiskError.NoAccount>(
+            CoreModel.exportDrawingToDisk(config, generateId(), SupportedImageFormats.Jpeg, generateUniqueName()).component2()
         )
     }
 
@@ -76,6 +87,10 @@ class ExportDrawingTest {
 
         assertType<ExportDrawingError.FileDoesNotExist>(
             CoreModel.exportDrawing(config, generateId(), SupportedImageFormats.Jpeg).component2()
+        )
+
+        assertType<ExportDrawingToDiskError.FileDoesNotExist>(
+            CoreModel.exportDrawingToDisk(config, generateId(), SupportedImageFormats.Jpeg, generateUniqueName()).component2()
         )
     }
 
@@ -109,6 +124,10 @@ class ExportDrawingTest {
         assertType<ExportDrawingError.InvalidDrawing>(
             CoreModel.exportDrawing(config, document.id, SupportedImageFormats.Jpeg).component2()
         )
+
+        assertType<ExportDrawingToDiskError.InvalidDrawing>(
+            CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, generateUniqueName()).component2()
+        )
     }
 
     @Test
@@ -137,6 +156,10 @@ class ExportDrawingTest {
         assertType<ExportDrawingError.FolderTreatedAsDrawing>(
             CoreModel.exportDrawing(config, folder.id, SupportedImageFormats.Jpeg).component2()
         )
+
+        assertType<ExportDrawingToDiskError.FolderTreatedAsDrawing>(
+            CoreModel.exportDrawingToDisk(config, folder.id, SupportedImageFormats.Jpeg, generateUniqueName()).component2()
+        )
     }
 
     @Test
@@ -144,6 +167,11 @@ class ExportDrawingTest {
         assertType<ExportDrawingError.Unexpected>(
             Klaxon().converter(exportDrawingConverter)
                 .parse<Result<List<Byte>, ExportDrawingError>>(exportDrawing("", "", ""))?.component2()
+        )
+
+        assertType<ExportDrawingToDiskError.Unexpected>(
+            Klaxon().converter(exportDrawingToDiskConverter)
+                .parse<Result<Unit, ExportDrawingToDiskError>>(exportDrawingToDisk("", "", "", ""))?.component2()
         )
     }
 }

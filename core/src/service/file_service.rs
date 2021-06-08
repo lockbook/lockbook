@@ -32,6 +32,9 @@ use lockbook_crypto::clock_service;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
 
 #[derive(Debug)]
 pub enum NewFileError {
@@ -460,6 +463,27 @@ pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, Rea
         .map_err(ReadDocumentError::FileDecompressionError)?;
 
     Ok(content)
+}
+
+#[derive(Debug)]
+pub enum SaveDocumentToDiskError {
+    ReadDocumentError(ReadDocumentError),
+    CouldNotCreateDocumentError(std::io::Error),
+    CouldNotWriteToDocumentError(std::io::Error),
+}
+
+pub fn save_document_to_disk(
+    config: &Config,
+    id: Uuid,
+    location: String,
+) -> Result<(), SaveDocumentToDiskError> {
+    let document_content =
+        read_document(config, id).map_err(SaveDocumentToDiskError::ReadDocumentError)?;
+    let mut file = File::create(Path::new(&location))
+        .map_err(SaveDocumentToDiskError::CouldNotCreateDocumentError)?;
+
+    file.write_all(document_content.as_slice())
+        .map_err(SaveDocumentToDiskError::CouldNotWriteToDocumentError)
 }
 
 #[derive(Debug)]

@@ -16,7 +16,9 @@ use raqote::{
 };
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::io::BufWriter;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::Path;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -236,6 +238,29 @@ pub fn export_drawing(
     std::mem::drop(buf_writer);
 
     Ok(buffer)
+}
+
+#[derive(Debug)]
+pub enum ExportDrawingToDiskError {
+    ExportDrawingError(ExportDrawingError),
+    CouldNotCreateDocumentError(std::io::Error),
+    CouldNotWriteToDocumentError(std::io::Error),
+}
+
+pub fn export_drawing_to_disk(
+    config: &Config,
+    id: Uuid,
+    format: SupportedImageFormats,
+    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+    location: String,
+) -> Result<(), ExportDrawingToDiskError> {
+    let drawing_bytes = export_drawing(config, id, format, render_theme)
+        .map_err(ExportDrawingToDiskError::ExportDrawingError)?;
+    let mut file = File::create(Path::new(&location))
+        .map_err(ExportDrawingToDiskError::CouldNotCreateDocumentError)?;
+
+    file.write_all(drawing_bytes.as_slice())
+        .map_err(ExportDrawingToDiskError::CouldNotWriteToDocumentError)
 }
 
 fn u32_byte_to_u8_bytes(u32_byte: u32) -> (u8, u8, u8, u8) {

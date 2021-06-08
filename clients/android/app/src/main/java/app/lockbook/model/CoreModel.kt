@@ -241,6 +241,24 @@ object CoreModel {
         return Err(ExportDrawingError.Unexpected("exportDrawingConverter was unable to be called!"))
     }
 
+    fun exportDrawingToDisk(
+        config: Config,
+        id: String,
+        format: SupportedImageFormats,
+        location: String
+    ): Result<Unit, ExportDrawingToDiskError> {
+        val klaxon = Klaxon()
+        val exportDrawingToDiskResult: Result<Unit, ExportDrawingToDiskError>? =
+            Klaxon().converter(exportDrawingToDiskConverter)
+                .parse(exportDrawingToDisk(klaxon.toJsonString(config), id, klaxon.toJsonString(format), location))
+
+        if (exportDrawingToDiskResult != null) {
+            return exportDrawingToDiskResult
+        }
+
+        return Err(ExportDrawingToDiskError.Unexpected("exportDrawingConverter was unable to be called!"))
+    }
+
     fun createFile(
         config: Config,
         parentId: String,
