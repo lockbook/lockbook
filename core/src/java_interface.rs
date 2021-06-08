@@ -14,9 +14,10 @@ use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::bytes_to_human;
 use crate::{
     calculate_work, create_account, create_file, delete_file, export_account, export_drawing,
-    get_account, get_all_error_variants, get_children, get_db_state, get_file_by_id,
-    get_local_and_server_usage, get_root, import_account, init_logger, insert_file, migrate_db,
-    move_file, read_document, rename_file, set_last_synced, sync_all, write_document, Error,
+    export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
+    get_file_by_id, get_local_and_server_usage, get_root, import_account, init_logger, insert_file,
+    migrate_db, move_file, read_document, rename_file, save_document_to_disk, set_last_synced,
+    sync_all, write_document, Error,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -440,6 +441,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
@@ -448,6 +450,35 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
     string_to_jstring(
         &env,
         translate(read_document(&config, id).map(|d| String::from(String::from_utf8_lossy(&d)))),
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jid: JString,
+    jlocation: JString,
+) -> jstring {
+    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let location = match jstring_to_string(&env, jlocation, "Couldn't successfully get path") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        translate(save_document_to_disk(&config, id, location)),
     )
 }
 
@@ -479,6 +510,45 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawing(
     };
 
     string_to_jstring(&env, translate(export_drawing(&config, id, format, None)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jid: JString,
+    jformat: JString,
+    jlocation: JString,
+) -> jstring {
+    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let format = match deserialize::<SupportedImageFormats>(
+        &env,
+        jformat,
+        "Couldn't successfully get the image format",
+    ) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let location = match jstring_to_string(&env, jlocation, "Couldn't successfully get path") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        translate(export_drawing_to_disk(&config, id, format, None, location)),
+    )
 }
 
 #[no_mangle]

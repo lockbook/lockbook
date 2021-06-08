@@ -520,7 +520,7 @@ pub enum SaveDocumentToDiskError {
     NoAccount,
     FileDoesNotExist,
     BadPath,
-    FileAlreadyExists,
+    FileAlreadyExistsInDisk,
 }
 
 pub fn save_document_to_disk(
@@ -534,7 +534,9 @@ pub fn save_document_to_disk(
                 ErrorKind::NotFound | ErrorKind::PermissionDenied | ErrorKind::InvalidInput => {
                     UiError(SaveDocumentToDiskError::BadPath)
                 }
-                ErrorKind::AlreadyExists => UiError(SaveDocumentToDiskError::FileAlreadyExists),
+                ErrorKind::AlreadyExists => {
+                    UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk)
+                }
                 _ => unexpected!("{:#?}", creation_err),
             }
         }
@@ -560,7 +562,9 @@ pub fn save_document_to_disk(
                 | FSReadDocumentError::DocumentReadError(_)
                 | FSReadDocumentError::CouldNotFindParents(_)
                 | FSReadDocumentError::FileEncryptionError(_)
-                | FSReadDocumentError::FileDecompressionError(_) => unexpected!("{:#?}", read_document_err),
+                | FSReadDocumentError::FileDecompressionError(_) => {
+                    unexpected!("{:#?}", read_document_err)
+                }
             }
         }
     })
@@ -1015,7 +1019,7 @@ pub enum ExportDrawingToDiskError {
     NoAccount,
     InvalidDrawing,
     BadPath,
-    FileAlreadyExists,
+    FileAlreadyExistsInDisk,
 }
 
 pub fn export_drawing_to_disk(
@@ -1033,7 +1037,7 @@ pub fn export_drawing_to_disk(
                         UiError(ExportDrawingToDiskError::BadPath)
                     }
                     ErrorKind::AlreadyExists => {
-                        UiError(ExportDrawingToDiskError::FileAlreadyExists)
+                        UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk)
                     }
                     _ => unexpected!("{:#?}", creation_err),
                 }

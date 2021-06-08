@@ -224,6 +224,22 @@ object CoreModel {
         return Err(ReadDocumentError.Unexpected("readDocumentConverter was unable to be called!"))
     }
 
+    fun saveDocumentToDisk(
+        config: Config,
+        fileId: String,
+        location: String
+    ): Result<Unit, SaveDocumentToDiskError> {
+        val saveDocumentToDiskResult: Result<Unit, SaveDocumentToDiskError>? =
+            Klaxon().converter(saveDocumentToDiskConverter)
+                .parse(saveDocumentToDisk(Klaxon().toJsonString(config), fileId, location))
+
+        if (saveDocumentToDiskResult != null) {
+            return saveDocumentToDiskResult
+        }
+
+        return Err(SaveDocumentToDiskError.Unexpected("saveDocumentToDiskConverter was unable to be called!"))
+    }
+
     fun exportDrawing(
         config: Config,
         id: String,

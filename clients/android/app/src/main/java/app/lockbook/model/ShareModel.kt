@@ -6,6 +6,8 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import timber.log.Timber
 import java.io.File
+import java.util.*
+import kotlin.collections.ArrayList
 
 class ShareModel(
     private val config: Config,
@@ -16,77 +18,82 @@ class ShareModel(
 ) {
     var isLoadingOverlayVisible = false
 
-    private fun getShareStorageFolders(): List<File> = listOf(
-        File(App.instance.applicationContext.cacheDir, "images/"),
-        File(App.instance.applicationContext.cacheDir, "docs/")
-    )
+    companion object {
+        fun getMainShareFolder(): File = File(App.instance.applicationContext.cacheDir, "share/")
+        fun createRandomShareFolderInstance(): File = File(getMainShareFolder(), System.currentTimeMillis().toString())
 
-    fun clearShareStorage() {
-        val (imagesFolder, docsFolder) = getShareStorageFolders()
-
-        imagesFolder.deleteRecursively()
-        docsFolder.deleteRecursively()
+        fun clearShareStorage(): Boolean = getMainShareFolder().deleteRecursively()
     }
 
-    fun shareDocument(selectedFiles: List<FileMetadata>) {
+    fun shareDocuments(selectedFiles: List<FileMetadata>) {
         isLoadingOverlayVisible = true
         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
 
         val documents = mutableListOf<FileMetadata>()
-        retreiveSelectedDocuments(selectedFiles, documents)
+        retrieveSelectedDocuments(selectedFiles, documents)
 
         val filesToShare = ArrayList<File>()
-        val (imagesFolder, docsFolder) = getShareStorageFolders()
-        imagesFolder.mkdirs()
-        docsFolder.mkdirs()
+        val shareFolder = createRandomShareFolderInstance()
+        shareFolder.mkdirs()
 
         for (file in documents) {
             if (file.name.endsWith(".draw")) {
+                val image = File(
+                    shareFolder,
+                    file.name.replace(".draw", ".${IMAGE_EXPORT_TYPE.name.lowercase()}")
+                ).absoluteFile
+
                 when (
-                    val exportDrawingResult =
-                        CoreModel.exportDrawing(config, file.id, SupportedImageFormats.Jpeg)
+                    val exportDrawingToDiskResult =
+                        CoreModel.exportDrawingToDisk(config, file.id, SupportedImageFormats.Jpeg, image.absolutePath)
                 ) {
-                    is Ok -> {
-                        val image = File(
-                            imagesFolder,
-                            file.name.replace(".draw", ".${IMAGE_EXPORT_TYPE.name.lowercase()}")
-                        )
-                        image.createNewFile()
-                        image.writeBytes(exportDrawingResult.value.toByteArray())
-                        filesToShare.add(image)
+                    is Ok -> filesToShare.add(image)
+                    is Err -> {
+                        isLoadingOverlayVisible = false
+                        _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
+
+                        return when (val error = exportDrawingToDiskResult.error) {
+                            ExportDrawingToDiskError.DrawingDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
+                            ExportDrawingToDiskError.FolderTreatedAsDrawing -> _errorHasOccurred.postValue("Error! Folder treated as document!")
+                            ExportDrawingToDiskError.InvalidDrawing -> _errorHasOccurred.postValue("Error! Invalid drawing!")
+                            ExportDrawingToDiskError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                            ExportDrawingToDiskError.BadPath -> _errorHasOccurred.postValue("Error! Bad path used!")
+                            ExportDrawingToDiskError.FileAlreadyExistsInDisk -> _errorHasOccurred.postValue("Error! File already exists in path!")
+                            is ExportDrawingToDiskError.Unexpected -> {
+                                Timber.e(error.error)
+                                _unexpectedErrorHasOccurred.postValue(error.error)
+                            }
+                        }.exhaustive
                     }
-                    is Err -> return when (val error = exportDrawingResult.error) {
-                        ExportDrawingError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                        ExportDrawingError.FolderTreatedAsDrawing -> _errorHasOccurred.postValue("Error! Folder treated as document!")
-                        ExportDrawingError.InvalidDrawing -> _errorHasOccurred.postValue("Error! Invalid drawing!")
-                        ExportDrawingError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                        is ExportDrawingError.Unexpected -> {
-                            Timber.e(error.error)
-                            _unexpectedErrorHasOccurred.postValue(error.error)
-                        }
-                    }.exhaustive
                 }
             } else {
-                when (val readDocumentResult = CoreModel.readDocument(config, file.id)) {
-                    is Ok -> {
-                        val doc = File(docsFolder, file.name)
-                        doc.createNewFile()
-                        doc.writeText(readDocumentResult.value)
-                        filesToShare.add(doc)
-                    }
-                    is Err -> return when (val error = readDocumentResult.error) {
-                        is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue(
-                            "Error! Folder treated as document!"
-                        )
-                        is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                        is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                        is ReadDocumentError.Unexpected -> {
-                            Timber.e("Unable to get content of file: ${error.error}")
-                            _unexpectedErrorHasOccurred.postValue(
-                                error.error
+                val doc = File(
+                    shareFolder,
+                    file.name
+                ).absoluteFile
+
+                when (val saveDocumentToDiskResult = CoreModel.saveDocumentToDisk(config, file.id, doc.absolutePath)) {
+                    is Ok -> filesToShare.add(doc)
+                    is Err -> {
+                        isLoadingOverlayVisible = false
+                        _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
+
+                        return when (val error = saveDocumentToDiskResult.error) {
+                            SaveDocumentToDiskError.TreatedFolderAsDocument -> _errorHasOccurred.postValue(
+                                "Error! Folder treated as document!"
                             )
-                        }
-                    }.exhaustive
+                            SaveDocumentToDiskError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
+                            SaveDocumentToDiskError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
+                            SaveDocumentToDiskError.BadPath -> _errorHasOccurred.postValue("Error! Bad path used!")
+                            SaveDocumentToDiskError.FileAlreadyExistsInDisk -> _errorHasOccurred.postValue("Error! File already exists in path!")
+                            is SaveDocumentToDiskError.Unexpected -> {
+                                Timber.e("Unable to get content of file: ${error.error}")
+                                _unexpectedErrorHasOccurred.postValue(
+                                    error.error
+                                )
+                            }
+                        }.exhaustive
+                    }
                 }
             }
         }
@@ -94,7 +101,7 @@ class ShareModel(
         _shareDocument.postValue(filesToShare)
     }
 
-    private fun retreiveSelectedDocuments(
+    private fun retrieveSelectedDocuments(
         selectedFiles: List<FileMetadata>,
         documents: MutableList<FileMetadata>
     ): Boolean {
@@ -106,7 +113,7 @@ class ShareModel(
                         val getChildrenResult =
                             CoreModel.getChildren(config, file.id)
                     ) {
-                        is Ok -> if (!retreiveSelectedDocuments(getChildrenResult.value, documents)) {
+                        is Ok -> if (!retrieveSelectedDocuments(getChildrenResult.value, documents)) {
                             return false
                         }
                         is Err -> when (val error = getChildrenResult.error) {

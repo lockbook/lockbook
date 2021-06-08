@@ -16,7 +16,7 @@ use raqote::{
 };
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 use uuid::Uuid;
@@ -256,7 +256,11 @@ pub fn export_drawing_to_disk(
 ) -> Result<(), ExportDrawingToDiskError> {
     let drawing_bytes = export_drawing(config, id, format, render_theme)
         .map_err(ExportDrawingToDiskError::ExportDrawingError)?;
-    let mut file = File::create(Path::new(&location))
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(Path::new(&location))
         .map_err(ExportDrawingToDiskError::CouldNotCreateDocumentError)?;
 
     file.write_all(drawing_bytes.as_slice())

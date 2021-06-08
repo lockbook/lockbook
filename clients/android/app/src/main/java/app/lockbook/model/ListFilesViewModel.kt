@@ -175,9 +175,7 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     fun clearShareStorage() {
-        viewModelScope.launch(Dispatchers.IO) {
-            shareModel.clearShareStorage()
-        }
+        ShareModel.clearShareStorage()
     }
 
     fun onSwipeToRefresh() {
@@ -316,7 +314,7 @@ class ListFilesViewModel(path: String, application: Application) :
                     val selectedFiles =
                         getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
 
-                    shareModel.shareDocument(selectedFiles)
+                    shareModel.shareDocuments(selectedFiles)
                 }
                 else -> {
                     Timber.e("Unrecognized sort item id.")
@@ -423,7 +421,7 @@ class ListFilesViewModel(path: String, application: Application) :
         selectedFiles[index]
     }
 
-    private fun collapseMoreOptionsMenu() {
+    fun collapseMoreOptionsMenu() {
         selectedFiles = MutableList(files.value?.size ?: 0) { false }
         _switchMenu.postValue(Unit)
         _uncheckAllFiles.postValue(Unit)

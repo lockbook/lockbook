@@ -289,6 +289,9 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun showHideProgressOverlay(show: Boolean) {
+        if (show) {
+            listFilesViewModel.collapseMoreOptionsMenu()
+        }
         getListFilesActivity()?.showHideProgressOverlay(show)
     }
 
@@ -309,9 +312,9 @@ class ListFilesFragment : Fragment() {
     }
 
     override fun onDestroy() {
+        super.onDestroy()
         parentFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
         listFilesViewModel.clearShareStorage()
-        super.onDestroy()
     }
 
     fun onBackPressed(): Boolean {

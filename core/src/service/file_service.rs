@@ -32,7 +32,7 @@ use lockbook_crypto::clock_service;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
@@ -479,7 +479,10 @@ pub fn save_document_to_disk(
 ) -> Result<(), SaveDocumentToDiskError> {
     let document_content =
         read_document(config, id).map_err(SaveDocumentToDiskError::ReadDocumentError)?;
-    let mut file = File::create(Path::new(&location))
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(Path::new(&location))
         .map_err(SaveDocumentToDiskError::CouldNotCreateDocumentError)?;
 
     file.write_all(document_content.as_slice())

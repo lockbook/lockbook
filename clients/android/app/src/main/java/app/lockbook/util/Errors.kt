@@ -106,13 +106,13 @@ sealed class ReadDocumentError : CoreError() {
     data class Unexpected(val error: String) : ReadDocumentError()
 }
 
-sealed class SaveDocumentToDisk : CoreError() {
-    object TreatedFolderAsDocument : SaveDocumentToDisk()
-    object NoAccount : SaveDocumentToDisk()
-    object FileDoesNotExist : SaveDocumentToDisk()
-    object BadPath : SaveDocumentToDisk()
-    object FileAlreadyExists : SaveDocumentToDisk()
-    data class Unexpected(val error: String) : SaveDocumentToDisk()
+sealed class SaveDocumentToDiskError : CoreError() {
+    object TreatedFolderAsDocument : SaveDocumentToDiskError()
+    object NoAccount : SaveDocumentToDiskError()
+    object FileDoesNotExist : SaveDocumentToDiskError()
+    object BadPath : SaveDocumentToDiskError()
+    object FileAlreadyExistsInDisk : SaveDocumentToDiskError()
+    data class Unexpected(val error: String) : SaveDocumentToDiskError()
 }
 
 sealed class ExportDrawingError : CoreError() {
@@ -125,11 +125,11 @@ sealed class ExportDrawingError : CoreError() {
 
 sealed class ExportDrawingToDiskError : CoreError() {
     object FolderTreatedAsDrawing : ExportDrawingToDiskError()
-    object FileDoesNotExist : ExportDrawingToDiskError()
+    object DrawingDoesNotExist : ExportDrawingToDiskError()
     object NoAccount : ExportDrawingToDiskError()
     object InvalidDrawing : ExportDrawingToDiskError()
     object BadPath : ExportDrawingToDiskError()
-    object FileAlreadyExists : ExportDrawingToDiskError()
+    object FileAlreadyExistsInDisk : ExportDrawingToDiskError()
     data class Unexpected(val error: String) : ExportDrawingToDiskError()
 }
 

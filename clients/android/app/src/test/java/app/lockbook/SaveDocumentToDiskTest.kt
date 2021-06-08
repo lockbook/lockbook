@@ -1,6 +1,6 @@
 package app.lockbook
 
-import app.lockbook.core.exportDrawing
+import app.lockbook.core.saveDocumentToDisk
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
@@ -9,7 +9,7 @@ import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
 
-class ExportDrawingTest {
+class SaveDocumentToDiskTest {
     var config = Config(createRandomPath())
 
     companion object {
@@ -26,7 +26,7 @@ class ExportDrawingTest {
     }
 
     @Test
-    fun exportDrawingOk() {
+    fun saveDocumentToDiskOk() {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
@@ -49,70 +49,12 @@ class ExportDrawingTest {
         )
 
         assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, Klaxon().toJsonString(Drawing())).component1()
-        )
-
-        assertType<List<Byte>>(
-            CoreModel.exportDrawing(config, document.id, SupportedImageFormats.Jpeg).component1()
+            CoreModel.saveDocumentToDisk(config, document.id, generateFakeRandomPath()).component1()
         )
     }
 
     @Test
-    fun exportDrawingNoAccount() {
-        assertType<ExportDrawingError.NoAccount>(
-            CoreModel.exportDrawing(config, generateId(), SupportedImageFormats.Jpeg).component2()
-        )
-    }
-
-    @Test
-    fun exportDrawingFileDoesNotExist() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
-
-        assertTypeReturn<FileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
-
-        assertType<ExportDrawingError.FileDoesNotExist>(
-            CoreModel.exportDrawing(config, generateId(), SupportedImageFormats.Jpeg).component2()
-        )
-    }
-
-    @Test
-    fun exportDrawingInvalidDrawing() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
-
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
-
-        val document = assertTypeReturn<FileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, "").component1()
-        )
-
-        assertType<ExportDrawingError.InvalidDrawing>(
-            CoreModel.exportDrawing(config, document.id, SupportedImageFormats.Jpeg).component2()
-        )
-    }
-
-    @Test
-    fun exportDrawingFolderTreatedAsDrawing() {
+    fun saveDocumentToDiskFolder() {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
@@ -134,16 +76,90 @@ class ExportDrawingTest {
             CoreModel.insertFile(config, folder).component1()
         )
 
-        assertType<ExportDrawingError.FolderTreatedAsDrawing>(
-            CoreModel.exportDrawing(config, folder.id, SupportedImageFormats.Jpeg).component2()
+        assertType<SaveDocumentToDiskError.TreatedFolderAsDocument>(
+            CoreModel.saveDocumentToDisk(config, folder.id, generateFakeRandomPath()).component2()
         )
     }
 
     @Test
-    fun unexpectedDrawingUnexpectedError() {
-        assertType<ExportDrawingError.Unexpected>(
-            Klaxon().converter(exportDrawingConverter)
-                .parse<Result<List<Byte>, ExportDrawingError>>(exportDrawing("", "", ""))?.component2()
+    fun saveDocumentToDiskDoesNotExist() {
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        assertType<SaveDocumentToDiskError.FileDoesNotExist>(
+            CoreModel.saveDocumentToDisk(config, generateId(), generateFakeRandomPath()).component2()
+        )
+    }
+
+    @Test
+    fun saveDocumentToDiskBadPath() {
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        assertType<SaveDocumentToDiskError.BadPath>(
+            CoreModel.saveDocumentToDisk(config, document.id, "").component2()
+        )
+    }
+
+    @Test
+    fun exportDrawingToDiskFileAlreadyExistsInDisk() {
+        assertType<Unit>(
+            CoreModel.generateAccount(config, generateAlphaString()).component1()
+        )
+
+        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        val document = assertTypeReturn<FileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        assertType<Unit>(
+            CoreModel.insertFile(config, document).component1()
+        )
+
+        val path = generateFakeRandomPath()
+
+        assertType<Unit>(
+            CoreModel.saveDocumentToDisk(config, document.id, path).component1()
+        )
+
+        assertType<SaveDocumentToDiskError.FileAlreadyExistsInDisk>(
+            CoreModel.saveDocumentToDisk(config, document.id, path).component2()
+        )
+    }
+
+    @Test
+    fun saveDocumentToDiskUnexpectedError() {
+        assertType<SaveDocumentToDiskError.Unexpected>(
+            Klaxon().converter(saveDocumentToDiskConverter).parse<Result<Unit, SaveDocumentToDiskError>>(
+                saveDocumentToDisk("", "", "")
+            )?.component2()
         )
     }
 }

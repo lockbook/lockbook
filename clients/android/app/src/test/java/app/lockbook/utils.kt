@@ -16,6 +16,8 @@ fun generateAlphaString(): String =
 
 fun generateId(): String = UUID.randomUUID().toString()
 
+fun generateFakeRandomPath() = "/tmp/${System.currentTimeMillis()}"
+
 fun createRandomPath(): String {
     val path = "/tmp/${generateAlphaString()}"
     Runtime.getRuntime().exec("mkdir $path")

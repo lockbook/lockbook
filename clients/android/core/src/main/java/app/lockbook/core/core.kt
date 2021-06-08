@@ -19,6 +19,7 @@ external fun renameFile(config: String, id: String, name: String): String
 external fun createFile(config: String, id: String, fileType: String, name: String): String
 external fun deleteFile(config: String, id: String): String
 external fun readDocument(config: String, id: String): String
+external fun saveDocumentToDisk(config: String, id: String, location: String): String
 external fun exportDrawing(config: String, id: String, format: String): String
 external fun exportDrawingToDisk(config: String, id: String, format: String, location: String): String
 external fun writeDocument(config: String, id: String, content: String): String
