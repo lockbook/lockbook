@@ -960,7 +960,7 @@ pub fn save_drawing(
 #[derive(Debug, Serialize, EnumIter)]
 pub enum ExportDrawingError {
     FolderTreatedAsDrawing,
-    DrawingDoesNotExist,
+    FileDoesNotExist,
     NoAccount,
     InvalidDrawing,
 }
@@ -990,7 +990,7 @@ pub fn export_drawing(
                     }
                 },
                 FSReadDocumentError::CouldNotFindFile => {
-                    UiError(ExportDrawingError::DrawingDoesNotExist)
+                    UiError(ExportDrawingError::FileDoesNotExist)
                 }
                 FSReadDocumentError::DbError(_)
                 | FSReadDocumentError::DocumentReadError(_)
@@ -1015,7 +1015,7 @@ pub fn export_drawing(
 #[derive(Debug, Serialize, EnumIter)]
 pub enum ExportDrawingToDiskError {
     FolderTreatedAsDrawing,
-    DrawingDoesNotExist,
+    FileDoesNotExist,
     NoAccount,
     InvalidDrawing,
     BadPath,
@@ -1069,7 +1069,7 @@ pub fn export_drawing_to_disk(
                                 }
                             }
                             FSReadDocumentError::CouldNotFindFile => {
-                                UiError(ExportDrawingToDiskError::DrawingDoesNotExist)
+                                UiError(ExportDrawingToDiskError::FileDoesNotExist)
                             }
                             FSReadDocumentError::DbError(_)
                             | FSReadDocumentError::DocumentReadError(_)

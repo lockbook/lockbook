@@ -125,7 +125,7 @@ sealed class ExportDrawingError : CoreError() {
 
 sealed class ExportDrawingToDiskError : CoreError() {
     object FolderTreatedAsDrawing : ExportDrawingToDiskError()
-    object DrawingDoesNotExist : ExportDrawingToDiskError()
+    object FileDoesNotExist : ExportDrawingToDiskError()
     object NoAccount : ExportDrawingToDiskError()
     object InvalidDrawing : ExportDrawingToDiskError()
     object BadPath : ExportDrawingToDiskError()

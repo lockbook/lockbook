@@ -53,7 +53,7 @@ class ShareModel(
                         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
 
                         return when (val error = exportDrawingToDiskResult.error) {
-                            ExportDrawingToDiskError.DrawingDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
+                            ExportDrawingToDiskError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
                             ExportDrawingToDiskError.FolderTreatedAsDrawing -> _errorHasOccurred.postValue("Error! Folder treated as document!")
                             ExportDrawingToDiskError.InvalidDrawing -> _errorHasOccurred.postValue("Error! Invalid drawing!")
                             ExportDrawingToDiskError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")

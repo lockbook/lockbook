@@ -74,7 +74,7 @@ class ExportDrawingToDiskTest {
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<ExportDrawingToDiskError.DrawingDoesNotExist>(
+        assertType<ExportDrawingToDiskError.FileDoesNotExist>(
             CoreModel.exportDrawingToDisk(config, generateId(), SupportedImageFormats.Jpeg, generateFakeRandomPath()).component2()
         )
     }

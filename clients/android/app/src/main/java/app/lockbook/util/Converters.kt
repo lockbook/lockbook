@@ -740,7 +740,7 @@ val exportDrawingToDiskConverter = object : Converter {
                         when (error) {
                             ExportDrawingToDiskError.InvalidDrawing::class.simpleName -> ExportDrawingToDiskError.InvalidDrawing
                             ExportDrawingToDiskError.NoAccount::class.simpleName -> ExportDrawingToDiskError.NoAccount
-                            ExportDrawingToDiskError.DrawingDoesNotExist::class.simpleName -> ExportDrawingToDiskError.DrawingDoesNotExist
+                            ExportDrawingToDiskError.FileDoesNotExist::class.simpleName -> ExportDrawingToDiskError.FileDoesNotExist
                             ExportDrawingToDiskError.FolderTreatedAsDrawing::class.simpleName -> ExportDrawingToDiskError.FolderTreatedAsDrawing
                             ExportDrawingToDiskError.BadPath::class.simpleName -> ExportDrawingToDiskError.BadPath
                             ExportDrawingToDiskError.FileAlreadyExistsInDisk::class.simpleName -> ExportDrawingToDiskError.FileAlreadyExistsInDisk
