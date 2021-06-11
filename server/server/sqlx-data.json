@@ -41,41 +41,36 @@
         },
         {
           "ordinal": 7,
-          "name": "signature",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 8,
           "name": "deleted",
           "type_info": "Bool"
         },
         {
-          "ordinal": 9,
+          "ordinal": 8,
           "name": "metadata_version",
           "type_info": "Int8"
         },
         {
-          "ordinal": 10,
+          "ordinal": 9,
           "name": "content_version",
           "type_info": "Int8"
         },
         {
-          "ordinal": 11,
+          "ordinal": 10,
           "name": "document_size",
           "type_info": "Int8"
         },
         {
-          "ordinal": 12,
+          "ordinal": 11,
           "name": "encrypted_key?",
           "type_info": "Text"
         },
         {
-          "ordinal": 13,
+          "ordinal": 12,
           "name": "public_key",
           "type_info": "Text"
         },
         {
-          "ordinal": 14,
+          "ordinal": 13,
           "name": "username",
           "type_info": "Text"
         }
@@ -86,7 +81,6 @@
         ]
       },
       "nullable": [
-        false,
         false,
         false,
         false,
@@ -267,41 +261,36 @@
         },
         {
           "ordinal": 7,
-          "name": "signature",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 8,
           "name": "deleted",
           "type_info": "Bool"
         },
         {
-          "ordinal": 9,
+          "ordinal": 8,
           "name": "metadata_version",
           "type_info": "Int8"
         },
         {
-          "ordinal": 10,
+          "ordinal": 9,
           "name": "content_version",
           "type_info": "Int8"
         },
         {
-          "ordinal": 11,
+          "ordinal": 10,
           "name": "document_size",
           "type_info": "Int8"
         },
         {
-          "ordinal": 12,
+          "ordinal": 11,
           "name": "encrypted_key?",
           "type_info": "Text"
         },
         {
-          "ordinal": 13,
+          "ordinal": 12,
           "name": "public_key",
           "type_info": "Text"
         },
         {
-          "ordinal": 14,
+          "ordinal": 13,
           "name": "username",
           "type_info": "Text"
         }
@@ -313,7 +302,6 @@
         ]
       },
       "nullable": [
-        false,
         false,
         false,
         false,
@@ -437,41 +425,36 @@
         },
         {
           "ordinal": 7,
-          "name": "signature",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 8,
           "name": "deleted",
           "type_info": "Bool"
         },
         {
-          "ordinal": 9,
+          "ordinal": 8,
           "name": "metadata_version",
           "type_info": "Int8"
         },
         {
-          "ordinal": 10,
+          "ordinal": 9,
           "name": "content_version",
           "type_info": "Int8"
         },
         {
-          "ordinal": 11,
+          "ordinal": 10,
           "name": "document_size",
           "type_info": "Int8"
         },
         {
-          "ordinal": 12,
+          "ordinal": 11,
           "name": "encrypted_key?",
           "type_info": "Text"
         },
         {
-          "ordinal": 13,
+          "ordinal": 12,
           "name": "public_key",
           "type_info": "Text"
         },
         {
-          "ordinal": 14,
+          "ordinal": 13,
           "name": "username",
           "type_info": "Text"
         }
@@ -482,7 +465,6 @@
         ]
       },
       "nullable": [
-        false,
         false,
         false,
         false,
