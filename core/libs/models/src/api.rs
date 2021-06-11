@@ -35,6 +35,38 @@ pub struct FileMetadataUpsertsRequest {
     pub updates: Vec<FileMetadataDiff>,
 }
 
+impl FileMetadataUpsertsRequest {
+    pub fn new(metadata: &FileMetadata) -> Self {
+        return FileMetadataUpsertsRequest{
+            updates: vec![FileMetadataDiff{
+                id: metadata.id,
+                file_type: metadata.file_type,
+                old_parent: None,
+                old_name: None,
+                new_parent: metadata.parent,
+                new_name: metadata.name.clone(),
+                new_deleted: metadata.deleted,
+                new_folder_access_keys: metadata.folder_access_keys.clone(),
+            }],
+        }
+    }
+
+    pub fn new_diff(old_parent: Option<Uuid>, old_name: Option<String>, new_metadata: &FileMetadata) -> Self {
+        return FileMetadataUpsertsRequest{
+            updates: vec![FileMetadataDiff{
+                id: new_metadata.id,
+                file_type: new_metadata.file_type,
+                old_parent,
+                old_name,
+                new_parent: new_metadata.parent,
+                new_name: new_metadata.name.clone(),
+                new_deleted: new_metadata.deleted,
+                new_folder_access_keys: new_metadata.folder_access_keys.clone(),
+            }],
+        }
+    }
+}
+
 impl Request for FileMetadataUpsertsRequest {
     type Response = ();
     type Error = FileMetadataUpsertsError;
