@@ -481,6 +481,7 @@ pub struct NewAccountRequest {
     pub username: Username,
     pub public_key: PublicKey,
     pub folder_id: Uuid,
+    pub folder_name: SecretFileName,
     pub parent_access_key: EncryptedFolderAccessKey,
     pub user_access_key: EncryptedUserAccessKey,
 }
@@ -491,6 +492,7 @@ impl NewAccountRequest {
             username: account.username.clone(),
             public_key: account.public_key(),
             folder_id: root_metadata.id,
+            folder_name: root_metadata.name.clone(),
             parent_access_key: root_metadata.folder_access_keys.clone(),
             user_access_key: root_metadata
                 .user_access_keys

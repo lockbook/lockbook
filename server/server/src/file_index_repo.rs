@@ -1,7 +1,7 @@
 use crate::config::IndexDbConfig;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
-use lockbook_models::crypto::{EncryptedFolderAccessKey, EncryptedUserAccessKey, UserAccessInfo};
+use lockbook_models::crypto::{EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo};
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -125,7 +125,7 @@ pub async fn create_file(
     id: Uuid,
     parent: Uuid,
     file_type: FileType,
-    name: &str,
+    name: &SecretFileName,
     public_key: &PublicKey,
     access_key: &EncryptedFolderAccessKey,
     maybe_document_bytes: Option<u64>,
@@ -145,9 +145,9 @@ WITH RECURSIVE file_ancestors AS (
             parent,
             parent_access_key,
             is_folder,
-            name,
+            name_encrypted,
+            name_hmac,
             owner,
-            signature,
             deleted,
             metadata_version,
             content_version,
@@ -159,12 +159,12 @@ WITH RECURSIVE file_ancestors AS (
             $3,
             $4,
             $5,
+            $6,
             (
                 SELECT name
                 FROM accounts
-                WHERE public_key = $6
+                WHERE public_key = $7
             ),
-            $7,
             FALSE,
             CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
             CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
@@ -185,9 +185,9 @@ SELECT
             .to_owned(),
         &serde_json::to_string(&access_key).map_err(CreateFileError::Serialize)?,
         &(file_type == FileType::Folder),
-        &name,
+        &serde_json::to_string(&name.encrypted_value).map_err(CreateFileError::Serialize)?,
+        &serde_json::to_string(&name.hmac).map_err(CreateFileError::Serialize)?,
         &serde_json::to_string(public_key).map_err(CreateFileError::Serialize)?,
-        &serde_json::to_string("signature goes here").map_err(CreateFileError::Serialize)?,
         (maybe_document_bytes.map(|bytes_u64| bytes_u64 as i64))
     )
     .fetch_one(transaction)
@@ -440,20 +440,27 @@ pub async fn rename_file(
     id: Uuid,
     old_metadata_version: u64,
     file_type: FileType,
-    name: &str,
+    name: &SecretFileName,
 ) -> Result<u64, RenameFileError> {
     match sqlx::query!(
         r#"
 WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
 UPDATE files new
 SET
-    name =
+    name_encrypted =
         (CASE WHEN NOT old.deleted
         AND old.metadata_version = $2
         AND old.is_folder = $3
         AND old.id != old.parent
         THEN $4
-        ELSE old.name END),
+        ELSE old.name_encrypted END),
+    name_hmac =
+        (CASE WHEN NOT old.deleted
+        AND old.metadata_version = $2
+        AND old.is_folder = $3
+        AND old.id != old.parent
+        THEN $5
+        ELSE old.name_hmac END),
     metadata_version =
         (CASE WHEN NOT old.deleted
         AND old.metadata_version = $2
@@ -476,7 +483,8 @@ RETURNING
             .to_owned(),
         &(old_metadata_version as i64),
         &(file_type == FileType::Folder),
-        &name,
+        &serde_json::to_string(&name.encrypted_value).map_err(RenameFileError::Serialize)?,
+        &serde_json::to_string(&name.hmac).map_err(RenameFileError::Serialize)?,
     )
     .fetch_optional(transaction)
     .await
@@ -546,7 +554,8 @@ pub async fn get_files(
 SELECT
     files.*,
     user_access_keys.encrypted_key AS "encrypted_key?",
-    accounts.public_key
+    accounts.public_key,
+    accounts.name AS username
 FROM files
 JOIN accounts ON files.owner = accounts.name
 LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id
@@ -563,7 +572,10 @@ WHERE
         id: Uuid::parse_str(&row.id).map_err(GetFilesError::UuidDeserialize)?,
         file_type: if row.is_folder { FileType::Folder } else { FileType::Document },
         parent: Uuid::parse_str(&row.parent).map_err(GetFilesError::UuidDeserialize)?,
-        name: row.name.clone(),
+        name: SecretFileName{
+            encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetFilesError::Deserialize)?,
+            hmac: serde_json::from_str(&row.name_hmac).map_err(GetFilesError::Deserialize)?,
+        },
         owner: row.owner.clone(),
         metadata_version: row.metadata_version as u64,
         content_version: row.content_version as u64,
@@ -573,9 +585,9 @@ WHERE
                     IntoIter::new(
                         [
                             (
-                                row.name.clone(),
+                                row.username.clone(),
                                 UserAccessInfo {
-                                    username: row.name.clone(),
+                                    username: row.username.clone(),
                                     encrypted_by: serde_json::from_str(&row.public_key)
                                         .map_err(GetFilesError::Deserialize)?,
                                     access_key: serde_json::from_str(&encrypted_key)
@@ -613,7 +625,8 @@ pub async fn get_updates(
 SELECT
     files.*,
     user_access_keys.encrypted_key AS "encrypted_key?",
-    accounts.public_key
+    accounts.public_key,
+    accounts.name AS username
 FROM files
 JOIN accounts ON files.owner = accounts.name
 LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id
@@ -632,7 +645,10 @@ WHERE
         id: Uuid::parse_str(&row.id).map_err(GetUpdatesError::UuidDeserialize)?,
         file_type: if row.is_folder { FileType::Folder } else { FileType::Document },
         parent: Uuid::parse_str(&row.parent).map_err(GetUpdatesError::UuidDeserialize)?,
-        name: row.name.clone(),
+        name: SecretFileName{
+            encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetUpdatesError::Deserialize)?,
+            hmac: serde_json::from_str(&row.name_hmac).map_err(GetUpdatesError::Deserialize)?,
+        },
         owner: row.owner.clone(),
         metadata_version: row.metadata_version as u64,
         content_version: row.content_version as u64,
@@ -642,9 +658,9 @@ WHERE
                     IntoIter::new(
                         [
                             (
-                                row.name.clone(),
+                                row.username.clone(),
                                 UserAccessInfo {
-                                    username: row.name.clone(),
+                                    username: row.username.clone(),
                                     encrypted_by: serde_json::from_str(&row.public_key)
                                         .map_err(GetUpdatesError::Deserialize)?,
                                     access_key: serde_json::from_str(&encrypted_key)
@@ -680,7 +696,8 @@ pub async fn get_root(
 SELECT
     files.*,
     user_access_keys.encrypted_key AS "encrypted_key?",
-    accounts.public_key
+    accounts.public_key,
+    accounts.name AS username
 FROM files
 JOIN accounts ON files.owner = accounts.name
 LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id
@@ -702,7 +719,10 @@ WHERE
             FileType::Document
         },
         parent: Uuid::parse_str(&row.parent).map_err(GetRootError::UuidDeserialize)?,
-        name: row.name.clone(),
+        name: SecretFileName{
+            encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetRootError::Deserialize)?,
+            hmac: serde_json::from_str(&row.name_hmac).map_err(GetRootError::Deserialize)?,
+        },
         owner: row.owner.clone(),
         metadata_version: row.metadata_version as u64,
         content_version: row.content_version as u64,
@@ -710,9 +730,9 @@ WHERE
         user_access_keys: {
             if let Some(encrypted_key) = &row.encrypted_key {
                 IntoIter::new([(
-                    row.name.clone(),
+                    row.username.clone(),
                     UserAccessInfo {
-                        username: row.name.clone(),
+                        username: row.username.clone(),
                         encrypted_by: serde_json::from_str(&row.public_key)
                             .map_err(GetRootError::Deserialize)?,
                         access_key: serde_json::from_str(&encrypted_key)
