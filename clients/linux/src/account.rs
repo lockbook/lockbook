@@ -28,6 +28,9 @@ use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
 use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
+use gspell::{
+    TextViewExt as GtkTextViewExt,
+};
 
 pub struct AccountScreen {
     header: Header,
@@ -349,6 +352,10 @@ impl Editor {
         textarea.set_wrap_mode(GtkWrapMode::Word);
         textarea.set_left_margin(4);
         textarea.set_tab_width(4);
+
+        let textview = textarea.upcast_ref::<gtk::TextView>();
+        let gspell_view = gspell::TextView::get_from_gtk_text_view(textview).unwrap();
+        gspell_view.basic_setup();
 
         let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
         scroll.add(&textarea);
