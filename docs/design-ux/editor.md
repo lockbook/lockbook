@@ -31,7 +31,7 @@ There is a toolbar at the top of editor which features:
 * pan & zoom
     * cannot pan to where none of the canvas is visible
     * cannot zoom out further than would reveal the whole canvas regardless of pan
-    * cannot zoom in more than 10x
+    * cannot zoom in more than 20x
 * a touch input toggle (off by default)
 
 Drawings are rendered on a fixed-size canvas. By default, the width of the canvas is exactly the screen's width. The height of the canvas is 2x the width. The non-canvas area is rendered as a solid neutral color distinct from the canvas background color. The canvas background color is determined by the system's light/dark theme setting and drawing theme's white/black colors. In dark mode, the white and black colors in the drawing are swapped (including in the toolbar).
