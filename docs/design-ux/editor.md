@@ -30,7 +30,7 @@ There is a toolbar at the left of the editor which features:
     * modifications made by platform-specific features (e.g. iPadOS's "duplicate")
 * pan & zoom
     * cannot pan to where none of the canvas is visible
-    * cannot zoom out further than would reveal the whole canvas regardless of pan
+    * cannot zoom out more than 5x (20% zoom)
     * cannot zoom in more than 20x
 * a touch input toggle (off by default)
 
