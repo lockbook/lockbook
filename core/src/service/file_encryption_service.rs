@@ -267,3 +267,24 @@ pub fn create_name(
 
     symkey::encrypt_and_hmac(&parent_key, name).map_err(CreateNameError::NameEncryptionFailure)
 }
+
+#[derive(Debug)]
+pub enum RekeySecretFilenameError {
+    OldNameError(GetNameOfFileError),
+    ParentKeyFailure(KeyDecryptionFailure),
+    NameEncryptionFailure(EncryptAndHmacError),
+}
+
+pub fn rekey_secret_filename(
+    config: &Config,
+    old_meta: &FileMetadata,
+    new_parent: &FileMetadata,
+) -> Result<SecretFileName, RekeySecretFilenameError> {
+    let old_name = get_name(&config, &old_meta).map_err(RekeySecretFilenameError::OldNameError)?;
+
+    let new_parent_key = decrypt_key_for_file(&config, new_parent.id)
+        .map_err(RekeySecretFilenameError::ParentKeyFailure)?;
+
+    symkey::encrypt_and_hmac(&new_parent_key, &old_name)
+        .map_err(RekeySecretFilenameError::NameEncryptionFailure)
+}

@@ -416,7 +416,7 @@ mod sync_tests {
             })
             .for_each(|work| sync_service::execute_work(&db2, &account, work).unwrap());
 
-        assert!(integrity_service::test_repo_integrity(&db2).is_ok());
+        integrity_service::test_repo_integrity(&db2).unwrap();
 
         assert_n_work_units!(db1, 0);
         assert_n_work_units!(db2, 1);

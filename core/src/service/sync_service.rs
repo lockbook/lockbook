@@ -344,9 +344,9 @@ fn merge_documents(
     local_changes: &LocalChangeRepoLocalChange,
     edited_locally: &Edited,
 ) -> Result<(), WorkExecutionError> {
-    let server_name =
-        file_encryption_service::get_name(&config, &metadata).map_err(UnableToDecryptName)?;
-    if server_name.ends_with(".md") || server_name.ends_with(".txt") {
+    let local_name =
+        file_encryption_service::get_name(&config, &local_metadata).map_err(UnableToDecryptName)?;
+    if local_name.ends_with(".md") || local_name.ends_with(".txt") {
         let common_ancestor = {
             let compressed_common_ancestor = file_encryption_service::user_read_document(
                 &account,
@@ -394,8 +394,6 @@ fn merge_documents(
             .map_err(WritingMergedFileError)?;
     } else {
         // Create a new file
-        let local_name = file_encryption_service::get_name(&config, &local_metadata)
-            .map_err(UnableToDecryptName)?;
         let new_file = file_service::create(
             config,
             &format!("{}-CONTENT-CONFLICT-{}", &local_name, local_metadata.id),
@@ -599,6 +597,14 @@ fn handle_local_change(
                     }
 
                     if local_change.moved.is_some() {
+                        metadata.metadata_version = if metadata.file_type == Document {
+                            client::request(&account, RenameDocumentRequest::new(&metadata))
+                                .map_err(WorkExecutionError::from)?.new_metadata_version
+                        } else {
+                            client::request(&account, RenameFolderRequest::new(&metadata))
+                                .map_err(WorkExecutionError::from)?.new_metadata_version
+                        };
+
                         let version = if metadata.file_type == Document {
                             client::request(&account, MoveDocumentRequest::new(&metadata)).map_err(WorkExecutionError::from)?.new_metadata_version
                         } else {

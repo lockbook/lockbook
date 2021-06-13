@@ -573,6 +573,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
         | FileMoveError::FailedToRecordChange(_)
         | FileMoveError::FailedToDecryptKey(_)
         | FileMoveError::FailedToReEncryptKey(_)
+        | FileMoveError::ReKeyNameError(_)
         | FileMoveError::CouldNotFindParents(_) => unexpected!("{:#?}", e),
     })
 }

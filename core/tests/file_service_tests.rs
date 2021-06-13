@@ -22,8 +22,7 @@ mod unit_tests {
     use uuid::Uuid;
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
-            assert!(integrity_service::test_repo_integrity($db)
-                .is_ok());
+            integrity_service::test_repo_integrity($db).unwrap()
         }
     );
 

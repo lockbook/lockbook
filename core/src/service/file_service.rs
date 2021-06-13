@@ -241,6 +241,7 @@ pub enum FileMoveError {
     FailedToDecryptKey(KeyDecryptionFailure),
     FailedToReEncryptKey(FileCreationError),
     CouldNotFindParents(FindingParentsFailed),
+    ReKeyNameError(file_encryption_service::RekeySecretFilenameError),
 }
 
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), FileMoveError> {
@@ -266,9 +267,12 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), File
     let siblings = file_metadata_repo::get_children_non_recursively(config, parent_metadata.id)
         .map_err(FileMoveError::DbError)?;
 
+    let new_name = file_encryption_service::rekey_secret_filename(&config, &file, &parent_metadata)
+        .map_err(FileMoveError::ReKeyNameError)?;
+
     // Check that this file name is available
     for child in siblings {
-        if child.name == file.name {
+        if child.name == new_name {
             return Err(FileMoveError::TargetParentHasChildNamedThat);
         }
     }
@@ -299,8 +303,10 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), File
         clock_service::get_time,
     )
     .map_err(FileMoveError::FailedToRecordChange)?;
+
     file.parent = parent_metadata.id;
     file.folder_access_keys = new_access_info;
+    file.name = new_name;
 
     file_metadata_repo::insert(config, &file).map_err(FileMoveError::DbError)?;
     Ok(())
