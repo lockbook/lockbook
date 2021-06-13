@@ -13,4 +13,4 @@ There is a status bar at the bottom of the navigation. It displays the first app
 * storage warning (if you are >90% usage)
 * relative last synced time
 
-While a manually requested sync is in progress, a progress bar shows the progress. The bar does not move backwards.
+While any sync is in progress, a progress bar shows the progress. The bar does not move backwards.
