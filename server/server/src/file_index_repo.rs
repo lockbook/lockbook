@@ -1,7 +1,9 @@
 use crate::config::IndexDbConfig;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
-use lockbook_models::crypto::{EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo};
+use lockbook_models::crypto::{
+    EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
+};
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -719,8 +721,9 @@ WHERE
             FileType::Document
         },
         parent: Uuid::parse_str(&row.parent).map_err(GetRootError::UuidDeserialize)?,
-        name: SecretFileName{
-            encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetRootError::Deserialize)?,
+        name: SecretFileName {
+            encrypted_value: serde_json::from_str(&row.name_encrypted)
+                .map_err(GetRootError::Deserialize)?,
             hmac: serde_json::from_str(&row.name_hmac).map_err(GetRootError::Deserialize)?,
         },
         owner: row.owner.clone(),
