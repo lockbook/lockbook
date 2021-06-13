@@ -95,7 +95,7 @@ pub fn get_key_for_user(
         .map_err(UnableToGetKeyForUser::KeyEncryptionError)?;
 
     Ok(UserAccessInfo {
-        username: account.username.clone(),
+        username: account.username,
         encrypted_by: public_key,
         access_key,
     })

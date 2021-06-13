@@ -88,7 +88,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
             return Err(FileNameEmpty(file.id));
         }
 
-        if name.contains("/") {
+        if name.contains('/') {
             return Err(FileNameContainsSlash(file.id));
         }
     }
