@@ -17,7 +17,7 @@ The editor non-intrusively spell-checks the user's document.
 
 The editor supports undo and redo, including:
 * text added or removed
-* text pasted
+* text pasted or cut
 
 ## Drawing
 There is a toolbar at the left of the editor which features:
