@@ -20,7 +20,7 @@ The editor supports undo and redo, including:
 * text pasted
 
 ## Drawing
-There is a toolbar at the top of editor which features:
+There is a toolbar at the left of the editor which features:
 * pen color controls (8 colors from drawing theme or, if drawing has no theme, 8 colors from app theme)
 * pen size control (thickness range is from 1 pixel to 20 pixels at full pen pressure)
 * a stroke eraser
