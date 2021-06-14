@@ -27,7 +27,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private var isThreadAvailable = false
     private var isDrawingAvailable = false
 
-    private var erasePoints = Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
+    private var erasePoints =
+        Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
     private var penSizeMultiplier = 7
     private var strokeAlpha = 255
     var isErasing = false
@@ -70,7 +71,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
                     if (detector != null) {
                         onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
-                        modelFocusPoint = screenToModel(onScreenFocusPoint)
+                        modelFocusPoint = screenToModel(onScreenFocusPoint) ?: return false
                     }
                     return true
                 }
@@ -189,7 +190,11 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             val strokeColor = getColor(stroke.color, stroke.alpha)
 
             if (strokeColor == null) {
-                AlertModel.unexpectedCoreErrorHasOccurred(context, "Unable to get color from theme.", OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish))
+                AlertModel.unexpectedCoreErrorHasOccurred(
+                    context,
+                    "Unable to get color from theme.",
+                    OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish)
+                )
                 return
             }
 
@@ -206,7 +211,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 val pointWidth1 = stroke.pointsGirth[pointIndex]
                 val pointWidth2 = stroke.pointsGirth[pointIndex + 1]
                 if (pointIndex == 0) {
-                    strokesBounds.last().set(x1 - pointWidth1, y1 - pointWidth1, x1 + pointWidth1, y1 + pointWidth1)
+                    strokesBounds.last()
+                        .set(x1 - pointWidth1, y1 - pointWidth1, x1 + pointWidth1, y1 + pointWidth1)
                     updateLastStrokeBounds(x2, y2, pointWidth2)
                 } else {
                     updateLastStrokeBounds(x1, y1, pointWidth1)
@@ -232,7 +238,11 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val strokeColor = colorAliasInARGB[ColorAlias.White]
 
         if (strokeColor == null) {
-            AlertModel.unexpectedCoreErrorHasOccurred(context, "Unable to get color from theme.", OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish))
+            AlertModel.unexpectedCoreErrorHasOccurred(
+                context,
+                "Unable to get color from theme.",
+                OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish)
+            )
             return
         }
 
@@ -268,7 +278,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    private fun doesEraserSegmentIntersectStroke(x1: Float, y1: Float, x2: Float, y2: Float, strokeIndex: Int): Boolean {
+    private fun doesEraserSegmentIntersectStroke(
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float,
+        strokeIndex: Int
+    ): Boolean {
         val currentStrokeBounds = strokesBounds[strokeIndex]
         val eraseBounds = RectF()
 
@@ -297,7 +313,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         return RectF.intersects(currentStrokeBounds, eraseBounds)
     }
 
-    private fun screenToModel(screen: PointF): PointF {
+    private fun screenToModel(screen: PointF): PointF? {
         var modelX =
             (viewPort.width() * (screen.x / tempCanvas.clipBounds.width())) + viewPort.left
 
@@ -310,6 +326,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         if (modelY < 0) modelY = 0f
         if (modelY > tempCanvas.clipBounds.height()) modelY =
             tempCanvas.clipBounds.height().toFloat()
+
+        if (modelX.isNaN() || modelY.isNaN()) {
+            return null
+        }
 
         modelX = (modelX * 100).roundToInt() / 100f
         modelY = (modelY * 100).roundToInt() / 100f
@@ -345,15 +365,15 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
-            if (event.pointerCount > 0) {
-                if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
-                    event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER
-                ) {
-                    handleStylusEvent(event)
-                }
-                if (event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
-                    handleFingerEvent(event)
-                }
+            val toolType = event.getToolType(0)
+
+            if (toolType == MotionEvent.TOOL_TYPE_STYLUS ||
+                toolType == MotionEvent.TOOL_TYPE_ERASER
+            ) {
+                handleStylusEvent(event)
+            }
+            if (toolType == MotionEvent.TOOL_TYPE_FINGER) {
+                handleFingerEvent(event)
             }
         }
 
@@ -365,36 +385,53 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun handleStylusEvent(event: MotionEvent) {
-        val modelPoint = screenToModel(PointF(event.x, event.y))
+        val modelPoint = screenToModel(PointF(event.x, event.y)) ?: return
+        val action = event.action
 
-        if (isErasing || event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-            if ((event.action == SPEN_ACTION_DOWN || event.action == MotionEvent.ACTION_DOWN) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
+        if (action == SPEN_ACTION_DOWN) { // stay erasing if the button isn't held but it is the same stroke && vice versa
+            isErasing = true
+        } else if (isErasing && action == MotionEvent.ACTION_DOWN) {
+            isErasing = false
+        }
+
+        if (isErasing) {
+            if ((action == SPEN_ACTION_DOWN || action == MotionEvent.ACTION_DOWN) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
                 erasePoints.first.set(PointF(Float.NaN, Float.NaN))
                 erasePoints.second.set(PointF(Float.NaN, Float.NaN))
             }
 
             eraseAtPoint(modelPoint)
         } else {
-            when (event.action) {
+            when (action) {
                 MotionEvent.ACTION_DOWN -> moveTo(modelPoint, event.pressure)
                 MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
             }
         }
     }
 
-    private fun getAdjustedPressure(pressure: Float): Float = ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
+    private fun getAdjustedPressure(pressure: Float): Float =
+        ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
 
     private fun moveTo(point: PointF, pressure: Float) {
         lastPoint.set(point)
         rollingAveragePressure = getAdjustedPressure(pressure)
 
-        val boundsAdjustedForPressure = RectF(point.x - rollingAveragePressure, point.y - rollingAveragePressure, point.x + rollingAveragePressure, point.y + rollingAveragePressure)
+        val boundsAdjustedForPressure = RectF(
+            point.x - rollingAveragePressure,
+            point.y - rollingAveragePressure,
+            point.x + rollingAveragePressure,
+            point.y + rollingAveragePressure
+        )
         strokesBounds.add(boundsAdjustedForPressure)
 
         val strokeColor = getColor(strokeColor, alpha)
 
         if (strokeColor == null) {
-            AlertModel.unexpectedCoreErrorHasOccurred(context, "Unable to get color from theme.", OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish))
+            AlertModel.unexpectedCoreErrorHasOccurred(
+                context,
+                "Unable to get color from theme.",
+                OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish)
+            )
             return
         }
 
@@ -411,7 +448,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         drawing.strokes.add(stroke)
     }
 
-    private fun approximateRollingAveragePressure(previousRollingAverage: Float, newPressure: Float): Float {
+    private fun approximateRollingAveragePressure(
+        previousRollingAverage: Float,
+        newPressure: Float
+    ): Float {
         var newRollingAverage = previousRollingAverage
 
         newRollingAverage -= newRollingAverage / PRESSURE_SAMPLES_AVERAGED
@@ -421,13 +461,18 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun lineTo(point: PointF, pressure: Float) {
-        if (lastPoint.equals(Float.NaN, Float.NaN)) { // if you start drawing after just erasing, and the pen was never lifted, this will compensate for it
+        if (lastPoint.equals(
+                Float.NaN,
+                Float.NaN
+            )
+        ) { // if you start drawing after just erasing, and the pen was never lifted, this will compensate for it
             return moveTo(point, pressure)
         }
 
         val adjustedCurrentPressure = getAdjustedPressure(pressure)
 
-        rollingAveragePressure = approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
+        rollingAveragePressure =
+            approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
         updateLastStrokeBounds(point.x, point.y, rollingAveragePressure)
 
         strokePaint.strokeWidth = rollingAveragePressure
@@ -480,7 +525,14 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             val stroke = drawingClone.strokes[strokeIndex]
             var deleteStroke = false
 
-            if (!doesEraserSegmentIntersectStroke(erasePoints.first.x, erasePoints.first.y, erasePoints.second.x, erasePoints.second.y, strokeIndex)) {
+            if (!doesEraserSegmentIntersectStroke(
+                    erasePoints.first.x,
+                    erasePoints.first.y,
+                    erasePoints.second.x,
+                    erasePoints.second.y,
+                    strokeIndex
+                )
+            ) {
                 continue
             }
 
@@ -494,40 +546,64 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
                     for (pixel in 1..roundedPressure) {
                         val roundedPoint1 =
-                            PointF(stroke.pointsX[pointIndex].roundToInt().toFloat(), stroke.pointsY[pointIndex].roundToInt().toFloat())
+                            PointF(
+                                stroke.pointsX[pointIndex].roundToInt().toFloat(),
+                                stroke.pointsY[pointIndex].roundToInt().toFloat()
+                            )
                         val roundedPoint2 =
-                            PointF(stroke.pointsX[pointIndex + 1].roundToInt().toFloat(), stroke.pointsY[pointIndex + 1].roundToInt().toFloat())
+                            PointF(
+                                stroke.pointsX[pointIndex + 1].roundToInt().toFloat(),
+                                stroke.pointsY[pointIndex + 1].roundToInt().toFloat()
+                            )
 
-                        val distBetweenErasePoints = distanceBetweenPoints(erasePoints.first, erasePoints.second)
-                        val distToFromRoundedPoint1 = distanceBetweenPoints(erasePoints.first, roundedPoint1) +
-                            distanceBetweenPoints(roundedPoint1, erasePoints.second)
+                        val distBetweenErasePoints =
+                            distanceBetweenPoints(erasePoints.first, erasePoints.second)
+                        val distToFromRoundedPoint1 =
+                            distanceBetweenPoints(erasePoints.first, roundedPoint1) +
+                                distanceBetweenPoints(roundedPoint1, erasePoints.second)
 
-                        if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(distBetweenErasePoints)) {
+                        if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(
+                                distBetweenErasePoints
+                            )
+                        ) {
                             deleteStroke = true
                             break@pointLoop
                         }
 
-                        val distToFromRoundedPoint2 = distanceBetweenPoints(erasePoints.first, roundedPoint2) +
-                            distanceBetweenPoints(roundedPoint2, erasePoints.second)
+                        val distToFromRoundedPoint2 =
+                            distanceBetweenPoints(erasePoints.first, roundedPoint2) +
+                                distanceBetweenPoints(roundedPoint2, erasePoints.second)
 
-                        if (((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(distBetweenErasePoints)) {
+                        if (((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(
+                                distBetweenErasePoints
+                            )
+                        ) {
                             deleteStroke = true
                             break@pointLoop
                         }
 
-                        val distBetweenRoundedPoints = distanceBetweenPoints(roundedPoint1, roundedPoint2)
-                        val distToFromErasePoint1 = distanceBetweenPoints(roundedPoint1, erasePoints.first) +
-                            distanceBetweenPoints(erasePoints.first, roundedPoint2)
+                        val distBetweenRoundedPoints =
+                            distanceBetweenPoints(roundedPoint1, roundedPoint2)
+                        val distToFromErasePoint1 =
+                            distanceBetweenPoints(roundedPoint1, erasePoints.first) +
+                                distanceBetweenPoints(erasePoints.first, roundedPoint2)
 
-                        if (((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(distBetweenRoundedPoints)) {
+                        if (((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(
+                                distBetweenRoundedPoints
+                            )
+                        ) {
                             deleteStroke = true
                             break@pointLoop
                         }
 
-                        val distToFromErasePoint2 = distanceBetweenPoints(roundedPoint1, erasePoints.second) +
-                            distanceBetweenPoints(erasePoints.second, roundedPoint2)
+                        val distToFromErasePoint2 =
+                            distanceBetweenPoints(roundedPoint1, erasePoints.second) +
+                                distanceBetweenPoints(erasePoints.second, roundedPoint2)
 
-                        if (((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(distBetweenRoundedPoints)) {
+                        if (((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(
+                                distBetweenRoundedPoints
+                            )
+                        ) {
                             deleteStroke = true
                             break@pointLoop
                         }
@@ -575,7 +651,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         while (thread?.isAlive == true) {
             try {
                 thread?.join() ?: return
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+            }
         }
 
         thread = null
@@ -612,7 +689,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) { }
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         stopThread()
