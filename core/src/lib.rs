@@ -58,6 +58,8 @@ use crate::repo::local_changes_repo;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::path_service::{GetByPathError, NewFileFromPathError};
 
+use crate::service::file_encryption_service::generate_client_file_metadata;
+use lockbook_models::client_file_metadata::ClientFileMetadata;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use serde_json::error::Category;
 use std::collections::HashMap;
@@ -228,41 +230,47 @@ pub enum CreateFileAtPathError {
 pub fn create_file_at_path(
     config: &Config,
     path_and_name: &str,
-) -> Result<FileMetadata, Error<CreateFileAtPathError>> {
-    path_service::create_at_path(&config, path_and_name).map_err(|e| match e {
-        path_service::NewFileFromPathError::PathDoesntStartWithRoot => {
-            UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
-        }
-        path_service::NewFileFromPathError::PathContainsEmptyFile => {
-            UiError(CreateFileAtPathError::PathContainsEmptyFile)
-        }
-        path_service::NewFileFromPathError::FileAlreadyExists => {
-            UiError(CreateFileAtPathError::FileAlreadyExists)
-        }
-        path_service::NewFileFromPathError::NoRoot => UiError(CreateFileAtPathError::NoRoot),
-        path_service::NewFileFromPathError::FailedToCreateChild(failed_to_create) => {
-            match failed_to_create {
-                NewFileError::AccountRetrievalError(account_error) => match account_error {
-                    AccountRepoError::NoAccount => UiError(CreateFileAtPathError::NoAccount),
-                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                        unexpected!("{:#?}", account_error)
-                    }
-                },
-                NewFileError::FileNameNotAvailable => {
-                    UiError(CreateFileAtPathError::FileAlreadyExists)
-                }
-                NewFileError::DocumentTreatedAsFolder => {
-                    UiError(CreateFileAtPathError::DocumentTreatedAsFolder)
-                }
-                _ => unexpected!("{:#?}", failed_to_create),
+) -> Result<ClientFileMetadata, Error<CreateFileAtPathError>> {
+    path_service::create_at_path(&config, path_and_name)
+        .and_then(|file_metadata| {
+            generate_client_file_metadata(config, &file_metadata)
+                .map_err(path_service::NewFileFromPathError::GenerateClientFileMetadataError)
+        })
+        .map_err(|e| match e {
+            path_service::NewFileFromPathError::PathDoesntStartWithRoot => {
+                UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
             }
-        }
-        path_service::NewFileFromPathError::FailedToRecordChange(_)
-        | path_service::NewFileFromPathError::DbError(_)
-        | NewFileFromPathError::GetNameOfFileError(_) => {
-            unexpected!("{:#?}", e)
-        }
-    })
+            path_service::NewFileFromPathError::PathContainsEmptyFile => {
+                UiError(CreateFileAtPathError::PathContainsEmptyFile)
+            }
+            path_service::NewFileFromPathError::FileAlreadyExists => {
+                UiError(CreateFileAtPathError::FileAlreadyExists)
+            }
+            path_service::NewFileFromPathError::NoRoot => UiError(CreateFileAtPathError::NoRoot),
+            path_service::NewFileFromPathError::FailedToCreateChild(failed_to_create) => {
+                match failed_to_create {
+                    NewFileError::AccountRetrievalError(account_error) => match account_error {
+                        AccountRepoError::NoAccount => UiError(CreateFileAtPathError::NoAccount),
+                        AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                            unexpected!("{:#?}", account_error)
+                        }
+                    },
+                    NewFileError::FileNameNotAvailable => {
+                        UiError(CreateFileAtPathError::FileAlreadyExists)
+                    }
+                    NewFileError::DocumentTreatedAsFolder => {
+                        UiError(CreateFileAtPathError::DocumentTreatedAsFolder)
+                    }
+                    _ => unexpected!("{:#?}", failed_to_create),
+                }
+            }
+            path_service::NewFileFromPathError::FailedToRecordChange(_)
+            | path_service::NewFileFromPathError::GenerateClientFileMetadataError(_)
+            | path_service::NewFileFromPathError::DbError(_)
+            | NewFileFromPathError::GetNameOfFileError(_) => {
+                unexpected!("{:#?}", e)
+            }
+        })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -309,20 +317,28 @@ pub fn create_file(
     name: &str,
     parent: Uuid,
     file_type: FileType,
-) -> Result<FileMetadata, Error<CreateFileError>> {
-    file_service::create(&config, name, parent, file_type).map_err(|e| match e {
-        NewFileError::AccountRetrievalError(_) => UiError(CreateFileError::NoAccount),
-        NewFileError::DocumentTreatedAsFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
-        NewFileError::FileNameNotAvailable => UiError(CreateFileError::FileNameNotAvailable),
-        NewFileError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
-        NewFileError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
-        NewFileError::FileEncryptionError(_)
-        | NewFileError::MetadataRepoError(_)
-        | NewFileError::FailedToWriteFileContent(_)
-        | NewFileError::CouldNotFindParents
-        | NewFileError::NameDecryptionError(_)
-        | NewFileError::FailedToRecordChange(_) => unexpected!("{:#?}", e),
-    })
+) -> Result<ClientFileMetadata, Error<CreateFileError>> {
+    file_service::create(&config, name, parent, file_type)
+        .and_then(|file_metadata_repo| {
+            generate_client_file_metadata(config, &file_metadata_repo)
+                .map_err(NewFileError::GenerateClientFileMetadataError)
+        })
+        .map_err(|e| match e {
+            NewFileError::AccountRetrievalError(_) => UiError(CreateFileError::NoAccount),
+            NewFileError::DocumentTreatedAsFolder => {
+                UiError(CreateFileError::DocumentTreatedAsFolder)
+            }
+            NewFileError::FileNameNotAvailable => UiError(CreateFileError::FileNameNotAvailable),
+            NewFileError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
+            NewFileError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
+            NewFileError::FileEncryptionError(_)
+            | NewFileError::GenerateClientFileMetadataError(_)
+            | NewFileError::MetadataRepoError(_)
+            | NewFileError::FailedToWriteFileContent(_)
+            | NewFileError::CouldNotFindParents
+            | NewFileError::NameDecryptionError(_)
+            | NewFileError::FailedToRecordChange(_) => unexpected!("{:#?}", e),
+        })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -330,11 +346,14 @@ pub enum GetRootError {
     NoRoot,
 }
 
-pub fn get_root(config: &Config) -> Result<FileMetadata, Error<GetRootError>> {
+pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
     match file_metadata_repo::get_root(&config) {
         Ok(file_metadata) => match file_metadata {
             None => Err(UiError(GetRootError::NoRoot)),
-            Some(file_metadata) => Ok(file_metadata),
+            Some(file_metadata) => match generate_client_file_metadata(config, &file_metadata) {
+                Ok(client_file_metadata) => Ok(client_file_metadata),
+                Err(err) => Err(unexpected!("{:#?}", err)),
+            },
         },
         Err(err) => Err(unexpected!("{:#?}", err)),
     }
@@ -379,11 +398,20 @@ pub enum GetFileByIdError {
     NoFileWithThatId,
 }
 
-pub fn get_file_by_id(config: &Config, id: Uuid) -> Result<FileMetadata, Error<GetFileByIdError>> {
-    file_metadata_repo::get(&config, id).map_err(|e| match e {
-        FileMetadataRepoError::FileRowMissing => UiError(GetFileByIdError::NoFileWithThatId),
-        FileMetadataRepoError::DbError(_) => unexpected!("{:#?}", e),
-    })
+pub fn get_file_by_id(
+    config: &Config,
+    id: Uuid,
+) -> Result<ClientFileMetadata, Error<GetFileByIdError>> {
+    file_metadata_repo::get(&config, id)
+        .and_then(|file_metadata| {
+            generate_client_file_metadata(config, &file_metadata)
+                .map_err(FileMetadataRepoError::GenerateClientFileMetadataError)
+        })
+        .map_err(|e| match e {
+            FileMetadataRepoError::FileRowMissing => UiError(GetFileByIdError::NoFileWithThatId),
+            FileMetadataRepoError::DbError(_)
+            | FileMetadataRepoError::GenerateClientFileMetadataError(_) => unexpected!("{:#?}", e),
+        })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -394,12 +422,16 @@ pub enum GetFileByPathError {
 pub fn get_file_by_path(
     config: &Config,
     path: &str,
-) -> Result<FileMetadata, Error<GetFileByPathError>> {
-    match path_service::get_by_path(&config, path) {
+) -> Result<ClientFileMetadata, Error<GetFileByPathError>> {
+    match path_service::get_by_path(&config, path).and_then(|file_metadata| {
+        generate_client_file_metadata(config, &file_metadata)
+            .map_err(GetByPathError::GenerateClientFileMetadataError)
+    }) {
         Ok(file_metadata) => Ok(file_metadata),
         Err(err) => match err {
             GetByPathError::FileNotFound(_) => Err(UiError(GetFileByPathError::NoFileAtThatPath)),
             GetByPathError::NoRoot
+            | GetByPathError::GenerateClientFileMetadataError(_)
             | GetByPathError::FileMetadataError(_)
             | GetByPathError::NameDecryptionError(_) => Err(unexpected!("{:#?}", err)),
         },

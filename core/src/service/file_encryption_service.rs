@@ -12,6 +12,7 @@ use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::file_encryption_service::UnableToGetKeyForUser::UnableToDecryptKey;
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
+use lockbook_models::client_file_metadata::ClientFileMetadata;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
@@ -287,4 +288,32 @@ pub fn rekey_secret_filename(
 
     symkey::encrypt_and_hmac(&new_parent_key, &old_name)
         .map_err(RekeySecretFilenameError::NameEncryptionFailure)
+}
+
+#[derive(Debug)]
+pub enum GenerateClientFileMetadataError {
+    GetNameError(GetNameOfFileError),
+}
+
+pub fn generate_client_file_metadata(
+    config: &Config,
+    meta: &FileMetadata,
+) -> Result<ClientFileMetadata, GenerateClientFileMetadataError> {
+    let name = get_name(config, meta).map_err(GenerateClientFileMetadataError::GetNameError)?;
+
+    Ok(ClientFileMetadata {
+        id: meta.id,
+        file_type: meta.file_type,
+        parent: meta.parent,
+        name,
+        metadata_version: meta.metadata_version,
+        owner: meta.owner.clone(),
+        content_version: meta.content_version,
+        deleted: meta.deleted,
+        users_with_access: meta
+            .user_access_keys
+            .iter()
+            .map(|(username, _access_info)| username.clone())
+            .collect(),
+    })
 }
