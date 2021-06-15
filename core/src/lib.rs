@@ -32,7 +32,7 @@ use crate::service::file_service::{
     ReadDocumentError as FSReadDocumentError,
 };
 use crate::service::sync_service::{
-    CalculateWorkError as SSCalculateWorkError, SyncError, SyncProgress, WorkCalculated,
+    CalculateWorkError as SSCalculateWorkError, SyncError, SyncProgress,
 };
 use crate::service::usage_service::{
     GetUsageError as USGetUsageError, LocalAndServerUsageError as USLocalAndServerUsageError,
@@ -58,8 +58,10 @@ use crate::repo::local_changes_repo;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::path_service::{GetByPathError, NewFileFromPathError};
 
-use crate::service::file_encryption_service::generate_client_file_metadata;
-use lockbook_models::client_file_metadata::ClientFileMetadata;
+use crate::model::client_conversion::{
+    generate_client_file_metadata, generate_client_work_calculated, ClientFileMetadata,
+    ClientWorkCalculated,
+};
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use serde_json::error::Category;
 use std::collections::HashMap;
@@ -232,10 +234,6 @@ pub fn create_file_at_path(
     path_and_name: &str,
 ) -> Result<ClientFileMetadata, Error<CreateFileAtPathError>> {
     path_service::create_at_path(&config, path_and_name)
-        .and_then(|file_metadata| {
-            generate_client_file_metadata(config, &file_metadata)
-                .map_err(path_service::NewFileFromPathError::GenerateClientFileMetadataError)
-        })
         .map_err(|e| match e {
             path_service::NewFileFromPathError::PathDoesntStartWithRoot => {
                 UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
@@ -265,11 +263,14 @@ pub fn create_file_at_path(
                 }
             }
             path_service::NewFileFromPathError::FailedToRecordChange(_)
-            | path_service::NewFileFromPathError::GenerateClientFileMetadataError(_)
             | path_service::NewFileFromPathError::DbError(_)
             | NewFileFromPathError::GetNameOfFileError(_) => {
                 unexpected!("{:#?}", e)
             }
+        })
+        .and_then(|file_metadata| {
+            generate_client_file_metadata(config, &file_metadata)
+                .map_err(|e| unexpected!("{:#?}", e))
         })
 }
 
@@ -319,10 +320,6 @@ pub fn create_file(
     file_type: FileType,
 ) -> Result<ClientFileMetadata, Error<CreateFileError>> {
     file_service::create(&config, name, parent, file_type)
-        .and_then(|file_metadata_repo| {
-            generate_client_file_metadata(config, &file_metadata_repo)
-                .map_err(NewFileError::GenerateClientFileMetadataError)
-        })
         .map_err(|e| match e {
             NewFileError::AccountRetrievalError(_) => UiError(CreateFileError::NoAccount),
             NewFileError::DocumentTreatedAsFolder => {
@@ -332,12 +329,15 @@ pub fn create_file(
             NewFileError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
             NewFileError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
             NewFileError::FileEncryptionError(_)
-            | NewFileError::GenerateClientFileMetadataError(_)
             | NewFileError::MetadataRepoError(_)
             | NewFileError::FailedToWriteFileContent(_)
             | NewFileError::CouldNotFindParents
             | NewFileError::NameDecryptionError(_)
             | NewFileError::FailedToRecordChange(_) => unexpected!("{:#?}", e),
+        })
+        .and_then(|file_metadata| {
+            generate_client_file_metadata(config, &file_metadata)
+                .map_err(|e| unexpected!("{:#?}", e))
         })
 }
 
@@ -367,9 +367,19 @@ pub enum GetChildrenError {
 pub fn get_children(
     config: &Config,
     id: Uuid,
-) -> Result<Vec<FileMetadata>, Error<GetChildrenError>> {
-    file_metadata_repo::get_children_non_recursively(&config, id)
-        .map_err(|e| unexpected!("{:#?}", e))
+) -> Result<Vec<ClientFileMetadata>, Error<GetChildrenError>> {
+    let children: Vec<FileMetadata> = file_metadata_repo::get_children_non_recursively(&config, id)
+        .map_err(|e| unexpected!("{:#?}", e))?;
+
+    let mut client_children = vec![];
+
+    for child in children {
+        client_children.push(
+            generate_client_file_metadata(config, &child).map_err(|e| unexpected!("{:#?}", e))?,
+        );
+    }
+
+    Ok(client_children)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -403,14 +413,13 @@ pub fn get_file_by_id(
     id: Uuid,
 ) -> Result<ClientFileMetadata, Error<GetFileByIdError>> {
     file_metadata_repo::get(&config, id)
-        .and_then(|file_metadata| {
-            generate_client_file_metadata(config, &file_metadata)
-                .map_err(FileMetadataRepoError::GenerateClientFileMetadataError)
-        })
         .map_err(|e| match e {
             FileMetadataRepoError::FileRowMissing => UiError(GetFileByIdError::NoFileWithThatId),
-            FileMetadataRepoError::DbError(_)
-            | FileMetadataRepoError::GenerateClientFileMetadataError(_) => unexpected!("{:#?}", e),
+            FileMetadataRepoError::DbError(_) => unexpected!("{:#?}", e),
+        })
+        .and_then(|file_metadata| {
+            generate_client_file_metadata(config, &file_metadata)
+                .map_err(|e| unexpected!("{:#?}", e))
         })
 }
 
@@ -423,15 +432,14 @@ pub fn get_file_by_path(
     config: &Config,
     path: &str,
 ) -> Result<ClientFileMetadata, Error<GetFileByPathError>> {
-    match path_service::get_by_path(&config, path).and_then(|file_metadata| {
-        generate_client_file_metadata(config, &file_metadata)
-            .map_err(GetByPathError::GenerateClientFileMetadataError)
-    }) {
-        Ok(file_metadata) => Ok(file_metadata),
+    match path_service::get_by_path(&config, path) {
+        Ok(file_metadata) => Ok(file_metadata).and_then(|file_metadata| {
+            generate_client_file_metadata(config, &file_metadata)
+                .map_err(|e| unexpected!("{:#?}", e))
+        }),
         Err(err) => match err {
             GetByPathError::FileNotFound(_) => Err(UiError(GetFileByPathError::NoFileAtThatPath)),
             GetByPathError::NoRoot
-            | GetByPathError::GenerateClientFileMetadataError(_)
             | GetByPathError::FileMetadataError(_)
             | GetByPathError::NameDecryptionError(_) => Err(unexpected!("{:#?}", err)),
         },
@@ -652,7 +660,9 @@ pub fn sync_all(
                 | ApiError::Endpoint(_) => unexpected!("{:#?}", api_err),
             },
         },
-        SyncError::WorkExecutionError(_) | SyncError::MetadataUpdateError(_) => {
+        SyncError::WorkExecutionError(_)
+        | SyncError::MetadataUpdateError(_)
+        | SyncError::GenerateClientWorkUnitError(_) => {
             unexpected!("{:#?}", e)
         }
     })
@@ -684,31 +694,36 @@ pub enum CalculateWorkError {
     ClientUpdateRequired,
 }
 
-pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-    sync_service::calculate_work(&config).map_err(|e| match e {
-        SSCalculateWorkError::LocalChangesRepoError(_)
-        | SSCalculateWorkError::MetadataRepoError(_)
-        | SSCalculateWorkError::GetMetadataError(_) => unexpected!("{:#?}", e),
-        SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
-            AccountRepoError::NoAccount => UiError(CalculateWorkError::NoAccount),
-            AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                unexpected!("{:#?}", account_err)
-            }
-        },
-        SSCalculateWorkError::GetUpdatesError(api_err) => match api_err {
-            ApiError::SendFailed(_) => UiError(CalculateWorkError::CouldNotReachServer),
-            ApiError::ClientUpdateRequired => UiError(CalculateWorkError::ClientUpdateRequired),
-            ApiError::Serialize(_)
-            | ApiError::ReceiveFailed(_)
-            | ApiError::Deserialize(_)
-            | ApiError::Sign(_)
-            | ApiError::InternalError
-            | ApiError::BadRequest
-            | ApiError::InvalidAuth
-            | ApiError::ExpiredAuth
-            | ApiError::Endpoint(_) => unexpected!("{:#?}", api_err),
-        },
-    })
+pub fn calculate_work(config: &Config) -> Result<ClientWorkCalculated, Error<CalculateWorkError>> {
+    sync_service::calculate_work(&config)
+        .map_err(|e| match e {
+            SSCalculateWorkError::LocalChangesRepoError(_)
+            | SSCalculateWorkError::MetadataRepoError(_)
+            | SSCalculateWorkError::GetMetadataError(_) => unexpected!("{:#?}", e),
+            SSCalculateWorkError::AccountRetrievalError(account_err) => match account_err {
+                AccountRepoError::NoAccount => UiError(CalculateWorkError::NoAccount),
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                    unexpected!("{:#?}", account_err)
+                }
+            },
+            SSCalculateWorkError::GetUpdatesError(api_err) => match api_err {
+                ApiError::SendFailed(_) => UiError(CalculateWorkError::CouldNotReachServer),
+                ApiError::ClientUpdateRequired => UiError(CalculateWorkError::ClientUpdateRequired),
+                ApiError::Serialize(_)
+                | ApiError::ReceiveFailed(_)
+                | ApiError::Deserialize(_)
+                | ApiError::Sign(_)
+                | ApiError::InternalError
+                | ApiError::BadRequest
+                | ApiError::InvalidAuth
+                | ApiError::ExpiredAuth
+                | ApiError::Endpoint(_) => unexpected!("{:#?}", api_err),
+            },
+        })
+        .and_then(|work_calculated| {
+            generate_client_work_calculated(config, &work_calculated)
+                .map_err(|e| unexpected!("{:#?}", e))
+        })
 }
 
 #[derive(Debug, Serialize, EnumIter)]

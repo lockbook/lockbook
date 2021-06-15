@@ -1,6 +1,5 @@
 use crate::model::state::Config;
 use crate::repo::{file_metadata_repo, local_changes_repo};
-use crate::service::file_encryption_service::GenerateClientFileMetadataError;
 use crate::service::file_service::NewFileError;
 use crate::service::path_service::NewFileFromPathError::FailedToCreateChild;
 use crate::service::{file_encryption_service, file_service};
@@ -17,7 +16,6 @@ pub enum NewFileFromPathError {
     FailedToRecordChange(local_changes_repo::DbError),
     FileAlreadyExists,
     GetNameOfFileError(file_encryption_service::GetNameOfFileError),
-    GenerateClientFileMetadataError(GenerateClientFileMetadataError),
 }
 
 pub fn create_at_path(
@@ -93,7 +91,6 @@ pub enum GetByPathError {
     NoRoot,
     FileMetadataError(file_metadata_repo::DbError),
     NameDecryptionError(file_encryption_service::GetNameOfFileError),
-    GenerateClientFileMetadataError(GenerateClientFileMetadataError),
 }
 
 pub fn get_by_path(config: &Config, path: &str) -> Result<FileMetadata, GetByPathError> {

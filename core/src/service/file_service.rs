@@ -9,7 +9,7 @@ use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::service::file_encryption_service::{
-    FileCreationError, GenerateClientFileMetadataError, KeyDecryptionFailure, UnableToGetKeyForUser,
+    FileCreationError, KeyDecryptionFailure, UnableToGetKeyForUser,
 };
 use crate::service::file_service::DocumentRenameError::{CannotRenameRoot, FileDoesNotExist};
 use crate::service::file_service::DocumentUpdateError::{
@@ -43,7 +43,6 @@ pub enum NewFileError {
     FileNameEmpty,
     FileNameContainsSlash,
     NameDecryptionError(file_encryption_service::GetNameOfFileError),
-    GenerateClientFileMetadataError(GenerateClientFileMetadataError),
 }
 
 pub fn create(

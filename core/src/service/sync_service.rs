@@ -6,6 +6,9 @@ use uuid::Uuid;
 
 use crate::client;
 use crate::client::ApiError;
+use crate::model::client_conversion::{
+    generate_client_work_unit, ClientWorkUnit, GenerateClientWorkUnitError,
+};
 use crate::model::state::Config;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::file_compression_service;
@@ -94,6 +97,7 @@ pub enum SyncError {
     CalculateWorkError(CalculateWorkError),
     WorkExecutionError(HashMap<Uuid, WorkExecutionError>),
     MetadataUpdateError(file_metadata_repo::DbError),
+    GenerateClientWorkUnitError(GenerateClientWorkUnitError),
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -105,7 +109,7 @@ pub struct WorkCalculated {
 pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
-    pub current_work_unit: WorkUnit,
+    pub current_work_unit: ClientWorkUnit,
 }
 
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
@@ -199,7 +203,8 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
                 func(SyncProgress {
                     total: work_calculated.work_units.len(),
                     progress,
-                    current_work_unit: work_unit.clone(),
+                    current_work_unit: generate_client_work_unit(config, &work_unit)
+                        .map_err(SyncError::GenerateClientWorkUnitError)?,
                 })
             }
 

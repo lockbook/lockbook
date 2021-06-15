@@ -5,7 +5,6 @@ use uuid::Uuid;
 use crate::model::state::Config;
 use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 use crate::repo::local_storage;
-use crate::service::file_encryption_service::GenerateClientFileMetadataError;
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 
@@ -19,7 +18,6 @@ pub enum DbError {
 pub enum GetError {
     FileRowMissing,
     DbError(DbError),
-    GenerateClientFileMetadataError(GenerateClientFileMetadataError),
 }
 
 #[derive(Debug)]

@@ -17,9 +17,6 @@ use sourceview::prelude::*;
 use sourceview::View as GtkSourceView;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 
-use lockbook_models::file_metadata::FileMetadata;
-use lockbook_models::work_unit::WorkUnit;
-
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::closure;
 use crate::editmode::EditMode;
@@ -28,6 +25,7 @@ use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
 use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
+use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
 
 pub struct AccountScreen {
     header: Header,
@@ -66,7 +64,7 @@ impl AccountScreen {
         Ok(())
     }
 
-    pub fn add_file(&self, b: &LbCore, f: &FileMetadata) -> LbResult<()> {
+    pub fn add_file(&self, b: &LbCore, f: &ClientFileMetadata) -> LbResult<()> {
         self.sidebar.tree.add(b, f)
     }
 
@@ -315,8 +313,8 @@ impl SyncPanel {
 
     pub fn sync_progress(&self, s: &LbSyncMsg) {
         let prefix = match s.work {
-            WorkUnit::LocalChange { metadata: _ } => "Pushing",
-            WorkUnit::ServerChange { metadata: _ } => "Pulling",
+            ClientWorkUnit::Server(_) | ClientWorkUnit::ServerUnknownName(_) => "Pulling",
+            ClientWorkUnit::Local(_) => "Pushing",
         };
         self.set_status(&format!("{}: {}", prefix, s.name));
         self.progress.set_fraction(s.index as f64 / s.total as f64);
@@ -390,7 +388,7 @@ impl Editor {
         self.textarea.grab_focus();
     }
 
-    fn show_folder_info(&self, f: &FileMetadata, n_children: usize) {
+    fn show_folder_info(&self, f: &ClientFileMetadata, n_children: usize) {
         let name = GtkLabel::new(None);
         name.set_markup(&format!("<span><big>{}/</big></span>", f.name));
         name.set_margin_end(64);
