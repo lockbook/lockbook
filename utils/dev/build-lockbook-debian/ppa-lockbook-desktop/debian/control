@@ -2,9 +2,10 @@ Source: lockbook-desktop
 Section: utils
 Priority: extra
 Maintainer: Smail Barkouch <smailbarkouch1@gmail.com>
-Build-Depends: debhelper, git, libgtksourceview-3.0-dev, libgtk-3-0, libpango-1.0-0, libglib2.0-0, libgdk-pixbuf2.0-0, libatk1.0-0, gobject-introspection, libepoxy0
+Build-Depends: debhelper, git, libgtksourceview-3.0-1, libgtk-3-0, libpango-1.0-0, libglib2.0-0, libgdk-pixbuf2.0-0, libatk1.0-0, gobject-introspection, libepoxy0, libgspell-1-dev
 
 Package: lockbook-desktop
 Architecture: any
-Depends: libgtksourceview-3.0-dev, libgtk-3-0, libglib2.0-0,
+Depends: libgtksourceview-3.0-1, libgtk-3-0, libglib2.0-0, libgspell-1-2
+Suggests: aspell-en, aspell-es, aspell-fr
 Description: A secure, private, minimal, cross-platform document editor.

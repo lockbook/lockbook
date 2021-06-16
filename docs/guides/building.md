@@ -25,7 +25,7 @@ Simply go into the [CLI Folder](/clients/cli) and `cargo run`.
 ## Linux
 
 In order to build the Linux client, you need the stable Rust toolchain on a
-Linux distro with GTK installed. Then, go into the [Linux
+Linux distro with GTK installed, as well as the shared libraries for gtksourceview and gspell. Then, go into the [Linux
 folder](/clients/linux) and `cargo run`.
 
 ## Android
