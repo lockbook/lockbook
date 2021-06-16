@@ -6,11 +6,11 @@ clean:
 build:
 	dh build
 	curl https://sh.rustup.rs -sSf | bash -s -- -y
-	(export PATH="/root/.cargo/bin:$$PATH" && cargo build --release --manifest-path ../../../../clients/linux/Cargo.toml)
+	(export PATH="/root/.cargo/bin:$$PATH" && cargo build --release --manifest-path ../../../../clients/cli/Cargo.toml)
 
 binary:
 	mkdir -p debian/lockbook/usr/bin
-	mv ../../../../clients/cli/target/release/lockbook debian/lockbook/usr/bin
+	mv ../../../../target/release/lockbook debian/lockbook/usr/bin
 	
 	strip --strip-all debian/lockbook/usr/bin/lockbook
 	dh_gencontrol
