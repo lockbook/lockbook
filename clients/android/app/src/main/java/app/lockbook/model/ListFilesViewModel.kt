@@ -14,8 +14,6 @@ import app.lockbook.ui.CreateFileInfo
 import app.lockbook.ui.MoveFileInfo
 import app.lockbook.ui.RenameFileInfo
 import app.lockbook.util.*
-import app.lockbook.util.FileMetadata
-import app.lockbook.util.FileType
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
 import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
@@ -36,6 +34,7 @@ import app.lockbook.util.SharedPreferences.SYNC_AUTOMATICALLY_KEY
 import com.beust.klaxon.Klaxon
 import kotlinx.coroutines.*
 import timber.log.Timber
+import java.io.File
 
 data class EditableFile(
     val name: String,
@@ -61,7 +60,11 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showFileInfoDialog = SingleMutableLiveData<FileMetadata>()
     private val _showRenameFileDialog = SingleMutableLiveData<RenameFileInfo>()
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
+    private val _shareDocument = SingleMutableLiveData<ArrayList<File>>()
     private val _showSnackBar = SingleMutableLiveData<String>()
+    private val _showSyncSnackBar = SingleMutableLiveData<Unit>()
+    private val _updateSyncSnackBar = SingleMutableLiveData<Pair<Int, Int>>()
+    private val _showHideProgressOverlay = SingleMutableLiveData<Boolean>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
@@ -72,10 +75,10 @@ class ListFilesViewModel(path: String, application: Application) :
         get() = fileModel.files
 
     val showSyncSnackBar: LiveData<Unit>
-        get() = syncModel._showSyncSnackBar
+        get() = _showSyncSnackBar
 
     val updateSyncSnackBar: LiveData<Pair<Int, Int>>
-        get() = syncModel._updateSyncSnackBar
+        get() = _updateSyncSnackBar
 
     val navigateToFileEditor: LiveData<EditableFile>
         get() = _navigateToFileEditor
@@ -110,8 +113,14 @@ class ListFilesViewModel(path: String, application: Application) :
     val updateBreadcrumbBar: LiveData<List<BreadCrumbItem>>
         get() = fileModel.updateBreadcrumbBar
 
+    val shareDocument: LiveData<ArrayList<File>>
+        get() = _shareDocument
+
     val showSnackBar: LiveData<String>
         get() = _showSnackBar
+
+    val showHideProgressOverlay: LiveData<Boolean>
+        get() = _showHideProgressOverlay
 
     val errorHasOccurred: LiveData<String>
         get() = _errorHasOccurred
@@ -120,7 +129,21 @@ class ListFilesViewModel(path: String, application: Application) :
         get() = _unexpectedErrorHasOccurred
 
     private val fileModel = FileModel(config, _errorHasOccurred, _unexpectedErrorHasOccurred)
-    val syncModel = SyncModel(config, _showSnackBar, _errorHasOccurred, _unexpectedErrorHasOccurred)
+    val shareModel = ShareModel(
+        config,
+        _shareDocument,
+        _showHideProgressOverlay,
+        _errorHasOccurred,
+        _unexpectedErrorHasOccurred
+    )
+    val syncModel = SyncModel(
+        config,
+        _showSyncSnackBar,
+        _updateSyncSnackBar,
+        _showSnackBar,
+        _errorHasOccurred,
+        _unexpectedErrorHasOccurred
+    )
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -131,6 +154,9 @@ class ListFilesViewModel(path: String, application: Application) :
     }
 
     fun onBackPress(): Boolean = when {
+        shareModel.isLoadingOverlayVisible -> {
+            true
+        }
         selectedFiles.contains(true) -> {
             collapseMoreOptionsMenu()
             true
@@ -160,7 +186,13 @@ class ListFilesViewModel(path: String, application: Application) :
         viewModelScope.launch(Dispatchers.IO) {
             isFABOpen = !isFABOpen
             _collapseExpandFAB.postValue(false)
-            _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Document), isDrawing))
+            _showCreateFileDialog.postValue(
+                CreateFileInfo(
+                    fileModel.parentFileMetadata.id,
+                    Klaxon().toJsonString(FileType.Document),
+                    isDrawing
+                )
+            )
         }
     }
 
@@ -168,7 +200,13 @@ class ListFilesViewModel(path: String, application: Application) :
         viewModelScope.launch(Dispatchers.IO) {
             isFABOpen = !isFABOpen
             _collapseExpandFAB.postValue(false)
-            _showCreateFileDialog.postValue(CreateFileInfo(fileModel.parentFileMetadata.id, Klaxon().toJsonString(FileType.Folder), false))
+            _showCreateFileDialog.postValue(
+                CreateFileInfo(
+                    fileModel.parentFileMetadata.id,
+                    Klaxon().toJsonString(FileType.Folder),
+                    false
+                )
+            )
         }
     }
 
@@ -222,54 +260,63 @@ class ListFilesViewModel(path: String, application: Application) :
                     _switchFileLayout.postValue(Unit)
                 }
                 R.id.menu_list_files_rename -> {
-                    files.value?.let { files ->
-                        val checkedFiles = getSelectedFiles(files)
-                        if (checkedFiles.size == 1) {
-                            _showRenameFileDialog.postValue(RenameFileInfo(checkedFiles[0].id, checkedFiles[0].name))
-                        } else {
-                            _errorHasOccurred.postValue(BASIC_ERROR)
-                        }
+                    val selectedFiles =
+                        getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
+
+                    if (selectedFiles.size == 1) {
+                        _showRenameFileDialog.postValue(
+                            RenameFileInfo(
+                                selectedFiles[0].id,
+                                selectedFiles[0].name
+                            )
+                        )
+                    } else {
+                        _errorHasOccurred.postValue(BASIC_ERROR)
                     }
                 }
                 R.id.menu_list_files_delete -> {
-                    files.value?.let { files ->
-                        val checkedIds = getSelectedFiles(files).map { file -> file.id }
-                        collapseMoreOptionsMenu()
-                        if (fileModel.deleteFiles(checkedIds)) {
-                            _showSnackBar.postValue("Successfully deleted the file(s)")
-                        }
+                    val selectedFiles = getSelected()?.map { file -> file.id }
+                        ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
 
-                        fileModel.refreshFiles()
+                    collapseMoreOptionsMenu()
+                    if (fileModel.deleteFiles(selectedFiles)) {
+                        _showSnackBar.postValue("Successfully deleted the file(s)")
                     }
                 }
                 R.id.menu_list_files_info -> {
-                    files.value?.let { files ->
-                        val checkedFiles = getSelectedFiles(files)
-                        if (checkedFiles.size == 1) {
-                            collapseMoreOptionsMenu()
-                            _showFileInfoDialog.postValue(checkedFiles[0])
-                        } else {
-                            _errorHasOccurred.postValue(BASIC_ERROR)
-                        }
+                    val selectedFiles =
+                        getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
+
+                    if (selectedFiles.size == 1) {
+                        collapseMoreOptionsMenu()
+                        _showFileInfoDialog.postValue(selectedFiles[0])
+                    } else {
+                        _errorHasOccurred.postValue(BASIC_ERROR)
                     }
                 }
                 R.id.menu_list_files_move -> {
-                    files.value?.let { files ->
-                        _showMoveFileDialog.postValue(
-                            MoveFileInfo(
-                                getSelectedFiles(files)
-                                    .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
-                                getSelectedFiles(files)
-                                    .map { fileMetadata -> fileMetadata.name }.toTypedArray()
-                            )
+                    val selectedFiles =
+                        getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
+                    _showMoveFileDialog.postValue(
+                        MoveFileInfo(
+                            selectedFiles
+                                .map { fileMetadata -> fileMetadata.id }.toTypedArray(),
+                            selectedFiles
+                                .map { fileMetadata -> fileMetadata.name }.toTypedArray()
                         )
-                    }
+                    )
+                }
+                R.id.menu_list_files_share -> {
+                    val selectedFiles =
+                        getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
+
+                    shareModel.shareDocuments(selectedFiles)
                 }
                 else -> {
                     Timber.e("Unrecognized sort item id.")
                     _errorHasOccurred.postValue(BASIC_ERROR)
                 }
-            }.exhaustive
+            }
         }
     }
 
@@ -366,11 +413,11 @@ class ListFilesViewModel(path: String, application: Application) :
             .registerOnSharedPreferenceChangeListener(listener)
     }
 
-    private fun getSelectedFiles(files: List<FileMetadata>): List<FileMetadata> = files.filterIndexed { index, _ ->
+    private fun getSelected(): List<FileMetadata>? = files.value?.filterIndexed { index, _ ->
         selectedFiles[index]
     }
 
-    private fun collapseMoreOptionsMenu() {
+    fun collapseMoreOptionsMenu() {
         selectedFiles = MutableList(files.value?.size ?: 0) { false }
         _switchMenu.postValue(Unit)
         _uncheckAllFiles.postValue(Unit)
