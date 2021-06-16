@@ -1,5 +1,6 @@
 package app.lockbook.model
 
+import android.text.format.DateUtils
 import app.lockbook.App
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -22,12 +23,27 @@ class ShareModel(
         fun getMainShareFolder(): File = File(App.instance.applicationContext.cacheDir, "share/")
         fun createRandomShareFolderInstance(): File = File(getMainShareFolder(), System.currentTimeMillis().toString())
 
-        fun clearShareStorage(): Boolean = getMainShareFolder().deleteRecursively()
+        fun clearShareStorage() {
+            val shareFolder = getMainShareFolder()
+            val timeNow = System.currentTimeMillis()
+
+            shareFolder.listFiles { file ->
+                val timeThen = file.name.toLongOrNull() ?: return@listFiles false
+
+                if ((timeNow - timeThen) > DateUtils.HOUR_IN_MILLIS) {
+                    file.deleteRecursively()
+                }
+
+                true
+            }
+        }
     }
 
     fun shareDocuments(selectedFiles: List<FileMetadata>) {
         isLoadingOverlayVisible = true
         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
+
+        clearShareStorage()
 
         val documents = mutableListOf<FileMetadata>()
         retrieveSelectedDocuments(selectedFiles, documents)
@@ -37,10 +53,17 @@ class ShareModel(
         shareFolder.mkdirs()
 
         for (file in documents) {
+            val shareItemFolder = File(
+                shareFolder,
+                file.id
+            ).absoluteFile
+
+            shareItemFolder.mkdir()
+
             if (file.name.endsWith(".draw")) {
                 val image = File(
-                    shareFolder,
-                    file.name.replace(".draw", ".${IMAGE_EXPORT_TYPE.name.lowercase()}")
+                    shareItemFolder,
+                    file.name.removeSuffix(".draw") + ".${IMAGE_EXPORT_TYPE.name.lowercase()}"
                 ).absoluteFile
 
                 when (
@@ -68,7 +91,7 @@ class ShareModel(
                 }
             } else {
                 val doc = File(
-                    shareFolder,
+                    shareItemFolder,
                     file.name
                 ).absoluteFile
 

@@ -174,10 +174,6 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun clearShareStorage() {
-        ShareModel.clearShareStorage()
-    }
-
     fun onSwipeToRefresh() {
         viewModelScope.launch(Dispatchers.IO) {
             syncModel.trySync()
