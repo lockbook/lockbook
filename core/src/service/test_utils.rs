@@ -33,10 +33,10 @@ macro_rules! assert_matches (
 
 #[macro_export]
 macro_rules! path {
-        ($account:expr, $path:expr) => {{
-            &format!("{}/{}", $account.username, $path)
-        }};
-    }
+    ($account:expr, $path:expr) => {{
+        &format!("{}/{}", $account.username, $path)
+    }};
+}
 
 pub fn test_config() -> Config {
     Config {
