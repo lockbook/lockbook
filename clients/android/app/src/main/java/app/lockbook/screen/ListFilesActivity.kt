@@ -5,12 +5,14 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.databinding.ActivityListFilesBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.OnFinishAlert
+import app.lockbook.util.Animate
 import app.lockbook.util.BASIC_ERROR
 import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
 import app.lockbook.util.SharedPreferences.GRID_LAYOUT
@@ -22,13 +24,27 @@ import app.lockbook.util.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.util.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.util.SharedPreferences.SORT_FILES_Z_A
 import app.lockbook.util.exhaustive
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
 import timber.log.Timber
+
+private val menuItemsNoneSelected = listOf(
+    R.id.menu_list_files_sort,
+    R.id.menu_list_files_file_layout,
+)
+
+private val menuItemsOneOrMoreSelected = listOf(
+    R.id.menu_list_files_delete,
+    R.id.menu_list_files_move,
+    R.id.menu_list_files_share
+)
+
+private val menuItemsOneSelected = listOf(
+    R.id.menu_list_files_rename,
+    R.id.menu_list_files_info,
+)
 
 class ListFilesActivity : AppCompatActivity() {
     private var _binding: ActivityListFilesBinding? = null
+
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
@@ -46,15 +62,9 @@ class ListFilesActivity : AppCompatActivity() {
         this.menu = menu
         setSelectedMenuOptions()
 
-        val fragment = getFragment().component1()
-        if (fragment is ListFilesFragment) {
-            val selectedFiles = fragment.listFilesViewModel.selectedFiles
-            if (selectedFiles.contains(true)) {
-                openFileMenu(selectedFiles)
-            }
-        } else {
-            Timber.e("Unable to retrieve ListFilesFragment.")
-            AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+        val selectedFiles = getListFilesFragment()?.listFilesViewModel?.selectedFiles
+        if (selectedFiles != null && selectedFiles.contains(true)) {
+            openFileMenu(selectedFiles)
         }
 
         return true
@@ -80,7 +90,11 @@ class ListFilesActivity : AppCompatActivity() {
             SORT_FILES_TYPE -> menu?.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                AlertModel.errorHasOccurred(
+                    binding.listFilesActivityLayout,
+                    BASIC_ERROR,
+                    OnFinishAlert.DoNothingOnFinishAlert
+                )
             }
         }.exhaustive
 
@@ -100,7 +114,11 @@ class ListFilesActivity : AppCompatActivity() {
             GRID_LAYOUT -> menu?.findItem(R.id.menu_list_files_grid_view)?.isChecked = true
             else -> {
                 Timber.e("File layout shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                AlertModel.errorHasOccurred(
+                    binding.listFilesActivityLayout,
+                    BASIC_ERROR,
+                    OnFinishAlert.DoNothingOnFinishAlert
+                )
             }
         }
     }
@@ -119,23 +137,15 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_grid_view,
             R.id.menu_list_files_linear_view -> {
                 menu?.findItem(item.itemId)?.isChecked = true
-                val fragment = getFragment().component1()
-                if (fragment is ListFilesFragment) {
-                    fragment.onMenuItemPressed(item.itemId)
-                } else {
-                    Timber.e("Unable to retrieve ListFilesFragment.")
-                    AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
-                }
+                getListFilesFragment()?.onMenuItemPressed(item.itemId)
                 true
             }
-            R.id.menu_list_files_rename, R.id.menu_list_files_delete, R.id.menu_list_files_info, R.id.menu_list_files_move -> {
-                val fragment = getFragment().component1()
-                if (fragment is ListFilesFragment) {
-                    fragment.onMenuItemPressed(item.itemId)
-                } else {
-                    Timber.e("Unable to retrieve ListFilesFragment.")
-                    AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
-                }
+            R.id.menu_list_files_rename,
+            R.id.menu_list_files_delete,
+            R.id.menu_list_files_info,
+            R.id.menu_list_files_move,
+            R.id.menu_list_files_share -> {
+                getListFilesFragment()?.onMenuItemPressed(item.itemId)
                 true
             }
             else -> false
@@ -143,66 +153,76 @@ class ListFilesActivity : AppCompatActivity() {
     }
 
     fun switchMenu() {
-        val fragment = getFragment().component1()
-        if (fragment is ListFilesFragment) {
-            if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
-                openFileMenu(fragment.listFilesViewModel.selectedFiles)
-            } else {
-                closeFileMenu()
-            }
+        val fragment = getListFilesFragment() ?: return
+        if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
+            openFileMenu(fragment.listFilesViewModel.selectedFiles)
         } else {
-            Timber.e("Unable to retrieve ListFilesFragment.")
-            AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+            closeFileMenu()
         }
     }
 
     private fun openFileMenu(selected: List<Boolean>) {
-        menu?.findItem(R.id.menu_list_files_delete)?.isVisible = true
-        menu?.findItem(R.id.menu_list_files_move)?.isVisible = true
-        menu?.findItem(R.id.menu_list_files_sort)?.isVisible = false
-        menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = false
+        for (menuItem in menuItemsNoneSelected) {
+            menu?.findItem(menuItem)?.isVisible = false
+        }
+
+        for (menuItem in menuItemsOneOrMoreSelected) {
+            menu?.findItem(menuItem)?.isVisible = true
+        }
+
         if (selected.filter { selectedFile -> selectedFile }.size == 1) {
-            menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
-            menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
+            for (menuItem in menuItemsOneSelected) {
+                menu?.findItem(menuItem)?.isVisible = true
+            }
         } else {
-            menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
-            menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
+            for (menuItem in menuItemsOneSelected) {
+                menu?.findItem(menuItem)?.isVisible = false
+            }
         }
     }
 
     private fun closeFileMenu() {
-        menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
-        menu?.findItem(R.id.menu_list_files_delete)?.isVisible = false
-        menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
-        menu?.findItem(R.id.menu_list_files_move)?.isVisible = false
-        menu?.findItem(R.id.menu_list_files_file_layout)?.isVisible = true
-        menu?.findItem(R.id.menu_list_files_sort)?.isVisible = true
-    }
-
-    private fun getFragment(): Result<ListFilesFragment, Unit> {
-        val fragments = supportFragmentManager.fragments
-        val listFilesFragment = fragments[0]
-        if (listFilesFragment is ListFilesFragment) {
-            return Ok(listFilesFragment)
+        for (menuItem in menuItemsOneOrMoreSelected) {
+            menu?.findItem(menuItem)?.isVisible = false
         }
 
-        return Err(Unit)
+        for (menuItem in menuItemsOneSelected) {
+            menu?.findItem(menuItem)?.isVisible = false
+        }
+
+        for (menuItem in menuItemsNoneSelected) {
+            menu?.findItem(menuItem)?.isVisible = true
+        }
+    }
+
+    private fun getListFilesFragment(): ListFilesFragment? {
+        val fragments = supportFragmentManager.fragments
+        val listFilesFragment = fragments[0]
+        return if (listFilesFragment is ListFilesFragment) {
+            listFilesFragment
+        } else {
+            Timber.e("Unable to retrieve ListFilesFragment.")
+            AlertModel.errorHasOccurred(
+                binding.listFilesActivityLayout,
+                BASIC_ERROR,
+                OnFinishAlert.DoNothingOnFinishAlert
+            )
+
+            null
+        }
+    }
+
+    fun showHideProgressOverlay(show: Boolean) {
+        if (show) {
+            Animate.animateVisibility(binding.progressOverlay.root, View.VISIBLE, 102, 500)
+        } else {
+            Animate.animateVisibility(binding.progressOverlay.root, View.GONE, 0, 500)
+        }
     }
 
     override fun onBackPressed() {
-        when (getFragment().component1()?.onBackPressed()) {
-            false -> super.onBackPressed()
-            true -> {
-            }
-            null -> {
-                Timber.e("Unable to get result of back press.")
-                AlertModel.errorHasOccurred(binding.listFilesActivityLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
-            }
-        }.exhaustive
+        if (getListFilesFragment()?.onBackPressed() == false) {
+            super.onBackPressed()
+        }
     }
-}
-
-object RequestResultCodes {
-    const val TEXT_EDITOR_REQUEST_CODE: Int = 102
-    const val DRAWING_REQUEST_CODE: Int = 104
 }
