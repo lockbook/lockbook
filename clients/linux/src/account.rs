@@ -28,9 +28,7 @@ use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
 use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
-use gspell::{
-    TextViewExt as GtkTextViewExt,
-};
+use gspell::TextViewExt as GtkTextViewExt;
 
 pub struct AccountScreen {
     header: Header,
