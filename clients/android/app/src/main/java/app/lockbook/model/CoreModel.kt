@@ -10,7 +10,7 @@ object CoreModel {
 
     private const val QA_API_URL = "http://qa.lockbook.app:8000"
     private const val PROD_API_URL = "http://api.lockbook.app:8000"
-    fun getAPIURL(): String = System.getenv("API_URL") ?: QA_API_URL
+    fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
         val initLoggerResult: Result<Unit, InitLoggerError>? =
@@ -209,7 +209,7 @@ object CoreModel {
         return Err(GetFileByIdError.Unexpected("getFileByIdConverter was unable to be called!"))
     }
 
-    fun getDocumentContent(
+    fun readDocument(
         config: Config,
         fileId: String
     ): Result<String, ReadDocumentError> {
@@ -222,6 +222,57 @@ object CoreModel {
         }
 
         return Err(ReadDocumentError.Unexpected("readDocumentConverter was unable to be called!"))
+    }
+
+    fun saveDocumentToDisk(
+        config: Config,
+        fileId: String,
+        location: String
+    ): Result<Unit, SaveDocumentToDiskError> {
+        val saveDocumentToDiskResult: Result<Unit, SaveDocumentToDiskError>? =
+            Klaxon().converter(saveDocumentToDiskConverter)
+                .parse(saveDocumentToDisk(Klaxon().toJsonString(config), fileId, location))
+
+        if (saveDocumentToDiskResult != null) {
+            return saveDocumentToDiskResult
+        }
+
+        return Err(SaveDocumentToDiskError.Unexpected("saveDocumentToDiskConverter was unable to be called!"))
+    }
+
+    fun exportDrawing(
+        config: Config,
+        id: String,
+        format: SupportedImageFormats
+    ): Result<List<Byte>, ExportDrawingError> {
+        val klaxon = Klaxon()
+        val exportDrawingResult: Result<List<Byte>, ExportDrawingError>? =
+            Klaxon().converter(exportDrawingConverter)
+                .parse(exportDrawing(klaxon.toJsonString(config), id, klaxon.toJsonString(format)))
+
+        if (exportDrawingResult != null) {
+            return exportDrawingResult
+        }
+
+        return Err(ExportDrawingError.Unexpected("exportDrawingConverter was unable to be called!"))
+    }
+
+    fun exportDrawingToDisk(
+        config: Config,
+        id: String,
+        format: SupportedImageFormats,
+        location: String
+    ): Result<Unit, ExportDrawingToDiskError> {
+        val klaxon = Klaxon()
+        val exportDrawingToDiskResult: Result<Unit, ExportDrawingToDiskError>? =
+            Klaxon().converter(exportDrawingToDiskConverter)
+                .parse(exportDrawingToDisk(klaxon.toJsonString(config), id, klaxon.toJsonString(format), location))
+
+        if (exportDrawingToDiskResult != null) {
+            return exportDrawingToDiskResult
+        }
+
+        return Err(ExportDrawingToDiskError.Unexpected("exportDrawingConverter was unable to be called!"))
     }
 
     fun createFile(

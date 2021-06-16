@@ -9,13 +9,15 @@ use uuid::Uuid;
 
 use crate::json_interface::translate;
 use crate::model::state::Config;
+use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::bytes_to_human;
 use crate::{
-    calculate_work, create_account, create_file, delete_file, export_account, get_account,
-    get_all_error_variants, get_children, get_db_state, get_file_by_id, get_local_and_server_usage,
-    get_root, import_account, init_logger, insert_file, migrate_db, move_file, read_document,
-    rename_file, set_last_synced, sync_all, write_document, Error,
+    calculate_work, create_account, create_file, delete_file, export_account, export_drawing,
+    export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
+    get_file_by_id, get_local_and_server_usage, get_root, import_account, init_logger, insert_file,
+    migrate_db, move_file, read_document, rename_file, save_document_to_disk, set_last_synced,
+    sync_all, write_document, Error,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -39,45 +41,41 @@ fn string_to_jstring(env: &JNIEnv, result: String) -> jstring {
         .into_inner()
 }
 
-fn jstring_to_string(env: &JNIEnv, json: JString, err_msg: &str) -> Result<String, jstring> {
+fn jstring_to_string(env: &JNIEnv, json: JString, name: &str) -> Result<String, jstring> {
     env.get_string(json).map(|ok| ok.into()).map_err(|err| {
         string_to_jstring(
             &env,
             translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
-                "{}:{:?}",
-                err_msg, err
+                "Could not parse {} jstring: {:?}",
+                name, err
             )))),
         )
     })
 }
 
-fn deserialize_id(env: &JNIEnv, json: JString, err_msg: &str) -> Result<Uuid, jstring> {
-    let json_string = jstring_to_string(env, json, err_msg)?;
+fn deserialize_id(env: &JNIEnv, json: JString) -> Result<Uuid, jstring> {
+    let json_string = jstring_to_string(env, json, "id")?;
 
     Uuid::parse_str(&json_string).map_err(|err| {
         string_to_jstring(
             &env,
             translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
-                "{}:{:?}",
-                err_msg, err
+                "Couldn't deserialize id: {:?}",
+                err
             )))),
         )
     })
 }
 
-fn deserialize<U: DeserializeOwned>(
-    env: &JNIEnv,
-    json: JString,
-    err_msg: &str,
-) -> Result<U, jstring> {
-    let json_string = jstring_to_string(env, json, err_msg)?;
+fn deserialize<U: DeserializeOwned>(env: &JNIEnv, json: JString, name: &str) -> Result<U, jstring> {
+    let json_string = jstring_to_string(env, json, name)?;
 
     serde_json::from_str::<U>(&json_string).map_err(|err| {
         string_to_jstring(
             env,
             translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
-                "{}:{:?}",
-                err_msg, err
+                "Couldn't deserialize {}: {:?}",
+                name, err
             )))),
         )
     })
@@ -89,7 +87,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
     _: JClass,
     jpath: JString,
 ) -> jstring {
-    let absolute_path = match jstring_to_string(&env, jpath, "Couldn't successfully get path") {
+    let absolute_path = match jstring_to_string(&env, jpath, "path") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -104,7 +102,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getDBState(
     _: JClass,
     jconfig: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -118,7 +116,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_migrateDB(
     _: JClass,
     jconfig: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -134,15 +132,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
     jusername: JString,
     japi_url: JString,
 ) -> jstring {
-    let username = match jstring_to_string(&env, jusername, "Couldn't successfully get username") {
+    let username = match jstring_to_string(&env, jusername, "username") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let api_url = match jstring_to_string(&env, japi_url, "Couldn't successfully get api_url") {
+    let api_url = match jstring_to_string(&env, japi_url, "api_url") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -160,11 +158,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
     jconfig: JString,
     jaccount: JString,
 ) -> jstring {
-    let account = match jstring_to_string(&env, jaccount, "Couldn't successfully get account") {
+    let account = match jstring_to_string(&env, jaccount, "account") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -178,7 +176,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
     _: JClass,
     jconfig: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -192,7 +190,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(
     _: JClass,
     jconfig: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -207,7 +205,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_setLastSynced(
     jconfig: JString,
     jlastsynced: jlong,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -224,7 +222,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
     _: JClass,
     jconfig: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -239,12 +237,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
     jconfig: JString,
     jid: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
 
-    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -259,11 +257,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
     jconfig: JString,
     jid: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -278,15 +276,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
     jconfig: JString,
     jfilemetadata: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let file_metadata = match deserialize::<FileMetadata>(
-        &env,
-        jfilemetadata,
-        "Couldn't successfully get file metadata",
-    ) {
+    let file_metadata = match deserialize::<FileMetadata>(&env, jfilemetadata, "file metadata") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -302,15 +296,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
     jid: JString,
     jname: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let name = match jstring_to_string(&env, jname, "Couldn't successfully get name") {
+    let name = match jstring_to_string(&env, jname, "name") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -327,20 +321,19 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
     jid: JString,
     jfiletype: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let file_type =
-        match deserialize::<FileType>(&env, jfiletype, "Couldn't successfully get filetype") {
-            Ok(ok) => ok,
-            Err(err) => return err,
-        };
-    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
+    let file_type = match deserialize::<FileType>(&env, jfiletype, "filetype") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let name = match jstring_to_string(&env, jname, "Couldn't successfully get name") {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+    let name = match jstring_to_string(&env, jname, "name") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -376,7 +369,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getLocalAndServerUsage(
     jconfig: JString,
     jexact: jboolean,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -389,7 +382,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getLocalAndServerUsage(
             return string_to_jstring(
                 &env,
                 translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
-                    "Couldn't successfully get exact:{}",
+                    "Couldn't get exact boolean:{}",
                     exact_int
                 )))),
             );
@@ -415,11 +408,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
     jconfig: JString,
     jid: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -434,11 +427,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
     jconfig: JString,
     jid: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
+
+    let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -450,6 +444,96 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jid: JString,
+    jlocation: JString,
+) -> jstring {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let location = match jstring_to_string(&env, jlocation, "path") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        translate(save_document_to_disk(&config, id, location)),
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawing(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jid: JString,
+    jformat: JString,
+) -> jstring {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let format = match deserialize::<SupportedImageFormats>(&env, jformat, "image format") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(&env, translate(export_drawing(&config, id, format, None)))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
+    env: JNIEnv,
+    _: JClass,
+    jconfig: JString,
+    jid: JString,
+    jformat: JString,
+    jlocation: JString,
+) -> jstring {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let format = match deserialize::<SupportedImageFormats>(&env, jformat, "image format") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let location = match jstring_to_string(&env, jlocation, "path") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        translate(export_drawing_to_disk(&config, id, format, None, location)),
+    )
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
     env: JNIEnv,
     _: JClass,
@@ -457,15 +541,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
     jid: JString,
     jcontent: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let content = match jstring_to_string(&env, jcontent, "Couldn't successfully get content") {
+    let content = match jstring_to_string(&env, jcontent, "content") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -484,15 +568,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
     jid: JString,
     jparentid: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let id = match deserialize_id(&env, jid, "Couldn't successfully get id") {
+    let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let parent_id = match deserialize_id(&env, jparentid, "Couldn't successfully get id") {
+    let parent_id = match deserialize_id(&env, jparentid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -507,7 +591,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
     jconfig: JString,
     jsyncmodel: JObject<'static>,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -538,7 +622,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_backgroundSync(
     _: JClass,
     jconfig: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -552,7 +636,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
     _: JClass,
     jconfig: JString,
 ) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "Couldn't successfully get config") {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
         Err(err) => return err,
     };

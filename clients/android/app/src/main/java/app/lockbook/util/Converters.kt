@@ -643,6 +643,130 @@ val readDocumentConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
+val saveDocumentToDiskConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
+        okTag -> Ok(Unit)
+        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
+            uiErrorTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(
+                        when (error) {
+                            SaveDocumentToDiskError.TreatedFolderAsDocument::class.simpleName -> SaveDocumentToDiskError.TreatedFolderAsDocument
+                            SaveDocumentToDiskError.NoAccount::class.simpleName -> SaveDocumentToDiskError.NoAccount
+                            SaveDocumentToDiskError.FileDoesNotExist::class.simpleName -> SaveDocumentToDiskError.FileDoesNotExist
+                            SaveDocumentToDiskError.BadPath::class.simpleName -> SaveDocumentToDiskError.BadPath
+                            SaveDocumentToDiskError.FileAlreadyExistsInDisk::class.simpleName -> SaveDocumentToDiskError.FileAlreadyExistsInDisk
+                            else -> SaveDocumentToDiskError.Unexpected("saveDocumentToDiskConverter $unmatchedUiError $error")
+                        }
+                    )
+                } else {
+                    Err(SaveDocumentToDiskError.Unexpected("saveDocumentToDiskConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(SaveDocumentToDiskError.Unexpected(error))
+                } else {
+                    Err(SaveDocumentToDiskError.Unexpected("saveDocumentToDiskConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            else -> Err(SaveDocumentToDiskError.Unexpected("saveDocumentToDiskConverter $unmatchedErrorTag $errorTag"))
+        }
+        else -> Err(SaveDocumentToDiskError.Unexpected("saveDocumentToDiskConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val exportDrawingConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
+        okTag -> {
+            val ok = jv.obj?.array<ByteArray>("content")
+            if (ok != null) {
+                Ok(Klaxon().parseFromJsonArray<Byte>(ok))
+            } else {
+                Err(ExportDrawingError.Unexpected("exportDrawingConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
+            }
+        }
+        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
+            uiErrorTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(
+                        when (error) {
+                            ExportDrawingError.InvalidDrawing::class.simpleName -> ExportDrawingError.InvalidDrawing
+                            ExportDrawingError.NoAccount::class.simpleName -> ExportDrawingError.NoAccount
+                            ExportDrawingError.FileDoesNotExist::class.simpleName -> ExportDrawingError.FileDoesNotExist
+                            ExportDrawingError.FolderTreatedAsDrawing::class.simpleName -> ExportDrawingError.FolderTreatedAsDrawing
+                            else -> ExportDrawingError.Unexpected("exportDrawingConverter $unmatchedUiError $error")
+                        }
+                    )
+                } else {
+                    Err(ExportDrawingError.Unexpected("exportDrawingConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(ExportDrawingError.Unexpected(error))
+                } else {
+                    Err(ExportDrawingError.Unexpected("exportDrawingConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            else -> Err(ExportDrawingError.Unexpected("exportDrawingConverter $unmatchedErrorTag $errorTag"))
+        }
+        else -> Err(ExportDrawingError.Unexpected("exportDrawingConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val exportDrawingToDiskConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
+        okTag -> Ok(Unit)
+        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
+            uiErrorTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(
+                        when (error) {
+                            ExportDrawingToDiskError.InvalidDrawing::class.simpleName -> ExportDrawingToDiskError.InvalidDrawing
+                            ExportDrawingToDiskError.NoAccount::class.simpleName -> ExportDrawingToDiskError.NoAccount
+                            ExportDrawingToDiskError.FileDoesNotExist::class.simpleName -> ExportDrawingToDiskError.FileDoesNotExist
+                            ExportDrawingToDiskError.FolderTreatedAsDrawing::class.simpleName -> ExportDrawingToDiskError.FolderTreatedAsDrawing
+                            ExportDrawingToDiskError.BadPath::class.simpleName -> ExportDrawingToDiskError.BadPath
+                            ExportDrawingToDiskError.FileAlreadyExistsInDisk::class.simpleName -> ExportDrawingToDiskError.FileAlreadyExistsInDisk
+                            else -> ExportDrawingToDiskError.Unexpected("exportDrawingToDiskConverter $unmatchedUiError $error")
+                        }
+                    )
+                } else {
+                    Err(ExportDrawingToDiskError.Unexpected("exportDrawingToDiskConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(ExportDrawingToDiskError.Unexpected(error))
+                } else {
+                    Err(ExportDrawingToDiskError.Unexpected("exportDrawingToDiskConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            else -> Err(ExportDrawingToDiskError.Unexpected("exportDrawingToDiskConverter $unmatchedErrorTag $errorTag"))
+        }
+        else -> Err(ExportDrawingToDiskError.Unexpected("exportDrawingToDiskConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
 val writeDocumentConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 

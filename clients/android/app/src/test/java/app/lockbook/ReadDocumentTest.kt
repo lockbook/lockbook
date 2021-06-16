@@ -49,7 +49,7 @@ class ReadDocumentTest {
         )
 
         assertType<String>(
-            CoreModel.getDocumentContent(config, document.id).component1()
+            CoreModel.readDocument(config, document.id).component1()
         )
     }
 
@@ -77,7 +77,7 @@ class ReadDocumentTest {
         )
 
         assertType<ReadDocumentError.TreatedFolderAsDocument>(
-            CoreModel.getDocumentContent(config, folder.id).component2()
+            CoreModel.readDocument(config, folder.id).component2()
         )
     }
 
@@ -88,7 +88,7 @@ class ReadDocumentTest {
         )
 
         assertType<ReadDocumentError.FileDoesNotExist>(
-            CoreModel.getDocumentContent(config, generateId()).component2()
+            CoreModel.readDocument(config, generateId()).component2()
         )
     }
 
