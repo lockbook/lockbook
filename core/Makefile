@@ -14,10 +14,10 @@ android:
 	@mkdir $(jniLibs)/x86
 	@mkdir $(jniLibs)/x86_64
 	
-	@cp target/aarch64-linux-android/release/$(libName) $(jniLibs)/arm64-v8a/$(libName)
-	@cp target/armv7-linux-androideabi/release/$(libName) $(jniLibs)/armeabi-v7a/$(libName)
-	@cp target/i686-linux-android/release/$(libName) $(jniLibs)/x86/$(libName)
-	@cp target/x86_64-linux-android/release/$(libName) $(jniLibs)/x86_64/$(libName)
+	@cp ../target/aarch64-linux-android/release/$(libName) $(jniLibs)/arm64-v8a/$(libName)
+	@cp ../target/armv7-linux-androideabi/release/$(libName) $(jniLibs)/armeabi-v7a/$(libName)
+	@cp ../target/i686-linux-android/release/$(libName) $(jniLibs)/x86/$(libName)
+	@cp ../target/x86_64-linux-android/release/$(libName) $(jniLibs)/x86_64/$(libName)
 
 .PHONY: macos_jni
 macos_jni:
@@ -30,7 +30,7 @@ macos_jni:
 	@echo "Moving new .dylib over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/release/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
+	@cp ../target/release/$(macosLibName) $(jniLibs)/desktop/$(macosLibName)
 
 .PHONY: windows_jni
 windows_jni:
@@ -43,7 +43,7 @@ windows_jni:
 	@echo "Moving new .dll over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/release/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
+	@cp ../target/release/$(windowsLibName) $(jniLibs)/desktop/$(windowsLibName)
 
 .PHONY: linux_jni
 linux_jni:
@@ -56,7 +56,7 @@ linux_jni:
 	@echo "Moving new .so over"
 	@mkdir -p $(jniLibs)/desktop
 
-	@cp target/release/$(libName) $(jniLibs)/desktop/$(libName)
+	@cp ../target/release/$(libName) $(jniLibs)/desktop/$(libName)
 
 .PHONY: lib_c_for_swift_ios
 lib_c_for_swift_ios:

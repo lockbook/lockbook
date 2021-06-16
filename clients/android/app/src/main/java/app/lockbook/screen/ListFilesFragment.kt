@@ -1,7 +1,9 @@
 package app.lockbook.screen
 
+import android.content.ClipData
 import android.content.Intent
 import android.content.res.Configuration.*
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +12,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout.HORIZONTAL
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModelProvider
@@ -25,7 +28,7 @@ import app.lockbook.ui.*
 import app.lockbook.util.*
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
-import kotlinx.coroutines.launch
+import java.io.File
 import java.util.*
 
 class ListFilesFragment : Fragment() {
@@ -36,9 +39,16 @@ class ListFilesFragment : Fragment() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    var onActivityResult = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
-        listFilesViewModel.onOpenedActivityEnd()
-    }
+    private var onActivityResult =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            listFilesViewModel.onOpenedActivityEnd()
+        }
+
+    var onShareResult =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            getListFilesActivity()?.showHideProgressOverlay(false)
+            listFilesViewModel.shareModel.isLoadingOverlayVisible = false
+        }
 
     private var updatedLastSyncedDescription = Timer()
     private val handler = Handler(requireNotNull(Looper.myLooper()))
@@ -65,15 +75,6 @@ class ListFilesFragment : Fragment() {
         )
             .setIsIndeterminate(false)
             .setSwipeToDismiss(false)
-            .setAllowUserInput(true)
-    }
-
-    private val syncInfoSnackBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_NORMAL,
-            ""
-        )
-            .setSwipeToDismiss(true)
             .setAllowUserInput(true)
     }
 
@@ -239,10 +240,24 @@ class ListFilesFragment : Fragment() {
             }
         )
 
+        listFilesViewModel.shareDocument.observe(
+            viewLifecycleOwner,
+            { files ->
+                shareDocuments(files)
+            }
+        )
+
         listFilesViewModel.updateSyncSnackBar.observe(
             viewLifecycleOwner,
             { progressAndTotal ->
                 updateProgressSnackBar(progressAndTotal.first, progressAndTotal.second)
+            }
+        )
+
+        listFilesViewModel.showHideProgressOverlay.observe(
+            viewLifecycleOwner,
+            { show ->
+                showHideProgressOverlay(show)
             }
         )
 
@@ -271,6 +286,13 @@ class ListFilesFragment : Fragment() {
         )
 
         return binding.root
+    }
+
+    private fun showHideProgressOverlay(show: Boolean) {
+        if (show) {
+            listFilesViewModel.collapseMoreOptionsMenu()
+        }
+        getListFilesActivity()?.showHideProgressOverlay(show)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -348,15 +370,54 @@ class ListFilesFragment : Fragment() {
     private fun setUpAfterConfigChange() {
         collapseExpandFAB(listFilesViewModel.isFABOpen)
 
-        if (listFilesViewModel.syncModel.syncStatus is SyncStatus.IsSyncing) {
-            val status = listFilesViewModel.syncModel.syncStatus as SyncStatus.IsSyncing
+        val syncStatus = listFilesViewModel.syncModel.syncStatus
+        if (syncStatus is SyncStatus.IsSyncing) {
             showSyncSnackBar()
-            updateProgressSnackBar(status.total, status.progress)
+            updateProgressSnackBar(syncStatus.total, syncStatus.progress)
+        }
+
+        val isLoadingOverlayVisible = listFilesViewModel.shareModel.isLoadingOverlayVisible
+        if (isLoadingOverlayVisible) {
+            showHideProgressOverlay(isLoadingOverlayVisible)
         }
 
         parentFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
             false
+        )
+    }
+
+    private fun shareDocuments(files: ArrayList<File>) {
+        val uris = ArrayList<Uri>()
+
+        for (file in files) {
+            uris.add(
+                FileProvider.getUriForFile(
+                    requireContext(),
+                    "app.lockbook.fileprovider",
+                    file
+                )
+            )
+        }
+
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE)
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+
+        val clipData = ClipData.newRawUri(null, Uri.EMPTY)
+        uris.forEach { uri ->
+            clipData.addItem(ClipData.Item(uri))
+        }
+
+        intent.clipData = clipData
+        intent.type = "*/*"
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+
+        onShareResult.launch(
+            Intent.createChooser(
+                intent,
+                "Send multiple files."
+            )
         )
     }
 
@@ -379,22 +440,6 @@ class ListFilesFragment : Fragment() {
             syncSnackProgressBar,
             SnackProgressBarManager.LENGTH_INDEFINITE
         )
-    }
-
-    private fun showSyncInfoSnackBar(amountToSync: Int) {
-        snackProgressBarManager.dismiss()
-        if (amountToSync == 0) {
-            syncInfoSnackBar.setMessage(resources.getString(R.string.list_files_sync_finished_snackbar))
-            snackProgressBarManager.show(syncInfoSnackBar, SnackProgressBarManager.LENGTH_SHORT)
-        } else {
-            syncInfoSnackBar.setMessage(
-                resources.getString(
-                    R.string.list_files_sync_info_snackbar,
-                    amountToSync.toString()
-                )
-            )
-            snackProgressBarManager.show(syncInfoSnackBar, SnackProgressBarManager.LENGTH_SHORT)
-        }
     }
 
     private fun collapseExpandFAB(isFABOpen: Boolean) {
@@ -452,15 +497,21 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun moreOptionsMenu() {
+        getListFilesActivity()?.switchMenu()
+    }
+
+    private fun getListFilesActivity(): ListFilesActivity? {
         if (activity is ListFilesActivity) {
-            (activity as ListFilesActivity).switchMenu()
-        } else {
-            AlertModel.errorHasOccurred(
-                binding.fragmentListFiles,
-                BASIC_ERROR,
-                OnFinishAlert.DoNothingOnFinishAlert
-            )
+            return activity as ListFilesActivity
         }
+
+        AlertModel.errorHasOccurred(
+            binding.fragmentListFiles,
+            BASIC_ERROR,
+            OnFinishAlert.DoNothingOnFinishAlert
+        )
+
+        return null
     }
 
     private fun navigateToDrawing(editableFile: EditableFile) {

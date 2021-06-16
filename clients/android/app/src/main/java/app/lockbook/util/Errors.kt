@@ -106,6 +106,33 @@ sealed class ReadDocumentError : CoreError() {
     data class Unexpected(val error: String) : ReadDocumentError()
 }
 
+sealed class SaveDocumentToDiskError : CoreError() {
+    object TreatedFolderAsDocument : SaveDocumentToDiskError()
+    object NoAccount : SaveDocumentToDiskError()
+    object FileDoesNotExist : SaveDocumentToDiskError()
+    object BadPath : SaveDocumentToDiskError()
+    object FileAlreadyExistsInDisk : SaveDocumentToDiskError()
+    data class Unexpected(val error: String) : SaveDocumentToDiskError()
+}
+
+sealed class ExportDrawingError : CoreError() {
+    object FolderTreatedAsDrawing : ExportDrawingError()
+    object FileDoesNotExist : ExportDrawingError()
+    object NoAccount : ExportDrawingError()
+    object InvalidDrawing : ExportDrawingError()
+    data class Unexpected(val error: String) : ExportDrawingError()
+}
+
+sealed class ExportDrawingToDiskError : CoreError() {
+    object FolderTreatedAsDrawing : ExportDrawingToDiskError()
+    object FileDoesNotExist : ExportDrawingToDiskError()
+    object NoAccount : ExportDrawingToDiskError()
+    object InvalidDrawing : ExportDrawingToDiskError()
+    object BadPath : ExportDrawingToDiskError()
+    object FileAlreadyExistsInDisk : ExportDrawingToDiskError()
+    data class Unexpected(val error: String) : ExportDrawingToDiskError()
+}
+
 sealed class RenameFileError : CoreError() {
     object FileDoesNotExist : RenameFileError()
     object NewNameContainsSlash : RenameFileError()

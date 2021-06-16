@@ -44,7 +44,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
     }
 
     fun readDocument(id: String): String? {
-        when (val documentResult = CoreModel.getDocumentContent(config, id)) {
+        when (val documentResult = CoreModel.readDocument(config, id)) {
             is Ok -> {
                 return documentResult.value
             }

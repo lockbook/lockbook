@@ -41,6 +41,17 @@
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.TextEditorActivity" />
         <activity android:name=".screen.LogActivity" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="app.lockbook.fileprovider"
+            android:grantUriPermissions="true"
+            android:exported="false">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/files_path" />
+        </provider>
+
     </application>
 
 </manifest>

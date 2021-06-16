@@ -27,9 +27,14 @@ use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
 };
 use crate::service::db_state_service::State;
+use crate::service::drawing_service::{
+    ExportDrawingError as FSExportDrawingError,
+    ExportDrawingToDiskError as FSExportDrawingToDiskError, GetDrawingError as FSGetDrawingError,
+    SaveDrawingError as FSSaveDrawingError,
+};
 use crate::service::file_service::{
     DocumentRenameError, DocumentUpdateError, FileMoveError, NewFileError, NewFileFromPathError,
-    ReadDocumentError as FSReadDocumentError,
+    ReadDocumentError as FSReadDocumentError, SaveDocumentToDiskError as FSSaveDocumentToDiskError,
 };
 use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, SyncProgress, WorkCalculated,
@@ -58,6 +63,7 @@ use crate::service::drawing_service::SupportedImageFormats;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use serde_json::error::Category;
 use std::collections::HashMap;
+use std::io::ErrorKind;
 use Error::UiError;
 
 macro_rules! unexpected {
@@ -509,6 +515,62 @@ pub fn read_document(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
+pub enum SaveDocumentToDiskError {
+    TreatedFolderAsDocument,
+    NoAccount,
+    FileDoesNotExist,
+    BadPath,
+    FileAlreadyExistsInDisk,
+}
+
+pub fn save_document_to_disk(
+    config: &Config,
+    id: Uuid,
+    location: String,
+) -> Result<(), Error<SaveDocumentToDiskError>> {
+    file_service::save_document_to_disk(&config, id, location).map_err(|e| match e {
+        FSSaveDocumentToDiskError::CouldNotCreateDocumentError(creation_err) => {
+            match creation_err.kind() {
+                ErrorKind::NotFound | ErrorKind::PermissionDenied | ErrorKind::InvalidInput => {
+                    UiError(SaveDocumentToDiskError::BadPath)
+                }
+                ErrorKind::AlreadyExists => {
+                    UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk)
+                }
+                _ => unexpected!("{:#?}", creation_err),
+            }
+        }
+        FSSaveDocumentToDiskError::CouldNotWriteToDocumentError(_) => {
+            unexpected!("{:#?}", e)
+        }
+        FSSaveDocumentToDiskError::ReadDocumentError(read_document_err) => {
+            match read_document_err {
+                FSReadDocumentError::TreatedFolderAsDocument => {
+                    UiError(SaveDocumentToDiskError::TreatedFolderAsDocument)
+                }
+
+                FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
+                    AccountRepoError::NoAccount => UiError(SaveDocumentToDiskError::NoAccount),
+                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                        unexpected!("{:#?}", account_error)
+                    }
+                },
+                FSReadDocumentError::CouldNotFindFile => {
+                    UiError(SaveDocumentToDiskError::FileDoesNotExist)
+                }
+                FSReadDocumentError::DbError(_)
+                | FSReadDocumentError::DocumentReadError(_)
+                | FSReadDocumentError::CouldNotFindParents(_)
+                | FSReadDocumentError::FileEncryptionError(_)
+                | FSReadDocumentError::FileDecompressionError(_) => {
+                    unexpected!("{:#?}", read_document_err)
+                }
+            }
+        }
+    })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
 pub enum ListPathsError {
     Stub, // TODO: Enums should not be empty
 }
@@ -823,14 +885,14 @@ pub enum GetDrawingError {
 }
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    drawing_service::get_drawing(&config, id).map_err(|drawing_err| match drawing_err {
-        drawing_service::GetDrawingError::InvalidDrawingError(err) => match err.classify() {
+    drawing_service::get_drawing(&config, id).map_err(|e| match e {
+        FSGetDrawingError::InvalidDrawingError(err) => match err.classify() {
             Category::Io => unexpected!("{:#?}", err),
             Category::Syntax | Category::Data | Category::Eof => {
                 UiError(GetDrawingError::InvalidDrawing)
             }
         },
-        drawing_service::GetDrawingError::FailedToRetrieveJson(err) => match err {
+        FSGetDrawingError::FailedToRetrieveJson(err) => match err {
             FSReadDocumentError::TreatedFolderAsDocument => {
                 UiError(GetDrawingError::FolderTreatedAsDrawing)
             }
@@ -863,39 +925,35 @@ pub fn save_drawing(
     id: Uuid,
     drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
-    drawing_service::save_drawing(&config, id, drawing_bytes).map_err(|drawing_err| {
-        match drawing_err {
-            drawing_service::SaveDrawingError::InvalidDrawingError(err) => match err.classify() {
-                Category::Io => unexpected!("{:#?}", err),
-                Category::Syntax | Category::Data | Category::Eof => {
-                    UiError(SaveDrawingError::InvalidDrawing)
+    drawing_service::save_drawing(&config, id, drawing_bytes).map_err(|e| match e {
+        FSSaveDrawingError::InvalidDrawingError(err) => match err.classify() {
+            Category::Io => unexpected!("{:#?}", err),
+            Category::Syntax | Category::Data | Category::Eof => {
+                UiError(SaveDrawingError::InvalidDrawing)
+            }
+        },
+        FSSaveDrawingError::FailedToSaveJson(err) => match err {
+            DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                    unexpected!("{:#?}", account_err)
                 }
+                AccountRepoError::NoAccount => UiError(SaveDrawingError::NoAccount),
             },
-            drawing_service::SaveDrawingError::FailedToSaveJson(err) => match err {
-                DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
-                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                        unexpected!("{:#?}", account_err)
-                    }
-                    AccountRepoError::NoAccount => UiError(SaveDrawingError::NoAccount),
-                },
-                DocumentUpdateError::CouldNotFindFile => {
-                    UiError(SaveDrawingError::FileDoesNotExist)
-                }
-                DocumentUpdateError::FolderTreatedAsDocument => {
-                    UiError(SaveDrawingError::FolderTreatedAsDrawing)
-                }
-                DocumentUpdateError::CouldNotFindParents(_)
-                | DocumentUpdateError::FileEncryptionError(_)
-                | DocumentUpdateError::FileCompressionError(_)
-                | DocumentUpdateError::FileDecompressionError(_)
-                | DocumentUpdateError::DocumentWriteError(_)
-                | DocumentUpdateError::DbError(_)
-                | DocumentUpdateError::FetchOldVersionError(_)
-                | DocumentUpdateError::DecryptOldVersionError(_)
-                | DocumentUpdateError::AccessInfoCreationError(_)
-                | DocumentUpdateError::FailedToRecordChange(_) => unexpected!("{:#?}", err),
-            },
-        }
+            DocumentUpdateError::CouldNotFindFile => UiError(SaveDrawingError::FileDoesNotExist),
+            DocumentUpdateError::FolderTreatedAsDocument => {
+                UiError(SaveDrawingError::FolderTreatedAsDrawing)
+            }
+            DocumentUpdateError::CouldNotFindParents(_)
+            | DocumentUpdateError::FileEncryptionError(_)
+            | DocumentUpdateError::FileCompressionError(_)
+            | DocumentUpdateError::FileDecompressionError(_)
+            | DocumentUpdateError::DocumentWriteError(_)
+            | DocumentUpdateError::DbError(_)
+            | DocumentUpdateError::FetchOldVersionError(_)
+            | DocumentUpdateError::DecryptOldVersionError(_)
+            | DocumentUpdateError::AccessInfoCreationError(_)
+            | DocumentUpdateError::FailedToRecordChange(_) => unexpected!("{:#?}", err),
+        },
     })
 }
 
@@ -913,53 +971,124 @@ pub fn export_drawing(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    drawing_service::export_drawing(&config, id, format, render_theme).map_err(
-        |export_drawing_err| match export_drawing_err {
-            drawing_service::ExportDrawingError::GetDrawingError(get_drawing_err) => {
-                match get_drawing_err {
-                    drawing_service::GetDrawingError::InvalidDrawingError(err) => {
-                        match err.classify() {
-                            Category::Io => unexpected!("{:#?}", err),
-                            Category::Syntax | Category::Data | Category::Eof => {
-                                UiError(ExportDrawingError::InvalidDrawing)
-                            }
-                        }
+    drawing_service::export_drawing(&config, id, format, render_theme).map_err(|e| match e {
+        FSExportDrawingError::GetDrawingError(get_drawing_err) => match get_drawing_err {
+            FSGetDrawingError::InvalidDrawingError(err) => match err.classify() {
+                Category::Io => unexpected!("{:#?}", err),
+                Category::Syntax | Category::Data | Category::Eof => {
+                    UiError(ExportDrawingError::InvalidDrawing)
+                }
+            },
+            FSGetDrawingError::FailedToRetrieveJson(err) => match err {
+                FSReadDocumentError::TreatedFolderAsDocument => {
+                    UiError(ExportDrawingError::FolderTreatedAsDrawing)
+                }
+                FSReadDocumentError::AccountRetrievalError(account_error) => match account_error {
+                    AccountRepoError::NoAccount => UiError(ExportDrawingError::NoAccount),
+                    AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                        unexpected!("{:#?}", account_error)
                     }
-                    drawing_service::GetDrawingError::FailedToRetrieveJson(err) => match err {
-                        FSReadDocumentError::TreatedFolderAsDocument => {
-                            UiError(ExportDrawingError::FolderTreatedAsDrawing)
-                        }
-                        FSReadDocumentError::AccountRetrievalError(account_error) => {
-                            match account_error {
-                                AccountRepoError::NoAccount => {
-                                    UiError(ExportDrawingError::NoAccount)
-                                }
-                                AccountRepoError::BackendError(_)
-                                | AccountRepoError::SerdeError(_) => {
-                                    unexpected!("{:#?}", account_error)
-                                }
-                            }
-                        }
-                        FSReadDocumentError::CouldNotFindFile => {
-                            UiError(ExportDrawingError::FileDoesNotExist)
-                        }
-                        FSReadDocumentError::DbError(_)
-                        | FSReadDocumentError::DocumentReadError(_)
-                        | FSReadDocumentError::CouldNotFindParents(_)
-                        | FSReadDocumentError::FileEncryptionError(_)
-                        | FSReadDocumentError::FileDecompressionError(_) => {
-                            unexpected!("{:#?}", err)
-                        }
-                    },
+                },
+                FSReadDocumentError::CouldNotFindFile => {
+                    UiError(ExportDrawingError::FileDoesNotExist)
+                }
+                FSReadDocumentError::DbError(_)
+                | FSReadDocumentError::DocumentReadError(_)
+                | FSReadDocumentError::CouldNotFindParents(_)
+                | FSReadDocumentError::FileEncryptionError(_)
+                | FSReadDocumentError::FileDecompressionError(_) => {
+                    unexpected!("{:#?}", err)
+                }
+            },
+        },
+        FSExportDrawingError::UnableToGetColorFromAlias
+        | FSExportDrawingError::UnableToGetStrokePoint
+        | FSExportDrawingError::UnableToGetStrokeGirth
+        | FSExportDrawingError::UnequalPointsAndGirthMetrics
+        | FSExportDrawingError::InvalidAlphaValue
+        | FSExportDrawingError::FailedToEncodeImage(_) => {
+            unexpected!("{:#?}", e)
+        }
+    })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ExportDrawingToDiskError {
+    FolderTreatedAsDrawing,
+    FileDoesNotExist,
+    NoAccount,
+    InvalidDrawing,
+    BadPath,
+    FileAlreadyExistsInDisk,
+}
+
+pub fn export_drawing_to_disk(
+    config: &Config,
+    id: Uuid,
+    format: SupportedImageFormats,
+    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+    location: String,
+) -> Result<(), Error<ExportDrawingToDiskError>> {
+    drawing_service::export_drawing_to_disk(&config, id, format, render_theme, location).map_err(
+        |e| match e {
+            FSExportDrawingToDiskError::CouldNotCreateDocumentError(creation_err) => {
+                match creation_err.kind() {
+                    ErrorKind::NotFound | ErrorKind::PermissionDenied | ErrorKind::InvalidInput => {
+                        UiError(ExportDrawingToDiskError::BadPath)
+                    }
+                    ErrorKind::AlreadyExists => {
+                        UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk)
+                    }
+                    _ => unexpected!("{:#?}", creation_err),
                 }
             }
-            drawing_service::ExportDrawingError::UnableToGetColorFromAlias
-            | drawing_service::ExportDrawingError::UnableToGetStrokePoint
-            | drawing_service::ExportDrawingError::UnableToGetStrokeGirth
-            | drawing_service::ExportDrawingError::UnequalPointsAndGirthMetrics
-            | drawing_service::ExportDrawingError::InvalidAlphaValue
-            | drawing_service::ExportDrawingError::FailedToEncodeImage(_) => {
-                unexpected!("{:#?}", export_drawing_err)
+            FSExportDrawingToDiskError::CouldNotWriteToDocumentError(_) => unexpected!("{:#?}", e),
+            FSExportDrawingToDiskError::ExportDrawingError(export_drawing_err) => {
+                match export_drawing_err {
+                    FSExportDrawingError::GetDrawingError(get_drawing_err) => match get_drawing_err
+                    {
+                        FSGetDrawingError::InvalidDrawingError(err) => match err.classify() {
+                            Category::Io => unexpected!("{:#?}", err),
+                            Category::Syntax | Category::Data | Category::Eof => {
+                                UiError(ExportDrawingToDiskError::InvalidDrawing)
+                            }
+                        },
+                        FSGetDrawingError::FailedToRetrieveJson(err) => match err {
+                            FSReadDocumentError::TreatedFolderAsDocument => {
+                                UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing)
+                            }
+                            FSReadDocumentError::AccountRetrievalError(account_error) => {
+                                match account_error {
+                                    AccountRepoError::NoAccount => {
+                                        UiError(ExportDrawingToDiskError::NoAccount)
+                                    }
+                                    AccountRepoError::BackendError(_)
+                                    | AccountRepoError::SerdeError(_) => {
+                                        unexpected!("{:#?}", account_error)
+                                    }
+                                }
+                            }
+                            FSReadDocumentError::CouldNotFindFile => {
+                                UiError(ExportDrawingToDiskError::FileDoesNotExist)
+                            }
+                            FSReadDocumentError::DbError(_)
+                            | FSReadDocumentError::DocumentReadError(_)
+                            | FSReadDocumentError::CouldNotFindParents(_)
+                            | FSReadDocumentError::FileEncryptionError(_)
+                            | FSReadDocumentError::FileDecompressionError(_) => {
+                                unexpected!("{:#?}", err)
+                            }
+                        },
+                    },
+                    FSExportDrawingError::UnableToGetColorFromAlias
+                    | FSExportDrawingError::UnableToGetStrokePoint
+                    | FSExportDrawingError::UnableToGetStrokeGirth
+                    | FSExportDrawingError::UnequalPointsAndGirthMetrics
+                    | FSExportDrawingError::InvalidAlphaValue
+                    | FSExportDrawingError::FailedToEncodeImage(_) => {
+                        unexpected!("{:#?}", export_drawing_err)
+                    }
+                }
             }
         },
     )
@@ -1009,6 +1138,8 @@ impl_get_variants!(
     GetDrawingError,
     SaveDrawingError,
     ExportDrawingError,
+    ExportDrawingToDiskError,
+    SaveDocumentToDiskError,
 );
 
 pub mod c_interface;

@@ -16,6 +16,8 @@ fun generateAlphaString(): String =
 
 fun generateId(): String = UUID.randomUUID().toString()
 
+fun generateFakeRandomPath() = "/tmp/${System.currentTimeMillis()}"
+
 fun createRandomPath(): String {
     val path = "/tmp/${generateAlphaString()}"
     Runtime.getRuntime().exec("mkdir $path")
@@ -61,6 +63,7 @@ val errorsToCheck = listOf<KClass<*>>(
     SetLastSyncedError::class,
     SyncAllError::class,
     WriteToDocumentError::class,
+    ExportDrawingError::class
 )
 
 val checkIfAllErrorsPresentConverter = object : Converter {

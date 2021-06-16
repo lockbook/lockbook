@@ -8,11 +8,16 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import timber.log.Timber
 
-class SyncModel(private val config: Config, private val _showSnackBar: SingleMutableLiveData<String>, private val _errorHasOccurred: SingleMutableLiveData<String>, private val _unexpectedErrorHasOccurred: SingleMutableLiveData<String>) {
+class SyncModel(
+    private val config: Config,
+    private val _showSyncSnackBar: SingleMutableLiveData<Unit>,
+    private val _updateSyncSnackBar: SingleMutableLiveData<Pair<Int, Int>>,
+    private val _showSnackBar: SingleMutableLiveData<String>,
+    private val _errorHasOccurred: SingleMutableLiveData<String>,
+    private val _unexpectedErrorHasOccurred: SingleMutableLiveData<String>
+) {
 
     var syncStatus: SyncStatus = SyncStatus.IsNotSyncing
-    val _showSyncSnackBar = SingleMutableLiveData<Unit>()
-    val _updateSyncSnackBar = SingleMutableLiveData<Pair<Int, Int>>()
 
     fun trySync() {
         if (syncStatus is SyncStatus.IsNotSyncing
@@ -43,7 +48,8 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
     }
 
     private fun sync() {
-        val upToDateMsg = App.instance.resources.getString(R.string.list_files_sync_finished_snackbar)
+        val upToDateMsg =
+            App.instance.resources.getString(R.string.list_files_sync_finished_snackbar)
 
         when (val workCalculatedResult = CoreModel.calculateWork(config)) {
             is Ok -> {
@@ -53,7 +59,11 @@ class SyncModel(private val config: Config, private val _showSnackBar: SingleMut
             }
             is Err -> return when (val error = workCalculatedResult.error) {
                 is CalculateWorkError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is CalculateWorkError.CouldNotReachServer -> _showSnackBar.postValue(App.instance.resources.getString(R.string.list_files_offline_snackbar))
+                is CalculateWorkError.CouldNotReachServer -> _showSnackBar.postValue(
+                    App.instance.resources.getString(
+                        R.string.list_files_offline_snackbar
+                    )
+                )
                 is CalculateWorkError.ClientUpdateRequired -> _errorHasOccurred.postValue("Update required.")
                 is CalculateWorkError.Unexpected -> {
                     Timber.e("Unable to calculate syncWork: ${error.error}")
