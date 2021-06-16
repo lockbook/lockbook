@@ -1,25 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/list_files_activity_layout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:gravity="center"
-    android:orientation="vertical"
-    tools:context=".screen.WelcomeActivity">
+    android:layout_height="match_parent">
 
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/list_files_toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="?attr/actionBarSize"
-        android:theme="@style/Main.Widget.Actionbar" />
-
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/files_fragment"
-        android:name="app.lockbook.screen.ListFilesFragment"
+    <LinearLayout
+        android:id="@+id/list_files_activity_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:layout="@layout/fragment_list_files" />
+        android:gravity="center"
+        android:orientation="vertical"
+        tools:context=".screen.WelcomeActivity">
 
-</LinearLayout>
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/list_files_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="?attr/actionBarSize"
+            android:theme="@style/Main.Widget.Actionbar" />
+
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/files_fragment"
+            android:name="app.lockbook.screen.ListFilesFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            tools:layout="@layout/fragment_list_files" />
+
+    </LinearLayout>
+
+    <include
+        android:id="@+id/progress_overlay"
+        layout="@layout/progress_overlay" />
+</androidx.constraintlayout.widget.ConstraintLayout>
