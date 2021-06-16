@@ -37,8 +37,8 @@ class ImportAccountActivity : AppCompatActivity() {
         if (result.resultCode == Activity.RESULT_OK) {
             uiScope.launch {
                 withContext(Dispatchers.IO) {
-                    val intentResult =
-                        IntentIntegrator.parseActivityResult(result.resultCode, result.resultCode, result.data)
+                    val intentResult = IntentIntegrator.parseActivityResult(result.resultCode, result.data)
+
                     if (intentResult != null) {
                         intentResult.contents?.let { account ->
                             handleImportResult(

@@ -781,12 +781,14 @@ namespace test {
                 {"GetDrawingError", typeof(Core.GetDrawing.PossibleErrors)},
                 {"SaveDrawingError", typeof(Core.SaveDrawing.PossibleErrors)},
                 {"ExportDrawingError", typeof(Core.ExportDrawing.PossibleErrors)},
+                // {"ExportDrawingToDiskError", typeof(Core.???.PossibleErrors)},
+                // {"SaveDocumentToDiskError", typeof(Core.???.PossibleErrors)},
             };
 
             var variants = CoreService.GetVariants().WaitResult();
 
             foreach(var kvp in variants) {
-                if(kvp.Key == "GetFileByIdError" || kvp.Key == "InsertFileError") {
+                if(kvp.Key == "GetFileByIdError" || kvp.Key == "InsertFileError" || kvp.Key == "ExportDrawingToDiskError" || kvp.Key == "SaveDocumentToDiskError") {
                     continue; // these endpoints, and therefore these errors, are not used by this client
                 }
                 var enumType = typeMap[kvp.Key];
