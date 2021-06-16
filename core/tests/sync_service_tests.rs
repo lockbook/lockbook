@@ -2,6 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_tests {
+    use lockbook_core::path;
     use lockbook_core::repo::{document_repo, file_metadata_repo, local_changes_repo};
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::service::{
@@ -39,12 +40,6 @@ mod sync_tests {
             )
             .unwrap();
             account
-        }};
-    }
-
-    macro_rules! path {
-        ($account:expr, $path:expr) => {{
-            &format!("{}/{}", $account.username, $path)
         }};
     }
 

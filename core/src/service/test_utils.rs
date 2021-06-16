@@ -31,6 +31,13 @@ macro_rules! assert_matches (
     }
 );
 
+#[macro_export]
+macro_rules! path {
+        ($account:expr, $path:expr) => {{
+            &format!("{}/{}", $account.username, $path)
+        }};
+    }
+
 pub fn test_config() -> Config {
     Config {
         writeable_path: format!("/tmp/{}", Uuid::new_v4().to_string()),
@@ -55,10 +62,14 @@ pub fn random_filename() -> SecretFileName {
     symkey::encrypt_and_hmac(&symkey::generate_key(), &name).unwrap()
 }
 
+pub fn url() -> String {
+    env::var("API_URL").expect("API_URL must be defined!")
+}
+
 pub fn generate_account() -> Account {
     Account {
         username: random_username(),
-        api_url: env::var("API_URL").expect("API_URL must be defined!"),
+        api_url: url(),
         private_key: pubkey::generate_key(),
     }
 }
