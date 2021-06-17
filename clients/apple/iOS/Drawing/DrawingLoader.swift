@@ -8,9 +8,9 @@ struct DrawingLoader: View {
 
     @ObservedObject var model: DrawingModel
     @ObservedObject var toolbar: ToolbarModel
-    let meta: FileMetadata
-    let deleteChannel: PassthroughSubject<FileMetadata, Never>
-    @State var deleted: FileMetadata?
+    let meta: ClientFileMetadata
+    let deleteChannel: PassthroughSubject<ClientFileMetadata, Never>
+    @State var deleted: ClientFileMetadata?
 
     var body: some View {
         Group {
@@ -51,7 +51,7 @@ struct DrawingLoader: View {
 
 class DrawingModel: ObservableObject {
     @Published var originalDrawing: PKDrawing? = .none
-    @Published var meta: FileMetadata? = .none
+    @Published var meta: ClientFileMetadata? = .none
     var errors: String? = .none
     let write: (UUID, Drawing) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
     let read: (UUID) -> FfiResult<Drawing, ReadDocumentError>
@@ -62,7 +62,7 @@ class DrawingModel: ObservableObject {
         self.read = read
     }
 
-    func drawingModelChanged(meta: FileMetadata, updatedDrawing: PKDrawing) {
+    func drawingModelChanged(meta: ClientFileMetadata, updatedDrawing: PKDrawing) {
         originalDrawing = updatedDrawing
         DispatchQueue.global(qos: .userInitiated).async {
             print(self.write(meta.id, Drawing(from: updatedDrawing))) // TODO handle
@@ -70,7 +70,7 @@ class DrawingModel: ObservableObject {
         }
     }
 
-    func loadDrawing(meta: FileMetadata) {
+    func loadDrawing(meta: ClientFileMetadata) {
         DispatchQueue.main.async {
             switch self.read(meta.id) {
             case .success(let drawing):
@@ -83,7 +83,7 @@ class DrawingModel: ObservableObject {
         }
     }
 
-    func closeDrawing(meta: FileMetadata) {
+    func closeDrawing(meta: ClientFileMetadata) {
         self.meta = .none
         self.originalDrawing = .none
     }

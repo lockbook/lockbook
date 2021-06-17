@@ -240,10 +240,14 @@ async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
             return Err(ErrorWrapper::<TRequest::Error>::BadRequest);
         }
     };
-    let request: RequestWrapper<TRequest> = match deserialize_request(request_bytes) {
+    let request: RequestWrapper<TRequest> = match deserialize_request(request_bytes.clone()) {
         Ok(o) => o,
         Err(e) => {
-            warn!("Error deserializing request: {:?}", e);
+            warn!(
+                "Error deserializing request: {} {:?}",
+                String::from_utf8_lossy(&request_bytes),
+                e
+            );
             return Err(ErrorWrapper::<TRequest::Error>::BadRequest);
         }
     };
