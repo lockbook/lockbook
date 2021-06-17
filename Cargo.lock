@@ -1381,6 +1381,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "gspell"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8847f9b14fef52f6b02fee00009c3ca79b9d49f15f5dd724e8b9a81f07f15606"
+dependencies = [
+ "gdk",
+ "gdk-pixbuf",
+ "gdk-sys",
+ "gio",
+ "gio-sys",
+ "glib",
+ "glib-sys",
+ "gobject-sys",
+ "gspell-sys",
+ "gtk",
+ "gtk-sys",
+ "libc",
+]
+
+[[package]]
+name = "gspell-sys"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ea17e07972015f24b381ec3a951601f7b3784b430aa60618bdb9b94038fe4b2"
+dependencies = [
+ "gdk-pixbuf-sys",
+ "gdk-sys",
+ "glib-sys",
+ "gobject-sys",
+ "gtk-sys",
+ "libc",
+ "pkg-config",
+ "system-deps",
+]
+
+[[package]]
 name = "gtk"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2022,6 +2058,7 @@ dependencies = [
  "gdk-pixbuf",
  "gio",
  "glib",
+ "gspell",
  "gtk",
  "lockbook-core",
  "lockbook-models",
