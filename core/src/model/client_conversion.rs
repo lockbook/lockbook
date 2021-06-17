@@ -104,6 +104,6 @@ pub fn generate_client_work_calculated(
 
     Ok(ClientWorkCalculated {
         work_units: client_work_units,
-        most_recent_update_from_server: 0,
+        most_recent_update_from_server: work_calculated.most_recent_update_from_server,
     })
 }
