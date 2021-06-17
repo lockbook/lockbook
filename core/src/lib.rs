@@ -611,8 +611,19 @@ pub enum ListMetadatasError {
     Stub, // TODO: Enums should not be empty
 }
 
-pub fn list_metadatas(config: &Config) -> Result<Vec<FileMetadata>, Error<ListMetadatasError>> {
-    file_metadata_repo::get_all(&config).map_err(|e| unexpected!("{:#?}", e))
+pub fn list_metadatas(
+    config: &Config,
+) -> Result<Vec<ClientFileMetadata>, Error<ListMetadatasError>> {
+    let metas = file_metadata_repo::get_all(&config).map_err(|e| unexpected!("{:#?}", e))?;
+    let mut client_metas = vec![];
+
+    for meta in metas {
+        client_metas.push(
+            generate_client_file_metadata(config, &meta).map_err(|e| unexpected!("{:#?}", e))?,
+        );
+    }
+
+    Ok(client_metas)
 }
 
 #[derive(Debug, Serialize, EnumIter)]

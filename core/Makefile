@@ -84,7 +84,7 @@ lib_c_for_swift:
 	@rm ${swift_lib}liblockbook_core.a || echo "no prior .a"
 	cargo build --release
 	@mkdir -p ${swift_lib}
-	cp target/release/liblockbook_core.a ${swift_lib}
+	cp ../target/release/liblockbook_core.a ${swift_lib}
 
 .PHONY: swift_libs
 swift_libs: lib_c_for_swift lib_c_for_swift_ios
@@ -94,9 +94,9 @@ lib_c_for_windows:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	cargo build --release
 	@mkdir -p ${windows_lib}
-	-cp target/release/${libName} ${windows_lib}
-	-cp target/release/${macosLibName} ${windows_lib}
-	-cp target/release/${windowsLibName} ${windows_lib}
+	-cp ../target/release/${libName} ${windows_lib}
+	-cp ../target/release/${macosLibName} ${windows_lib}
+	-cp ../target/release/${windowsLibName} ${windows_lib}
 
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'

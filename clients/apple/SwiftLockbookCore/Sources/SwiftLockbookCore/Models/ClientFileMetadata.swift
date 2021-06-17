@@ -8,9 +8,6 @@ public struct ClientFileMetadata: Codable, Identifiable, Equatable, Hashable {
     public var owner: String
     public var contentVersion: UInt64
     public var metadataVersion: UInt64
-    public var deleted: Bool
-    public var userAccessKeys: [Account.Username : UserAccessInfo] = .init()
-    public var folderAccessKeys: FolderAccessInfo = FolderAccessInfo(folderId: .init(), accessKey: .init(value: [], nonce: []))
     public var isRoot: Bool { parent == id }
     
     public static func == (lhs: ClientFileMetadata, rhs: ClientFileMetadata) -> Bool {
@@ -20,7 +17,6 @@ public struct ClientFileMetadata: Codable, Identifiable, Equatable, Hashable {
             lhs.contentVersion == rhs.contentVersion &&
             lhs.parent == rhs.parent &&
             lhs.owner == rhs.owner &&
-            lhs.deleted == rhs.deleted &&
             lhs.name == rhs.name
     }
 
