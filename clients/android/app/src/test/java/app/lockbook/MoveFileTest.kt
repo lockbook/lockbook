@@ -16,7 +16,7 @@ class MoveFileTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            System.loadLibrary("/Users/travis/Code/lockbook/target/release/liblockbook_core.dylib")
+            System.loadLibrary("lockbook_core")
         }
     }
 
