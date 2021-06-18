@@ -35,4 +35,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: lockbook-server-${{ github.sha }}
-        path: server/server/target/release/lockbook-server
+        path: target/release/lockbook-server
