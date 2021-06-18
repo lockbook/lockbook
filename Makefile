@@ -176,6 +176,22 @@ local_store_of_state: db_container
 		--project-name=lockbook-$(hash) \
 		up -V --detach config_filesdb
 
+.PHONY: index_db_run
+index_db_run: db_container
+	HASH=$(hash) docker-compose \
+		-f containers/docker-compose-integration-tests.yml \
+		-f containers/docker-compose-local-dev.yml \
+		--project-name=lockbook-$(hash) \
+		up -V config_indexdb
+
+.PHONY: files_db_run
+files_db_run: db_container
+	HASH=$(hash) docker-compose \
+		-f containers/docker-compose-integration-tests.yml \
+		-f containers/docker-compose-local-dev.yml \
+		--project-name=lockbook-$(hash) \
+		up -V config_filesdb
+
 .PHONY: dev_stack_run
 dev_stack_run: server db_container
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --detach lockbook_server

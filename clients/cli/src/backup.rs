@@ -5,7 +5,7 @@ use std::{env, fs};
 
 use chrono::{DateTime, Utc};
 
-use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lockbook_core::{
     get_file_by_path, list_paths, read_document, Error as CoreError, GetFileByPathError,
     ListPathsError, ReadDocumentError,

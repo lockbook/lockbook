@@ -31,11 +31,11 @@ class GetFileByIdTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -44,7 +44,7 @@ class GetFileByIdTest {
             ).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -53,19 +53,11 @@ class GetFileByIdTest {
             ).component1()
         )
 
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
-        assertType<FileMetadata>(
+        assertType<ClientFileMetadata>(
             CoreModel.getFileById(config, document.id).component1()
         )
 
-        assertType<FileMetadata>(
+        assertType<ClientFileMetadata>(
             CoreModel.getFileById(config, folder.id).component1()
         )
     }
@@ -85,7 +77,7 @@ class GetFileByIdTest {
     fun getFileByIdUnexpectedError() {
         assertType<GetFileByIdError.Unexpected>(
             Klaxon().converter(getFileByIdConverter)
-                .parse<Result<FileMetadata, GetFileByIdError>>(exportAccount(""))?.component2()
+                .parse<Result<ClientFileMetadata, GetFileByIdError>>(exportAccount(""))?.component2()
         )
     }
 }

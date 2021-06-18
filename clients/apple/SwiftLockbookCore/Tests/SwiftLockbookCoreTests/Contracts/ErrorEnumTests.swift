@@ -17,7 +17,6 @@ class ErrorEnumTests: XCTestCase {
         let GetChildrenError: [GetChildrenError]
         let GetFileByIdError: [GetFileByIdError]
         let GetFileByPathError: [GetFileByPathError]
-        let InsertFileError: [InsertFileError]
         let ReadDocumentError: [ReadDocumentError]
         let ListPathsError: [ListPathsError]
         let ListMetadatasError: [ListMetadatasError]
@@ -47,7 +46,6 @@ class ErrorEnumTests: XCTestCase {
                 && !GetChildrenError.isEmpty
                 && !GetFileByIdError.isEmpty
                 && !GetFileByPathError.isEmpty
-                && !InsertFileError.isEmpty
                 && !ReadDocumentError.isEmpty
                 && !ListPathsError.isEmpty
                 && !ListMetadatasError.isEmpty

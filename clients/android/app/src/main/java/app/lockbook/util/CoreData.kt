@@ -1,9 +1,8 @@
 package app.lockbook.util
 
 import com.beust.klaxon.Json
-import java.util.LinkedHashMap
 
-data class FileMetadata(
+data class ClientFileMetadata(
     val id: String = "",
     @Json(name = "file_type")
     val fileType: FileType = FileType.Document,
@@ -14,11 +13,6 @@ data class FileMetadata(
     val metadataVersion: Long = 0,
     @Json(name = "content_version")
     val contentVersion: Long = 0,
-    val deleted: Boolean = false,
-    @Json(name = "user_access_keys")
-    val userAccessKeys: LinkedHashMap<String, UserAccessInfo> = linkedMapOf(),
-    @Json(name = "folder_access_keys")
-    val folderAccessKeys: FolderAccessInfo = FolderAccessInfo()
 )
 
 data class FileUsage(
@@ -27,13 +21,6 @@ data class FileUsage(
     @Json(name = "byte_secs")
     val byteSections: Int,
     val secs: Int,
-)
-
-data class FolderAccessInfo(
-    @Json(name = "folder_id")
-    val folderId: String = "",
-    @Json(name = "access_key")
-    val accessKey: AESEncrypted = AESEncrypted()
 )
 
 data class AESEncrypted(
@@ -73,7 +60,7 @@ data class WorkUnit(
     val content: WorkUnitMetadata
 )
 
-data class WorkUnitMetadata(val metadata: FileMetadata)
+data class WorkUnitMetadata(val metadata: ClientFileMetadata)
 
 data class Config(val writeable_path: String)
 

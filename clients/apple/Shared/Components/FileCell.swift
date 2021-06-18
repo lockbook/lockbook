@@ -3,7 +3,7 @@ import SwiftLockbookCore
 import Introspect
 
 struct FileCell: View {
-    let meta: FileMetadata
+    let meta: ClientFileMetadata
     
     var body: some View {
         HStack {
@@ -32,7 +32,7 @@ struct FileCell: View {
 }
 
 struct SyntheticFileCell: View {
-    let parent: FileMetadata
+    let parent: ClientFileMetadata
     let type: FileType
     @Binding var name: String
     let onCommit: () -> Void
