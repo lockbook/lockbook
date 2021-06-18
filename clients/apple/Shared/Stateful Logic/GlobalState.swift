@@ -212,7 +212,7 @@ class GlobalState: ObservableObject {
         self.documenstDirectory = "<USING-FAKE-API>"
         self.api = FakeApi()
         self.state = .ReadyToUse
-        self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: .empty)
+        self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: [])
         #if os(iOS)
         self.openDrawing = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY")) }, read: { _ in .failure(.init(unexpected: "LAZY")) })
         #else
