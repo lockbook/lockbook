@@ -349,7 +349,7 @@ val getRootConverter = object : Converter {
         okTag -> {
             val ok = jv.obj?.obj("content")
             if (ok != null) {
-                Ok(Klaxon().parseFromJsonObject<FileMetadata>(ok))
+                Ok(Klaxon().parseFromJsonObject<ClientFileMetadata>(ok))
             } else {
                 Err(GetRootError.Unexpected("getRootConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
             }
@@ -389,9 +389,9 @@ val getChildrenConverter = object : Converter {
 
     override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
         okTag -> {
-            val ok = jv.obj?.array<FileMetadata>("content")
+            val ok = jv.obj?.array<ClientFileMetadata>("content")
             if (ok != null) {
-                Ok(Klaxon().parseFromJsonArray<FileMetadata>(ok))
+                Ok(Klaxon().parseFromJsonArray<ClientFileMetadata>(ok))
             } else {
                 Err(GetChildrenError.Unexpected("getChildrenConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
             }
@@ -420,7 +420,7 @@ val getFileByIdConverter = object : Converter {
         okTag -> {
             val ok = jv.obj?.obj("content")
             if (ok != null) {
-                Ok(Klaxon().parseFromJsonObject<FileMetadata>(ok))
+                Ok(Klaxon().parseFromJsonObject<ClientFileMetadata>(ok))
             } else {
                 Err(GetFileByIdError.Unexpected("getFileByIdConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
             }
@@ -450,28 +450,6 @@ val getFileByIdConverter = object : Converter {
             else -> Err(GetFileByIdError.Unexpected("getFileByIdConverter $unmatchedErrorTag $errorTag"))
         }
         else -> Err(GetFileByIdError.Unexpected("getFileByIdConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
-    }
-
-    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
-}
-
-val insertFileConverter = object : Converter {
-    override fun canConvert(cls: Class<*>): Boolean = true
-
-    override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
-        okTag -> Ok(Unit)
-        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
-            unexpectedTag -> {
-                val error = jv.obj?.obj("content")?.string("content")
-                if (error != null) {
-                    Err(InsertFileError.Unexpected(error))
-                } else {
-                    Err(InsertFileError.Unexpected("insertFileConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
-                }
-            }
-            else -> Err(InsertFileError.Unexpected("insertFileConverter $unmatchedErrorTag $errorTag"))
-        }
-        else -> Err(InsertFileError.Unexpected("insertFileConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
@@ -523,7 +501,7 @@ val createFileConverter = object : Converter {
         okTag -> {
             val ok = jv.obj?.obj("content")
             if (ok != null) {
-                Ok(Klaxon().parseFromJsonObject<FileMetadata>(ok))
+                Ok(Klaxon().parseFromJsonObject<ClientFileMetadata>(ok))
             } else {
                 Err(CreateFileError.Unexpected("createFileConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
             }

@@ -1,9 +1,7 @@
 use crate::model::state::Config;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::db_state_service;
-use crate::service::db_state_service::State::{
-    Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
-};
+use crate::service::db_state_service::State::{Empty, ReadyToUse, StateRequiresClearing};
 use serde::Serialize;
 
 pub fn get_code_version() -> &'static str {
@@ -41,9 +39,7 @@ pub fn get_state(config: &Config) -> Result<State, GetStateError> {
                 Ok(ReadyToUse)
             } else {
                 match state_version.as_str() {
-                    "0.1.0" => Ok(MigrationRequired),
-                    "0.1.1" => Ok(StateRequiresClearing),
-                    "0.1.2" => Ok(ReadyToUse),
+                    "0.1.4" => Ok(ReadyToUse),
                     _ => Ok(StateRequiresClearing),
                 }
             }
@@ -58,22 +54,18 @@ pub enum MigrationError {
 }
 
 pub fn perform_migration(config: &Config) -> Result<(), MigrationError> {
-    loop {
-        let db_version = match db_version_repo::get(config).map_err(MigrationError::RepoError)? {
-            None => return Err(MigrationError::StateRequiresClearing),
-            Some(version) => version,
-        };
+    let db_version = match db_version_repo::get(config).map_err(MigrationError::RepoError)? {
+        None => return Err(MigrationError::StateRequiresClearing),
+        Some(version) => version,
+    };
 
-        if db_version == db_state_service::get_code_version() {
-            return Ok(());
-        }
+    if db_version == db_state_service::get_code_version() {
+        return Ok(());
+    }
 
-        match db_version.as_str() {
-            "0.1.0" => db_version_repo::set(config, "0.1.1").map_err(MigrationError::RepoError)?,
-            "0.1.1" => return Err(MigrationError::StateRequiresClearing), // If you wanted to remove this, write a migration for PR #332
-            "0.1.2" => return Ok(()),
-            _ => return Err(MigrationError::StateRequiresClearing),
-        };
+    match db_version.as_str() {
+        "0.1.4" => Ok(()),
+        _ => Err(MigrationError::StateRequiresClearing),
     }
 }
 
