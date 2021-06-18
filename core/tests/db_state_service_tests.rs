@@ -5,7 +5,7 @@ mod db_state_service_tests {
     use lockbook_core::repo::db_version_repo;
     use lockbook_core::service::db_state_service;
     use lockbook_core::service::db_state_service::State::{
-        Empty, MigrationRequired, ReadyToUse, StateRequiresClearing,
+        Empty, ReadyToUse, StateRequiresClearing,
     };
     use lockbook_core::service::test_utils::{generate_account, test_config};
     use lockbook_core::{create_account, get_db_state};
@@ -30,16 +30,6 @@ mod db_state_service_tests {
             db_state_service::get_code_version()
         );
 
-        assert_eq!(
-            db_state_service::get_state(&config).unwrap(),
-            MigrationRequired
-        );
-        assert_eq!(
-            db_state_service::get_state(&config).unwrap(),
-            MigrationRequired
-        );
-
-        assert!(db_state_service::perform_migration(&config).is_err());
         assert_eq!(
             db_state_service::get_state(&config).unwrap(),
             StateRequiresClearing
