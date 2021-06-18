@@ -1,7 +1,6 @@
 package app.lockbook.util
 
 import com.beust.klaxon.Json
-import java.util.LinkedHashMap
 
 data class ClientFileMetadata(
     val id: String = "",
