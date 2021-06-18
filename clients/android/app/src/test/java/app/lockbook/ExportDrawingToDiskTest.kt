@@ -45,6 +45,10 @@ class ExportDrawingToDiskTest {
         )
 
         assertType<Unit>(
+            CoreModel.writeContentToDocument(config, document.id, Klaxon().toJsonString(Drawing())).component1()
+        )
+
+        assertType<Unit>(
             CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, generateFakeRandomPath()).component1()
         )
     }
