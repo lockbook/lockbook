@@ -64,9 +64,9 @@ pub fn perform_migration(config: &Config) -> Result<(), MigrationError> {
     }
 
     match db_version.as_str() {
-        "0.1.4" => return Ok(()),
-        _ => return Err(MigrationError::StateRequiresClearing),
-    };
+        "0.1.4" => Ok(()),
+        _ => Err(MigrationError::StateRequiresClearing),
+    }
 }
 
 #[cfg(test)]
