@@ -4,7 +4,7 @@ import Combine
 
 struct EditorView: View {
     @Environment(\.colorScheme) var colorScheme
-    let meta: FileMetadata
+    let meta: ClientFileMetadata
     @State var text: String
     
     let changeCallback: (String) -> Void
@@ -24,11 +24,11 @@ struct EditorView: View {
 struct EditorLoader: View {
     
     @ObservedObject var content: Content
-    let meta: FileMetadata
+    let meta: ClientFileMetadata
     @State var editorContent: String = ""
     @State var title: String = ""
-    let deleteChannel: PassthroughSubject<FileMetadata, Never>
-    @State var deleted: FileMetadata?
+    let deleteChannel: PassthroughSubject<ClientFileMetadata, Never>
+    @State var deleted: ClientFileMetadata?
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -59,7 +59,7 @@ struct EditorLoader: View {
 
 class Content: ObservableObject {
     @Published var text: String?
-    @Published var meta: FileMetadata?
+    @Published var meta: ClientFileMetadata?
     var cancellables = Set<AnyCancellable>()
     @Published var status: Status = .Inactive
     let write: (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
@@ -85,7 +85,7 @@ class Content: ObservableObject {
         status = .Inactive
     }
 
-    func writeDocument(meta: FileMetadata, content: String) {
+    func writeDocument(meta: ClientFileMetadata, content: String) {
         switch write(meta.id, content) {
         case .success(_):
             writeListener()
@@ -97,7 +97,7 @@ class Content: ObservableObject {
         }
     }
     
-    func openDocument(meta: FileMetadata) {
+    func openDocument(meta: ClientFileMetadata) {
         DispatchQueue.main.async {
             switch self.read(meta.id) {
             case .success(let txt):
@@ -109,7 +109,7 @@ class Content: ObservableObject {
         }
     }
     
-    func closeDocument(meta: FileMetadata) {
+    func closeDocument(meta: ClientFileMetadata) {
         self.meta = .none
         text = .none
     }
@@ -134,7 +134,7 @@ extension NSTextField {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorLoader(content: GlobalState().openDocument, meta: FakeApi.fileMetas[0], deleteChannel: PassthroughSubject<FileMetadata, Never>())
+            EditorLoader(content: GlobalState().openDocument, meta: FakeApi.fileMetas[0], deleteChannel: PassthroughSubject<ClientFileMetadata, Never>())
         }
         .preferredColorScheme(.dark)
     }

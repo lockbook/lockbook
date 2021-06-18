@@ -12,7 +12,7 @@ public enum WorkUnit {
             return "Server"
         }
     }
-    public func get() -> FileMetadata {
+    public func get() -> ClientFileMetadata {
         switch self {
         case .Local(let c):
             return c.metadata
@@ -61,7 +61,7 @@ public struct WorkMetadata: Decodable {
 }
 
 public struct Content: Codable {
-    public var metadata: FileMetadata
+    public var metadata: ClientFileMetadata
 }
 
 public enum WorkType: String, Codable {

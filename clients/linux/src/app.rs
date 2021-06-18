@@ -22,8 +22,7 @@ use gtk::{
 };
 use uuid::Uuid;
 
-use lockbook_models::file_metadata::{FileMetadata, FileType};
-use lockbook_models::work_unit::WorkUnit;
+use lockbook_models::file_metadata::FileType;
 
 use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
@@ -40,6 +39,7 @@ use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr};
+use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
 use std::thread;
 
 macro_rules! make_glib_chan {
@@ -411,7 +411,7 @@ impl LbApp {
         }
     }
 
-    fn save_file_with_dialog(&self, open_file: &FileMetadata) -> bool {
+    fn save_file_with_dialog(&self, open_file: &ClientFileMetadata) -> bool {
         let file_dealt_with = Rc::new(RefCell::new(false));
 
         let msg = format!("{} has unsaved changes.", open_file.name);
@@ -489,7 +489,7 @@ impl LbApp {
         })
     }
 
-    fn open_folder(&self, f: &FileMetadata) -> LbResult<()> {
+    fn open_folder(&self, f: &ClientFileMetadata) -> LbResult<()> {
         let children = self.core.children(&f)?;
         self.edit(&EditMode::Folder {
             path: self.core.full_path_for(&f),
@@ -909,7 +909,7 @@ impl LbApp {
 
 struct LbState {
     search: Option<SearchComponents>,
-    opened_file: Option<FileMetadata>,
+    opened_file: Option<ClientFileMetadata>,
     open_file_dirty: bool,
     background_work: Arc<Mutex<BackgroundWork>>,
 }
@@ -934,7 +934,7 @@ impl LbState {
         None
     }
 
-    fn set_opened_file(&mut self, f: Option<FileMetadata>) {
+    fn set_opened_file(&mut self, f: Option<ClientFileMetadata>) {
         self.opened_file = f;
         if self.opened_file.is_some() {
             self.search = None;
@@ -1209,10 +1209,10 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
         tree_add_col(&tree, "Name", 0);
         tree_add_col(&tree, "Origin", 1);
         for wu in &work.work_units {
-            let path = c.full_path_for(&wu.get_metadata());
-            let change = match &wu {
-                WorkUnit::LocalChange { metadata: _ } => "Local",
-                WorkUnit::ServerChange { metadata: _ } => "Remote",
+            let (path, change) = match wu {
+                ClientWorkUnit::ServerUnknownName(_) => ("New file".to_string(), "Remote"),
+                ClientWorkUnit::Server(metadata) => (metadata.name.clone(), "Remote"),
+                ClientWorkUnit::Local(metadata) => (metadata.name.clone(), "Local"),
             };
             model.insert_with_values(None, None, &[0, 1], &[&path, &change]);
         }

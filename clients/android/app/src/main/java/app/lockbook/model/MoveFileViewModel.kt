@@ -14,16 +14,16 @@ class MoveFileViewModel(path: String) :
     RegularClickInterface {
 
     private val config = Config(path)
-    lateinit var currentParent: FileMetadata
+    lateinit var currentParent: ClientFileMetadata
     lateinit var ids: Array<String>
     lateinit var names: Array<String>
 
-    private val _files = MutableLiveData<List<FileMetadata>>()
+    private val _files = MutableLiveData<List<ClientFileMetadata>>()
     private val _closeDialog = MutableLiveData<Unit>()
     private val _errorHasOccurred = SingleMutableLiveData<String>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
-    val files: LiveData<List<FileMetadata>>
+    val files: LiveData<List<ClientFileMetadata>>
         get() = _files
 
     val closeDialog: LiveData<Unit>
@@ -97,7 +97,7 @@ class MoveFileViewModel(path: String) :
         when (val getChildrenResult = CoreModel.getChildren(config, currentParent.id)) {
             is Ok -> {
                 val tempFiles = getChildrenResult.value.filter { fileMetadata -> fileMetadata.fileType == FileType.Folder && !ids.contains(fileMetadata.id) }.toMutableList()
-                tempFiles.add(0, FileMetadata(name = "..", parent = "The parent file is ${currentParent.name}"))
+                tempFiles.add(0, ClientFileMetadata(name = "..", parent = "The parent file is ${currentParent.name}"))
                 _files.postValue(tempFiles)
             }
             is Err -> when (val error = getChildrenResult.error) {

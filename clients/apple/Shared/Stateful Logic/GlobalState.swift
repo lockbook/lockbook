@@ -9,8 +9,8 @@ class GlobalState: ObservableObject {
     @Published var state: DbState               // Handles post update logic
     @Published var account: Account?            // Determines whether to show onboarding or the main view
     @Published var globalError: AnyFfiError?    // Shows modals for unhandled errors
-    @Published var files: [FileMetadata] = []   // What the file tree displays
-    @Published var root: FileMetadata?          // What the file tree displays
+    @Published var files: [ClientFileMetadata] = []   // What the file tree displays
+    @Published var root: ClientFileMetadata?          // What the file tree displays
     @Published var syncing: Bool = false {      // Setting this to true kicks off a sync
         didSet {
             if oldValue == false && syncing == true {
@@ -32,7 +32,7 @@ class GlobalState: ObservableObject {
     #endif
     @Published var openDocument: Content
 
-    var deleteChannel = PassthroughSubject<FileMetadata, Never>()
+    var deleteChannel = PassthroughSubject<ClientFileMetadata, Never>()
     private var syncChannel = PassthroughSubject<FfiResult<SwiftLockbookCore.Empty, SyncAllError>, Never>()
     private var cancellableSet: Set<AnyCancellable> = []
 
@@ -212,7 +212,7 @@ class GlobalState: ObservableObject {
         self.documenstDirectory = "<USING-FAKE-API>"
         self.api = FakeApi()
         self.state = .ReadyToUse
-        self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: .empty)
+        self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: [])
         #if os(iOS)
         self.openDrawing = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY")) }, read: { _ in .failure(.init(unexpected: "LAZY")) })
         #else

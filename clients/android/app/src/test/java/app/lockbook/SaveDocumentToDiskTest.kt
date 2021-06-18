@@ -31,21 +31,17 @@ class SaveDocumentToDiskTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Document)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
@@ -59,21 +55,17 @@ class SaveDocumentToDiskTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Folder)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<SaveDocumentToDiskError.TreatedFolderAsDocument>(
@@ -98,21 +90,17 @@ class SaveDocumentToDiskTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Document)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
         )
 
         assertType<SaveDocumentToDiskError.BadPath>(
@@ -126,21 +114,17 @@ class SaveDocumentToDiskTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Document)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
         )
 
         val path = generateFakeRandomPath()

@@ -6,16 +6,16 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.util.FileMetadata
+import app.lockbook.util.ClientFileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.ListFilesClickInterface
 
 abstract class GeneralViewAdapter(val listFilesClickInterface: ListFilesClickInterface) : RecyclerView.Adapter<GeneralViewAdapter.FileViewHolder>() {
-    abstract var files: List<FileMetadata>
+    abstract var files: List<ClientFileMetadata>
     abstract var selectedFiles: MutableList<Boolean>
 
     inner class FileViewHolder(val cardView: CardView) : RecyclerView.ViewHolder(cardView) {
-        lateinit var fileMetadata: FileMetadata
+        lateinit var fileMetadata: ClientFileMetadata
 
         init {
             cardView.setOnClickListener {

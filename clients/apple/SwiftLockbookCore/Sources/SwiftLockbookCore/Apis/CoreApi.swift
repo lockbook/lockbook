@@ -46,11 +46,11 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: set_last_synced(documentsDirectory, lastSync))
     }
     
-    public func getRoot() -> FfiResult<FileMetadata, GetRootError> {
+    public func getRoot() -> FfiResult<ClientFileMetadata, GetRootError> {
         fromPrimitiveResult(result: get_root(documentsDirectory))
     }
     
-    public func listFiles() -> FfiResult<[FileMetadata], ListMetadatasError> {
+    public func listFiles() -> FfiResult<[ClientFileMetadata], ListMetadatasError> {
         fromPrimitiveResult(result: list_metadatas(documentsDirectory))
     }
     
@@ -81,7 +81,7 @@ public struct CoreApi: LockbookApi {
         return res.map(transform: { Data($0) })
     }
     
-    public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError> {
+    public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<ClientFileMetadata, CreateFileError> {
         let fileType = isFolder ? "Folder" : "Document"
         return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))
     }

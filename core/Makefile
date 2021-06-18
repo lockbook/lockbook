@@ -70,21 +70,21 @@ lib_c_for_swift_ios:
 	@rm ${swift_lib_ios}liblockbook_core.a || true
 	cargo lipo --release
 	@mkdir -p ${swift_lib_ios}
-	cp target/universal/release/liblockbook_core.a ${swift_lib_ios}
+	cp ../target/universal/release/liblockbook_core.a ${swift_lib_ios}
 
 .PHONY: lib_c_for_swift
 lib_c_for_swift:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
-	@rm ${swift_inc}lockbook_core.h || true
+	@rm ${swift_inc}lockbook_core.h || echo "no prior .h"
 	cbindgen src/c_interface.rs -l c > lockbook_core.h
 	@mkdir -p ${swift_inc}
 	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
-	@rm ${swift_lib}liblockbook_core.a || true
+	@rm ${swift_lib}liblockbook_core.a || echo "no prior .a"
 	cargo build --release
 	@mkdir -p ${swift_lib}
-	cp target/release/liblockbook_core.a ${swift_lib}
+	cp ../target/release/liblockbook_core.a ${swift_lib}
 
 .PHONY: swift_libs
 swift_libs: lib_c_for_swift lib_c_for_swift_ios
@@ -94,9 +94,9 @@ lib_c_for_windows:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	cargo build --release
 	@mkdir -p ${windows_lib}
-	-cp target/release/${libName} ${windows_lib}
-	-cp target/release/${macosLibName} ${windows_lib}
-	-cp target/release/${windowsLibName} ${windows_lib}
+	-cp ../target/release/${libName} ${windows_lib}
+	-cp ../target/release/${macosLibName} ${windows_lib}
+	-cp ../target/release/${windowsLibName} ${windows_lib}
 
 MIN_VER = 22
 jniLibs = '../clients/android/core/src/main/jniLibs'

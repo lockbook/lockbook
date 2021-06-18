@@ -31,11 +31,11 @@ class CreateFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<FileMetadata>(
+        assertType<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -44,7 +44,7 @@ class CreateFileTest {
             ).component1()
         )
 
-        assertType<FileMetadata>(
+        assertType<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -60,7 +60,7 @@ class CreateFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
@@ -89,7 +89,7 @@ class CreateFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
@@ -120,11 +120,11 @@ class CreateFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<FileMetadata>(
+        assertType<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -159,7 +159,7 @@ class CreateFileTest {
     fun createFileUnexpectedError() {
         assertType<CreateFileError.Unexpected>(
             Klaxon().converter(createFileConverter)
-                .parse<Result<FileMetadata, CreateFileError>>(createFile("", "", "", ""))?.component2()
+                .parse<Result<ClientFileMetadata, CreateFileError>>(createFile("", "", "", ""))?.component2()
         )
     }
 }
