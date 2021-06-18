@@ -31,11 +31,11 @@ class MoveFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -44,7 +44,7 @@ class MoveFileTest {
             ).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -72,11 +72,11 @@ class MoveFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -100,11 +100,11 @@ class MoveFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -113,7 +113,7 @@ class MoveFileTest {
             ).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -141,11 +141,11 @@ class MoveFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -171,11 +171,11 @@ class MoveFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -184,7 +184,7 @@ class MoveFileTest {
             ).component1()
         )
 
-        val firstDocument = assertTypeReturn<FileMetadata>(
+        val firstDocument = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -193,7 +193,7 @@ class MoveFileTest {
             ).component1()
         )
 
-        val secondDocument = assertTypeReturn<FileMetadata>(
+        val secondDocument = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 folder.id,
@@ -225,7 +225,7 @@ class MoveFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
@@ -240,11 +240,11 @@ class MoveFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,

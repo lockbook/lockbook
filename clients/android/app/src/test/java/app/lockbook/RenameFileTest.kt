@@ -31,11 +31,11 @@ class RenameFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -44,7 +44,7 @@ class RenameFileTest {
             ).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -76,7 +76,7 @@ class RenameFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        assertTypeReturn<FileMetadata>(
+        assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
@@ -92,11 +92,11 @@ class RenameFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -105,7 +105,7 @@ class RenameFileTest {
             ).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -134,11 +134,11 @@ class RenameFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        val document = assertTypeReturn<FileMetadata>(
+        val document = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -147,7 +147,7 @@ class RenameFileTest {
             ).component1()
         )
 
-        val folder = assertTypeReturn<FileMetadata>(
+        val folder = assertTypeReturn<ClientFileMetadata>(
             CoreModel.createFile(
                 config,
                 rootFileMetadata.id,
@@ -175,7 +175,7 @@ class RenameFileTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 

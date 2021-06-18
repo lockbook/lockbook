@@ -31,7 +31,7 @@ class GetRootTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        assertType<FileMetadata>(
+        assertType<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
     }
@@ -39,7 +39,7 @@ class GetRootTest {
     @Test
     fun getRootUnexpectedError() {
         assertType<GetRootError.Unexpected>(
-            Klaxon().converter(getRootConverter).parse<Result<FileMetadata, GetRootError>>(getRoot(""))?.component2()
+            Klaxon().converter(getRootConverter).parse<Result<ClientFileMetadata, GetRootError>>(getRoot(""))?.component2()
         )
     }
 }

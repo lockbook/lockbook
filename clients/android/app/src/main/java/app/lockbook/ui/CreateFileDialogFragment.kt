@@ -45,7 +45,7 @@ class CreateFileDialogFragment : DialogFragment() {
     private lateinit var parentId: String
     private lateinit var fileType: String
     private var isDrawing by Delegates.notNull<Boolean>()
-    var newDocument: FileMetadata? = null
+    var newDocument: ClientFileMetadata? = null
     lateinit var config: Config
 
     companion object {
