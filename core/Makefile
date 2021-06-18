@@ -70,7 +70,7 @@ lib_c_for_swift_ios:
 	@rm ${swift_lib_ios}liblockbook_core.a || true
 	cargo lipo --release
 	@mkdir -p ${swift_lib_ios}
-	cp target/universal/release/liblockbook_core.a ${swift_lib_ios}
+	cp ../target/universal/release/liblockbook_core.a ${swift_lib_ios}
 
 .PHONY: lib_c_for_swift
 lib_c_for_swift:
