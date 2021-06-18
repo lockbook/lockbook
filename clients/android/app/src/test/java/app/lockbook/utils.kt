@@ -55,7 +55,6 @@ val errorsToCheck = listOf<KClass<*>>(
     GetStateError::class,
     GetUsageError::class,
     ImportError::class,
-    InsertFileError::class,
     MigrationError::class,
     MoveFileError::class,
     ReadDocumentError::class,

@@ -4,9 +4,9 @@ import SwiftLockbookCore
 struct BookView: View {
     
     @ObservedObject var core: GlobalState
-    let currentFolder: FileMetadata
+    let currentFolder: ClientFileMetadata
     let account: Account
-    @State var moving: FileMetadata?
+    @State var moving: ClientFileMetadata?
 
     var body: some View {
         NavigationView {

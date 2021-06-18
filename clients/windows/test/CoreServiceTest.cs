@@ -380,17 +380,6 @@ namespace test {
         }
 
         [TestMethod]
-        public void CreateFileCouldNotFindAParent() {
-            var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
-            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
-
-            var createFileResult = CoreService.CreateFile("TestFile", Guid.NewGuid().ToString(), FileType.Document).WaitResult();
-            Assert.AreEqual(Core.CreateFile.PossibleErrors.CouldNotFindAParent,
-                CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
-        }
-
-        [TestMethod]
         public void CreateFileFileNameNotAvailable() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();

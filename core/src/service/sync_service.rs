@@ -6,10 +6,12 @@ use uuid::Uuid;
 
 use crate::client;
 use crate::client::ApiError;
+use crate::model::client_conversion::{
+    generate_client_work_unit, ClientWorkUnit, GenerateClientWorkUnitError,
+};
 use crate::model::state::Config;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
 use crate::service::file_compression_service;
-use crate::service::file_service::NewFileFromPathError;
 use crate::service::sync_service::CalculateWorkError::{
     AccountRetrievalError, GetMetadataError, GetUpdatesError, LocalChangesRepoError,
     MetadataRepoError,
@@ -17,7 +19,7 @@ use crate::service::sync_service::CalculateWorkError::{
 use crate::service::sync_service::WorkExecutionError::{
     AutoRenameError, DecompressingForMergeError, DecryptingOldVersionForMergeError,
     ReadingCurrentVersionError, RecursiveDeleteError, ResolveConflictByCreatingNewFileError,
-    SaveDocumentError, WritingMergedFileError,
+    SaveDocumentError, UnableToDecryptName, WritingMergedFileError,
 };
 use crate::service::{file_encryption_service, file_service};
 use lockbook_crypto::pubkey::ECSignError;
@@ -49,6 +51,7 @@ pub enum CalculateWorkError {
 // TODO standardize enum variant notation within core
 #[derive(Debug)]
 pub enum WorkExecutionError {
+    UnableToDecryptName(file_encryption_service::GetNameOfFileError),
     MetadataRepoError(file_metadata_repo::DbError),
     MetadataRepoErrorOpt(file_metadata_repo::GetError),
     DocumentGetError(GetDocumentError),
@@ -75,7 +78,6 @@ pub enum WorkExecutionError {
     ReadingCurrentVersionError(file_service::ReadDocumentError),
     WritingMergedFileError(file_service::DocumentUpdateError),
     FindingParentsForConflictingFileError(file_metadata_repo::FindingParentsFailed),
-    ErrorCreatingRecoveryFile(NewFileFromPathError),
     ErrorCalculatingCurrentTime(SystemTimeError),
     ClientUpdateRequired,
     InvalidAuth,
@@ -95,6 +97,7 @@ pub enum SyncError {
     CalculateWorkError(CalculateWorkError),
     WorkExecutionError(HashMap<Uuid, WorkExecutionError>),
     MetadataUpdateError(file_metadata_repo::DbError),
+    GenerateClientWorkUnitError(GenerateClientWorkUnitError),
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -106,7 +109,7 @@ pub struct WorkCalculated {
 pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
-    pub current_work_unit: WorkUnit,
+    pub current_work_unit: ClientWorkUnit,
 }
 
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CalculateWorkError> {
@@ -200,7 +203,8 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
                 func(SyncProgress {
                     total: work_calculated.work_units.len(),
                     progress,
-                    current_work_unit: work_unit.clone(),
+                    current_work_unit: generate_client_work_unit(config, &work_unit)
+                        .map_err(SyncError::GenerateClientWorkUnitError)?,
                 })
             }
 
@@ -258,13 +262,12 @@ fn rename_local_conflicting_files(
 
     // There should only be one of these
     for conflicting_file in conflicting_files {
+        let old_name = file_encryption_service::get_name(&config, &conflicting_file)
+            .map_err(UnableToDecryptName)?;
         file_service::rename_file(
             config,
             conflicting_file.id,
-            &format!(
-                "{}-NAME-CONFLICT-{}",
-                conflicting_file.name, conflicting_file.id
-            ),
+            &format!("{}-NAME-CONFLICT-{}", old_name, conflicting_file.id),
         )
         .map_err(AutoRenameError)?
     }
@@ -346,7 +349,9 @@ fn merge_documents(
     local_changes: &LocalChangeRepoLocalChange,
     edited_locally: &Edited,
 ) -> Result<(), WorkExecutionError> {
-    if metadata.name.ends_with(".md") || metadata.name.ends_with(".txt") {
+    let local_name =
+        file_encryption_service::get_name(&config, &local_metadata).map_err(UnableToDecryptName)?;
+    if local_name.ends_with(".md") || local_name.ends_with(".txt") {
         let common_ancestor = {
             let compressed_common_ancestor = file_encryption_service::user_read_document(
                 &account,
@@ -396,10 +401,7 @@ fn merge_documents(
         // Create a new file
         let new_file = file_service::create(
             config,
-            &format!(
-                "{}-CONTENT-CONFLICT-{}",
-                &local_metadata.name, local_metadata.id
-            ),
+            &format!("{}-CONTENT-CONFLICT-{}", &local_name, local_metadata.id),
             local_metadata.parent,
             Document,
         )
@@ -443,7 +445,9 @@ fn merge_files(
 ) -> Result<(), WorkExecutionError> {
     if let Some(renamed_locally) = &local_changes.renamed {
         // Check if both renamed, if so, server wins
-        if metadata.name != renamed_locally.old_value {
+        let server_name =
+            file_encryption_service::get_name(&config, &metadata).map_err(UnableToDecryptName)?;
+        if server_name != renamed_locally.old_value {
             local_changes_repo::untrack_rename(config, metadata.id)
                 .map_err(WorkExecutionError::LocalChangesRepoError)?;
         } else {
@@ -598,6 +602,14 @@ fn handle_local_change(
                     }
 
                     if local_change.moved.is_some() {
+                        metadata.metadata_version = if metadata.file_type == Document {
+                            client::request(&account, RenameDocumentRequest::new(&metadata))
+                                .map_err(WorkExecutionError::from)?.new_metadata_version
+                        } else {
+                            client::request(&account, RenameFolderRequest::new(&metadata))
+                                .map_err(WorkExecutionError::from)?.new_metadata_version
+                        };
+
                         let version = if metadata.file_type == Document {
                             client::request(&account, MoveDocumentRequest::new(&metadata)).map_err(WorkExecutionError::from)?.new_metadata_version
                         } else {

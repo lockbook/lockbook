@@ -7,7 +7,7 @@ import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
-import app.lockbook.util.FileMetadata
+import app.lockbook.util.ClientFileMetadata
 import app.lockbook.util.RegularClickInterface
 import java.sql.Date
 import java.sql.Timestamp
@@ -15,7 +15,7 @@ import java.sql.Timestamp
 class MoveFileAdapter(val clickInterface: RegularClickInterface) :
     RecyclerView.Adapter<MoveFileAdapter.MoveFileViewHolder>() {
 
-    var files = listOf<FileMetadata>()
+    var files = listOf<ClientFileMetadata>()
         set(value) {
             field = value
             notifyDataSetChanged()
@@ -49,7 +49,7 @@ class MoveFileAdapter(val clickInterface: RegularClickInterface) :
     }
 
     inner class MoveFileViewHolder(val cardView: CardView) : RecyclerView.ViewHolder(cardView) {
-        lateinit var fileMetadata: FileMetadata
+        lateinit var fileMetadata: ClientFileMetadata
 
         init {
             cardView.setOnClickListener {

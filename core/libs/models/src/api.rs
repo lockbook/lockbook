@@ -62,10 +62,10 @@ impl Request for ChangeDocumentContentRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateDocumentRequest {
     pub id: Uuid,
-    pub name: String,
+    pub name: SecretFileName,
     pub parent: Uuid,
     pub content: EncryptedDocument,
-    pub parent_access_key: FolderAccessInfo,
+    pub parent_access_key: EncryptedFolderAccessKey,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -135,7 +135,7 @@ pub struct MoveDocumentRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
-    pub new_folder_access: FolderAccessInfo,
+    pub new_folder_access: EncryptedFolderAccessKey,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -179,7 +179,7 @@ impl Request for MoveDocumentRequest {
 pub struct RenameDocumentRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
-    pub new_name: String,
+    pub new_name: SecretFileName,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -241,9 +241,9 @@ impl Request for GetDocumentRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CreateFolderRequest {
     pub id: Uuid,
-    pub name: String,
+    pub name: SecretFileName,
     pub parent: Uuid,
-    pub parent_access_key: FolderAccessInfo,
+    pub parent_access_key: EncryptedFolderAccessKey,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -314,7 +314,7 @@ pub struct MoveFolderRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
     pub new_parent: Uuid,
-    pub new_folder_access: FolderAccessInfo,
+    pub new_folder_access: EncryptedFolderAccessKey,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -359,7 +359,7 @@ impl Request for MoveFolderRequest {
 pub struct RenameFolderRequest {
     pub id: Uuid,
     pub old_metadata_version: u64,
-    pub new_name: String,
+    pub new_name: SecretFileName,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -481,7 +481,8 @@ pub struct NewAccountRequest {
     pub username: Username,
     pub public_key: PublicKey,
     pub folder_id: Uuid,
-    pub parent_access_key: FolderAccessInfo,
+    pub folder_name: SecretFileName,
+    pub parent_access_key: EncryptedFolderAccessKey,
     pub user_access_key: EncryptedUserAccessKey,
 }
 
@@ -491,6 +492,7 @@ impl NewAccountRequest {
             username: account.username.clone(),
             public_key: account.public_key(),
             folder_id: root_metadata.id,
+            folder_name: root_metadata.name.clone(),
             parent_access_key: root_metadata.folder_access_keys.clone(),
             user_access_key: root_metadata
                 .user_access_keys

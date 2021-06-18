@@ -162,7 +162,7 @@ namespace lockbook {
             }
         }
 
-        private async Task PopulateTree(List<FileMetadata> files) {
+        private async Task PopulateTree(List<ClientFileMetadata> files) {
             files = files.Where(f => !f.deleted).ToList();
             var newUIFiles = new Dictionary<string, UIFile>();
             var root = files.FirstOrDefault(file => file.Id == file.Parent);
@@ -184,7 +184,7 @@ namespace lockbook {
             App.UIFiles = newUIFiles;
         }
 
-        private void PopulateTreeRecursive(List<FileMetadata> files, Dictionary<string, UIFile> tree, FileMetadata file) {
+        private void PopulateTreeRecursive(List<ClientFileMetadata> files, Dictionary<string, UIFile> tree, ClientFileMetadata file) {
             tree[file.Id] = new UIFile {
                 Id = file.Id,
                 Name = file.Name,

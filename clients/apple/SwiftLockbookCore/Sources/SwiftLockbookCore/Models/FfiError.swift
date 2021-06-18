@@ -130,10 +130,6 @@ public enum GetFileByPathError: String, UiError {
     case NoFileAtThatPath
 }
 
-public enum InsertFileError: String, UiError {
-    case Stub
-}
-
 public enum ReadDocumentError: String, UiError {
     case FileDoesNotExist
     case NoAccount
