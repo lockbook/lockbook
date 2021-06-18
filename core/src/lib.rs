@@ -32,8 +32,6 @@ use crate::service::drawing_service::{
     ExportDrawingToDiskError as FSExportDrawingToDiskError, GetDrawingError as FSGetDrawingError,
     SaveDrawingError as FSSaveDrawingError,
 };
-use crate::service::file_encryption_service::FileWriteError;
-use crate::service::file_encryption_service::KeyDecryptionFailure;
 use crate::service::file_service::{
     DocumentRenameError, DocumentUpdateError, FileMoveError, NewFileError,
     ReadDocumentError as FSReadDocumentError, SaveDocumentToDiskError as FSSaveDocumentToDiskError,
@@ -295,13 +293,16 @@ pub fn write_document(
     content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
     file_service::write_document(&config, id, content).map_err(|e| match e {
+        DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
+            AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                unexpected!("{:#?}", account_err)
+            }
+            AccountRepoError::NoAccount => UiError(WriteToDocumentError::NoAccount),
+        },
         DocumentUpdateError::CouldNotFindFile => UiError(WriteToDocumentError::FileDoesNotExist),
         DocumentUpdateError::FolderTreatedAsDocument => {
             UiError(WriteToDocumentError::FolderTreatedAsDocument)
         }
-        DocumentUpdateError::FileEncryptionError(FileWriteError::FileKeyDecryptionFailed(
-            KeyDecryptionFailure::GettingAccountError(AccountRepoError::NoAccount),
-        )) => UiError(WriteToDocumentError::FileDoesNotExist),
         DocumentUpdateError::FileEncryptionError(_)
         | DocumentUpdateError::FileCompressionError(_)
         | DocumentUpdateError::FileDecompressionError(_)
@@ -981,8 +982,13 @@ pub fn save_drawing(
             }
         },
         FSSaveDrawingError::FailedToSaveJson(err) => match err {
+            DocumentUpdateError::AccountRetrievalError(account_err) => match account_err {
+                AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
+                    unexpected!("{:#?}", account_err)
+                }
+                AccountRepoError::NoAccount => UiError(SaveDrawingError::NoAccount),
+            },
             DocumentUpdateError::CouldNotFindFile => UiError(SaveDrawingError::FileDoesNotExist),
-
             DocumentUpdateError::FolderTreatedAsDocument => {
                 UiError(SaveDrawingError::FolderTreatedAsDrawing)
             }

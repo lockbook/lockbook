@@ -102,6 +102,7 @@ pub fn create(
 
 #[derive(Debug)]
 pub enum DocumentUpdateError {
+    AccountRetrievalError(account_repo::AccountRepoError),
     CouldNotFindFile,
     FolderTreatedAsDocument,
     FileEncryptionError(file_encryption_service::FileWriteError),
@@ -120,6 +121,9 @@ pub fn write_document(
     id: Uuid,
     content: &[u8],
 ) -> Result<(), DocumentUpdateError> {
+    let _account =
+        account_repo::get_account(config).map_err(DocumentUpdateError::AccountRetrievalError)?;
+
     let file_metadata = file_metadata_repo::maybe_get(config, id)
         .map_err(DbError)?
         .ok_or(CouldNotFindFile)?;
