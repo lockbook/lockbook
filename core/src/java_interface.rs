@@ -15,9 +15,9 @@ use crate::service::usage_service::bytes_to_human;
 use crate::{
     calculate_work, create_account, create_file, delete_file, export_account, export_drawing,
     export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
-    get_file_by_id, get_local_and_server_usage, get_root, import_account, init_logger,
-    migrate_db, move_file, read_document, rename_file, save_document_to_disk, set_last_synced,
-    sync_all, write_document, Error,
+    get_file_by_id, get_local_and_server_usage, get_root, import_account, init_logger, migrate_db,
+    move_file, read_document, rename_file, save_document_to_disk, set_last_synced, sync_all,
+    write_document, Error,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
