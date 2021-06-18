@@ -459,18 +459,6 @@ pub fn get_file_by_path(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum InsertFileError {
-    Stub, // TODO: Enums should not be empty
-}
-
-pub fn insert_file(
-    config: &Config,
-    file_metadata: FileMetadata,
-) -> Result<(), Error<InsertFileError>> {
-    file_metadata_repo::insert(&config, &file_metadata).map_err(|e| unexpected!("{:#?}", e))
-}
-
-#[derive(Debug, Serialize, EnumIter)]
 pub enum FileDeleteError {
     CannotDeleteRoot,
     FileDoesNotExist,
@@ -1171,7 +1159,6 @@ impl_get_variants!(
     GetChildrenError,
     GetFileByIdError,
     GetFileByPathError,
-    InsertFileError,
     FileDeleteError,
     ReadDocumentError,
     ListPathsError,

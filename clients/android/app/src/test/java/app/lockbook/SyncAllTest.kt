@@ -54,14 +54,6 @@ class SyncAllTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.sync(config, null).component1()
         )
     }

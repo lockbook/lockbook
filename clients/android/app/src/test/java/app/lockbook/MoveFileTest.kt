@@ -16,7 +16,7 @@ class MoveFileTest {
         @BeforeClass
         @JvmStatic
         fun loadLib() {
-            System.loadLibrary("lockbook_core")
+            System.load("lockbook_core")
         }
     }
 
@@ -54,14 +54,6 @@ class MoveFileTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.moveFile(config, document.id, folder.id).component1()
         )
     }
@@ -83,10 +75,6 @@ class MoveFileTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Folder)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<MoveFileError.FileDoesNotExist>(
@@ -122,14 +110,6 @@ class MoveFileTest {
             ).component1()
         )
 
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
         assertType<MoveFileError.DocumentTreatedAsFolder>(
             CoreModel.moveFile(config, folder.id, document.id).component2()
         )
@@ -152,10 +132,6 @@ class MoveFileTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Document)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
         )
 
         assertType<MoveFileError.TargetParentDoesNotExist>(
@@ -202,18 +178,6 @@ class MoveFileTest {
             ).component1()
         )
 
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, firstDocument).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, secondDocument).component1()
-        )
-
         assertType<MoveFileError.TargetParentHasChildNamedThat>(
             CoreModel.moveFile(config, firstDocument.id, folder.id).component2()
         )
@@ -251,10 +215,6 @@ class MoveFileTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Folder)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<MoveFileError.FolderMovedIntoItself>(

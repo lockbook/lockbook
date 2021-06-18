@@ -45,14 +45,6 @@ class ExportDrawingToDiskTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, Klaxon().toJsonString(Drawing())).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, generateFakeRandomPath()).component1()
         )
     }
@@ -99,10 +91,6 @@ class ExportDrawingToDiskTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.writeContentToDocument(config, document.id, "").component1()
         )
 
@@ -130,10 +118,6 @@ class ExportDrawingToDiskTest {
             ).component1()
         )
 
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
         assertType<ExportDrawingToDiskError.FolderTreatedAsDrawing>(
             CoreModel.exportDrawingToDisk(config, folder.id, SupportedImageFormats.Jpeg, generateFakeRandomPath()).component2()
         )
@@ -156,10 +140,6 @@ class ExportDrawingToDiskTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Document)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(
@@ -188,10 +168,6 @@ class ExportDrawingToDiskTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Document)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
         )
 
         assertType<Unit>(

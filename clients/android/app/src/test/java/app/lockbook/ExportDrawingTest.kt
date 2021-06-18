@@ -45,10 +45,6 @@ class ExportDrawingTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.writeContentToDocument(config, document.id, Klaxon().toJsonString(Drawing())).component1()
         )
 
@@ -99,10 +95,6 @@ class ExportDrawingTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.writeContentToDocument(config, document.id, "").component1()
         )
 
@@ -128,10 +120,6 @@ class ExportDrawingTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Folder)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<ExportDrawingError.FolderTreatedAsDrawing>(

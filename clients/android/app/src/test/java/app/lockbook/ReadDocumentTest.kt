@@ -44,10 +44,6 @@ class ReadDocumentTest {
             ).component1()
         )
 
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
         assertType<String>(
             CoreModel.readDocument(config, document.id).component1()
         )
@@ -70,10 +66,6 @@ class ReadDocumentTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Folder)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<ReadDocumentError.TreatedFolderAsDocument>(

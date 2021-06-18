@@ -10,7 +10,7 @@ object CoreModel {
 
     private const val QA_API_URL = "http://qa.lockbook.app:8000"
     private const val PROD_API_URL = "http://api.lockbook.app:8000"
-    fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
+    fun getAPIURL(): String = "http://localhost:8000" // System.getenv("API_URL") ?: PROD_API_URL
 
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
         val initLoggerResult: Result<Unit, InitLoggerError>? =
@@ -290,26 +290,6 @@ object CoreModel {
         }
 
         return Err(CreateFileError.Unexpected("createFileConverter was unable to be called!"))
-    }
-
-    fun insertFile(
-        config: Config,
-        fileMetadata: ClientFileMetadata
-    ): Result<Unit, InsertFileError> {
-        val insertResult: Result<Unit, InsertFileError>? =
-            Klaxon().converter(insertFileConverter)
-                .parse(
-                    insertFile(
-                        Klaxon().toJsonString(config),
-                        Klaxon().toJsonString(fileMetadata)
-                    )
-                )
-
-        if (insertResult != null) {
-            return insertResult
-        }
-
-        return Err(InsertFileError.Unexpected("insertFileConverter was unable to be called!"))
     }
 
     fun deleteFile(

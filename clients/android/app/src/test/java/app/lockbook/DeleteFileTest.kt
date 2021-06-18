@@ -52,14 +52,6 @@ class DeleteFileTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.deleteFile(config, document.id).component1()
         )
 

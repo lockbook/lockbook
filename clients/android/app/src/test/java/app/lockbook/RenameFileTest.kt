@@ -54,14 +54,6 @@ class RenameFileTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.renameFile(config, document.id, generateAlphaString()).component1()
         )
 
@@ -114,14 +106,6 @@ class RenameFileTest {
             ).component1()
         )
 
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
         assertType<RenameFileError.FileNameNotAvailable>(
             CoreModel.renameFile(config, document.id, fileName).component2()
         )
@@ -154,14 +138,6 @@ class RenameFileTest {
                 fileName,
                 Klaxon().toJsonString(FileType.Folder)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<RenameFileError.NewNameEmpty>(

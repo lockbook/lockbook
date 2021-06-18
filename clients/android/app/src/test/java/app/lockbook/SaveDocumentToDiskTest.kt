@@ -45,10 +45,6 @@ class SaveDocumentToDiskTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.saveDocumentToDisk(config, document.id, generateFakeRandomPath()).component1()
         )
     }
@@ -70,10 +66,6 @@ class SaveDocumentToDiskTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Folder)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<SaveDocumentToDiskError.TreatedFolderAsDocument>(
@@ -111,10 +103,6 @@ class SaveDocumentToDiskTest {
             ).component1()
         )
 
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
         assertType<SaveDocumentToDiskError.BadPath>(
             CoreModel.saveDocumentToDisk(config, document.id, "").component2()
         )
@@ -137,10 +125,6 @@ class SaveDocumentToDiskTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Document)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
         )
 
         val path = generateFakeRandomPath()

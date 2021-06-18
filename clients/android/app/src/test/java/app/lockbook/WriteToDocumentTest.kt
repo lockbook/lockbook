@@ -45,10 +45,6 @@ class WriteToDocumentTest {
         )
 
         assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
             CoreModel.writeContentToDocument(config, document.id, "").component1()
         )
     }
@@ -81,10 +77,6 @@ class WriteToDocumentTest {
                 generateAlphaString(),
                 Klaxon().toJsonString(FileType.Folder)
             ).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
         )
 
         assertType<WriteToDocumentError.FolderTreatedAsDocument>(

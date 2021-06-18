@@ -53,14 +53,6 @@ class GetFileByIdTest {
             ).component1()
         )
 
-        assertType<Unit>(
-            CoreModel.insertFile(config, document).component1()
-        )
-
-        assertType<Unit>(
-            CoreModel.insertFile(config, folder).component1()
-        )
-
         assertType<ClientFileMetadata>(
             CoreModel.getFileById(config, document.id).component1()
         )

@@ -189,27 +189,11 @@ class CreateFileDialogFragment : DialogFragment() {
                 CoreModel.createFile(config, parentId, name, fileType)
         ) {
             is Ok -> {
-                when (val insertFileResult = CoreModel.insertFile(config, createFileResult.value)) {
-                    is Ok -> {
-                        if (fileType == Klaxon().toJsonString(FileType.Document)) {
-                            newDocument = createFileResult.value
-                        }
-                        withContext(Dispatchers.Main) {
-                            dismiss()
-                        }
-                    }
-                    is Err -> when (val error = insertFileResult.error) {
-                        is InsertFileError.Unexpected -> {
-                            Timber.e("Unable to insert a newly created file: ${insertFileResult.error}")
-                            withContext(Dispatchers.Main) {
-                                AlertModel.unexpectedCoreErrorHasOccurred(
-                                    requireContext(),
-                                    error.error,
-                                    OnFinishAlert.DoSomethingOnFinishAlert(::dismiss)
-                                )
-                            }
-                        }
-                    }
+                if (fileType == Klaxon().toJsonString(FileType.Document)) {
+                    newDocument = createFileResult.value
+                }
+                withContext(Dispatchers.Main) {
+                    dismiss()
                 }
             }
             is Err -> when (val error = createFileResult.error) {
