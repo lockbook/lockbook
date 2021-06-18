@@ -7,14 +7,14 @@ struct FileListView: View {
     @State var showingAccount: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
-    let currentFolder: FileMetadata
+    let currentFolder: ClientFileMetadata
     let account: Account
-    @Binding var moving: FileMetadata?
-    @State var renaming: FileMetadata?
+    @Binding var moving: ClientFileMetadata?
+    @State var renaming: ClientFileMetadata?
     static var toolbar = ToolbarModel()
-    @State private var selection: FileMetadata?
+    @State private var selection: ClientFileMetadata?
 
-    var files: [FileMetadata] {
+    var files: [ClientFileMetadata] {
         core.files.filter {
             $0.parent == currentFolder.id && $0.id != currentFolder.id
         }
@@ -84,7 +84,7 @@ struct FileListView: View {
         
     }
 
-    func renderMoveDialog(meta: FileMetadata) -> some View {
+    func renderMoveDialog(meta: ClientFileMetadata) -> some View {
         let root = core.files.first(where: { $0.parent == $0.id })!
         let wc = WithChild(root, core.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
         
@@ -118,7 +118,7 @@ struct FileListView: View {
             }
     }
     
-    func renderCell(meta: FileMetadata) -> AnyView {
+    func renderCell(meta: ClientFileMetadata) -> AnyView {
         if let isRenaming = renaming, isRenaming == meta {
             return AnyView(
                 SyntheticFileCell(
@@ -170,7 +170,7 @@ struct FileListView: View {
         }
     }
 
-    func handleDelete(meta: FileMetadata) {
+    func handleDelete(meta: ClientFileMetadata) {
         switch core.api.deleteFile(id: meta.id) {
         case .success(_):
             core.deleteChannel.send(meta)
@@ -182,7 +182,7 @@ struct FileListView: View {
         }
     }
     
-    func handleCreate(meta: FileMetadata, type: FileType) {
+    func handleCreate(meta: ClientFileMetadata, type: FileType) {
         switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
         case .success(let newMeta):
             doneCreating()

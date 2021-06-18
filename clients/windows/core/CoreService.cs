@@ -235,7 +235,7 @@ namespace lockbook {
             var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.CreateFileAtPath.IResult, Core.CreateFileAtPath.ExpectedError, Core.CreateFileAtPath.PossibleErrors, Core.CreateFileAtPath.UnexpectedError>(
                 () => create_file_at_path(path, pathWithNamePtr),
-                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s) });
+                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<ClientFileMetadata>(s) });
             Marshal.FreeHGlobal(pathWithNamePtr);
             return result;
         }
@@ -257,7 +257,7 @@ namespace lockbook {
             var fileTypePtr = Utils.ToFFI(ft == FileType.Folder ? "Folder" : "Document");
             var result = await FFICommon<Core.CreateFile.IResult, Core.CreateFile.ExpectedError, Core.CreateFile.PossibleErrors, Core.CreateFile.UnexpectedError>(
                 () => create_file(path, namePtr, parentPtr, fileTypePtr),
-                s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<FileMetadata>(s) });
+                s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<ClientFileMetadata>(s) });
             Marshal.FreeHGlobal(namePtr);
             Marshal.FreeHGlobal(parentPtr);
             Marshal.FreeHGlobal(fileTypePtr);
@@ -267,14 +267,14 @@ namespace lockbook {
         public async Task<Core.GetRoot.IResult> GetRoot() {
             return await FFICommon<Core.GetRoot.IResult, Core.GetRoot.ExpectedError, Core.GetRoot.PossibleErrors, Core.GetRoot.UnexpectedError>(
                 () => get_root(path),
-                s => new Core.GetRoot.Success { root = JsonConvert.DeserializeObject<FileMetadata>(s) });
+                s => new Core.GetRoot.Success { root = JsonConvert.DeserializeObject<ClientFileMetadata>(s) });
         }
 
         public async Task<Core.GetChildren.IResult> GetChildren(string id) {
             var idPtr = Utils.ToFFI(id);
             var result = await FFICommon<Core.GetChildren.IResult, Core.GetChildren.ExpectedError, Core.GetChildren.PossibleErrors, Core.GetChildren.UnexpectedError>(
                 () => get_children(path, idPtr),
-                s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<FileMetadata>>(s) });
+                s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<ClientFileMetadata>>(s) });
             Marshal.FreeHGlobal(idPtr);
             return result;
         }
@@ -292,7 +292,7 @@ namespace lockbook {
             var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.GetFileByPath.IResult, Core.GetFileByPath.ExpectedError, Core.GetFileByPath.PossibleErrors, Core.GetFileByPath.UnexpectedError>(
                 () => get_file_by_path(path, pathWithNamePtr),
-                s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<FileMetadata>(s) });
+                s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<ClientFileMetadata>(s) });
             Marshal.FreeHGlobal(pathWithNamePtr);
             return result;
         }
@@ -318,7 +318,7 @@ namespace lockbook {
         public async Task<Core.ListMetadatas.IResult> ListMetadatas() {
             return await FFICommon<Core.ListMetadatas.IResult, Core.ListMetadatas.ExpectedError, Core.ListMetadatas.PossibleErrors, Core.ListMetadatas.UnexpectedError>(
                 () => list_metadatas(path),
-                s => new Core.ListMetadatas.Success { files = JsonConvert.DeserializeObject<List<FileMetadata>>(s) });
+                s => new Core.ListMetadatas.Success { files = JsonConvert.DeserializeObject<List<ClientFileMetadata>>(s) });
         }
 
         public async Task<Core.RenameFile.IResult> RenameFile(string id, string newName) {

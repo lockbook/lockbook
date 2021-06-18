@@ -7,6 +7,7 @@ mod rename_document_tests {
     use lockbook_core::client::ApiError;
     use lockbook_core::service::test_utils::{
         aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+        random_filename,
     };
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
@@ -32,7 +33,7 @@ mod rename_document_tests {
         .new_metadata_and_content_version;
 
         // rename document
-        doc.name = String::from("new name");
+        doc.name = random_filename();
         client::request(&account, RenameDocumentRequest::new(&doc)).unwrap();
     }
 
@@ -45,7 +46,7 @@ mod rename_document_tests {
 
         // rename document that wasn't created
         let (mut doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.name = String::from("new name");
+        doc.name = random_filename();
         let result = client::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
@@ -78,7 +79,7 @@ mod rename_document_tests {
         client::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
 
         // rename document
-        doc.name = String::from("new name");
+        doc.name = random_filename();
         let result = client::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(
             result,
@@ -109,7 +110,7 @@ mod rename_document_tests {
         .new_metadata_and_content_version;
 
         // rename document
-        doc.name = String::from("new name");
+        doc.name = random_filename();
         doc.metadata_version -= 1;
         let result = client::request(&account, RenameDocumentRequest::new(&doc));
         assert_matches!(

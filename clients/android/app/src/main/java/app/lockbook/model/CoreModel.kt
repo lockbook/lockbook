@@ -119,8 +119,8 @@ object CoreModel {
         return Err(WriteToDocumentError.Unexpected("writeDocument was unable to be called!"))
     }
 
-    fun getRoot(config: Config): Result<FileMetadata, GetRootError> {
-        val getRootResult: Result<FileMetadata, GetRootError>? =
+    fun getRoot(config: Config): Result<ClientFileMetadata, GetRootError> {
+        val getRootResult: Result<ClientFileMetadata, GetRootError>? =
             Klaxon().converter(getRootConverter).parse(getRoot(Klaxon().toJsonString(config)))
 
         if (getRootResult != null) {
@@ -181,8 +181,8 @@ object CoreModel {
     fun getChildren(
         config: Config,
         parentId: String
-    ): Result<List<FileMetadata>, GetChildrenError> {
-        val getChildrenResult: Result<List<FileMetadata>, GetChildrenError>? =
+    ): Result<List<ClientFileMetadata>, GetChildrenError> {
+        val getChildrenResult: Result<List<ClientFileMetadata>, GetChildrenError>? =
             Klaxon().converter(getChildrenConverter)
                 .parse(getChildren(Klaxon().toJsonString(config), parentId))
 
@@ -196,8 +196,8 @@ object CoreModel {
     fun getFileById(
         config: Config,
         fileId: String
-    ): Result<FileMetadata, GetFileByIdError> {
-        val getFileByIdResult: Result<FileMetadata, GetFileByIdError>? =
+    ): Result<ClientFileMetadata, GetFileByIdError> {
+        val getFileByIdResult: Result<ClientFileMetadata, GetFileByIdError>? =
             Klaxon().converter(
                 getFileByIdConverter
             ).parse(getFileById(Klaxon().toJsonString(config), fileId))
@@ -280,8 +280,8 @@ object CoreModel {
         parentId: String,
         name: String,
         fileType: String
-    ): Result<FileMetadata, CreateFileError> {
-        val createFileResult: Result<FileMetadata, CreateFileError>? =
+    ): Result<ClientFileMetadata, CreateFileError> {
+        val createFileResult: Result<ClientFileMetadata, CreateFileError>? =
             Klaxon().converter(createFileConverter)
                 .parse(createFile(Klaxon().toJsonString(config), name, parentId, fileType))
 
@@ -290,26 +290,6 @@ object CoreModel {
         }
 
         return Err(CreateFileError.Unexpected("createFileConverter was unable to be called!"))
-    }
-
-    fun insertFile(
-        config: Config,
-        fileMetadata: FileMetadata
-    ): Result<Unit, InsertFileError> {
-        val insertResult: Result<Unit, InsertFileError>? =
-            Klaxon().converter(insertFileConverter)
-                .parse(
-                    insertFile(
-                        Klaxon().toJsonString(config),
-                        Klaxon().toJsonString(fileMetadata)
-                    )
-                )
-
-        if (insertResult != null) {
-            return insertResult
-        }
-
-        return Err(InsertFileError.Unexpected("insertFileConverter was unable to be called!"))
     }
 
     fun deleteFile(

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use lockbook_core::model::state::Config;
 use lockbook_core::service::db_state_service::State as DbState;
-use lockbook_core::service::sync_service::{SyncProgress, WorkCalculated};
+use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{
     calculate_work, create_account, create_file, delete_file, export_account, get_account,
     get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
@@ -17,10 +17,12 @@ use lockbook_core::{
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
-use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::{LbError, LbResult};
 use crate::{closure, progerr, uerr};
+use lockbook_core::model::client_conversion::{
+    ClientFileMetadata, ClientWorkCalculated, ClientWorkUnit,
+};
 
 macro_rules! match_core_err {
     (
@@ -62,7 +64,7 @@ fn api_url() -> String {
 }
 
 pub struct LbSyncMsg {
-    pub work: WorkUnit,
+    pub work: ClientWorkUnit,
     pub name: String,
     pub index: usize,
     pub total: usize,
@@ -140,7 +142,7 @@ impl LbCore {
         name: &str,
         parent: Uuid,
         file_type: FileType,
-    ) -> LbResult<FileMetadata> {
+    ) -> LbResult<ClientFileMetadata> {
         create_file(&self.config, name, parent, file_type).map_err(map_core_err!(CreateFileError,
             FileNameNotAvailable => uerr!("That file name is not available."),
             NoAccount => uerr!("No account found."),
@@ -161,13 +163,13 @@ impl LbCore {
         ))
     }
 
-    pub fn root(&self) -> LbResult<FileMetadata> {
+    pub fn root(&self) -> LbResult<ClientFileMetadata> {
         get_root(&self.config).map_err(map_core_err!(GetRootError,
             NoRoot => uerr!("No root folder found."),
         ))
     }
 
-    pub fn children(&self, parent: &FileMetadata) -> LbResult<Vec<FileMetadata>> {
+    pub fn children(&self, parent: &ClientFileMetadata) -> LbResult<Vec<ClientFileMetadata>> {
         get_children(&self.config, parent.id).map_err(map_core_err!(GetChildrenError,
             Stub => panic!("impossible"),
         ))
@@ -181,13 +183,13 @@ impl LbCore {
         ))
     }
 
-    pub fn file_by_id(&self, id: Uuid) -> LbResult<FileMetadata> {
+    pub fn file_by_id(&self, id: Uuid) -> LbResult<ClientFileMetadata> {
         get_file_by_id(&self.config, id).map_err(map_core_err!(GetFileByIdError,
             NoFileWithThatId => uerr!("No file found with ID '{}'.", id),
         ))
     }
 
-    pub fn file_by_path(&self, path: &str) -> LbResult<FileMetadata> {
+    pub fn file_by_path(&self, path: &str) -> LbResult<ClientFileMetadata> {
         let acct_lock = lock!(self.account, read)?;
         let acct = account!(acct_lock)?;
         let p = format!("{}/{}", acct.username, path);
@@ -232,9 +234,15 @@ impl LbCore {
         let closure = closure!(ch => move |sync_progress: SyncProgress| {
             let wu = sync_progress.current_work_unit;
 
+            let name = match &wu {
+                ClientWorkUnit::ServerUnknownName(_) => "New file".to_string(),
+                ClientWorkUnit::Server(metadata) => metadata.name.clone(),
+                ClientWorkUnit::Local(metadata) => metadata.name.clone(),
+            };
+
             let data = LbSyncMsg {
-                work: wu.clone(),
-                name: wu.get_metadata().name,
+                work: wu,
+                name: name,
                 index: sync_progress.progress + 1,
                 total: sync_progress.total,
             };
@@ -253,7 +261,7 @@ impl LbCore {
         Ok(())
     }
 
-    pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
+    pub fn calculate_work(&self) -> LbResult<ClientWorkCalculated> {
         calculate_work(&self.config).map_err(map_core_err!(CalculateWorkError,
             CouldNotReachServer => uerr!("Unable to connect to the server."),
             ClientUpdateRequired => uerr!("Client upgrade required."),
@@ -304,7 +312,7 @@ impl LbCore {
         Ok(paths.iter().map(|p| p.replacen(root, "", 1)).collect())
     }
 
-    pub fn full_path_for(&self, f: &FileMetadata) -> String {
+    pub fn full_path_for(&self, f: &ClientFileMetadata) -> String {
         let root_id = match self.root() {
             Ok(root) => {
                 if f.id == root.id {
@@ -328,7 +336,7 @@ impl LbCore {
         path
     }
 
-    pub fn open(&self, id: &Uuid) -> LbResult<(FileMetadata, String)> {
+    pub fn open(&self, id: &Uuid) -> LbResult<(ClientFileMetadata, String)> {
         let meta = self.file_by_id(*id)?;
         let decrypted = self.read(meta.id)?;
         Ok((meta, String::from_utf8_lossy(&decrypted).to_string()))

@@ -3,7 +3,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use uuid::Uuid;
 
 pub type AESKey = [u8; 32];
 pub type DecryptedDocument = Vec<u8>;
@@ -53,9 +52,16 @@ pub struct UserAccessInfo {
     pub access_key: EncryptedUserAccessKey,
 }
 
-// TODO: remove all of this struct
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct FolderAccessInfo {
-    pub folder_id: Uuid, // TODO remove this?
-    pub access_key: EncryptedFolderAccessKey,
+/// A secret value that can impl an equality check by hmac'ing the
+/// inner secret.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SecretFileName {
+    pub encrypted_value: AESEncrypted<String>,
+    pub hmac: [u8; 32],
+}
+
+impl PartialEq for SecretFileName {
+    fn eq(&self, other: &Self) -> bool {
+        self.hmac == other.hmac
+    }
 }

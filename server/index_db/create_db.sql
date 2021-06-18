@@ -52,9 +52,9 @@ CREATE TABLE IF NOT EXISTS files
     parent            TEXT    NOT NULL,
     parent_access_key TEXT    NOT NULL,
     is_folder         BOOLEAN NOT NULL,
-    name              TEXT    NOT NULL,
+    name_encrypted    TEXT    NOT NULL,
+    name_hmac         TEXT    NOT NULL,
     owner             TEXT    NOT NULL,
-    signature         TEXT    NOT NULL,
     deleted           BOOLEAN NOT NULL,
     metadata_version  BIGINT  NOT NULL,
     content_version   BIGINT  NOT NULL,
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS files
     )
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_files_name_parent ON files (parent, name) WHERE (NOT deleted AND id != parent);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_files_name_parent ON files (parent, name_hmac) WHERE (NOT deleted AND id != parent);
 
 CREATE TABLE IF NOT EXISTS user_access_keys
 (

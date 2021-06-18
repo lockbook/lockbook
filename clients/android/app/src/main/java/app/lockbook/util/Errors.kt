@@ -89,10 +89,6 @@ sealed class GetFileByIdError : CoreError() {
     data class Unexpected(val error: String) : GetFileByIdError()
 }
 
-sealed class InsertFileError : CoreError() {
-    data class Unexpected(val error: String) : InsertFileError()
-}
-
 sealed class FileDeleteError : CoreError() {
     object FileDoesNotExist : FileDeleteError()
     object CannotDeleteRoot : FileDeleteError()

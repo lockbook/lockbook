@@ -2,9 +2,8 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use lockbook_core::repo::file_metadata_repo::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
-
 use crate::utils::{check_and_perform_migrations, init_logger_or_print};
+use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 mod backup;
 mod calculate_usage;

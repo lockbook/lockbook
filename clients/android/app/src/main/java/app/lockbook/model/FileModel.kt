@@ -11,13 +11,13 @@ import com.github.michaelbull.result.Ok
 import timber.log.Timber
 
 class FileModel(private val config: Config, private val _errorHasOccurred: SingleMutableLiveData<String>, private val _unexpectedErrorHasOccurred: SingleMutableLiveData<String>) {
-    private val _files = MutableLiveData<List<FileMetadata>>()
+    private val _files = MutableLiveData<List<ClientFileMetadata>>()
     private val _updateBreadcrumbBar = MutableLiveData<List<BreadCrumbItem>>()
-    lateinit var parentFileMetadata: FileMetadata
-    lateinit var lastDocumentAccessed: FileMetadata
-    private val filePath: MutableList<FileMetadata> = mutableListOf()
+    lateinit var parentFileMetadata: ClientFileMetadata
+    lateinit var lastDocumentAccessed: ClientFileMetadata
+    private val filePath: MutableList<ClientFileMetadata> = mutableListOf()
 
-    val files: LiveData<List<FileMetadata>>
+    val files: LiveData<List<ClientFileMetadata>>
         get() = _files
 
     val updateBreadcrumbBar: LiveData<List<BreadCrumbItem>>
@@ -41,7 +41,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
                             filePath.remove(filePath.last())
                         }
                         updateBreadCrumbWithLatest()
-                        sortChildren(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+                        sortChildren(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent })
                     }
                     is Err -> when (val error = getParentOfParentResult.error) {
                         is GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
@@ -63,7 +63,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         }.exhaustive
     }
 
-    fun intoFolder(fileMetadata: FileMetadata) {
+    fun intoFolder(fileMetadata: ClientFileMetadata) {
         parentFileMetadata = fileMetadata
         filePath.add(fileMetadata)
         refreshFiles()
@@ -93,7 +93,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
             is Ok -> {
                 updateBreadCrumbWithLatest()
-                sortChildren(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent && !fileMetadata.deleted })
+                sortChildren(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent })
             }
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.Unexpected -> {
@@ -147,7 +147,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         }.exhaustive
     }
 
-    private fun sortFilesAlpha(files: List<FileMetadata>, inReverse: Boolean): List<FileMetadata> { // TODO: write less code by just reversing the original
+    private fun sortFilesAlpha(files: List<ClientFileMetadata>, inReverse: Boolean): List<ClientFileMetadata> { // TODO: write less code by just reversing the original
         return if (inReverse) {
             files.sortedByDescending { fileMetadata ->
                 fileMetadata.name
@@ -159,7 +159,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         }
     }
 
-    private fun sortFilesChanged(files: List<FileMetadata>, inReverse: Boolean): List<FileMetadata> {
+    private fun sortFilesChanged(files: List<ClientFileMetadata>, inReverse: Boolean): List<ClientFileMetadata> {
         return if (inReverse) {
             files.sortedByDescending { fileMetadata ->
                 fileMetadata.metadataVersion
@@ -171,7 +171,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         }
     }
 
-    private fun sortFilesType(files: List<FileMetadata>): List<FileMetadata> {
+    private fun sortFilesType(files: List<ClientFileMetadata>): List<ClientFileMetadata> {
         val tempFolders = files.filter { fileMetadata ->
             fileMetadata.fileType.name == FileType.Folder.name
         }
@@ -193,7 +193,7 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
         ).toList()
     }
 
-    private fun sortChildren(files: List<FileMetadata>) {
+    private fun sortChildren(files: List<ClientFileMetadata>) {
         val sortedFiles = when (
             val optionValue = PreferenceManager.getDefaultSharedPreferences(App.instance)
                 .getString(SharedPreferences.SORT_FILES_KEY, SharedPreferences.SORT_FILES_A_Z)

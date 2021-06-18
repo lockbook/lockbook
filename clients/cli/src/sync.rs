@@ -1,17 +1,18 @@
 use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{sync_all, Error, SyncAllError};
-use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::CliResult;
 use crate::utils::get_config;
 use crate::{err, err_unexpected};
+use lockbook_core::model::client_conversion::ClientWorkUnit;
 
 pub fn sync() -> CliResult<()> {
     let config = get_config();
     let closure = |sync_progress: SyncProgress| {
-        match &sync_progress.current_work_unit {
-            WorkUnit::LocalChange { metadata } => println!("Pushing: {}", metadata.name),
-            WorkUnit::ServerChange { metadata } => println!("Pulling: {}", metadata.name),
+        match sync_progress.current_work_unit {
+            ClientWorkUnit::ServerUnknownName(_) => println!("New file needs to be pulled"),
+            ClientWorkUnit::Server(metadata) => println!("{} needs to be pulled", metadata.name),
+            ClientWorkUnit::Local(metadata) => println!("{} needs to be pushed", metadata.name),
         };
     };
 

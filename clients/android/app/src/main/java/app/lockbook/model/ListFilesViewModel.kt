@@ -57,7 +57,7 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _collapseExpandFAB = SingleMutableLiveData<Boolean>()
     private val _showCreateFileDialog = SingleMutableLiveData<CreateFileInfo>()
     private val _showMoveFileDialog = SingleMutableLiveData<MoveFileInfo>()
-    private val _showFileInfoDialog = SingleMutableLiveData<FileMetadata>()
+    private val _showFileInfoDialog = SingleMutableLiveData<ClientFileMetadata>()
     private val _showRenameFileDialog = SingleMutableLiveData<RenameFileInfo>()
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
     private val _shareDocument = SingleMutableLiveData<ArrayList<File>>()
@@ -71,7 +71,7 @@ class ListFilesViewModel(path: String, application: Application) :
     val stopProgressSpinner: LiveData<Unit>
         get() = _stopProgressSpinner
 
-    val files: LiveData<List<FileMetadata>>
+    val files: LiveData<List<ClientFileMetadata>>
         get() = fileModel.files
 
     val showSyncSnackBar: LiveData<Unit>
@@ -101,7 +101,7 @@ class ListFilesViewModel(path: String, application: Application) :
     val showMoveFileDialog: LiveData<MoveFileInfo>
         get() = _showMoveFileDialog
 
-    val showFileInfoDialog: LiveData<FileMetadata>
+    val showFileInfoDialog: LiveData<ClientFileMetadata>
         get() = _showFileInfoDialog
 
     val showRenameFileDialog: LiveData<RenameFileInfo>
@@ -352,7 +352,7 @@ class ListFilesViewModel(path: String, application: Application) :
         }
     }
 
-    fun refreshFiles(newDocument: FileMetadata?) {
+    fun refreshFiles(newDocument: ClientFileMetadata?) {
         viewModelScope.launch(Dispatchers.IO) {
             collapseMoreOptionsMenu()
             fileModel.refreshFiles()
@@ -413,7 +413,7 @@ class ListFilesViewModel(path: String, application: Application) :
             .registerOnSharedPreferenceChangeListener(listener)
     }
 
-    private fun getSelected(): List<FileMetadata>? = files.value?.filterIndexed { index, _ ->
+    private fun getSelected(): List<ClientFileMetadata>? = files.value?.filterIndexed { index, _ ->
         selectedFiles[index]
     }
 
@@ -423,7 +423,7 @@ class ListFilesViewModel(path: String, application: Application) :
         _uncheckAllFiles.postValue(Unit)
     }
 
-    private fun enterDocument(fileMetadata: FileMetadata) {
+    private fun enterDocument(fileMetadata: ClientFileMetadata) {
         val editableFileResult =
             EditableFile(fileMetadata.name, fileMetadata.id)
         fileModel.lastDocumentAccessed = fileMetadata

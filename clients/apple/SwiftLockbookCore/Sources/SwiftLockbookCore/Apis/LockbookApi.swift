@@ -17,12 +17,12 @@ public protocol LockbookApi {
     func getLocalChanges() -> FfiResult<[UUID], GetLocalChangesError>
     
     // Directory
-    func getRoot() -> FfiResult<FileMetadata, GetRootError>
-    func listFiles() -> FfiResult<[FileMetadata], ListMetadatasError>
+    func getRoot() -> FfiResult<ClientFileMetadata, GetRootError>
+    func listFiles() -> FfiResult<[ClientFileMetadata], ListMetadatasError>
     
     // Document
     func getFile(id: UUID) -> FfiResult<String, ReadDocumentError>
-    func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<FileMetadata, CreateFileError>
+    func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<ClientFileMetadata, CreateFileError>
     func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError>
     func deleteFile(id: UUID) -> FfiResult<Empty, FileDeleteError>
     func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError>

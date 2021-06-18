@@ -26,7 +26,7 @@ namespace Core {
         }
     }
 
-    public class FileMetadata {
+    public class ClientFileMetadata {
         [JsonProperty("id")]
         public string Id;
         [JsonProperty("name")]
@@ -154,7 +154,7 @@ namespace Core {
     namespace CreateFileAtPath {
         public interface IResult { }
         public class Success : IResult {
-            public FileMetadata newFile;
+            public ClientFileMetadata newFile;
         }
         public enum PossibleErrors {
             PathDoesntStartWithRoot,
@@ -183,7 +183,7 @@ namespace Core {
     namespace CreateFile {
         public interface IResult { }
         public class Success : IResult {
-            public FileMetadata newFile;
+            public ClientFileMetadata newFile;
         }
         public enum PossibleErrors {
             NoAccount,
@@ -200,7 +200,7 @@ namespace Core {
     namespace GetRoot {
         public interface IResult { }
         public class Success : IResult {
-            public FileMetadata root;
+            public ClientFileMetadata root;
         }
         public enum PossibleErrors {
             NoRoot,
@@ -212,7 +212,7 @@ namespace Core {
     namespace GetChildren {
         public interface IResult { }
         public class Success : IResult {
-            public List<FileMetadata> children;
+            public List<ClientFileMetadata> children;
         }
         public enum PossibleErrors {
             Stub,
@@ -238,7 +238,7 @@ namespace Core {
     namespace GetFileByPath {
         public interface IResult { }
         public class Success : IResult {
-            public FileMetadata file;
+            public ClientFileMetadata file;
         }
         public enum PossibleErrors {
             NoFileAtThatPath,
@@ -274,7 +274,7 @@ namespace Core {
     namespace ListMetadatas {
         public interface IResult { }
         public class Success : IResult {
-            public List<FileMetadata> files;
+            public List<ClientFileMetadata> files;
         }
         public enum PossibleErrors {
             Stub,

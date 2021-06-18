@@ -31,11 +31,11 @@ class GetChildrenTest {
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        val rootFileMetadata = assertTypeReturn<FileMetadata>(
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
             CoreModel.getRoot(config).component1()
         )
 
-        assertType<List<FileMetadata>>(
+        assertType<List<ClientFileMetadata>>(
             CoreModel.getChildren(config, rootFileMetadata.id).component1()
         )
     }
@@ -44,7 +44,7 @@ class GetChildrenTest {
     fun getChildrenUnexpectedError() {
         assertType<GetChildrenError.Unexpected>(
             Klaxon().converter(getChildrenConverter)
-                .parse<Result<List<FileMetadata>, GetChildrenError>>(getChildren("", ""))?.component2()
+                .parse<Result<List<ClientFileMetadata>, GetChildrenError>>(getChildren("", ""))?.component2()
         )
     }
 }

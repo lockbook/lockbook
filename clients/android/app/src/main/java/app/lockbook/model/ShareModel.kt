@@ -39,13 +39,13 @@ class ShareModel(
         }
     }
 
-    fun shareDocuments(selectedFiles: List<FileMetadata>) {
+    fun shareDocuments(selectedFiles: List<ClientFileMetadata>) {
         isLoadingOverlayVisible = true
         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
 
         clearShareStorage()
 
-        val documents = mutableListOf<FileMetadata>()
+        val documents = mutableListOf<ClientFileMetadata>()
         retrieveSelectedDocuments(selectedFiles, documents)
 
         val filesToShare = ArrayList<File>()
@@ -125,8 +125,8 @@ class ShareModel(
     }
 
     private fun retrieveSelectedDocuments(
-        selectedFiles: List<FileMetadata>,
-        documents: MutableList<FileMetadata>
+        selectedFiles: List<ClientFileMetadata>,
+        documents: MutableList<ClientFileMetadata>
     ): Boolean {
         selectedFiles.forEach { file ->
             when (file.fileType) {

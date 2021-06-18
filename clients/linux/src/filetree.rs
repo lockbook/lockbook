@@ -18,13 +18,14 @@ use gtk::TreeView as GtkTreeView;
 use gtk::TreeViewColumn as GtkTreeViewColumn;
 use uuid::Uuid;
 
-use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_metadata::FileType;
 
 use crate::backend::LbCore;
 use crate::closure;
 use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
+use lockbook_core::model::client_conversion::ClientFileMetadata;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -155,7 +156,7 @@ impl FileTree {
         Ok(())
     }
 
-    pub fn add(&self, b: &LbCore, f: &FileMetadata) -> LbResult<()> {
+    pub fn add(&self, b: &LbCore, f: &ClientFileMetadata) -> LbResult<()> {
         let mut file = f.clone();
         let mut parent_iter: Option<GtkTreeIter>;
         while {
@@ -174,7 +175,12 @@ impl FileTree {
         Ok(())
     }
 
-    pub fn append(&self, b: &LbCore, it: Option<&GtkTreeIter>, f: &FileMetadata) -> LbResult<()> {
+    pub fn append(
+        &self,
+        b: &LbCore,
+        it: Option<&GtkTreeIter>,
+        f: &ClientFileMetadata,
+    ) -> LbResult<()> {
         let name = &f.name;
         let id = &f.id.to_string();
         let ftype = &format!("{:?}", f.file_type);

@@ -93,7 +93,7 @@ struct Drawing_Previews: PreviewProvider {
     static let core = GlobalState()
     static let toolbar = ToolbarModel()
     static let dm = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
-    static let dc = PassthroughSubject<FileMetadata, Never>()
+    static let dc = PassthroughSubject<ClientFileMetadata, Never>()
 
     static var previews: some View {
         DrawingLoader(model: dm, toolbar: toolbar, meta: core.files[0], deleteChannel: dc)

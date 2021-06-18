@@ -39,10 +39,10 @@ mod get_root_tests {
 
         let server_root = tokio_test::block_on(get_user_root(&account1.public_key()));
         let core_root = lockbook_core::get_root(&cfg1).unwrap();
-        assert_eq!(server_root, core_root);
+        assert_eq!(server_root.id, core_root.id);
 
         let server_root = tokio_test::block_on(get_user_root(&account2.public_key()));
         let core_root = lockbook_core::get_root(&cfg2).unwrap();
-        assert_eq!(server_root, core_root);
+        assert_eq!(server_root.id, core_root.id);
     }
 }

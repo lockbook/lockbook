@@ -15,7 +15,7 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
 
     val config = Config(filesDir)
 
-    override var files = listOf<FileMetadata>()
+    override var files = listOf<ClientFileMetadata>()
         set(value) {
             field = value
             notifyDataSetChanged()

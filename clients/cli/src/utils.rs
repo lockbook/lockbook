@@ -10,13 +10,13 @@ use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
+use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::db_state_service::State;
 use lockbook_core::service::drawing_service::SupportedImageFormats;
 use lockbook_core::service::drawing_service::SupportedImageFormats::{
     Bmp, Farbfeld, Jpeg, Png, Pnm, Tga,
 };
 use lockbook_models::account::Account;
-use lockbook_models::file_metadata::FileMetadata;
 use std::path::Path;
 use uuid::Uuid;
 
@@ -212,34 +212,31 @@ pub fn print_last_successful_sync() -> CliResult<()> {
     Ok(())
 }
 
-pub fn set_up_auto_save(
-    watch_file_metadata: FileMetadata,
-    watch_file_location: String,
-) -> Option<Hotwatch> {
+pub fn set_up_auto_save(file_metadata: ClientFileMetadata, location: String) -> Option<Hotwatch> {
     let watcher = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5));
 
     match watcher {
         Ok(mut ok) => {
-            ok.watch(watch_file_location.clone(), move |event: Event| {
+            ok.watch(location.clone(), move |event: Event| {
                 if let Event::NoticeWrite(_) = event {
                     save_temp_file_contents(
-                        watch_file_metadata.clone(),
-                        &watch_file_location,
-                        Path::new(watch_file_location.as_str()),
+                        file_metadata.clone(),
+                        &location,
+                        Path::new(location.as_str()),
                         true,
                     )
                 } else if let Event::Write(_) = event {
                     save_temp_file_contents(
-                        watch_file_metadata.clone(),
-                        &watch_file_location,
-                        Path::new(watch_file_location.as_str()),
+                        file_metadata.clone(),
+                        &location,
+                        Path::new(location.as_str()),
                         true,
                     )
                 } else if let Event::Create(_) = event {
                     save_temp_file_contents(
-                        watch_file_metadata.clone(),
-                        &watch_file_location,
-                        Path::new(watch_file_location.as_str()),
+                        file_metadata.clone(),
+                        &location,
+                        Path::new(location.as_str()),
                         true,
                     )
                 }
@@ -264,8 +261,8 @@ pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
 }
 
 pub fn save_temp_file_contents(
-    file_metadata: FileMetadata,
-    file_location: &String,
+    file_metadata: ClientFileMetadata,
+    location: &String,
     temp_file_path: &Path,
     silent: bool,
 ) {
@@ -275,7 +272,7 @@ pub fn save_temp_file_contents(
             if !silent {
                 err_unexpected!(
                     "could not read from temporary file, not deleting {}, err: {:#?}",
-                    file_location,
+                    location,
                     err
                 )
                 .exit()

@@ -15,14 +15,14 @@ use crate::service::usage_service::bytes_to_human;
 use crate::{
     calculate_work, create_account, create_file, delete_file, export_account, export_drawing,
     export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
-    get_file_by_id, get_local_and_server_usage, get_root, import_account, init_logger, insert_file,
-    migrate_db, move_file, read_document, rename_file, save_document_to_disk, set_last_synced,
-    sync_all, write_document, Error,
+    get_file_by_id, get_local_and_server_usage, get_root, import_account, init_logger, migrate_db,
+    move_file, read_document, rename_file, save_document_to_disk, set_last_synced, sync_all,
+    write_document, Error,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use lockbook_crypto::clock_service;
-use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_metadata::FileType;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -267,25 +267,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
     };
 
     string_to_jstring(&env, translate(get_file_by_id(&config, id)))
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_insertFile(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jfilemetadata: JString,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-    let file_metadata = match deserialize::<FileMetadata>(&env, jfilemetadata, "file metadata") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(&env, translate(insert_file(&config, file_metadata)))
 }
 
 #[no_mangle]

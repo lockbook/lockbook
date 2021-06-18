@@ -3,7 +3,7 @@ import Foundation
 
 class ModifyFileTests: SLCTest {
     var account: Account?
-    var root: FileMetadata?
+    var root: ClientFileMetadata?
     
     override func setUpWithError() throws {
         try super.setUpWithError()

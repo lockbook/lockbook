@@ -1,5 +1,5 @@
 use lockbook_core::list_paths;
-use lockbook_core::repo::file_metadata_repo::Filter;
+use lockbook_core::service::path_service::Filter;
 
 use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config, print_last_successful_sync};

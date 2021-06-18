@@ -36,7 +36,7 @@ pub async fn new_account(
         request.folder_id,
         request.folder_id,
         FileType::Folder,
-        &request.username,
+        &request.folder_name,
         &context.public_key,
         &request.parent_access_key,
         None,

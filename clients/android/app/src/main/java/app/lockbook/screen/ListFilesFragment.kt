@@ -473,7 +473,7 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun updateFilesList(
-        files: List<FileMetadata>,
+        files: List<ClientFileMetadata>,
         adapter: GeneralViewAdapter
     ) {
         adapter.files = files
@@ -520,7 +520,7 @@ class ListFilesFragment : Fragment() {
         onActivityResult.launch(intent)
     }
 
-    private fun showMoreInfoDialog(fileMetadata: FileMetadata) {
+    private fun showMoreInfoDialog(fileMetadata: ClientFileMetadata) {
         val dialogFragment = FileInfoDialogFragment.newInstance(
             fileMetadata.name,
             fileMetadata.id,

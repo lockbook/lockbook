@@ -8,14 +8,14 @@ import androidx.cardview.widget.CardView
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.util.FileMetadata
+import app.lockbook.util.ClientFileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.ListFilesClickInterface
 
 class GridRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) :
     GeneralViewAdapter(listFilesClickInterface) {
 
-    override var files = listOf<FileMetadata>()
+    override var files = listOf<ClientFileMetadata>()
         set(value) {
             field = value
             notifyDataSetChanged()
