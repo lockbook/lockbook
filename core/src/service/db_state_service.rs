@@ -54,21 +54,19 @@ pub enum MigrationError {
 }
 
 pub fn perform_migration(config: &Config) -> Result<(), MigrationError> {
-    loop {
-        let db_version = match db_version_repo::get(config).map_err(MigrationError::RepoError)? {
-            None => return Err(MigrationError::StateRequiresClearing),
-            Some(version) => version,
-        };
+    let db_version = match db_version_repo::get(config).map_err(MigrationError::RepoError)? {
+        None => return Err(MigrationError::StateRequiresClearing),
+        Some(version) => version,
+    };
 
-        if db_version == db_state_service::get_code_version() {
-            return Ok(());
-        }
-
-        match db_version.as_str() {
-            "0.1.4" => return Ok(()),
-            _ => return Err(MigrationError::StateRequiresClearing),
-        };
+    if db_version == db_state_service::get_code_version() {
+        return Ok(());
     }
+
+    match db_version.as_str() {
+        "0.1.4" => return Ok(()),
+        _ => return Err(MigrationError::StateRequiresClearing),
+    };
 }
 
 #[cfg(test)]
