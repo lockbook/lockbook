@@ -32,6 +32,8 @@ use crate::service::drawing_service::{
     ExportDrawingToDiskError as FSExportDrawingToDiskError, GetDrawingError as FSGetDrawingError,
     SaveDrawingError as FSSaveDrawingError,
 };
+use crate::service::file_encryption_service::FileWriteError;
+use crate::service::file_encryption_service::KeyDecryptionFailure;
 use crate::service::file_service::{
     DocumentRenameError, DocumentUpdateError, FileMoveError, NewFileError,
     ReadDocumentError as FSReadDocumentError, SaveDocumentToDiskError as FSSaveDocumentToDiskError,
@@ -297,6 +299,9 @@ pub fn write_document(
         DocumentUpdateError::FolderTreatedAsDocument => {
             UiError(WriteToDocumentError::FolderTreatedAsDocument)
         }
+        DocumentUpdateError::FileEncryptionError(FileWriteError::FileKeyDecryptionFailed(
+            KeyDecryptionFailure::GettingAccountError(AccountRepoError::NoAccount),
+        )) => UiError(WriteToDocumentError::FileDoesNotExist),
         DocumentUpdateError::FileEncryptionError(_)
         | DocumentUpdateError::FileCompressionError(_)
         | DocumentUpdateError::FileDecompressionError(_)
