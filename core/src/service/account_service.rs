@@ -1,4 +1,3 @@
-use crate::CoreError;
 use crate::client;
 use crate::client::ApiError;
 use crate::model::state::Config;
@@ -6,6 +5,7 @@ use crate::repo::account_repo;
 use crate::repo::file_metadata_repo;
 use crate::service::file_encryption_service;
 use crate::unexpected_core_err;
+use crate::CoreError;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
@@ -41,21 +41,31 @@ pub fn create_account(
         .map_err(unexpected_core_err)?;
 
     info!("Sending username & public key to server");
-    let version = match client::request(&account, NewAccountRequest::new(&account, &file_metadata)) {
+    let version = match client::request(&account, NewAccountRequest::new(&account, &file_metadata))
+    {
         Ok(response) => response.folder_metadata_version,
-        Err(ApiError::SendFailed(_)) => { return Err(CoreError::ServerUnreachable); }
-        Err(ApiError::ClientUpdateRequired) => { return Err(CoreError::ClientUpdateRequired); }
-        Err(ApiError::Endpoint(NewAccountError::UsernameTaken)) => { return Err(CoreError::UsernameTaken); }
-        Err(ApiError::Endpoint(NewAccountError::InvalidUsername)) => { return Err(CoreError::UsernameInvalid); }
-        Err(e) => { return Err(unexpected_core_err(e)); }
+        Err(ApiError::SendFailed(_)) => {
+            return Err(CoreError::ServerUnreachable);
+        }
+        Err(ApiError::ClientUpdateRequired) => {
+            return Err(CoreError::ClientUpdateRequired);
+        }
+        Err(ApiError::Endpoint(NewAccountError::UsernameTaken)) => {
+            return Err(CoreError::UsernameTaken);
+        }
+        Err(ApiError::Endpoint(NewAccountError::InvalidUsername)) => {
+            return Err(CoreError::UsernameInvalid);
+        }
+        Err(e) => {
+            return Err(unexpected_core_err(e));
+        }
     };
     info!("Account creation success!");
 
     file_metadata.metadata_version = version;
     file_metadata.content_version = version;
 
-    file_metadata_repo::insert(config, &file_metadata)
-        .map_err(unexpected_core_err)?;
+    file_metadata_repo::insert(config, &file_metadata).map_err(unexpected_core_err)?;
 
     debug!(
         "{}",
@@ -63,16 +73,12 @@ pub fn create_account(
     );
 
     info!("Saving account locally");
-    account_repo::insert_account(config, &account)
-        .map_err(unexpected_core_err)?;
+    account_repo::insert_account(config, &account).map_err(unexpected_core_err)?;
 
     Ok(account)
 }
 
-pub fn import_account(
-    config: &Config,
-    account_string: &str,
-) -> Result<Account, CoreError> {
+pub fn import_account(config: &Config, account_string: &str) -> Result<Account, CoreError> {
     info!("Checking if account already exists");
     if account_repo::maybe_get_account(config)
         .map_err(unexpected_core_err)?
@@ -85,13 +91,17 @@ pub fn import_account(
 
     let decoded = match base64::decode(&account_string) {
         Ok(d) => d,
-        Err(_) => { return Err(CoreError::AccountStringCorrupted); }
+        Err(_) => {
+            return Err(CoreError::AccountStringCorrupted);
+        }
     };
     debug!("Key is valid base64 string");
 
     let account: Account = match bincode::deserialize(&decoded[..]) {
         Ok(a) => a,
-        Err(_) => { return Err(CoreError::AccountStringCorrupted); }
+        Err(_) => {
+            return Err(CoreError::AccountStringCorrupted);
+        }
     };
     debug!("Key was valid bincode");
 
@@ -106,10 +116,18 @@ pub fn import_account(
         },
     ) {
         Ok(response) => response.key,
-        Err(ApiError::SendFailed(_)) => { return Err(CoreError::ServerUnreachable); }
-        Err(ApiError::ClientUpdateRequired) => { return Err(CoreError::ClientUpdateRequired); }
-        Err(ApiError::Endpoint(GetPublicKeyError::UserNotFound)) => { return Err(CoreError::AccountNonexistent); }
-        Err(e) => { return Err(unexpected_core_err(e)); }
+        Err(ApiError::SendFailed(_)) => {
+            return Err(CoreError::ServerUnreachable);
+        }
+        Err(ApiError::ClientUpdateRequired) => {
+            return Err(CoreError::ClientUpdateRequired);
+        }
+        Err(ApiError::Endpoint(GetPublicKeyError::UserNotFound)) => {
+            return Err(CoreError::AccountNonexistent);
+        }
+        Err(e) => {
+            return Err(unexpected_core_err(e));
+        }
     };
 
     if account.public_key() != server_public_key {
@@ -132,10 +150,13 @@ pub enum AccountExportError {
 pub fn export_account(config: &Config) -> Result<String, CoreError> {
     let account = match account_repo::get_account(config) {
         Ok(a) => a,
-        Err(account_repo::AccountRepoError::NoAccount) => { return Err(CoreError::AccountNonexistent); }
-        Err(e) => { return Err(unexpected_core_err(e)); }
+        Err(account_repo::AccountRepoError::NoAccount) => {
+            return Err(CoreError::AccountNonexistent);
+        }
+        Err(e) => {
+            return Err(unexpected_core_err(e));
+        }
     };
-    let encoded: Vec<u8> =
-        bincode::serialize(&account).map_err(unexpected_core_err)?;
+    let encoded: Vec<u8> = bincode::serialize(&account).map_err(unexpected_core_err)?;
     Ok(base64::encode(&encoded))
 }

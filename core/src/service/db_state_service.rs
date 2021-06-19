@@ -1,9 +1,9 @@
-use crate::CoreError;
 use crate::model::state::Config;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::db_state_service;
 use crate::service::db_state_service::State::{Empty, ReadyToUse, StateRequiresClearing};
 use crate::unexpected_core_err;
+use crate::CoreError;
 use serde::Serialize;
 
 pub fn get_code_version() -> &'static str {

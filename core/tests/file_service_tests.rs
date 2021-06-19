@@ -5,7 +5,6 @@ mod unit_tests {
     use crate::unit_tests::path_service::Filter::DocumentsOnly;
     use crate::unit_tests::path_service::Filter::FoldersOnly;
     use crate::unit_tests::path_service::Filter::LeafNodesOnly;
-    use crate::unit_tests::path_service::*;
     use libsecp256k1::SecretKey;
     use lockbook_core::init_logger;
     use lockbook_core::model::state::temp_config;
@@ -16,6 +15,7 @@ mod unit_tests {
     use lockbook_core::service::{
         file_encryption_service, file_service, integrity_service, path_service,
     };
+    use lockbook_core::CoreError;
     use lockbook_models::account::Account;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use rand::rngs::OsRng;
@@ -216,7 +216,7 @@ mod unit_tests {
         for path in &paths_with_empties {
             let err = path_service::create_at_path(config, path).unwrap_err();
             assert!(
-                matches!(err, NewFileFromPathError::PathContainsEmptyFile),
+                matches!(err, CoreError::PathContainsEmptyFileName),
                 "Expected path \"{}\" to return PathContainsEmptyFile but instead it was {:?}",
                 path,
                 err

@@ -27,7 +27,6 @@ use crate::service::file_service::{
     DocumentRenameError, DocumentUpdateError, FileMoveError, NewFileError,
     ReadDocumentError as FSReadDocumentError, SaveDocumentToDiskError as FSSaveDocumentToDiskError,
 };
-use crate::service::path_service::{GetByPathError, NewFileFromPathError};
 use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, SyncProgress,
 };
@@ -43,7 +42,7 @@ use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{FileUsage};
+use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
@@ -236,38 +235,17 @@ pub fn create_file_at_path(
 ) -> Result<ClientFileMetadata, Error<CreateFileAtPathError>> {
     path_service::create_at_path(&config, path_and_name)
         .map_err(|e| match e {
-            path_service::NewFileFromPathError::PathDoesntStartWithRoot => {
+            CoreError::PathStartsWithNonRoot => {
                 UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
             }
-            path_service::NewFileFromPathError::PathContainsEmptyFile => {
+            CoreError::PathContainsEmptyFileName => {
                 UiError(CreateFileAtPathError::PathContainsEmptyFile)
             }
-            path_service::NewFileFromPathError::FileAlreadyExists => {
-                UiError(CreateFileAtPathError::FileAlreadyExists)
-            }
-            path_service::NewFileFromPathError::NoRoot => UiError(CreateFileAtPathError::NoRoot),
-            path_service::NewFileFromPathError::FailedToCreateChild(failed_to_create) => {
-                match failed_to_create {
-                    NewFileError::AccountRetrievalError(account_error) => match account_error {
-                        AccountRepoError::NoAccount => UiError(CreateFileAtPathError::NoAccount),
-                        AccountRepoError::BackendError(_) | AccountRepoError::SerdeError(_) => {
-                            unexpected!("{:#?}", account_error)
-                        }
-                    },
-                    NewFileError::FileNameNotAvailable => {
-                        UiError(CreateFileAtPathError::FileAlreadyExists)
-                    }
-                    NewFileError::DocumentTreatedAsFolder => {
-                        UiError(CreateFileAtPathError::DocumentTreatedAsFolder)
-                    }
-                    _ => unexpected!("{:#?}", failed_to_create),
-                }
-            }
-            path_service::NewFileFromPathError::FailedToRecordChange(_)
-            | path_service::NewFileFromPathError::DbError(_)
-            | NewFileFromPathError::GetNameOfFileError(_) => {
-                unexpected!("{:#?}", e)
-            }
+            CoreError::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
+            CoreError::AccountNonexistent => UiError(CreateFileAtPathError::NoAccount),
+            CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
+            CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
+            _ => unexpected!("{:#?}", e),
         })
         .and_then(|file_metadata| {
             generate_client_file_metadata(config, &file_metadata)
@@ -439,18 +417,15 @@ pub fn get_file_by_path(
     config: &Config,
     path: &str,
 ) -> Result<ClientFileMetadata, Error<GetFileByPathError>> {
-    match path_service::get_by_path(&config, path) {
-        Ok(file_metadata) => Ok(file_metadata).and_then(|file_metadata| {
+    path_service::get_by_path(&config, path)
+        .map_err(|e| match e {
+            CoreError::FileNonexistent => UiError(GetFileByPathError::NoFileAtThatPath),
+            _ => unexpected!("{:#?}", e),
+        })
+        .and_then(|file_metadata| {
             generate_client_file_metadata(config, &file_metadata)
                 .map_err(|e| unexpected!("{:#?}", e))
-        }),
-        Err(err) => match err {
-            GetByPathError::FileNotFound(_) => Err(UiError(GetFileByPathError::NoFileAtThatPath)),
-            GetByPathError::NoRoot
-            | GetByPathError::FileMetadataError(_)
-            | GetByPathError::NameDecryptionError(_) => Err(unexpected!("{:#?}", err)),
-        },
-    }
+        })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
