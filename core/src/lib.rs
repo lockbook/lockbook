@@ -4,29 +4,23 @@
 extern crate log;
 extern crate reqwest;
 
-use std::env;
-use std::path::Path;
-use std::str::FromStr;
-
-use basic_human_duration::ChronoHumanDuration;
-use chrono::Duration;
-use serde::Serialize;
-use serde_json::{json, value::Value};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-use uuid::Uuid;
-
 use crate::client::ApiError;
+use crate::model::client_conversion::{
+    generate_client_file_metadata, generate_client_work_calculated, ClientFileMetadata,
+    ClientWorkCalculated,
+};
 use crate::model::state::Config;
 use crate::repo::account_repo::AccountRepoError;
 use crate::repo::file_metadata_repo::{
     DbError, FindingChildrenFailed, GetError as FileMetadataRepoError,
 };
+use crate::repo::local_changes_repo;
 use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::account_service::{
     AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
 };
 use crate::service::db_state_service::State;
+use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::drawing_service::{
     ExportDrawingError as FSExportDrawingError,
     ExportDrawingToDiskError as FSExportDrawingToDiskError, GetDrawingError as FSGetDrawingError,
@@ -36,6 +30,7 @@ use crate::service::file_service::{
     DocumentRenameError, DocumentUpdateError, FileMoveError, NewFileError,
     ReadDocumentError as FSReadDocumentError, SaveDocumentToDiskError as FSSaveDocumentToDiskError,
 };
+use crate::service::path_service::{GetByPathError, NewFileFromPathError};
 use crate::service::sync_service::{
     CalculateWorkError as SSCalculateWorkError, SyncError, SyncProgress,
 };
@@ -47,11 +42,26 @@ use crate::service::{
     account_service, db_state_service, drawing_service, file_service, path_service, sync_service,
     usage_service,
 };
+use basic_human_duration::ChronoHumanDuration;
+use chrono::Duration;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
 use lockbook_models::crypto::DecryptedDocument;
+use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
+use serde::Serialize;
+use serde_json::error::Category;
+use serde_json::{json, value::Value};
+use std::collections::HashMap;
+use std::env;
+use std::io::ErrorKind;
+use std::path::Path;
+use std::str::FromStr;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
+use uuid::Uuid;
+use Error::UiError;
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -59,24 +69,39 @@ pub enum Error<U: Serialize> {
     UiError(U),
     Unexpected(String),
 }
-use crate::repo::local_changes_repo;
-use crate::service::drawing_service::SupportedImageFormats;
-use crate::service::path_service::{GetByPathError, NewFileFromPathError};
-
-use crate::model::client_conversion::{
-    generate_client_file_metadata, generate_client_work_calculated, ClientFileMetadata,
-    ClientWorkCalculated,
-};
-use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
-use serde_json::error::Category;
-use std::collections::HashMap;
-use std::io::ErrorKind;
-use Error::UiError;
 
 macro_rules! unexpected {
     ($base:literal $(, $args:tt )*) => {
         Error::Unexpected(format!($base $(, $args )*))
     };
+}
+
+pub enum CoreError {
+    AccountExists,
+    AccountNonexistent,
+    AccountStringCorrupted,
+    ClientUpdateRequired,
+    ClientWipeRequired,
+    DiskPathInvalid,
+    DrawingInvalid,
+    FileExists,
+    FileNameContainsSlash,
+    FileNameEmpty,
+    FileNonexistent,
+    FileNotDocument,
+    FileNotFolder,
+    FileParentNonexistent,
+    FolderMovedIntoSelf,
+    PathContainsEmptyFileName,
+    PathNonexistent,
+    PathStartsWithNonRoot,
+    PathTaken,
+    RootModificationInvalid,
+    RootNonexistent,
+    ServerUnreachable,
+    UsernameInvalid,
+    UsernamePrivateKeyMismatch,
+    UsernameTaken,
 }
 
 pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
