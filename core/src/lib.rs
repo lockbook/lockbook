@@ -16,9 +16,6 @@ use crate::repo::file_metadata_repo::{
 };
 use crate::repo::local_changes_repo;
 use crate::repo::{account_repo, file_metadata_repo};
-use crate::service::account_service::{
-    AccountCreationError, AccountExportError as ASAccountExportError, AccountImportError,
-};
 use crate::service::db_state_service::State;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::drawing_service::{
@@ -46,7 +43,7 @@ use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{FileUsage, GetPublicKeyError, NewAccountError};
+use lockbook_models::api::{FileUsage};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
@@ -76,6 +73,7 @@ macro_rules! unexpected {
     };
 }
 
+#[derive(Debug)]
 pub enum CoreError {
     AccountExists,
     AccountNonexistent,
@@ -100,8 +98,13 @@ pub enum CoreError {
     RootNonexistent,
     ServerUnreachable,
     UsernameInvalid,
-    UsernamePrivateKeyMismatch,
+    UsernamePublicKeyMismatch,
     UsernameTaken,
+    Unexpected(String),
+}
+
+fn unexpected_core_err<T: std::fmt::Debug>(err: T) -> CoreError {
+    CoreError::Unexpected(format!("{:#?}", err))
 }
 
 pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
@@ -127,7 +130,7 @@ pub enum GetStateError {
 }
 
 pub fn get_db_state(config: &Config) -> Result<State, Error<GetStateError>> {
-    db_state_service::get_state(&config).map_err(|err| unexpected!("{:#?}", err))
+    db_state_service::get_state(&config).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -137,10 +140,8 @@ pub enum MigrationError {
 
 pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
     db_state_service::perform_migration(&config).map_err(|e| match e {
-        db_state_service::MigrationError::StateRequiresClearing => {
-            UiError(MigrationError::StateRequiresCleaning)
-        }
-        db_state_service::MigrationError::RepoError(_) => unexpected!("{:#?}", e),
+        CoreError::ClientWipeRequired => UiError(MigrationError::StateRequiresCleaning),
+        _ => unexpected!("{:#?}", e),
     })
 }
 
@@ -159,19 +160,11 @@ pub fn create_account(
     api_url: &str,
 ) -> Result<Account, Error<CreateAccountError>> {
     account_service::create_account(&config, username, api_url).map_err(|e| match e {
-        AccountCreationError::AccountExistsAlready => {
-            UiError(CreateAccountError::AccountExistsAlready)
-        }
-        AccountCreationError::ApiError(network) => match network {
-            ApiError::Endpoint(api_err) => match api_err {
-                NewAccountError::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
-                NewAccountError::InvalidUsername => UiError(CreateAccountError::InvalidUsername),
-                _ => unexpected!("{:#?}", api_err),
-            },
-            ApiError::SendFailed(_) => UiError(CreateAccountError::CouldNotReachServer),
-            ApiError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", network),
-        },
+        CoreError::AccountExists => UiError(CreateAccountError::AccountExistsAlready),
+        CoreError::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
+        CoreError::UsernameInvalid => UiError(CreateAccountError::InvalidUsername),
+        CoreError::ServerUnreachable => UiError(CreateAccountError::CouldNotReachServer),
+        CoreError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
         _ => unexpected!("{:#?}", e),
     })
 }
@@ -191,31 +184,13 @@ pub fn import_account(
     account_string: &str,
 ) -> Result<Account, Error<ImportError>> {
     account_service::import_account(&config, account_string).map_err(|e| match e {
-        AccountImportError::AccountStringCorrupted(_)
-        | AccountImportError::AccountStringFailedToDeserialize(_) => {
-            UiError(ImportError::AccountStringCorrupted)
-        }
-        AccountImportError::AccountExistsAlready => UiError(ImportError::AccountExistsAlready),
-        AccountImportError::PublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
-        AccountImportError::FailedToVerifyAccountServerSide(client_err) => match client_err {
-            ApiError::SendFailed(_) => UiError(ImportError::CouldNotReachServer),
-            ApiError::Endpoint(api_err) => match api_err {
-                GetPublicKeyError::UserNotFound => UiError(ImportError::AccountDoesNotExist),
-                GetPublicKeyError::InvalidUsername => unexpected!("{:#?}", api_err),
-            },
-            ApiError::ClientUpdateRequired => UiError(ImportError::ClientUpdateRequired),
-            ApiError::Serialize(_)
-            | ApiError::ReceiveFailed(_)
-            | ApiError::Deserialize(_)
-            | ApiError::Sign(_)
-            | ApiError::InternalError
-            | ApiError::BadRequest
-            | ApiError::InvalidAuth
-            | ApiError::ExpiredAuth => unexpected!("{:#?}", client_err),
-        },
-        AccountImportError::PersistenceError(_) | AccountImportError::AccountRepoError(_) => {
-            unexpected!("{:#?}", e)
-        }
+        CoreError::AccountStringCorrupted => UiError(ImportError::AccountStringCorrupted),
+        CoreError::AccountExists => UiError(ImportError::AccountExistsAlready),
+        CoreError::UsernamePublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
+        CoreError::ServerUnreachable => UiError(ImportError::CouldNotReachServer),
+        CoreError::AccountNonexistent => UiError(ImportError::AccountDoesNotExist),
+        CoreError::ClientUpdateRequired => UiError(ImportError::ClientUpdateRequired),
+        _ => unexpected!("{:#?}", e),
     })
 }
 
@@ -226,13 +201,8 @@ pub enum AccountExportError {
 
 pub fn export_account(config: &Config) -> Result<String, Error<AccountExportError>> {
     account_service::export_account(&config).map_err(|e| match e {
-        ASAccountExportError::AccountRetrievalError(db_err) => match db_err {
-            AccountRepoError::NoAccount => UiError(AccountExportError::NoAccount),
-            AccountRepoError::SerdeError(_) | AccountRepoError::BackendError(_) => {
-                unexpected!("{:#?}", db_err)
-            }
-        },
-        ASAccountExportError::AccountStringFailedToSerialize(_) => unexpected!("{:#?}", e),
+        CoreError::AccountNonexistent => UiError(AccountExportError::NoAccount),
+        _ => unexpected!("{:#?}", e),
     })
 }
 

@@ -2,14 +2,11 @@ mod integration_test;
 
 #[cfg(test)]
 mod account_tests {
-    use lockbook_core::client::ApiError;
     use lockbook_core::repo::{account_repo, file_metadata_repo};
-    use lockbook_core::service::account_service::AccountCreationError;
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
     use lockbook_core::service::{account_service, sync_service};
-    use lockbook_core::{create_account, export_account, import_account, Error, ImportError};
+    use lockbook_core::{CoreError, Error, ImportError, create_account, export_account, import_account};
     use lockbook_models::account::Account;
-    use lockbook_models::api::NewAccountError;
 
     #[test]
     fn create_account_successfully() {
@@ -45,7 +42,7 @@ mod account_tests {
         assert!(
             matches!(
                 err,
-                AccountCreationError::ApiError(ApiError::Endpoint(NewAccountError::UsernameTaken))
+                CoreError::UsernameTaken
             ),
             "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
             &generated_account.username,
@@ -66,9 +63,7 @@ mod account_tests {
             assert!(
                 matches!(
                     err,
-                    AccountCreationError::ApiError(ApiError::Endpoint(
-                        NewAccountError::InvalidUsername
-                    ))
+                    CoreError::UsernameInvalid
                 ),
                 "Username \"{}\" should have been InvalidUsername but instead was {:?}",
                 uname,
@@ -122,23 +117,18 @@ mod account_tests {
             &generated_account.api_url,
         )
         .unwrap();
-        match account_service::create_account(
-            &db,
-            &generated_account.username,
-            &generated_account.api_url,
-        ) {
-            Ok(_) => panic!("This action should have failed with AccountAlreadyExists!"),
-            Err(err) => match err {
-                AccountCreationError::AccountRepoError(_)
-                | AccountCreationError::FolderError(_)
-                | AccountCreationError::MetadataRepoError(_)
-                | AccountCreationError::ApiError(_)
-                | AccountCreationError::KeySerializationError(_) => {
-                    panic!("This action should have failed with AccountAlreadyExists!")
-                }
-                AccountCreationError::AccountExistsAlready => {}
-            },
-        }
+
+        assert!(
+            matches!(
+                account_service::create_account(
+                    &db,
+                    &generated_account.username,
+                    &generated_account.api_url,
+                ),
+                Err(CoreError::AccountExists)
+            ),
+            "This action should have failed with AccountAlreadyExists!",
+        );
     }
 
     #[test]

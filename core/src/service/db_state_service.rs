@@ -1,7 +1,9 @@
+use crate::CoreError;
 use crate::model::state::Config;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::db_state_service;
 use crate::service::db_state_service::State::{Empty, ReadyToUse, StateRequiresClearing};
+use crate::unexpected_core_err;
 use serde::Serialize;
 
 pub fn get_code_version() -> &'static str {
@@ -47,15 +49,9 @@ pub fn get_state(config: &Config) -> Result<State, GetStateError> {
     }
 }
 
-#[derive(Debug)]
-pub enum MigrationError {
-    StateRequiresClearing,
-    RepoError(db_version_repo::Error),
-}
-
-pub fn perform_migration(config: &Config) -> Result<(), MigrationError> {
-    let db_version = match db_version_repo::get(config).map_err(MigrationError::RepoError)? {
-        None => return Err(MigrationError::StateRequiresClearing),
+pub fn perform_migration(config: &Config) -> Result<(), CoreError> {
+    let db_version = match db_version_repo::get(config).map_err(unexpected_core_err)? {
+        None => return Err(CoreError::ClientWipeRequired),
         Some(version) => version,
     };
 
@@ -65,7 +61,7 @@ pub fn perform_migration(config: &Config) -> Result<(), MigrationError> {
 
     match db_version.as_str() {
         "0.1.4" => Ok(()),
-        _ => Err(MigrationError::StateRequiresClearing),
+        _ => Err(CoreError::ClientWipeRequired),
     }
 }
 
