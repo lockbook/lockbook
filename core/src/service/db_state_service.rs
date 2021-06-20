@@ -2,7 +2,6 @@ use crate::model::state::Config;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::db_state_service;
 use crate::service::db_state_service::State::{Empty, ReadyToUse, StateRequiresClearing};
-use crate::unexpected_core_err;
 use crate::CoreError;
 use serde::Serialize;
 
@@ -19,16 +18,12 @@ pub enum State {
 }
 
 pub fn get_state(config: &Config) -> Result<State, CoreError> {
-    if account_repo::maybe_get_account(config)
-        .map_err(unexpected_core_err)?
-        .is_none()
-    {
-        db_version_repo::set(config, db_state_service::get_code_version())
-            .map_err(unexpected_core_err)?;
+    if account_repo::maybe_get_account(config)?.is_none() {
+        db_version_repo::set(config, db_state_service::get_code_version())?;
         return Ok(Empty);
     }
 
-    match db_version_repo::get(config).map_err(unexpected_core_err)? {
+    match db_version_repo::get(config)? {
         None => Ok(StateRequiresClearing),
         Some(state_version) => {
             if state_version == db_state_service::get_code_version() {
@@ -44,7 +39,7 @@ pub fn get_state(config: &Config) -> Result<State, CoreError> {
 }
 
 pub fn perform_migration(config: &Config) -> Result<(), CoreError> {
-    let db_version = match db_version_repo::get(config).map_err(unexpected_core_err)? {
+    let db_version = match db_version_repo::get(config)? {
         None => return Err(CoreError::ClientWipeRequired),
         Some(version) => version,
     };

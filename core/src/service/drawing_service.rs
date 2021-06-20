@@ -1,24 +1,19 @@
-use crate::repo::account_repo::AccountRepoError;
-use crate::service::file_service::{DocumentUpdateError, ReadDocumentError};
-use crate::CoreError;
-use crate::{core_err_from_std_io_err, unexpected_core_err};
-use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-
-use image::codecs::bmp::BmpEncoder;
-use image::codecs::farbfeld::FarbfeldEncoder;
-use serde_json::error::Category;
-
 use crate::model::state::Config;
 use crate::service::file_service;
+use crate::{core_err_unexpected, CoreError};
+use image::codecs::bmp::BmpEncoder;
+use image::codecs::farbfeld::FarbfeldEncoder;
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
 use image::codecs::tga::TgaEncoder;
 use image::ColorType;
+use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
 use serde::Deserialize;
+use serde_json::error::Category;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
@@ -46,6 +41,7 @@ macro_rules! hashmap {
 pub fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), CoreError> {
     let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
+    // validate drawing
     match serde_json::from_str::<Drawing>(drawing_string.as_str()) {
         Ok(_) => {}
         Err(e) => match e.classify() {
@@ -56,48 +52,11 @@ pub fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(
         },
     };
 
-    match file_service::write_document(config, id, drawing_bytes) {
-        Ok(()) => {}
-        Err(DocumentUpdateError::AccountRetrievalError(AccountRepoError::NoAccount)) => {
-            return Err(CoreError::AccountNonexistent);
-        }
-        Err(DocumentUpdateError::CouldNotFindFile) => {
-            return Err(CoreError::FileNonexistent);
-        }
-        Err(DocumentUpdateError::FolderTreatedAsDocument) => {
-            return Err(CoreError::FileNotDocument);
-        }
-        Err(e) => {
-            return Err(unexpected_core_err(e));
-        }
-    };
-
-    Ok(())
-}
-
-#[derive(Debug)]
-pub enum GetDrawingError {
-    InvalidDrawingError(serde_json::error::Error),
-    FailedToRetrieveJson(ReadDocumentError),
+    file_service::write_document(config, id, drawing_bytes)
 }
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
-    let drawing_bytes = match file_service::read_document(config, id) {
-        Ok(d) => d,
-        Err(ReadDocumentError::AccountRetrievalError(AccountRepoError::NoAccount)) => {
-            return Err(CoreError::AccountNonexistent);
-        }
-        Err(ReadDocumentError::CouldNotFindFile) => {
-            return Err(CoreError::FileNonexistent);
-        }
-        Err(ReadDocumentError::TreatedFolderAsDocument) => {
-            return Err(CoreError::FileNotDocument);
-        }
-        Err(e) => {
-            return Err(unexpected_core_err(e));
-        }
-    };
-
+    let drawing_bytes = file_service::read_document(config, id)?;
     let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
     match serde_json::from_str::<Drawing>(drawing_string.as_str()) {
@@ -272,7 +231,7 @@ pub fn export_drawing(
             ColorType::Rgba8,
         ),
     }
-    .map_err(unexpected_core_err)?;
+    .map_err(core_err_unexpected)?;
 
     std::mem::drop(buf_writer);
 
@@ -292,10 +251,10 @@ pub fn export_drawing_to_disk(
         .write(true)
         .create_new(true)
         .open(Path::new(&location))
-        .map_err(core_err_from_std_io_err)?;
+        .map_err(CoreError::from)?;
 
     file.write_all(drawing_bytes.as_slice())
-        .map_err(core_err_from_std_io_err)
+        .map_err(CoreError::from)
 }
 
 fn u32_byte_to_u8_bytes(u32_byte: u32) -> (u8, u8, u8, u8) {

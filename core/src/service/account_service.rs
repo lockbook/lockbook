@@ -1,10 +1,10 @@
 use crate::client;
 use crate::client::ApiError;
+use crate::core_err_unexpected;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::file_metadata_repo;
 use crate::service::file_encryption_service;
-use crate::unexpected_core_err;
 use crate::CoreError;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
@@ -18,10 +18,7 @@ pub fn create_account(
     api_url: &str,
 ) -> Result<Account, CoreError> {
     info!("Checking if account already exists");
-    if account_repo::maybe_get_account(config)
-        .map_err(unexpected_core_err)?
-        .is_some()
-    {
+    if account_repo::maybe_get_account(config)?.is_some() {
         return Err(CoreError::AccountExists);
     }
 
@@ -37,8 +34,7 @@ pub fn create_account(
     };
 
     info!("Generating Root Folder");
-    let mut file_metadata = file_encryption_service::create_metadata_for_root_folder(&account)
-        .map_err(unexpected_core_err)?;
+    let mut file_metadata = file_encryption_service::create_metadata_for_root_folder(&account)?;
 
     info!("Sending username & public key to server");
     let version = match client::request(&account, NewAccountRequest::new(&account, &file_metadata))
@@ -57,7 +53,7 @@ pub fn create_account(
             return Err(CoreError::UsernameInvalid);
         }
         Err(e) => {
-            return Err(unexpected_core_err(e));
+            return Err(core_err_unexpected(e));
         }
     };
     info!("Account creation success!");
@@ -65,25 +61,22 @@ pub fn create_account(
     file_metadata.metadata_version = version;
     file_metadata.content_version = version;
 
-    file_metadata_repo::insert(config, &file_metadata).map_err(unexpected_core_err)?;
+    file_metadata_repo::insert(config, &file_metadata)?;
 
     debug!(
         "{}",
-        serde_json::to_string(&account).map_err(unexpected_core_err)?
+        serde_json::to_string(&account).map_err(core_err_unexpected)?
     );
 
     info!("Saving account locally");
-    account_repo::insert_account(config, &account).map_err(unexpected_core_err)?;
+    account_repo::insert_account(config, &account)?;
 
     Ok(account)
 }
 
 pub fn import_account(config: &Config, account_string: &str) -> Result<Account, CoreError> {
     info!("Checking if account already exists");
-    if account_repo::maybe_get_account(config)
-        .map_err(unexpected_core_err)?
-        .is_some()
-    {
+    if account_repo::maybe_get_account(config)?.is_some() {
         return Err(CoreError::AccountExists);
     }
 
@@ -126,7 +119,7 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
             return Err(CoreError::AccountNonexistent);
         }
         Err(e) => {
-            return Err(unexpected_core_err(e));
+            return Err(core_err_unexpected(e));
         }
     };
 
@@ -135,28 +128,14 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
     }
 
     info!("Account String seems valid, saving now");
-    account_repo::insert_account(config, &account).map_err(unexpected_core_err)?;
+    account_repo::insert_account(config, &account)?;
 
     info!("Account imported successfully");
     Ok(account)
 }
 
-#[derive(Debug)]
-pub enum AccountExportError {
-    AccountRetrievalError(account_repo::AccountRepoError),
-    AccountStringFailedToSerialize(bincode::Error),
-}
-
 pub fn export_account(config: &Config) -> Result<String, CoreError> {
-    let account = match account_repo::get_account(config) {
-        Ok(a) => a,
-        Err(account_repo::AccountRepoError::NoAccount) => {
-            return Err(CoreError::AccountNonexistent);
-        }
-        Err(e) => {
-            return Err(unexpected_core_err(e));
-        }
-    };
-    let encoded: Vec<u8> = bincode::serialize(&account).map_err(unexpected_core_err)?;
+    let account = account_repo::get_account(config)?;
+    let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
     Ok(base64::encode(&encoded))
 }

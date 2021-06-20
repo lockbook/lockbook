@@ -11,7 +11,6 @@ mod unit_tests {
     use lockbook_core::repo::{
         account_repo, document_repo, file_metadata_repo, local_changes_repo,
     };
-    use lockbook_core::service::file_service::*;
     use lockbook_core::service::{
         file_encryption_service, file_service, integrity_service, path_service,
     };
@@ -71,7 +70,7 @@ mod unit_tests {
 
         assert!(matches!(
             file_service::create(config, "", root.id, Document).unwrap_err(),
-            NewFileError::FileNameEmpty
+            CoreError::FileNameEmpty
         ));
 
         let folder1 = file_service::create(config, "TestFolder1", root.id, Folder).unwrap();
@@ -383,7 +382,7 @@ mod unit_tests {
 
         assert!(matches!(
             file_service::rename_file(config, root.id, "newroot").unwrap_err(),
-            DocumentRenameError::CannotRenameRoot
+            CoreError::RootModificationInvalid
         ));
 
         let file = path_service::create_at_path(config, "username/folder1/file1.txt").unwrap();
@@ -474,7 +473,7 @@ mod unit_tests {
 
         assert!(matches!(
             file_service::move_file(config, root.id, Uuid::new_v4()).unwrap_err(),
-            FileMoveError::CannotMoveRoot
+            CoreError::RootModificationInvalid
         ));
 
         let file1 = path_service::create_at_path(config, "username/folder1/file.txt").unwrap();
@@ -540,12 +539,12 @@ mod unit_tests {
 
         assert!(matches!(
             file_service::move_file(config, folder1.id, folder1.id).unwrap_err(),
-            FileMoveError::FolderMovedIntoItself
+            CoreError::FolderMovedIntoSelf
         ));
 
         assert!(matches!(
             file_service::move_file(config, folder1.id, folder2.id).unwrap_err(),
-            FileMoveError::FolderMovedIntoItself
+            CoreError::FolderMovedIntoSelf
         ));
     }
 
@@ -770,7 +769,7 @@ mod unit_tests {
 
         assert!(matches!(
             file_service::delete_folder(config, root.id).unwrap_err(),
-            DeleteFolderError::CannotDeleteRoot
+            CoreError::RootModificationInvalid
         ));
 
         assert_total_local_changes!(config, 0);
