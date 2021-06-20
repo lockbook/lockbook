@@ -18,23 +18,17 @@ pub enum State {
     StateRequiresClearing,
 }
 
-#[derive(Debug)]
-pub enum GetStateError {
-    AccountRepoError(account_repo::AccountRepoError),
-    RepoError(db_version_repo::Error),
-}
-
-pub fn get_state(config: &Config) -> Result<State, GetStateError> {
+pub fn get_state(config: &Config) -> Result<State, CoreError> {
     if account_repo::maybe_get_account(config)
-        .map_err(GetStateError::AccountRepoError)?
+        .map_err(unexpected_core_err)?
         .is_none()
     {
         db_version_repo::set(config, db_state_service::get_code_version())
-            .map_err(GetStateError::RepoError)?;
+            .map_err(unexpected_core_err)?;
         return Ok(Empty);
     }
 
-    match db_version_repo::get(config).map_err(GetStateError::RepoError)? {
+    match db_version_repo::get(config).map_err(unexpected_core_err)? {
         None => Ok(StateRequiresClearing),
         Some(state_version) => {
             if state_version == db_state_service::get_code_version() {
