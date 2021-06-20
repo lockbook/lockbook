@@ -61,7 +61,7 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 
 pub fn get_by_path(config: &Config, path: &str) -> Result<FileMetadata, CoreError> {
     let root = file_metadata_repo::get_root(&config)?
-        .ok_or(CoreError::Unexpected(String::from("no root")))?;
+        .ok_or_else(|| CoreError::Unexpected(String::from("no root")))?;
 
     let paths = split_path(path);
     let mut current = root;

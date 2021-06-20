@@ -62,10 +62,8 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
     match serde_json::from_str::<Drawing>(drawing_string.as_str()) {
         Ok(d) => Ok(d),
         Err(e) => match e.classify() {
-            Category::Io => return Err(CoreError::Unexpected(String::from("json io"))),
-            Category::Syntax | Category::Data | Category::Eof => {
-                return Err(CoreError::DrawingInvalid);
-            }
+            Category::Io => Err(CoreError::Unexpected(String::from("json io"))),
+            Category::Syntax | Category::Data | Category::Eof => Err(CoreError::DrawingInvalid),
         },
     }
 }
@@ -102,9 +100,7 @@ pub fn export_drawing(
     for stroke in drawing.strokes {
         let color_rgb = theme
             .get(&stroke.color)
-            .ok_or(CoreError::Unexpected(String::from(
-                "unable to get color from alias",
-            )))?;
+            .ok_or_else(|| CoreError::Unexpected(String::from("unable to get color from alias")))?;
 
         if stroke.points_x.len() != stroke.points_y.len()
             || stroke.points_y.len() != stroke.points_girth.len()
@@ -123,30 +119,30 @@ pub fn export_drawing(
             let x1 = stroke
                 .points_x
                 .get(point_index)
-                .ok_or(CoreError::Unexpected(String::from(
-                    "unable to get color from alias",
-                )))?
+                .ok_or_else(|| {
+                    CoreError::Unexpected(String::from("unable to get color from alias"))
+                })?
                 .to_owned();
             let y1 = stroke
                 .points_y
                 .get(point_index)
-                .ok_or(CoreError::Unexpected(String::from(
-                    "unable to get color from alias",
-                )))?
+                .ok_or_else(|| {
+                    CoreError::Unexpected(String::from("unable to get color from alias"))
+                })?
                 .to_owned();
             let x2 = stroke
                 .points_x
                 .get(point_index + 1)
-                .ok_or(CoreError::Unexpected(String::from(
-                    "unable to get color from alias",
-                )))?
+                .ok_or_else(|| {
+                    CoreError::Unexpected(String::from("unable to get color from alias"))
+                })?
                 .to_owned();
             let y2 = stroke
                 .points_y
                 .get(point_index + 1)
-                .ok_or(CoreError::Unexpected(String::from(
-                    "unable to get color from alias",
-                )))?
+                .ok_or_else(|| {
+                    CoreError::Unexpected(String::from("unable to get color from alias"))
+                })?
                 .to_owned();
 
             pb.move_to(x1, y1);
@@ -169,9 +165,9 @@ pub fn export_drawing(
                     width: stroke
                         .points_girth
                         .get(point_index)
-                        .ok_or(CoreError::Unexpected(String::from(
-                            "unable to get stroke girth",
-                        )))?
+                        .ok_or_else(|| {
+                            CoreError::Unexpected(String::from("unable to get stroke girth"))
+                        })?
                         .to_owned(),
                     miter_limit: 10.0,
                     dash_array: Vec::new(),
