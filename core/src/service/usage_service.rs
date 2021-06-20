@@ -1,16 +1,13 @@
+use std::convert::TryInto;
+
 use crate::client;
-use crate::repo::file_metadata_repo::DbError;
+use crate::model::state::Config;
 use crate::repo::{account_repo, file_metadata_repo};
-use crate::service::file_service::ReadDocumentError;
-use lockbook_models::api;
+use crate::service::file_service;
+use crate::CoreError;
 use lockbook_models::api::{GetUsageRequest, GetUsageResponse};
 use lockbook_models::file_metadata::FileType::Document;
-
-use crate::model::state::Config;
-use crate::service::file_service;
 use serde::Serialize;
-use std::convert::TryInto;
-use std::num::TryFromIntError;
 use uuid::Uuid;
 
 pub const BYTE: u64 = 1;
@@ -43,19 +40,13 @@ pub fn bytes_to_human(size: u64) -> String {
     format!("{:.3} {}B", size as f64 / unit as f64, abbr)
 }
 
-#[derive(Debug)]
-pub enum GetUsageError {
-    AccountRetrievalError(account_repo::AccountRepoError),
-    ApiError(client::ApiError<api::GetUsageError>),
+pub fn server_usage(config: &Config) -> Result<GetUsageResponse, CoreError> {
+    let acc = account_repo::get_account(config)?;
+
+    client::request(&acc, GetUsageRequest {}).map_err(CoreError::from)
 }
 
-pub fn server_usage(config: &Config) -> Result<GetUsageResponse, GetUsageError> {
-    let acc = account_repo::get_account(config).map_err(GetUsageError::AccountRetrievalError)?;
-
-    client::request(&acc, GetUsageRequest {}).map_err(GetUsageError::ApiError)
-}
-
-pub fn get_usage_human_string(config: &Config, exact: bool) -> Result<String, GetUsageError> {
+pub fn get_usage_human_string(config: &Config, exact: bool) -> Result<String, CoreError> {
     let usage = server_usage(config)?.sum_server_usage();
 
     if exact {
@@ -65,15 +56,8 @@ pub fn get_usage_human_string(config: &Config, exact: bool) -> Result<String, Ge
     }
 }
 
-#[derive(Debug)]
-pub enum UncompressedError {
-    FileMetadataDb(DbError),
-    FilesError(ReadDocumentError),
-}
-
-pub fn get_uncompressed_usage(config: &Config) -> Result<usize, UncompressedError> {
-    let doc_ids: Vec<Uuid> = file_metadata_repo::get_all(&config)
-        .map_err(UncompressedError::FileMetadataDb)?
+pub fn get_uncompressed_usage(config: &Config) -> Result<usize, CoreError> {
+    let doc_ids: Vec<Uuid> = file_metadata_repo::get_all(&config)?
         .into_iter()
         .filter(|f| f.file_type == Document)
         .map(|f| f.id)
@@ -81,50 +65,38 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<usize, UncompressedErro
 
     let mut size: usize = 0;
     for id in doc_ids {
-        size += file_service::read_document(&config, id)
-            .map_err(UncompressedError::FilesError)?
-            .len()
+        size += file_service::read_document(&config, id)?.len()
     }
 
     Ok(size)
 }
 
-#[derive(Debug)]
-pub enum LocalAndServerUsageError {
-    GetUsageError(GetUsageError),
-    CalcUncompressedError(UncompressedError),
-    UncompressedNumberTooLarge(TryFromIntError),
-}
-
 pub fn local_and_server_usages(
     config: &Config,
     exact: bool,
-) -> Result<LocalAndServerUsages, LocalAndServerUsageError> {
-    let server_usage_and_cap =
-        server_usage(&config).map_err(LocalAndServerUsageError::GetUsageError)?;
+) -> Result<LocalAndServerUsages, CoreError> {
+    let server_usage_and_cap = server_usage(&config)?;
 
     let server_usage = server_usage_and_cap.sum_server_usage();
-    let local_usage =
-        get_uncompressed_usage(config).map_err(LocalAndServerUsageError::CalcUncompressedError)?;
+    let local_usage = get_uncompressed_usage(config)?;
     let cap = server_usage_and_cap.cap;
 
-    let usages = if exact {
-        LocalAndServerUsages {
-            server_usage: format!("{} B", server_usage),
-            uncompressed_usage: format!("{} bytes", local_usage),
-            data_cap: format!("{} B", cap),
-        }
-    } else {
-        LocalAndServerUsages {
-            server_usage: bytes_to_human(server_usage),
-            uncompressed_usage: bytes_to_human(
-                local_usage
-                    .try_into()
-                    .map_err(LocalAndServerUsageError::UncompressedNumberTooLarge)?,
-            ),
-            data_cap: bytes_to_human(cap),
-        }
-    };
+    let usages =
+        if exact {
+            LocalAndServerUsages {
+                server_usage: format!("{} B", server_usage),
+                uncompressed_usage: format!("{} bytes", local_usage),
+                data_cap: format!("{} B", cap),
+            }
+        } else {
+            LocalAndServerUsages {
+                server_usage: bytes_to_human(server_usage),
+                uncompressed_usage: bytes_to_human(local_usage.try_into().map_err(|_| {
+                    CoreError::Unexpected(String::from("uncompressed size too large"))
+                })?),
+                data_cap: bytes_to_human(cap),
+            }
+        };
 
     Ok(usages)
 }
