@@ -1,33 +1,27 @@
+use crate::core_err_unexpected;
 use crate::model::state::Config;
 use crate::repo::local_storage;
-
-#[derive(Debug)]
-pub enum Error {
-    BackendError(std::io::Error),
-    SerdeError(serde_json::Error),
-}
+use crate::CoreError;
 
 static DB_VERSION: &str = "DB_VERSION";
 
-pub fn set(config: &Config, version: &str) -> Result<(), Error> {
+pub fn set(config: &Config, version: &str) -> Result<(), CoreError> {
     local_storage::write(
         config,
         DB_VERSION,
         DB_VERSION.as_bytes(),
-        serde_json::to_vec(version).map_err(Error::SerdeError)?,
+        serde_json::to_vec(version).map_err(core_err_unexpected)?,
     )
-    .map_err(Error::BackendError)
 }
 
-pub fn get(config: &Config) -> Result<Option<String>, Error> {
+pub fn get(config: &Config) -> Result<Option<String>, CoreError> {
     let maybe_value: Option<Vec<u8>> =
-        local_storage::read(config, DB_VERSION, DB_VERSION.as_bytes())
-            .map_err(Error::BackendError)?;
+        local_storage::read(config, DB_VERSION, DB_VERSION.as_bytes())?;
     match maybe_value {
         None => Ok(None),
         Some(file) => {
             let version: String =
-                serde_json::from_slice(file.as_ref()).map_err(Error::SerdeError)?;
+                serde_json::from_slice(file.as_ref()).map_err(core_err_unexpected)?;
 
             Ok(Some(version))
         }

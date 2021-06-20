@@ -1,54 +1,32 @@
-use std::collections::HashMap;
-
-use uuid::Uuid;
-
+use crate::core_err_unexpected;
 use crate::model::state::Config;
-use crate::repo::file_metadata_repo::FindingParentsFailed::AncestorMissing;
 use crate::repo::local_storage;
+use crate::CoreError;
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-
-#[derive(Debug)]
-pub enum DbError {
-    BackendError(std::io::Error),
-    SerdeError(serde_json::Error),
-}
-
-#[derive(Debug)]
-pub enum GetError {
-    FileRowMissing,
-    DbError(DbError),
-}
-
-#[derive(Debug)]
-pub enum FindingParentsFailed {
-    AncestorMissing,
-    DbError(DbError),
-}
+use std::collections::HashMap;
+use uuid::Uuid;
 
 pub static FILE_METADATA: &[u8; 13] = b"file_metadata";
 static ROOT: &[u8; 4] = b"ROOT";
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
-pub fn insert(config: &Config, file: &FileMetadata) -> Result<(), DbError> {
+pub fn insert(config: &Config, file: &FileMetadata) -> Result<(), CoreError> {
     local_storage::write(
         config,
         FILE_METADATA,
         file.id.to_string().as_str(),
-        serde_json::to_vec(&file).map_err(DbError::SerdeError)?,
-    )
-    .map_err(DbError::BackendError)?;
+        serde_json::to_vec(&file).map_err(core_err_unexpected)?,
+    )?;
     if file.id == file.parent {
         debug!("saving root folder: {:?}", &file.id);
-        local_storage::write(config, ROOT, ROOT, file.id.to_string().as_str())
-            .map_err(DbError::BackendError)?;
+        local_storage::write(config, ROOT, ROOT, file.id.to_string().as_str())?;
     }
     Ok(())
 }
 
-pub fn get_root(config: &Config) -> Result<Option<FileMetadata>, DbError> {
-    let maybe_value: Option<Vec<u8>> =
-        local_storage::read(config, ROOT, ROOT).map_err(DbError::BackendError)?;
+pub fn get_root(config: &Config) -> Result<Option<FileMetadata>, CoreError> {
+    let maybe_value: Option<Vec<u8>> = local_storage::read(config, ROOT, ROOT)?;
     match maybe_value {
         None => Ok(None),
         Some(value) => match String::from_utf8(value.clone()) {
@@ -67,25 +45,21 @@ pub fn get_root(config: &Config) -> Result<Option<FileMetadata>, DbError> {
     }
 }
 
-pub fn get(config: &Config, id: Uuid) -> Result<FileMetadata, GetError> {
+pub fn get(config: &Config, id: Uuid) -> Result<FileMetadata, CoreError> {
     let maybe_value: Option<Vec<u8>> =
-        local_storage::read(config, FILE_METADATA, id.to_string().as_str())
-            .map_err(DbError::BackendError)
-            .map_err(GetError::DbError)?;
-    let value = maybe_value.ok_or(GetError::FileRowMissing)?;
-    let file_metadata: FileMetadata = serde_json::from_slice(value.as_ref())
-        .map_err(DbError::SerdeError)
-        .map_err(GetError::DbError)?;
+        local_storage::read(config, FILE_METADATA, id.to_string().as_str())?;
+    let value = maybe_value.ok_or(CoreError::FileNonexistent)?;
+    let file_metadata: FileMetadata =
+        serde_json::from_slice(value.as_ref()).map_err(core_err_unexpected)?;
     Ok(file_metadata)
 }
 
-pub fn maybe_get(config: &Config, id: Uuid) -> Result<Option<FileMetadata>, DbError> {
+pub fn maybe_get(config: &Config, id: Uuid) -> Result<Option<FileMetadata>, CoreError> {
     let maybe_value: Option<Vec<u8>> =
-        local_storage::read(config, FILE_METADATA, id.to_string().as_str())
-            .map_err(DbError::BackendError)?;
+        local_storage::read(config, FILE_METADATA, id.to_string().as_str())?;
     Ok(maybe_value.and_then(|value| {
         serde_json::from_slice(value.as_ref())
-            .map_err(DbError::SerdeError)
+            .map_err(core_err_unexpected)
             .ok()?
     }))
 }
@@ -93,13 +67,13 @@ pub fn maybe_get(config: &Config, id: Uuid) -> Result<Option<FileMetadata>, DbEr
 pub fn get_with_all_parents(
     config: &Config,
     id: Uuid,
-) -> Result<HashMap<Uuid, FileMetadata>, FindingParentsFailed> {
+) -> Result<HashMap<Uuid, FileMetadata>, CoreError> {
     let mut parents = HashMap::new();
     let mut current_id = id;
     debug!("Finding parents for: {}", current_id);
 
     loop {
-        match maybe_get(config, current_id).map_err(FindingParentsFailed::DbError)? {
+        match maybe_get(config, current_id)? {
             Some(found) => {
                 debug!("Current id exists: {:?}", &found);
                 parents.insert(current_id, found.clone());
@@ -110,32 +84,25 @@ pub fn get_with_all_parents(
                     continue;
                 }
             }
-            None => return Err(AncestorMissing),
+            None => return Err(CoreError::FileParentNonexistent),
         }
     }
-}
-
-#[derive(Debug)]
-pub enum FindingChildrenFailed {
-    FileDoesNotExist,
-    DocumentTreatedAsFolder,
-    DbError(DbError),
 }
 
 pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
-) -> Result<Vec<FileMetadata>, FindingChildrenFailed> {
-    let all = get_all(config).map_err(FindingChildrenFailed::DbError)?;
+) -> Result<Vec<FileMetadata>, CoreError> {
+    let all = get_all(config)?;
     let target_file = all
         .clone()
         .into_iter()
         .find(|file| file.id == id)
-        .ok_or(FindingChildrenFailed::FileDoesNotExist)?;
+        .ok_or(CoreError::FileNonexistent)?;
     let mut result = vec![target_file.clone()];
 
     if target_file.file_type == Document {
-        return Err(FindingChildrenFailed::DocumentTreatedAsFolder);
+        return Err(CoreError::FileNotFolder);
     }
 
     let mut to_explore = all
@@ -165,12 +132,11 @@ pub fn get_and_get_children_recursively(
     Ok(result)
 }
 
-pub fn get_all(config: &Config) -> Result<Vec<FileMetadata>, DbError> {
-    let files = local_storage::dump::<_, Vec<u8>>(config, FILE_METADATA)
-        .map_err(DbError::BackendError)?
+pub fn get_all(config: &Config) -> Result<Vec<FileMetadata>, CoreError> {
+    let files = local_storage::dump::<_, Vec<u8>>(config, FILE_METADATA)?
         .into_iter()
-        .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
-        .collect::<Result<Vec<FileMetadata>, DbError>>();
+        .map(|s| serde_json::from_slice(s.as_ref()).map_err(core_err_unexpected))
+        .collect::<Result<Vec<FileMetadata>, CoreError>>();
 
     let mut files = files?;
     files.retain(|file| !file.deleted);
@@ -178,38 +144,35 @@ pub fn get_all(config: &Config) -> Result<Vec<FileMetadata>, DbError> {
     Ok(files)
 }
 
-pub fn non_recursive_delete(config: &Config, id: Uuid) -> Result<(), DbError> {
+pub fn non_recursive_delete(config: &Config, id: Uuid) -> Result<(), CoreError> {
     local_storage::delete(config, FILE_METADATA, id.to_string().as_str())
-        .map_err(DbError::BackendError)
 }
 
 pub fn get_children_non_recursively(
     config: &Config,
     id: Uuid,
-) -> Result<Vec<FileMetadata>, DbError> {
+) -> Result<Vec<FileMetadata>, CoreError> {
     Ok(get_all(config)?
         .into_iter()
         .filter(|file| file.parent == id && file.parent != file.id)
         .collect::<Vec<FileMetadata>>())
 }
 
-pub fn set_last_synced(config: &Config, last_updated: u64) -> Result<(), DbError> {
+pub fn set_last_synced(config: &Config, last_updated: u64) -> Result<(), CoreError> {
     debug!("Setting last updated to: {}", last_updated);
     local_storage::write(
         config,
         LAST_UPDATED,
         LAST_UPDATED,
-        serde_json::to_vec(&last_updated).map_err(DbError::SerdeError)?,
+        serde_json::to_vec(&last_updated).map_err(core_err_unexpected)?,
     )
-    .map_err(DbError::BackendError)
 }
 
-pub fn get_last_updated(config: &Config) -> Result<u64, DbError> {
-    let maybe_value: Option<Vec<u8>> =
-        local_storage::read(config, LAST_UPDATED, LAST_UPDATED).map_err(DbError::BackendError)?;
+pub fn get_last_updated(config: &Config) -> Result<u64, CoreError> {
+    let maybe_value: Option<Vec<u8>> = local_storage::read(config, LAST_UPDATED, LAST_UPDATED)?;
     match maybe_value {
         None => Ok(0),
-        Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?),
+        Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(core_err_unexpected)?),
     }
 }
 

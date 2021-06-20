@@ -1,56 +1,35 @@
-use lockbook_crypto::pubkey::GetAesKeyError;
-use lockbook_crypto::symkey::{AESDecryptError, EncryptAndHmacError};
-use lockbook_crypto::symkey::{AESEncryptError, DecryptAndVerifyError};
-use std::collections::HashMap;
-
-use uuid::Uuid;
-
 use crate::model::state::Config;
-use crate::repo::account_repo::AccountRepoError;
-use crate::repo::file_metadata_repo::FindingParentsFailed;
 use crate::repo::{account_repo, file_metadata_repo};
-use crate::service::file_encryption_service::UnableToGetKeyForUser::UnableToDecryptKey;
+use crate::{core_err_unexpected, CoreError};
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
+use std::collections::HashMap;
+use uuid::Uuid;
 
-#[derive(Debug)]
-pub enum KeyDecryptionFailure {
-    ClientMetadataMissing(()),
-    SharedSecretError(GetAesKeyError),
-    KeyDecryptionError(AESDecryptError),
-    GettingAccountError(AccountRepoError),
-    FindingParentsFailed(FindingParentsFailed),
-}
-
-pub fn decrypt_key_for_file(config: &Config, id: Uuid) -> Result<AESKey, KeyDecryptionFailure> {
-    let account =
-        account_repo::get_account(&config).map_err(KeyDecryptionFailure::GettingAccountError)?;
-    let parents = file_metadata_repo::get_with_all_parents(&config, id)
-        .map_err(KeyDecryptionFailure::FindingParentsFailed)?;
+pub fn decrypt_key_for_file(config: &Config, id: Uuid) -> Result<AESKey, CoreError> {
+    let account = account_repo::get_account(&config)?;
+    let parents = file_metadata_repo::get_with_all_parents(&config, id)?;
     let access_key = parents
         .get(&id)
         .ok_or(())
-        .map_err(KeyDecryptionFailure::ClientMetadataMissing)?;
+        .map_err(|_| CoreError::Unexpected(String::from("client metadata missing")))?;
     match access_key.user_access_keys.get(&account.username) {
         None => {
             let folder_access = access_key.folder_access_keys.clone();
-
             let decrypted_parent = decrypt_key_for_file(&config, access_key.parent)?;
-
-            let key = symkey::decrypt(&decrypted_parent, &folder_access)
-                .map_err(KeyDecryptionFailure::KeyDecryptionError)?;
-
+            let key =
+                symkey::decrypt(&decrypted_parent, &folder_access).map_err(core_err_unexpected)?;
             Ok(key)
         }
         Some(user_access) => {
             let access_key_key =
                 pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by)
-                    .map_err(KeyDecryptionFailure::SharedSecretError)?;
+                    .map_err(core_err_unexpected)?;
             let key = symkey::decrypt(&access_key_key, &user_access.access_key)
-                .map_err(KeyDecryptionFailure::KeyDecryptionError)?;
+                .map_err(core_err_unexpected)?;
             Ok(key)
         }
     }
@@ -60,39 +39,19 @@ pub fn re_encrypt_key_for_file(
     config: &Config,
     file_key: AESKey,
     new_parent_id: Uuid,
-) -> Result<EncryptedFolderAccessKey, FileCreationError> {
-    let parent_key = decrypt_key_for_file(&config, new_parent_id)
-        .map_err(FileCreationError::ParentKeyDecryptionFailed)?;
-
-    let access_key =
-        symkey::encrypt(&parent_key, &file_key).map_err(FileCreationError::AesEncryptionFailed)?;
-
+) -> Result<EncryptedFolderAccessKey, CoreError> {
+    let parent_key = decrypt_key_for_file(&config, new_parent_id)?;
+    let access_key = symkey::encrypt(&parent_key, &file_key).map_err(core_err_unexpected)?;
     Ok(access_key)
 }
 
-#[derive(Debug)]
-pub enum UnableToGetKeyForUser {
-    UnableToDecryptKey(KeyDecryptionFailure),
-    SharedSecretError(GetAesKeyError),
-    KeyEncryptionError(AESEncryptError),
-    AccountRepoError(AccountRepoError),
-}
-
-pub fn get_key_for_user(
-    config: &Config,
-    id: Uuid,
-) -> Result<UserAccessInfo, UnableToGetKeyForUser> {
-    let account =
-        account_repo::get_account(&config).map_err(UnableToGetKeyForUser::AccountRepoError)?;
-    let key = decrypt_key_for_file(&config, id).map_err(UnableToDecryptKey)?;
-
+pub fn get_key_for_user(config: &Config, id: Uuid) -> Result<UserAccessInfo, CoreError> {
+    let account = account_repo::get_account(&config)?;
+    let key = decrypt_key_for_file(&config, id)?;
     let public_key = account.public_key();
-
     let key_encryption_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
-        .map_err(UnableToGetKeyForUser::SharedSecretError)?;
-
-    let access_key = symkey::encrypt(&key_encryption_key, &key)
-        .map_err(UnableToGetKeyForUser::KeyEncryptionError)?;
+        .map_err(core_err_unexpected)?;
+    let access_key = symkey::encrypt(&key_encryption_key, &key).map_err(core_err_unexpected)?;
 
     Ok(UserAccessInfo {
         username: account.username,
@@ -101,30 +60,18 @@ pub fn get_key_for_user(
     })
 }
 
-#[derive(Debug)]
-pub enum FileCreationError {
-    ParentKeyDecryptionFailed(KeyDecryptionFailure),
-    AesEncryptionFailed(AESEncryptError),
-    FileNameCreationError(EncryptAndHmacError),
-    GettingAccountError(AccountRepoError),
-}
-
 pub fn create_file_metadata(
     config: &Config,
     name: &str,
     file_type: FileType,
     parent: Uuid,
-) -> Result<FileMetadata, FileCreationError> {
-    let account =
-        account_repo::get_account(&config).map_err(FileCreationError::GettingAccountError)?;
-    let parent_key = decrypt_key_for_file(&config, parent)
-        .map_err(FileCreationError::ParentKeyDecryptionFailed)?;
-    let folder_access_keys = symkey::encrypt(&parent_key, &symkey::generate_key())
-        .map_err(FileCreationError::AesEncryptionFailed)?;
+) -> Result<FileMetadata, CoreError> {
+    let account = account_repo::get_account(&config)?;
+    let parent_key = decrypt_key_for_file(&config, parent)?;
+    let folder_access_keys =
+        symkey::encrypt(&parent_key, &symkey::generate_key()).map_err(core_err_unexpected)?;
     let id = Uuid::new_v4();
-
-    let name = symkey::encrypt_and_hmac(&parent_key, name)
-        .map_err(FileCreationError::FileNameCreationError)?;
+    let name = symkey::encrypt_and_hmac(&parent_key, name).map_err(core_err_unexpected)?;
 
     Ok(FileMetadata {
         file_type,
@@ -140,24 +87,15 @@ pub fn create_file_metadata(
     })
 }
 
-#[derive(Debug)]
-pub enum RootFolderCreationError {
-    FailedToAesEncryptAccessKey(AESEncryptError),
-    SharedSecretError(GetAesKeyError),
-    FileNameCreationError(EncryptAndHmacError),
-}
-
-pub fn create_metadata_for_root_folder(
-    account: &Account,
-) -> Result<FileMetadata, RootFolderCreationError> {
+pub fn create_metadata_for_root_folder(account: &Account) -> Result<FileMetadata, CoreError> {
     let id = Uuid::new_v4();
     let key = symkey::generate_key();
-    let name = symkey::encrypt_and_hmac(&key, &account.username.clone())
-        .map_err(RootFolderCreationError::FileNameCreationError)?;
+    let name =
+        symkey::encrypt_and_hmac(&key, &account.username.clone()).map_err(core_err_unexpected)?;
     let key_encryption_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
-        .map_err(RootFolderCreationError::SharedSecretError)?;
-    let encrypted_access_key = symkey::encrypt(&key_encryption_key, &key)
-        .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?;
+        .map_err(core_err_unexpected)?;
+    let encrypted_access_key =
+        symkey::encrypt(&key_encryption_key, &key).map_err(core_err_unexpected)?;
     let use_access_key = UserAccessInfo {
         username: account.username.clone(),
         encrypted_by: account.public_key(),
@@ -178,113 +116,63 @@ pub fn create_metadata_for_root_folder(
         deleted: false,
         user_access_keys,
         folder_access_keys: symkey::encrypt(&symkey::generate_key(), &key)
-            .map_err(RootFolderCreationError::FailedToAesEncryptAccessKey)?,
+            .map_err(core_err_unexpected)?,
     })
-}
-
-#[derive(Debug)]
-pub enum FileWriteError {
-    FileKeyDecryptionFailed(KeyDecryptionFailure),
-    AesEncryptionFailed(AESEncryptError),
 }
 
 pub fn write_to_document(
     config: &Config,
     content: &[u8],
     metadata: &FileMetadata,
-) -> Result<EncryptedDocument, FileWriteError> {
-    let key = decrypt_key_for_file(&config, metadata.id)
-        .map_err(FileWriteError::FileKeyDecryptionFailed)?;
-    symkey::encrypt(&key, &content.to_vec()).map_err(FileWriteError::AesEncryptionFailed)
-}
-
-#[derive(Debug)]
-pub enum UnableToReadFile {
-    FileKeyDecryptionFailed(KeyDecryptionFailure),
-    AesDecryptionFailed(AESDecryptError),
+) -> Result<EncryptedDocument, CoreError> {
+    let key = decrypt_key_for_file(&config, metadata.id)?;
+    symkey::encrypt(&key, &content.to_vec()).map_err(core_err_unexpected)
 }
 
 pub fn read_document(
     config: &Config,
     file: &EncryptedDocument,
     metadata: &FileMetadata,
-) -> Result<DecryptedDocument, UnableToReadFile> {
-    let key = decrypt_key_for_file(&config, metadata.id)
-        .map_err(UnableToReadFile::FileKeyDecryptionFailed)?;
-    symkey::decrypt(&key, file).map_err(UnableToReadFile::AesDecryptionFailed)
-}
-
-#[derive(Debug)]
-pub enum UnableToReadFileAsUser {
-    SharedSecretError(GetAesKeyError),
-    AesKeyDecryptionFailed(AESDecryptError),
-    AesContentDecryptionFailed(AESDecryptError),
+) -> Result<DecryptedDocument, CoreError> {
+    let key = decrypt_key_for_file(&config, metadata.id)?;
+    symkey::decrypt(&key, file).map_err(core_err_unexpected)
 }
 
 pub fn user_read_document(
     account: &Account,
     file: &EncryptedDocument,
     user_access_info: &UserAccessInfo,
-) -> Result<DecryptedDocument, UnableToReadFileAsUser> {
+) -> Result<DecryptedDocument, CoreError> {
     let key_decryption_key =
         pubkey::get_aes_key(&account.private_key, &user_access_info.encrypted_by)
-            .map_err(UnableToReadFileAsUser::SharedSecretError)?;
+            .map_err(core_err_unexpected)?;
     let key = symkey::decrypt(&key_decryption_key, &user_access_info.access_key)
-        .map_err(UnableToReadFileAsUser::AesKeyDecryptionFailed)?;
+        .map_err(core_err_unexpected)?;
 
-    let content =
-        symkey::decrypt(&key, file).map_err(UnableToReadFileAsUser::AesContentDecryptionFailed)?;
+    let content = symkey::decrypt(&key, file).map_err(core_err_unexpected)?;
     Ok(content)
 }
 
-#[derive(Debug)]
-pub enum GetNameOfFileError {
-    KeyDecryptionFailure(KeyDecryptionFailure),
-    DecryptAndVerifyError(DecryptAndVerifyError),
-}
-
-pub fn get_name(config: &Config, meta: &FileMetadata) -> Result<String, GetNameOfFileError> {
-    let parent_access_key = decrypt_key_for_file(&config, meta.parent)
-        .map_err(GetNameOfFileError::KeyDecryptionFailure)?;
-
-    symkey::decrypt_and_verify(&parent_access_key, &meta.name)
-        .map_err(GetNameOfFileError::DecryptAndVerifyError)
-}
-
-#[derive(Debug)]
-pub enum CreateNameError {
-    ParentKeyFailure(KeyDecryptionFailure),
-    NameEncryptionFailure(EncryptAndHmacError),
+pub fn get_name(config: &Config, meta: &FileMetadata) -> Result<String, CoreError> {
+    let parent_access_key = decrypt_key_for_file(&config, meta.parent)?;
+    symkey::decrypt_and_verify(&parent_access_key, &meta.name).map_err(core_err_unexpected)
 }
 
 pub fn create_name(
     config: &Config,
     meta: &FileMetadata,
     name: &str,
-) -> Result<SecretFileName, CreateNameError> {
-    let parent_key =
-        decrypt_key_for_file(&config, meta.parent).map_err(CreateNameError::ParentKeyFailure)?;
-
-    symkey::encrypt_and_hmac(&parent_key, name).map_err(CreateNameError::NameEncryptionFailure)
-}
-
-#[derive(Debug)]
-pub enum RekeySecretFilenameError {
-    OldNameError(GetNameOfFileError),
-    ParentKeyFailure(KeyDecryptionFailure),
-    NameEncryptionFailure(EncryptAndHmacError),
+) -> Result<SecretFileName, CoreError> {
+    let parent_key = decrypt_key_for_file(&config, meta.parent)?;
+    symkey::encrypt_and_hmac(&parent_key, name).map_err(core_err_unexpected)
 }
 
 pub fn rekey_secret_filename(
     config: &Config,
     old_meta: &FileMetadata,
     new_parent: &FileMetadata,
-) -> Result<SecretFileName, RekeySecretFilenameError> {
-    let old_name = get_name(&config, &old_meta).map_err(RekeySecretFilenameError::OldNameError)?;
-
-    let new_parent_key = decrypt_key_for_file(&config, new_parent.id)
-        .map_err(RekeySecretFilenameError::ParentKeyFailure)?;
-
-    symkey::encrypt_and_hmac(&new_parent_key, &old_name)
-        .map_err(RekeySecretFilenameError::NameEncryptionFailure)
+) -> Result<SecretFileName, CoreError> {
+    let old_name = get_name(&config, &old_meta)?;
+    let new_parent_key = decrypt_key_for_file(&config, new_parent.id)?;
+    symkey::encrypt_and_hmac(&new_parent_key, &old_name).map_err(core_err_unexpected)
 }

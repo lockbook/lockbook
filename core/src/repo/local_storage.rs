@@ -1,10 +1,10 @@
 use crate::model::state::Config;
+use crate::CoreError;
 use std::fs::{create_dir_all, read_dir, remove_file, File, OpenOptions};
-use std::io::Error;
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 
-pub fn write<N, K, V>(db: &Config, namespace: N, key: K, value: V) -> Result<(), Error>
+pub fn write<N, K, V>(db: &Config, namespace: N, key: K, value: V) -> Result<(), CoreError>
 where
     N: AsRef<[u8]>,
     K: AsRef<[u8]>,
@@ -20,10 +20,10 @@ where
         .create(true)
         .truncate(true)
         .open(path)?;
-    f.write_all(data)
+    f.write_all(data).map_err(CoreError::from)
 }
 
-pub fn read<N, K, V>(db: &Config, namespace: N, key: K) -> Result<Option<V>, Error>
+pub fn read<N, K, V>(db: &Config, namespace: N, key: K) -> Result<Option<V>, CoreError>
 where
     N: AsRef<[u8]>,
     K: AsRef<[u8]>,
@@ -40,12 +40,12 @@ where
         }
         Err(err) => match err.kind() {
             ErrorKind::NotFound => Ok(None),
-            _ => Err(err),
+            _ => Err(err.into()),
         },
     }
 }
 
-pub fn delete<N, K>(db: &Config, namespace: N, key: K) -> Result<(), Error>
+pub fn delete<N, K>(db: &Config, namespace: N, key: K) -> Result<(), CoreError>
 where
     N: AsRef<[u8]>,
     K: AsRef<[u8]>,
@@ -54,28 +54,28 @@ where
     let path = Path::new(&path_str);
     trace!("delete\t{}", &path_str);
     if path.exists() {
-        remove_file(path)
+        remove_file(path).map_err(CoreError::from)
     } else {
         Ok(())
     }
 }
 
-pub fn dump<N, V>(db: &Config, namespace: N) -> Result<Vec<V>, Error>
+pub fn dump<N, V>(db: &Config, namespace: N) -> Result<Vec<V>, CoreError>
 where
     N: AsRef<[u8]> + Copy,
     V: From<Vec<u8>>,
 {
     let path_str = namespace_path(db, namespace);
     let path = Path::new(&path_str);
-    trace!("dump\t{}", &path_str);
+
     match read_dir(path) {
         Ok(rd) => rd
-            .map(|e| {
-                e.and_then(|de| {
-                    read(db, namespace, de.file_name().into_string().unwrap()).map(|r| r.unwrap())
-                })
+            .map(|dir_entry| {
+                let de = dir_entry.map_err(CoreError::from)?;
+                read(db, namespace, de.file_name().into_string().unwrap()).map(|r| r.unwrap())
             })
-            .collect::<Result<Vec<V>, Error>>(),
+            .collect::<Result<Vec<V>, CoreError>>()
+            .map_err(CoreError::from),
         Err(_) => Ok(Vec::new()),
     }
 }

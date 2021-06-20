@@ -1,51 +1,41 @@
-use std::time::SystemTimeError;
-
-use uuid::Uuid;
-
+use crate::core_err_unexpected;
 use crate::model::state::Config;
 use crate::repo::local_storage;
+use crate::CoreError;
 use lockbook_crypto::clock_service::TimeGetter;
 use lockbook_models::crypto::{EncryptedDocument, UserAccessInfo};
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::local_changes::{Edited, LocalChange, Moved, Renamed};
 use std::{thread, time};
-
-#[derive(Debug)]
-pub enum DbError {
-    TimeError(SystemTimeError),
-    BackendError(std::io::Error),
-    SerdeError(serde_json::Error),
-}
+use uuid::Uuid;
 
 pub static LOCAL_CHANGES: &[u8; 13] = b"local_changes";
 
-pub fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, DbError> {
-    let mut value = local_storage::dump::<_, Vec<u8>>(config, LOCAL_CHANGES)
-        .map_err(DbError::BackendError)?
+pub fn get_all_local_changes(config: &Config) -> Result<Vec<LocalChange>, CoreError> {
+    let mut value = local_storage::dump::<_, Vec<u8>>(config, LOCAL_CHANGES)?
         .into_iter()
-        .map(|s| serde_json::from_slice(s.as_ref()).map_err(DbError::SerdeError))
-        .collect::<Result<Vec<LocalChange>, DbError>>()?;
+        .map(|s| serde_json::from_slice(s.as_ref()).map_err(core_err_unexpected))
+        .collect::<Result<Vec<LocalChange>, CoreError>>()?;
 
     value.sort_by(|change1, change2| change1.timestamp.cmp(&change2.timestamp));
 
     Ok(value)
 }
 
-pub fn get_local_changes(config: &Config, id: Uuid) -> Result<Option<LocalChange>, DbError> {
+pub fn get_local_changes(config: &Config, id: Uuid) -> Result<Option<LocalChange>, CoreError> {
     let maybe_value: Option<Vec<u8>> =
-        local_storage::read(config, LOCAL_CHANGES, id.to_string().as_str())
-            .map_err(DbError::BackendError)?;
+        local_storage::read(config, LOCAL_CHANGES, id.to_string().as_str())?;
     match maybe_value {
         None => Ok(None),
         Some(value) => {
             let change: LocalChange =
-                serde_json::from_slice(value.as_ref()).map_err(DbError::SerdeError)?;
+                serde_json::from_slice(value.as_ref()).map_err(core_err_unexpected)?;
             Ok(Some(change))
         }
     }
 }
 
-pub fn track_new_file(config: &Config, id: Uuid, now: TimeGetter) -> Result<(), DbError> {
+pub fn track_new_file(config: &Config, id: Uuid, now: TimeGetter) -> Result<(), CoreError> {
     let new_local_change = LocalChange {
         timestamp: now().0,
         id,
@@ -60,9 +50,8 @@ pub fn track_new_file(config: &Config, id: Uuid, now: TimeGetter) -> Result<(), 
         config,
         LOCAL_CHANGES,
         id.to_string().as_str(),
-        serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-    )
-    .map_err(DbError::BackendError)?;
+        serde_json::to_vec(&new_local_change).map_err(core_err_unexpected)?,
+    )?;
     Ok(())
 }
 
@@ -72,7 +61,7 @@ pub fn track_rename(
     old_name: &str,
     new_name: &str,
     now: TimeGetter,
-) -> Result<(), DbError> {
+) -> Result<(), CoreError> {
     if old_name == new_name {
         return Ok(());
     }
@@ -93,9 +82,8 @@ pub fn track_rename(
                 config,
                 LOCAL_CHANGES,
                 id.to_string().as_str(),
-                serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-            )
-            .map_err(DbError::BackendError)?;
+                serde_json::to_vec(&new_local_change).map_err(core_err_unexpected)?,
+            )?;
             Ok(())
         }
         Some(mut change) => match change.renamed {
@@ -105,9 +93,8 @@ pub fn track_rename(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::BackendError)?;
+                    serde_json::to_vec(&change).map_err(core_err_unexpected)?,
+                )?;
                 Ok(())
             }
             Some(renamed) => {
@@ -127,7 +114,7 @@ pub fn track_move(
     old_parent: Uuid,
     new_parent: Uuid,
     now: TimeGetter,
-) -> Result<(), DbError> {
+) -> Result<(), CoreError> {
     if old_parent == new_parent {
         return Ok(());
     }
@@ -148,9 +135,8 @@ pub fn track_move(
                 config,
                 LOCAL_CHANGES,
                 id.to_string().as_str(),
-                serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-            )
-            .map_err(DbError::BackendError)?;
+                serde_json::to_vec(&new_local_change).map_err(core_err_unexpected)?,
+            )?;
             Ok(())
         }
         Some(mut change) => match change.moved {
@@ -160,9 +146,8 @@ pub fn track_move(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::BackendError)?;
+                    serde_json::to_vec(&change).map_err(core_err_unexpected)?,
+                )?;
                 Ok(())
             }
             Some(moved) => {
@@ -184,7 +169,7 @@ pub fn track_edit(
     old_content_checksum: Vec<u8>,
     new_content_checksum: Vec<u8>,
     now: TimeGetter,
-) -> Result<(), DbError> {
+) -> Result<(), CoreError> {
     if old_content_checksum == new_content_checksum {
         return Ok(());
     }
@@ -208,9 +193,8 @@ pub fn track_edit(
                 config,
                 LOCAL_CHANGES,
                 id.to_string().as_str(),
-                serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-            )
-            .map_err(DbError::BackendError)?;
+                serde_json::to_vec(&new_local_change).map_err(core_err_unexpected)?,
+            )?;
             Ok(())
         }
         Some(mut change) => match change.content_edited {
@@ -224,9 +208,8 @@ pub fn track_edit(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::BackendError)?;
+                    serde_json::to_vec(&change).map_err(core_err_unexpected)?,
+                )?;
                 Ok(())
             }
             Some(edited) => {
@@ -245,7 +228,7 @@ pub fn track_delete(
     id: Uuid,
     file_type: FileType,
     now: TimeGetter,
-) -> Result<(), DbError> {
+) -> Result<(), CoreError> {
     // Added to ensure that a prior move is at least 1ms older than this delete
     thread::sleep(time::Duration::from_millis(1));
 
@@ -264,9 +247,8 @@ pub fn track_delete(
                 config,
                 LOCAL_CHANGES,
                 id.to_string().as_str(),
-                serde_json::to_vec(&new_local_change).map_err(DbError::SerdeError)?,
-            )
-            .map_err(DbError::BackendError)?;
+                serde_json::to_vec(&new_local_change).map_err(core_err_unexpected)?,
+            )?;
             Ok(())
         }
         Some(mut change) => {
@@ -291,9 +273,8 @@ pub fn track_delete(
                         config,
                         LOCAL_CHANGES,
                         id.to_string().as_str(),
-                        serde_json::to_vec(&delete_tracked).map_err(DbError::SerdeError)?,
-                    )
-                    .map_err(DbError::BackendError)?;
+                        serde_json::to_vec(&delete_tracked).map_err(core_err_unexpected)?,
+                    )?;
                     Ok(())
                 }
             } else {
@@ -302,16 +283,15 @@ pub fn track_delete(
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&change).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::BackendError)?;
+                    serde_json::to_vec(&change).map_err(core_err_unexpected)?,
+                )?;
                 Ok(())
             }
         }
     }
 }
 
-pub fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), DbError> {
+pub fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), CoreError> {
     match get_local_changes(config, id)? {
         None => Ok(()),
         Some(mut new) => {
@@ -324,9 +304,8 @@ pub fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), DbError> {
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&new).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::BackendError)?;
+                    serde_json::to_vec(&new).map_err(core_err_unexpected)?,
+                )?;
             }
 
             Ok(())
@@ -334,7 +313,7 @@ pub fn untrack_new_file(config: &Config, id: Uuid) -> Result<(), DbError> {
     }
 }
 
-pub fn untrack_rename(config: &Config, id: Uuid) -> Result<(), DbError> {
+pub fn untrack_rename(config: &Config, id: Uuid) -> Result<(), CoreError> {
     match get_local_changes(config, id)? {
         None => Ok(()),
         Some(mut edit) => {
@@ -347,16 +326,15 @@ pub fn untrack_rename(config: &Config, id: Uuid) -> Result<(), DbError> {
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::BackendError)?;
+                    serde_json::to_vec(&edit).map_err(core_err_unexpected)?,
+                )?;
             }
             Ok(())
         }
     }
 }
 
-pub fn untrack_move(config: &Config, id: Uuid) -> Result<(), DbError> {
+pub fn untrack_move(config: &Config, id: Uuid) -> Result<(), CoreError> {
     match get_local_changes(config, id)? {
         None => Ok(()),
         Some(mut edit) => {
@@ -369,9 +347,8 @@ pub fn untrack_move(config: &Config, id: Uuid) -> Result<(), DbError> {
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::BackendError)?;
+                    serde_json::to_vec(&edit).map_err(core_err_unexpected)?,
+                )?;
             }
 
             Ok(())
@@ -379,7 +356,7 @@ pub fn untrack_move(config: &Config, id: Uuid) -> Result<(), DbError> {
     }
 }
 
-pub fn untrack_edit(config: &Config, id: Uuid) -> Result<(), DbError> {
+pub fn untrack_edit(config: &Config, id: Uuid) -> Result<(), CoreError> {
     match get_local_changes(config, id)? {
         None => Ok(()),
         Some(mut edit) => {
@@ -392,9 +369,8 @@ pub fn untrack_edit(config: &Config, id: Uuid) -> Result<(), DbError> {
                     config,
                     LOCAL_CHANGES,
                     id.to_string().as_str(),
-                    serde_json::to_vec(&edit).map_err(DbError::SerdeError)?,
-                )
-                .map_err(DbError::BackendError)?;
+                    serde_json::to_vec(&edit).map_err(core_err_unexpected)?,
+                )?;
             }
 
             Ok(())
@@ -402,12 +378,11 @@ pub fn untrack_edit(config: &Config, id: Uuid) -> Result<(), DbError> {
     }
 }
 
-pub fn delete(config: &Config, id: Uuid) -> Result<(), DbError> {
+pub fn delete(config: &Config, id: Uuid) -> Result<(), CoreError> {
     match get_local_changes(config, id)? {
         None => Ok(()),
         Some(_) => {
-            local_storage::delete(config, LOCAL_CHANGES, id.to_string().as_str())
-                .map_err(DbError::BackendError)?;
+            local_storage::delete(config, LOCAL_CHANGES, id.to_string().as_str())?;
             Ok(())
         }
     }

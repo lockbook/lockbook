@@ -1,6 +1,7 @@
 use crate::model::state::Config;
-use crate::service::file_encryption_service::{get_name, GetNameOfFileError};
+use crate::service::file_encryption_service::get_name;
 use crate::service::sync_service::WorkCalculated;
+use crate::CoreError;
 use lockbook_models::account::Username;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
@@ -33,16 +34,11 @@ pub enum ClientWorkUnit {
     Local(ClientFileMetadata),
 }
 
-#[derive(Debug)]
-pub enum GenerateClientFileMetadataError {
-    GetNameError(GetNameOfFileError),
-}
-
 pub fn generate_client_file_metadata(
     config: &Config,
     meta: &FileMetadata,
-) -> Result<ClientFileMetadata, GenerateClientFileMetadataError> {
-    let name = get_name(config, meta).map_err(GenerateClientFileMetadataError::GetNameError)?;
+) -> Result<ClientFileMetadata, CoreError> {
+    let name = get_name(config, meta)?;
 
     Ok(ClientFileMetadata {
         id: meta.id,
@@ -61,45 +57,29 @@ pub fn generate_client_file_metadata(
     })
 }
 
-#[derive(Debug)]
-pub enum GenerateClientWorkUnitError {
-    GenerateClientFileMetadataError(GenerateClientFileMetadataError),
-}
-
 pub fn generate_client_work_unit(
     config: &Config,
     work_unit: &WorkUnit,
-) -> Result<ClientWorkUnit, GenerateClientWorkUnitError> {
-    let maybe_file_metadata = generate_client_file_metadata(config, &work_unit.get_metadata())
-        .map_err(GenerateClientWorkUnitError::GenerateClientFileMetadataError);
+) -> Result<ClientWorkUnit, CoreError> {
+    let maybe_file_metadata = generate_client_file_metadata(config, &work_unit.get_metadata());
 
     Ok(match work_unit {
         WorkUnit::LocalChange { .. } => ClientWorkUnit::Local(maybe_file_metadata?),
         WorkUnit::ServerChange { metadata } => match maybe_file_metadata {
             Ok(file_metadata) => ClientWorkUnit::Server(file_metadata),
-            Err(GenerateClientWorkUnitError::GenerateClientFileMetadataError(
-                GenerateClientFileMetadataError::GetNameError(_),
-            )) => ClientWorkUnit::ServerUnknownName(metadata.id),
+            Err(_) => ClientWorkUnit::ServerUnknownName(metadata.id),
         },
     })
-}
-
-#[derive(Debug)]
-pub enum GenerateClientWorkCalculatedError {
-    GenerateClientWorkUnitError(GenerateClientWorkUnitError),
 }
 
 pub fn generate_client_work_calculated(
     config: &Config,
     work_calculated: &WorkCalculated,
-) -> Result<ClientWorkCalculated, GenerateClientWorkCalculatedError> {
+) -> Result<ClientWorkCalculated, CoreError> {
     let mut client_work_units = vec![];
 
     for work_unit in work_calculated.work_units.iter() {
-        client_work_units.push(
-            generate_client_work_unit(config, &work_unit)
-                .map_err(GenerateClientWorkCalculatedError::GenerateClientWorkUnitError)?,
-        )
+        client_work_units.push(generate_client_work_unit(config, &work_unit)?)
     }
 
     Ok(ClientWorkCalculated {

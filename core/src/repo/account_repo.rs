@@ -1,50 +1,39 @@
 use crate::model::state::Config;
-use crate::repo::account_repo::AccountRepoError::NoAccount;
 use crate::repo::local_storage;
+use crate::{core_err_unexpected, CoreError};
 use lockbook_models::account::{Account, ApiUrl};
-
-#[derive(Debug)]
-pub enum AccountRepoError {
-    BackendError(std::io::Error),
-    SerdeError(serde_json::Error),
-    NoAccount,
-}
 
 static ACCOUNT: &str = "account";
 static YOU: &str = "you";
 
-pub fn insert_account(config: &Config, account: &Account) -> Result<(), AccountRepoError> {
+pub fn insert_account(config: &Config, account: &Account) -> Result<(), CoreError> {
     local_storage::write(
         config,
         ACCOUNT,
         YOU,
-        serde_json::to_vec(account).map_err(AccountRepoError::SerdeError)?,
+        serde_json::to_vec(account).map_err(core_err_unexpected)?,
     )
-    .map_err(AccountRepoError::BackendError)
 }
 
-pub fn maybe_get_account(config: &Config) -> Result<Option<Account>, AccountRepoError> {
+pub fn maybe_get_account(config: &Config) -> Result<Option<Account>, CoreError> {
     match get_account(config) {
         Ok(account) => Ok(Some(account)),
         Err(err) => match err {
-            AccountRepoError::NoAccount => Ok(None),
+            CoreError::AccountNonexistent => Ok(None),
             other => Err(other),
         },
     }
 }
 
-pub fn get_account(config: &Config) -> Result<Account, AccountRepoError> {
-    let maybe_value: Option<Vec<u8>> =
-        local_storage::read(config, ACCOUNT, YOU).map_err(AccountRepoError::BackendError)?;
+pub fn get_account(config: &Config) -> Result<Account, CoreError> {
+    let maybe_value: Option<Vec<u8>> = local_storage::read(config, ACCOUNT, YOU)?;
     match maybe_value {
-        None => Err(NoAccount),
-        Some(account) => {
-            Ok(serde_json::from_slice(account.as_ref()).map_err(AccountRepoError::SerdeError)?)
-        }
+        None => Err(CoreError::AccountNonexistent),
+        Some(account) => Ok(serde_json::from_slice(account.as_ref()).map_err(core_err_unexpected)?),
     }
 }
 
-pub fn get_api_url(config: &Config) -> Result<ApiUrl, AccountRepoError> {
+pub fn get_api_url(config: &Config) -> Result<ApiUrl, CoreError> {
     get_account(config).map(|account| account.api_url)
 }
 

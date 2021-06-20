@@ -1,14 +1,16 @@
 use crate::model::state::Config;
 use crate::repo::file_metadata_repo;
-use crate::service::file_encryption_service;
 use crate::service::integrity_service::TestRepoError::{
-    CycleDetected, DocumentTreatedAsFolder, FileMetaError, FileNameContainsSlash, FileNameEmpty,
-    FileOrphaned, NameConflictDetected, NameDecryptionError, NoRootFolder,
+    Core, CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty,
+    FileOrphaned, NameConflictDetected, NoRootFolder,
 };
+use crate::CoreError;
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
+
+use super::file_encryption_service;
 
 #[derive(Debug)]
 pub enum TestRepoError {
@@ -19,16 +21,15 @@ pub enum TestRepoError {
     FileNameEmpty(Uuid),
     FileNameContainsSlash(Uuid),
     NameConflictDetected(Uuid),
-    FileMetaError(file_metadata_repo::DbError),
-    NameDecryptionError(file_encryption_service::GetNameOfFileError),
+    Core(CoreError),
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
     let root = file_metadata_repo::get_root(&config)
-        .map_err(FileMetaError)?
+        .map_err(Core)?
         .ok_or(NoRootFolder)?;
 
-    let all = file_metadata_repo::get_all(config).map_err(TestRepoError::FileMetaError)?;
+    let all = file_metadata_repo::get_all(config).map_err(Core)?;
 
     {
         let document_with_children = all
@@ -57,9 +58,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
                 }
                 visited.insert(current.id, current.clone());
 
-                match file_metadata_repo::maybe_get(&config, current.parent)
-                    .map_err(FileMetaError)?
-                {
+                match file_metadata_repo::maybe_get(&config, current.parent).map_err(Core)? {
                     None => {
                         return Err(FileOrphaned(current.id));
                     }
@@ -82,8 +81,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
 
     // Find files with invalid names
     for file in all.clone() {
-        let name =
-            file_encryption_service::get_name(&config, &file).map_err(NameDecryptionError)?;
+        let name = file_encryption_service::get_name(&config, &file).map_err(Core)?;
         if name.is_empty() {
             return Err(FileNameEmpty(file.id));
         }
@@ -96,12 +94,11 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
     // Find naming conflicts
     {
         for file in all.iter().filter(|f| f.file_type == Folder) {
-            let children = file_metadata_repo::get_children_non_recursively(&config, file.id)
-                .map_err(FileMetaError)?;
+            let children =
+                file_metadata_repo::get_children_non_recursively(&config, file.id).map_err(Core)?;
             let mut children_set = HashSet::new();
             for child in children {
-                let name = file_encryption_service::get_name(&config, &child)
-                    .map_err(NameDecryptionError)?;
+                let name = file_encryption_service::get_name(&config, &child).map_err(Core)?;
                 if children_set.contains(&name) {
                     return Err(NameConflictDetected(child.id));
                 }
