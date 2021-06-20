@@ -543,7 +543,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
         CoreError::FileNonexistent => UiError(MoveFileError::FileDoesNotExist),
         CoreError::FolderMovedIntoSelf => UiError(MoveFileError::FolderMovedIntoItself),
         CoreError::AccountNonexistent => UiError(MoveFileError::NoAccount),
-        CoreError::PathNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
+        CoreError::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
         CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
         _ => unexpected!("{:#?}", e),
     })
