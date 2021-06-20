@@ -10,9 +10,9 @@ pub fn sync() -> CliResult<()> {
     let config = get_config();
     let closure = |sync_progress: SyncProgress| {
         match sync_progress.current_work_unit {
-            ClientWorkUnit::ServerUnknownName(_) => println!("New file needs to be pulled"),
-            ClientWorkUnit::Server(metadata) => println!("{} needs to be pulled", metadata.name),
-            ClientWorkUnit::Local(metadata) => println!("{} needs to be pushed", metadata.name),
+            ClientWorkUnit::ServerUnknownName(_) => println!("Pulling: New File"),
+            ClientWorkUnit::Server(metadata) => println!("Pulling: {}", metadata.name),
+            ClientWorkUnit::Local(metadata) => println!("Pushing: {}", metadata.name),
         };
     };
 
