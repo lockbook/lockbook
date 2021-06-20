@@ -1,20 +1,19 @@
-use crate::service::file_service::{DocumentUpdateError, ReadDocumentError};
-use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-
-use image::codecs::bmp::BmpEncoder;
-use image::codecs::farbfeld::FarbfeldEncoder;
-
 use crate::model::state::Config;
 use crate::service::file_service;
+use crate::{core_err_unexpected, CoreError};
+use image::codecs::bmp::BmpEncoder;
+use image::codecs::farbfeld::FarbfeldEncoder;
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
 use image::codecs::tga::TgaEncoder;
-use image::{ColorType, ImageError};
+use image::ColorType;
+use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
 use serde::Deserialize;
+use serde_json::error::Category;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
@@ -39,51 +38,34 @@ macro_rules! hashmap {
     }}
 }
 
-#[derive(Debug)]
-pub enum SaveDrawingError {
-    InvalidDrawingError(serde_json::error::Error),
-    FailedToSaveJson(DocumentUpdateError),
-}
-
-pub fn save_drawing(
-    config: &Config,
-    id: Uuid,
-    drawing_bytes: &[u8],
-) -> Result<(), SaveDrawingError> {
+pub fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), CoreError> {
     let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
-    serde_json::from_str::<Drawing>(drawing_string.as_str()) // validating json
-        .map_err(SaveDrawingError::InvalidDrawingError)?;
+    // validate drawing
+    match serde_json::from_str::<Drawing>(drawing_string.as_str()) {
+        Ok(_) => {}
+        Err(e) => match e.classify() {
+            Category::Io => return Err(CoreError::Unexpected(String::from("json io"))),
+            Category::Syntax | Category::Data | Category::Eof => {
+                return Err(CoreError::DrawingInvalid);
+            }
+        },
+    };
 
     file_service::write_document(config, id, drawing_bytes)
-        .map_err(SaveDrawingError::FailedToSaveJson)
 }
 
-#[derive(Debug)]
-pub enum GetDrawingError {
-    InvalidDrawingError(serde_json::error::Error),
-    FailedToRetrieveJson(ReadDocumentError),
-}
-
-pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, GetDrawingError> {
-    let drawing_bytes =
-        file_service::read_document(config, id).map_err(GetDrawingError::FailedToRetrieveJson)?;
-
+pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
+    let drawing_bytes = file_service::read_document(config, id)?;
     let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
-    serde_json::from_str::<Drawing>(drawing_string.as_str())
-        .map_err(GetDrawingError::InvalidDrawingError)
-}
-
-#[derive(Debug)]
-pub enum ExportDrawingError {
-    GetDrawingError(GetDrawingError),
-    UnableToGetColorFromAlias,
-    UnableToGetStrokePoint,
-    UnableToGetStrokeGirth,
-    UnequalPointsAndGirthMetrics,
-    InvalidAlphaValue,
-    FailedToEncodeImage(ImageError),
+    match serde_json::from_str::<Drawing>(drawing_string.as_str()) {
+        Ok(d) => Ok(d),
+        Err(e) => match e.classify() {
+            Category::Io => Err(CoreError::Unexpected(String::from("json io"))),
+            Category::Syntax | Category::Data | Category::Eof => Err(CoreError::DrawingInvalid),
+        },
+    }
 }
 
 pub fn export_drawing(
@@ -91,8 +73,8 @@ pub fn export_drawing(
     id: Uuid,
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-) -> Result<Vec<u8>, ExportDrawingError> {
-    let drawing = get_drawing(config, id).map_err(ExportDrawingError::GetDrawingError)?;
+) -> Result<Vec<u8>, CoreError> {
+    let drawing = get_drawing(config, id)?;
 
     let theme = match render_theme {
         Some(theme) => theme,
@@ -118,16 +100,18 @@ pub fn export_drawing(
     for stroke in drawing.strokes {
         let color_rgb = theme
             .get(&stroke.color)
-            .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?;
+            .ok_or_else(|| CoreError::Unexpected(String::from("unable to get color from alias")))?;
 
         if stroke.points_x.len() != stroke.points_y.len()
             || stroke.points_y.len() != stroke.points_girth.len()
         {
-            return Err(ExportDrawingError::UnequalPointsAndGirthMetrics);
+            return Err(CoreError::Unexpected(String::from(
+                "unequal points and girth metrics",
+            )));
         }
 
         if stroke.alpha > 1.0 || stroke.alpha < 0.0 {
-            return Err(ExportDrawingError::InvalidAlphaValue);
+            return Err(CoreError::Unexpected(String::from("invalid alpha value")));
         }
 
         for point_index in 0..stroke.points_x.len() - 1 {
@@ -135,22 +119,30 @@ pub fn export_drawing(
             let x1 = stroke
                 .points_x
                 .get(point_index)
-                .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?
+                .ok_or_else(|| {
+                    CoreError::Unexpected(String::from("unable to get color from alias"))
+                })?
                 .to_owned();
             let y1 = stroke
                 .points_y
                 .get(point_index)
-                .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?
+                .ok_or_else(|| {
+                    CoreError::Unexpected(String::from("unable to get color from alias"))
+                })?
                 .to_owned();
             let x2 = stroke
                 .points_x
                 .get(point_index + 1)
-                .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?
+                .ok_or_else(|| {
+                    CoreError::Unexpected(String::from("unable to get color from alias"))
+                })?
                 .to_owned();
             let y2 = stroke
                 .points_y
                 .get(point_index + 1)
-                .ok_or(ExportDrawingError::UnableToGetColorFromAlias)?
+                .ok_or_else(|| {
+                    CoreError::Unexpected(String::from("unable to get color from alias"))
+                })?
                 .to_owned();
 
             pb.move_to(x1, y1);
@@ -173,7 +165,9 @@ pub fn export_drawing(
                     width: stroke
                         .points_girth
                         .get(point_index)
-                        .ok_or(ExportDrawingError::UnableToGetStrokeGirth)?
+                        .ok_or_else(|| {
+                            CoreError::Unexpected(String::from("unable to get stroke girth"))
+                        })?
                         .to_owned(),
                     miter_limit: 10.0,
                     dash_array: Vec::new(),
@@ -233,18 +227,11 @@ pub fn export_drawing(
             ColorType::Rgba8,
         ),
     }
-    .map_err(ExportDrawingError::FailedToEncodeImage)?;
+    .map_err(core_err_unexpected)?;
 
     std::mem::drop(buf_writer);
 
     Ok(buffer)
-}
-
-#[derive(Debug)]
-pub enum ExportDrawingToDiskError {
-    ExportDrawingError(ExportDrawingError),
-    CouldNotCreateDocumentError(std::io::Error),
-    CouldNotWriteToDocumentError(std::io::Error),
 }
 
 pub fn export_drawing_to_disk(
@@ -253,18 +240,17 @@ pub fn export_drawing_to_disk(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     location: String,
-) -> Result<(), ExportDrawingToDiskError> {
-    let drawing_bytes = export_drawing(config, id, format, render_theme)
-        .map_err(ExportDrawingToDiskError::ExportDrawingError)?;
+) -> Result<(), CoreError> {
+    let drawing_bytes = export_drawing(config, id, format, render_theme)?;
 
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(Path::new(&location))
-        .map_err(ExportDrawingToDiskError::CouldNotCreateDocumentError)?;
+        .map_err(CoreError::from)?;
 
     file.write_all(drawing_bytes.as_slice())
-        .map_err(ExportDrawingToDiskError::CouldNotWriteToDocumentError)
+        .map_err(CoreError::from)
 }
 
 fn u32_byte_to_u8_bytes(u32_byte: u32) -> (u8, u8, u8, u8) {
