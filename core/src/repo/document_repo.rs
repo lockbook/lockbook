@@ -1,57 +1,43 @@
-use uuid::Uuid;
-
+use crate::core_err_unexpected;
 use crate::model::state::Config;
 use crate::repo::local_storage;
+use crate::CoreError;
 use lockbook_models::crypto::*;
+use uuid::Uuid;
 
-#[derive(Debug)]
-pub enum Error {
-    BackendError(std::io::Error),
-    SerdeError(serde_json::Error),
-    FileRowMissing(()), // TODO remove from insert
-}
-
-#[derive(Debug)]
-pub enum DbError {
-    BackendError(std::io::Error),
-    SerdeError(serde_json::Error),
-}
 pub const NAMESPACE: &[u8; 9] = b"documents";
 
-pub fn insert(config: &Config, id: Uuid, document: &EncryptedDocument) -> Result<(), Error> {
+pub fn insert(config: &Config, id: Uuid, document: &EncryptedDocument) -> Result<(), CoreError> {
     local_storage::write(
         config,
         NAMESPACE,
         id.to_string().as_str(),
-        serde_json::to_vec(document).map_err(Error::SerdeError)?,
+        serde_json::to_vec(document).map_err(core_err_unexpected)?,
     )
-    .map_err(Error::BackendError)
 }
 
-pub fn get(config: &Config, id: Uuid) -> Result<EncryptedDocument, Error> {
+pub fn get(config: &Config, id: Uuid) -> Result<EncryptedDocument, CoreError> {
     let maybe_data: Option<Vec<u8>> =
-        local_storage::read(config, NAMESPACE, id.to_string().as_str())
-            .map_err(Error::BackendError)?;
+        local_storage::read(config, NAMESPACE, id.to_string().as_str())?;
     match maybe_data {
-        None => Err(Error::FileRowMissing(())),
-        Some(data) => serde_json::from_slice(&data).map_err(Error::SerdeError),
+        None => Err(CoreError::FileNonexistent),
+        Some(data) => serde_json::from_slice(&data).map_err(core_err_unexpected),
     }
 }
 
-pub fn maybe_get(config: &Config, id: Uuid) -> Result<Option<EncryptedDocument>, DbError> {
+pub fn maybe_get(config: &Config, id: Uuid) -> Result<Option<EncryptedDocument>, CoreError> {
     let maybe_data: Option<Vec<u8>> =
-        local_storage::read(config, NAMESPACE, id.to_string().as_str())
-            .map_err(DbError::BackendError)?;
+        local_storage::read(config, NAMESPACE, id.to_string().as_str())?;
     match maybe_data {
         None => Ok(None),
         Some(data) => serde_json::from_slice(&data)
             .map(Some)
-            .map_err(DbError::SerdeError),
+            .map_err(core_err_unexpected),
     }
 }
 
-pub fn delete(config: &Config, id: Uuid) -> Result<(), Error> {
-    local_storage::delete(config, NAMESPACE, id.to_string().as_str()).map_err(Error::BackendError)
+pub fn delete(config: &Config, id: Uuid) -> Result<(), CoreError> {
+    local_storage::delete(config, NAMESPACE, id.to_string().as_str())
 }
 
 #[cfg(test)]
