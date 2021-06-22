@@ -21,13 +21,8 @@ pub fn status() -> CliResult<()> {
         .into_iter()
         .for_each(|metadata| println!("{} needs to be pulled", metadata.name));
 
-    if work.new_files_count != 0 {
-        println!(
-            "{} new file{} need{} to be pulled",
-            work.new_files_count,
-            if work.new_files_count == 1 { "" } else { "s" },
-            if work.new_files_count == 1 { "s" } else { "" }
-        );
+    for _ in 0..work.server_unknown_name_count {
+        println!("An unknown new file needs to be pulled")
     }
 
     print_last_successful_sync()

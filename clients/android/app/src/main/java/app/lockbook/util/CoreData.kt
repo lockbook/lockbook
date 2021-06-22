@@ -32,8 +32,8 @@ data class WorkCalculated(
     val localFiles: List<ClientFileMetadata>,
     @Json(name = "server_files")
     val serverFiles: List<ClientFileMetadata>,
-    @Json(name = "new_files_count")
-    val newFilesCount: Int,
+    @Json(name = "server_unknown_name_count")
+    val serverUnknownNameCount: Int,
     @Json(name = "most_recent_update_from_server")
     val mostRecentUpdateFromServer: Long
 )

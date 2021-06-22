@@ -25,7 +25,7 @@ pub struct ClientFileMetadata {
 pub struct ClientWorkCalculated {
     pub local_files: Vec<ClientFileMetadata>,
     pub server_files: Vec<ClientFileMetadata>,
-    pub new_files_count: usize,
+    pub server_unknown_name_count: usize,
     pub most_recent_update_from_server: u64,
 }
 
@@ -97,7 +97,7 @@ pub fn generate_client_work_calculated(
     Ok(ClientWorkCalculated {
         local_files,
         server_files,
-        new_files_count,
+        server_unknown_name_count: new_files_count,
         most_recent_update_from_server: work_calculated.most_recent_update_from_server,
     })
 }

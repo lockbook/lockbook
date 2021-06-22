@@ -1169,7 +1169,7 @@ impl SettingsUi {
 
 fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
     let work = c.calculate_work()?;
-    let n_units = work.local_files.len() + work.server_files.len() + work.new_files_count;
+    let n_units = work.local_files.len() + work.server_files.len() + work.server_unknown_name_count;
 
     let cntr = GtkBox::new(Vertical, 0);
     cntr.set_hexpand(true);
@@ -1216,7 +1216,7 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
             model.insert_with_values(None, None, &[0, 1], &[&metadata.name, &"Server"]);
         });
 
-        for _ in 0..work.new_files_count {
+        for _ in 0..work.server_unknown_name_count {
             model.insert_with_values(None, None, &[0, 1], &[&"New file".to_string(), &"Server"]);
         }
 
