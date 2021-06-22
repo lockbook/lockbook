@@ -39,7 +39,7 @@ use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr};
-use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
+use lockbook_core::model::client_conversion::ClientFileMetadata;
 use std::thread;
 
 macro_rules! make_glib_chan {
@@ -1169,7 +1169,7 @@ impl SettingsUi {
 
 fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
     let work = c.calculate_work()?;
-    let n_units = work.work_units.len();
+    let n_units = work.local_files.len() + work.server_files.len() + work.new_files_count;
 
     let cntr = GtkBox::new(Vertical, 0);
     cntr.set_hexpand(true);
@@ -1208,13 +1208,16 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
         tree.set_can_focus(false);
         tree_add_col(&tree, "Name", 0);
         tree_add_col(&tree, "Origin", 1);
-        for wu in &work.work_units {
-            let (path, change) = match wu {
-                ClientWorkUnit::ServerUnknownName(_) => ("New file".to_string(), "Remote"),
-                ClientWorkUnit::Server(metadata) => (metadata.name.clone(), "Remote"),
-                ClientWorkUnit::Local(metadata) => (metadata.name.clone(), "Local"),
-            };
-            model.insert_with_values(None, None, &[0, 1], &[&path, &change]);
+
+        work.local_files.into_iter().for_each(|metadata| {
+            model.insert_with_values(None, None, &[0, 1], &[&metadata.name, &"Local"]);
+        });
+        work.server_files.into_iter().for_each(|metadata| {
+            model.insert_with_values(None, None, &[0, 1], &[&metadata.name, &"Server"]);
+        });
+
+        for _ in 0..work.new_files_count {
+            model.insert_with_values(None, None, &[0, 1], &[&"New file".to_string(), &"Server"]);
         }
 
         let scrolled = util::gui::scrollable(&tree);

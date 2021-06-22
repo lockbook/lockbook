@@ -23,7 +23,9 @@ pub struct ClientFileMetadata {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct ClientWorkCalculated {
-    pub work_units: Vec<ClientWorkUnit>,
+    pub local_files: Vec<ClientFileMetadata>,
+    pub server_files: Vec<ClientFileMetadata>,
+    pub new_files_count: usize,
     pub most_recent_update_from_server: u64,
 }
 
@@ -76,14 +78,26 @@ pub fn generate_client_work_calculated(
     config: &Config,
     work_calculated: &WorkCalculated,
 ) -> Result<ClientWorkCalculated, CoreError> {
-    let mut client_work_units = vec![];
+    let mut local_files = vec![];
+    let mut server_files = vec![];
+    let mut new_files_count = 0;
 
     for work_unit in work_calculated.work_units.iter() {
-        client_work_units.push(generate_client_work_unit(config, &work_unit)?)
+        let maybe_file_metadata = generate_client_file_metadata(config, &work_unit.get_metadata());
+
+        match work_unit {
+            WorkUnit::LocalChange { .. } => local_files.push(maybe_file_metadata?),
+            WorkUnit::ServerChange { .. } => match maybe_file_metadata {
+                Ok(file_metadata) => server_files.push(file_metadata),
+                Err(_) => new_files_count += 1,
+            },
+        }
     }
 
     Ok(ClientWorkCalculated {
-        work_units: client_work_units,
+        local_files,
+        server_files,
+        new_files_count,
         most_recent_update_from_server: work_calculated.most_recent_update_from_server,
     })
 }
