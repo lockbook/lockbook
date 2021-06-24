@@ -1,20 +1,16 @@
-use sha2::{Digest, Sha256};
-use uuid::Uuid;
-
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::document_repo;
-use crate::repo::file_metadata_repo;
-use crate::repo::{account_repo, local_changes_repo};
+use crate::repo::{account_repo, file_repo};
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::CoreError;
-use lockbook_crypto::clock_service;
 use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
+use sha2::{Digest, Sha256};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
+use uuid::Uuid;
 
 pub fn create(
     config: &Config,
@@ -22,269 +18,155 @@ pub fn create(
     parent: Uuid,
     file_type: FileType,
 ) -> Result<FileMetadata, CoreError> {
-    if name.is_empty() {
-        return Err(CoreError::FileNameEmpty);
-    }
-    if name.contains('/') {
-        return Err(CoreError::FileNameContainsSlash);
-    }
+    validate_file_name(name)?;
+    account_repo::get(config)?;
 
-    let _account = account_repo::get_account(config)?;
+    let file_metadata =
+        file_encryption_service::create_file_metadata(&config, name, file_type, parent)?;
 
-    let parent =
-        file_metadata_repo::maybe_get(&config, parent)?.ok_or(CoreError::FileParentNonexistent)?;
+    validate_path(config, &file_metadata)?;
+    validate_parent_exists_and_is_folder(config, &file_metadata)?;
 
-    // Make sure parent is in fact a folder
-    if parent.file_type == Document {
-        return Err(CoreError::FileNotFolder);
-    }
+    file_repo::insert_metadata(config, RepoSource::Local, &file_metadata)?;
+    Ok(file_metadata)
+}
 
-    // Check that this file name is available
-    for child in file_metadata_repo::get_children_non_recursively(config, parent.id)? {
-        if file_encryption_service::get_name(&config, &child)? == name {
-            return Err(CoreError::PathTaken);
-        }
-    }
+pub fn rename(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
+    account_repo::get(config)?;
 
-    let new_metadata =
-        file_encryption_service::create_file_metadata(&config, name, file_type, parent.id)?;
+    let mut file_metadata = file_repo::get_metadata(config, id)?.0;
+    file_metadata.name = file_encryption_service::create_name(&config, &file_metadata, new_name)?;
 
-    file_metadata_repo::insert(config, &new_metadata)?;
-    local_changes_repo::track_new_file(config, new_metadata.id, clock_service::get_time)?;
+    validate_file_name(new_name)?;
+    validate_not_root(&file_metadata)?;
+    validate_path(config, &file_metadata)?;
 
-    if file_type == Document {
-        write_document(config, new_metadata.id, &[])?;
-    }
-    Ok(new_metadata)
+    file_repo::insert_metadata(config, RepoSource::Local, &file_metadata)
+}
+
+pub fn move_(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
+    account_repo::get(config)?;
+
+    let mut file_metadata = file_repo::get_metadata(config, id)?.0;
+    let parent_metadata = validate_parent_exists_and_is_folder(config, &file_metadata)?;
+
+    file_metadata.parent = new_parent;
+    file_metadata.name =
+        file_encryption_service::rekey_secret_filename(&config, &file_metadata, &parent_metadata)?;
+    file_metadata.folder_access_keys = file_encryption_service::re_encrypt_key_for_file(
+        &config,
+        file_encryption_service::decrypt_key_for_file(&config, file_metadata.id)?,
+        parent_metadata.id,
+    )?;
+
+    validate_not_root(&file_metadata)?;
+    validate_path(config, &file_metadata)?;
+    validate_not_own_ancestor(config, &file_metadata)?;
+
+    file_repo::insert_metadata(config, RepoSource::Local, &file_metadata)
+}
+
+pub fn delete(config: &Config, id: Uuid) -> Result<(), CoreError> {
+    account_repo::get(config)?;
+
+    let mut file_metadata = file_repo::get_metadata(config, id)?.0;
+    validate_not_root(&file_metadata)?;
+
+    file_repo::delete(config, RepoSource::Local, id)
 }
 
 pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
-    let _account = account_repo::get_account(config)?;
+    account_repo::get(config)?;
 
-    let file_metadata =
-        file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
+    let file_metadata = file_repo::get_metadata(config, id)?.0;
+    validate_is_document(&file_metadata)?;
 
-    if file_metadata.file_type == Folder {
-        return Err(CoreError::FileNotDocument);
-    }
-
+    let digest = Sha256::digest(content).as_slice();
     let compressed_content = file_compression_service::compress(content)?;
-    let new_file =
+    let encrypted_content =
         file_encryption_service::write_to_document(&config, &compressed_content, &file_metadata)?;
-    file_metadata_repo::insert(config, &file_metadata)?;
-
-    if let Some(old_encrypted) = document_repo::maybe_get(config, id)? {
-        let decrypted =
-            file_encryption_service::read_document(&config, &old_encrypted, &file_metadata)?;
-        let decompressed = file_compression_service::decompress(&decrypted)?;
-        let permanent_access_info = file_encryption_service::get_key_for_user(&config, id)?;
-
-        local_changes_repo::track_edit(
-            config,
-            file_metadata.id,
-            &old_encrypted,
-            &permanent_access_info,
-            Sha256::digest(&decompressed).to_vec(),
-            Sha256::digest(&content).to_vec(),
-            clock_service::get_time,
-        )?;
-    };
-
-    document_repo::insert(config, file_metadata.id, &new_file)?;
-
-    Ok(())
-}
-
-pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
-    if new_name.is_empty() {
-        return Err(CoreError::FileNameEmpty);
-    }
-    if new_name.contains('/') {
-        return Err(CoreError::FileNameContainsSlash);
-    }
-
-    match file_metadata_repo::maybe_get(config, id)? {
-        None => Err(CoreError::FileNonexistent),
-        Some(mut file) => {
-            if file.id == file.parent {
-                return Err(CoreError::RootModificationInvalid);
-            }
-
-            let siblings = file_metadata_repo::get_children_non_recursively(config, file.parent)?;
-
-            // Check that this file name is available
-            for child in siblings {
-                if file_encryption_service::get_name(&config, &child)? == new_name {
-                    return Err(CoreError::PathTaken);
-                }
-            }
-
-            let old_file_name = file_encryption_service::get_name(&config, &file)?;
-
-            local_changes_repo::track_rename(
-                config,
-                file.id,
-                &old_file_name,
-                new_name,
-                clock_service::get_time,
-            )?;
-
-            file.name = file_encryption_service::create_name(&config, &file, new_name)?;
-            file_metadata_repo::insert(config, &file)?;
-
-            Ok(())
-        }
-    }
-}
-
-pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
-    let _account = account_repo::get_account(config)?;
-
-    let mut file = file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
-    if file.id == file.parent {
-        return Err(CoreError::RootModificationInvalid);
-    }
-
-    let parent_metadata = file_metadata_repo::maybe_get(config, new_parent)?
-        .ok_or(CoreError::FileParentNonexistent)?;
-    if parent_metadata.file_type == Document {
-        return Err(CoreError::FileNotFolder);
-    }
-
-    let siblings = file_metadata_repo::get_children_non_recursively(config, parent_metadata.id)?;
-    let new_name =
-        file_encryption_service::rekey_secret_filename(&config, &file, &parent_metadata)?;
-
-    // Check that this file name is available
-    for child in siblings {
-        if child.name == new_name {
-            return Err(CoreError::PathTaken);
-        }
-    }
-
-    // Checking if a folder is being moved into itself or its children
-    if file.file_type == FileType::Folder {
-        let children = file_metadata_repo::get_and_get_children_recursively(config, id)?;
-        for child in children {
-            if child.id == new_parent {
-                return Err(CoreError::FolderMovedIntoSelf);
-            }
-        }
-    }
-
-    let access_key = file_encryption_service::decrypt_key_for_file(&config, file.id)?;
-    let new_access_info =
-        file_encryption_service::re_encrypt_key_for_file(&config, access_key, parent_metadata.id)?;
-
-    local_changes_repo::track_move(
-        config,
-        file.id,
-        file.parent,
-        parent_metadata.id,
-        clock_service::get_time,
-    )?;
-
-    file.parent = parent_metadata.id;
-    file.folder_access_keys = new_access_info;
-    file.name = new_name;
-
-    file_metadata_repo::insert(config, &file)?;
-    Ok(())
+    file_repo::insert_document(config, RepoSource::Local, id, encrypted_content, digest)
 }
 
 pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
-    let _account = account_repo::get_account(config)?;
+    account_repo::get(config)?;
 
-    let file_metadata =
-        file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
+    let mut file_metadata = file_repo::get_metadata(config, id)?.0;
+    validate_is_document(&file_metadata)?;
 
-    if file_metadata.file_type == Folder {
-        return Err(CoreError::FileNotDocument);
-    }
-
-    let document = document_repo::get(config, id)?;
+    let encrypted_content = file_repo::get_document(config, id)?.0;
     let compressed_content =
-        file_encryption_service::read_document(&config, &document, &file_metadata)?;
+        file_encryption_service::read_document(&config, &encrypted_content, &file_metadata)?;
     let content = file_compression_service::decompress(&compressed_content)?;
 
     Ok(content)
 }
 
 pub fn save_document_to_disk(config: &Config, id: Uuid, location: String) -> Result<(), CoreError> {
-    let document_content = read_document(config, id)?;
-    let mut file = OpenOptions::new()
+    OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(Path::new(&location))
+        .map_err(CoreError::from)?
+        .write_all(read_document(config, id)?.as_slice())
         .map_err(CoreError::from)?;
-
-    file.write_all(document_content.as_slice())
-        .map_err(CoreError::from)
-}
-
-pub fn delete_document(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    let mut file_metadata =
-        file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
-
-    if file_metadata.file_type == Folder {
-        return Err(CoreError::FileNotDocument);
-    }
-
-    let new = if let Some(change) = local_changes_repo::get_local_changes(config, id)? {
-        change.new
-    } else {
-        false
-    };
-
-    if !new {
-        file_metadata.deleted = true;
-        file_metadata_repo::insert(config, &file_metadata)?;
-    } else {
-        file_metadata_repo::non_recursive_delete(config, id)?;
-    }
-
-    document_repo::delete(config, id)?;
-    local_changes_repo::track_delete(config, id, file_metadata.file_type, clock_service::get_time)?;
-
     Ok(())
 }
 
-pub fn delete_folder(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    let file_metadata =
-        file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
-
-    if file_metadata.id == file_metadata.parent {
-        return Err(CoreError::RootModificationInvalid);
+fn validate_not_root(file: &FileMetadata) -> Result<(), CoreError> {
+    if file.id != file.parent {
+        Ok(())
+    } else {
+        Err(CoreError::RootModificationInvalid)
     }
-    if file_metadata.file_type == Document {
-        return Err(CoreError::FileNotFolder);
+}
+
+fn validate_is_document(file: &FileMetadata) -> Result<(), CoreError> {
+    if file.file_type == FileType::Document {
+        Ok(())
+    } else {
+        Err(CoreError::FileNotDocument)
     }
+}
 
-    local_changes_repo::track_delete(config, id, file_metadata.file_type, clock_service::get_time)?;
+fn validate_file_name(name: &str) -> Result<(), CoreError> {
+    if name.is_empty() {
+        return Err(CoreError::FileNameEmpty);
+    }
+    if name.contains('/') {
+        return Err(CoreError::FileNameContainsSlash);
+    }
+    Ok(())
+}
 
-    let files_to_delete = file_metadata_repo::get_and_get_children_recursively(config, id)?;
+fn validate_parent_exists_and_is_folder(
+    config: &Config,
+    file: &FileMetadata,
+) -> Result<FileMetadata, CoreError> {
+    let parent = file_repo::maybe_get_metadata(&config, file.parent)?
+        .ok_or(CoreError::FileParentNonexistent)?
+        .0;
 
-    // Server has told us we have the most recent version of all children in this directory and that we can delete now
-    for mut file in files_to_delete {
-        if file.file_type == Document {
-            document_repo::delete(config, file.id)?;
+    if parent.file_type == FileType::Folder {
+        Ok(parent)
+    } else {
+        Err(CoreError::FileNotFolder)
+    }
+}
+
+fn validate_path(config: &Config, file: &FileMetadata) -> Result<(), CoreError> {
+    for child in file_repo::get_children_non_recursive(config, file.parent)? {
+        if file_encryption_service::get_name(&config, &child)?
+            == file_encryption_service::get_name(&config, &file)?
+            && child.id != file.id
+        {
+            return Err(CoreError::PathTaken);
         }
-
-        let moved = if let Some(change) = local_changes_repo::get_local_changes(config, file.id)? {
-            change.moved.is_some()
-        } else {
-            false
-        };
-
-        if file.id != id && !moved {
-            file_metadata_repo::non_recursive_delete(config, file.id)?;
-
-            local_changes_repo::delete(config, file.id)?;
-        } else {
-            file.deleted = true;
-            file_metadata_repo::insert(config, &file)?;
-        }
     }
+    Ok(())
+}
 
+fn validate_not_own_ancestor(config: &Config, file: &FileMetadata) -> Result<(), CoreError> {
+    file_repo::get_with_ancestors(config, file.id)?;
     Ok(())
 }

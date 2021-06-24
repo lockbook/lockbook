@@ -9,7 +9,7 @@ mod unit_tests {
     use lockbook_core::init_logger;
     use lockbook_core::model::state::temp_config;
     use lockbook_core::repo::{
-        account_repo, document_repo, file_metadata_repo, local_changes_repo,
+        account_repo, metadata_repo, remote_document_repo, remote_metadata_repo,
     };
     use lockbook_core::service::{
         file_encryption_service, file_service, integrity_service, path_service,
@@ -60,12 +60,12 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
-        assert!(file_metadata_repo::get_root(config).unwrap().is_none());
+        account_repo::insert(config, &account).unwrap();
+        assert!(remote_metadata_repo::get_root(config).unwrap().is_none());
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
-        assert!(file_metadata_repo::get_root(config).unwrap().is_some());
+        remote_metadata_repo::insert(config, &root).unwrap();
+        assert!(remote_metadata_repo::get_root(config).unwrap().is_some());
         assert_no_metadata_problems!(config);
 
         assert!(matches!(
@@ -110,11 +110,11 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
         assert_total_filtered_paths!(config, None, 0);
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
         assert_total_filtered_paths!(config, None, 1);
         assert_eq!(
             path_service::get_all_paths(config, None)
@@ -162,10 +162,10 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         let folder1 = file_service::create(config, "TestFolder1", root.id, Folder).unwrap();
         let folder2 = file_service::create(config, "TestFolder2", folder1.id, Folder).unwrap();
@@ -206,10 +206,10 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         let paths_with_empties = ["username//", "username/path//to///file.md"];
         for path in &paths_with_empties {
@@ -265,13 +265,13 @@ mod unit_tests {
         assert_eq!(
             file_encryption_service::get_name(
                 &config,
-                &file_metadata_repo::get(config, file.parent).unwrap()
+                &remote_metadata_repo::get(config, file.parent).unwrap()
             )
             .unwrap(),
             "folder2"
         );
         assert_eq!(
-            file_metadata_repo::get(config, file.parent)
+            remote_metadata_repo::get(config, file.parent)
                 .unwrap()
                 .file_type,
             Folder
@@ -296,10 +296,10 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         path_service::create_at_path(config, "username/test.txt").unwrap();
         assert!(path_service::create_at_path(config, "username/test.txt").is_err());
@@ -312,10 +312,10 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         let file = path_service::create_at_path(config, "username/test.txt").unwrap();
         assert!(file_service::create(config, "test.txt", file.parent, Document).is_err());
@@ -328,10 +328,10 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         path_service::create_at_path(config, "username/test.txt").unwrap();
         assert!(path_service::create_at_path(config, "username/test.txt/oops.txt").is_err());
@@ -344,10 +344,10 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         let file = path_service::create_at_path(config, "username/test.txt").unwrap();
         assert!(file_service::create(config, "oops.txt", file.id, Document).is_err());
@@ -360,10 +360,10 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
         assert!(file_service::create(config, "oops/txt", root.id, Document).is_err());
 
         assert_no_metadata_problems!(config);
@@ -374,26 +374,26 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
         assert!(matches!(
-            file_service::rename_file(config, root.id, "newroot").unwrap_err(),
+            file_service::rename(config, root.id, "newroot").unwrap_err(),
             CoreError::RootModificationInvalid
         ));
 
         let file = path_service::create_at_path(config, "username/folder1/file1.txt").unwrap();
         assert!(
-            local_changes_repo::get_local_changes(config, file.id)
+            metadata_repo::get_local_changes(config, file.id)
                 .unwrap()
                 .unwrap()
                 .new
         );
         assert!(
-            local_changes_repo::get_local_changes(config, file.parent)
+            metadata_repo::get_local_changes(config, file.parent)
                 .unwrap()
                 .unwrap()
                 .new
@@ -401,13 +401,13 @@ mod unit_tests {
         assert_total_local_changes!(config, 2);
         assert_no_metadata_problems!(config);
 
-        local_changes_repo::untrack_new_file(config, file.id).unwrap();
-        local_changes_repo::untrack_new_file(config, file.parent).unwrap();
+        metadata_repo::untrack_new_file(config, file.id).unwrap();
+        metadata_repo::untrack_new_file(config, file.parent).unwrap();
         assert_total_local_changes!(config, 0);
 
-        file_service::rename_file(config, file.id, "file2.txt").unwrap();
+        file_service::rename(config, file.id, "file2.txt").unwrap();
         assert_eq!(
-            local_changes_repo::get_local_changes(config, file.id)
+            metadata_repo::get_local_changes(config, file.id)
                 .unwrap()
                 .unwrap()
                 .renamed
@@ -418,10 +418,10 @@ mod unit_tests {
 
         assert_no_metadata_problems!(config);
 
-        file_service::rename_file(config, file.id, "file23.txt").unwrap();
+        file_service::rename(config, file.id, "file23.txt").unwrap();
         assert_total_local_changes!(config, 1);
         assert_eq!(
-            local_changes_repo::get_local_changes(config, file.id)
+            metadata_repo::get_local_changes(config, file.id)
                 .unwrap()
                 .unwrap()
                 .renamed
@@ -431,17 +431,17 @@ mod unit_tests {
         );
         assert_total_local_changes!(config, 1);
 
-        file_service::rename_file(config, file.id, "file1.txt").unwrap();
+        file_service::rename(config, file.id, "file1.txt").unwrap();
         assert_total_local_changes!(config, 0);
         assert_no_metadata_problems!(config);
 
-        assert!(file_service::rename_file(config, Uuid::new_v4(), "not_used").is_err());
-        assert!(file_service::rename_file(config, file.id, "file/1.txt").is_err());
+        assert!(file_service::rename(config, Uuid::new_v4(), "not_used").is_err());
+        assert!(file_service::rename(config, file.id, "file/1.txt").is_err());
         assert_total_local_changes!(config, 0);
         assert_eq!(
             file_encryption_service::get_name(
                 &config,
-                &file_metadata_repo::get(config, file.id).unwrap()
+                &remote_metadata_repo::get(config, file.id).unwrap()
             )
             .unwrap(),
             "file1.txt"
@@ -451,12 +451,12 @@ mod unit_tests {
         assert_eq!(
             file_encryption_service::get_name(
                 &config,
-                &file_metadata_repo::get(config, file2.id).unwrap()
+                &remote_metadata_repo::get(config, file2.id).unwrap()
             )
             .unwrap(),
             "file2.txt"
         );
-        assert!(file_service::rename_file(config, file2.id, "file1.txt").is_err());
+        assert!(file_service::rename(config, file2.id, "file1.txt").is_err());
         assert_no_metadata_problems!(config);
     }
 
@@ -465,14 +465,14 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
         assert!(matches!(
-            file_service::move_file(config, root.id, Uuid::new_v4()).unwrap_err(),
+            file_service::move_(config, root.id, Uuid::new_v4()).unwrap_err(),
             CoreError::RootModificationInvalid
         ));
 
@@ -490,12 +490,12 @@ mod unit_tests {
         assert_total_local_changes!(config, 3);
         assert_no_metadata_problems!(config);
 
-        local_changes_repo::untrack_new_file(config, file1.id).unwrap();
-        local_changes_repo::untrack_new_file(config, file1.parent).unwrap();
-        local_changes_repo::untrack_new_file(config, folder1.id).unwrap();
+        metadata_repo::untrack_new_file(config, file1.id).unwrap();
+        metadata_repo::untrack_new_file(config, file1.parent).unwrap();
+        metadata_repo::untrack_new_file(config, folder1.id).unwrap();
         assert_total_local_changes!(config, 0);
 
-        file_service::move_file(config, file1.id, folder1.id).unwrap();
+        file_service::move_(config, file1.id, folder1.id).unwrap();
 
         assert_eq!(
             file_service::read_document(config, file1.id).unwrap(),
@@ -505,18 +505,18 @@ mod unit_tests {
         assert_no_metadata_problems!(config);
 
         assert_eq!(
-            file_metadata_repo::get(config, file1.id).unwrap().parent,
+            remote_metadata_repo::get(config, file1.id).unwrap().parent,
             folder1.id
         );
         assert_total_local_changes!(config, 1);
 
         let file2 = path_service::create_at_path(config, "username/folder3/file.txt").unwrap();
-        assert!(file_service::move_file(config, file1.id, file2.parent).is_err());
-        assert!(file_service::move_file(config, Uuid::new_v4(), file2.parent).is_err());
-        assert!(file_service::move_file(config, file1.id, Uuid::new_v4()).is_err());
+        assert!(file_service::move_(config, file1.id, file2.parent).is_err());
+        assert!(file_service::move_(config, Uuid::new_v4(), file2.parent).is_err());
+        assert!(file_service::move_(config, file1.id, Uuid::new_v4()).is_err());
         assert_total_local_changes!(config, 3);
 
-        file_service::move_file(config, file1.id, og_folder).unwrap();
+        file_service::move_(config, file1.id, og_folder).unwrap();
         assert_total_local_changes!(config, 2);
         assert_no_metadata_problems!(config);
     }
@@ -526,10 +526,10 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
         assert_no_metadata_problems!(config);
 
         let folder1 = path_service::create_at_path(config, "username/folder1/").unwrap();
@@ -538,12 +538,12 @@ mod unit_tests {
         assert_total_local_changes!(config, 2);
 
         assert!(matches!(
-            file_service::move_file(config, folder1.id, folder1.id).unwrap_err(),
+            file_service::move_(config, folder1.id, folder1.id).unwrap_err(),
             CoreError::FolderMovedIntoSelf
         ));
 
         assert!(matches!(
-            file_service::move_file(config, folder1.id, folder2.id).unwrap_err(),
+            file_service::move_(config, folder1.id, folder2.id).unwrap_err(),
             CoreError::FolderMovedIntoSelf
         ));
     }
@@ -553,35 +553,35 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         let file = path_service::create_at_path(config, "username/file1.md").unwrap();
         file_service::write_document(config, file.id, "fresh content".as_bytes()).unwrap();
 
         assert!(
-            local_changes_repo::get_local_changes(config, file.id)
+            metadata_repo::get_local_changes(config, file.id)
                 .unwrap()
                 .unwrap()
                 .new
         );
 
-        local_changes_repo::untrack_new_file(config, file.id).unwrap();
-        assert!(local_changes_repo::get_local_changes(config, file.id)
+        metadata_repo::untrack_new_file(config, file.id).unwrap();
+        assert!(metadata_repo::get_local_changes(config, file.id)
             .unwrap()
             .is_none());
         assert_total_local_changes!(config, 0);
 
         file_service::write_document(config, file.id, "fresh content2".as_bytes()).unwrap();
-        assert!(local_changes_repo::get_local_changes(config, file.id)
+        assert!(metadata_repo::get_local_changes(config, file.id)
             .unwrap()
             .unwrap()
             .content_edited
             .is_some());
         file_service::write_document(config, file.id, "fresh content".as_bytes()).unwrap();
-        assert!(local_changes_repo::get_local_changes(config, file.id)
+        assert!(metadata_repo::get_local_changes(config, file.id)
             .unwrap()
             .is_none());
     }
@@ -591,25 +591,27 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         let doc1 = file_service::create(config, "test1.md", root.id, Document).unwrap();
 
         file_service::write_document(config, doc1.id, &String::from("content").into_bytes())
             .unwrap();
-        file_service::delete_document(config, doc1.id).unwrap();
+        file_service::delete(config, doc1.id).unwrap();
         assert_total_local_changes!(config, 0);
-        assert!(local_changes_repo::get_local_changes(config, doc1.id)
+        assert!(metadata_repo::get_local_changes(config, doc1.id)
             .unwrap()
             .is_none());
 
-        assert!(file_metadata_repo::maybe_get(config, doc1.id)
+        assert!(remote_metadata_repo::maybe_get(config, doc1.id)
             .unwrap()
             .is_none());
 
-        assert!(document_repo::maybe_get(config, doc1.id).unwrap().is_none());
+        assert!(remote_document_repo::maybe_get(config, doc1.id)
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -617,27 +619,27 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         let doc1 = file_service::create(config, "test1.md", root.id, Document).unwrap();
 
         file_service::write_document(config, doc1.id, &String::from("content").into_bytes())
             .unwrap();
-        local_changes_repo::delete(config, doc1.id).unwrap();
+        metadata_repo::delete(config, doc1.id).unwrap();
 
-        file_service::delete_document(config, doc1.id).unwrap();
+        file_service::delete(config, doc1.id).unwrap();
         assert_total_local_changes!(config, 1);
         assert!(
-            local_changes_repo::get_local_changes(config, doc1.id)
+            metadata_repo::get_local_changes(config, doc1.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
 
         assert!(
-            file_metadata_repo::maybe_get(config, doc1.id)
+            remote_metadata_repo::maybe_get(config, doc1.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -649,9 +651,9 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         path_service::create_at_path(config, &format!("{}/a/b/c/d/", account.username)).unwrap();
         let folder1 =
@@ -664,7 +666,7 @@ mod unit_tests {
             path_service::get_by_path(config, &format!("{}/a/", account.username)).unwrap();
 
         assert_eq!(
-            local_changes_repo::get_all_local_changes(config)
+            metadata_repo::get_all_local_changes(config)
                 .unwrap()
                 .into_iter()
                 .map(|change| change.id)
@@ -678,9 +680,9 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         let folder1 = file_service::create(config, "folder1", root.id, Folder).unwrap();
         let document1 = file_service::create(config, "doc1", folder1.id, Document).unwrap();
@@ -692,23 +694,23 @@ mod unit_tests {
         file_service::delete_folder(config, folder1.id).unwrap();
         assert_total_local_changes!(config, 1);
 
-        assert!(file_metadata_repo::maybe_get(config, document1.id)
+        assert!(remote_metadata_repo::maybe_get(config, document1.id)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(config, document2.id)
+        assert!(remote_metadata_repo::maybe_get(config, document2.id)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(config, document3.id)
+        assert!(remote_metadata_repo::maybe_get(config, document3.id)
             .unwrap()
             .is_none());
 
-        assert!(document_repo::maybe_get(config, document1.id)
+        assert!(remote_document_repo::maybe_get(config, document1.id)
             .unwrap()
             .is_none());
-        assert!(document_repo::maybe_get(config, document2.id)
+        assert!(remote_document_repo::maybe_get(config, document2.id)
             .unwrap()
             .is_none());
-        assert!(document_repo::maybe_get(config, document3.id)
+        assert!(remote_document_repo::maybe_get(config, document3.id)
             .unwrap()
             .is_none());
     }
@@ -718,9 +720,9 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         let folder1 = file_service::create(config, "folder1", root.id, Folder).unwrap();
         file_service::create(config, "doc1", folder1.id, Document).unwrap();
@@ -737,23 +739,23 @@ mod unit_tests {
         file_service::delete_folder(config, folder1.id).unwrap();
         assert_total_local_changes!(config, 5);
 
-        assert!(file_metadata_repo::maybe_get(config, document4.id)
+        assert!(remote_metadata_repo::maybe_get(config, document4.id)
             .unwrap()
             .is_some());
-        assert!(file_metadata_repo::maybe_get(config, document5.id)
+        assert!(remote_metadata_repo::maybe_get(config, document5.id)
             .unwrap()
             .is_some());
-        assert!(file_metadata_repo::maybe_get(config, document6.id)
+        assert!(remote_metadata_repo::maybe_get(config, document6.id)
             .unwrap()
             .is_some());
 
-        assert!(document_repo::maybe_get(config, document4.id)
+        assert!(remote_document_repo::maybe_get(config, document4.id)
             .unwrap()
             .is_some());
-        assert!(document_repo::maybe_get(config, document5.id)
+        assert!(remote_document_repo::maybe_get(config, document5.id)
             .unwrap()
             .is_some());
-        assert!(document_repo::maybe_get(config, document6.id)
+        assert!(remote_document_repo::maybe_get(config, document6.id)
             .unwrap()
             .is_some());
     }
@@ -763,9 +765,9 @@ mod unit_tests {
         let config = &temp_config();
 
         let account = test_account();
-        account_repo::insert_account(config, &account).unwrap();
+        account_repo::insert(config, &account).unwrap();
         let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
+        remote_metadata_repo::insert(config, &root).unwrap();
 
         assert!(matches!(
             file_service::delete_folder(config, root.id).unwrap_err(),

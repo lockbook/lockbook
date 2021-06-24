@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod account_tests {
-    use lockbook_core::repo::{account_repo, file_metadata_repo};
+    use lockbook_core::repo::{account_repo, remote_metadata_repo};
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
     use lockbook_core::service::{account_service, sync_service};
     use lockbook_core::{
@@ -80,25 +80,25 @@ mod account_tests {
         .unwrap();
 
         let account_string = account_service::export_account(&db1).unwrap();
-        let home_folders1 = file_metadata_repo::get_root(&db1).unwrap().unwrap();
+        let home_folders1 = remote_metadata_repo::get_root(&db1).unwrap().unwrap();
 
         let db2 = test_config();
         assert!(account_service::export_account(&db2).is_err());
         account_service::import_account(&db2, &account_string).unwrap();
-        assert_eq!(account_repo::get_account(&db2).unwrap(), account);
-        assert_eq!(file_metadata_repo::get_last_updated(&db2).unwrap(), 0);
+        assert_eq!(account_repo::get(&db2).unwrap(), account);
+        assert_eq!(remote_metadata_repo::get_last_updated(&db2).unwrap(), 0);
 
         let work = sync_service::calculate_work(&db2).unwrap();
         assert_ne!(work.most_recent_update_from_server, 0);
         assert_eq!(work.work_units.len(), 1);
-        assert!(file_metadata_repo::get_root(&db2).unwrap().is_none());
+        assert!(remote_metadata_repo::get_root(&db2).unwrap().is_none());
         sync_service::sync(&db2, None).unwrap();
-        assert!(file_metadata_repo::get_root(&db2).unwrap().is_some());
-        let home_folders2 = file_metadata_repo::get_root(&db2).unwrap().unwrap();
+        assert!(remote_metadata_repo::get_root(&db2).unwrap().is_some());
+        let home_folders2 = remote_metadata_repo::get_root(&db2).unwrap().unwrap();
         assert_eq!(home_folders1, home_folders2);
         assert_eq!(
-            file_metadata_repo::get_all(&db1).unwrap(),
-            file_metadata_repo::get_all(&db2).unwrap()
+            remote_metadata_repo::get_all(&db1).unwrap(),
+            remote_metadata_repo::get_all(&db2).unwrap()
         );
     }
 
@@ -193,7 +193,7 @@ mod account_tests {
                 username: random_username(),
                 private_key: generated_account.private_key,
             };
-            account_repo::insert_account(&cfg2, &account).unwrap();
+            account_repo::insert(&cfg2, &account).unwrap();
         } // release lock on db
 
         let account_string = export_account(&cfg2).unwrap();
@@ -236,7 +236,7 @@ mod account_tests {
             )
             .unwrap();
             account2.username = account1.username;
-            account_repo::insert_account(&db2, &account2).unwrap();
+            account_repo::insert(&db2, &account2).unwrap();
             account_service::export_account(&db2).unwrap()
         };
 

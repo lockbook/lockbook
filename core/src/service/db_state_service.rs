@@ -18,7 +18,7 @@ pub enum State {
 }
 
 pub fn get_state(config: &Config) -> Result<State, CoreError> {
-    if account_repo::maybe_get_account(config)?.is_none() {
+    if account_repo::maybe_get(config)?.is_none() {
         db_version_repo::set(config, db_state_service::get_code_version())?;
         return Ok(Empty);
     }

@@ -3,7 +3,7 @@ mod integration_test;
 #[cfg(test)]
 mod sync_tests {
     use lockbook_core::path;
-    use lockbook_core::repo::{document_repo, file_metadata_repo, local_changes_repo};
+    use lockbook_core::repo::{metadata_repo, remote_document_repo, remote_metadata_repo};
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::service::{
         account_service, file_encryption_service, file_service, integrity_service, path_service,
@@ -88,8 +88,8 @@ mod sync_tests {
 
         sync!(&db2);
         assert_eq!(
-            file_metadata_repo::get_all(&db).unwrap(),
-            file_metadata_repo::get_all(&db2).unwrap()
+            remote_metadata_repo::get_all(&db).unwrap(),
+            remote_metadata_repo::get_all(&db2).unwrap()
         );
         assert_n_work_units!(db2, 0);
     }
@@ -139,7 +139,7 @@ mod sync_tests {
         assert_n_work_units!(db2, 1);
         println!("5th calculate work, db2, dirty file needs to be pulled");
 
-        let edited_file = file_metadata_repo::get(&db, file.id).unwrap();
+        let edited_file = remote_metadata_repo::get(&db, file.id).unwrap();
 
         match sync_service::calculate_work(&db2)
             .unwrap()
@@ -186,7 +186,7 @@ mod sync_tests {
         let new_folder =
             path_service::create_at_path(&db1, &format!("{}/folder2/", account.username)).unwrap();
 
-        file_service::move_file(&db1, file.id, new_folder.id).unwrap();
+        file_service::move_(&db1, file.id, new_folder.id).unwrap();
         assert_n_work_units!(db1, 2);
 
         sync!(&db1);
@@ -197,8 +197,8 @@ mod sync_tests {
         assert_n_work_units!(db2, 0);
 
         assert_eq!(
-            file_metadata_repo::get_all(&db1).unwrap(),
-            file_metadata_repo::get_all(&db2).unwrap()
+            remote_metadata_repo::get_all(&db1).unwrap(),
+            remote_metadata_repo::get_all(&db2).unwrap()
         );
 
         assert_eq!(
@@ -229,16 +229,16 @@ mod sync_tests {
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
-        file_service::move_file(&db2, file.id, new_folder1.id).unwrap();
+        file_service::move_(&db2, file.id, new_folder1.id).unwrap();
         sync!(&db2);
 
-        file_service::move_file(&db1, file.id, new_folder2.id).unwrap();
+        file_service::move_(&db1, file.id, new_folder2.id).unwrap();
         sync!(&db1);
 
         assert_dbs_eq(&db1, &db2);
 
         assert_eq!(
-            file_metadata_repo::get(&db1, file.id).unwrap().parent,
+            remote_metadata_repo::get(&db1, file.id).unwrap().parent,
             new_folder1.id
         );
         assert_eq!(
@@ -256,7 +256,7 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
                 .unwrap();
 
-        file_service::rename_file(&db1, file.parent, "folder1-new").unwrap();
+        file_service::rename(&db1, file.parent, "folder1-new").unwrap();
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
@@ -285,11 +285,11 @@ mod sync_tests {
                 .unwrap();
         sync!(&db1);
 
-        file_service::rename_file(&db1, file.parent, "folder1-new").unwrap();
+        file_service::rename(&db1, file.parent, "folder1-new").unwrap();
 
         make_and_sync_new_client!(db2, db1);
 
-        file_service::rename_file(&db2, file.parent, "folder2-new").unwrap();
+        file_service::rename(&db2, file.parent, "folder2-new").unwrap();
         sync!(&db2);
         sync!(&db1);
 
@@ -323,7 +323,7 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/test.txt", account.username)).unwrap();
         sync!(&db1);
 
-        file_service::rename_file(&db1, file.id, "new_name.txt").unwrap();
+        file_service::rename(&db1, file.id, "new_name.txt").unwrap();
         sync!(&db1);
 
         file_service::write_document(&db1, file.id, "noice".as_bytes()).unwrap();
@@ -342,10 +342,10 @@ mod sync_tests {
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
-        file_service::rename_file(&db2, file1.id, "test3.txt").unwrap();
+        file_service::rename(&db2, file1.id, "test3.txt").unwrap();
         sync!(&db2);
 
-        file_service::rename_file(&db1, file2.id, "test3.txt").unwrap();
+        file_service::rename(&db1, file2.id, "test3.txt").unwrap();
         // Just operate on the server work
         sync_service::calculate_work(&db1)
             .unwrap()
@@ -365,8 +365,8 @@ mod sync_tests {
         sync!(&db2);
 
         assert_eq!(
-            file_metadata_repo::get_all(&db1).unwrap(),
-            file_metadata_repo::get_all(&db2).unwrap()
+            remote_metadata_repo::get_all(&db1).unwrap(),
+            remote_metadata_repo::get_all(&db2).unwrap()
         );
 
         assert_dbs_eq(&db1, &db2);
@@ -386,18 +386,18 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db1);
 
-        file_service::move_file(
+        file_service::move_(
             &db1,
             file1.id,
-            file_metadata_repo::get_root(&db1).unwrap().unwrap().id,
+            remote_metadata_repo::get_root(&db1).unwrap().unwrap().id,
         )
         .unwrap();
         sync!(&db1);
 
-        file_service::move_file(
+        file_service::move_(
             &db2,
             file2.id,
-            file_metadata_repo::get_root(&db2).unwrap().unwrap().id,
+            remote_metadata_repo::get_root(&db2).unwrap().unwrap().id,
         )
         .unwrap();
 
@@ -420,8 +420,8 @@ mod sync_tests {
         sync!(&db1);
 
         assert_eq!(
-            file_metadata_repo::get_all(&db1).unwrap(),
-            file_metadata_repo::get_all(&db2).unwrap()
+            remote_metadata_repo::get_all(&db1).unwrap(),
+            remote_metadata_repo::get_all(&db2).unwrap()
         );
 
         assert_dbs_eq(&db1, &db2);
@@ -524,7 +524,7 @@ mod sync_tests {
         sync!(&db1);
         let folder =
             path_service::create_at_path(&db2, &format!("{}/folder1/", account.username)).unwrap();
-        file_service::move_file(&db2, file.id, folder.id).unwrap();
+        file_service::move_(&db2, file.id, folder.id).unwrap();
         file_service::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes()).unwrap();
 
         sync!(&db2);
@@ -564,7 +564,7 @@ mod sync_tests {
         let folder =
             path_service::create_at_path(&db2, &format!("{}/folder1/", account.username)).unwrap();
         file_service::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes()).unwrap();
-        file_service::move_file(&db2, file.id, folder.id).unwrap();
+        file_service::move_(&db2, file.id, folder.id).unwrap();
 
         sync!(&db2);
         sync!(&db1);
@@ -601,7 +601,7 @@ mod sync_tests {
         file_service::write_document(&db1, file.id, "Line 1\nLine 2\n".as_bytes()).unwrap();
         let folder =
             path_service::create_at_path(&db1, &format!("{}/folder1/", account.username)).unwrap();
-        file_service::move_file(&db1, file.id, folder.id).unwrap();
+        file_service::move_(&db1, file.id, folder.id).unwrap();
         sync!(&db1);
         file_service::write_document(&db2, file.id, "Line 1\nOffline Line\n".as_bytes()).unwrap();
 
@@ -650,7 +650,7 @@ mod sync_tests {
         sync!(&db);
         assert_n_work_units!(db, 0);
 
-        assert!(file_service::rename_file(&db, file.id, "file.md").is_err());
+        assert!(file_service::rename(&db, file.id, "file.md").is_err());
         assert_n_work_units!(db, 0);
     }
 
@@ -665,7 +665,7 @@ mod sync_tests {
         sync!(&db);
         assert_n_work_units!(db, 0);
 
-        assert!(file_service::move_file(&db, file.id, file.parent).is_err());
+        assert!(file_service::move_(&db, file.id, file.parent).is_err());
     }
 
     #[test]
@@ -678,19 +678,19 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
 
         sync!(&db1);
-        file_service::delete_document(&db1, file.id).unwrap();
-        assert!(file_metadata_repo::get(&db1, file.id).unwrap().deleted);
+        file_service::delete(&db1, file.id).unwrap();
+        assert!(remote_metadata_repo::get(&db1, file.id).unwrap().deleted);
         sync!(&db1);
-        assert!(file_metadata_repo::maybe_get(&db1, file.id)
+        assert!(remote_metadata_repo::maybe_get(&db1, file.id)
             .unwrap()
             .is_none());
 
         make_new_client!(db2, db1);
-        assert!(file_metadata_repo::maybe_get(&db2, file.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file.id)
             .unwrap()
             .is_none());
         sync!(&db2);
-        assert!(file_metadata_repo::maybe_get(&db2, file.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file.id)
             .unwrap()
             .is_none());
 
@@ -705,13 +705,15 @@ mod sync_tests {
         let file =
             path_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
 
-        file_service::delete_document(&db1, file.id).unwrap();
+        file_service::delete(&db1, file.id).unwrap();
         assert_n_work_units!(db1, 0);
 
-        assert!(file_metadata_repo::maybe_get(&db1, file.id)
+        assert!(remote_metadata_repo::maybe_get(&db1, file.id)
             .unwrap()
             .is_none());
-        assert!(document_repo::maybe_get(&db1, file.id).unwrap().is_none());
+        assert!(remote_document_repo::maybe_get(&db1, file.id)
+            .unwrap()
+            .is_none());
         assert!(file_service::read_document(&db1, file.id).is_err());
     }
 
@@ -727,24 +729,28 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db1);
 
-        file_service::delete_document(&db1, file.id).unwrap();
+        file_service::delete(&db1, file.id).unwrap();
         sync!(&db1);
         sync!(&db2);
 
-        assert!(file_metadata_repo::maybe_get(&db1, file.id)
+        assert!(remote_metadata_repo::maybe_get(&db1, file.id)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(&db2, file.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file.id)
             .unwrap()
             .is_none());
 
-        assert!(document_repo::maybe_get(&db1, file.id).unwrap().is_none());
-        assert!(document_repo::maybe_get(&db2, file.id).unwrap().is_none());
-
-        assert!(local_changes_repo::get_local_changes(&db1, file.id)
+        assert!(remote_document_repo::maybe_get(&db1, file.id)
             .unwrap()
             .is_none());
-        assert!(local_changes_repo::get_local_changes(&db2, file.id)
+        assert!(remote_document_repo::maybe_get(&db2, file.id)
+            .unwrap()
+            .is_none());
+
+        assert!(metadata_repo::get_local_changes(&db1, file.id)
+            .unwrap()
+            .is_none());
+        assert!(metadata_repo::get_local_changes(&db2, file.id)
             .unwrap()
             .is_none());
     }
@@ -783,40 +789,40 @@ mod sync_tests {
         .unwrap();
 
         assert!(
-            file_metadata_repo::maybe_get(&db2, file1_delete.parent)
+            remote_metadata_repo::maybe_get(&db2, file1_delete.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
-        assert!(file_metadata_repo::maybe_get(&db2, file1_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file1_delete.id)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(&db2, file2_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file2_delete.id)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(&db2, file3_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file3_delete.id)
             .unwrap()
             .is_none());
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file1_stay.parent)
+            !remote_metadata_repo::maybe_get(&db2, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file1_stay.id)
+            !remote_metadata_repo::maybe_get(&db2, file1_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file2_stay.id)
+            !remote_metadata_repo::maybe_get(&db2, file2_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file3_stay.id)
+            !remote_metadata_repo::maybe_get(&db2, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -826,45 +832,45 @@ mod sync_tests {
         assert_n_work_units!(db2, 1);
         sync!(&db2);
 
-        assert!(file_metadata_repo::maybe_get(&db2, file1_delete.parent)
+        assert!(remote_metadata_repo::maybe_get(&db2, file1_delete.parent)
             .unwrap()
             .is_none());
 
         assert_n_work_units!(db1, 4);
         sync!(&db1);
 
-        assert!(file_metadata_repo::maybe_get(&db1, file1_delete.parent)
+        assert!(remote_metadata_repo::maybe_get(&db1, file1_delete.parent)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(&db1, file1_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db1, file1_delete.id)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(&db1, file2_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db1, file2_delete.id)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(&db1, file3_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db1, file3_delete.id)
             .unwrap()
             .is_none());
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file1_stay.parent)
+            !remote_metadata_repo::maybe_get(&db1, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file1_stay.id)
+            !remote_metadata_repo::maybe_get(&db1, file1_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file2_stay.id)
+            !remote_metadata_repo::maybe_get(&db1, file2_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file3_stay.id)
+            !remote_metadata_repo::maybe_get(&db1, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -899,7 +905,7 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db1);
 
-        file_service::move_file(&db2, file2_delete.id, file1_stay.parent).unwrap();
+        file_service::move_(&db2, file2_delete.id, file1_stay.parent).unwrap();
         file_service::delete_folder(
             &db2,
             path_service::get_by_path(&db2, &path("delete")).unwrap().id,
@@ -907,43 +913,43 @@ mod sync_tests {
         .unwrap();
 
         assert!(
-            file_metadata_repo::maybe_get(&db2, file1_delete.parent)
+            remote_metadata_repo::maybe_get(&db2, file1_delete.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
-        assert!(file_metadata_repo::maybe_get(&db2, file1_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file1_delete.id)
             .unwrap()
             .is_none());
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file2_delete.id)
+            !remote_metadata_repo::maybe_get(&db2, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
-        assert!(file_metadata_repo::maybe_get(&db2, file3_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file3_delete.id)
             .unwrap()
             .is_none());
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file1_stay.parent)
+            !remote_metadata_repo::maybe_get(&db2, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file1_stay.id)
+            !remote_metadata_repo::maybe_get(&db2, file1_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file2_stay.id)
+            !remote_metadata_repo::maybe_get(&db2, file2_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file3_stay.id)
+            !remote_metadata_repo::maybe_get(&db2, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -953,48 +959,48 @@ mod sync_tests {
         assert_n_work_units!(db2, 2);
         sync!(&db2);
 
-        assert!(file_metadata_repo::maybe_get(&db2, file1_delete.parent)
+        assert!(remote_metadata_repo::maybe_get(&db2, file1_delete.parent)
             .unwrap()
             .is_none());
 
         assert_n_work_units!(db1, 4);
         sync!(&db1);
 
-        assert!(file_metadata_repo::maybe_get(&db1, file1_delete.parent)
+        assert!(remote_metadata_repo::maybe_get(&db1, file1_delete.parent)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(&db1, file1_delete.id)
-            .unwrap()
-            .is_none());
-        assert!(
-            !file_metadata_repo::maybe_get(&db1, file2_delete.id)
-                .unwrap()
-                .unwrap()
-                .deleted
-        );
-        assert!(file_metadata_repo::maybe_get(&db1, file3_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db1, file1_delete.id)
             .unwrap()
             .is_none());
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file1_stay.parent)
+            !remote_metadata_repo::maybe_get(&db1, file2_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(remote_metadata_repo::maybe_get(&db1, file3_delete.id)
+            .unwrap()
+            .is_none());
+        assert!(
+            !remote_metadata_repo::maybe_get(&db1, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file1_stay.id)
+            !remote_metadata_repo::maybe_get(&db1, file1_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file2_stay.id)
+            !remote_metadata_repo::maybe_get(&db1, file2_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file3_stay.id)
+            !remote_metadata_repo::maybe_get(&db1, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1015,36 +1021,36 @@ mod sync_tests {
         sync!(&db1);
 
         let new_folder = path_service::create_at_path(&db1, &path("new/")).unwrap();
-        file_service::move_file(&db1, file2_delete.id, new_folder.id).unwrap();
-        file_service::move_file(&db1, file4_delete.id, new_folder.id).unwrap();
+        file_service::move_(&db1, file2_delete.id, new_folder.id).unwrap();
+        file_service::move_(&db1, file4_delete.id, new_folder.id).unwrap();
         file_service::delete_folder(&db1, new_folder.id).unwrap();
 
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file1_delete.id)
+            !remote_metadata_repo::maybe_get(&db1, file1_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            file_metadata_repo::maybe_get(&db1, file2_delete.id)
+            remote_metadata_repo::maybe_get(&db1, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_metadata_repo::maybe_get(&db1, file3_delete.id)
+            !remote_metadata_repo::maybe_get(&db1, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            file_metadata_repo::maybe_get(&db1, file4_delete.id)
+            remote_metadata_repo::maybe_get(&db1, file4_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            file_metadata_repo::maybe_get(&db1, new_folder.id)
+            remote_metadata_repo::maybe_get(&db1, new_folder.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1055,24 +1061,24 @@ mod sync_tests {
         make_and_sync_new_client!(db2, db1);
 
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file1_delete.id)
+            !remote_metadata_repo::maybe_get(&db2, file1_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
-        assert!(file_metadata_repo::maybe_get(&db2, file2_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file2_delete.id)
             .unwrap()
             .is_none());
         assert!(
-            !file_metadata_repo::maybe_get(&db2, file3_delete.id)
+            !remote_metadata_repo::maybe_get(&db2, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
-        assert!(file_metadata_repo::maybe_get(&db2, file4_delete.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, file4_delete.id)
             .unwrap()
             .is_none());
-        assert!(file_metadata_repo::maybe_get(&db2, new_folder.id)
+        assert!(remote_metadata_repo::maybe_get(&db2, new_folder.id)
             .unwrap()
             .is_none());
     }
@@ -1086,7 +1092,7 @@ mod sync_tests {
         let file1 = path_service::create_at_path(&db1, &path("file1.md")).unwrap();
 
         sync!(&db1);
-        file_service::delete_document(&db1, file1.id).unwrap();
+        file_service::delete(&db1, file1.id).unwrap();
         sync!(&db1);
         assert_n_work_units!(db1, 0);
     }
@@ -1100,7 +1106,7 @@ mod sync_tests {
         let file1 = path_service::create_at_path(&db1, &path("file1.md")).unwrap();
         sync!(&db1);
 
-        file_service::delete_document(&db1, file1.id).unwrap();
+        file_service::delete(&db1, file1.id).unwrap();
         sync!(&db1);
 
         path_service::create_at_path(&db1, &path("file1.md")).unwrap();
@@ -1132,7 +1138,7 @@ mod sync_tests {
             path_service::create_at_path(&db1, path!(account, "test/folder/document.md")).unwrap();
         sync!(&db1);
 
-        file_service::delete_document(&db1, file.id).unwrap();
+        file_service::delete(&db1, file.id).unwrap();
 
         let work = sync_service::calculate_work(&db1).unwrap();
 
@@ -1166,7 +1172,7 @@ mod sync_tests {
         let file_to_break = path_service::get_by_path(&db1, path!(account, "tmp")).unwrap();
 
         // 1 Client renames and syncs
-        file_service::rename_file(&db1, file_to_break.id, "tmp2").unwrap();
+        file_service::rename(&db1, file_to_break.id, "tmp2").unwrap();
         sync!(&db1);
 
         // Other deletes and syncs

@@ -1,3 +1,4 @@
+use crate::core_err_unexpected;
 use crate::model::state::Config;
 use crate::CoreError;
 use std::fs::{create_dir_all, read_dir, remove_file, File, OpenOptions};
@@ -69,13 +70,27 @@ where
     let path = Path::new(&path_str);
 
     match read_dir(path) {
-        Ok(rd) => rd
-            .map(|dir_entry| {
-                let de = dir_entry.map_err(CoreError::from)?;
-                read(db, namespace, de.file_name().into_string().unwrap()).map(|r| r.unwrap())
-            })
-            .collect::<Result<Vec<V>, CoreError>>()
-            .map_err(CoreError::from),
+        Ok(rd) => {
+            let file_names = rd
+                .map(|dir_entry| {
+                    dir_entry
+                        .map_err(CoreError::from)?
+                        .file_name()
+                        .into_string()
+                        .map_err(core_err_unexpected)
+                })
+                .collect::<Result<Vec<String>, CoreError>>()?;
+            file_names.sort();
+
+            file_names
+                .iter()
+                .map(|file_name| {
+                    read(db, namespace, file_name)?.ok_or(CoreError::Unexpected(String::from(
+                        "file listed in directory was not found when we tried to read it",
+                    )))
+                })
+                .collect::<Result<Vec<V>, CoreError>>()
+        }
         Err(_) => Ok(Vec::new()),
     }
 }

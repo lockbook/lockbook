@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod get_usage_tests {
-    use lockbook_core::repo::document_repo;
+    use lockbook_core::repo::remote_document_repo;
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
     use lockbook_core::{
         create_account, create_file, delete_file, get_root, get_usage, init_logger, sync_all,
@@ -45,7 +45,7 @@ mod get_usage_tests {
 
         sync_all!(config).unwrap();
 
-        let local_encrypted = document_repo::get(&config, file.id).unwrap().value;
+        let local_encrypted = remote_document_repo::get(&config, file.id).unwrap().value;
 
         assert_eq!(get_usage(config).unwrap().usages[0].file_id, file.id);
         assert_eq!(get_usage(config).unwrap().usages.len(), 1);
@@ -104,7 +104,7 @@ mod get_usage_tests {
         delete_file(config, folder.id).unwrap();
         sync_all!(config).unwrap();
 
-        let local_encrypted = document_repo::get(&config, file.id).unwrap().value;
+        let local_encrypted = remote_document_repo::get(&config, file.id).unwrap().value;
 
         let usages = get_usage(config).unwrap();
         let mut total_usage = 0;

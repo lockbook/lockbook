@@ -1,6 +1,7 @@
 use crate::client;
 use crate::model::state::Config;
-use crate::repo::{account_repo, file_metadata_repo};
+use crate::repo::account_repo;
+use crate::repo::file_repo;
 use crate::service::file_service;
 use crate::CoreError;
 use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
@@ -48,7 +49,7 @@ pub fn bytes_to_human(size: u64) -> String {
 }
 
 pub fn server_usage(config: &Config) -> Result<GetUsageResponse, CoreError> {
-    let acc = account_repo::get_account(config)?;
+    let acc = account_repo::get(config)?;
 
     client::request(&acc, GetUsageRequest {}).map_err(CoreError::from)
 }
@@ -75,8 +76,9 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
     })
 }
 
-pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreError> {
-    let doc_ids: Vec<Uuid> = file_metadata_repo::get_all(&config)?
+pub fn get_uncompressed_usage(config: &Config) -> Result<usize, CoreError> {
+    let doc_ids: Vec<Uuid> = file_repo::get_all_metadata(&config)?
+        .union()
         .into_iter()
         .filter(|f| f.file_type == Document)
         .map(|f| f.id)

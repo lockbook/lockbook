@@ -1,5 +1,5 @@
 use crate::model::state::Config;
-use crate::repo::file_metadata_repo;
+use crate::repo::{file_repo, root_repo};
 use crate::service::integrity_service::TestRepoError::{
     Core, CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty,
     FileOrphaned, NameConflictDetected, NoRootFolder,
@@ -25,11 +25,9 @@ pub enum TestRepoError {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
-    let root = file_metadata_repo::get_root(&config)
-        .map_err(Core)?
-        .ok_or(NoRootFolder)?;
+    let root = root_repo::get(&config).map_err(Core)?.ok_or(NoRootFolder)?;
 
-    let all = file_metadata_repo::get_all(config).map_err(Core)?;
+    let all = file_repo::get_all_metadata(config).map_err(Core)?.union();
 
     {
         let document_with_children = all
@@ -58,11 +56,11 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
                 }
                 visited.insert(current.id, current.clone());
 
-                match file_metadata_repo::maybe_get(&config, current.parent).map_err(Core)? {
+                match file_repo::maybe_get_metadata(&config, current.parent).map_err(Core)? {
                     None => {
                         return Err(FileOrphaned(current.id));
                     }
-                    Some(parent) => {
+                    Some((parent, _)) => {
                         // No Problems
                         if not_orphaned.contains_key(&parent.id) {
                             for node in visited.values() {
@@ -94,8 +92,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
     // Find naming conflicts
     {
         for file in all.iter().filter(|f| f.file_type == Folder) {
-            let children =
-                file_metadata_repo::get_children_non_recursively(&config, file.id).map_err(Core)?;
+            let children = file_repo::get_children_non_recursive(&config, file.id).map_err(Core)?;
             let mut children_set = HashSet::new();
             for child in children {
                 let name = file_encryption_service::get_name(&config, &child).map_err(Core)?;

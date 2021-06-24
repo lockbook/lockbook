@@ -1,5 +1,5 @@
 use crate::model::state::Config;
-use crate::repo::file_metadata_repo;
+use crate::repo::{file_repo, root_repo};
 use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
 use lockbook_models::file_metadata::FileMetadata;
@@ -15,7 +15,7 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 
     let is_folder = path_and_name.ends_with('/');
 
-    let mut current = file_metadata_repo::get_root(config)?.ok_or(CoreError::RootNonexistent)?;
+    let mut current = root_repo::get(config)?.ok_or(CoreError::RootNonexistent)?;
 
     if file_encryption_service::get_name(&config, &current)? != path_components[0] {
         return Err(CoreError::PathStartsWithNonRoot);
@@ -27,7 +27,7 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 
     // We're going to look ahead, and find or create the right child
     'path: for index in 0..path_components.len() - 1 {
-        let children = file_metadata_repo::get_children_non_recursively(config, current.id)?;
+        let children = file_repo::get_children_non_recursive(config, current.id)?;
 
         let next_name = path_components[index + 1];
         debug!("child we're searching for: {}", next_name);
@@ -60,8 +60,8 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 }
 
 pub fn get_by_path(config: &Config, path: &str) -> Result<FileMetadata, CoreError> {
-    let root = file_metadata_repo::get_root(&config)?
-        .ok_or_else(|| CoreError::Unexpected(String::from("no root")))?;
+    let root =
+        root_repo::get(&config)?.ok_or_else(|| CoreError::Unexpected(String::from("no root")))?;
 
     let paths = split_path(path);
     let mut current = root;
@@ -75,7 +75,7 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<FileMetadata, CoreErro
             return Ok(current);
         }
 
-        let children = file_metadata_repo::get_children_non_recursively(&config, current.id)?;
+        let children = file_repo::get_children_non_recursive(&config, current.id)?;
         let mut found_child = false;
 
         for child in children {
@@ -112,7 +112,7 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, CoreError> {
 }
 
 pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
-    let files = file_metadata_repo::get_all(&config)?;
+    let files = file_repo::get_all_metadata(&config)?.union();
 
     let mut filtered_files = files.clone();
 
@@ -137,7 +137,7 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
             } else {
                 current_path = format!("{}/{}", current_name, current_path);
             }
-            current = file_metadata_repo::get(&config, current.parent)?;
+            current = file_repo::get_metadata(&config, current.parent)?.0;
         }
 
         let root_name = file_encryption_service::get_name(&config, &current)?;

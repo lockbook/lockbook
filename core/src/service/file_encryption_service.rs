@@ -1,5 +1,5 @@
 use crate::model::state::Config;
-use crate::repo::{account_repo, file_metadata_repo};
+use crate::repo::{account_repo, file_repo};
 use crate::{core_err_unexpected, CoreError};
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 pub fn decrypt_key_for_file(config: &Config, id: Uuid) -> Result<AESKey, CoreError> {
-    let account = account_repo::get_account(&config)?;
-    let parents = file_metadata_repo::get_with_all_parents(&config, id)?;
+    let account = account_repo::get(&config)?;
+    let parents = file_repo::get_with_ancestors(&config, id)?;
     let access_key = parents
         .get(&id)
         .ok_or(())
@@ -46,7 +46,7 @@ pub fn re_encrypt_key_for_file(
 }
 
 pub fn get_key_for_user(config: &Config, id: Uuid) -> Result<UserAccessInfo, CoreError> {
-    let account = account_repo::get_account(&config)?;
+    let account = account_repo::get(&config)?;
     let key = decrypt_key_for_file(&config, id)?;
     let public_key = account.public_key();
     let key_encryption_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
@@ -66,7 +66,7 @@ pub fn create_file_metadata(
     file_type: FileType,
     parent: Uuid,
 ) -> Result<FileMetadata, CoreError> {
-    let account = account_repo::get_account(&config)?;
+    let account = account_repo::get(&config)?;
     let parent_key = decrypt_key_for_file(&config, parent)?;
     let folder_access_keys =
         symkey::encrypt(&parent_key, &symkey::generate_key()).map_err(core_err_unexpected)?;

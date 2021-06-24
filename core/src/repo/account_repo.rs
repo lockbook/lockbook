@@ -6,7 +6,7 @@ use lockbook_models::account::{Account, ApiUrl};
 static ACCOUNT: &str = "account";
 static YOU: &str = "you";
 
-pub fn insert_account(config: &Config, account: &Account) -> Result<(), CoreError> {
+pub fn insert(config: &Config, account: &Account) -> Result<(), CoreError> {
     local_storage::write(
         config,
         ACCOUNT,
@@ -15,8 +15,8 @@ pub fn insert_account(config: &Config, account: &Account) -> Result<(), CoreErro
     )
 }
 
-pub fn maybe_get_account(config: &Config) -> Result<Option<Account>, CoreError> {
-    match get_account(config) {
+pub fn maybe_get(config: &Config) -> Result<Option<Account>, CoreError> {
+    match get(config) {
         Ok(account) => Ok(Some(account)),
         Err(err) => match err {
             CoreError::AccountNonexistent => Ok(None),
@@ -25,7 +25,7 @@ pub fn maybe_get_account(config: &Config) -> Result<Option<Account>, CoreError> 
     }
 }
 
-pub fn get_account(config: &Config) -> Result<Account, CoreError> {
+pub fn get(config: &Config) -> Result<Account, CoreError> {
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, ACCOUNT, YOU)?;
     match maybe_value {
         None => Err(CoreError::AccountNonexistent),
@@ -34,7 +34,7 @@ pub fn get_account(config: &Config) -> Result<Account, CoreError> {
 }
 
 pub fn get_api_url(config: &Config) -> Result<ApiUrl, CoreError> {
-    get_account(config).map(|account| account.api_url)
+    get(config).map(|account| account.api_url)
 }
 
 #[cfg(test)]
@@ -54,12 +54,12 @@ mod unit_tests {
         };
 
         let config = temp_config();
-        let res = account_repo::get_account(&config);
+        let res = account_repo::get(&config);
         assert!(res.is_err());
 
-        account_repo::insert_account(&config, &test_account).unwrap();
+        account_repo::insert(&config, &test_account).unwrap();
 
-        let db_account = account_repo::get_account(&config).unwrap();
+        let db_account = account_repo::get(&config).unwrap();
         assert_eq!(test_account, db_account);
     }
 }

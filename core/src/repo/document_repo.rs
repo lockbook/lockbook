@@ -1,33 +1,51 @@
 use crate::core_err_unexpected;
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::local_storage;
 use crate::CoreError;
 use lockbook_models::crypto::*;
 use uuid::Uuid;
 
-pub const NAMESPACE: &[u8; 9] = b"documents";
+const NAMESPACE_LOCAL: &str = "changed_local_documents";
+const NAMESPACE_REMOTE: &str = "all_remote_documents";
 
-pub fn insert(config: &Config, id: Uuid, document: &EncryptedDocument) -> Result<(), CoreError> {
+fn namespace(source: RepoSource) -> &'static str {
+    match source {
+        RepoSource::Local => NAMESPACE_LOCAL,
+        RepoSource::Remote => NAMESPACE_REMOTE,
+    }
+}
+
+pub fn insert(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+    document: &EncryptedDocument,
+) -> Result<(), CoreError> {
     local_storage::write(
         config,
-        NAMESPACE,
+        namespace(source),
         id.to_string().as_str(),
         serde_json::to_vec(document).map_err(core_err_unexpected)?,
     )
 }
 
-pub fn get(config: &Config, id: Uuid) -> Result<EncryptedDocument, CoreError> {
+pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDocument, CoreError> {
     let maybe_data: Option<Vec<u8>> =
-        local_storage::read(config, NAMESPACE, id.to_string().as_str())?;
+        local_storage::read(config, namespace(source), id.to_string().as_str())?;
     match maybe_data {
         None => Err(CoreError::FileNonexistent),
         Some(data) => serde_json::from_slice(&data).map_err(core_err_unexpected),
     }
 }
 
-pub fn maybe_get(config: &Config, id: Uuid) -> Result<Option<EncryptedDocument>, CoreError> {
+pub fn maybe_get(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+) -> Result<Option<EncryptedDocument>, CoreError> {
     let maybe_data: Option<Vec<u8>> =
-        local_storage::read(config, NAMESPACE, id.to_string().as_str())?;
+        local_storage::read(config, namespace(source), id.to_string().as_str())?;
     match maybe_data {
         None => Ok(None),
         Some(data) => serde_json::from_slice(&data)
@@ -36,16 +54,29 @@ pub fn maybe_get(config: &Config, id: Uuid) -> Result<Option<EncryptedDocument>,
     }
 }
 
-pub fn delete(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    local_storage::delete(config, NAMESPACE, id.to_string().as_str())
+pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedDocument>, CoreError> {
+    Ok(
+        local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
+            .into_iter()
+            .map(|s| serde_json::from_slice(s.as_ref()).map_err(core_err_unexpected))
+            .collect::<Result<Vec<EncryptedDocument>, CoreError>>()?
+            .into_iter()
+            .collect(),
+    )
+}
+
+pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
+    local_storage::delete(config, namespace(source), id.to_string().as_str())
 }
 
 #[cfg(test)]
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::model::state::temp_config;
-    use crate::repo::document_repo;
+    use crate::{
+        model::{repo::RepoSource, state::temp_config},
+        repo::document_repo,
+    };
     use lockbook_models::crypto::*;
 
     #[test]
@@ -56,19 +87,20 @@ mod unit_tests {
 
         let document_id = Uuid::new_v4();
 
-        document_repo::insert(&config, document_id, &test_document).unwrap();
+        document_repo::insert(&config, RepoSource::Local, document_id, &test_document).unwrap();
 
-        let document = document_repo::get(&config, document_id).unwrap();
+        let document = document_repo::get(&config, RepoSource::Local, document_id).unwrap();
         assert_eq!(document, EncryptedDocument::new("something", "nonce1"),);
 
         document_repo::insert(
             &config,
+            RepoSource::Local,
             document_id,
             &EncryptedDocument::new("updated", "nonce2"),
         )
         .unwrap();
 
-        let file_updated = document_repo::get(&config, document_id).unwrap();
+        let file_updated = document_repo::get(&config, RepoSource::Local, document_id).unwrap();
 
         assert_eq!(file_updated, EncryptedDocument::new("updated", "nonce2"));
     }
