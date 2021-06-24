@@ -61,7 +61,7 @@ impl AccountScreen {
 
     pub fn fill(&self, core: &LbCore) -> LbResult<()> {
         self.sidebar.fill(&core)?;
-        self.sidebar.sync.set_status(&core.sync_status()?);
+        self.sidebar.status.set_status(&core.sync_status()?, None);
         Ok(())
     }
 
@@ -111,8 +111,8 @@ impl AccountScreen {
         }
     }
 
-    pub fn sync(&self) -> &Rc<SyncPanel> {
-        &self.sidebar.sync
+    pub fn status(&self) -> &Rc<StatusPanel> {
+        &self.sidebar.status
     }
 
     pub fn get_search_field_text(&self) -> String {
@@ -218,7 +218,7 @@ impl Header {
 
 pub struct Sidebar {
     pub tree: FileTree,
-    sync: Rc<SyncPanel>,
+    status: Rc<StatusPanel>,
     cntr: GtkBox,
 }
 
@@ -226,7 +226,7 @@ impl Sidebar {
     fn new(m: &Messenger, s: &Settings) -> Self {
         let scroll = GtkScrolledWindow::new::<GtkAdjustment, GtkAdjustment>(None, None);
         let tree = FileTree::new(&m, &s.hidden_tree_cols);
-        let sync = Rc::new(SyncPanel::new(&m));
+        let sync = Rc::new(StatusPanel::new(&m));
         scroll.add(tree.widget());
 
         let cntr = GtkBox::new(Vertical, 0);
@@ -234,7 +234,11 @@ impl Sidebar {
         cntr.add(&GtkSeparator::new(Horizontal));
         cntr.add(&sync.cntr);
 
-        Self { tree, sync, cntr }
+        Self {
+            tree,
+            status: sync,
+            cntr,
+        }
     }
 
     fn fill(&self, core: &LbCore) -> LbResult<()> {
@@ -242,14 +246,14 @@ impl Sidebar {
     }
 }
 
-pub struct SyncPanel {
+pub struct StatusPanel {
     status: GtkLabel,
-    button: GtkBtn,
-    progress: GtkProgressBar,
+    sync_button: GtkBtn,
+    sync_progress: GtkProgressBar,
     cntr: GtkBox,
 }
 
-impl SyncPanel {
+impl StatusPanel {
     fn new(m: &Messenger) -> Self {
         let status = GtkLabel::new(None);
         status.set_halign(GtkAlign::Start);
@@ -260,8 +264,9 @@ impl SyncPanel {
             if evt.get_button() == RIGHT_CLICK {
                 let menu = GtkMenu::new();
                 let item_data: Vec<(&str, MsgFn)> = vec![
-                    ("Refresh", || Msg::RefreshSyncStatus),
-                    ("Details", || Msg::ShowDialogSyncDetails),
+                    ("Refresh Usage Status", || Msg::RefreshUsageStatus),
+                    ("Refresh Sync Status", || Msg::RefreshSyncStatus),
+                    ("Show Sync Details", || Msg::ShowDialogSyncDetails),
                 ];
                 for (name, msg) in item_data {
                     let mi = GtkMenuItem::with_label(name);
@@ -274,8 +279,8 @@ impl SyncPanel {
             gtk::Inhibit(false)
         }));
 
-        let button = GtkBtn::with_label("Sync");
-        button.connect_clicked(closure!(m => move |_| m.send(Msg::PerformSync)));
+        let sync_button = GtkBtn::with_label("Sync");
+        sync_button.connect_clicked(closure!(m => move |_| m.send(Msg::PerformSync)));
 
         let progress = GtkProgressBar::new();
         progress.set_margin_top(3);
@@ -283,42 +288,45 @@ impl SyncPanel {
         let cntr = GtkBox::new(Horizontal, 0);
         gui_util::set_margin(&cntr, 8);
         cntr.pack_start(&status_evbox, false, false, 0);
-        cntr.pack_end(&button, false, false, 0);
+        cntr.pack_end(&sync_button, false, false, 0);
 
         Self {
             status,
-            button,
-            progress,
+            sync_button,
+            sync_progress: progress,
             cntr,
         }
     }
 
     pub fn set_syncing(&self, is_syncing: bool) {
         if is_syncing {
-            self.cntr.remove(&self.button);
+            self.set_status("Syncing...", None);
+            self.cntr.remove(&self.sync_button);
             self.cntr.set_orientation(Vertical);
-            self.cntr.pack_end(&self.progress, true, true, 0);
-            self.progress.show();
-            self.progress.set_fraction(0.0);
+            self.cntr.pack_end(&self.sync_progress, true, true, 0);
+            self.sync_progress.show();
+            self.sync_progress.set_fraction(0.0);
         } else {
-            self.cntr.remove(&self.progress);
+            self.cntr.remove(&self.sync_progress);
             self.cntr.set_orientation(Horizontal);
-            self.cntr.pack_end(&self.button, false, false, 0);
+            self.cntr.pack_end(&self.sync_button, false, false, 0);
             self.status.set_text("");
         }
     }
 
-    pub fn set_status(&self, txt: &str) {
+    pub fn set_status(&self, txt: &str, tool_tip_txt: Option<&str>) {
         self.status.set_markup(&txt);
+        self.status.set_tooltip_text(tool_tip_txt)
     }
 
-    pub fn sync_progress(&self, s: &LbSyncMsg) {
+    pub fn set_sync_progress(&self, s: &LbSyncMsg) {
         let prefix = match s.work {
             ClientWorkUnit::Server(_) | ClientWorkUnit::ServerUnknownName(_) => "Pulling",
             ClientWorkUnit::Local(_) => "Pushing",
         };
-        self.set_status(&format!("{}: {}", prefix, s.name));
-        self.progress.set_fraction(s.index as f64 / s.total as f64);
+        self.set_status(&format!("{}: {}", prefix, s.name), None);
+        self.sync_progress
+            .set_fraction(s.index as f64 / s.total as f64);
     }
 }
 

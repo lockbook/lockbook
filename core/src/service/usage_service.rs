@@ -23,9 +23,22 @@ pub const TERABYTE_PLUS_ONE: u64 = TERABYTE + 1;
 
 #[derive(Serialize)]
 pub struct LocalAndServerUsages {
+    pub metrics: UsageMetrics,
+    pub readable_metrics: ReadableUsageMetrics,
+}
+
+#[derive(Serialize)]
+pub struct ReadableUsageMetrics {
     pub server_usage: String,
     pub uncompressed_usage: String,
     pub data_cap: String,
+}
+
+#[derive(Serialize)]
+pub struct UsageMetrics {
+    pub server_usage: u64,
+    pub uncompressed_usage: u64,
+    pub data_cap: u64,
 }
 
 pub fn bytes_to_human(size: u64) -> String {
@@ -81,15 +94,21 @@ pub fn local_and_server_usages(
     let local_usage = get_uncompressed_usage(config)?;
     let cap = server_usage_and_cap.cap;
 
-    let usages =
+    let metrics = UsageMetrics {
+        server_usage,
+        uncompressed_usage: local_usage as u64,
+        data_cap: cap,
+    };
+
+    let readable_metrics =
         if exact {
-            LocalAndServerUsages {
+            ReadableUsageMetrics {
                 server_usage: format!("{} B", server_usage),
                 uncompressed_usage: format!("{} bytes", local_usage),
                 data_cap: format!("{} B", cap),
             }
         } else {
-            LocalAndServerUsages {
+            ReadableUsageMetrics {
                 server_usage: bytes_to_human(server_usage),
                 uncompressed_usage: bytes_to_human(local_usage.try_into().map_err(|_| {
                     CoreError::Unexpected(String::from("uncompressed size too large"))
@@ -98,7 +117,10 @@ pub fn local_and_server_usages(
             }
         };
 
-    Ok(usages)
+    Ok(LocalAndServerUsages {
+        metrics,
+        readable_metrics,
+    })
 }
 
 #[cfg(test)]
