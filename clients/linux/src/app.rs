@@ -130,8 +130,11 @@ impl LbApp {
                     lb.err_dialog(&title, &err);
                     Ok(())
                 }
-                Msg::ErrorStatusPanel(msg) => {
-                    lb.gui.account.status().set_status(msg.as_str(), None);
+                Msg::SetStatus(txt, tool_tip_txt) => {
+                    lb.gui
+                        .account
+                        .status()
+                        .set_status(txt.as_str(), tool_tip_txt.as_deref());
                     Ok(())
                 }
             };
@@ -318,13 +321,14 @@ impl LbApp {
     }
 
     fn refresh_usage_status(&self) -> LbResult<()> {
-        let status = self.core.usage_status()?;
-        if let (Some(txt), _) = status {
-            self.gui
-                .account
-                .status()
-                .set_status(&txt, status.1.as_deref());
-        }
+        spawn!(self.core as c, self.messenger as m => move || {
+            match c.usage_status() {
+                Ok(status) => if let (Some(txt), _) = status {
+                    m.send(Msg::SetStatus(txt, status.1));
+                }
+                Err(err) => m.send_err_status_panel(err.msg())
+            }
+        });
 
         Ok(())
     }
@@ -892,7 +896,7 @@ impl LbApp {
     }
 
     fn show_dialog_usage(&self) -> LbResult<()> {
-        let usage_string = self.core.usage_human_string()?;
+        let usage_string = self.core.get_usage()?.server_usage.readable;
         let usage = usage(usage_string)?;
         let d = self.gui.new_dialog("My Lockbook Usage");
         d.get_content_area().add(&usage);

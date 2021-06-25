@@ -11,8 +11,8 @@ use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{
     calculate_work, create_account, create_file, delete_file, export_account, get_account,
     get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
-    get_last_synced, get_local_and_server_usage, get_root, get_usage_human_string, import_account,
-    list_paths, migrate_db, read_document, rename_file, sync_all, write_document,
+    get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db, read_document,
+    rename_file, sync_all, write_document,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
@@ -23,7 +23,7 @@ use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
 use lockbook_core::model::client_conversion::{
     ClientFileMetadata, ClientWorkCalculated, ClientWorkUnit,
 };
-use lockbook_core::service::usage_service::LocalAndServerUsages;
+use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
 
 macro_rules! match_core_err {
     (
@@ -253,7 +253,7 @@ impl LbCore {
 
         let sync =
             sync_all(&self.config, Some(Box::new(closure))).map_err(map_core_err!(SyncAllError,
-                CouldNotReachServer => uerr_status_panel!("Unable to connect to the server."),
+                CouldNotReachServer => uerr_status_panel!("Offline."),
                 ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
                 NoAccount => uerr_dialog!("No account found."),
             ));
@@ -267,7 +267,7 @@ impl LbCore {
 
     pub fn calculate_work(&self) -> LbResult<ClientWorkCalculated> {
         calculate_work(&self.config).map_err(map_core_err!(CalculateWorkError,
-            CouldNotReachServer => uerr_status_panel!("Unable to connect to the server."),
+            CouldNotReachServer => uerr_status_panel!("Offline."),
             ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
             NoAccount => uerr_dialog!("No account found."),
         ))
@@ -279,18 +279,10 @@ impl LbCore {
         ))
     }
 
-    pub fn usage_human_string(&self) -> LbResult<String> {
-        get_usage_human_string(&self.config, false).map_err(map_core_err!(GetUsageError,
+    pub fn get_usage(&self) -> LbResult<UsageMetrics> {
+        get_usage(&self.config).map_err(map_core_err!(GetUsageError,
             NoAccount => uerr_dialog!("No account found."),
-            CouldNotReachServer => uerr_dialog!("Unable to connect to the server."),
-            ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
-        ))
-    }
-
-    pub fn local_and_server_usage(&self) -> LbResult<LocalAndServerUsages> {
-        get_local_and_server_usage(&self.config, false).map_err(map_core_err!(GetUsageError,
-            NoAccount => uerr_dialog!("No account found."),
-            CouldNotReachServer => uerr_status_panel!("Unable to connect to the server."),
+            CouldNotReachServer => uerr_status_panel!("Offline."),
             ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
         ))
     }
@@ -372,15 +364,14 @@ impl LbCore {
     }
 
     pub fn usage_status(&self) -> LbResult<(Option<String>, Option<String>)> {
-        let usage = self.local_and_server_usage()?;
+        let usage = self.get_usage()?;
 
-        if usage.metrics.server_usage as f32 / usage.metrics.data_cap as f32
-            > USAGE_WARNING_THRESHOLD
-        {
+        if usage.server_usage.exact as f32 / usage.data_cap.exact as f32 > USAGE_WARNING_THRESHOLD {
             return Ok((
                 Some(format!(
                     "{} of {} remaining!",
-                    usage.readable_metrics.server_usage, usage.readable_metrics.data_cap
+                    bytes_to_human(usage.data_cap.exact - usage.server_usage.exact).0,
+                    usage.data_cap.readable
                 )),
                 Some("You are running out of space, go to settings to buy more!".to_string()),
             ));
@@ -393,4 +384,4 @@ impl LbCore {
 const UNAME_REQS: &str = "letters and numbers only";
 const STATE_REQ_CLEAN_MSG: &str =
     "Your local state cannot be migrated, please re-sync with a fresh client.";
-const USAGE_WARNING_THRESHOLD: f32 = 0.001;
+const USAGE_WARNING_THRESHOLD: f32 = 0.0001;

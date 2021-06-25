@@ -42,7 +42,7 @@ pub enum Msg {
     ToggleAutoSync(bool),
 
     ErrorDialog(String, LbError),
-    ErrorStatusPanel(String),
+    SetStatus(String, Option<String>),
 }
 
 #[derive(Clone)]
@@ -64,6 +64,6 @@ impl Messenger {
     }
 
     pub fn send_err_status_panel(&self, msg: &str) {
-        self.send(Msg::ErrorStatusPanel(msg.to_string()))
+        self.send(Msg::SetStatus(msg.to_string(), None))
     }
 }

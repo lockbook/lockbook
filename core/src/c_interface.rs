@@ -309,19 +309,6 @@ pub unsafe extern "C" fn get_usage(writeable_path: *const c_char) -> *const c_ch
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn get_usage_human_string(
-    writeable_path: *const c_char,
-    exact: bool,
-) -> *const c_char {
-    c_string(translate(crate::get_usage_human_string(
-        &Config {
-            writeable_path: str_from_ptr(writeable_path),
-        },
-        exact,
-    )))
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn get_local_changes(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_local_changes(&Config {
         writeable_path: str_from_ptr(writeable_path),
