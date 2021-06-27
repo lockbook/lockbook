@@ -12,6 +12,7 @@ impl RepoSource {
     }
 }
 
+#[derive(Clone)]
 pub enum RepoState {
     New,
     Modifed,

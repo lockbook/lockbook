@@ -70,9 +70,12 @@ pub fn delete(config: &Config, id: Uuid) -> Result<(), CoreError> {
     account_repo::get(config)?;
 
     let mut file_metadata = file_repo::get_metadata(config, id)?.0;
+
+    file_metadata.deleted = true;
+
     validate_not_root(&file_metadata)?;
 
-    file_repo::delete(config, RepoSource::Local, id)
+    file_repo::insert_metadata(config, RepoSource::Local, &file_metadata)
 }
 
 pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
@@ -155,7 +158,7 @@ fn validate_parent_exists_and_is_folder(
 }
 
 fn validate_path(config: &Config, file: &FileMetadata) -> Result<(), CoreError> {
-    for child in file_repo::get_children_non_recursive(config, file.parent)? {
+    for child in file_repo::get_children(config, file.parent)? {
         if file_encryption_service::get_name(&config, &child)?
             == file_encryption_service::get_name(&config, &file)?
             && child.id != file.id

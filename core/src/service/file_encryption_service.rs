@@ -12,7 +12,7 @@ use uuid::Uuid;
 pub fn decrypt_key_for_file(config: &Config, id: Uuid) -> Result<AESKey, CoreError> {
     let account = account_repo::get(&config)?;
     let parents = file_repo::get_with_ancestors(&config, id)?;
-    let access_key = parents
+    let (access_key, _) = parents
         .get(&id)
         .ok_or(())
         .map_err(|_| CoreError::Unexpected(String::from("client metadata missing")))?;

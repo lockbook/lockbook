@@ -25,7 +25,9 @@ pub enum TestRepoError {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
-    let root = root_repo::get(&config).map_err(Core)?.ok_or(NoRootFolder)?;
+    let root = root_repo::maybe_get(&config)
+        .map_err(Core)?
+        .ok_or(NoRootFolder)?;
 
     let all = file_repo::get_all_metadata(config).map_err(Core)?.union();
 
@@ -92,7 +94,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
     // Find naming conflicts
     {
         for file in all.iter().filter(|f| f.file_type == Folder) {
-            let children = file_repo::get_children_non_recursive(&config, file.id).map_err(Core)?;
+            let children = file_repo::get_children(&config, file.id).map_err(Core)?;
             let mut children_set = HashSet::new();
             for child in children {
                 let name = file_encryption_service::get_name(&config, &child).map_err(Core)?;

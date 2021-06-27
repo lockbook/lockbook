@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 pub static ROOT: &[u8; 4] = b"ROOT";
 
-pub fn get(config: &Config) -> Result<Option<FileMetadata>, CoreError> {
+pub fn maybe_get(config: &Config) -> Result<Option<FileMetadata>, CoreError> {
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, ROOT, ROOT)?;
     match maybe_value {
         None => Ok(None),
@@ -22,10 +22,14 @@ pub fn get(config: &Config) -> Result<Option<FileMetadata>, CoreError> {
                     }
                 },
                 Err(err) => {
-                    error!("Failed parsing {:?} into a UUID. Error: {:?}", &value, err);
+                    error!("Failed to parse {:?} into a UUID. Error: {:?}", &value, err);
                     Ok(None)
                 }
             }
         }
     }
+}
+
+pub fn get(config: &Config) -> Result<FileMetadata, CoreError> {
+    maybe_get(config).and_then(|f| f.ok_or(CoreError::RootNonexistent))
 }

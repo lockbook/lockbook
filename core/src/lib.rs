@@ -312,7 +312,7 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
-    match root_repo::get(&config) {
+    match root_repo::maybe_get(&config) {
         Ok(file_metadata) => match file_metadata {
             None => Err(UiError(GetRootError::NoRoot)),
             Some(file_metadata) => match generate_client_file_metadata(config, &file_metadata) {
@@ -334,7 +334,7 @@ pub fn get_children(
     id: Uuid,
 ) -> Result<Vec<ClientFileMetadata>, Error<GetChildrenError>> {
     let children: Vec<FileMetadata> =
-        file_repo::get_children_non_recursive(&config, id).map_err(|e| unexpected!("{:#?}", e))?;
+        file_repo::get_children(&config, id).map_err(|e| unexpected!("{:#?}", e))?;
 
     let mut client_children = vec![];
 
@@ -357,11 +357,13 @@ pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
-    file_repo::get_with_children_recursive(&config, id).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
-        CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
-        _ => unexpected!("{:#?}", e),
-    })
+    file_repo::get_with_descendants(&config, id)
+        .map(|v| v.into_iter().map(|(f, _)| f).collect())
+        .map_err(|e| match e {
+            CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
+            CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
+            _ => unexpected!("{:#?}", e),
+        })
 }
 
 #[derive(Debug, Serialize, EnumIter)]

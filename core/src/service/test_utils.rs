@@ -160,7 +160,10 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
         last_updated_repo::get(&db2).unwrap()
     );
 
-    assert_eq!(root_repo::get(&db1).unwrap(), root_repo::get(&db2).unwrap());
+    assert_eq!(
+        root_repo::maybe_get(&db1).unwrap(),
+        root_repo::maybe_get(&db2).unwrap()
+    );
 
     for source in vec![RepoSource::Local, RepoSource::Remote] {
         assert_eq!(
