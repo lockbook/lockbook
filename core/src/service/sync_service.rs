@@ -1,4 +1,5 @@
-use crate::model::client_conversion::{generate_client_work_unit, ClientWorkUnit};
+use crate::model::client_conversion::ClientWorkUnit;
+use crate::model::document_type::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{account_repo, document_repo, file_repo, last_updated_repo, metadata_repo};
@@ -9,13 +10,10 @@ use lockbook_models::account::Account;
 use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
-use lockbook_models::file_metadata::FileMetadata;
-use lockbook_models::file_metadata::FileType::{Document, Folder};
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 use lockbook_models::work_unit::WorkUnit::{LocalChange, ServerChange};
 use serde::Serialize;
-use std::collections::HashMap;
-use uuid::Uuid;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -86,22 +84,60 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
     })
 }
 
-pub fn execute_work(config: &Config, account: &Account, work: WorkUnit) -> Result<(), CoreError> {
-    match work {
-        WorkUnit::LocalChange { mut metadata } => {
-            handle_local_change(config, &account, &mut metadata)
-        }
-        WorkUnit::ServerChange { mut metadata } => {
-            handle_server_change(config, &account, &mut metadata)
-        }
-    }
+pub enum MaybeMergeResult<T> {
+    Resolved(T),
+    Conflict { base: T, local: T, remote: T },
 }
 
-fn merge_maybe_metadata(
-    base: Option<FileMetadata>,
-    local: Option<FileMetadata>,
-    remote: Option<FileMetadata>,
-) -> Option<FileMetadata> {
+fn maybe_merge<T>(
+    maybe_base: Option<T>,
+    maybe_local: Option<T>,
+    maybe_remote: Option<T>,
+) -> Result<MaybeMergeResult<T>, CoreError> {
+    Ok(MaybeMergeResult::Resolved(
+        match (maybe_base, maybe_local, maybe_remote) {
+            (None, None, None) => {
+                // improper call of this function
+                return Err(CoreError::Unexpected(String::from(
+                    "3-way metadata merge with none of the 3",
+                )));
+            }
+            (None, None, Some(remote)) => {
+                // new from remote
+                remote
+            }
+            (None, Some(local), None) => {
+                // new from local
+                local
+            }
+            (None, Some(local), Some(remote)) => {
+                // new from local and from remote with same id - bug
+                return Err(CoreError::Unexpected(String::from(
+                    "new local file with same id as new remote file",
+                )));
+            }
+            (Some(base), None, None) => {
+                // no changes
+                base
+            }
+            (Some(base), None, Some(remote)) => {
+                // remote changes
+                remote
+            }
+            (Some(base), Some(local), None) => {
+                // local changes
+                local
+            }
+            (Some(base), Some(local), Some(remote)) => {
+                // conflict
+                return Ok(MaybeMergeResult::Conflict {
+                    base,
+                    local,
+                    remote,
+                });
+            }
+        },
+    ))
 }
 
 fn merge_metadata(base: FileMetadata, local: FileMetadata, remote: FileMetadata) -> FileMetadata {
@@ -111,9 +147,7 @@ fn merge_metadata(base: FileMetadata, local: FileMetadata, remote: FileMetadata)
         (false, false) => base.name,
         (true, false) => local.name,
         (false, true) => remote.name,
-        (true, true) => {
-            remote.name // resolve rename conflicts in favor of remote
-        }
+        (true, true) => remote.name, // resolve rename conflicts in favor of remote
     };
 
     let local_moved = local.parent != base.parent;
@@ -122,28 +156,87 @@ fn merge_metadata(base: FileMetadata, local: FileMetadata, remote: FileMetadata)
         (false, false) => base.parent,
         (true, false) => local.parent,
         (false, true) => remote.parent,
-        (true, true) => {
-            remote.parent // resolve move conflicts in favor of remote
-        }
+        (true, true) => remote.parent, // resolve move conflicts in favor of remote
     };
 
-    let deleted = base.deleted || local.deleted || remote.deleted; // resolve delete conflicts by deleting
-
     FileMetadata {
-        id: base.id,
-        file_type: base.file_type,
+        id: base.id,               // ids never change
+        file_type: base.file_type, // file types never change
         parent,
         name,
-        owner: base.owner,
-        metadata_version: remote.metadata_version,
-        content_version: remote.content_version,
-        deleted,
-        user_access_keys: base.user_access_keys,
-        folder_access_keys: base.folder_access_keys,
+        owner: base.owner,                         // owners never change
+        metadata_version: remote.metadata_version, // resolve metadata version conflicts in favor of remote
+        content_version: remote.content_version, // resolve content version conflicts in favor of remote
+        deleted: base.deleted || local.deleted || remote.deleted, // resolve delete conflicts by deleting
+        user_access_keys: base.user_access_keys,                  // user access keys never change
+        folder_access_keys: base.folder_access_keys,              // folder access keys never change
     }
 }
 
-// fn merge_documents(base: )
+fn get_local_document(
+    config: &Config,
+    account: &Account,
+    source: RepoSource,
+    metadata: &FileMetadata,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    let user_access_key = metadata
+        .user_access_keys
+        .get(&account.username)
+        .ok_or_else(|| CoreError::Unexpected(String::from("no user access info for file")))?;
+    Ok(
+        match document_repo::maybe_get(config, RepoSource::Local, metadata.id)? {
+            // todo: get this friggin crypto and compression out of here
+            Some(base_document) => Some(file_compression_service::decompress(
+                &file_encryption_service::user_read_document(
+                    account,
+                    &base_document,
+                    user_access_key,
+                )?,
+            )?),
+            None => None,
+        },
+    )
+}
+
+fn save_local_document(
+    config: &Config,
+    source: RepoSource,
+    metadata: &FileMetadata,
+    content: &[u8],
+) -> Result<(), CoreError> {
+    document_repo::insert(config, source, metadata.id, &file_encryption_service::write_to_document(config, &file_compression_service::compress(content)?, metadata)?)
+}
+
+fn get_remote_document(
+    config: &Config,
+    account: &Account,
+    metadata: &FileMetadata,
+) -> Result<Vec<u8>, CoreError> {
+    let user_access_key = metadata
+        .user_access_keys
+        .get(&account.username)
+        .ok_or_else(|| CoreError::Unexpected(String::from("no user access info for file")))?;
+    // todo: get this friggin crypto and compression out of here
+    file_compression_service::decompress(&file_encryption_service::user_read_document(
+        account,
+        &client::request(
+            &account,
+            GetDocumentRequest {
+                id: metadata.id,
+                content_version: metadata.content_version,
+            },
+        )?
+        .content,
+        user_access_key,
+    )?)
+}
+
+fn get_document_type(
+    config: &Config,
+    metadata: &FileMetadata,
+) -> Result<DocumentType, CoreError> {
+    Ok(DocumentType::from_file_name_using_extension(&file_encryption_service::get_name(&config, &metadata)?))
+}
 
 fn pull(
     config: &Config,
@@ -152,8 +245,8 @@ fn pull(
 ) -> Result<(), CoreError> {
     // pull remote changes
     let last_sync = last_updated_repo::get(config)?;
-    let remote = client::request(
-        &account,
+    let remote_changes = client::request(
+        account,
         GetUpdatesRequest {
             since_metadata_version: last_sync,
         },
@@ -161,44 +254,82 @@ fn pull(
     .map_err(CoreError::from)?
     .file_metadata;
 
-    for remote in remote {
-        if remote.deleted {
-            file_repo::delete(config, RepoSource::Remote, remote.id)?;
+    // merge with local changes; save results locally (todo: detect, merge, and save content changes)
+    for remote_metadata in remote_changes {
+        // merge metadata
+        let maybe_base_metadata = metadata_repo::maybe_get(config, RepoSource::Remote, remote_metadata.id)?;
+        let maybe_local_metadata = metadata_repo::maybe_get(config, RepoSource::Local, remote_metadata.id)?;
+        let merged_metadata = match maybe_merge(maybe_base_metadata, maybe_local_metadata, Some(remote_metadata))? {
+            MaybeMergeResult::Resolved(merged) => merged,
+            MaybeMergeResult::Conflict {
+                base,
+                local,
+                remote,
+            } => merge_metadata(base, local, remote),
+        };
+        
+        if remote_metadata.file_type == FileType::Document {
+            let content_updated = if let Some(base) = maybe_base_metadata {
+                remote_metadata.content_version != base.content_version
+            } else {
+                true
+            };
+            if content_updated {
+                // merge document content for documents with updated content
+                let remote_document = get_remote_document(config, account, &remote_metadata)?;
+                let maybe_base_document =
+                    get_local_document(config, account, RepoSource::Remote, &remote_metadata)?;
+                let maybe_local_document =
+                    get_local_document(config, account, RepoSource::Local, &remote_metadata)?;
+                let merged_document = match maybe_merge(
+                    maybe_base_document,
+                    maybe_local_document,
+                    Some(remote_document),
+                )? {
+                    MaybeMergeResult::Resolved(merged_document) => merged_document,
+                    MaybeMergeResult::Conflict {
+                        base: base_document,
+                        local: local_document,
+                        remote: remote_document,
+                    } => {
+                        match get_document_type(config, &remote_metadata)? {
+                            // text documents get 3-way merged
+                            DocumentType::Text => {
+                                match diffy::merge_bytes(&base_document, &local_document, &remote_document) {
+                                    Ok(no_conflicts) => no_conflicts,
+                                    Err(conflicts) => conflicts,
+                                }
+                            },
+                            // other documents have local version copied to new file
+                            DocumentType::Drawing | DocumentType::Other => {
+                                let remote_name = file_encryption_service::get_name(&config, &remote_metadata)?;
+                                let new_file = file_service::create(
+                                    config,
+                                    &format!("{}-CONTENT-CONFLICT-{}", &remote_name, remote_metadata.id),
+                                    remote_metadata.parent,
+                                    FileType::Document,
+                                )?;
+
+                                file_service::write_document(config, remote_metadata.id, &file_service::read_document(config, remote_metadata.id)?)?;
+
+                                remote_document
+                            }
+                        }
+                    }
+                };
+
+                save_local_document(config, RepoSource::Remote, &remote_metadata, &remote_document)?; // update remote repo to version from server
+                file_service::write_document(config, remote_metadata.id, &merged_document)?; // update local repo to version from merge
+            }
         }
 
-        let maybe_base = metadata_repo::maybe_get(config, RepoSource::Remote, remote.id)?;
-        let maybe_local = metadata_repo::maybe_get(config, RepoSource::Local, remote.id)?;
-        match (maybe_base, maybe_local) {
-            (None, None) => {
-                // new file
-            }
-            (Some(base), None) => {
-                // update to unmodified file
-            }
-            (None, Some(local)) => {
-                // new local file with the same id
-                return Err(CoreError::Unexpected(String::from(
-                    "new file from server with same id as new local file",
-                )));
-            }
-            (Some(base), Some(local)) => {
-                // update to modified file
-                let merged = merge_metadata(base, local, remote);
-            }
-        }
-    }
+        // resolve path conflicts
+        // (todo)
 
-    // merge with local changes; save results locally
-    let local_changes = file_repo::get_all_metadata(config)?.modified;
-    let conflicts = local_changes
-        .iter()
-        .filter(|l| remote.iter().find(|r| l.id == r.id).is_some());
-    for conflict in conflicts {
-        // todo
-        // * what's going on with versions?
-        // * do we have to process deletes after moves?
+        // update remote repo to version from server; update local repo to version from merge
+        metadata_repo::insert(config, RepoSource::Remote, &remote_metadata)?;
+        file_repo::insert_metadata(config, RepoSource::Local, &merged_metadata)?;
     }
-
     Ok(())
 }
 
@@ -234,56 +365,8 @@ fn push(
 
 pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
     let account = account_repo::get(config)?;
-
-    let account = account_repo::get(config)?;
-    let mut sync_errors: HashMap<Uuid, CoreError> = HashMap::new();
-    let mut work_calculated = calculate_work(config)?;
-
-    // Retry sync n times
-    for _ in 0..10 {
-        info!("Syncing");
-
-        for (progress, work_unit) in work_calculated.work_units.iter().enumerate() {
-            if let Some(ref func) = f {
-                func(SyncProgress {
-                    total: work_calculated.work_units.len(),
-                    progress,
-                    current_work_unit: generate_client_work_unit(config, &work_unit)?,
-                })
-            }
-
-            match execute_work(config, &account, work_unit.clone()) {
-                Ok(_) => {
-                    debug!("{:#?} executed successfully", work_unit);
-                    sync_errors.remove(&work_unit.get_metadata().id);
-                }
-                Err(err) => {
-                    error!("Sync error detected: {:#?} {:#?}", work_unit, err);
-                    sync_errors.insert(work_unit.get_metadata().id, err);
-                }
-            }
-        }
-
-        if sync_errors.is_empty() {
-            last_updated_repo::set(config, work_calculated.most_recent_update_from_server)?;
-        }
-
-        work_calculated = calculate_work(config)?;
-        if work_calculated.work_units.is_empty() {
-            break;
-        }
-    }
-
-    if sync_errors.is_empty() {
-        last_updated_repo::set(config, work_calculated.most_recent_update_from_server)?;
-        Ok(())
-    } else {
-        error!("We finished everything calculate work told us about, but still have errors, this is concerning, the errors are: {:#?}", sync_errors);
-        Err(CoreError::Unexpected(format!(
-            "work execution errors: {:#?}",
-            sync_errors
-        )))
-    }
+    pull(config, &account, f)?;
+    push(config, &account, f)
 }
 
 /// Paths within lockbook must be unique. Prior to handling a server change we make sure that
@@ -309,328 +392,5 @@ fn rename_local_conflicting_files(
         )?
     }
 
-    Ok(())
-}
-
-/// Save metadata locally, and download the file contents if this file is a Document
-fn save_file_locally(
-    config: &Config,
-    account: &Account,
-    metadata: &FileMetadata,
-) -> Result<(), CoreError> {
-    file_repo::insert_metadata(config, RepoSource::Remote, &metadata)?;
-
-    if metadata.file_type == Document {
-        let document = client::request(
-            &account,
-            GetDocumentRequest {
-                id: metadata.id,
-                content_version: metadata.content_version,
-            },
-        )
-        .map_err(CoreError::from)?
-        .content;
-
-        document_repo::insert(config, RepoSource::Remote, metadata.id, &document)?;
-    }
-
-    Ok(())
-}
-
-fn delete_file_locally(config: &Config, metadata: &FileMetadata) -> Result<(), CoreError> {
-    file_repo::delete(config, RepoSource::Remote, metadata.id)
-}
-
-fn merge_documents(
-    config: &Config,
-    account: &Account,
-    metadata: &mut FileMetadata,
-    local_metadata: &FileMetadata,
-    local_changes: &LocalChangeRepoLocalChange,
-    edited_locally: &Edited,
-) -> Result<(), CoreError> {
-    let local_name = file_encryption_service::get_name(&config, &local_metadata)?;
-    if local_name.ends_with(".md") || local_name.ends_with(".txt") {
-        let common_ancestor = {
-            let compressed_common_ancestor = file_encryption_service::user_read_document(
-                &account,
-                &edited_locally.old_value,
-                &edited_locally.access_info,
-            )?;
-
-            file_compression_service::decompress(&compressed_common_ancestor)?
-        };
-
-        let current_version = file_service::read_document(config, metadata.id)?;
-
-        let server_version = {
-            let server_document = client::request(
-                &account,
-                GetDocumentRequest {
-                    id: metadata.id,
-                    content_version: metadata.content_version,
-                },
-            )?
-            .content;
-
-            let compressed_server_version = file_encryption_service::user_read_document(
-                &account,
-                &server_document,
-                &edited_locally.access_info,
-            )?;
-            // This assumes that a file is never re-keyed.
-
-            file_compression_service::decompress(&compressed_server_version)?
-        };
-
-        let result = match diffy::merge_bytes(&common_ancestor, &current_version, &server_version) {
-            Ok(no_conflicts) => no_conflicts,
-            Err(conflicts) => conflicts,
-        };
-
-        file_service::write_document(config, metadata.id, &result)?;
-    } else {
-        // Create a new file
-        let new_file = file_service::create(
-            config,
-            &format!("{}-CONTENT-CONFLICT-{}", &local_name, local_metadata.id),
-            local_metadata.parent,
-            Document,
-        )?;
-
-        // Copy the local copy over
-        remote_document_repo::insert(
-            config,
-            new_file.id,
-            &remote_document_repo::get(config, local_changes.id)?,
-        )?;
-
-        // Overwrite local file with server copy
-        let new_content = client::request(
-            &account,
-            GetDocumentRequest {
-                id: metadata.id,
-                content_version: metadata.content_version,
-            },
-        )
-        .map_err(CoreError::from)?
-        .content;
-
-        remote_document_repo::insert(config, metadata.id, &new_content)?;
-
-        // Mark content as synced
-        metadata_repo::untrack_edit(config, metadata.id)?;
-    }
-
-    Ok(())
-}
-
-fn merge_files(
-    config: &Config,
-    account: &Account,
-    metadata: &mut FileMetadata,
-    local_metadata: &FileMetadata,
-    local_changes: &LocalChangeRepoLocalChange,
-) -> Result<(), CoreError> {
-    if let Some(renamed_locally) = &local_changes.renamed {
-        // Check if both renamed, if so, server wins
-        let server_name = file_encryption_service::get_name(&config, &metadata)?;
-        if server_name != renamed_locally.old_value {
-            metadata_repo::untrack_rename(config, metadata.id)?;
-        } else {
-            metadata.name = local_metadata.name.clone();
-        }
-    }
-
-    // We moved it locally
-    if let Some(moved_locally) = &local_changes.moved {
-        // Check if both moved, if so server wins
-        if metadata.parent != moved_locally.old_value {
-            metadata_repo::untrack_move(config, metadata.id)?;
-        } else {
-            metadata.parent = local_metadata.parent;
-            metadata.folder_access_keys = local_metadata.folder_access_keys.clone();
-        }
-    }
-
-    if let Some(edited_locally) = &local_changes.content_edited {
-        info!("Content conflict for: {}", metadata.id);
-        if local_metadata.content_version != metadata.content_version {
-            if metadata.file_type == Folder {
-                // Should be unreachable
-                error!("Not only was a folder edited, it was edited according to the server as well. This should not be possible, id: {}", metadata.id);
-            }
-
-            merge_documents(
-                &config,
-                &account,
-                metadata,
-                &local_metadata,
-                &local_changes,
-                edited_locally,
-            )?;
-        }
-    }
-
-    Ok(())
-}
-
-fn handle_server_change(
-    config: &Config,
-    account: &Account,
-    metadata: &mut FileMetadata,
-) -> Result<(), CoreError> {
-    rename_local_conflicting_files(&config, &metadata)?;
-
-    match remote_metadata_repo::maybe_get(config, metadata.id)? {
-        None => {
-            if !metadata.deleted {
-                save_file_locally(&config, &account, &metadata)?;
-            } else {
-                debug!(
-                    "Server deleted a file we don't know about, ignored. id: {:?}",
-                    metadata.id
-                );
-            }
-        }
-        Some(local_metadata) => {
-            match metadata_repo::get_local_changes(config, metadata.id)? {
-                None => {
-                    if metadata.deleted {
-                        delete_file_locally(&config, &metadata)?;
-                    } else {
-                        save_file_locally(&config, &account, &metadata)?;
-                    }
-                }
-                Some(local_changes) => {
-                    if !local_changes.deleted && !metadata.deleted {
-                        merge_files(&config, &account, metadata, &local_metadata, &local_changes)?;
-
-                        remote_metadata_repo::insert(config, &metadata)?;
-                    } else if metadata.deleted {
-                        // Adding checks here is how you can protect local state from being deleted
-                        delete_file_locally(&config, &metadata)?;
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn handle_local_change(
-    config: &Config,
-    account: &Account,
-    metadata: &mut FileMetadata,
-) -> Result<(), CoreError> {
-    match metadata_repo::get_local_changes(config, metadata.id)? {
-                None => debug!("Calculate work indicated there was work to be done, but local_changes_repo didn't give us anything. It must have been unset by a server change. id: {:?}", metadata.id),
-                Some(mut local_change) => {
-                    if local_change.new {
-                        if metadata.file_type == Document {
-                            let content = remote_document_repo::get(config, metadata.id)?;
-                            let version = client::request(
-                                &account,
-                                CreateDocumentRequest::new(&metadata, content),
-                            )
-                                .map_err(CoreError::from)?
-                                .new_metadata_and_content_version;
-
-                            metadata.metadata_version = version;
-                            metadata.content_version = version;
-                        } else {
-                            let version = client::request(
-                                &account,
-                                CreateFolderRequest::new(&metadata),
-                            )
-                                .map_err(CoreError::from)?
-                                .new_metadata_version;
-
-                            metadata.metadata_version = version;
-                            metadata.content_version = version;
-                        }
-
-                        remote_metadata_repo::insert(config, &metadata)?;
-
-                        metadata_repo::untrack_new_file(config, metadata.id)?;
-                        local_change.new = false;
-                        local_change.renamed = None;
-                        local_change.content_edited = None;
-                        local_change.moved = None;
-
-                        // return early to allow any other child operations like move can be sent to the
-                        // server
-                        if local_change.deleted && metadata.file_type == Folder {
-                            return Ok(());
-                        }
-                    }
-
-                    if local_change.renamed.is_some() {
-                        let version = if metadata.file_type == Document {
-                            client::request(&account, RenameDocumentRequest::new(&metadata))
-                                .map_err(CoreError::from)?.new_metadata_version
-                        } else {
-                            client::request(&account, RenameFolderRequest::new(&metadata))
-                                .map_err(CoreError::from)?.new_metadata_version
-                        };
-                        metadata.metadata_version = version;
-                        remote_metadata_repo::insert(config, &metadata)?;
-
-                        metadata_repo::untrack_rename(config, metadata.id)?;
-                        local_change.renamed = None;
-                    }
-
-                    if local_change.moved.is_some() {
-                        metadata.metadata_version = if metadata.file_type == Document {
-                            client::request(&account, RenameDocumentRequest::new(&metadata))
-                                .map_err(CoreError::from)?.new_metadata_version
-                        } else {
-                            client::request(&account, RenameFolderRequest::new(&metadata))
-                                .map_err(CoreError::from)?.new_metadata_version
-                        };
-
-                        let version = if metadata.file_type == Document {
-                            client::request(&account, MoveDocumentRequest::new(&metadata)).map_err(CoreError::from)?.new_metadata_version
-                        } else {
-                            client::request(&account, MoveFolderRequest::new(&metadata)).map_err(CoreError::from)?.new_metadata_version
-                        };
-
-                        metadata.metadata_version = version;
-                        remote_metadata_repo::insert(config, &metadata)?;
-
-                        metadata_repo::untrack_move(config, metadata.id)?;
-                        local_change.moved = None;
-                    }
-
-                    if local_change.content_edited.is_some() && metadata.file_type == Document {
-                        let version = client::request(&account, ChangeDocumentContentRequest{
-                            id: metadata.id,
-                            old_metadata_version: metadata.metadata_version,
-                            new_content: remote_document_repo::get(config, metadata.id)?,
-                        }).map_err(CoreError::from)?.new_metadata_and_content_version;
-
-                        metadata.content_version = version;
-                        metadata.metadata_version = version;
-                        remote_metadata_repo::insert(config, &metadata)?;
-
-                        metadata_repo::untrack_edit(config, metadata.id)?;
-                        local_change.content_edited = None;
-                    }
-
-                    if local_change.deleted {
-                        if metadata.file_type == Document {
-                            client::request(&account, DeleteDocumentRequest{ id: metadata.id }).map_err(CoreError::from)?;
-                        } else {
-                            client::request(&account, DeleteFolderRequest{ id: metadata.id }).map_err(CoreError::from)?;
-                        }
-
-                        metadata_repo::delete(config, metadata.id)?;
-                        local_change.deleted = false;
-
-                        remote_metadata_repo::delete_non_recursive(config, metadata.id)?; // Now it's safe to delete this locally
-                    }
-                }
-            }
     Ok(())
 }
