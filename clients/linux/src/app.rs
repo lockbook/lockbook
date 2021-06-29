@@ -13,12 +13,12 @@ use gtk::{
     Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button,
     CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, Image as GtkImage, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ResponseType as GtkResponseType,
-    SelectionMode as GtkSelectionMode, SortColumn as GtkSortColumn, SortType as GtkSortType,
-    Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter, TreeModel as GtkTreeModel,
-    TreeModelSort as GtkTreeModelSort, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
-    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
-    WindowPosition as GtkWindowPosition,
+    ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
+    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode,
+    SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
+    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
+    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
+    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
 };
 use uuid::Uuid;
 
@@ -315,8 +315,13 @@ impl LbApp {
     }
 
     fn refresh_sync_status(&self) -> LbResult<()> {
-        let txt = self.core.sync_status()?;
-        self.gui.account.status().set_status(&txt, None);
+        spawn!(self.core as c, self.messenger as m => move || {
+            match c.sync_status() {
+                Ok(txt) => m.send(Msg::SetStatus(txt, None)),
+                Err(err) => m.send_err_status_panel(err.msg())
+            }
+        });
+
         Ok(())
     }
 
@@ -896,8 +901,7 @@ impl LbApp {
     }
 
     fn show_dialog_usage(&self) -> LbResult<()> {
-        let usage_string = self.core.get_usage()?.server_usage.readable;
-        let usage = usage(usage_string)?;
+        let usage = usage_dialog(&self.core)?;
         let d = self.gui.new_dialog("My Lockbook Usage");
         d.get_content_area().add(&usage);
         d.show_all();
@@ -1122,7 +1126,7 @@ impl Gui {
     fn show_account_screen(&self, core: &LbCore) -> LbResult<()> {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
-        self.account.fill(&core)?;
+        self.account.fill(&core, &self.messenger)?;
         self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
         self.messenger.send(Msg::AccountScreenShown);
@@ -1269,7 +1273,17 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
     Ok(cntr)
 }
 
-fn usage(usage_string: String) -> LbResult<GtkBox> {
+fn usage_dialog(c: &Arc<LbCore>) -> LbResult<GtkBox> {
+    let usage = c.get_usage()?;
+
+    println!(
+        "{} | {} | {} | {}",
+        usage.server_usage.readable,
+        usage.server_usage.exact,
+        usage.server_usage.readable_exact,
+        usage.server_usage.unit
+    );
+
     let title = GtkLabel::new(Some("Total Usage"));
     let attr_list = pango::AttrList::new();
     let attr = pango::Attribute::new_weight(pango::Weight::Bold)
@@ -1279,14 +1293,23 @@ fn usage(usage_string: String) -> LbResult<GtkBox> {
     title.set_attributes(Some(&attr_list));
     title.set_margin_bottom(20);
 
-    let lbl = GtkLabel::new(Some(&usage_string));
+    let lbl = GtkLabel::new(Some(&format!(
+        "{} / {}",
+        usage.server_usage.readable, usage.data_cap.readable
+    )));
     lbl.set_margin_bottom(24);
+
+    let pbar = GtkProgressBar::new();
+    util::gui::set_marginx(&pbar, 16);
+    pbar.set_size_request(300, -1);
+    pbar.set_fraction(usage.server_usage.exact as f64 / usage.data_cap.exact as f64);
 
     let cntr = GtkBox::new(Vertical, 0);
     util::gui::set_marginy(&cntr, 36);
     util::gui::set_marginx(&cntr, 100);
     cntr.add(&title);
     cntr.add(&lbl);
+    cntr.add(&pbar);
     Ok(cntr)
 }
 

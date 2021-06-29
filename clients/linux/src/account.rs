@@ -59,9 +59,9 @@ impl AccountScreen {
         }
     }
 
-    pub fn fill(&self, core: &LbCore) -> LbResult<()> {
+    pub fn fill(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
         self.sidebar.fill(&core)?;
-        self.sidebar.status.set_status(&core.sync_status()?, None);
+        m.send(Msg::RefreshSyncStatus);
         Ok(())
     }
 
@@ -264,7 +264,6 @@ impl StatusPanel {
             if evt.get_button() == RIGHT_CLICK {
                 let menu = GtkMenu::new();
                 let item_data: Vec<(&str, MsgFn)> = vec![
-                    ("Refresh Usage Status", || Msg::RefreshUsageStatus),
                     ("Refresh Sync Status", || Msg::RefreshSyncStatus),
                     ("Show Sync Details", || Msg::ShowDialogSyncDetails),
                 ];

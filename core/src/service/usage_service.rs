@@ -15,10 +15,10 @@ pub const MEGABYTE: u64 = KILOBYTE * 1000;
 pub const GIGABYTE: u64 = MEGABYTE * 1000;
 pub const TERABYTE: u64 = GIGABYTE * 1000;
 
-pub const KILOBYTE_PLUS_ONE: u64 = KILOBYTE + 1;
-pub const MEGABYTE_PLUS_ONE: u64 = MEGABYTE + 1;
-pub const GIGABYTE_PLUS_ONE: u64 = GIGABYTE + 1;
-pub const TERABYTE_PLUS_ONE: u64 = TERABYTE + 1;
+pub const KILOBYTE_MINUS_ONE: u64 = KILOBYTE - 1;
+pub const MEGABYTE_MINUS_ONE: u64 = MEGABYTE - 1;
+pub const GIGABYTE_MINUS_ONE: u64 = GIGABYTE - 1;
+pub const TERABYTE_MINUS_ONE: u64 = TERABYTE - 1;
 
 #[derive(Serialize)]
 pub enum ByteUnit {
@@ -60,17 +60,17 @@ pub struct UsageItemMetric {
 
 pub fn bytes_to_human(size: u64) -> (String, ByteUnit) {
     let (unit, unit_size) = match size {
-        0..=KILOBYTE => (ByteUnit::Byte, BYTE),
-        KILOBYTE_PLUS_ONE..=MEGABYTE => (ByteUnit::Kilobyte, KILOBYTE),
-        MEGABYTE_PLUS_ONE..=GIGABYTE => (ByteUnit::Megabyte, MEGABYTE),
-        GIGABYTE_PLUS_ONE..=TERABYTE => (ByteUnit::Gigabyte, GIGABYTE),
-        TERABYTE_PLUS_ONE..=u64::MAX => (ByteUnit::Terabyte, TERABYTE),
+        0..=KILOBYTE_MINUS_ONE => (ByteUnit::Byte, BYTE),
+        KILOBYTE..=MEGABYTE_MINUS_ONE => (ByteUnit::Kilobyte, KILOBYTE),
+        MEGABYTE..=GIGABYTE_MINUS_ONE => (ByteUnit::Megabyte, MEGABYTE),
+        GIGABYTE..=TERABYTE_MINUS_ONE => (ByteUnit::Gigabyte, GIGABYTE),
+        TERABYTE..=u64::MAX => (ByteUnit::Terabyte, TERABYTE),
     };
 
-    (
-        format!("{:.3} {}", size as f64 / unit_size as f64, unit),
-        unit,
-    )
+    let size_in_unit = size as f64 / unit_size as f64;
+    let dec = f64::trunc(size_in_unit.fract() * 100.0) / 100.0;
+
+    (format!("{} {}", size_in_unit.trunc() + dec, unit), unit)
 }
 
 pub fn server_usage(config: &Config) -> Result<GetUsageResponse, CoreError> {

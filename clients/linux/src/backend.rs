@@ -384,4 +384,4 @@ impl LbCore {
 const UNAME_REQS: &str = "letters and numbers only";
 const STATE_REQ_CLEAN_MSG: &str =
     "Your local state cannot be migrated, please re-sync with a fresh client.";
-const USAGE_WARNING_THRESHOLD: f32 = 0.0001;
+const USAGE_WARNING_THRESHOLD: f32 = 0.9;
