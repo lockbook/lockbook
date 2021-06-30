@@ -68,7 +68,7 @@ val errorsToCheck = listOf<KClass<*>>(
 val checkIfAllErrorsPresentConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
+    override fun fromJson(jv: JsonValue): Any {
         val jsonObject = jv.obj!!
 
         for (error in errorsToCheck) {

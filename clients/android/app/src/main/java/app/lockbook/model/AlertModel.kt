@@ -1,21 +1,26 @@
 package app.lockbook.model
 
-import android.content.Context
+import android.app.Activity
 import android.view.View
 import androidx.appcompat.app.AlertDialog
+import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.util.UNEXPECTED_ERROR
+import app.lockbook.util.*
 import com.google.android.material.snackbar.Snackbar
+import timber.log.Timber
 
-object AlertModel {
-    fun notify(view: View, msg: String, onFinishAlert: OnFinishAlert) {
+class AlertModel(activity: Activity) {
+
+    private var view: View = activity.findViewById(android.R.id.content)
+
+    fun notify(msg: String, onFinish: (() -> Unit)? = null) {
         val snackBar = Snackbar.make(view, msg, Snackbar.LENGTH_SHORT)
 
-        if (onFinishAlert is OnFinishAlert.DoSomethingOnFinishAlert) {
+        if (onFinish != null) {
             snackBar.addCallback(object : Snackbar.Callback() {
                 override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                     super.onDismissed(transientBottomBar, event)
-                    onFinishAlert.onFinish()
+                    onFinish()
                 }
             })
         }
@@ -23,37 +28,45 @@ object AlertModel {
         snackBar.show()
     }
 
-    fun errorHasOccurred(view: View, msg: String, onFinishAlert: OnFinishAlert) {
-        val snackBar = Snackbar.make(view, msg, Snackbar.LENGTH_SHORT)
-
-        if (onFinishAlert is OnFinishAlert.DoSomethingOnFinishAlert) {
-            snackBar.addCallback(object : Snackbar.Callback() {
-                override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                    super.onDismissed(transientBottomBar, event)
-                    onFinishAlert.onFinish()
-                }
-            })
+    fun notifyError(error: LbError, onFinish: (() -> Unit)? = null) {
+        when(error.kind) {
+            LbErrorKind.Program -> notifyProgramError(error.msg, onFinish)
+            LbErrorKind.User -> notifyUserError(error.msg, onFinish)
         }
-
-        snackBar.show()
     }
 
-    fun unexpectedCoreErrorHasOccurred(context: Context, error: String, onFinishAlert: OnFinishAlert) {
-        val dialog = AlertDialog.Builder(context, R.style.Main_Widget_Dialog)
-            .setTitle(UNEXPECTED_ERROR)
-            .setMessage(error)
+    private fun notifyProgramError(msg: String, onFinish: (() -> Unit)? = null) {
+        val dialog = AlertDialog.Builder(App.instance, R.style.Main_Widget_Dialog)
+            .setTitle(App.instance.resources.getString(R.string.unexpected_error))
+            .setMessage(msg)
 
-        if (onFinishAlert is OnFinishAlert.DoSomethingOnFinishAlert) {
+        Timber.e("Unexpected Error: $msg")
+
+        if (onFinish != null) {
             dialog.setOnCancelListener {
-                onFinishAlert.onFinish()
+                onFinish()
             }
         }
 
         dialog.show()
     }
+
+    private fun notifyUserError(msg: String, onFinish: (() -> Unit)? = null) {
+        val snackBar = Snackbar.make(view, msg, Snackbar.LENGTH_SHORT)
+
+        if (onFinish != null) {
+            snackBar.addCallback(object : Snackbar.Callback() {
+                override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                    super.onDismissed(transientBottomBar, event)
+                    onFinish()
+                }
+            })
+        }
+
+        snackBar.show()
+    }
 }
 
-sealed class OnFinishAlert {
-    object DoNothingOnFinishAlert : OnFinishAlert()
-    data class DoSomethingOnFinishAlert(val onFinish: () -> Unit) : OnFinishAlert()
+sealed class onFinishAlert {
+    onFinishUserError(val onFinish: () -> Unit)
 }

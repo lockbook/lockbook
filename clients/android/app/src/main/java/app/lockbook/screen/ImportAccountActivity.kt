@@ -33,7 +33,11 @@ class ImportAccountActivity : AppCompatActivity() {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
-    var onQRCodeResult = registerForActivityResult(StartActivityForResult()) { result ->
+    private val alertModel by lazy {
+        AlertModel(this)
+    }
+
+    private var onQRCodeResult = registerForActivityResult(StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             uiScope.launch {
                 withContext(Dispatchers.IO) {
@@ -110,10 +114,7 @@ class ImportAccountActivity : AppCompatActivity() {
                 is Err -> {
                     binding.importAccountProgressBar.visibility = View.GONE
                     when (val error = importAccountResult.error) {
-                        is ImportError.AccountStringCorrupted -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "Invalid account string!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
+                        is ImportError.AccountStringCorrupted -> alertModel.notify("Invalid account string!")
                         is ImportError.AccountExistsAlready -> AlertModel.errorHasOccurred(
                             binding.importAccountLayout,
                             "Account already exists!", OnFinishAlert.DoNothingOnFinishAlert

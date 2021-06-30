@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="no_account">You have no account.</string>
+    <string name="could_not_reach_server">Offline.</string>
+    <string name="client_update_required">Update required.</string>
+    <string name="state_requires_cleaning">This lockbook version is incompatible with your data, please clear your data or downgrade your lockbook.</string>
+    <string name="username_taken">This username has been taken.</string>
+    <string name="invalid_username">This username is invalid.</string>
+    <string name="account_exists_already">An account already exists on this device.</string>
+    <string name="account_string_corrupted">Invalid account string.</string>
+    <string name="account_does_not_exist">That account does not exist.</string>
+    <string name="username_pk_mismatch">That username does not correspond with that public_key on this server.</string>
+    <string name="file_does_not_exist">That file does not exist.</string>
+    <string name="folder_treated_as_document">A folder cannot be treated as document.</string>
+    <string name="document_treated_as_folder">A document cannot be treated as folder.</string>
+    <string name="could_not_find_a_parent">Could not find that file\'s parent.</string>
+    <string name="file_name_not_available">That file name is not available.</string>
+    <string name="file_name_contains_slash">A file name cannot contain a slash.</string>
+    <string name="file_name_empty">A file\'s name cannot be empty.</string>
+    <string name="no_file_with_that_id">No file with that id exists.</string>
+    <string name="cannot_delete_root">You cannot delete root.</string>
+    <string name="bad_path">A bad path was given.</string>
+    <string name="file_already_exists_on_disk">A file with that name already exists on your device.</string>
+    <string name="folder_treated_as_drawing">A folder cannot be treated as a drawing.</string>
+    <string name="invalid_drawing">That drawing is invalid.</string>
+    <string name="cannot_rename_root">You cannot rename root.</string>
+    <string name="target_parent_does_not_exist">Your target parent does not exist.</string>
+    <string name="target_parent_has_a_child_named_that">Your target parent already has a child named that.</string>
+    <string name="folder_moved_into_itself">A folder cannot be moved into itself.</string>
+    <string name="no_root">No root!</string>
+    <string name="cannot_move_root">Cannot move root!</string>
+
+    <string name="unexpected_error">An unexpected error has occurred!</string>
+    <string name="basic_error">An error has occurred.</string>
+</resources>
