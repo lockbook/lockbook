@@ -10,9 +10,8 @@ import androidx.fragment.app.DialogFragment
 import app.lockbook.databinding.DialogRenameFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
-import app.lockbook.model.OnFinishAlert
-import app.lockbook.util.BASIC_ERROR
 import app.lockbook.util.Config
+import app.lockbook.util.LbErrorKind
 import app.lockbook.util.RenameFileError
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
@@ -37,6 +36,10 @@ class RenameFileDialogFragment : DialogFragment() {
     lateinit var name: String
     lateinit var id: String
     lateinit var config: Config
+
+    private val alertModel by lazy {
+        AlertModel(view = view)
+    }
 
     companion object {
 
@@ -78,10 +81,10 @@ class RenameFileDialogFragment : DialogFragment() {
             id = nullableId
             name = nullableName
         } else {
-            AlertModel.errorHasOccurred(binding.renameFileLayout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
+            alertModel.notifyBasicError(::dismiss)
         }
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
-        dialog?.setCanceledOnTouchOutside(false) ?: AlertModel.errorHasOccurred(binding.renameFileLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+        dialog?.setCanceledOnTouchOutside(false) ?: alertModel.notifyBasicError()
 
         binding.renameFileCancel.setOnClickListener {
             dismiss()
@@ -118,24 +121,11 @@ class RenameFileDialogFragment : DialogFragment() {
                 }
                 return
             }
-            is Err -> when (val error = renameFileResult.error) {
-                is RenameFileError.FileDoesNotExist -> AlertModel.errorHasOccurred(binding.renameFileLayout, "Error! File does not exist!", OnFinishAlert.DoNothingOnFinishAlert)
-                is RenameFileError.NewNameContainsSlash -> AlertModel.errorHasOccurred(binding.renameFileLayout, "Error! New name contains slash!", OnFinishAlert.DoNothingOnFinishAlert)
-                is RenameFileError.FileNameNotAvailable -> AlertModel.errorHasOccurred(binding.renameFileLayout, "Error! File name not available!", OnFinishAlert.DoNothingOnFinishAlert)
-                is RenameFileError.NewNameEmpty -> AlertModel.errorHasOccurred(binding.renameFileLayout, "Error! New file name cannot be empty!", OnFinishAlert.DoNothingOnFinishAlert)
-                is RenameFileError.CannotRenameRoot -> AlertModel.errorHasOccurred(binding.renameFileLayout, "Error! Cannot rename root!", OnFinishAlert.DoNothingOnFinishAlert)
-                is RenameFileError.Unexpected -> {
-                    Timber.e("Unable to rename file: ${error.error}")
-                    withContext(Dispatchers.Main) {
-                        AlertModel.unexpectedCoreErrorHasOccurred(
-                            requireContext(),
-                            error.error,
-                            OnFinishAlert.DoSomethingOnFinishAlert(::dismiss)
-                        )
-                    }
-                }
+            is Err -> withContext(Dispatchers.Main) {
+                val lbError = renameFileResult.error.toLbError()
+                alertModel.notifyError(lbError, if (lbError.kind == LbErrorKind.Program) ::dismiss else null)
             }
-        }.exhaustive
+        }
     }
 
     override fun onStart() {

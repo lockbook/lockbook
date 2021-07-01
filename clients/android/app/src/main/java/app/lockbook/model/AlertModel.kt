@@ -9,9 +9,12 @@ import app.lockbook.util.*
 import com.google.android.material.snackbar.Snackbar
 import timber.log.Timber
 
-class AlertModel(activity: Activity) {
+class AlertModel(activity: Activity? = null, view: View? = null) {
 
-    private var view: View = activity.findViewById(android.R.id.content)
+    private var view: View = view ?: activity!!.findViewById(android.R.id.content)
+    private var unexpectedErrorMsg = App.instance.resources.getString(R.string.unexpected_error)
+
+    fun notifyBasicError(onFinish: (() -> Unit)? = null) = notify(resIdToString(R.string.basic_error), onFinish)
 
     fun notify(msg: String, onFinish: (() -> Unit)? = null) {
         val snackBar = Snackbar.make(view, msg, Snackbar.LENGTH_SHORT)
@@ -28,16 +31,9 @@ class AlertModel(activity: Activity) {
         snackBar.show()
     }
 
-    fun notifyError(error: LbError, onFinish: (() -> Unit)? = null) {
-        when(error.kind) {
-            LbErrorKind.Program -> notifyProgramError(error.msg, onFinish)
-            LbErrorKind.User -> notifyUserError(error.msg, onFinish)
-        }
-    }
-
-    private fun notifyProgramError(msg: String, onFinish: (() -> Unit)? = null) {
+    private fun notifyWithDialog(title: String, msg: String, onFinish: (() -> Unit)? = null) {
         val dialog = AlertDialog.Builder(App.instance, R.style.Main_Widget_Dialog)
-            .setTitle(App.instance.resources.getString(R.string.unexpected_error))
+            .setTitle(title)
             .setMessage(msg)
 
         Timber.e("Unexpected Error: $msg")
@@ -51,22 +47,10 @@ class AlertModel(activity: Activity) {
         dialog.show()
     }
 
-    private fun notifyUserError(msg: String, onFinish: (() -> Unit)? = null) {
-        val snackBar = Snackbar.make(view, msg, Snackbar.LENGTH_SHORT)
-
-        if (onFinish != null) {
-            snackBar.addCallback(object : Snackbar.Callback() {
-                override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                    super.onDismissed(transientBottomBar, event)
-                    onFinish()
-                }
-            })
+    fun notifyError(error: LbError, onFinish: (() -> Unit)? = null) {
+        when(error.kind) {
+            LbErrorKind.Program -> notifyWithDialog(unexpectedErrorMsg, error.msg, onFinish)
+            LbErrorKind.User -> notify(error.msg, onFinish)
         }
-
-        snackBar.show()
     }
-}
-
-sealed class onFinishAlert {
-    onFinishUserError(val onFinish: () -> Unit)
 }

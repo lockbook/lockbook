@@ -11,9 +11,7 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.databinding.ActivityListFilesBinding
 import app.lockbook.model.AlertModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.Animate
-import app.lockbook.util.BASIC_ERROR
 import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
 import app.lockbook.util.SharedPreferences.GRID_LAYOUT
 import app.lockbook.util.SharedPreferences.LINEAR_LAYOUT
@@ -23,7 +21,9 @@ import app.lockbook.util.SharedPreferences.SORT_FILES_KEY
 import app.lockbook.util.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.util.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.util.SharedPreferences.SORT_FILES_Z_A
+import app.lockbook.util.basicErrorString
 import app.lockbook.util.exhaustive
+import app.lockbook.util.resIdToString
 import timber.log.Timber
 
 private val menuItemsNoneSelected = listOf(
@@ -49,6 +49,10 @@ class ListFilesActivity : AppCompatActivity() {
     // onDestroyView.
     private val binding get() = _binding!!
     private var menu: Menu? = null
+
+    private val alertModel by lazy {
+        AlertModel(this)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,11 +94,7 @@ class ListFilesActivity : AppCompatActivity() {
             SORT_FILES_TYPE -> menu?.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(
-                    binding.listFilesActivityLayout,
-                    BASIC_ERROR,
-                    OnFinishAlert.DoNothingOnFinishAlert
-                )
+                alertModel.notifyBasicError()
             }
         }.exhaustive
 
@@ -114,11 +114,7 @@ class ListFilesActivity : AppCompatActivity() {
             GRID_LAYOUT -> menu?.findItem(R.id.menu_list_files_grid_view)?.isChecked = true
             else -> {
                 Timber.e("File layout shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(
-                    binding.listFilesActivityLayout,
-                    BASIC_ERROR,
-                    OnFinishAlert.DoNothingOnFinishAlert
-                )
+                alertModel.notifyBasicError()
             }
         }
     }
@@ -202,11 +198,7 @@ class ListFilesActivity : AppCompatActivity() {
             listFilesFragment
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")
-            AlertModel.errorHasOccurred(
-                binding.listFilesActivityLayout,
-                BASIC_ERROR,
-                OnFinishAlert.DoNothingOnFinishAlert
-            )
+            alertModel.notifyBasicError()
 
             null
         }

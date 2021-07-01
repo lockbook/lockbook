@@ -21,8 +21,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
     var ignoreChange = false
     private val _canUndo = MutableLiveData<Boolean>()
     private val _canRedo = MutableLiveData<Boolean>()
-    private val _errorHasOccurred = MutableLiveData<String>()
-    private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
+    private val _notifyError = MutableLiveData<LbError>()
 
     val canUndo: LiveData<Boolean>
         get() = _canUndo
@@ -30,11 +29,8 @@ class TextEditorViewModel(application: Application, private val id: String) :
     val canRedo: LiveData<Boolean>
         get() = _canRedo
 
-    val errorHasOccurred: LiveData<String>
-        get() = _errorHasOccurred
-
-    val unexpectedErrorHasOccurred: LiveData<String>
-        get() = _unexpectedErrorHasOccurred
+    val notifyError: LiveData<LbError>
+        get() = _notifyError
 
     init {
         val contents = readDocument(id)
@@ -48,17 +44,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
             is Ok -> {
                 return documentResult.value
             }
-            is Err -> when (val error = documentResult.error) {
-                is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
-                is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is ReadDocumentError.Unexpected -> {
-                    Timber.e("Unable to get content of file: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(
-                        error.error
-                    )
-                }
-            }
+            is Err -> _notifyError.postValue(documentResult.error.toLbError())
         }.exhaustive
 
         return null
@@ -111,23 +97,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
         viewModelScope.launch(Dispatchers.IO) {
             val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, content)
             if (writeToDocumentResult is Err) {
-                when (val error = writeToDocumentResult.error) {
-                    is WriteToDocumentError.FolderTreatedAsDocument -> {
-                        _errorHasOccurred.postValue("Error! Folder is treated as document!")
-                    }
-                    is WriteToDocumentError.FileDoesNotExist -> {
-                        _errorHasOccurred.postValue("Error! File does not exist!")
-                    }
-                    is WriteToDocumentError.NoAccount -> {
-                        _errorHasOccurred.postValue("Error! No account!")
-                    }
-                    is WriteToDocumentError.Unexpected -> {
-                        Timber.e("Unable to write document changes: ${error.error}")
-                        _unexpectedErrorHasOccurred.postValue(
-                            error.error
-                        )
-                    }
-                }.exhaustive
+                _notifyError.postValue(writeToDocumentResult.error.toLbError())
             }
         }
     }

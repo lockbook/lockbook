@@ -32,8 +32,7 @@ class DrawingViewModel(
     private val _selectNewTool = MutableLiveData<Pair<DrawingView.Tool?, DrawingView.Tool>>()
     private val _selectedNewPenSize = MutableLiveData<Int>()
     private val _drawableReady = SingleMutableLiveData<Unit>()
-    private val _errorHasOccurred = MutableLiveData<String>()
-    private val _unexpectedErrorHasOccurred = MutableLiveData<String>()
+    private val _notifyError = MutableLiveData<LbError>()
 
     val setToolsVisibility: LiveData<Int>
         get() = _setToolsVisibility
@@ -44,11 +43,8 @@ class DrawingViewModel(
     val selectedNewPenSize: LiveData<Int>
         get() = _selectedNewPenSize
 
-    val errorHasOccurred: LiveData<String>
-        get() = _errorHasOccurred
-
-    val unexpectedErrorHasOccurred: LiveData<String>
-        get() = _unexpectedErrorHasOccurred
+    val notifyError: LiveData<LbError>
+        get() = _notifyError
 
     val drawableReady: LiveData<Unit>
         get() = _drawableReady
@@ -84,17 +80,7 @@ class DrawingViewModel(
             is Ok -> {
                 return documentResult.value
             }
-            is Err -> when (val error = documentResult.error) {
-                is ReadDocumentError.TreatedFolderAsDocument -> _errorHasOccurred.postValue("Error! Folder treated as document!")
-                is ReadDocumentError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                is ReadDocumentError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                is ReadDocumentError.Unexpected -> {
-                    Timber.e("Unable to get content of file: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(
-                        error.error
-                    )
-                }
-            }
+            is Err -> _notifyError.postValue(documentResult.error.toLbError())
         }.exhaustive
 
         return null
@@ -105,23 +91,7 @@ class DrawingViewModel(
             val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
             if (writeToDocumentResult is Err) {
-                when (val error = writeToDocumentResult.error) {
-                    is WriteToDocumentError.FolderTreatedAsDocument -> {
-                        _errorHasOccurred.postValue("Error! Folder is treated as document!")
-                    }
-                    is WriteToDocumentError.FileDoesNotExist -> {
-                        _errorHasOccurred.postValue("Error! File does not exist!")
-                    }
-                    is WriteToDocumentError.NoAccount -> {
-                        _errorHasOccurred.postValue("Error! No account!")
-                    }
-                    is WriteToDocumentError.Unexpected -> {
-                        Timber.e("Unable to write document changes: ${error.error}")
-                        _unexpectedErrorHasOccurred.postValue(
-                            error.error
-                        )
-                    }
-                }.exhaustive
+                _notifyError.postValue(writeToDocumentResult.error.toLbError())
             }
         }
     }

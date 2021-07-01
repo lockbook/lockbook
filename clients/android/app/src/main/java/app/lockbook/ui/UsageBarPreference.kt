@@ -11,7 +11,7 @@ import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
-import app.lockbook.model.OnFinishAlert
+import app.lockbook.screen.SettingsActivity
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -20,6 +20,10 @@ import timber.log.Timber
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
 
     val config = Config(context.filesDir.absolutePath)
+
+    private val alertModel by lazy {
+        AlertModel(context as SettingsActivity)
+    }
 
     init {
         layoutResource = R.layout.preference_usage_bar
@@ -46,7 +50,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                 val uncompressedUsageDot = localAndServerUsages.uncompressedUsage.indexOf(" ")
 
                 if (dataCapDot == -1 || serverUsageDot == -1 || uncompressedUsageDot == -1) {
-                    AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Error! Could not set up usage bar.", OnFinishAlert.DoNothingOnFinishAlert)
+                    alertModel.notifyBasicError()
                 }
 
                 val dataCapNum = localAndServerUsages.dataCap.substring(0, dataCapDot).toLongOrNull()
@@ -54,7 +58,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                 val uncompressedUsageNum = localAndServerUsages.uncompressedUsage.substring(0, uncompressedUsageDot).toLongOrNull()
 
                 if (dataCapNum == null || serverUsageNum == null || uncompressedUsageNum == null) {
-                    AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Error! Could not set up usage bar.", OnFinishAlert.DoNothingOnFinishAlert)
+                    alertModel.notifyBasicError()
                 } else {
                     val usageBar = holder.itemView.findViewById<ProgressBar>(R.id.usage_bar)
 
@@ -66,26 +70,13 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                     }
                 }
             }
-            is Err -> when (val error = getUsageResult.error) {
-                GetUsageError.NoAccount -> {
-                    AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Error! No account.", OnFinishAlert.DoNothingOnFinishAlert)
-                    usageInfo.text = "Error! No account."
+            is Err -> {
+                val lbError = getUsageResult.error.toLbError()
+                alertModel.notifyError(lbError)
+                if(lbError.kind == LbErrorKind.User) {
+                    usageInfo.text = lbError.msg
                 }
-                GetUsageError.CouldNotReachServer -> {
-                    AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "You are offline.", OnFinishAlert.DoNothingOnFinishAlert)
-                    usageInfo.text =
-                        holder.itemView.resources.getString(R.string.list_files_offline_snackbar)
-                }
-                GetUsageError.ClientUpdateRequired -> {
-                    AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Update required.", OnFinishAlert.DoNothingOnFinishAlert)
-                    usageInfo.text =
-                        "Update required."
-                }
-                is GetUsageError.Unexpected -> {
-                    AlertModel.unexpectedCoreErrorHasOccurred((context as Activity).findViewById(android.R.id.content), error.error, OnFinishAlert.DoNothingOnFinishAlert)
-                    Timber.e("Unable to get usage: ${error.error}")
-                }
-            }.exhaustive
+            }
         }
     }
 }

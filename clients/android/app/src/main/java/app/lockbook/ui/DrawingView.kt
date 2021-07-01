@@ -10,7 +10,6 @@ import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.model.AlertModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
 import java.util.*
@@ -55,6 +54,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     data class Pen(val colorAlias: ColorAlias) : Tool()
     object Eraser : Tool()
+
+    private val alertModel by lazy {
+        AlertModel(context as DrawingActivity)
+    }
 
     companion object {
         const val CANVAS_WIDTH = 2125
@@ -190,11 +193,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             val strokeColor = getColor(stroke.color, stroke.alpha)
 
             if (strokeColor == null) {
-                AlertModel.unexpectedCoreErrorHasOccurred(
-                    context,
-                    "Unable to get color from theme.",
-                    OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish)
-                )
+                alertModel.notifyBasicError((context as DrawingActivity)::finish)
                 return
             }
 
@@ -238,11 +237,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val strokeColor = colorAliasInARGB[ColorAlias.White]
 
         if (strokeColor == null) {
-            AlertModel.unexpectedCoreErrorHasOccurred(
-                context,
-                "Unable to get color from theme.",
-                OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish)
-            )
+            alertModel.notifyBasicError((context as DrawingActivity)::finish)
             return
         }
 
@@ -427,11 +422,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val strokeColor = getColor(strokeColor, alpha)
 
         if (strokeColor == null) {
-            AlertModel.unexpectedCoreErrorHasOccurred(
-                context,
-                "Unable to get color from theme.",
-                OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish)
-            )
+            alertModel.notifyBasicError((context as DrawingActivity)::finish)
             return
         }
 

@@ -18,7 +18,6 @@ import app.lockbook.R
 import app.lockbook.databinding.ActivityDrawingBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.DrawingViewModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.modelfactory.DrawingViewModelFactory
 import app.lockbook.screen.TextEditorActivity.Companion.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
 import app.lockbook.ui.DrawingView
@@ -55,6 +54,10 @@ class DrawingActivity : AppCompatActivity() {
     private lateinit var id: String
     private lateinit var gestureDetector: GestureDetector
 
+    private val alertModel by lazy {
+        AlertModel(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityDrawingBinding.inflate(layoutInflater)
@@ -63,7 +66,7 @@ class DrawingActivity : AppCompatActivity() {
         val maybeId = intent.getStringExtra("id")
 
         if (maybeId == null) {
-            AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to get get file id.", OnFinishAlert.DoSomethingOnFinishAlert(::finish))
+            alertModel.notifyBasicError(::finish)
             return
         }
 
@@ -75,16 +78,10 @@ class DrawingActivity : AppCompatActivity() {
                 DrawingViewModelFactory(application, id)
             ).get(DrawingViewModel::class.java)
 
-        drawingViewModel.errorHasOccurred.observe(
+        drawingViewModel.notifyError.observe(
             this
-        ) { errorText ->
-            AlertModel.errorHasOccurred(binding.drawingLayout, errorText, OnFinishAlert.DoSomethingOnFinishAlert(::finish))
-        }
-
-        drawingViewModel.unexpectedErrorHasOccurred.observe(
-            this
-        ) { errorText ->
-            AlertModel.unexpectedCoreErrorHasOccurred(this, errorText, OnFinishAlert.DoSomethingOnFinishAlert(::finish))
+        ) { error ->
+            alertModel.notifyError(error, ::finish)
         }
 
         drawingViewModel.drawableReady.observe(
@@ -158,7 +155,7 @@ class DrawingActivity : AppCompatActivity() {
                 drawingView.isErasing = false
             }
             null -> {}
-            else -> AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to recognize previous tool.", OnFinishAlert.DoNothingOnFinishAlert)
+            else -> alertModel.notifyBasicError()
         }
 
         when (newTool) {
@@ -181,7 +178,7 @@ class DrawingActivity : AppCompatActivity() {
                 eraser.setImageResource(R.drawable.ic_eraser_filled)
                 drawingView.isErasing = true
             }
-            else -> AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to recognize new tool.", OnFinishAlert.DoNothingOnFinishAlert)
+            else -> alertModel.notifyBasicError()
         }.exhaustive
     }
 
@@ -228,7 +225,7 @@ class DrawingActivity : AppCompatActivity() {
         val drawing = drawingViewModel.backupDrawing
 
         if (drawing == null) {
-            AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to get backup drawing.", OnFinishAlert.DoNothingOnFinishAlert)
+            alertModel.notifyBasicError()
             return
         }
 
@@ -244,7 +241,7 @@ class DrawingActivity : AppCompatActivity() {
         val yellow = colorAliasInARGB[ColorAlias.Yellow]
 
         if (white == null || black == null || red == null || green == null || cyan == null || magenta == null || blue == null || yellow == null) {
-            AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to get 1 or more colors from theme.", OnFinishAlert.DoNothingOnFinishAlert)
+            alertModel.notifyBasicError()
             return
         }
 

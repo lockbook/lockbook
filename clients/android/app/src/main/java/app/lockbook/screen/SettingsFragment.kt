@@ -1,5 +1,6 @@
 package app.lockbook.screen
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -17,7 +18,6 @@ import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
 import app.lockbook.util.*
@@ -40,6 +40,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private lateinit var selectedKey: String
     private lateinit var newValueForPref: String
 
+    private val alertModel by lazy {
+        AlertModel(view = view)
+    }
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
         config = Config(requireContext().filesDir.absolutePath)
@@ -52,9 +56,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 newValueForPref = newValue
 
                 BiometricModel.verify(
-                    requireContext(),
-                    requireActivity().findViewById(android.R.id.content),
-                    activity as FragmentActivity,
+                    requireActivity(),
                     ::matchKey
                 )
             }
@@ -93,9 +95,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         when (preference?.key) {
             EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> {
                 BiometricModel.verify(
-                    requireContext(),
-                    requireActivity().findViewById(android.R.id.content),
-                    activity as FragmentActivity,
+                    requireActivity(),
                     ::matchKey
                 )
             }
@@ -119,11 +119,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValueForPref)
             else -> {
                 Timber.e("Shared preference key not matched: $selectedKey")
-                AlertModel.errorHasOccurred(
-                    requireActivity().findViewById(android.R.id.content),
-                    BASIC_ERROR,
-                    OnFinishAlert.DoNothingOnFinishAlert
-                )
+                alertModel.notifyBasicError()
             }
         }.exhaustive
     }
@@ -151,23 +147,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
                 popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
             }
-            is Err -> {
-                when (val error = exportResult.error) {
-                    is AccountExportError.NoAccount -> AlertModel.errorHasOccurred(
-                        requireActivity().findViewById(android.R.id.content),
-                        "Error! No account!",
-                        OnFinishAlert.DoNothingOnFinishAlert
-                    )
-                    is AccountExportError.Unexpected -> {
-                        AlertModel.unexpectedCoreErrorHasOccurred(
-                            requireContext(),
-                            error.error,
-                            OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        Timber.e("Unable to export account: ${error.error}")
-                    }
-                }
-            }
+            is Err -> alertModel.notifyError(exportResult.error.toLbError())
         }.exhaustive
     }
 
@@ -178,25 +158,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clipBoardData = ClipData.newPlainText("account string", exportResult.value)
                 clipBoard.setPrimaryClip(clipBoardData)
-                AlertModel.notify(
-                    requireActivity().findViewById(android.R.id.content),
-                    "Account string copied!", OnFinishAlert.DoNothingOnFinishAlert
-                )
+                alertModel.notify(resIdToString(R.string.settings_export_account_copied))
             }
-            is Err -> when (val error = exportResult.error) {
-                is AccountExportError.NoAccount -> AlertModel.errorHasOccurred(
-                    requireActivity().findViewById(android.R.id.content),
-                    "Error! No account!", OnFinishAlert.DoNothingOnFinishAlert
-                )
-                is AccountExportError.Unexpected -> {
-                    AlertModel.unexpectedCoreErrorHasOccurred(
-                        requireContext(),
-                        error.error,
-                        OnFinishAlert.DoNothingOnFinishAlert
-                    )
-                    Timber.e("Unable to export account: ${error.error}")
-                }
-            }
+            is Err -> alertModel.notifyError(exportResult.error.toLbError())
         }.exhaustive
     }
 

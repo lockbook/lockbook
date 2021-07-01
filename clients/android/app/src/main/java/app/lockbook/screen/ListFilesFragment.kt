@@ -39,6 +39,10 @@ class ListFilesFragment : Fragment() {
     // onDestroyView.
     private val binding get() = _binding!!
 
+    private val alertModel by lazy {
+        AlertModel(view = view)
+    }
+
     private var onActivityResult =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             listFilesViewModel.onOpenedActivityEnd()
@@ -230,12 +234,12 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.showSnackBar.observe(
+        listFilesViewModel.notifyWithSnackbar.observe(
             viewLifecycleOwner,
             { msg ->
                 if (container != null) {
                     snackProgressBarManager.dismiss()
-                    AlertModel.notify(container, msg, OnFinishAlert.DoNothingOnFinishAlert)
+                    alertModel.notify(msg)
                 }
             }
         )
@@ -261,27 +265,12 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.errorHasOccurred.observe(
+        listFilesViewModel.notifyError.observe(
             viewLifecycleOwner,
-            { errorText ->
+            { error ->
                 if (container != null) {
-                    AlertModel.errorHasOccurred(
-                        container,
-                        errorText,
-                        OnFinishAlert.DoNothingOnFinishAlert
-                    )
+                    alertModel.notifyError(error)
                 }
-            }
-        )
-
-        listFilesViewModel.unexpectedErrorHasOccurred.observe(
-            viewLifecycleOwner,
-            { errorText ->
-                AlertModel.unexpectedCoreErrorHasOccurred(
-                    requireContext(),
-                    errorText,
-                    OnFinishAlert.DoNothingOnFinishAlert
-                )
             }
         )
 
@@ -505,11 +494,7 @@ class ListFilesFragment : Fragment() {
             return activity as ListFilesActivity
         }
 
-        AlertModel.errorHasOccurred(
-            binding.fragmentListFiles,
-            BASIC_ERROR,
-            OnFinishAlert.DoNothingOnFinishAlert
-        )
+        alertModel.notifyBasicError()
 
         return null
     }

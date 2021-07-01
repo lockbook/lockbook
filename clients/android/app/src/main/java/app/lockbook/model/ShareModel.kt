@@ -14,8 +14,7 @@ class ShareModel(
     private val config: Config,
     private val _shareDocument: SingleMutableLiveData<ArrayList<File>>,
     private val _showHideProgressOverlay: SingleMutableLiveData<Boolean>,
-    private val _errorHasOccurred: SingleMutableLiveData<String>,
-    private val _unexpectedErrorHasOccurred: SingleMutableLiveData<String>
+    private val _notifyError: SingleMutableLiveData<LbError>
 ) {
     var isLoadingOverlayVisible = false
 
@@ -74,19 +73,7 @@ class ShareModel(
                     is Err -> {
                         isLoadingOverlayVisible = false
                         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
-
-                        return when (val error = exportDrawingToDiskResult.error) {
-                            ExportDrawingToDiskError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                            ExportDrawingToDiskError.FolderTreatedAsDrawing -> _errorHasOccurred.postValue("Error! Folder treated as document!")
-                            ExportDrawingToDiskError.InvalidDrawing -> _errorHasOccurred.postValue("Error! Invalid drawing!")
-                            ExportDrawingToDiskError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                            ExportDrawingToDiskError.BadPath -> _errorHasOccurred.postValue("Error! Bad path used!")
-                            ExportDrawingToDiskError.FileAlreadyExistsInDisk -> _errorHasOccurred.postValue("Error! File already exists in path!")
-                            is ExportDrawingToDiskError.Unexpected -> {
-                                Timber.e(error.error)
-                                _unexpectedErrorHasOccurred.postValue(error.error)
-                            }
-                        }.exhaustive
+                        return _notifyError.postValue(exportDrawingToDiskResult.error.toLbError())
                     }
                 }
             } else {
@@ -100,22 +87,7 @@ class ShareModel(
                     is Err -> {
                         isLoadingOverlayVisible = false
                         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
-
-                        return when (val error = saveDocumentToDiskResult.error) {
-                            SaveDocumentToDiskError.TreatedFolderAsDocument -> _errorHasOccurred.postValue(
-                                "Error! Folder treated as document!"
-                            )
-                            SaveDocumentToDiskError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                            SaveDocumentToDiskError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                            SaveDocumentToDiskError.BadPath -> _errorHasOccurred.postValue("Error! Bad path used!")
-                            SaveDocumentToDiskError.FileAlreadyExistsInDisk -> _errorHasOccurred.postValue("Error! File already exists in path!")
-                            is SaveDocumentToDiskError.Unexpected -> {
-                                Timber.e("Unable to get content of file: ${error.error}")
-                                _unexpectedErrorHasOccurred.postValue(
-                                    error.error
-                                )
-                            }
-                        }.exhaustive
+                        return _notifyError.postValue(saveDocumentToDiskResult.error.toLbError())
                     }
                 }
             }
@@ -139,12 +111,7 @@ class ShareModel(
                         is Ok -> if (!retrieveSelectedDocuments(getChildrenResult.value, documents)) {
                             return false
                         }
-                        is Err -> when (val error = getChildrenResult.error) {
-                            is GetChildrenError.Unexpected -> {
-                                Timber.e("Unable to get siblings of the parent: ${error.error}")
-                                _unexpectedErrorHasOccurred.postValue(error.error)
-                            }
-                        }.exhaustive
+                        is Err -> _notifyError.postValue(getChildrenResult.error.toLbError())
                     }
             }
         }

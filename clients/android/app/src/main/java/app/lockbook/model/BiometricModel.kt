@@ -1,5 +1,6 @@
 package app.lockbook.model
 
+import android.app.Activity
 import android.content.Context
 import android.view.View
 import androidx.biometric.BiometricManager
@@ -7,7 +8,6 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.PreferenceManager
-import app.lockbook.util.BASIC_ERROR
 import app.lockbook.util.SharedPreferences
 import app.lockbook.util.exhaustive
 import timber.log.Timber
@@ -17,7 +17,10 @@ object BiometricModel {
         BiometricManager.from(context)
             .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 
-    fun verify(context: Context, view: View, fragmentActivity: FragmentActivity, onSuccess: () -> Unit) {
+    fun verify(activity: Activity, onSuccess: () -> Unit) {
+        val alertModel = AlertModel(activity)
+        val context = activity.applicationContext
+
         val pref = PreferenceManager.getDefaultSharedPreferences(context)
 
         when (
@@ -31,16 +34,12 @@ object BiometricModel {
                     .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
-                    AlertModel.errorHasOccurred(
-                        view,
-                        BASIC_ERROR,
-                        OnFinishAlert.DoNothingOnFinishAlert
-                    )
+                    alertModel.notifyBasicError()
                 }
 
                 val executor = ContextCompat.getMainExecutor(context)
                 val biometricPrompt = BiometricPrompt(
-                    fragmentActivity,
+                    activity as FragmentActivity,
                     executor,
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationError(
@@ -51,10 +50,10 @@ object BiometricModel {
                             when (errorCode) {
                                 BiometricPrompt.ERROR_HW_UNAVAILABLE, BiometricPrompt.ERROR_UNABLE_TO_PROCESS, BiometricPrompt.ERROR_NO_BIOMETRICS, BiometricPrompt.ERROR_HW_NOT_PRESENT -> {
                                     Timber.e("Biometric authentication error: $errString")
-                                    AlertModel.errorHasOccurred(view, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                                    alertModel.notifyBasicError()
                                 }
                                 BiometricPrompt.ERROR_LOCKOUT, BiometricPrompt.ERROR_LOCKOUT_PERMANENT -> {
-                                    AlertModel.errorHasOccurred(view, "Too many tries, try again later!", OnFinishAlert.DoNothingOnFinishAlert)
+                                    alertModel.notifyBasicError()
                                 }
                                 else -> {}
                             }.exhaustive
@@ -81,7 +80,7 @@ object BiometricModel {
             SharedPreferences.BIOMETRIC_NONE, SharedPreferences.BIOMETRIC_RECOMMENDED -> onSuccess()
             else -> {
                 Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(view, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                alertModel.notifyBasicError()
             }
         }.exhaustive
     }

@@ -11,7 +11,6 @@ import androidx.preference.PreferenceManager
 import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.Config
 import app.lockbook.util.ImportError
 import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
@@ -113,33 +112,7 @@ class ImportAccountActivity : AppCompatActivity() {
                 }
                 is Err -> {
                     binding.importAccountProgressBar.visibility = View.GONE
-                    when (val error = importAccountResult.error) {
-                        is ImportError.AccountStringCorrupted -> alertModel.notify("Invalid account string!")
-                        is ImportError.AccountExistsAlready -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "Account already exists!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.AccountDoesNotExist -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "That account does not exist on this server!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.UsernamePKMismatch -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "That username does not correspond with that public_key on this server!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.CouldNotReachServer -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "Could not reach server!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.ClientUpdateRequired -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "Update required!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.Unexpected -> {
-                            AlertModel.unexpectedCoreErrorHasOccurred(this@ImportAccountActivity, error.error, OnFinishAlert.DoNothingOnFinishAlert)
-                            Timber.e("Unable to import an account.")
-                        }
-                    }
+                    alertModel.notifyError(importAccountResult.error.toLbError())
                 }
             }.exhaustive
         }

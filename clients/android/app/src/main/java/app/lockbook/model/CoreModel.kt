@@ -279,11 +279,12 @@ object CoreModel {
         config: Config,
         parentId: String,
         name: String,
-        fileType: String
+        fileType: FileType
     ): Result<ClientFileMetadata, CreateFileError> {
+        val klaxon = Klaxon()
         val createFileResult: Result<ClientFileMetadata, CreateFileError>? =
-            Klaxon().converter(createFileConverter)
-                .parse(createFile(Klaxon().toJsonString(config), name, parentId, fileType))
+            klaxon.converter(createFileConverter)
+                .parse(createFile(Klaxon().toJsonString(config), name, parentId, klaxon.toJsonString(fileType)))
 
         if (createFileResult != null) {
             return createFileResult

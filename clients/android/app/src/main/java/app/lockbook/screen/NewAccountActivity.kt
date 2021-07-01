@@ -72,9 +72,17 @@ class NewAccountActivity : AppCompatActivity() {
                 }
                 is Err -> {
                     binding.newAccountProgressBar.visibility = View.GONE
-                    alertModel.notifyError(createAccountResult.error.toLbError())
+                    when (val error = createAccountResult.error) {
+                        is CreateAccountError.UsernameTaken,
+                        is CreateAccountError.InvalidUsername ->
+                            binding.newAccountUsername.error =
+                                error.toLbError().msg
+                        else -> {
+                            alertModel.notifyError(error.toLbError())
+                        }
+                    }
                 }
-            }.exhaustive
+            }
         }
     }
 

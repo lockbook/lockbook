@@ -61,12 +61,11 @@ class ListFilesViewModel(path: String, application: Application) :
     private val _showRenameFileDialog = SingleMutableLiveData<RenameFileInfo>()
     private val _uncheckAllFiles = SingleMutableLiveData<Unit>()
     private val _shareDocument = SingleMutableLiveData<ArrayList<File>>()
-    private val _showSnackBar = SingleMutableLiveData<String>()
+    private val _notifyWithSnackbar = SingleMutableLiveData<String>()
     private val _showSyncSnackBar = SingleMutableLiveData<Unit>()
     private val _updateSyncSnackBar = SingleMutableLiveData<Pair<Int, Int>>()
     private val _showHideProgressOverlay = SingleMutableLiveData<Boolean>()
-    private val _errorHasOccurred = SingleMutableLiveData<String>()
-    private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
+    private val _notifyError = SingleMutableLiveData<LbError>()
 
     val stopProgressSpinner: LiveData<Unit>
         get() = _stopProgressSpinner
@@ -116,33 +115,28 @@ class ListFilesViewModel(path: String, application: Application) :
     val shareDocument: LiveData<ArrayList<File>>
         get() = _shareDocument
 
-    val showSnackBar: LiveData<String>
-        get() = _showSnackBar
+    val notifyWithSnackbar: LiveData<String>
+        get() = _notifyWithSnackbar
 
     val showHideProgressOverlay: LiveData<Boolean>
         get() = _showHideProgressOverlay
 
-    val errorHasOccurred: LiveData<String>
-        get() = _errorHasOccurred
+    val notifyError: LiveData<LbError>
+        get() = _notifyError
 
-    val unexpectedErrorHasOccurred: LiveData<String>
-        get() = _unexpectedErrorHasOccurred
-
-    private val fileModel = FileModel(config, _errorHasOccurred, _unexpectedErrorHasOccurred)
+    private val fileModel = FileModel(config, _notifyError)
     val shareModel = ShareModel(
         config,
         _shareDocument,
         _showHideProgressOverlay,
-        _errorHasOccurred,
-        _unexpectedErrorHasOccurred
+        _notifyError,
     )
     val syncModel = SyncModel(
         config,
         _showSyncSnackBar,
         _updateSyncSnackBar,
-        _showSnackBar,
-        _errorHasOccurred,
-        _unexpectedErrorHasOccurred
+        _notifyWithSnackbar,
+        _notifyError,
     )
 
     init {
@@ -261,7 +255,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
                 R.id.menu_list_files_rename -> {
                     val selectedFiles =
-                        getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
+                        getSelected() ?: return@launch _notifyError.postValue(LbError.basicError())
 
                     if (selectedFiles.size == 1) {
                         _showRenameFileDialog.postValue(
@@ -271,32 +265,32 @@ class ListFilesViewModel(path: String, application: Application) :
                             )
                         )
                     } else {
-                        _errorHasOccurred.postValue(BASIC_ERROR)
+                        _notifyError.postValue(LbError.basicError())
                     }
                 }
                 R.id.menu_list_files_delete -> {
                     val selectedFiles = getSelected()?.map { file -> file.id }
-                        ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
+                        ?: return@launch _notifyError.postValue(LbError.basicError())
 
                     collapseMoreOptionsMenu()
                     if (fileModel.deleteFiles(selectedFiles)) {
-                        _showSnackBar.postValue("Successfully deleted the file(s)")
+                        _notifyWithSnackbar.postValue("Successfully deleted the file(s)")
                     }
                 }
                 R.id.menu_list_files_info -> {
                     val selectedFiles =
-                        getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
+                        getSelected() ?: return@launch _notifyError.postValue(LbError.basicError())
 
                     if (selectedFiles.size == 1) {
                         collapseMoreOptionsMenu()
                         _showFileInfoDialog.postValue(selectedFiles[0])
                     } else {
-                        _errorHasOccurred.postValue(BASIC_ERROR)
+                        _notifyError.postValue(LbError.basicError())
                     }
                 }
                 R.id.menu_list_files_move -> {
                     val selectedFiles =
-                        getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
+                        getSelected() ?: return@launch _notifyError.postValue(LbError.basicError())
                     _showMoveFileDialog.postValue(
                         MoveFileInfo(
                             selectedFiles
@@ -308,13 +302,13 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
                 R.id.menu_list_files_share -> {
                     val selectedFiles =
-                        getSelected() ?: return@launch _errorHasOccurred.postValue(BASIC_ERROR)
+                        getSelected() ?: return@launch _notifyError.postValue(LbError.basicError())
 
                     shareModel.shareDocuments(selectedFiles)
                 }
                 else -> {
                     Timber.e("Unrecognized sort item id.")
-                    _errorHasOccurred.postValue(BASIC_ERROR)
+                    _notifyError.postValue(LbError.basicError())
                 }
             }
         }
@@ -403,7 +397,7 @@ class ListFilesViewModel(path: String, application: Application) :
                 }
                 SYNC_AUTOMATICALLY_KEY, EXPORT_ACCOUNT_RAW_KEY, EXPORT_ACCOUNT_QR_KEY, BIOMETRIC_OPTION_KEY, IS_THIS_AN_IMPORT_KEY, BACKGROUND_SYNC_PERIOD_KEY, FILE_LAYOUT_KEY -> Unit
                 else -> {
-                    _errorHasOccurred.postValue(BASIC_ERROR)
+                    _notifyError.postValue(LbError.basicError())
                     Timber.e("Unable to recognize preference key: $key")
                 }
             }.exhaustive
