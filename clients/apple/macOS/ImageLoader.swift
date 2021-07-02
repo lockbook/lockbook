@@ -4,10 +4,10 @@ import Combine
 
 struct ImageLoader: View {
     @ObservedObject var model: ImageModel
-    let meta: FileMetadata
+    let meta: ClientFileMetadata
     @State var image: NSImage?
-    let deleteChannel: PassthroughSubject<FileMetadata, Never>
-    @State var deleted: FileMetadata?
+    let deleteChannel: PassthroughSubject<ClientFileMetadata, Never>
+    @State var deleted: ClientFileMetadata?
 
     var body: some View {
         Group {
@@ -35,14 +35,14 @@ struct ImageLoader: View {
 
 class ImageModel: ObservableObject {
     @Published var image: NSImage? = .none
-    @Published var meta: FileMetadata? = .none
+    @Published var meta: ClientFileMetadata? = .none
     let read: (UUID) -> FfiResult<Data, ExportDrawingError>
 
     init(read: @escaping (UUID) -> FfiResult<Data, ExportDrawingError>) {
         self.read = read
     }
 
-    func loadDrawing(meta: FileMetadata) {
+    func loadDrawing(meta: ClientFileMetadata) {
         self.meta = meta
         self.image = .none
         DispatchQueue.main.async {
@@ -59,7 +59,7 @@ class ImageModel: ObservableObject {
         }
     }
 
-    func closeImage(meta: FileMetadata) {
+    func closeImage(meta: ClientFileMetadata) {
         self.meta = .none
         self.image = .none
     }

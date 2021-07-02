@@ -53,7 +53,8 @@ class SyncModel(
 
         when (val workCalculatedResult = CoreModel.calculateWork(config)) {
             is Ok -> {
-                if (workCalculatedResult.value.workUnits.isEmpty()) {
+                val totalWork = workCalculatedResult.value.localFiles.size + workCalculatedResult.value.serverFiles.size + workCalculatedResult.value.serverUnknownNameCount
+                if (totalWork == 0) {
                     return _showSnackBar.postValue(upToDateMsg)
                 }
             }

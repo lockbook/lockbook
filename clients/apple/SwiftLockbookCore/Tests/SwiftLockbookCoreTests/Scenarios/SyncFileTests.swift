@@ -30,14 +30,14 @@ class SyncFileTests: SLCTest {
         
         assertSuccess(resultSync)
         
-        /// Verify all files are synced
+        /// Verify all files are syncedsmail/android/fix-work-unit
         assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.metadataVersion > 0 } }
     }
     
     func testIterativeNoFiles() throws {
         let resultCalculate = core.api.calculateWork()
         
-        assertSuccess(resultCalculate) { $0.workUnits.isEmpty }
+        assertSuccess(resultCalculate) { $0.localFiles.isEmpty && $0.serverFiles.isEmpty && $0.serverUnknownNameCount == 0 }
     }
     
     func testLocalChangesNoFiles() throws {

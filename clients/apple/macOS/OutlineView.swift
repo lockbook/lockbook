@@ -9,15 +9,15 @@ import UniformTypeIdentifiers
 struct OutlineBranch: View {
     @ObservedObject var core: GlobalState
     
-    var file: FileMetadata
-    @Binding var selectedItem: FileMetadata?
+    var file: ClientFileMetadata
+    @Binding var selectedItem: ClientFileMetadata?
     var level: CGFloat
     @State var open: Bool = false
     @State var creating: FileType?
-    @Binding var dragging: FileMetadata?
-    @Binding var renaming: FileMetadata?
+    @Binding var dragging: ClientFileMetadata?
+    @Binding var renaming: ClientFileMetadata?
 
-    var children: [FileMetadata] {
+    var children: [ClientFileMetadata] {
         core.files.filter {
             $0.parent == file.id && $0.id != file.id
         }
@@ -136,7 +136,7 @@ struct OutlineBranch: View {
         }
     }
     
-    func handleDelete(meta: FileMetadata) -> () -> Void {
+    func handleDelete(meta: ClientFileMetadata) -> () -> Void {
         return {
             switch core.api.deleteFile(id: meta.id) {
             case .success(_):
@@ -149,7 +149,7 @@ struct OutlineBranch: View {
         }
     }
     
-    func handleCreate(meta: FileMetadata, type: FileType) -> (String) -> Void {
+    func handleCreate(meta: ClientFileMetadata, type: FileType) -> (String) -> Void {
         return { creatingName in
             switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
             case .success(let newMeta):
@@ -174,12 +174,12 @@ struct OutlineBranch: View {
 
 
 struct DragDropper: DropDelegate {
-    let file: FileMetadata
-    @Binding var current: FileMetadata?
+    let file: ClientFileMetadata
+    @Binding var current: ClientFileMetadata?
     @Binding var open: Bool
-    let moveFile: (FileMetadata) -> Void
+    let moveFile: (ClientFileMetadata) -> Void
 
-    init(file: FileMetadata, current: Binding<FileMetadata?>, open: Binding<Bool>, moveFile: @escaping (FileMetadata) -> Void) {
+    init(file: ClientFileMetadata, current: Binding<ClientFileMetadata?>, open: Binding<Bool>, moveFile: @escaping (ClientFileMetadata) -> Void) {
         self.file = file
         self._current = current
         self._open = open
@@ -209,12 +209,12 @@ struct OutlineSection: View {
     
     @ObservedObject var core: GlobalState
     
-    var root: FileMetadata
-    @Binding var selectedItem: FileMetadata?
-    @State var dragging: FileMetadata?
-    @State var renaming: FileMetadata?
+    var root: ClientFileMetadata
+    @Binding var selectedItem: ClientFileMetadata?
+    @State var dragging: ClientFileMetadata?
+    @State var renaming: ClientFileMetadata?
 
-    var children: [FileMetadata] {
+    var children: [ClientFileMetadata] {
         core.files.filter {
             $0.parent == root.id && $0.id != root.id
         }
@@ -239,7 +239,7 @@ struct OutlineSection: View {
     }
 }
 
-func makeContextActions(meta: FileMetadata, creating: @escaping (FileType) -> Void) -> TupleView<(Text, Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
+func makeContextActions(meta: ClientFileMetadata, creating: @escaping (FileType) -> Void) -> TupleView<(Text, Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
     TupleView((
         Text(meta.name),
         Button(action: { creating(.Document) }) {
@@ -251,7 +251,7 @@ func makeContextActions(meta: FileMetadata, creating: @escaping (FileType) -> Vo
     ))
 }
 
-func makeNonRootActions(meta: FileMetadata, renaming: @escaping () -> Void, delete: @escaping () -> Void) -> TupleView<(Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
+func makeNonRootActions(meta: ClientFileMetadata, renaming: @escaping () -> Void, delete: @escaping () -> Void) -> TupleView<(Button<Label<Text, Image>>, Button<Label<Text, Image>>)> {
     TupleView((
         Button(action: renaming) {
             Label("Rename", systemImage: "pencil")

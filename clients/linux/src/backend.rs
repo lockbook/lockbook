@@ -347,7 +347,9 @@ impl LbCore {
             0 => Ok("✘  Never synced.".to_string()),
             _ => {
                 let work = self.calculate_work()?;
-                let n_files = work.work_units.len();
+                let n_files = work.local_files.len()
+                    + work.server_files.len()
+                    + work.server_unknown_name_count;
                 Ok(match n_files {
                     0 => "✔  Synced.".to_string(),
                     1 => "<b>1</b>  file not synced.".to_string(),
