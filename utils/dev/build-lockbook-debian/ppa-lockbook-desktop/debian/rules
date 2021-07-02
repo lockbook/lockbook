@@ -8,6 +8,10 @@ build:
 	curl https://sh.rustup.rs -sSf | bash -s -- -y
 	(export PATH="/root/.cargo/bin:$$PATH" && cargo build --release --manifest-path ../../../../clients/linux/Cargo.toml)
 
+build-arch:
+
+build-indep:
+
 binary:
 	mkdir -p debian/lockbook-desktop/usr/bin
 	mkdir -p debian/lockbook-desktop/usr/share/applications
@@ -20,3 +24,7 @@ binary:
 	strip --strip-all debian/lockbook-desktop/usr/bin/lockbook-desktop
 	dh_gencontrol
 	dh_builddeb
+
+binary-arch:
+
+binary-indep:
