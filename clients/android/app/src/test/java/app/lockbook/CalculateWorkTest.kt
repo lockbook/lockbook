@@ -30,6 +30,29 @@ class CalculateWorkTest {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
+
+        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
+            CoreModel.getRoot(config).component1()
+        )
+
+        assertType<ClientFileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Document)
+            ).component1()
+        )
+
+        assertType<ClientFileMetadata>(
+            CoreModel.createFile(
+                config,
+                rootFileMetadata.id,
+                generateAlphaString(),
+                Klaxon().toJsonString(FileType.Folder)
+            ).component1()
+        )
+
         assertType<WorkCalculated>(
             CoreModel.calculateWork(config).component1()
         )
