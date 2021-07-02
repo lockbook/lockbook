@@ -6,7 +6,6 @@ import app.lockbook.R
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import timber.log.Timber
 
 class SyncModel(
     private val config: Config,
@@ -52,8 +51,8 @@ class SyncModel(
 
         when (val workCalculatedResult = CoreModel.calculateWork(config)) {
             is Ok -> if (workCalculatedResult.value.workUnits.isEmpty()) {
-                    return _notifyWithSnackbar.postValue(upToDateMsg)
-                }
+                return _notifyWithSnackbar.postValue(upToDateMsg)
+            }
             is Err -> return _notifyError.postValue(workCalculatedResult.error.toLbError())
         }
 

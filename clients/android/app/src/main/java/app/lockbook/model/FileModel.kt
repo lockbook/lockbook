@@ -4,7 +4,6 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.preference.PreferenceManager
 import app.lockbook.App
-import app.lockbook.R
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.github.michaelbull.result.*
@@ -80,7 +79,7 @@ class FileModel(private val config: Config, private val _notifyError: SingleMuta
 
     fun deleteFiles(ids: List<String>): Boolean {
         for (id in ids) {
-            when(val result = CoreModel.deleteFile(config, id)) {
+            when (val result = CoreModel.deleteFile(config, id)) {
                 is Ok -> {}
                 is Err -> {
                     _notifyError.postValue(result.error.toLbError())
@@ -110,7 +109,7 @@ class FileModel(private val config: Config, private val _notifyError: SingleMuta
             fileMetadata.name
         }
 
-        return if(inReverse) sortAlpha.reversed() else sortAlpha
+        return if (inReverse) sortAlpha.reversed() else sortAlpha
     }
 
     private fun sortFilesChanged(files: List<ClientFileMetadata>, inReverse: Boolean): List<ClientFileMetadata> {
@@ -118,7 +117,7 @@ class FileModel(private val config: Config, private val _notifyError: SingleMuta
             fileMetadata.metadataVersion
         }
 
-        return if(inReverse) sortChanged.reversed() else sortChanged
+        return if (inReverse) sortChanged.reversed() else sortChanged
     }
 
     private fun sortFilesType(files: List<ClientFileMetadata>): List<ClientFileMetadata> {

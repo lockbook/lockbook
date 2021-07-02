@@ -1,6 +1,5 @@
 package app.lockbook.screen
 
-import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -12,7 +11,6 @@ import android.widget.ImageView
 import android.widget.PopupWindow
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
-import androidx.fragment.app.FragmentActivity
 import androidx.preference.*
 import app.lockbook.R
 import app.lockbook.model.AlertModel
@@ -34,14 +32,15 @@ import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import timber.log.Timber
 import java.io.File
+import java.lang.ref.WeakReference
 
 class SettingsFragment : PreferenceFragmentCompat() {
     lateinit var config: Config
     private lateinit var selectedKey: String
     private lateinit var newValueForPref: String
 
-    private val alertModel by lazy {
-        AlertModel(view = view)
+    val alertModel by lazy {
+        AlertModel(WeakReference(requireActivity()))
     }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {

@@ -11,7 +11,7 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.databinding.ActivityListFilesBinding
 import app.lockbook.model.AlertModel
-import app.lockbook.util.Animate
+import app.lockbook.util.*
 import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
 import app.lockbook.util.SharedPreferences.GRID_LAYOUT
 import app.lockbook.util.SharedPreferences.LINEAR_LAYOUT
@@ -21,10 +21,8 @@ import app.lockbook.util.SharedPreferences.SORT_FILES_KEY
 import app.lockbook.util.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.util.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.util.SharedPreferences.SORT_FILES_Z_A
-import app.lockbook.util.basicErrorString
-import app.lockbook.util.exhaustive
-import app.lockbook.util.resIdToString
 import timber.log.Timber
+import java.lang.ref.WeakReference
 
 private val menuItemsNoneSelected = listOf(
     R.id.menu_list_files_sort,
@@ -51,7 +49,7 @@ class ListFilesActivity : AppCompatActivity() {
     private var menu: Menu? = null
 
     private val alertModel by lazy {
-        AlertModel(this)
+        AlertModel(WeakReference(this))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

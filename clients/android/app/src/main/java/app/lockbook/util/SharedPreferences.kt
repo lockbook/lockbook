@@ -28,7 +28,6 @@ object SharedPreferences {
 
     const val IS_THIS_AN_IMPORT_KEY = "import"
 
-    const val USAGE_INFO = "usage_info"
     const val USAGE_BAR = "usage_bar"
 
     const val FILE_LAYOUT_KEY = "file_layout"

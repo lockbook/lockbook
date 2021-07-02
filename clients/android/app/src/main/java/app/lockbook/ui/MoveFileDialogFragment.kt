@@ -13,11 +13,31 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.MoveFileAdapter
 import app.lockbook.model.MoveFileViewModel
 import app.lockbook.modelfactory.MoveFileViewModelFactory
+import app.lockbook.util.GetUsageError
+import java.lang.ref.WeakReference
 
 data class MoveFileInfo(
     val ids: Array<String>,
     val names: Array<String>
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as MoveFileInfo
+
+        if (!ids.contentEquals(other.ids)) return false
+        if (!names.contentEquals(other.names)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = ids.contentHashCode()
+        result = 31 * result + names.contentHashCode()
+        return result
+    }
+}
 
 class MoveFileDialogFragment : DialogFragment() {
 
@@ -27,7 +47,7 @@ class MoveFileDialogFragment : DialogFragment() {
     private val binding get() = _binding!!
 
     private val alertModel by lazy {
-        AlertModel(view = view)
+        AlertModel(WeakReference(requireActivity()), view)
     }
 
     private lateinit var ids: Array<String>

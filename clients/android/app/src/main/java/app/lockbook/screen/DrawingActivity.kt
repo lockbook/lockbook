@@ -20,8 +20,9 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.DrawingViewModel
 import app.lockbook.modelfactory.DrawingViewModelFactory
 import app.lockbook.screen.TextEditorActivity.Companion.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
-import app.lockbook.ui.DrawingView
+import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
+import java.lang.ref.WeakReference
 import java.util.*
 
 class DrawingActivity : AppCompatActivity() {
@@ -55,7 +56,7 @@ class DrawingActivity : AppCompatActivity() {
     private lateinit var gestureDetector: GestureDetector
 
     private val alertModel by lazy {
-        AlertModel(this)
+        AlertModel(WeakReference(this))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -134,9 +135,9 @@ class DrawingActivity : AppCompatActivity() {
         }
     }
 
-    private fun selectNewTool(oldTool: DrawingView.Tool?, newTool: DrawingView.Tool) {
+    private fun selectNewTool(oldTool: Tool?, newTool: Tool) {
         when (oldTool) {
-            is DrawingView.Pen -> {
+            is Tool.Pen -> {
                 val previousButton = when (oldTool.colorAlias) {
                     ColorAlias.White -> whiteButton
                     ColorAlias.Blue -> blueButton
@@ -150,16 +151,15 @@ class DrawingActivity : AppCompatActivity() {
 
                 previousButton.strokeWidth = 0
             }
-            is DrawingView.Eraser -> {
+            is Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_outline)
                 drawingView.isErasing = false
             }
             null -> {}
-            else -> alertModel.notifyBasicError()
         }
 
         when (newTool) {
-            is DrawingView.Pen -> {
+            is Tool.Pen -> {
                 val newButton = when (newTool.colorAlias) {
                     ColorAlias.White -> whiteButton
                     ColorAlias.Blue -> blueButton
@@ -174,11 +174,10 @@ class DrawingActivity : AppCompatActivity() {
                 newButton.strokeWidth = 4
                 drawingView.strokeColor = newTool.colorAlias
             }
-            is DrawingView.Eraser -> {
+            is Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_filled)
                 drawingView.isErasing = true
             }
-            else -> alertModel.notifyBasicError()
         }.exhaustive
     }
 
@@ -276,39 +275,39 @@ class DrawingActivity : AppCompatActivity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun setUpToolbarListeners() {
         whiteButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.White))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.White))
         }
 
         blackButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Black))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Black))
         }
 
         blueButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Blue))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Blue))
         }
 
         greenButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Green))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Green))
         }
 
         yellowButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Yellow))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Yellow))
         }
 
         magentaButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Magenta))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Magenta))
         }
 
         redButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Red))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Red))
         }
 
         cyanButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Cyan))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Cyan))
         }
 
         eraser.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Eraser)
+            drawingViewModel.handleNewToolSelected(Tool.Eraser)
         }
 
         penSizeChooser.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {

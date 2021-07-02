@@ -6,7 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.ui.DrawingView
+import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.Config
@@ -15,21 +15,18 @@ import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
-import timber.log.Timber
 
 class DrawingViewModel(
     application: Application,
     private val id: String
 ) : AndroidViewModel(application) {
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private val config = Config(getApplication<Application>().filesDir.absolutePath)
     var backupDrawing: Drawing? = null
 
-    private var selectedTool: DrawingView.Tool = DrawingView.Pen(ColorAlias.White)
+    private var selectedTool: Tool = Tool.Pen(ColorAlias.White)
 
     private val _setToolsVisibility = MutableLiveData<Int>()
-    private val _selectNewTool = MutableLiveData<Pair<DrawingView.Tool?, DrawingView.Tool>>()
+    private val _selectNewTool = MutableLiveData<Pair<Tool?, Tool>>()
     private val _selectedNewPenSize = MutableLiveData<Int>()
     private val _drawableReady = SingleMutableLiveData<Unit>()
     private val _notifyError = MutableLiveData<LbError>()
@@ -37,7 +34,7 @@ class DrawingViewModel(
     val setToolsVisibility: LiveData<Int>
         get() = _setToolsVisibility
 
-    val selectNewTool: LiveData<Pair<DrawingView.Tool?, DrawingView.Tool>>
+    val selectNewTool: LiveData<Pair<Tool?, Tool>>
         get() = _selectNewTool
 
     val selectedNewPenSize: LiveData<Int>
@@ -96,7 +93,7 @@ class DrawingViewModel(
         }
     }
 
-    fun handleNewToolSelected(newTool: DrawingView.Tool) {
+    fun handleNewToolSelected(newTool: Tool) {
         _selectNewTool.postValue(Pair(selectedTool, newTool))
         selectedTool = newTool
     }

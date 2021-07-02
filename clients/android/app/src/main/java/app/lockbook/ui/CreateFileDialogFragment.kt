@@ -16,6 +16,8 @@ import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
+import timber.log.Timber
+import java.lang.ref.WeakReference
 import kotlin.properties.Delegates
 
 data class CreateFileInfo(
@@ -30,8 +32,6 @@ class CreateFileDialogFragment : DialogFragment() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
-    private val createFileLayout get() = binding.createFileLayout
-    private val createFileCancel get() = binding.createFileCancel
     private val createFileCreate get() = binding.createFileCreate
     private val createFileExtension get() = binding.createFileExtension
     private val createFileText get() = binding.createFileText
@@ -47,7 +47,7 @@ class CreateFileDialogFragment : DialogFragment() {
     lateinit var config: Config
 
     private val alertModel by lazy {
-        AlertModel(view = view)
+        AlertModel(WeakReference(requireActivity()), view)
     }
 
     companion object {
@@ -91,7 +91,7 @@ class CreateFileDialogFragment : DialogFragment() {
 
         if (nullableParentId != null && nullableFileType != null && nullableIsDrawing != null) {
             parentId = nullableParentId
-            fileType = Klaxon().parse(nullableFileType) ?: return alertModel.notifyBasicError(::dismiss)
+            fileType = FileType.values().find { it.name == nullableFileType } ?: return alertModel.notifyBasicError(::dismiss)
             isDrawing = nullableIsDrawing
         } else {
             alertModel.notifyBasicError(::dismiss)

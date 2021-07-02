@@ -11,13 +11,12 @@ import app.lockbook.databinding.DialogRenameFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
+import app.lockbook.util.GetUsageError
 import app.lockbook.util.LbErrorKind
-import app.lockbook.util.RenameFileError
-import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
-import timber.log.Timber
+import java.lang.ref.WeakReference
 
 data class RenameFileInfo(
     val id: String,
@@ -38,7 +37,7 @@ class RenameFileDialogFragment : DialogFragment() {
     lateinit var config: Config
 
     private val alertModel by lazy {
-        AlertModel(view = view)
+        AlertModel(WeakReference(requireActivity()), view)
     }
 
     companion object {
@@ -83,6 +82,7 @@ class RenameFileDialogFragment : DialogFragment() {
         } else {
             alertModel.notifyBasicError(::dismiss)
         }
+
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
         dialog?.setCanceledOnTouchOutside(false) ?: alertModel.notifyBasicError()
 

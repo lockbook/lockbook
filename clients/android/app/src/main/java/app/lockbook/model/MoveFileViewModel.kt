@@ -14,7 +14,7 @@ class MoveFileViewModel(path: String) :
     RegularClickInterface {
 
     private val config = Config(path)
-    lateinit var currentParent: ClientFileMetadata
+    private lateinit var currentParent: ClientFileMetadata
     lateinit var ids: Array<String>
     lateinit var names: Array<String>
 

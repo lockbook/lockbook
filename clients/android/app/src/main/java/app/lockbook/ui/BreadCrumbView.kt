@@ -69,11 +69,6 @@ class BreadCrumbView : FrameLayout {
         addView(recyclerView, recyclerViewParams)
     }
 
-    fun addBreadCrumbItem(item: BreadCrumbItem) {
-        breadCrumbAdapter.addBreadCrumbItem(item)
-        recyclerView.smoothScrollToPosition(breadCrumbAdapter.getBreadCrumbItemsSize() - 1)
-    }
-
     fun setListener(listener: BreadCrumbItemClickListener) {
         breadCrumbAdapter.breadCrumbItemClickListener = listener
     }
@@ -82,10 +77,4 @@ class BreadCrumbView : FrameLayout {
         breadCrumbAdapter.setBreadCrumbItems(items)
         recyclerView.smoothScrollToPosition(breadCrumbAdapter.getBreadCrumbItemsSize() - 1)
     }
-
-    fun setTextColor(textColor: Int) = breadCrumbAdapter.setTextColor(textColor)
-    fun setTextSize(textSize: Int) = breadCrumbAdapter.setTextSize(textSize)
-    fun getBreadCrumbItem(position: Int) = breadCrumbAdapter.getBreadCrumbItem(position)
-    fun removeAllBreadCrumbItems() = breadCrumbAdapter.removeAllBreadCrumbItems()
-    fun removeLastBreadCrumbItem() = breadCrumbAdapter.removeLastBreadCrumbItem()
 }

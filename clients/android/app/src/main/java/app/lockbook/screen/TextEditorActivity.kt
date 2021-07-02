@@ -21,6 +21,7 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import timber.log.Timber
+import java.lang.ref.WeakReference
 import java.util.*
 import java.util.concurrent.Executors
 
@@ -31,10 +32,9 @@ class TextEditorActivity : AppCompatActivity() {
     private val binding get() = _binding!!
 
     private val alertModel by lazy {
-        AlertModel(this)
+        AlertModel(WeakReference(this))
     }
 
-    private val textEditorLayout get() = binding.textEditorLayout
     private val textEditorToolbar get() = binding.textEditorToolbar
     private val textField get() = binding.textEditorTextField
 

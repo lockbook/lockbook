@@ -29,6 +29,7 @@ import app.lockbook.util.*
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import java.io.File
+import java.lang.ref.WeakReference
 import java.util.*
 
 class ListFilesFragment : Fragment() {
@@ -40,7 +41,7 @@ class ListFilesFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val alertModel by lazy {
-        AlertModel(view = view)
+        AlertModel(WeakReference(requireActivity()))
     }
 
     private var onActivityResult =
@@ -48,7 +49,7 @@ class ListFilesFragment : Fragment() {
             listFilesViewModel.onOpenedActivityEnd()
         }
 
-    var onShareResult =
+    private var onShareResult =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             getListFilesActivity()?.showHideProgressOverlay(false)
             listFilesViewModel.shareModel.isLoadingOverlayVisible = false

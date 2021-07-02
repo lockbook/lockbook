@@ -5,7 +5,6 @@ import app.lockbook.App
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import timber.log.Timber
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
@@ -19,7 +18,7 @@ class ShareModel(
     var isLoadingOverlayVisible = false
 
     companion object {
-        fun getMainShareFolder(): File = File(App.instance.applicationContext.cacheDir, "share/")
+        private fun getMainShareFolder(): File = File(App.instance.applicationContext.cacheDir, "share/")
         fun createRandomShareFolderInstance(): File = File(getMainShareFolder(), System.currentTimeMillis().toString())
 
         fun clearShareStorage() {

@@ -118,16 +118,16 @@
     <string name="dialog_duration_days_label">Days</string>
     <string name="dialog_duration_error">Your duration cannot be less than 15 minutes.</string>
 
-    <string name="drawing_pallete_red">Red</string>
-    <string name="drawing_pallete_blue">Blue</string>
-    <string name="drawing_pallete_white">White</string>
-    <string name="drawing_pallete_yellow">Yellow</string>
+    <string name="drawing_pallet_red">Red</string>
+    <string name="drawing_pallet_blue">Blue</string>
+    <string name="drawing_pallet_white">White</string>
+    <string name="drawing_pallet_yellow">Yellow</string>
 
-    <array name="drawing_pallete_colors">
-        <item>@string/drawing_pallete_white</item>
-        <item>@string/drawing_pallete_yellow</item>
-        <item>@string/drawing_pallete_red</item>
-        <item>@string/drawing_pallete_blue</item>
+    <array name="drawing_pallet_colors">
+        <item>@string/drawing_pallet_white</item>
+        <item>@string/drawing_pallet_yellow</item>
+        <item>@string/drawing_pallet_red</item>
+        <item>@string/drawing_pallet_blue</item>
     </array>
 
     <string name="drawing_pen_1">1dp</string>
@@ -149,7 +149,7 @@
     <string name="menu_list_files_delete">Delete file</string>
     <string name="menu_list_files_info">File info</string>
     <string name="menu_list_files_move">Move file</string>
-    <string name="default_value">ERROR</string>
+    <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
     <string name="menu_markdown_link">Insert link</string>
@@ -168,7 +168,6 @@
     <string name="dialog_file_extension">File Ext.</string>
     <string name="dialog_file_folder">Folder Name</string>
     <string name="empty_folder">There are no files, please click the bottom right button to create a new file, folder, or drawing.</string>
-    <string name="krumbs_start_item">Root</string>
     <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
     <string name="create_file_dialog_document_extension">.md</string>
     <string name="create_file_dialog_drawing_extension">.draw</string>

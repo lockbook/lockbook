@@ -14,6 +14,7 @@ import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
+import java.lang.ref.WeakReference
 
 class NewAccountActivity : AppCompatActivity() {
     private var _binding: ActivityNewAccountBinding? = null
@@ -26,7 +27,7 @@ class NewAccountActivity : AppCompatActivity() {
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
     private val alertModel by lazy {
-        AlertModel(this)
+        AlertModel(WeakReference(this))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

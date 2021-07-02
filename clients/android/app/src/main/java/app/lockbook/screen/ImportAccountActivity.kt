@@ -21,7 +21,7 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.*
-import timber.log.Timber
+import java.lang.ref.WeakReference
 
 class ImportAccountActivity : AppCompatActivity() {
     private var _binding: ActivityImportAccountBinding? = null
@@ -33,7 +33,7 @@ class ImportAccountActivity : AppCompatActivity() {
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
     private val alertModel by lazy {
-        AlertModel(this)
+        AlertModel(WeakReference(this))
     }
 
     private var onQRCodeResult = registerForActivityResult(StartActivityForResult()) { result ->

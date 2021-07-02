@@ -11,7 +11,6 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
-import timber.log.Timber
 
 class TextEditorViewModel(application: Application, private val id: String) :
     AndroidViewModel(application), TextWatcher {

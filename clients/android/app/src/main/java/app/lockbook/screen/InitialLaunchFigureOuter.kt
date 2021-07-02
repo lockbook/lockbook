@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
-import androidx.biometric.BiometricPrompt.*
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.databinding.SplashScreenBinding
@@ -18,6 +17,7 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
+import java.lang.ref.WeakReference
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
     private var _binding: SplashScreenBinding? = null
@@ -29,7 +29,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
     private val alertModel by lazy {
-        AlertModel(this)
+        AlertModel(WeakReference(this))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

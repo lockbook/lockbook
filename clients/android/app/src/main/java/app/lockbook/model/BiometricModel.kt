@@ -2,7 +2,6 @@ package app.lockbook.model
 
 import android.app.Activity
 import android.content.Context
-import android.view.View
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -11,6 +10,7 @@ import androidx.preference.PreferenceManager
 import app.lockbook.util.SharedPreferences
 import app.lockbook.util.exhaustive
 import timber.log.Timber
+import java.lang.ref.WeakReference
 
 object BiometricModel {
     fun isBiometricVerificationAvailable(context: Context): Boolean =
@@ -18,7 +18,7 @@ object BiometricModel {
             .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 
     fun verify(activity: Activity, onSuccess: () -> Unit) {
-        val alertModel = AlertModel(activity)
+        val alertModel = AlertModel(WeakReference(activity))
         val context = activity.applicationContext
 
         val pref = PreferenceManager.getDefaultSharedPreferences(context)

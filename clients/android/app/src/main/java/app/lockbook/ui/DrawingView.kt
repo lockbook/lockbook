@@ -12,6 +12,7 @@ import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
+import java.lang.ref.WeakReference
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -50,13 +51,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private var driftWhileScalingX = 0f
     private var driftWhileScalingY = 0f
 
-    abstract class Tool
-
-    data class Pen(val colorAlias: ColorAlias) : Tool()
-    object Eraser : Tool()
+    sealed class Tool {
+        object Eraser : Tool()
+        data class Pen(val colorAlias: ColorAlias) : Tool()
+    }
 
     private val alertModel by lazy {
-        AlertModel(context as DrawingActivity)
+        AlertModel(WeakReference(context as DrawingActivity))
     }
 
     companion object {

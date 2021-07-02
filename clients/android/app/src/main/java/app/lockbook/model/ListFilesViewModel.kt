@@ -183,7 +183,7 @@ class ListFilesViewModel(path: String, application: Application) :
             _showCreateFileDialog.postValue(
                 CreateFileInfo(
                     fileModel.parentFileMetadata.id,
-                    Klaxon().toJsonString(FileType.Document),
+                    FileType.Document.name,
                     isDrawing
                 )
             )
@@ -197,7 +197,7 @@ class ListFilesViewModel(path: String, application: Application) :
             _showCreateFileDialog.postValue(
                 CreateFileInfo(
                     fileModel.parentFileMetadata.id,
-                    Klaxon().toJsonString(FileType.Folder),
+                    FileType.Folder.name,
                     false
                 )
             )

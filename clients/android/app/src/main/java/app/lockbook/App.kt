@@ -1,3 +1,5 @@
+@file:Suppress("unused", "unused", "unused", "unused", "unused")
+
 package app.lockbook
 
 import android.app.Application
