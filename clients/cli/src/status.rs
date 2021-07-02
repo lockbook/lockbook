@@ -3,7 +3,6 @@ use lockbook_core::{calculate_work, CalculateWorkError, Error as CoreError};
 use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config, print_last_successful_sync};
 use crate::{err, err_unexpected};
-use lockbook_core::model::client_conversion::ClientWorkUnit;
 
 pub fn status() -> CliResult<()> {
     get_account_or_exit();
@@ -15,11 +14,16 @@ pub fn status() -> CliResult<()> {
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
-    work.work_units.into_iter().for_each(|work| match work {
-        ClientWorkUnit::ServerUnknownName(_) => println!("New file needs to be pulled"),
-        ClientWorkUnit::Server(metadata) => println!("{} needs to be pulled", metadata.name),
-        ClientWorkUnit::Local(metadata) => println!("{} needs to be pushed", metadata.name),
-    });
+    work.local_files
+        .into_iter()
+        .for_each(|metadata| println!("{} needs to be pushed", metadata.name));
+    work.server_files
+        .into_iter()
+        .for_each(|metadata| println!("{} needs to be pulled", metadata.name));
+
+    for _ in 0..work.server_unknown_name_count {
+        println!("An unknown new file needs to be pulled")
+    }
 
     print_last_successful_sync()
 }

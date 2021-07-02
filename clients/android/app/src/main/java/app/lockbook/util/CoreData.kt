@@ -15,30 +15,9 @@ data class ClientFileMetadata(
     val contentVersion: Long = 0,
 )
 
-data class FileUsage(
-    @Json(name = "file_id")
-    val fileId: String,
-    @Json(name = "byte_secs")
-    val byteSections: Int,
-    val secs: Int,
-)
-
-data class AESEncrypted(
-    val value: List<Int> = listOf(),
-    val nonce: List<Int> = listOf()
-)
-
 enum class FileType {
     Document, Folder
 }
-
-data class UserAccessInfo(
-    val username: String,
-    @Json(name = "encrypted_by")
-    val encryptedBy: String,
-    @Json(name = "access_key")
-    val accessKey: AESEncrypted
-)
 
 data class Account(
     val username: String,
@@ -49,18 +28,15 @@ data class Account(
 )
 
 data class WorkCalculated(
-    @Json(name = "work_units")
-    val workUnits: List<WorkUnit>,
+    @Json(name = "local_files")
+    val localFiles: List<ClientFileMetadata>,
+    @Json(name = "server_files")
+    val serverFiles: List<ClientFileMetadata>,
+    @Json(name = "server_unknown_name_count")
+    val serverUnknownNameCount: Int,
     @Json(name = "most_recent_update_from_server")
     val mostRecentUpdateFromServer: Long
 )
-
-data class WorkUnit(
-    val tag: String,
-    val content: WorkUnitMetadata
-)
-
-data class WorkUnitMetadata(val metadata: ClientFileMetadata)
 
 data class Config(val writeable_path: String)
 

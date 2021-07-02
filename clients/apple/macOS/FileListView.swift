@@ -3,13 +3,13 @@ import SwiftLockbookCore
 
 struct FileListView: View {
     
-    @State var selectedItem: FileMetadata? = nil
+    @State var selectedItem: ClientFileMetadata? = nil
     
     @ObservedObject var core: GlobalState
-    let currentFolder: FileMetadata
+    let currentFolder: ClientFileMetadata
     let account: Account
     
-    init(core: GlobalState, currentFolder: FileMetadata, account: Account) {
+    init(core: GlobalState, currentFolder: ClientFileMetadata, account: Account) {
         self.core = core
         self.account = account
         self.currentFolder = currentFolder
