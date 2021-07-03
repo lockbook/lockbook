@@ -1,6 +1,6 @@
 package app.lockbook
 
-import app.lockbook.core.getUsage
+import app.lockbook.core.getUncompressedUsage
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
@@ -9,7 +9,7 @@ import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
 
-class GetUsageTest {
+class GetUncompressedUsageTest {
     var config = Config(createRandomPath())
 
     companion object {
@@ -26,28 +26,28 @@ class GetUsageTest {
     }
 
     @Test
-    fun getUsageOk() {
+    fun getUncompressedUsageOk() {
         assertType<Unit>(
             CoreModel.generateAccount(config, generateAlphaString()).component1()
         )
 
-        assertType<UsageMetrics>(
-            CoreModel.getUsage(config).component1()
+        assertType<UsageItemMetric>(
+            CoreModel.getUncompressedUsage(config).component1()
         )
     }
 
     @Test
-    fun getUsageNoAccount() {
+    fun getUncompressedUsageNoAccount() {
         assertType<GetUsageError.NoAccount>(
-            CoreModel.getUsage(config).component2()
+            CoreModel.getUncompressedUsage(config).component2()
         )
     }
 
     @Test
-    fun getUsageUnexpectedError() {
+    fun getUncompressedUsageUnexpectedError() {
         assertType<GetUsageError.Unexpected>(
-            Klaxon().converter(getUsageConverter).parse<Result<UsageMetrics, GetUsageError>>(
-                getUsage("")
+            Klaxon().converter(getUncompressedUsageConverter).parse<Result<UsageItemMetric, GetUsageError>>(
+                getUncompressedUsage("")
             )?.component2()
         )
     }

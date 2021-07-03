@@ -11,13 +11,12 @@ use crate::json_interface::translate;
 use crate::model::state::Config;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::sync_service::SyncProgress;
-use crate::service::usage_service::bytes_to_human;
 use crate::{
     calculate_work, create_account, create_file, delete_file, export_account, export_drawing,
     export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
-    get_file_by_id, get_root, get_usage, import_account, init_logger, migrate_db, move_file,
-    read_document, rename_file, save_document_to_disk, set_last_synced, sync_all, write_document,
-    Error,
+    get_file_by_id, get_root, get_uncompressed_usage, get_usage, import_account, init_logger,
+    migrate_db, move_file, read_document, rename_file, save_document_to_disk, set_last_synced,
+    sync_all, write_document, Error,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -358,12 +357,17 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_makeBytesReadable(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getUncompressedUsage(
     env: JNIEnv,
     _: JClass,
-    bytes: jlong,
+    jconfig: JString,
 ) -> jstring {
-    string_to_jstring(&env, bytes_to_human(bytes as u64).0)
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(&env, translate(get_uncompressed_usage(&config)))
 }
 
 #[no_mangle]

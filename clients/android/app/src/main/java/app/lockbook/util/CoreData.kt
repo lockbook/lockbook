@@ -47,11 +47,33 @@ enum class State {
     StateRequiresClearing
 }
 
-data class LocalAndServerUsages(
+data class UsageMetrics(
+    val usages: List<FileUsage>,
     @Json(name = "server_usage")
-    val serverUsage: String,
-    @Json(name = "uncompressed_usage")
-    val uncompressedUsage: String,
+    val serverUsage: UsageItemMetric,
     @Json(name = "data_cap")
-    val dataCap: String,
+    val dataCap: UsageItemMetric,
+)
+
+data class UsageItemMetric(
+    val exact: Int,
+    @Json(name = "readable_exact")
+    val readableExact: String,
+    val readable: String,
+    val unit: ByteUnit,
+)
+
+enum class ByteUnit {
+    Byte,
+    Kilobyte,
+    Megabyte,
+    Gigabyte,
+    Terabyte,
+}
+
+data class FileUsage(
+    @Json(name = "file_id")
+    val fileId: String,
+    @Json(name = "size_bytes")
+    val sizeBytes: Int,
 )
