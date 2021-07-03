@@ -10,10 +10,8 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 
-class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface, filesDir: String) :
+class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) :
     GeneralViewAdapter(listFilesClickInterface) {
-
-    val config = Config(filesDir)
 
     override var files = listOf<ClientFileMetadata>()
         set(value) {

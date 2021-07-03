@@ -4,13 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.model.MoveFileViewModel
 
-class MoveFileViewModelFactory(
-    private val path: String,
-) : ViewModelProvider.Factory {
+class MoveFileViewModelFactory : ViewModelProvider.Factory {
     @Suppress("unchecked_cast")
     override fun <T : ViewModel?> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MoveFileViewModel::class.java))
-            return MoveFileViewModel(path) as T
+            return MoveFileViewModel() as T
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

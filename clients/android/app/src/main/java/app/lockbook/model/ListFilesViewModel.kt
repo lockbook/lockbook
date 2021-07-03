@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
+import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.ui.CreateFileInfo
@@ -40,10 +41,9 @@ data class EditableFile(
     val id: String,
 )
 
-class ListFilesViewModel(path: String, application: Application) :
+class ListFilesViewModel(application: Application) :
     AndroidViewModel(application),
     ListFilesClickInterface {
-    private val config = Config(path)
     var selectedFiles = listOf<Boolean>()
 
     var isFABOpen = false
@@ -123,15 +123,13 @@ class ListFilesViewModel(path: String, application: Application) :
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
-    private val fileModel = FileModel(config, _notifyError)
+    private val fileModel = FileModel(_notifyError)
     val shareModel = ShareModel(
-        config,
         _shareDocument,
         _showHideProgressOverlay,
         _notifyError,
     )
     val syncModel = SyncModel(
-        config,
         _showSyncSnackBar,
         _updateSyncSnackBar,
         _notifyWithSnackbar,

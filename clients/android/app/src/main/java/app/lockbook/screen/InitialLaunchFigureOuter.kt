@@ -51,13 +51,13 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     }
                     State.ReadyToUse -> startFromExistingAccount()
                     State.MigrationRequired -> {
-                        alertModel.notify(resIdToString(R.string.initial_figure_outer_migrate_data))
+                        alertModel.notify(app.lockbook.util.getString(R.string.initial_figure_outer_migrate_data))
                         binding.migrateProgressBar.visibility = View.VISIBLE
                         migrateDB()
                     }
                     State.StateRequiresClearing -> {
                         Timber.e("DB state requires cleaning!")
-                        alertModel.notify(resIdToString(R.string.state_requires_cleaning))
+                        alertModel.notify(app.lockbook.util.getString(R.string.state_requires_cleaning))
                     }
                 }
             }
@@ -73,7 +73,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         withContext(Dispatchers.Main) {
                             binding.migrateProgressBar.visibility = View.GONE
                             alertModel.notify(
-                                resIdToString(R.string.initial_figure_outer_finished_upgrading_data),
+                                app.lockbook.util.getString(R.string.initial_figure_outer_finished_upgrading_data),
                                 ::startFromExistingAccount
                             )
                         }

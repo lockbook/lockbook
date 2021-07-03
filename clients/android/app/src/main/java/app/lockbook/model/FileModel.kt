@@ -4,12 +4,13 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.preference.PreferenceManager
 import app.lockbook.App
+import app.lockbook.App.Companion.config
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.github.michaelbull.result.*
 import timber.log.Timber
 
-class FileModel(private val config: Config, private val _notifyError: SingleMutableLiveData<LbError>) {
+class FileModel(private val _notifyError: SingleMutableLiveData<LbError>) {
     private val _files = MutableLiveData<List<ClientFileMetadata>>()
     private val _updateBreadcrumbBar = MutableLiveData<List<BreadCrumbItem>>()
     lateinit var parentFileMetadata: ClientFileMetadata

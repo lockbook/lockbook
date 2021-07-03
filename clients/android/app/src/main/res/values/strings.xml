@@ -54,12 +54,6 @@
     <string name="settings_export_account_copied">Account string copied!</string>
     <string name="settings_protect_account_biometric">Biometric options</string>
 
-    <array name="settings_biometric_names">
-        <item>@string/biometric_disabled</item>
-        <item>@string/biometric_recommended</item>
-        <item>@string/biometric_strict</item>
-    </array>
-
     <string name="biometrics_save">Save</string>
     <string name="biometrics_cancel">Cancel</string>
     <string name="biometrics_title">Protect your key with biometrics.</string>
@@ -76,9 +70,6 @@
     <string name="menu_text_editor_redo">Redo</string>
     <string name="menu_text_editor_undo">Undo</string>
 
-    <string name="biometric_none_value">biometric_none</string>
-    <string name="biometric_recommended_value">biometric_recommended</string>
-    <string name="biometric_strict_value">biometric_strict</string>
     <string name="menu_list_files_sort_a_z">Sort from a-z</string>
     <string name="menu_list_files_last_changed">Sort by last changed</string>
     <string name="menu_list_files_sort_z_a">Sort from z-a</string>
@@ -88,7 +79,7 @@
 
     <string name="settings_sync_startup">Sync at startup</string>
     <string name="settings_sync_edit">Sync automatically in app</string>
-    <string name="settings_preference_background_summary_sync_period">The time between each automatic sync</string>
+    <string name="settings_preference_background_summary_sync_period">The time between each automatic sync.</string>
     <string name="settings_preference_background_title_sync_period">Background sync period</string>
     <string name="settings_preference_background_title_background_sync_enabled">Background sync enabled</string>
     <string name="settings_preference_title_biometrics">Biometrics</string>
@@ -99,12 +90,6 @@
     <string name="qr_code_content_description">QR code</string>
     <string name="file_image_content_description">File image</string>
     <string name="overflow">Overflow</string>
-
-    <array name="settings_biometric_values">
-        <item>@string/biometric_none_value</item>
-        <item>@string/biometric_recommended_value</item>
-        <item>@string/biometric_strict_value</item>
-    </array>
 
     <string name="list_files_offline_snackbar">You are offline</string>
     <string name="list_files_sync_info_snackbar">%s items to sync</string>
@@ -227,6 +212,7 @@
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
     <string name="basic_error">An error has occurred.</string>
+    <string name="settings_protect_account_biometric_summary">Secure your account with biometrics.</string>
 
     <array name="drawing_pen_size">
         <item>@string/drawing_pen_1</item>
@@ -234,4 +220,46 @@
         <item>@string/drawing_pen_3</item>
         <item>@string/drawing_pen_4</item>
     </array>
+
+    <array name="settings_biometric_names">
+        <item>@string/biometric_disabled</item>
+        <item>@string/biometric_recommended</item>
+        <item>@string/biometric_strict</item>
+    </array>
+
+    <!-- Preference keys -->
+
+    <array name="settings_biometric_values">
+        <item>@string/biometric_none_value</item>
+        <item>@string/biometric_recommended_value</item>
+        <item>@string/biometric_strict_value</item>
+    </array>
+
+    <string name="biometric_key">biometric</string>
+    <string name="biometric_none_value">biometric_none</string>
+    <string name="biometric_recommended_value">biometric_recommended</string>
+    <string name="biometric_strict_value">biometric_strict</string>
+
+    <string name="export_account_raw_key">export_account_raw</string>
+    <string name="export_account_qr_key">export_account_qr</string>
+
+    <string name="sort_files_key">sort_files</string>
+    <string name="sort_files_a_z">sort_files_a_z</string>
+    <string name="sort_files_z_a">sort_files_z_a</string>
+    <string name="sort_files_type">sort_files_type</string>
+    <string name="sort_files_first_changed">sort_files_first_changed</string>
+    <string name="sort_files_last_changed">sort_files_last_changed</string>
+
+    <string name="background_sync_period_key">background_sync_period</string>
+    <string name="background_sync_enabled_key">background_sync_enabled</string>
+    <string name="sync_automatically_key">sync_automatically_in_app</string>
+
+    <string name="view_logs_key">view_logs</string>
+    <string name="clear_logs_key">clear_logs</string>
+
+    <string name="file_layout_key">file_layout</string>
+    <string name="file_layout_grid_value">file_layout</string>
+    <string name="file_layout_linear_value">linear_layout</string>
+
+    <string name="open_new_doc_automatically_key">open_new_doc_automatically</string>
 </resources>

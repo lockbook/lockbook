@@ -1,4 +1,3 @@
-@file:Suppress("unused", "unused", "unused", "unused", "unused")
 
 package app.lockbook
 
@@ -12,15 +11,15 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
+import app.lockbook.App.Companion.config
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
-import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
 import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
-import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
-import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
+import app.lockbook.util.State
 import app.lockbook.util.SyncAllError
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
@@ -31,12 +30,16 @@ class App : Application() {
         ProcessLifecycleOwner.get().lifecycle
             .addObserver(ForegroundBackgroundObserver())
         instance = this
+        config = Config(this.filesDir.absolutePath)
 
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
     }
 
     companion object {
         lateinit var instance: App
+            private set
+
+        lateinit var config: Config
             private set
 
         const val PERIODIC_SYNC_TAG = "periodic_sync"
@@ -52,9 +55,7 @@ class ForegroundBackgroundObserver : LifecycleObserver {
 
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onMoveToForeground() {
-        if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-            .getBoolean(LOGGED_IN_KEY, false)
-        ) {
+        doIfLoggedIn {
             WorkManager.getInstance(App.instance)
                 .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
         }
@@ -62,14 +63,7 @@ class ForegroundBackgroundObserver : LifecycleObserver {
 
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
     fun onMoveToBackground() {
-        if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-            .getBoolean(LOGGED_IN_KEY, false) && PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getBoolean(
-                        BACKGROUND_SYNC_ENABLED_KEY,
-                        true
-                    ) && !PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
-        ) {
+        doIfLoggedIn {
             val work = PeriodicWorkRequestBuilder<SyncWork>(
                 PreferenceManager.getDefaultSharedPreferences(App.instance)
                     .getInt(BACKGROUND_SYNC_PERIOD_KEY, 30).toLong(),
@@ -85,6 +79,15 @@ class ForegroundBackgroundObserver : LifecycleObserver {
                     ExistingPeriodicWorkPolicy.REPLACE,
                     work
                 )
+        }
+    }
+
+    private fun doIfLoggedIn(onSuccess: () -> Unit) {
+        when(val getDbStateResult = CoreModel.getDBState(config)) {
+            is Ok -> if (getDbStateResult.value == State.ReadyToUse) {
+                onSuccess()
+            }
+            is Err -> Timber.e("Error: ${getDbStateResult.error.toLbError()}")
         }
     }
 }

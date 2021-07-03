@@ -9,6 +9,7 @@
         android:title="@string/settings_preference_debug"
         android:icon="@drawable/ic_baseline_bug_report_24">
         <Preference
+            android:id="@+id/view_logs"
             android:key="view_logs"
             android:title="@string/settings_preference_logs"
             app:iconSpaceReserved="false" />
@@ -36,7 +37,7 @@
             android:entries="@array/settings_biometric_names"
             android:entryValues="@array/settings_biometric_values"
             android:key="biometric"
-            android:summary="Secure your account with biometrics"
+            android:summary="@string/settings_protect_account_biometric_summary"
             android:title="@string/settings_protect_account_biometric"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>

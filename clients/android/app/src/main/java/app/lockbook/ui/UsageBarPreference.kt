@@ -6,6 +6,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
+import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.screen.SettingsActivity
@@ -17,9 +18,6 @@ import kotlinx.coroutines.*
 import timber.log.Timber
 
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
-
-    val config = Config(context.filesDir.absolutePath)
-
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 

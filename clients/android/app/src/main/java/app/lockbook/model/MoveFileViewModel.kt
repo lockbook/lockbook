@@ -4,16 +4,15 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 
-class MoveFileViewModel(path: String) :
+class MoveFileViewModel :
     ViewModel(),
     RegularClickInterface {
-
-    private val config = Config(path)
     private lateinit var currentParent: ClientFileMetadata
     lateinit var ids: Array<String>
     lateinit var names: Array<String>

@@ -2,6 +2,7 @@ package app.lockbook.model
 
 import android.text.format.DateUtils
 import app.lockbook.App
+import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -10,7 +11,6 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 class ShareModel(
-    private val config: Config,
     private val _shareDocument: SingleMutableLiveData<ArrayList<File>>,
     private val _showHideProgressOverlay: SingleMutableLiveData<Boolean>,
     private val _notifyError: SingleMutableLiveData<LbError>

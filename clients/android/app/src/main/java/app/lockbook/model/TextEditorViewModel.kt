@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -14,7 +15,6 @@ import kotlinx.coroutines.*
 
 class TextEditorViewModel(application: Application, private val id: String) :
     AndroidViewModel(application), TextWatcher {
-    private val config = Config(getApplication<Application>().filesDir.absolutePath)
     private var history = mutableListOf<String>()
     private var historyIndex = 0
     var ignoreChange = false

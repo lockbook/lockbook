@@ -2,13 +2,13 @@ package app.lockbook.model
 
 import androidx.preference.PreferenceManager
 import app.lockbook.App
+import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 
 class SyncModel(
-    private val config: Config,
     private val _showSyncSnackBar: SingleMutableLiveData<Unit>,
     private val _updateSyncSnackBar: SingleMutableLiveData<Pair<Int, Int>>,
     private val _notifyWithSnackbar: SingleMutableLiveData<String>,

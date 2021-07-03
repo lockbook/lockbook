@@ -10,7 +10,6 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout.HORIZONTAL
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
@@ -97,12 +96,12 @@ class ListFilesFragment : Fragment() {
         val application = requireNotNull(this.activity).application
         val filesDir = application.filesDir.absolutePath
         val listFilesViewModelFactory =
-            ListFilesViewModelFactory(filesDir, application)
+            ListFilesViewModelFactory(application)
         listFilesViewModel =
             ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
-        LinearRecyclerViewAdapter(listFilesViewModel, filesDir)
+        LinearRecyclerViewAdapter(listFilesViewModel)
 
-        var adapter = setFileAdapter(binding, filesDir)
+        var adapter = setFileAdapter(binding)
 
         binding.listFilesRefresh.setOnRefreshListener {
             listFilesViewModel.onSwipeToRefresh()
@@ -120,19 +119,19 @@ class ListFilesFragment : Fragment() {
             30000
         )
 
-        binding.listFilesFab.setOnClickListener {
+        binding.fabsNewFile.listFilesFab.setOnClickListener {
             listFilesViewModel.collapseExpandFAB()
         }
 
-        binding.listFilesFabFolder.setOnClickListener {
+        binding.fabsNewFile.listFilesFabFolder.setOnClickListener {
             listFilesViewModel.onNewFolderFABClicked()
         }
 
-        binding.listFilesFabDocument.setOnClickListener {
+        binding.fabsNewFile.listFilesFabDocument.setOnClickListener {
             listFilesViewModel.onNewDocumentFABClicked(false)
         }
 
-        binding.listFilesFabDrawing.setOnClickListener {
+        binding.fabsNewFile.listFilesFabDrawing.setOnClickListener {
             listFilesViewModel.onNewDocumentFABClicked(true)
         }
 
@@ -175,7 +174,7 @@ class ListFilesFragment : Fragment() {
             viewLifecycleOwner,
             {
                 listFilesViewModel.refreshFiles(null)
-                adapter = setFileAdapter(binding, filesDir)
+                adapter = setFileAdapter(binding)
             }
         )
 
@@ -294,10 +293,6 @@ class ListFilesFragment : Fragment() {
 
         snackProgressBarManager.useRoundedCornerBackground(true)
 
-        if (resources.configuration.orientation == ORIENTATION_LANDSCAPE && resources.configuration.screenLayout == SCREENLAYOUT_SIZE_SMALL) {
-            binding.listFilesFabHolder.orientation = HORIZONTAL
-        }
-
         setUpAfterConfigChange()
     }
 
@@ -314,16 +309,13 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.onMenuItemPressed(id)
     }
 
-    private fun setFileAdapter(
-        binding: FragmentListFilesBinding,
-        filesDir: String
-    ): GeneralViewAdapter {
-        val config = resources.configuration
+    private fun setFileAdapter(binding: FragmentListFilesBinding): GeneralViewAdapter {
+        val deviceConfig = resources.configuration
 
         val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
             .getString(
                 SharedPreferences.FILE_LAYOUT_KEY,
-                if (config.isLayoutSizeAtLeast(SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
+                if (deviceConfig.isLayoutSizeAtLeast(SCREENLAYOUT_SIZE_LARGE) || (deviceConfig.screenWidthDp >= 480 && deviceConfig.screenHeightDp >= 640)) {
                     SharedPreferences.GRID_LAYOUT
                 } else {
                     SharedPreferences.LINEAR_LAYOUT
@@ -331,12 +323,12 @@ class ListFilesFragment : Fragment() {
             )
 
         if (fileLayoutPreference == SharedPreferences.LINEAR_LAYOUT) {
-            val adapter = LinearRecyclerViewAdapter(listFilesViewModel, filesDir)
+            val adapter = LinearRecyclerViewAdapter(listFilesViewModel)
             binding.filesList.adapter = adapter
             binding.filesList.layoutManager = LinearLayoutManager(context)
             return adapter
         } else {
-            val orientation = config.orientation
+            val orientation = deviceConfig.orientation
             val adapter = GridRecyclerViewAdapter(listFilesViewModel)
             binding.filesList.adapter = adapter
 
@@ -441,20 +433,22 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun closeFABMenu() {
-        binding.listFilesFab.animate().setDuration(200L).rotation(90f)
-        binding.listFilesFab.setImageResource(R.drawable.ic_baseline_add_24)
-        binding.listFilesFabFolder.hide()
-        binding.listFilesFabDocument.hide()
-        binding.listFilesFabDrawing.hide()
+        val fabsNewFile = binding.fabsNewFile
+        fabsNewFile.listFilesFab.animate().setDuration(200L).rotation(90f)
+        fabsNewFile.listFilesFab.setImageResource(R.drawable.ic_baseline_add_24)
+        fabsNewFile.listFilesFabFolder.hide()
+        fabsNewFile.listFilesFabDocument.hide()
+        fabsNewFile.listFilesFabDrawing.hide()
         binding.listFilesRefresh.alpha = 1f
         binding.listFilesFrameLayout.isClickable = false
     }
 
     private fun showFABMenu() {
-        binding.listFilesFab.animate().setDuration(200L).rotation(-90f)
-        binding.listFilesFabFolder.show()
-        binding.listFilesFabDocument.show()
-        binding.listFilesFabDrawing.show()
+        val fabsNewFile = binding.fabsNewFile
+        fabsNewFile.listFilesFab.animate().setDuration(200L).rotation(-90f)
+        fabsNewFile.listFilesFabFolder.show()
+        fabsNewFile.listFilesFabDocument.show()
+        fabsNewFile.listFilesFabDrawing.show()
         binding.listFilesRefresh.alpha = 0.7f
         binding.listFilesFrameLayout.isClickable = true
         binding.listFilesFrameLayout.setOnClickListener {

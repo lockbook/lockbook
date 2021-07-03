@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import app.lockbook.App.Companion.config
 import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
@@ -20,7 +21,6 @@ class DrawingViewModel(
     application: Application,
     private val id: String
 ) : AndroidViewModel(application) {
-    private val config = Config(getApplication<Application>().filesDir.absolutePath)
     var backupDrawing: Drawing? = null
 
     private var selectedTool: Tool = Tool.Pen(ColorAlias.White)

@@ -97,9 +97,8 @@ class MoveFileDialogFragment : DialogFragment() {
             alertModel.notifyBasicError(::dismiss)
         }
 
-        val application = requireNotNull(this.activity).application
         val moveFileViewModelFactory =
-            MoveFileViewModelFactory(application.filesDir.absolutePath)
+            MoveFileViewModelFactory()
         moveFileViewModel =
             ViewModelProvider(this, moveFileViewModelFactory).get(MoveFileViewModel::class.java)
         val adapter =

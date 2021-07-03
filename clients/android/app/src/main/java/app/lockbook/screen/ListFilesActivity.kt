@@ -96,12 +96,12 @@ class ListFilesActivity : AppCompatActivity() {
             }
         }.exhaustive
 
-        val config = resources.configuration
+        val deviceConfig = resources.configuration
 
         when (
             val optionValue = preference.getString(
                 FILE_LAYOUT_KEY,
-                if (config.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
+                if (deviceConfig.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_LARGE) || (deviceConfig.screenWidthDp >= 480 && deviceConfig.screenHeightDp >= 640)) {
                     GRID_LAYOUT
                 } else {
                     LINEAR_LAYOUT

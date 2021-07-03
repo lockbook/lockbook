@@ -9,9 +9,8 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.PopupWindow
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.preference.*
+import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
@@ -30,15 +29,10 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
-import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 
 class SettingsFragment : PreferenceFragmentCompat() {
-    val config = Config(requireActivity().filesDir.absolutePath)
-    private var selectedKey: String? = null
-    private var newValueForPref: String? = null
-
     val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
     }
@@ -49,17 +43,17 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun setUpPreferences() {
-        findPreference<Preference>(BIOMETRIC_OPTION_KEY)?.setOnPreferenceChangeListener { _, newValue ->
-            if (newValue is String) {
-                newValueForPref = newValue
+        findPreference<Preference>(getString(R.string.biometric_key))?.setOnPreferenceChangeListener { _, newValue ->
+            var shouldReturn = false
 
+            if (newValue is String) {
                 BiometricModel.verify(
-                    requireActivity(),
-                    ::matchKey
-                )
+                    requireActivity()) {
+                    shouldReturn = true
+                }
             }
 
-            false
+            shouldReturn
         }
 
         findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
@@ -88,15 +82,15 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
-        selectedKey = preference?.key ?: ""
-
         when (preference?.key) {
-            EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> {
-                BiometricModel.verify(
+            EXPORT_ACCOUNT_QR_KEY -> BiometricModel.verify(
+                requireActivity(),
+                ::exportAccountQR
+            )
+            EXPORT_ACCOUNT_RAW_KEY -> BiometricModel.verify(
                     requireActivity(),
-                    ::matchKey
+                    ::exportAccountRaw
                 )
-            }
             VIEW_LOGS_KEY -> startActivity(Intent(context, LogActivity::class.java))
             CLEAR_LOGS_KEY -> File("${config.writeable_path}/${LogActivity.LOG_FILE_NAME}").writeText(
                 ""
@@ -108,22 +102,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         return true
-    }
-
-    private fun matchKey() {
-        when (selectedKey) {
-            EXPORT_ACCOUNT_RAW_KEY -> exportAccountRaw()
-            EXPORT_ACCOUNT_QR_KEY -> exportAccountQR()
-            BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValueForPref)
-            else -> {
-                Timber.e("Shared preference key not matched: $selectedKey")
-                alertModel.notifyBasicError()
-            }
-        }.exhaustive
-    }
-
-    private fun changeBiometricPreference(newValue: String) {
-        findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.value = newValue
     }
 
     private fun exportAccountQR() {
@@ -156,7 +134,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clipBoardData = ClipData.newPlainText("account string", exportResult.value)
                 clipBoard.setPrimaryClip(clipBoardData)
-                alertModel.notify(resIdToString(R.string.settings_export_account_copied))
+                alertModel.notify(app.lockbook.util.getString(R.string.settings_export_account_copied))
             }
             is Err -> alertModel.notifyError(exportResult.error.toLbError())
         }.exhaustive
