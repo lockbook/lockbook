@@ -318,7 +318,10 @@ impl LbApp {
         spawn!(self.core as c, self.messenger as m => move || {
             match c.sync_status() {
                 Ok(txt) => m.send(Msg::SetStatus(txt, None)),
-                Err(err) => m.send_err_status_panel(err.msg())
+                Err(err) => match err.target() {
+                    LbErrTarget::Dialog => m.send_err_dialog("getting sync status", err),
+                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
+                }
             }
         });
 
@@ -331,7 +334,10 @@ impl LbApp {
                 Ok(status) => if let (Some(txt), _) = status {
                     m.send(Msg::SetStatus(txt, status.1));
                 }
-                Err(err) => m.send_err_status_panel(err.msg())
+                Err(err) => match err.target() {
+                    LbErrTarget::Dialog => m.send_err_dialog("getting usage status", err),
+                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
+                }
             }
         });
 

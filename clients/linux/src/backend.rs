@@ -371,7 +371,9 @@ impl LbCore {
                 Some("You're out of space!".to_string()),
                 Some("You have run out of space, go to the settings to buy more!".to_string()),
             ));
-        } else if usage.server_usage.exact as f32 / usage.data_cap.exact as f32 > USAGE_WARNING_THRESHOLD {
+        } else if usage.server_usage.exact as f32 / usage.data_cap.exact as f32
+            > USAGE_WARNING_THRESHOLD
+        {
             return Ok((
                 Some(format!(
                     "{} of {} remaining!",
