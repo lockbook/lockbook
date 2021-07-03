@@ -3,22 +3,6 @@ package app.lockbook.util
 import app.lockbook.App
 import app.lockbook.R
 
-val <T> T.exhaustive: T
-    get() = this
-
-data class LbError(val kind: LbErrorKind, val msg: String) {
-    companion object {
-        fun newProgError(msg: String) = LbError(LbErrorKind.Program, msg)
-        fun newUserError(msg: String) = LbError(LbErrorKind.User, msg)
-        fun basicError() = LbError(LbErrorKind.Program, basicErrorString())
-    }
-}
-
-enum class LbErrorKind {
-    Program,
-    User,
-}
-
 sealed class CoreError {
     fun toLbError(): LbError = when (this) {
         GetUsageError.NoAccount,
@@ -112,9 +96,6 @@ sealed class CoreError {
         is GetChildrenError.Unexpected -> LbError.newProgError(this.error)
     }
 }
-
-fun resIdToString(id: Int): String = App.instance.resources.getString(id)
-fun basicErrorString(): String = resIdToString(R.string.basic_error) // This will always be a valid call while the android app is running. This cannot be called during tests.
 
 sealed class InitLoggerError : CoreError() {
     data class Unexpected(val error: String) : InitLoggerError()
@@ -273,3 +254,24 @@ sealed class CalculateWorkError : CoreError() {
     object ClientUpdateRequired : CalculateWorkError()
     data class Unexpected(val error: String) : CalculateWorkError()
 }
+
+val <T> T.exhaustive: T
+    get() = this
+
+data class LbError(val kind: LbErrorKind, val msg: String) {
+    companion object {
+        fun newProgError(msg: String) = LbError(LbErrorKind.Program, msg)
+        fun newUserError(msg: String) = LbError(LbErrorKind.User, msg)
+        fun basicError() = LbError(LbErrorKind.Program, basicErrorString())
+    }
+}
+
+enum class LbErrorKind {
+    Program,
+    User,
+}
+
+fun resIdToString(id: Int): String = App.instance.resources.getString(id)
+
+// This will always be a valid call while the android app is running. This cannot be called during tests or you will get a nullpointerexception
+fun basicErrorString(): String = resIdToString(R.string.basic_error)

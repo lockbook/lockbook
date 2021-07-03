@@ -28,18 +28,15 @@ data class Account(
 )
 
 data class WorkCalculated(
-    @Json(name = "work_units")
-    val workUnits: List<WorkUnit>,
+    @Json(name = "local_files")
+    val localFiles: List<ClientFileMetadata>,
+    @Json(name = "server_files")
+    val serverFiles: List<ClientFileMetadata>,
+    @Json(name = "server_unknown_name_count")
+    val serverUnknownNameCount: Int,
     @Json(name = "most_recent_update_from_server")
     val mostRecentUpdateFromServer: Long
 )
-
-data class WorkUnit(
-    val tag: String,
-    val content: WorkUnitMetadata
-)
-
-data class WorkUnitMetadata(val metadata: ClientFileMetadata)
 
 data class Config(val writeable_path: String)
 

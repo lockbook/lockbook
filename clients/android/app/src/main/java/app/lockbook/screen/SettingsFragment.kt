@@ -35,9 +35,9 @@ import java.io.File
 import java.lang.ref.WeakReference
 
 class SettingsFragment : PreferenceFragmentCompat() {
-    lateinit var config: Config
-    private lateinit var selectedKey: String
-    private lateinit var newValueForPref: String
+    val config = Config(requireActivity().filesDir.absolutePath)
+    private var selectedKey: String? = null
+    private var newValueForPref: String? = null
 
     val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -45,7 +45,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
-        config = Config(requireContext().filesDir.absolutePath)
         setUpPreferences()
     }
 
@@ -71,7 +70,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 true
             )
 
-        if (!isBiometricsOptionsAvailable()) {
+        if (!BiometricModel.isBiometricVerificationAvailable(requireContext())) {
             findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
         }
     }
@@ -162,8 +161,4 @@ class SettingsFragment : PreferenceFragmentCompat() {
             is Err -> alertModel.notifyError(exportResult.error.toLbError())
         }.exhaustive
     }
-
-    private fun isBiometricsOptionsAvailable(): Boolean =
-        BiometricManager.from(requireContext())
-            .canAuthenticate(BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 }

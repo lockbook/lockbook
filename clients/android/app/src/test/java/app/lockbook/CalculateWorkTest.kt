@@ -30,6 +30,22 @@ class CalculateWorkTest {
     fun calculateWorkOk() {
         CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
+
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
+
         CoreModel.calculateWork(config).unwrap()
     }
 

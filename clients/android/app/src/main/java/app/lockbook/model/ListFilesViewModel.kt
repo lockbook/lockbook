@@ -275,6 +275,8 @@ class ListFilesViewModel(path: String, application: Application) :
                     if (fileModel.deleteFiles(selectedFiles)) {
                         _notifyWithSnackbar.postValue("Successfully deleted the file(s)")
                     }
+
+                    fileModel.refreshFiles()
                 }
                 R.id.menu_list_files_info -> {
                     val selectedFiles =

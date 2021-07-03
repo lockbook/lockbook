@@ -37,7 +37,6 @@ inline fun <reified T : CoreError> Result<*, CoreError>?.unwrapErrorType(): T {
 
 const val unrecognizedErrorTemplate = " is an unrecognized error type from "
 const val obsoleteErrorTemplate = "There is an obsolete error type from "
-const val stubError = "Stub"
 
 val errorsToCheck = listOf<KClass<*>>(
     CalculateWorkError::class,
@@ -74,7 +73,7 @@ val checkIfAllErrorsPresentConverter = object : Converter {
             jsonObject.array<String>(error.simpleName!!)!!.forEach { variant ->
                 val sizeBefore = variantsToCheck.size
                 variantsToCheck = variantsToCheck.filter { kClass -> variant != kClass.simpleName }
-                if (variantsToCheck.size == sizeBefore && variant != stubError) {
+                if (variantsToCheck.size == sizeBefore && variant != "Stub") {
                     throw Throwable(variant + unrecognizedErrorTemplate + error.simpleName)
                 }
             }
