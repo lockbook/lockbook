@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,42 +28,30 @@ class GetUsageTest {
 
     @Test
     fun getLocalAndServerUsageOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<LocalAndServerUsages>(
-            CoreModel.getLocalAndServerUsage(config, true).component1()
-        )
+        CoreModel.getLocalAndServerUsage(config, true).unwrap()
 
-        assertType<LocalAndServerUsages>(
-            CoreModel.getLocalAndServerUsage(config, false).component1()
-        )
+        CoreModel.getLocalAndServerUsage(config, false).unwrap()
     }
 
     @Test
     fun getLocalAndServerUsageNoAccount() {
-        assertType<GetUsageError.NoAccount>(
-            CoreModel.getLocalAndServerUsage(config, true).component2()
-        )
+        CoreModel.getLocalAndServerUsage(config, true).unwrapErrorType<GetUsageError.NoAccount>()
 
-        assertType<GetUsageError.NoAccount>(
-            CoreModel.getLocalAndServerUsage(config, false).component2()
-        )
+        CoreModel.getLocalAndServerUsage(config, false).unwrapErrorType<GetUsageError.NoAccount>()
     }
 
     @Test
     fun getLocalAndServerUsageUnexpectedError() {
-        assertType<GetUsageError.Unexpected>(
-            Klaxon().converter(getLocalAndServerUsageConverter).parse<Result<LocalAndServerUsages, GetUsageError>>(
+        Klaxon().converter(getLocalAndServerUsageConverter)
+            .parse<Result<LocalAndServerUsages, GetUsageError>>(
                 getLocalAndServerUsage("", false)
-            )?.component2()
-        )
+            ).unwrapErrorType<GetUsageError.Unexpected>()
 
-        assertType<GetUsageError.Unexpected>(
-            Klaxon().converter(getLocalAndServerUsageConverter).parse<Result<LocalAndServerUsages, GetUsageError>>(
+        Klaxon().converter(getLocalAndServerUsageConverter)
+            .parse<Result<LocalAndServerUsages, GetUsageError>>(
                 getLocalAndServerUsage("", true)
-            )?.component2()
-        )
+            ).unwrapErrorType<GetUsageError.Unexpected>()
     }
 }

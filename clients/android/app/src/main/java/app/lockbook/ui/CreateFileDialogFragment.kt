@@ -12,11 +12,9 @@ import app.lockbook.databinding.DialogCreateFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
-import timber.log.Timber
 import java.lang.ref.WeakReference
 import kotlin.properties.Delegates
 

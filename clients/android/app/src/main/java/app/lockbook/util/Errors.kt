@@ -114,7 +114,7 @@ sealed class CoreError {
 }
 
 fun resIdToString(id: Int): String = App.instance.resources.getString(id)
-fun basicErrorString(): String = resIdToString(R.string.basic_error)
+fun basicErrorString(): String = resIdToString(R.string.basic_error) // This will always be a valid call while the android app is running. This cannot be called during tests.
 
 sealed class InitLoggerError : CoreError() {
     data class Unexpected(val error: String) : InitLoggerError()

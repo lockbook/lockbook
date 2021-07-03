@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,23 +28,16 @@ class MigrateDBTest {
 
     @Test
     fun migrateDBOk() {
-        assertType<State>(
-            CoreModel.getDBState(config).component1()
-        )
+        CoreModel.getDBState(config).unwrap()
 
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<Unit>(
-            CoreModel.migrateDB(config).component1()
-        )
+        CoreModel.migrateDB(config).unwrap()
     }
 
     @Test
     fun getDBStateUnexpectedError() {
-        assertType<MigrationError.Unexpected>(
-            Klaxon().converter(migrateDBConverter).parse<Result<Unit, MigrationError>>(migrateDB(""))?.component2()
-        )
+        Klaxon().converter(migrateDBConverter).parse<Result<Unit, MigrationError>>(migrateDB(""))
+            .unwrapErrorType<MigrationError.Unexpected>()
     }
 }

@@ -37,7 +37,7 @@ class SyncModel(
         val newStatus = SyncStatus.IsSyncing(total, progress)
 
         when (syncStatus) {
-            SyncStatus.IsNotSyncing -> LbError.newProgError(resIdToString(R.string.unexpected_error))
+            SyncStatus.IsNotSyncing -> LbError.basicError()
             is SyncStatus.IsSyncing -> {
                 syncStatus = newStatus
                 _updateSyncSnackBar.postValue(Pair(newStatus.total, newStatus.progress))

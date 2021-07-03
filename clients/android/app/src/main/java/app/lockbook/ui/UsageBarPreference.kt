@@ -7,7 +7,6 @@ import android.widget.TextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
-import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.screen.SettingsActivity
 import app.lockbook.screen.SettingsFragment
@@ -16,7 +15,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
-import java.lang.ref.WeakReference
 
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
 
@@ -93,7 +91,6 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                         }
                     }
                 }
-
             }
         }
     }

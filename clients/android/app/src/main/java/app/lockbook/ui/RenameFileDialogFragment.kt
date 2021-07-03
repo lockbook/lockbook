@@ -11,7 +11,6 @@ import app.lockbook.databinding.DialogRenameFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
-import app.lockbook.util.GetUsageError
 import app.lockbook.util.LbErrorKind
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok

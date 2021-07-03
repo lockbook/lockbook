@@ -1,17 +1,13 @@
 package app.lockbook.model
 
 import android.app.Activity
-import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.view.View
 import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
 import com.google.android.material.snackbar.Snackbar
 import timber.log.Timber
 import java.lang.ref.WeakReference

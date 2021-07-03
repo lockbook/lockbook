@@ -94,7 +94,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
 
     fun saveText(content: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, content)
+            val writeToDocumentResult = CoreModel.writeToDocument(config, id, content)
             if (writeToDocumentResult is Err) {
                 _notifyError.postValue(writeToDocumentResult.error.toLbError())
             }

@@ -85,7 +85,7 @@ class DrawingViewModel(
 
     fun saveDrawing(drawing: Drawing) {
         viewModelScope.launch(Dispatchers.IO) {
-            val writeToDocumentResult = CoreModel.writeContentToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
+            val writeToDocumentResult = CoreModel.writeToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
             if (writeToDocumentResult is Err) {
                 _notifyError.postValue(writeToDocumentResult.error.toLbError())

@@ -4,6 +4,8 @@ import app.lockbook.util.*
 import com.beust.klaxon.Converter
 import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrapError
 import java.util.*
 import kotlin.reflect.KClass
 
@@ -24,18 +26,13 @@ fun createRandomPath(): String {
     return path
 }
 
-inline fun <reified T> assertType(comparableValue: Any?) {
-    require(comparableValue is T) {
-        "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
-    }
-}
-
-inline fun <reified T> assertTypeReturn(comparableValue: Any?): T {
-    require(comparableValue is T) {
-        "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
+inline fun <reified T : CoreError> Result<*, CoreError>?.unwrapErrorType(): T {
+    val error = this?.unwrapError()
+    require(error is T) {
+        "${Thread.currentThread().stackTrace[1]}: ${if (error == null) "null" else error::class.qualifiedName} is not of type ${T::class.qualifiedName}"
     }
 
-    return comparableValue
+    return error
 }
 
 const val unrecognizedErrorTemplate = " is an unrecognized error type from "

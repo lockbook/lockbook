@@ -31,7 +31,6 @@ import app.lockbook.util.SharedPreferences.SORT_FILES_LAST_CHANGED
 import app.lockbook.util.SharedPreferences.SORT_FILES_TYPE
 import app.lockbook.util.SharedPreferences.SORT_FILES_Z_A
 import app.lockbook.util.SharedPreferences.SYNC_AUTOMATICALLY_KEY
-import com.beust.klaxon.Klaxon
 import kotlinx.coroutines.*
 import timber.log.Timber
 import java.io.File

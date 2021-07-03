@@ -13,7 +13,6 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.MoveFileAdapter
 import app.lockbook.model.MoveFileViewModel
 import app.lockbook.modelfactory.MoveFileViewModelFactory
-import app.lockbook.util.GetUsageError
 import java.lang.ref.WeakReference
 
 data class MoveFileInfo(

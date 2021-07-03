@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,26 +28,20 @@ class GetAccountTest {
 
     @Test
     fun getAccountOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<Account>(
-            CoreModel.getAccount(config).component1()
-        )
+        CoreModel.getAccount(config).unwrap()
     }
 
     @Test
     fun getAccountNoAccount() {
-        assertType<GetAccountError.NoAccount>(
-            CoreModel.getAccount(config).component2()
-        )
+        CoreModel.getAccount(config).unwrapErrorType<GetAccountError.NoAccount>()
     }
 
     @Test
     fun getAccountUnexpectedError() {
-        assertType<GetAccountError.Unexpected>(
-            Klaxon().converter(getAccountConverter).parse<Result<Account, GetAccountError>>(getAccount(""))?.component2()
-        )
+        Klaxon().converter(getAccountConverter)
+            .parse<Result<Account, GetAccountError>>(getAccount(""))
+            .unwrapErrorType<GetAccountError.Unexpected>()
     }
 }
