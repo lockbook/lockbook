@@ -25,9 +25,9 @@ pub fn calculate_usage(exact: bool) -> CliResult<()> {
 
     let (uncompressed, server_usage, data_cap) = if exact {
         (
-            uncompressed_usage.readable_exact,
-            usage.server_usage.readable_exact,
-            usage.data_cap.readable_exact,
+            format!("{} B", uncompressed_usage.exact),
+            format!("{} B", usage.server_usage.exact),
+            format!("{} B", usage.data_cap.exact),
         )
     } else {
         (

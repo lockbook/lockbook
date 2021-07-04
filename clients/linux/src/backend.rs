@@ -377,7 +377,7 @@ impl LbCore {
             return Ok((
                 Some(format!(
                     "{} of {} remaining!",
-                    bytes_to_human(usage.data_cap.exact - usage.server_usage.exact).0,
+                    bytes_to_human(usage.data_cap.exact - usage.server_usage.exact),
                     usage.data_cap.readable
                 )),
                 Some("You are running out of space, go to the settings to buy more!".to_string()),

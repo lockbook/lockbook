@@ -1282,14 +1282,6 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
 fn usage_dialog(c: &Arc<LbCore>) -> LbResult<GtkBox> {
     let usage = c.get_usage()?;
 
-    println!(
-        "{} | {} | {} | {}",
-        usage.server_usage.readable,
-        usage.server_usage.exact,
-        usage.server_usage.readable_exact,
-        usage.server_usage.unit
-    );
-
     let title = GtkLabel::new(Some("Total Usage"));
     let attr_list = pango::AttrList::new();
     let attr = pango::Attribute::new_weight(pango::Weight::Bold)
