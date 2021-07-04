@@ -83,9 +83,13 @@ namespace Core {
         public ulong sizeBytes;
     }
 
-    public class WorkCalculated {
-        [JsonProperty("work_units")]
-        public List<dynamic> workUnits;
+    public class ClientWorkCalculated {
+        [JsonProperty("local_files")]
+        public List<ClientFileMetadata> localFiles;
+        [JsonProperty("server_files")]
+        public List<ClientFileMetadata> serverFiles;
+        [JsonProperty("server_unknown_name_count")]
+        public ulong serverUnknownNameCount;
         [JsonProperty("most_recent_update_from_server")]
         public ulong mostRecentUpdateFromServer;
     }
@@ -342,7 +346,7 @@ namespace Core {
     namespace CalculateWork {
         public interface IResult { }
         public class Success : IResult {
-            public WorkCalculated workCalculated;
+            public ClientWorkCalculated workCalculated;
         }
         public enum PossibleErrors {
             NoAccount,

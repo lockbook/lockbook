@@ -349,7 +349,7 @@ namespace lockbook {
         public async Task<Core.CalculateWork.IResult> CalculateWork() {
             return await FFICommon<Core.CalculateWork.IResult, Core.CalculateWork.ExpectedError, Core.CalculateWork.PossibleErrors, Core.CalculateWork.UnexpectedError>(
                 () => calculate_work(path),
-                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<WorkCalculated>(s) });
+                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<ClientWorkCalculated>(s) });
         }
 
         public async Task<Core.SetLastSynced.IResult> SetLastSynced(ulong lastSync) {
