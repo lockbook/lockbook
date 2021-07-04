@@ -97,7 +97,7 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreEr
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::service::usage_service::{bytes_to_human, ByteUnit};
+    use crate::service::usage_service::bytes_to_human;
 
     const BYTES_SMALL: u64 = 1000;
     const BYTES_MEDIUM: u64 = 1000000;
