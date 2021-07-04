@@ -6,9 +6,8 @@ public protocol LockbookApi {
     func createAccount(username: String, apiLocation: String) -> FfiResult<Empty, CreateAccountError>
     func importAccount(accountString: String) -> FfiResult<Empty, ImportError>
     func exportAccount() -> FfiResult<String, AccountExportError>
-    func getUsage() -> FfiResult<[FileUsage], GetUsageError>
-    func getUsageHumanReadable() -> FfiResult<String, GetUsageError>
-    
+    func getUsage() -> FfiResult<UsageMetrics, GetUsageError>
+
     // Work
     func syncAll() -> FfiResult<Empty, SyncAllError>
     func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError>
