@@ -11,18 +11,19 @@ use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{
     calculate_work, create_account, create_file, delete_file, export_account, get_account,
     get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
-    get_last_synced, get_root, get_usage_human_string, import_account, list_paths, migrate_db,
-    read_document, rename_file, sync_all, write_document,
+    get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db, read_document,
+    rename_file, sync_all, write_document,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 
-use crate::error::{LbError, LbResult};
-use crate::{closure, progerr, uerr};
+use crate::error::{LbErrTarget, LbError, LbResult};
+use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
 use lockbook_core::model::client_conversion::{
     ClientFileMetadata, ClientWorkCalculated, ClientWorkUnit,
 };
+use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
 
 macro_rules! match_core_err {
     (
@@ -55,7 +56,7 @@ macro_rules! lock {
 
 macro_rules! account {
     ($guard:expr) => {
-        $guard.as_ref().ok_or(uerr!("No account found."))
+        $guard.as_ref().ok_or(uerr_dialog!("No account found."))
     };
 }
 
@@ -85,11 +86,11 @@ impl LbCore {
             Stub => panic!("impossible"),
         ))? {
             DbState::ReadyToUse | DbState::Empty => {}
-            DbState::StateRequiresClearing => return Err(uerr!("{}", STATE_REQ_CLEAN_MSG)),
+            DbState::StateRequiresClearing => return Err(uerr_dialog!("{}", STATE_REQ_CLEAN_MSG)),
             DbState::MigrationRequired => {
                 println!("Local state requires migration! Performing migration now...");
                 migrate_db(&config).map_err(map_core_err!(MigrationError,
-                    StateRequiresCleaning => uerr!("{}", STATE_REQ_CLEAN_MSG),
+                    StateRequiresCleaning => uerr_dialog!("{}", STATE_REQ_CLEAN_MSG),
                 ))?;
             }
         }
@@ -109,11 +110,11 @@ impl LbCore {
         let api_url = api_url();
         let new_acct = create_account(&self.config, &uname, &api_url).map_err(map_core_err!(
             CreateAccountError,
-            UsernameTaken => uerr!("The username '{}' is already taken.", uname),
-            InvalidUsername => uerr!("Invalid username '{}' ({}).", uname, UNAME_REQS),
-            AccountExistsAlready => uerr!("An account already exists."),
-            CouldNotReachServer => uerr!("Unable to connect to the server."),
-            ClientUpdateRequired => uerr!("Client upgrade required."),
+            UsernameTaken => uerr_dialog!("The username '{}' is already taken.", uname),
+            InvalidUsername => uerr_dialog!("Invalid username '{}' ({}).", uname, UNAME_REQS),
+            AccountExistsAlready => uerr_dialog!("An account already exists."),
+            CouldNotReachServer => uerr_dialog!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
         ))?;
         self.set_account(new_acct)
     }
@@ -121,19 +122,19 @@ impl LbCore {
     pub fn import_account(&self, privkey: &str) -> LbResult<()> {
         let new_acct = import_account(&self.config, privkey).map_err(map_core_err!(
             ImportError,
-            AccountStringCorrupted => uerr!("Your account's private key is corrupted."),
-            AccountExistsAlready => uerr!("An account already exists."),
-            AccountDoesNotExist => uerr!("The account you tried to import does not exist."),
-            UsernamePKMismatch => uerr!("The account private key does not match username."),
-            CouldNotReachServer => uerr!("Unable to connect to the server."),
-            ClientUpdateRequired => uerr!("Client upgrade required."),
+            AccountStringCorrupted => uerr_dialog!("Your account's private key is corrupted."),
+            AccountExistsAlready => uerr_dialog!("An account already exists."),
+            AccountDoesNotExist => uerr_dialog!("The account you tried to import does not exist."),
+            UsernamePKMismatch => uerr_dialog!("The account private key does not match username."),
+            CouldNotReachServer => uerr_dialog!("Unable to connect to the server."),
+            ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
         ))?;
         self.set_account(new_acct)
     }
 
     pub fn export_account(&self) -> LbResult<String> {
         export_account(&self.config).map_err(map_core_err!(AccountExportError,
-            NoAccount => uerr!("No account found."),
+            NoAccount => uerr_dialog!("No account found."),
         ))
     }
 
@@ -144,12 +145,12 @@ impl LbCore {
         file_type: FileType,
     ) -> LbResult<ClientFileMetadata> {
         create_file(&self.config, name, parent, file_type).map_err(map_core_err!(CreateFileError,
-            FileNameNotAvailable => uerr!("That file name is not available."),
-            NoAccount => uerr!("No account found."),
-            DocumentTreatedAsFolder => uerr!("A document is being treated as folder."),
-            CouldNotFindAParent => uerr!("Could not find parent."),
-            FileNameEmpty => uerr!("Cannot create file with no name."),
-            FileNameContainsSlash => uerr!("The file name cannot contain a slash."),
+            FileNameNotAvailable => uerr_dialog!("That file name is not available."),
+            NoAccount => uerr_dialog!("No account found."),
+            DocumentTreatedAsFolder => uerr_dialog!("A document is being treated as folder."),
+            CouldNotFindAParent => uerr_dialog!("Could not find parent."),
+            FileNameEmpty => uerr_dialog!("Cannot create file with no name."),
+            FileNameContainsSlash => uerr_dialog!("The file name cannot contain a slash."),
         ))
     }
 
@@ -157,15 +158,15 @@ impl LbCore {
         let bytes = content.as_bytes();
 
         write_document(&self.config, id, bytes).map_err(map_core_err!(WriteToDocumentError,
-            NoAccount => uerr!("No account found."),
-            FileDoesNotExist => uerr!("The file with id '{}' does not exist.", id),
-            FolderTreatedAsDocument => uerr!(""),
+            NoAccount => uerr_dialog!("No account found."),
+            FileDoesNotExist => uerr_dialog!("The file with id '{}' does not exist.", id),
+            FolderTreatedAsDocument => uerr_dialog!(""),
         ))
     }
 
     pub fn root(&self) -> LbResult<ClientFileMetadata> {
         get_root(&self.config).map_err(map_core_err!(GetRootError,
-            NoRoot => uerr!("No root folder found."),
+            NoRoot => uerr_dialog!("No root folder found."),
         ))
     }
 
@@ -178,14 +179,14 @@ impl LbCore {
     pub fn get_children_recursively(&self, id: Uuid) -> LbResult<Vec<FileMetadata>> {
         get_and_get_children_recursively(&self.config, id).map_err(map_core_err!(
             GetAndGetChildrenError,
-            FileDoesNotExist => uerr!("File with id '{}' does not exist.", id),
-            DocumentTreatedAsFolder => uerr!("A document is being treated as folder."),
+            FileDoesNotExist => uerr_dialog!("File with id '{}' does not exist.", id),
+            DocumentTreatedAsFolder => uerr_dialog!("A document is being treated as folder."),
         ))
     }
 
     pub fn file_by_id(&self, id: Uuid) -> LbResult<ClientFileMetadata> {
         get_file_by_id(&self.config, id).map_err(map_core_err!(GetFileByIdError,
-            NoFileWithThatId => uerr!("No file found with ID '{}'.", id),
+            NoFileWithThatId => uerr_dialog!("No file found with ID '{}'.", id),
         ))
     }
 
@@ -195,22 +196,22 @@ impl LbCore {
         let p = format!("{}/{}", acct.username, path);
 
         get_file_by_path(&self.config, &p).map_err(map_core_err!(GetFileByPathError,
-            NoFileAtThatPath => uerr!("No file at path '{}'.", p),
+            NoFileAtThatPath => uerr_dialog!("No file at path '{}'.", p),
         ))
     }
 
     pub fn delete(&self, id: &Uuid) -> LbResult<()> {
         delete_file(&self.config, *id).map_err(map_core_err!(FileDeleteError,
-            CannotDeleteRoot => uerr!("Deleting the root folder is not permitted."),
-            FileDoesNotExist => uerr!("File with id '{}' does not exist.", id),
+            CannotDeleteRoot => uerr_dialog!("Deleting the root folder is not permitted."),
+            FileDoesNotExist => uerr_dialog!("File with id '{}' does not exist.", id),
         ))
     }
 
     pub fn read(&self, id: Uuid) -> LbResult<DecryptedDocument> {
         read_document(&self.config, id).map_err(map_core_err!(ReadDocumentError,
-            TreatedFolderAsDocument => uerr!("There is a folder treated as a document."),
-            NoAccount => uerr!("No account found."),
-            FileDoesNotExist => uerr!("File with id '{}' does not exist.", id),
+            TreatedFolderAsDocument => uerr_dialog!("There is a folder treated as a document."),
+            NoAccount => uerr_dialog!("No account found."),
+            FileDoesNotExist => uerr_dialog!("File with id '{}' does not exist.", id),
         ))
     }
 
@@ -222,11 +223,11 @@ impl LbCore {
 
     pub fn rename(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
         rename_file(&self.config, *id, new_name).map_err(map_core_err!(RenameFileError,
-            CannotRenameRoot => uerr!("The root folder cannot be renamed."),
-            FileDoesNotExist => uerr!("The file you are trying to rename does not exist."),
-            FileNameNotAvailable => uerr!("The new file name is not available."),
-            NewNameContainsSlash => uerr!("File names cannot contain slashes."),
-            NewNameEmpty => uerr!("File names cannot be blank."),
+            CannotRenameRoot => uerr_dialog!("The root folder cannot be renamed."),
+            FileDoesNotExist => uerr_dialog!("The file you are trying to rename does not exist."),
+            FileNameNotAvailable => uerr_dialog!("The new file name is not available."),
+            NewNameContainsSlash => uerr_dialog!("File names cannot contain slashes."),
+            NewNameEmpty => uerr_dialog!("File names cannot be blank."),
         ))
     }
 
@@ -250,22 +251,25 @@ impl LbCore {
             ch.send(Some(data)).unwrap();
         });
 
-        sync_all(&self.config, Some(Box::new(closure))).map_err(map_core_err!(SyncAllError,
-            CouldNotReachServer => uerr!("Unable to connect to the server."),
-            ClientUpdateRequired => uerr!("Client upgrade required."),
-            NoAccount => uerr!("No account found."),
-        ))?;
+        let sync =
+            sync_all(&self.config, Some(Box::new(closure))).map_err(map_core_err!(SyncAllError,
+                CouldNotReachServer => uerr_status_panel!("Offline."),
+                ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
+                NoAccount => uerr_dialog!("No account found."),
+            ));
 
         ch.send(None).unwrap();
+
+        sync?;
 
         Ok(())
     }
 
     pub fn calculate_work(&self) -> LbResult<ClientWorkCalculated> {
         calculate_work(&self.config).map_err(map_core_err!(CalculateWorkError,
-            CouldNotReachServer => uerr!("Unable to connect to the server."),
-            ClientUpdateRequired => uerr!("Client upgrade required."),
-            NoAccount => uerr!("No account found."),
+            CouldNotReachServer => uerr_status_panel!("Offline."),
+            ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
+            NoAccount => uerr_dialog!("No account found."),
         ))
     }
 
@@ -275,11 +279,11 @@ impl LbCore {
         ))
     }
 
-    pub fn usage_human_string(&self) -> LbResult<String> {
-        get_usage_human_string(&self.config, false).map_err(map_core_err!(GetUsageError,
-            NoAccount => uerr!("No account found."),
-            CouldNotReachServer => uerr!("Unable to connect to the server."),
-            ClientUpdateRequired => uerr!("Client upgrade required."),
+    pub fn get_usage(&self) -> LbResult<UsageMetrics> {
+        get_usage(&self.config).map_err(map_core_err!(GetUsageError,
+            NoAccount => uerr_dialog!("No account found."),
+            CouldNotReachServer => uerr_status_panel!("Offline."),
+            ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
         ))
     }
 
@@ -358,8 +362,33 @@ impl LbCore {
             }
         }
     }
+
+    pub fn usage_status(&self) -> LbResult<(Option<String>, Option<String>)> {
+        let usage = self.get_usage()?;
+
+        if usage.server_usage.exact >= usage.data_cap.exact {
+            return Ok((
+                Some("You're out of space!".to_string()),
+                Some("You have run out of space, go to the settings to buy more!".to_string()),
+            ));
+        } else if usage.server_usage.exact as f32 / usage.data_cap.exact as f32
+            > USAGE_WARNING_THRESHOLD
+        {
+            return Ok((
+                Some(format!(
+                    "{} of {} remaining!",
+                    bytes_to_human(usage.data_cap.exact - usage.server_usage.exact),
+                    usage.data_cap.readable
+                )),
+                Some("You are running out of space, go to the settings to buy more!".to_string()),
+            ));
+        }
+
+        Ok((None, None))
+    }
 }
 
 const UNAME_REQS: &str = "letters and numbers only";
 const STATE_REQ_CLEAN_MSG: &str =
     "Your local state cannot be migrated, please re-sync with a fresh client.";
+const USAGE_WARNING_THRESHOLD: f32 = 0.9;

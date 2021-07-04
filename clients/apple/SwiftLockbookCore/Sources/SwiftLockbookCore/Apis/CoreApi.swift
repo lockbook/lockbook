@@ -26,12 +26,8 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: export_account(documentsDirectory))
     }
     
-    public func getUsage() -> FfiResult<[FileUsage], GetUsageError> {
+    public func getUsage() -> FfiResult<UsageMetrics, GetUsageError> {
         fromPrimitiveResult(result: get_usage(documentsDirectory))
-    }
-
-    public func getUsageHumanReadable() -> FfiResult<String, GetUsageError> {
-        fromPrimitiveResult(result: get_usage_human_string(documentsDirectory, false))
     }
     
     public func syncAll() -> FfiResult<Empty, SyncAllError> {

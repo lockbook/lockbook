@@ -12,6 +12,7 @@ pub enum Msg {
     ExportAccount,
     PerformSync,
     RefreshSyncStatus,
+    RefreshUsageStatus,
     Quit,
 
     NewFile(FileType),
@@ -40,7 +41,8 @@ pub enum Msg {
     ToggleAutoSave(bool),
     ToggleAutoSync(bool),
 
-    Error(String, LbError),
+    ErrorDialog(String, LbError),
+    SetStatus(String, Option<String>),
 }
 
 #[derive(Clone)]
@@ -57,7 +59,11 @@ impl Messenger {
         self.s.send(m).unwrap();
     }
 
-    pub fn send_err(&self, title: &str, err: LbError) {
-        self.send(Msg::Error(title.to_string(), err));
+    pub fn send_err_dialog(&self, title: &str, err: LbError) {
+        self.send(Msg::ErrorDialog(title.to_string(), err))
+    }
+
+    pub fn send_err_status_panel(&self, msg: &str) {
+        self.send(Msg::SetStatus(msg.to_string(), None))
     }
 }

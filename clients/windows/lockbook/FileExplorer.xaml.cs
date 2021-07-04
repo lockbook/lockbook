@@ -108,7 +108,7 @@ namespace lockbook {
             switch (await App.CoreService.CalculateWork()) {
                 case Core.CalculateWork.Success success:
                     App.IsOnline = true;
-                    itemsToSync = success.workCalculated.workUnits.Count;
+                    itemsToSync = success.workCalculated.localFiles.Count + (int)success.workCalculated.serverUnknownNameCount + success.workCalculated.serverFiles.Count;
                     break;
                 case Core.CalculateWork.UnexpectedError uhOh:
                     System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + uhOh.ErrorMessage);

@@ -107,9 +107,6 @@ namespace lockbook {
         private static extern IntPtr get_usage(IntPtr writeable_path);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr get_usage_human_string(IntPtr writeable_path, bool exact);
-
-        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_variants();
 
         private static string CopyToManagedAndRelease(IntPtr ptr) {
@@ -352,7 +349,7 @@ namespace lockbook {
         public async Task<Core.CalculateWork.IResult> CalculateWork() {
             return await FFICommon<Core.CalculateWork.IResult, Core.CalculateWork.ExpectedError, Core.CalculateWork.PossibleErrors, Core.CalculateWork.UnexpectedError>(
                 () => calculate_work(path),
-                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<WorkCalculated>(s) });
+                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<ClientWorkCalculated>(s) });
         }
 
         public async Task<Core.SetLastSynced.IResult> SetLastSynced(ulong lastSync) {
@@ -376,13 +373,7 @@ namespace lockbook {
         public async Task<Core.GetUsage.IResult> GetUsage() {
             return await FFICommon<Core.GetUsage.IResult, Core.GetUsage.ExpectedError, Core.GetUsage.PossibleErrors, Core.GetUsage.UnexpectedError>(
                 () => get_usage(path),
-                s => new Core.GetUsage.Success { usage = JsonConvert.DeserializeObject<List<FileUsage>>(s) });
-        }
-
-        public async Task<Core.GetUsageHumanString.IResult> GetUsageHumanString() {
-            return await FFICommon<Core.GetUsageHumanString.IResult, Core.GetUsageHumanString.ExpectedError, Core.GetUsageHumanString.PossibleErrors, Core.GetUsageHumanString.UnexpectedError>(
-                () => get_usage_human_string(path, false),
-                s => new Core.GetUsageHumanString.Success { usage = s });
+                s => new Core.GetUsage.Success { usage = JsonConvert.DeserializeObject<UsageMetrics>(s) });
         }
 
         public async Task<Dictionary<string, List<string>>> GetVariants() {

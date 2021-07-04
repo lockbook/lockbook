@@ -1,7 +1,6 @@
 import Foundation
 
 public struct FakeApi: LockbookApi {
-    
     public init() {
     }
     
@@ -21,14 +20,10 @@ public struct FakeApi: LockbookApi {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func getUsage() -> FfiResult<[FileUsage], GetUsageError> {
-        .success([FileUsage(fileId: .init(), byteSecs: UInt64(100), secs: UInt64(1))])
-    }
-
-    public func getUsageHumanReadable() -> FfiResult<String, GetUsageError> {
+    public func getUsage() -> FfiResult<UsageMetrics, GetUsageError> {
         .failure(.init(unexpected: "LAZY"))
     }
-    
+
     public func syncAll() -> FfiResult<Empty, SyncAllError> {
         .failure(.init(unexpected: "LAZY"))
     }
@@ -74,7 +69,7 @@ Vestibulum ante ipsum primis in vel.
     public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {
         .failure(.init(unexpected: "LAZY"))
     }
-
+    
     public func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError> {
         .failure(.init(unexpected: "LAZY"))
     }
@@ -95,7 +90,7 @@ Vestibulum ante ipsum primis in vel.
     public func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError> {
         .failure(.init(unexpected: "LAZY"))
     }
-
+    
     public func moveFile(id: UUID, newParent: UUID) -> FfiResult<Empty, MoveFileError> {
         .failure(.init(unexpected: "LAZY"))
     }

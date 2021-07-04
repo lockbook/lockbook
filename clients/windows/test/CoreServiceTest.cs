@@ -12,7 +12,7 @@ namespace test {
     public class CoreServiceTest {
         const string lockbookDir = "C:\\Temp\\.lockbook"; // todo: find a more suitable location
         CoreService CoreService = new CoreService(lockbookDir);
-        string apiUrl = Environment.GetEnvironmentVariable("API_URL");
+        string apiUrl = "https://api.prod.lockbook.net"; // Environment.GetEnvironmentVariable("API_URL");
 
         public string RandomUsername() {
             return "testUsername" + Guid.NewGuid().ToString().Replace("-", "");
@@ -296,16 +296,6 @@ namespace test {
         }
 
         [TestMethod]
-        public void GetLastSyncedHumanString() {
-            var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
-            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
-
-            var getLastSyncedResult = CoreService.GetLastSyncedHumanString().WaitResult();
-            CastOrDie(getLastSyncedResult, out Core.GetLastSyncedHumanString.Success _);
-        }
-
-        [TestMethod]
         public void SetLastSynced() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
@@ -323,16 +313,6 @@ namespace test {
 
             var getUsageResult = CoreService.GetUsage().WaitResult();
             CastOrDie(getUsageResult, out Core.GetUsage.Success _);
-        }
-
-        [TestMethod]
-        public void GetUsageHumanString() {
-            var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
-            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
-
-            var getUsageResult = CoreService.GetUsageHumanString().WaitResult();
-            CastOrDie(getUsageResult, out Core.GetUsageHumanString.Success _);
         }
 
         [TestMethod]

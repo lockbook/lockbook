@@ -297,7 +297,7 @@ val setLastSyncedConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-val getLocalAndServerUsageConverter = object : Converter {
+val getUsageConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
     override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
@@ -305,9 +305,9 @@ val getLocalAndServerUsageConverter = object : Converter {
             val ok = jv.obj?.obj("content")
 
             if (ok != null) {
-                Ok(Klaxon().parseFromJsonObject<LocalAndServerUsages>(ok))
+                Ok(Klaxon().parseFromJsonObject<UsageMetrics>(ok))
             } else {
-                Err(GetUsageError.Unexpected("calculateUsageConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
+                Err(GetUsageError.Unexpected("getUsageConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
             }
         }
         errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
@@ -319,11 +319,11 @@ val getLocalAndServerUsageConverter = object : Converter {
                             GetUsageError.ClientUpdateRequired::class.simpleName -> GetUsageError.ClientUpdateRequired
                             GetUsageError.CouldNotReachServer::class.simpleName -> GetUsageError.CouldNotReachServer
                             GetUsageError.NoAccount::class.simpleName -> GetUsageError.NoAccount
-                            else -> GetUsageError.Unexpected("calculateUsageConverter $unmatchedUiError $error")
+                            else -> GetUsageError.Unexpected("getUsageConverter $unmatchedUiError $error")
                         }
                     )
                 } else {
-                    Err(GetUsageError.Unexpected("calculateUsageConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+                    Err(GetUsageError.Unexpected("getUsageConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
                 }
             }
             unexpectedTag -> {
@@ -331,12 +331,57 @@ val getLocalAndServerUsageConverter = object : Converter {
                 if (error != null) {
                     Err(GetUsageError.Unexpected(error))
                 } else {
-                    Err(GetUsageError.Unexpected("calculateUsageConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                    Err(GetUsageError.Unexpected("getUsageConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
                 }
             }
-            else -> Err(GetUsageError.Unexpected("calculateUsageConverter $unmatchedErrorTag $errorTag"))
+            else -> Err(GetUsageError.Unexpected("getUsageConverter $unmatchedErrorTag $errorTag"))
         }
-        else -> Err(GetUsageError.Unexpected("calculateUsageConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+        else -> Err(GetUsageError.Unexpected("getUsageConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
+    }
+
+    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
+}
+
+val getUncompressedUsageConverter = object : Converter {
+    override fun canConvert(cls: Class<*>): Boolean = true
+
+    override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
+        okTag -> {
+            val ok = jv.obj?.obj("content")
+
+            if (ok != null) {
+                Ok(Klaxon().parseFromJsonObject<UsageItemMetric>(ok))
+            } else {
+                Err(GetUsageError.Unexpected("getUncompressedUsageConverter $unableToGetOk ${jv.obj?.toJsonString()}"))
+            }
+        }
+        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
+            uiErrorTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(
+                        when (error) {
+                            GetUsageError.ClientUpdateRequired::class.simpleName -> GetUsageError.ClientUpdateRequired
+                            GetUsageError.CouldNotReachServer::class.simpleName -> GetUsageError.CouldNotReachServer
+                            GetUsageError.NoAccount::class.simpleName -> GetUsageError.NoAccount
+                            else -> GetUsageError.Unexpected("getUsageConverter $unmatchedUiError $error")
+                        }
+                    )
+                } else {
+                    Err(GetUsageError.Unexpected("getUncompressedUsageConverter $unableToGetUiError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            unexpectedTag -> {
+                val error = jv.obj?.obj("content")?.string("content")
+                if (error != null) {
+                    Err(GetUsageError.Unexpected(error))
+                } else {
+                    Err(GetUsageError.Unexpected("getUncompressedUsageConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
+                }
+            }
+            else -> Err(GetUsageError.Unexpected("getUncompressedUsageConverter $unmatchedErrorTag $errorTag"))
+        }
+        else -> Err(GetUsageError.Unexpected("getUncompressedUsageConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
     }
 
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)

@@ -15,7 +15,7 @@ use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::db_state_service::State;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::sync_service::SyncProgress;
-use crate::service::usage_service::LocalAndServerUsages;
+use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
     account_service, db_state_service, drawing_service, file_service, path_service, sync_service,
     usage_service,
@@ -24,7 +24,6 @@ use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
@@ -641,22 +640,8 @@ pub enum GetUsageError {
     ClientUpdateRequired,
 }
 
-pub fn get_usage(config: &Config) -> Result<Vec<FileUsage>, Error<GetUsageError>> {
-    usage_service::server_usage(&config)
-        .map(|resp| resp.usages)
-        .map_err(|e| match e {
-            CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
-            CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
-        })
-}
-
-pub fn get_usage_human_string(
-    config: &Config,
-    exact: bool,
-) -> Result<String, Error<GetUsageError>> {
-    usage_service::get_usage_human_string(&config, exact).map_err(|e| match e {
+pub fn get_usage(config: &Config) -> Result<UsageMetrics, Error<GetUsageError>> {
+    usage_service::get_usage(&config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
         CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
         CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
@@ -664,11 +649,8 @@ pub fn get_usage_human_string(
     })
 }
 
-pub fn get_local_and_server_usage(
-    config: &Config,
-    exact: bool,
-) -> Result<LocalAndServerUsages, Error<GetUsageError>> {
-    usage_service::local_and_server_usages(&config, exact).map_err(|e| match e {
+pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, Error<GetUsageError>> {
+    usage_service::get_uncompressed_usage(&config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
         CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
         CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),

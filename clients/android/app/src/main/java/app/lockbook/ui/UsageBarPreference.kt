@@ -14,7 +14,8 @@ import app.lockbook.model.CoreModel
 import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.andThen
+import com.github.michaelbull.result.map
 import timber.log.Timber
 
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
@@ -35,38 +36,23 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
     private fun setUpUsagePreference(holder: PreferenceViewHolder) {
         val usageInfo = holder.itemView.findViewById<TextView>(R.id.usage_info)
 
-        when (val getUsageResult = CoreModel.getLocalAndServerUsage(config, true)) {
-            is Ok -> {
-                val localAndServerUsages = getUsageResult.value
-                val resources = holder.itemView.resources
-                Timber.e("${localAndServerUsages.uncompressedUsage} ${localAndServerUsages.serverUsage} ${localAndServerUsages.dataCap}")
+        val getUsageResult = CoreModel.getUsage(config).andThen { usage ->
+            val resources = holder.itemView.resources
 
-                val dataCapDot = localAndServerUsages.dataCap.indexOf(" ")
-                val serverUsageDot = localAndServerUsages.serverUsage.indexOf(" ")
-                val uncompressedUsageDot = localAndServerUsages.uncompressedUsage.indexOf(" ")
+            val usageBar = holder.itemView.findViewById<ProgressBar>(R.id.usage_bar)
 
-                if (dataCapDot == -1 || serverUsageDot == -1 || uncompressedUsageDot == -1) {
-                    AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Error! Could not set up usage bar.", OnFinishAlert.DoNothingOnFinishAlert)
-                }
+            usageBar.max = usage.dataCap.exact
+            usageBar.progress = usage.serverUsage.exact
 
-                val dataCapNum = localAndServerUsages.dataCap.substring(0, dataCapDot).toLongOrNull()
-                val serverUsageNum = localAndServerUsages.dataCap.substring(0, serverUsageDot).toLongOrNull()
-                val uncompressedUsageNum = localAndServerUsages.uncompressedUsage.substring(0, uncompressedUsageDot).toLongOrNull()
-
-                if (dataCapNum == null || serverUsageNum == null || uncompressedUsageNum == null) {
-                    AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Error! Could not set up usage bar.", OnFinishAlert.DoNothingOnFinishAlert)
-                } else {
-                    val usageBar = holder.itemView.findViewById<ProgressBar>(R.id.usage_bar)
-
-                    usageBar.max = dataCapNum.toInt()
-                    usageBar.progress = serverUsageNum.toInt()
-
-                    usageInfo.text = spannable {
-                        resources.getString(R.string.settings_usage_current).bold() + " " + CoreModel.makeBytesReadable(serverUsageNum) + "\n" + resources.getString(R.string.settings_usage_data_cap).bold() + " " + CoreModel.makeBytesReadable(dataCapNum) + "\n" + resources.getString(R.string.settings_usage_uncompressed_usage).bold() + " " + CoreModel.makeBytesReadable(uncompressedUsageNum)
-                    }
+            CoreModel.getUncompressedUsage(config).map { uncompressedUsage ->
+                usageInfo.text = spannable {
+                    resources.getString(R.string.settings_usage_current).bold() + " " + usage.serverUsage.readable + "\n" + resources.getString(R.string.settings_usage_data_cap).bold() + " " + usage.dataCap.readable + "\n" + resources.getString(R.string.settings_usage_uncompressed_usage).bold() + " " + uncompressedUsage.readable
                 }
             }
-            is Err -> when (val error = getUsageResult.error) {
+        }
+
+        if (getUsageResult is Err) {
+            when (val error = getUsageResult.error) {
                 GetUsageError.NoAccount -> {
                     AlertModel.errorHasOccurred((context as Activity).findViewById(android.R.id.content), "Error! No account.", OnFinishAlert.DoNothingOnFinishAlert)
                     usageInfo.text = "Error! No account."

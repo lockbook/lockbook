@@ -13,12 +13,12 @@ use gtk::{
     Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button,
     CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, Image as GtkImage, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ResponseType as GtkResponseType,
-    SelectionMode as GtkSelectionMode, SortColumn as GtkSortColumn, SortType as GtkSortType,
-    Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter, TreeModel as GtkTreeModel,
-    TreeModelSort as GtkTreeModelSort, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
-    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
-    WindowPosition as GtkWindowPosition,
+    ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
+    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode,
+    SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
+    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
+    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
+    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
 };
 use uuid::Uuid;
 
@@ -30,7 +30,7 @@ use crate::background_work::BackgroundWork;
 use crate::editmode::EditMode;
 use crate::error::{
     LbErrKind::{Program as ProgErr, User as UserErr},
-    LbError, LbResult,
+    LbErrTarget, LbError, LbResult,
 };
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
@@ -38,9 +38,10 @@ use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
-use crate::{closure, progerr, tree_iter_value, uerr};
+use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use std::thread;
+use std::time::Duration;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -95,6 +96,7 @@ impl LbApp {
                 Msg::ExportAccount => lb.export_account(),
                 Msg::PerformSync => lb.perform_sync(),
                 Msg::RefreshSyncStatus => lb.refresh_sync_status(),
+                Msg::RefreshUsageStatus => lb.refresh_usage_status(),
                 Msg::Quit => lb.quit(),
 
                 Msg::AccountScreenShown => lb.account_screen_shown(),
@@ -124,13 +126,23 @@ impl LbApp {
                 Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
                 Msg::ToggleAutoSync(auto_sync) => lb.toggle_auto_sync(auto_sync),
 
-                Msg::Error(title, err) => {
-                    lb.err(&title, &err);
+                Msg::ErrorDialog(title, err) => {
+                    lb.err_dialog(&title, &err);
+                    Ok(())
+                }
+                Msg::SetStatus(txt, tool_tip_txt) => {
+                    lb.gui
+                        .account
+                        .status()
+                        .set_status(txt.as_str(), tool_tip_txt.as_deref());
                     Ok(())
                 }
             };
             if let Err(err) = maybe_err {
-                lb.err("", &err);
+                match err.target() {
+                    LbErrTarget::Dialog => lb.err_dialog("", &err),
+                    LbErrTarget::StatusPanel => lb.gui.account.status().set_status(err.msg(), None),
+                }
             }
             glib::Continue(true)
         });
@@ -149,12 +161,12 @@ impl LbApp {
             match result {
                 Ok(_) => {
                     if let Err(err) = lb.gui.show_account_screen(&lb.core) {
-                        lb.messenger.send_err("showing account screen", err);
+                        lb.messenger.send_err_dialog("showing account screen", err);
                     }
                 }
                 Err(err) => match err.kind() {
                     UserErr => lb.gui.intro.error_create(&err.msg()),
-                    ProgErr => lb.messenger.send_err("creating account", err),
+                    ProgErr => lb.messenger.send_err_dialog("creating account", err),
                 },
             }
             glib::Continue(false)
@@ -180,7 +192,7 @@ impl LbApp {
         // In a separate thread, import the account and send the result down the channel.
         spawn!(self.core as c, self.messenger as m => move || {
             if let Err(err) = ch.send(c.import_account(&privkey)) {
-                m.send_err("sending import result", LbError::fmt_program_err(err));
+                m.send_err_dialog("sending import result", LbError::fmt_program_err(err));
             }
         });
 
@@ -196,9 +208,13 @@ impl LbApp {
             if let Some(msg) = msgopt {
                 lb.gui.intro.sync_progress(&msg)
             } else if let Err(err) = lb.gui.show_account_screen(&lb.core) {
-                lb.messenger.send_err("showing account screen", err);
+                lb.messenger.send_err_dialog("showing account screen", err);
             } else {
                 lb.messenger.send(Msg::RefreshSyncStatus);
+                spawn!(lb.messenger as m => move || {
+                    thread::sleep(Duration::from_secs(5));
+                    m.send(Msg::RefreshUsageStatus);
+                });
             }
             glib::Continue(true)
         });
@@ -207,7 +223,10 @@ impl LbApp {
         // used to receive progress updates as indicated above.
         spawn!(self.core as c, self.messenger as m => move || {
             if let Err(err) = c.sync(sync_chan) {
-                m.send_err("syncing", err);
+                match err.target() {
+                    LbErrTarget::Dialog => m.send_err_dialog("syncing", err),
+                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
+                }
             }
         });
     }
@@ -241,7 +260,7 @@ impl LbApp {
                 d.set_resizable(false);
                 d.show_all();
             }
-            Err(err) => self.err("unable to export account", &err),
+            Err(err) => self.err_dialog("unable to export account", &err),
         }
 
         let ch = make_glib_chan!(self.messenger as m => move |res: LbResult<String>| {
@@ -251,7 +270,7 @@ impl LbApp {
                     image_cntr.set_center_widget(Some(&qr_image));
                     image_cntr.show_all();
                 }
-                Err(err) => m.send_err("generating qr code", err),
+                Err(err) => m.send_err_dialog("generating qr code", err),
             }
             glib::Continue(false)
         });
@@ -265,22 +284,29 @@ impl LbApp {
             background_work.auto_sync_state.last_sync = BackgroundWork::current_time();
         }
 
-        let sync_ui = self.gui.account.sync().clone();
+        let sync_ui = self.gui.account.status().clone();
         sync_ui.set_syncing(true);
 
         let ch = make_glib_chan!(self as lb => move |msgopt: Option<LbSyncMsg>| {
             if let Some(msg) = msgopt {
-                sync_ui.sync_progress(&msg);
+                sync_ui.set_sync_progress(&msg);
             } else {
                 sync_ui.set_syncing(false);
                 lb.messenger.send(Msg::RefreshSyncStatus);
+                spawn!(lb.messenger as m => move || {
+                    thread::sleep(Duration::from_secs(5));
+                    m.send(Msg::RefreshUsageStatus);
+                });
             }
             glib::Continue(true)
         });
 
         spawn!(self.core as c, self.messenger as m => move || {
             if let Err(err) = c.sync(ch) {
-                m.send_err("syncing", err);
+                match err.target() {
+                    LbErrTarget::Dialog => m.send_err_dialog("syncing", err),
+                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg())
+                }
             }
             m.send(Msg::RefreshTree)
         });
@@ -289,8 +315,32 @@ impl LbApp {
     }
 
     fn refresh_sync_status(&self) -> LbResult<()> {
-        let s = self.core.sync_status()?;
-        self.gui.account.sync().set_status(&s);
+        spawn!(self.core as c, self.messenger as m => move || {
+            match c.sync_status() {
+                Ok(txt) => m.send(Msg::SetStatus(txt, None)),
+                Err(err) => match err.target() {
+                    LbErrTarget::Dialog => m.send_err_dialog("getting sync status", err),
+                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    fn refresh_usage_status(&self) -> LbResult<()> {
+        spawn!(self.core as c, self.messenger as m => move || {
+            match c.usage_status() {
+                Ok(status) => if let (Some(txt), _) = status {
+                    m.send(Msg::SetStatus(txt, status.1));
+                }
+                Err(err) => match err.target() {
+                    LbErrTarget::Dialog => m.send_err_dialog("getting usage status", err),
+                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
+                }
+            }
+        });
+
         Ok(())
     }
 
@@ -341,7 +391,7 @@ impl LbApp {
                     FileType::Folder => file.id,
                 })
             }
-            None => Err(uerr!("No destination is selected to create from!")),
+            None => Err(uerr_dialog!("No destination is selected to create from!")),
         }?;
 
         d.connect_response(closure!(self as lb => move |d, resp| {
@@ -361,7 +411,7 @@ impl LbApp {
                             lb.messenger.send(Msg::RefreshSyncStatus);
                             lb.messenger.send(Msg::OpenFile(Some(file.id)));
                         }
-                        Err(err) => lb.messenger.send_err("adding file to file tree", err)
+                        Err(err) => lb.messenger.send_err_dialog("adding file to file tree", err)
                     }
                 }
                 Err(err) => match err.kind() {
@@ -372,7 +422,7 @@ impl LbApp {
                     }
                     ProgErr => {
                         d.close();
-                        lb.messenger.send_err("creating file", err);
+                        lb.messenger.send_err_dialog("creating file", err);
                     }
                 },
             }
@@ -439,7 +489,7 @@ impl LbApp {
                 let ch = make_glib_chan!(m, d => move |result: LbResult<()>| {
                     match result {
                         Ok(_) => d.close(),
-                        Err(err) => m.send_err("saving file", err),
+                        Err(err) => m.send_err_dialog("saving file", err),
                     };
                     glib::Continue(false)
                 });
@@ -540,7 +590,7 @@ impl LbApp {
                             acctscr.set_saving(false);
                             m.send(Msg::RefreshSyncStatus);
                         }
-                        Err(err) => m.send_err("saving file", err),
+                        Err(err) => m.send_err_dialog("saving file", err),
                     }
                     glib::Continue(false)
                 });
@@ -564,7 +614,7 @@ impl LbApp {
     fn delete_files(&self) -> LbResult<()> {
         let (selected_files, tmodel) = self.gui.account.sidebar.tree.selected_rows();
         if selected_files.is_empty() {
-            return Err(uerr!("No file tree items are selected to delete!"));
+            return Err(uerr_dialog!("No file tree items are selected to delete!"));
         }
 
         let mut file_data: Vec<(String, Uuid, String)> = Vec::new();
@@ -696,7 +746,7 @@ impl LbApp {
                             acctscr.set_search_field_text(&lb.core.full_path_for(&f));
                             lb.messenger.send(Msg::RefreshSyncStatus);
                         }
-                        Err(err) => lb.messenger.send_err("getting renamed file", err)
+                        Err(err) => lb.messenger.send_err_dialog("getting renamed file", err)
                     }
                 }
                 Err(err) => match err.kind() {
@@ -707,7 +757,7 @@ impl LbApp {
                     }
                     ProgErr => {
                         d.close();
-                        lb.messenger.send_err("renaming file", err);
+                        lb.messenger.send_err_dialog("renaming file", err);
                     }
                 },
             }
@@ -818,7 +868,7 @@ impl LbApp {
                     d.get_content_area().show_all();
                     d.set_position(GtkWindowPosition::CenterAlways);
                 }
-                Err(err) => lb.messenger.send_err("building sync details ui", err),
+                Err(err) => lb.messenger.send_err_dialog("building sync details ui", err),
             },
             _ => d.close(),
         }));
@@ -857,8 +907,7 @@ impl LbApp {
     }
 
     fn show_dialog_usage(&self) -> LbResult<()> {
-        let usage_string = self.core.usage_human_string()?;
-        let usage = usage(usage_string)?;
+        let usage = usage_dialog(&self.core)?;
         let d = self.gui.new_dialog("My Lockbook Usage");
         d.get_content_area().add(&usage);
         d.show_all();
@@ -889,7 +938,7 @@ impl LbApp {
         Ok(())
     }
 
-    fn err(&self, title: &str, err: &LbError) {
+    fn err_dialog(&self, title: &str, err: &LbError) {
         let details = util::gui::scrollable(&GtkLabel::new(Some(&err.msg())));
         util::gui::set_margin(&details, 16);
 
@@ -1083,7 +1132,7 @@ impl Gui {
     fn show_account_screen(&self, core: &LbCore) -> LbResult<()> {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
-        self.account.fill(&core)?;
+        self.account.fill(&core, &self.messenger)?;
         self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
         self.messenger.send(Msg::AccountScreenShown);
@@ -1230,7 +1279,9 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
     Ok(cntr)
 }
 
-fn usage(usage_string: String) -> LbResult<GtkBox> {
+fn usage_dialog(c: &Arc<LbCore>) -> LbResult<GtkBox> {
+    let usage = c.get_usage()?;
+
     let title = GtkLabel::new(Some("Total Usage"));
     let attr_list = pango::AttrList::new();
     let attr = pango::Attribute::new_weight(pango::Weight::Bold)
@@ -1240,14 +1291,23 @@ fn usage(usage_string: String) -> LbResult<GtkBox> {
     title.set_attributes(Some(&attr_list));
     title.set_margin_bottom(20);
 
-    let lbl = GtkLabel::new(Some(&usage_string));
+    let lbl = GtkLabel::new(Some(&format!(
+        "{} / {}",
+        usage.server_usage.readable, usage.data_cap.readable
+    )));
     lbl.set_margin_bottom(24);
+
+    let pbar = GtkProgressBar::new();
+    util::gui::set_marginx(&pbar, 16);
+    pbar.set_size_request(300, -1);
+    pbar.set_fraction(usage.server_usage.exact as f64 / usage.data_cap.exact as f64);
 
     let cntr = GtkBox::new(Vertical, 0);
     util::gui::set_marginy(&cntr, 36);
     util::gui::set_marginx(&cntr, 100);
     cntr.add(&title);
     cntr.add(&lbl);
+    cntr.add(&pbar);
     Ok(cntr)
 }
 

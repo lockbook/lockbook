@@ -32,8 +32,8 @@ struct AccountView: View {
                     DisclosureGroup(
                         isExpanded: $showingUsage,
                         content: { () -> AnyView in
-                            if case .success(let usage) = core.api.getUsageHumanReadable() {
-                                return AnyView(Text(usage).foregroundColor(.accentColor))
+                            if case .success(let usage) = core.api.getUsage() {
+                                return AnyView(Text(usage.serverUsage.readable).foregroundColor(.accentColor))
                             } else {
                                 return AnyView(Text("Failed to retreive usage!"))
                             }

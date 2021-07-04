@@ -60,18 +60,36 @@ namespace Core {
         StateRequiresClearing,
     }
 
+    public class UsageMetrics {
+        [JsonProperty("usages")]
+        public List<FileUsage> usages;
+        [JsonProperty("server_usage")]
+        public UsageItemMetric server_usage;
+        [JsonProperty("data_cap")]
+        public UsageItemMetric data_cap;
+}
+
+    public class UsageItemMetric {
+        [JsonProperty("exact")]
+        public ulong exact;
+        [JsonProperty("readable")]
+        public string readable;
+    }
+
     public class FileUsage {
         [JsonProperty("file_id")]
         public string fileId;
-        [JsonProperty("byte_secs")]
-        public ulong byteSeconds;
-        [JsonProperty("secs")]
-        public ulong seconds;
+        [JsonProperty("size_bytes")]
+        public ulong sizeBytes;
     }
 
-    public class WorkCalculated {
-        [JsonProperty("work_units")]
-        public List<dynamic> workUnits;
+    public class ClientWorkCalculated {
+        [JsonProperty("local_files")]
+        public List<ClientFileMetadata> localFiles;
+        [JsonProperty("server_files")]
+        public List<ClientFileMetadata> serverFiles;
+        [JsonProperty("server_unknown_name_count")]
+        public ulong serverUnknownNameCount;
         [JsonProperty("most_recent_update_from_server")]
         public ulong mostRecentUpdateFromServer;
     }
@@ -328,7 +346,7 @@ namespace Core {
     namespace CalculateWork {
         public interface IResult { }
         public class Success : IResult {
-            public WorkCalculated workCalculated;
+            public ClientWorkCalculated workCalculated;
         }
         public enum PossibleErrors {
             NoAccount,
@@ -376,7 +394,7 @@ namespace Core {
     namespace GetUsage {
         public interface IResult { }
         public class Success : IResult {
-            public List<FileUsage> usage;
+            public UsageMetrics usage;
         }
         public enum PossibleErrors {
             NoAccount,
@@ -386,21 +404,6 @@ namespace Core {
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
-
-    namespace GetUsageHumanString {
-        public interface IResult { }
-        public class Success : IResult {
-            public string usage;
-        }
-        public enum PossibleErrors {
-            NoAccount,
-            CouldNotReachServer,
-            ClientUpdateRequired,
-        }
-        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
-        public class UnexpectedError : Core.UnexpectedError, IResult { }
-    }
-
 
     namespace GetDrawing {
             public interface IResult { }
