@@ -19,7 +19,7 @@ struct DrawingLoader: View {
                 case .some(let drawing):
                     GeometryReader { geom in
                         DrawingView(frame: geom.frame(in: .local), drawing: drawing, toolPicker: toolbar, onChange: { (ud: PKDrawing) in model.drawingModelChanged(meta: meta, updatedDrawing: ud) })
-                            .navigationTitle(String("\(meta.name) \(meta.contentVersion)"))
+                            .navigationTitle(meta.name)
                             .toolbar {
                                 ToolbarItemGroup(placement: .bottomBar) {
                                     Spacer()
