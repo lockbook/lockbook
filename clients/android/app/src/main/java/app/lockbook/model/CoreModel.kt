@@ -161,13 +161,12 @@ object CoreModel {
         metadataVersion: Long
     ): String = app.lockbook.core.convertToHumanDuration(metadataVersion)
 
-    fun getLocalAndServerUsage(
-        config: Config,
-        exact: Boolean
-    ): Result<LocalAndServerUsages, GetUsageError> {
-        val getUsageResult: Result<LocalAndServerUsages, GetUsageError>? =
-            Klaxon().converter(getLocalAndServerUsageConverter)
-                .parse(getLocalAndServerUsage(Klaxon().toJsonString(config), exact))
+    fun getUsage(
+        config: Config
+    ): Result<UsageMetrics, GetUsageError> {
+        val getUsageResult: Result<UsageMetrics, GetUsageError>? =
+            Klaxon().converter(getUsageConverter)
+                .parse(getUsage(Klaxon().toJsonString(config)))
 
         if (getUsageResult != null) {
             return getUsageResult
@@ -176,7 +175,19 @@ object CoreModel {
         return Err(GetUsageError.Unexpected("getLocalAndServerUsageConverter was unable to be called!"))
     }
 
-    fun makeBytesReadable(bytes: Long): String = app.lockbook.core.makeBytesReadable(bytes)
+    fun getUncompressedUsage(
+        config: Config
+    ): Result<UsageItemMetric, GetUsageError> {
+        val getUncompressedUsageResult: Result<UsageItemMetric, GetUsageError>? =
+            Klaxon().converter(getUncompressedUsageConverter)
+                .parse(getUncompressedUsage(Klaxon().toJsonString(config)))
+
+        if (getUncompressedUsageResult != null) {
+            return getUncompressedUsageResult
+        }
+
+        return Err(GetUsageError.Unexpected("getLocalAndServerUsageConverter was unable to be called!"))
+    }
 
     fun getChildren(
         config: Config,
