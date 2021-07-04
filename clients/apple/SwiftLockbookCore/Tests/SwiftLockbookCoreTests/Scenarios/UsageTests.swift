@@ -10,7 +10,7 @@ class UsageTests: SLCTest {
         let resultUsage = core.api.getUsage()
         
         assertSuccess(resultUsage) { usages in
-            usages.reduce(0, { $0 + ($1.byteSecs/$1.secs) }) == 0
+            usages.serverUsage.exact == 0
         }
     }
 }
