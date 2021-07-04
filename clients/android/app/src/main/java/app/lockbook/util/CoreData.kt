@@ -57,19 +57,8 @@ data class UsageMetrics(
 
 data class UsageItemMetric(
     val exact: Int,
-    @Json(name = "readable_exact")
-    val readableExact: String,
     val readable: String,
-    val unit: ByteUnit,
 )
-
-enum class ByteUnit {
-    Byte,
-    Kilobyte,
-    Megabyte,
-    Gigabyte,
-    Terabyte,
-}
 
 data class FileUsage(
     @Json(name = "file_id")
