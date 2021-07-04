@@ -37,13 +37,6 @@ class GetUncompressedUsageTest {
     }
 
     @Test
-    fun getUncompressedUsageNoAccount() {
-        assertType<GetUsageError.NoAccount>(
-            CoreModel.getUncompressedUsage(config).component2()
-        )
-    }
-
-    @Test
     fun getUncompressedUsageUnexpectedError() {
         assertType<GetUsageError.Unexpected>(
             Klaxon().converter(getUncompressedUsageConverter).parse<Result<UsageItemMetric, GetUsageError>>(

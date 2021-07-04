@@ -106,21 +106,12 @@ mod unit_tests {
     #[test]
     fn usage_human_string_sanity_check() {
         let bytes_small_total = BYTES_SMALL * 2;
-        assert_eq!(
-            bytes_to_human(bytes_small_total),
-            format!("{}.000 KB", 2)
-        );
+        assert_eq!(bytes_to_human(bytes_small_total), format!("{}.000 KB", 2));
 
         let bytes_medium_total = BYTES_MEDIUM * 2;
-        assert_eq!(
-            bytes_to_human(bytes_medium_total),
-            format!("{}.000 MB", 2)
-        );
+        assert_eq!(bytes_to_human(bytes_medium_total), format!("{}.000 MB", 2));
 
         let bytes_large_total = BYTES_LARGE * 2;
-        assert_eq!(
-            bytes_to_human(bytes_large_total),
-            format!("{}.000 GB", 2)
-        );
+        assert_eq!(bytes_to_human(bytes_large_total), format!("{}.000 GB", 2));
     }
 }
