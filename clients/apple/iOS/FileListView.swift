@@ -13,7 +13,7 @@ struct FileListView: View {
     @State var renaming: ClientFileMetadata?
     static var toolbar = ToolbarModel()
     @State private var selection: ClientFileMetadata?
-
+    
     var files: [ClientFileMetadata] {
         core.files.filter {
             $0.parent == currentFolder.id && $0.id != currentFolder.id
@@ -21,45 +21,44 @@ struct FileListView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack {
-                creating.map { type in
-                    SyntheticFileCell(
-                        parent: currentFolder,
-                        type: type,
-                        name: $creatingName,
-                        onCommit: {
-                            handleCreate(meta: currentFolder, type: type)
-                        },
-                        onCancel: doneCreating,
-                        renaming: false
-                    )
-                }
-
-                ForEach(files) { meta in
-                    renderCell(meta: meta)
-                        .popover(item: $moving, content: renderMoveDialog)
-                        .contextMenu(menuItems: {
-                            Button(action: {
-                                handleDelete(meta: meta)
-                            }) {
-                                Label("Delete", systemImage: "trash.fill")
-                            }
-                            Button(action: {
-                                moving = meta
-                            }, label: {
-                                Label("Move", systemImage: "folder")
-                            })
-                            Button(action: {
-                                renaming = meta
-                                creatingName = meta.name
-                            }, label: {
-                                Label("Rename", systemImage: "pencil")
-                            })
-                        })
-                }
+        List {
+            creating.map { type in
+                SyntheticFileCell(
+                    parent: currentFolder,
+                    type: type,
+                    name: $creatingName,
+                    onCommit: {
+                        handleCreate(meta: currentFolder, type: type)
+                    },
+                    onCancel: doneCreating,
+                    renaming: false
+                )
             }
-            .padding(.leading, 20)
+            
+            ForEach(files) { meta in
+                renderCell(meta: meta)
+                    .popover(item: $moving, content: renderMoveDialog)
+                    .contextMenu(menuItems: {
+                        Button(action: {
+                            handleDelete(meta: meta)
+                        }) {
+                            Label("Delete", systemImage: "trash.fill")
+                        }
+                        Button(action: {
+                            moving = meta
+                        }, label: {
+                            Label("Move", systemImage: "folder")
+                        })
+                        Button(action: {
+                            renaming = meta
+                            creatingName = meta.name
+                        }, label: {
+                            Label("Rename", systemImage: "pencil")
+                        })
+                    })
+                
+                
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             core.syncing = true
@@ -83,7 +82,7 @@ struct FileListView: View {
         .navigationBarTitle(currentFolder.name)
         
     }
-
+    
     func renderMoveDialog(meta: ClientFileMetadata) -> some View {
         let root = core.files.first(where: { $0.parent == $0.id })!
         let wc = WithChild(root, core.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
@@ -169,7 +168,7 @@ struct FileListView: View {
             }
         }
     }
-
+    
     func handleDelete(meta: ClientFileMetadata) {
         switch core.api.deleteFile(id: meta.id) {
         case .success(_):
