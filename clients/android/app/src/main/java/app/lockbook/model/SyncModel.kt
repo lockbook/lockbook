@@ -1,7 +1,8 @@
 package app.lockbook.model
 
+import android.content.Context
+import android.content.res.Resources
 import androidx.preference.PreferenceManager
-import app.lockbook.App
 import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.util.*
@@ -17,43 +18,38 @@ class SyncModel(
 
     var syncStatus: SyncStatus = SyncStatus.IsNotSyncing
 
-    fun trySync() {
+    fun trySync(context: Context) {
         if (syncStatus is SyncStatus.IsNotSyncing
         ) {
-            sync()
+            sync(context.resources)
             syncStatus = SyncStatus.IsNotSyncing
         }
     }
 
-    fun syncBasedOnPreferences() {
-        if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-            .getBoolean(SharedPreferences.SYNC_AUTOMATICALLY_KEY, false)
+    fun syncBasedOnPreferences(context: Context) {
+        if (PreferenceManager.getDefaultSharedPreferences(context)
+            .getBoolean(getString(context.resources, R.string.sync_automatically_key), false)
         ) {
-            trySync()
+            trySync(context)
         }
     }
 
     fun updateSyncProgressAndTotal(total: Int, progress: Int) { // used by core over ffi
         val newStatus = SyncStatus.IsSyncing(total, progress)
 
-        when (syncStatus) {
-            SyncStatus.IsNotSyncing -> LbError.basicError()
-            is SyncStatus.IsSyncing -> {
-                syncStatus = newStatus
-                _updateSyncSnackBar.postValue(Pair(newStatus.total, newStatus.progress))
-            }
-        }
+        syncStatus = newStatus
+        _updateSyncSnackBar.postValue(Pair(newStatus.total, newStatus.progress))
     }
 
-    private fun sync() {
+    private fun sync(resources: Resources) {
         val upToDateMsg =
-            App.instance.resources.getString(R.string.list_files_sync_finished_snackbar)
+            resources.getString(R.string.list_files_sync_finished_snackbar)
 
         when (val workCalculatedResult = CoreModel.calculateWork(config)) {
             is Ok -> if (workCalculatedResult.value.localFiles.size + workCalculatedResult.value.serverFiles.size + workCalculatedResult.value.serverUnknownNameCount == 0) {
                 return _notifyWithSnackbar.postValue(upToDateMsg)
             }
-            is Err -> return _notifyError.postValue(workCalculatedResult.error.toLbError())
+            is Err -> return _notifyError.postValue(workCalculatedResult.error.toLbError(resources))
         }
 
         syncStatus = SyncStatus.IsSyncing(0, 1)
@@ -61,7 +57,7 @@ class SyncModel(
 
         when (val syncResult = CoreModel.sync(config, this)) {
             is Ok -> _notifyWithSnackbar.postValue(upToDateMsg)
-            is Err -> _notifyError.postValue(syncResult.error.toLbError())
+            is Err -> _notifyError.postValue(syncResult.error.toLbError(resources))
         }
     }
 }

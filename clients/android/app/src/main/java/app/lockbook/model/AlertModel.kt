@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import androidx.appcompat.app.AlertDialog
-import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 import com.google.android.material.snackbar.Snackbar
@@ -15,7 +14,7 @@ import java.lang.ref.WeakReference
 class AlertModel(private val activity: WeakReference<Activity>, view: View? = null) {
 
     private var view: View = view ?: activity.get()!!.findViewById(android.R.id.content)
-    private var unexpectedErrorMsg = App.instance.resources.getString(R.string.unexpected_error)
+    private var unexpectedErrorMsg = activity.get()!!.resources.getString(R.string.unexpected_error)
 
     fun notifyBasicError(onFinish: (() -> Unit)? = null) = notify(unexpectedErrorMsg, onFinish)
 

@@ -7,7 +7,6 @@ import android.os.Build
 import android.util.AttributeSet
 import android.view.*
 import androidx.core.content.res.ResourcesCompat
-import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.screen.DrawingActivity
@@ -156,17 +155,17 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         )
 
         backgroundPaint.color = ResourcesCompat.getColor(
-            App.instance.resources,
+            resources,
             R.color.drawingUntouchableBackground,
-            App.instance.theme
+            context.theme
         )
 
         canvas.drawPaint(backgroundPaint)
 
         backgroundPaint.color = ResourcesCompat.getColor(
-            App.instance.resources,
+            resources,
             R.color.drawingTouchableBackground,
-            App.instance.theme
+            context.theme
         )
 
         canvas.drawRect(Rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT), backgroundPaint)

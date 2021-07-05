@@ -7,8 +7,9 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.PreferenceManager
-import app.lockbook.util.SharedPreferences
+import app.lockbook.R
 import app.lockbook.util.exhaustive
+import app.lockbook.util.getString
 import timber.log.Timber
 import java.lang.ref.WeakReference
 
@@ -17,19 +18,24 @@ object BiometricModel {
         BiometricManager.from(context)
             .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 
-    fun verify(activity: Activity, onSuccess: () -> Unit) {
+    fun verify(activity: Activity, onSuccess: () -> Unit, onFailure: (() -> Unit)? = null, isThisBiometricsChange: Boolean = false,) {
         val alertModel = AlertModel(WeakReference(activity))
         val context = activity.applicationContext
 
-        val pref = PreferenceManager.getDefaultSharedPreferences(context)
+        val biometricKey = getString(context.resources, R.string.biometric_key)
+        val biometricNoneValue = getString(context.resources, R.string.biometric_none_value)
+        val biometricRecommendedValue = getString(context.resources, R.string.biometric_recommended_value)
+        val biometricStrictValue = getString(context.resources, R.string.biometric_strict_value)
 
-        when (
-            val optionValue = pref.getString(
-                SharedPreferences.BIOMETRIC_OPTION_KEY,
-                SharedPreferences.BIOMETRIC_NONE
-            )
-        ) {
-            SharedPreferences.BIOMETRIC_STRICT -> {
+        val pref = PreferenceManager.getDefaultSharedPreferences(context)
+        val currentBiometricValue = pref.getString(
+            biometricKey,
+            biometricNoneValue
+        )
+
+        when {
+            currentBiometricValue == biometricStrictValue ||
+                isThisBiometricsChange && currentBiometricValue == biometricRecommendedValue -> {
                 if (BiometricManager.from(context)
                     .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
@@ -52,11 +58,13 @@ object BiometricModel {
                                     Timber.e("Biometric authentication error: $errString")
                                     alertModel.notifyBasicError()
                                 }
-                                BiometricPrompt.ERROR_LOCKOUT, BiometricPrompt.ERROR_LOCKOUT_PERMANENT -> {
-                                    alertModel.notifyBasicError()
+                                BiometricPrompt.ERROR_LOCKOUT, BiometricPrompt.ERROR_LOCKOUT_PERMANENT, BiometricPrompt.ERROR_CANCELED, BiometricPrompt.ERROR_NEGATIVE_BUTTON, BiometricPrompt.ERROR_USER_CANCELED, BiometricPrompt.ERROR_TIMEOUT -> {
+                                    if (onFailure != null) {
+                                        onFailure()
+                                    }
                                 }
                                 else -> {}
-                            }.exhaustive
+                            }
                         }
 
                         override fun onAuthenticationSucceeded(
@@ -69,17 +77,17 @@ object BiometricModel {
                 )
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Verify your identity to access Lockbook.")
+                    .setTitle(getString(context.resources, R.string.biometrics_title))
+                    .setSubtitle(getString(context.resources, R.string.biometrics_subtitle))
                     .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
-                    .setNegativeButtonText("Cancel")
+                    .setNegativeButtonText(getString(context.resources, R.string.biometrics_cancel))
                     .build()
 
                 biometricPrompt.authenticate(promptInfo)
             }
-            SharedPreferences.BIOMETRIC_NONE, SharedPreferences.BIOMETRIC_RECOMMENDED -> onSuccess()
+            currentBiometricValue == biometricNoneValue || currentBiometricValue == biometricRecommendedValue -> onSuccess()
             else -> {
-                Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
+                Timber.e("Biometric shared preference does not match every supposed option: $currentBiometricValue")
                 alertModel.notifyBasicError()
             }
         }.exhaustive

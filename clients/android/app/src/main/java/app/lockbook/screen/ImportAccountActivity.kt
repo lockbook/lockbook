@@ -7,14 +7,11 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.appcompat.app.AppCompatActivity
-import androidx.preference.PreferenceManager
 import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
 import app.lockbook.util.ImportError
-import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
-import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -106,26 +103,17 @@ class ImportAccountActivity : AppCompatActivity() {
             when (importAccountResult) {
                 is Ok -> {
                     binding.importAccountProgressBar.visibility = View.GONE
-                    setUpLoggedInImportState()
-                    startActivity(Intent(applicationContext, ListFilesActivity::class.java))
+                    val intent = Intent(applicationContext, ListFilesActivity::class.java)
+                    intent.putExtra("is_this_an_import", true)
+
+                    startActivity(intent)
                     finishAffinity()
                 }
                 is Err -> {
                     binding.importAccountProgressBar.visibility = View.GONE
-                    alertModel.notifyError(importAccountResult.error.toLbError())
+                    alertModel.notifyError(importAccountResult.error.toLbError(resources))
                 }
             }.exhaustive
         }
-    }
-
-    private fun setUpLoggedInImportState() {
-        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
-            LOGGED_IN_KEY,
-            true
-        ).apply()
-        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
-            IS_THIS_AN_IMPORT_KEY,
-            true
-        ).apply()
     }
 }

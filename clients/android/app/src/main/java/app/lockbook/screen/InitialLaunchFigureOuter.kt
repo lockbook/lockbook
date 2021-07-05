@@ -11,8 +11,6 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
-import app.lockbook.util.SharedPreferences.BIOMETRIC_NONE
-import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
@@ -51,17 +49,17 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     }
                     State.ReadyToUse -> startFromExistingAccount()
                     State.MigrationRequired -> {
-                        alertModel.notify(app.lockbook.util.getString(R.string.initial_figure_outer_migrate_data))
+                        alertModel.notify(getString(R.string.initial_figure_outer_migrate_data))
                         binding.migrateProgressBar.visibility = View.VISIBLE
                         migrateDB()
                     }
                     State.StateRequiresClearing -> {
                         Timber.e("DB state requires cleaning!")
-                        alertModel.notify(app.lockbook.util.getString(R.string.state_requires_cleaning))
+                        alertModel.notify(getString(R.string.state_requires_cleaning))
                     }
                 }
             }
-            is Err -> alertModel.notifyError(getDBStateResult.error.toLbError())
+            is Err -> alertModel.notifyError(getDBStateResult.error.toLbError(resources))
         }
     }
 
@@ -73,12 +71,12 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                         withContext(Dispatchers.Main) {
                             binding.migrateProgressBar.visibility = View.GONE
                             alertModel.notify(
-                                app.lockbook.util.getString(R.string.initial_figure_outer_finished_upgrading_data),
+                                getString(R.string.initial_figure_outer_finished_upgrading_data),
                                 ::startFromExistingAccount
                             )
                         }
                     }
-                    is Err -> alertModel.notifyError(migrateDBResult.error.toLbError(), ::finish)
+                    is Err -> alertModel.notifyError(migrateDBResult.error.toLbError(resources), ::finish)
                 }.exhaustive
             }
         }
@@ -86,18 +84,20 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
     private fun startFromExistingAccount() {
         val pref = PreferenceManager.getDefaultSharedPreferences(this)
+        val biometricKey = getString(R.string.biometric_key)
+        val biometricNoneValue = getString(R.string.biometric_none_value)
 
         if (!BiometricModel.isBiometricVerificationAvailable(this) && pref.getString(
-                BIOMETRIC_OPTION_KEY,
-                BIOMETRIC_NONE
-            ) != BIOMETRIC_NONE
+                biometricKey,
+                biometricNoneValue
+            ) != biometricNoneValue
         ) {
             pref.edit()
-                .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
+                .putString(biometricKey, biometricNoneValue)
                 .apply()
         }
 
-        BiometricModel.verify(this, ::launchListFilesActivity)
+        BiometricModel.verify(this, ::launchListFilesActivity, ::finish)
     }
 
     private fun launchListFilesActivity() {

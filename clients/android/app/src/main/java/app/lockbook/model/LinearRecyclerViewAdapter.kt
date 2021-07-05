@@ -6,11 +6,10 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.core.content.res.ResourcesCompat
-import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.util.*
 
-class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface) :
+class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface, override var selectedFiles: MutableList<ClientFileMetadata> = mutableListOf()) :
     GeneralViewAdapter(listFilesClickInterface) {
 
     override var files = listOf<ClientFileMetadata>()
@@ -19,11 +18,7 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
             notifyDataSetChanged()
         }
 
-    override var selectedFiles = MutableList(files.size) { false }
-        set(value) {
-            field = value
-            notifyDataSetChanged()
-        }
+    override var selectionMode = false
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FileViewHolder =
         FileViewHolder(
@@ -43,14 +38,17 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
             CoreModel.convertToHumanDuration(item.metadataVersion)
         )
 
+        val resources = holder.cardView.resources
+        val theme = holder.cardView.context.theme
+
         val fileIcon = holder.cardView.findViewById<ImageView>(R.id.linear_file_icon)
         when {
-            selectedFiles[position] -> {
+            selectedFiles.contains(item) -> {
                 holder.cardView.background.setTint(
                     ResourcesCompat.getColor(
-                        App.instance.resources,
+                        resources,
                         R.color.selectedFileBackground,
-                        App.instance.theme
+                        theme
                     )
                 )
                 fileIcon.setImageResource(R.drawable.ic_baseline_check_24)
@@ -58,9 +56,9 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
             item.fileType == FileType.Document && item.name.endsWith(".draw") -> {
                 holder.cardView.background.setTint(
                     ResourcesCompat.getColor(
-                        App.instance.resources,
+                        resources,
                         R.color.colorPrimaryDark,
-                        App.instance.theme
+                        theme
                     )
                 )
                 fileIcon.setImageResource(R.drawable.ic_baseline_border_color_24)
@@ -68,9 +66,9 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
             item.fileType == FileType.Document -> {
                 holder.cardView.background.setTint(
                     ResourcesCompat.getColor(
-                        App.instance.resources,
+                        resources,
                         R.color.colorPrimaryDark,
-                        App.instance.theme
+                        theme
                     )
                 )
                 fileIcon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
@@ -78,9 +76,9 @@ class LinearRecyclerViewAdapter(listFilesClickInterface: ListFilesClickInterface
             else -> {
                 holder.cardView.background.setTint(
                     ResourcesCompat.getColor(
-                        App.instance.resources,
+                        resources,
                         R.color.colorPrimaryDark,
-                        App.instance.theme
+                        theme
                     )
                 )
                 fileIcon.setImageResource(R.drawable.round_folder_white_18dp)

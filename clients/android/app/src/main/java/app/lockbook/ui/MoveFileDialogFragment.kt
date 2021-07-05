@@ -98,7 +98,7 @@ class MoveFileDialogFragment : DialogFragment() {
         }
 
         val moveFileViewModelFactory =
-            MoveFileViewModelFactory()
+            MoveFileViewModelFactory(requireActivity().application)
         moveFileViewModel =
             ViewModelProvider(this, moveFileViewModelFactory).get(MoveFileViewModel::class.java)
         val adapter =

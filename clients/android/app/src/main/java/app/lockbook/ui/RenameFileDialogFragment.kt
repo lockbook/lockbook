@@ -121,7 +121,7 @@ class RenameFileDialogFragment : DialogFragment() {
                 return
             }
             is Err -> withContext(Dispatchers.Main) {
-                val lbError = renameFileResult.error.toLbError()
+                val lbError = renameFileResult.error.toLbError(resources)
                 alertModel.notifyError(lbError, if (lbError.kind == LbErrorKind.Program) ::dismiss else null)
             }
         }

@@ -5,12 +5,10 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AppCompatActivity
-import androidx.preference.PreferenceManager
 import app.lockbook.databinding.ActivityNewAccountBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
-import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
@@ -67,7 +65,6 @@ class NewAccountActivity : AppCompatActivity() {
             when (createAccountResult) {
                 is Ok -> {
                     binding.newAccountProgressBar.visibility = View.GONE
-                    setUpLoggedInState()
                     startActivity(Intent(applicationContext, ListFilesActivity::class.java))
                     finishAffinity()
                 }
@@ -77,20 +74,13 @@ class NewAccountActivity : AppCompatActivity() {
                         is CreateAccountError.UsernameTaken,
                         is CreateAccountError.InvalidUsername ->
                             binding.newAccountUsername.error =
-                                error.toLbError().msg
+                                error.toLbError(resources).msg
                         else -> {
-                            alertModel.notifyError(error.toLbError())
+                            alertModel.notifyError(error.toLbError(resources))
                         }
                     }
                 }
             }
         }
-    }
-
-    private fun setUpLoggedInState() {
-        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
-            LOGGED_IN_KEY,
-            true
-        ).apply()
     }
 }

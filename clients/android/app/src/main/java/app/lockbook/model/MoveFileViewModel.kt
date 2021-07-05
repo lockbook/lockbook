@@ -1,17 +1,15 @@
 package app.lockbook.model
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import android.app.Application
+import androidx.lifecycle.*
 import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 
-class MoveFileViewModel :
-    ViewModel(),
+class MoveFileViewModel(application: Application) :
+    AndroidViewModel(application),
     RegularClickInterface {
     private lateinit var currentParent: ClientFileMetadata
     lateinit var ids: Array<String>
@@ -44,7 +42,7 @@ class MoveFileViewModel :
                     currentParent = rootResult.value
                     refreshOverFolder()
                 }
-                is Err -> _notifyError.postValue(rootResult.error.toLbError())
+                is Err -> _notifyError.postValue(rootResult.error.toLbError(getRes()))
             }.exhaustive
         }
     }
@@ -70,7 +68,7 @@ class MoveFileViewModel :
         return when (val moveFileResult = CoreModel.moveFile(config, id, currentParent.id)) {
             is Ok -> true
             is Err -> {
-                _notifyError.postValue(moveFileResult.error.toLbError())
+                _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
                 false
             }
         }.exhaustive
@@ -94,7 +92,7 @@ class MoveFileViewModel :
     private fun setParentAsParent() {
         when (val getFileById = CoreModel.getFileById(config, currentParent.parent)) {
             is Ok -> currentParent = getFileById.value
-            is Err -> _notifyError.postValue(getFileById.error.toLbError())
+            is Err -> _notifyError.postValue(getFileById.error.toLbError(getRes()))
         }.exhaustive
     }
 

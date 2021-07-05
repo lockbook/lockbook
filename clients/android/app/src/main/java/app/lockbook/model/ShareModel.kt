@@ -1,7 +1,8 @@
 package app.lockbook.model
 
+import android.content.Context
+import android.content.res.Resources
 import android.text.format.DateUtils
-import app.lockbook.App
 import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -18,11 +19,11 @@ class ShareModel(
     var isLoadingOverlayVisible = false
 
     companion object {
-        private fun getMainShareFolder(): File = File(App.instance.applicationContext.cacheDir, "share/")
-        fun createRandomShareFolderInstance(): File = File(getMainShareFolder(), System.currentTimeMillis().toString())
+        private fun getMainShareFolder(context: Context): File = File(context.cacheDir, "share/")
+        fun createRandomShareFolderInstance(context: Context): File = File(getMainShareFolder(context), System.currentTimeMillis().toString())
 
-        fun clearShareStorage() {
-            val shareFolder = getMainShareFolder()
+        fun clearShareStorage(context: Context) {
+            val shareFolder = getMainShareFolder(context)
             val timeNow = System.currentTimeMillis()
 
             shareFolder.listFiles { file ->
@@ -37,17 +38,17 @@ class ShareModel(
         }
     }
 
-    fun shareDocuments(selectedFiles: List<ClientFileMetadata>) {
+    fun shareDocuments(context: Context, selectedFiles: List<ClientFileMetadata>) {
         isLoadingOverlayVisible = true
         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
 
-        clearShareStorage()
+        clearShareStorage(context)
 
         val documents = mutableListOf<ClientFileMetadata>()
-        retrieveSelectedDocuments(selectedFiles, documents)
+        retrieveSelectedDocuments(context.resources, selectedFiles, documents)
 
         val filesToShare = ArrayList<File>()
-        val shareFolder = createRandomShareFolderInstance()
+        val shareFolder = createRandomShareFolderInstance(context)
         shareFolder.mkdirs()
 
         for (file in documents) {
@@ -72,7 +73,7 @@ class ShareModel(
                     is Err -> {
                         isLoadingOverlayVisible = false
                         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
-                        return _notifyError.postValue(exportDrawingToDiskResult.error.toLbError())
+                        return _notifyError.postValue(exportDrawingToDiskResult.error.toLbError(context.resources))
                     }
                 }
             } else {
@@ -86,7 +87,7 @@ class ShareModel(
                     is Err -> {
                         isLoadingOverlayVisible = false
                         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
-                        return _notifyError.postValue(saveDocumentToDiskResult.error.toLbError())
+                        return _notifyError.postValue(saveDocumentToDiskResult.error.toLbError(context.resources))
                     }
                 }
             }
@@ -96,6 +97,7 @@ class ShareModel(
     }
 
     private fun retrieveSelectedDocuments(
+        resources: Resources,
         selectedFiles: List<ClientFileMetadata>,
         documents: MutableList<ClientFileMetadata>
     ): Boolean {
@@ -107,10 +109,10 @@ class ShareModel(
                         val getChildrenResult =
                             CoreModel.getChildren(config, file.id)
                     ) {
-                        is Ok -> if (!retrieveSelectedDocuments(getChildrenResult.value, documents)) {
+                        is Ok -> if (!retrieveSelectedDocuments(resources, getChildrenResult.value, documents)) {
                             return false
                         }
-                        is Err -> _notifyError.postValue(getChildrenResult.error.toLbError())
+                        is Err -> _notifyError.postValue(getChildrenResult.error.toLbError(resources))
                     }
             }
         }

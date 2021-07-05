@@ -194,7 +194,7 @@ class CreateFileDialogFragment : DialogFragment() {
                     dismiss()
                 }
             }
-            is Err -> alertModel.notifyError(createFileResult.error.toLbError())
+            is Err -> alertModel.notifyError(createFileResult.error.toLbError(resources))
         }.exhaustive
     }
 

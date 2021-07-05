@@ -43,7 +43,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
             is Ok -> {
                 return documentResult.value
             }
-            is Err -> _notifyError.postValue(documentResult.error.toLbError())
+            is Err -> _notifyError.postValue(documentResult.error.toLbError(getRes()))
         }.exhaustive
 
         return null
@@ -96,7 +96,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
         viewModelScope.launch(Dispatchers.IO) {
             val writeToDocumentResult = CoreModel.writeToDocument(config, id, content)
             if (writeToDocumentResult is Err) {
-                _notifyError.postValue(writeToDocumentResult.error.toLbError())
+                _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
             }
         }
     }

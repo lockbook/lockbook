@@ -10,7 +10,6 @@ import app.lockbook.App.Companion.config
 import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
-import app.lockbook.util.Config
 import app.lockbook.util.Drawing
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
@@ -77,7 +76,7 @@ class DrawingViewModel(
             is Ok -> {
                 return documentResult.value
             }
-            is Err -> _notifyError.postValue(documentResult.error.toLbError())
+            is Err -> _notifyError.postValue(documentResult.error.toLbError(getRes()))
         }.exhaustive
 
         return null
@@ -88,7 +87,7 @@ class DrawingViewModel(
             val writeToDocumentResult = CoreModel.writeToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
             if (writeToDocumentResult is Err) {
-                _notifyError.postValue(writeToDocumentResult.error.toLbError())
+                _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
             }
         }
     }
