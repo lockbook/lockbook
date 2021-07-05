@@ -33,7 +33,6 @@ struct BottomBar: View {
         } label: {
             Label("Add", systemImage: "plus.circle.fill")
                     .imageScale(.large)
-                    .frame(width: 40, height: 40)
         })
     }
     #endif
@@ -52,6 +51,7 @@ struct BottomBar: View {
                     core.work = 0
                 }) {
                     Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                        .imageScale(.large)
                 })
             }
         }
