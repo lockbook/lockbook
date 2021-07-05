@@ -136,8 +136,7 @@ class GlobalState: ObservableObject {
                         #if os(iOS)
                         if let openDrawingMeta = openDrawing.meta, meta.id == openDrawingMeta.id, meta.contentVersion != openDrawingMeta.contentVersion {
                             DispatchQueue.main.async {
-                                self.openDrawing.closeDrawing(meta: openDrawingMeta)
-                                self.openDrawing.loadDrawing(meta: openDrawingMeta)
+                                self.openDrawing.reloadDocumentIfNeeded(meta: openDrawingMeta)
                             }
                         }
                         #endif

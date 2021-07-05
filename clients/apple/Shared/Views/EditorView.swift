@@ -110,7 +110,6 @@ class Content: ObservableObject {
         }
     }
     
-    /// Unused for now, but the intention is to be able to ⌘+W a document
     func closeDocument() {
         print("Close document")
         meta = .none

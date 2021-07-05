@@ -28,7 +28,7 @@ struct DrawingLoader: View {
                                 }
                             }
                             .onDisappear {
-                                model.closeDrawing(meta: meta)
+                                model.closeDrawing()
                             }
                     }
                 case .none:
@@ -83,8 +83,28 @@ class DrawingModel: ObservableObject {
         }
     }
 
-    func closeDrawing(meta: ClientFileMetadata) {
+    func closeDrawing() {
         self.meta = .none
         self.originalDrawing = .none
+    }
+    
+    func reloadDocumentIfNeeded(meta: ClientFileMetadata) {
+        switch self.originalDrawing {
+        case .some(let currentDrawing):
+            switch self.read(meta.id) {
+            case .success(let coreDrawing):
+                if Drawing(from: currentDrawing) != coreDrawing { /// Close the document
+                    print("reload")
+                    self.closeDrawing()
+                    self.meta = meta
+                    self.originalDrawing = PKDrawing(from: coreDrawing)
+                }
+            case .failure(let err):
+                print(err)
+            }
+        case .none:
+            print("No open drawing")
+        }
+        
     }
 }
