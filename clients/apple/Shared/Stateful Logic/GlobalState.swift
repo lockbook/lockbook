@@ -143,8 +143,7 @@ class GlobalState: ObservableObject {
                         #endif
                         if let openDocumentMeta = openDocument.meta, meta.id == openDocumentMeta.id, meta.contentVersion != openDocumentMeta.contentVersion {
                             DispatchQueue.main.async {
-                                self.openDocument.closeDocument(meta: openDocumentMeta)
-                                self.openDocument.openDocument(meta: openDocumentMeta)
+                                self.openDocument.reloadDocumentIfNeeded(meta: openDocumentMeta)
                             }
                         }
                     }

@@ -84,7 +84,7 @@ class Content: ObservableObject {
         self.text = text
         status = .Inactive
     }
-
+    
     func writeDocument(meta: ClientFileMetadata, content: String) {
         switch write(meta.id, content) {
         case .success(_):
@@ -98,6 +98,7 @@ class Content: ObservableObject {
     }
     
     func openDocument(meta: ClientFileMetadata) {
+        print("open document called")
         DispatchQueue.main.async {
             switch self.read(meta.id) {
             case .success(let txt):
@@ -109,9 +110,27 @@ class Content: ObservableObject {
         }
     }
     
-    func closeDocument(meta: ClientFileMetadata) {
-        self.meta = .none
+    /// Unused for now, but the intention is to be able to ⌘+W a document
+    func closeDocument() {
+        print("Close document")
+        meta = .none
         text = .none
+    }
+    
+    func reloadDocumentIfNeeded(meta: ClientFileMetadata) {
+        print("reload document called")
+        switch self.read(meta.id) {
+        case .success(let txt):
+            if self.text != txt { /// Close the document
+                print("reload")
+                self.closeDocument()
+                self.meta = meta
+                self.text = txt
+            }
+        case .failure(let err):
+            print(err)
+        }
+        
     }
 }
 
