@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 @main
 struct  LockbookApp: App {
-    @StateObject var core = GlobalState(documenstDirectory: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location)
+    @StateObject var core = GlobalState(documentsDirectory: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location)
 
     var body: some Scene {
         let windowGroup = WindowGroup {

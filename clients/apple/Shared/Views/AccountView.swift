@@ -8,7 +8,7 @@ struct AccountView: View {
     @State var showingAccount: Bool = false
     @State var showingCode: Bool = false
     @State var copiedString: Bool?
-//    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.presentationMode) var presentationMode
     
     fileprivate func hideMessage() {
         withAnimation { copiedString = nil }
@@ -134,7 +134,7 @@ struct AccountView: View {
     }
     
     func purgeAndLogout() {
-//        presentationMode.wrappedValue.dismiss()
+        presentationMode.wrappedValue.dismiss()
         DispatchQueue.global(qos: .userInteractive).async { core.self.purge() }
     }
 }

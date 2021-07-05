@@ -4,7 +4,7 @@ import SwiftUI
 import Combine
 
 class GlobalState: ObservableObject {
-    let documenstDirectory: String
+    let documentsDirectory: String
     let api: LockbookApi
     @Published var state: DbState               // Handles post update logic
     @Published var account: Account?            // Determines whether to show onboarding or the main view
@@ -82,7 +82,7 @@ class GlobalState: ObservableObject {
     }
 
     func purge() {
-        let lockbookDir = URL(fileURLWithPath: documenstDirectory).appendingPathComponent("lockbook.sled")
+        let lockbookDir = URL(fileURLWithPath: documentsDirectory)
         if let _ = try? FileManager.default.removeItem(at: lockbookDir) {
             DispatchQueue.main.async {
                 self.account = nil
@@ -160,11 +160,11 @@ class GlobalState: ObservableObject {
         self.lastSynced = (try? self.api.getLastSyncedHumanString().get())!
     }
 
-    init(documenstDirectory: String) {
+    init(documentsDirectory: String) {
         print("Initializing core...")
 
-        self.documenstDirectory = documenstDirectory
-        self.api = CoreApi(documentsDirectory: documenstDirectory)
+        self.documentsDirectory = documentsDirectory
+        self.api = CoreApi(documentsDirectory: documentsDirectory)
         self.state = (try? self.api.getState().get())!
         self.account = (try? self.api.getAccount().get())
         self.lastSynced = (try? self.api.getLastSyncedHumanString().get())!
@@ -207,7 +207,7 @@ class GlobalState: ObservableObject {
     }
 
     init() {
-        self.documenstDirectory = "<USING-FAKE-API>"
+        self.documentsDirectory = "<USING-FAKE-API>"
         self.api = FakeApi()
         self.state = .ReadyToUse
         self.account = Account(username: "testy", apiUrl: "ftp://lockbook.gov", keys: [])
