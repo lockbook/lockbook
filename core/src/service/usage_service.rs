@@ -76,7 +76,7 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
     })
 }
 
-pub fn get_uncompressed_usage(config: &Config) -> Result<usize, CoreError> {
+pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreError> {
     let doc_ids: Vec<Uuid> = file_repo::get_all_metadata(&config)?
         .union()
         .into_iter()
