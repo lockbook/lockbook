@@ -84,17 +84,17 @@ pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), C
     let file_metadata = file_repo::get_metadata(config, id)?.0;
     validate_is_document(&file_metadata)?;
 
-    let digest = Sha256::digest(content).as_slice();
+    let digest = Sha256::digest(content);
     let compressed_content = file_compression_service::compress(content)?;
     let encrypted_content =
         file_encryption_service::write_to_document(&config, &compressed_content, &file_metadata)?;
-    file_repo::insert_document(config, RepoSource::Local, id, encrypted_content, digest)
+    file_repo::insert_document(config, RepoSource::Local, id, encrypted_content, &digest)
 }
 
 pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
     account_repo::get(config)?;
 
-    let mut file_metadata = file_repo::get_metadata(config, id)?.0;
+    let file_metadata = file_repo::get_metadata(config, id)?.0;
     validate_is_document(&file_metadata)?;
 
     let encrypted_content = file_repo::get_document(config, id)?.0;

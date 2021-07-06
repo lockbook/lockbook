@@ -110,7 +110,7 @@ fn maybe_merge<T>(
                 // new from local
                 local
             }
-            (None, Some(local), Some(remote)) => {
+            (None, Some(_local), Some(_remote)) => {
                 // new from local and from remote with same id - bug
                 return Err(CoreError::Unexpected(String::from(
                     "new local file with same id as new remote file",
@@ -120,11 +120,11 @@ fn maybe_merge<T>(
                 // no changes
                 base
             }
-            (Some(base), None, Some(remote)) => {
+            (Some(_base), None, Some(remote)) => {
                 // remote changes
                 remote
             }
-            (Some(base), Some(local), None) => {
+            (Some(_base), Some(local), None) => {
                 // local changes
                 local
             }
@@ -184,7 +184,7 @@ fn get_local_document(
         .get(&account.username)
         .ok_or_else(|| CoreError::Unexpected(String::from("no user access info for file")))?;
     Ok(
-        match document_repo::maybe_get(config, RepoSource::Local, metadata.id)? {
+        match document_repo::maybe_get(config, source, metadata.id)? {
             // todo: get this friggin crypto and compression out of here
             Some(base_document) => Some(file_compression_service::decompress(
                 &file_encryption_service::user_read_document(
@@ -204,14 +204,19 @@ fn save_local_document(
     metadata: &FileMetadata,
     content: &[u8],
 ) -> Result<(), CoreError> {
-    document_repo::insert(config, source, metadata.id, &file_encryption_service::write_to_document(config, &file_compression_service::compress(content)?, metadata)?)
+    document_repo::insert(
+        config,
+        source,
+        metadata.id,
+        &file_encryption_service::write_to_document(
+            config,
+            &file_compression_service::compress(content)?,
+            metadata,
+        )?,
+    )
 }
 
-fn get_remote_document(
-    config: &Config,
-    account: &Account,
-    metadata: &FileMetadata,
-) -> Result<Vec<u8>, CoreError> {
+fn get_remote_document(account: &Account, metadata: &FileMetadata) -> Result<Vec<u8>, CoreError> {
     let user_access_key = metadata
         .user_access_keys
         .get(&account.username)
@@ -231,17 +236,16 @@ fn get_remote_document(
     )?)
 }
 
-fn get_document_type(
-    config: &Config,
-    metadata: &FileMetadata,
-) -> Result<DocumentType, CoreError> {
-    Ok(DocumentType::from_file_name_using_extension(&file_encryption_service::get_name(&config, &metadata)?))
+fn get_document_type(config: &Config, metadata: &FileMetadata) -> Result<DocumentType, CoreError> {
+    Ok(DocumentType::from_file_name_using_extension(
+        &file_encryption_service::get_name(&config, &metadata)?,
+    ))
 }
 
 fn pull(
     config: &Config,
     account: &Account,
-    f: Option<Box<dyn Fn(SyncProgress)>>,
+    f: &Option<Box<dyn Fn(SyncProgress)>>, // todo: use f
 ) -> Result<(), CoreError> {
     // pull remote changes
     let last_sync = last_updated_repo::get(config)?;
@@ -254,12 +258,19 @@ fn pull(
     .map_err(CoreError::from)?
     .file_metadata;
 
-    // merge with local changes; save results locally (todo: detect, merge, and save content changes)
+    // merge with local changes; save results locally
     for remote_metadata in remote_changes {
+        let maybe_base_metadata =
+            metadata_repo::maybe_get(config, RepoSource::Remote, remote_metadata.id)?;
+        let maybe_local_metadata =
+            metadata_repo::maybe_get(config, RepoSource::Local, remote_metadata.id)?;
+
         // merge metadata
-        let maybe_base_metadata = metadata_repo::maybe_get(config, RepoSource::Remote, remote_metadata.id)?;
-        let maybe_local_metadata = metadata_repo::maybe_get(config, RepoSource::Local, remote_metadata.id)?;
-        let merged_metadata = match maybe_merge(maybe_base_metadata, maybe_local_metadata, Some(remote_metadata))? {
+        let merged_metadata = match maybe_merge(
+            maybe_base_metadata.clone(),
+            maybe_local_metadata,
+            Some(remote_metadata.clone()),
+        )? {
             MaybeMergeResult::Resolved(merged) => merged,
             MaybeMergeResult::Conflict {
                 base,
@@ -267,7 +278,8 @@ fn pull(
                 remote,
             } => merge_metadata(base, local, remote),
         };
-        
+
+        // merge document content
         if remote_metadata.file_type == FileType::Document {
             let content_updated = if let Some(base) = maybe_base_metadata {
                 remote_metadata.content_version != base.content_version
@@ -275,12 +287,21 @@ fn pull(
                 true
             };
             if content_updated {
-                // merge document content for documents with updated content
-                let remote_document = get_remote_document(config, account, &remote_metadata)?;
+                let remote_document = get_remote_document(account, &remote_metadata)?;
                 let maybe_base_document =
                     get_local_document(config, account, RepoSource::Remote, &remote_metadata)?;
                 let maybe_local_document =
                     get_local_document(config, account, RepoSource::Local, &remote_metadata)?;
+
+                // update remote repo to version from server
+                save_local_document(
+                    config,
+                    RepoSource::Remote,
+                    &remote_metadata,
+                    &remote_document,
+                )?;
+
+                // merge document content for documents with updated content
                 let merged_document = match maybe_merge(
                     maybe_base_document,
                     maybe_local_document,
@@ -295,22 +316,35 @@ fn pull(
                         match get_document_type(config, &remote_metadata)? {
                             // text documents get 3-way merged
                             DocumentType::Text => {
-                                match diffy::merge_bytes(&base_document, &local_document, &remote_document) {
-                                    Ok(no_conflicts) => no_conflicts,
-                                    Err(conflicts) => conflicts,
+                                match diffy::merge_bytes(
+                                    &base_document,
+                                    &local_document,
+                                    &remote_document,
+                                ) {
+                                    Ok(without_conflicts) => without_conflicts,
+                                    Err(with_conflicts) => with_conflicts,
                                 }
-                            },
+                            }
                             // other documents have local version copied to new file
                             DocumentType::Drawing | DocumentType::Other => {
-                                let remote_name = file_encryption_service::get_name(&config, &remote_metadata)?;
-                                let new_file = file_service::create(
+                                let remote_name =
+                                    file_encryption_service::get_name(&config, &remote_metadata)?;
+                                file_service::create(
                                     config,
-                                    &format!("{}-CONTENT-CONFLICT-{}", &remote_name, remote_metadata.id),
-                                    remote_metadata.parent,
+                                    &format!(
+                                        "{}-CONTENT-CONFLICT-{}",
+                                        &remote_name,
+                                        remote_metadata.id.clone()
+                                    ),
+                                    remote_metadata.parent.clone(),
                                     FileType::Document,
                                 )?;
 
-                                file_service::write_document(config, remote_metadata.id, &file_service::read_document(config, remote_metadata.id)?)?;
+                                file_service::write_document(
+                                    config,
+                                    remote_metadata.id.clone(),
+                                    &file_service::read_document(config, remote_metadata.id)?,
+                                )?;
 
                                 remote_document
                             }
@@ -318,16 +352,31 @@ fn pull(
                     }
                 };
 
-                save_local_document(config, RepoSource::Remote, &remote_metadata, &remote_document)?; // update remote repo to version from server
-                file_service::write_document(config, remote_metadata.id, &merged_document)?; // update local repo to version from merge
+                // update local repo to version from merge
+                file_service::write_document(config, remote_metadata.id, &merged_document)?;
             }
         }
 
-        // resolve path conflicts
-        // (todo)
-
-        // update remote repo to version from server; update local repo to version from merge
+        // update remote repo to version from server
         metadata_repo::insert(config, RepoSource::Remote, &remote_metadata)?;
+
+        // resolve path conflicts
+        if file_repo::get_children(config, merged_metadata.parent)?
+            .into_iter()
+            .any(|f| f.id != merged_metadata.id && f.name.hmac == merged_metadata.name.hmac)
+        {
+            file_service::rename(
+                config,
+                merged_metadata.id,
+                &format!(
+                    "{}-NAME-CONFLICT-{}",
+                    file_encryption_service::get_name(&config, &merged_metadata)?,
+                    merged_metadata.id
+                ),
+            )?
+        }
+
+        // update local repo to version from merge
         file_repo::insert_metadata(config, RepoSource::Local, &merged_metadata)?;
     }
     Ok(())
@@ -336,7 +385,7 @@ fn pull(
 fn push(
     config: &Config,
     account: &Account,
-    f: Option<Box<dyn Fn(SyncProgress)>>,
+    f: &Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
     // push local metadata changes
     client::request(
@@ -365,32 +414,6 @@ fn push(
 
 pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
     let account = account_repo::get(config)?;
-    pull(config, &account, f)?;
-    push(config, &account, f)
-}
-
-/// Paths within lockbook must be unique. Prior to handling a server change we make sure that
-/// there are not going to be path conflicts. If there are, we find the file that is conflicting
-/// locally and rename it
-fn rename_local_conflicting_files(
-    config: &Config,
-    metadata: &FileMetadata,
-) -> Result<(), CoreError> {
-    let conflicting_files = file_repo::get_children(config, metadata.parent)?
-        .into_iter()
-        .filter(|potential_conflict| potential_conflict.name == metadata.name)
-        .filter(|potential_conflict| potential_conflict.id != metadata.id)
-        .collect::<Vec<FileMetadata>>();
-
-    // There should only be one of these
-    for conflicting_file in conflicting_files {
-        let old_name = file_encryption_service::get_name(&config, &conflicting_file)?;
-        file_service::rename(
-            config,
-            conflicting_file.id,
-            &format!("{}-NAME-CONFLICT-{}", old_name, conflicting_file.id),
-        )?
-    }
-
-    Ok(())
+    pull(config, &account, &f)?;
+    push(config, &account, &f)
 }

@@ -71,7 +71,7 @@ where
 
     match read_dir(path) {
         Ok(rd) => {
-            let file_names = rd
+            let mut file_names = rd
                 .map(|dir_entry| {
                     dir_entry
                         .map_err(CoreError::from)?

@@ -8,7 +8,7 @@ use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 
-use crate::repo::{account_repo, db_version_repo, local_storage};
+use crate::repo::{account_repo, db_version_repo};
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::file_metadata::FileType::Folder;
 use serde::de::DeserializeOwned;

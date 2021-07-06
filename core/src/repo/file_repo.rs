@@ -36,7 +36,7 @@ fn maybe_get_metadata_include_deleted(
         }
         (Some(local), None) => (local, RepoState::New), // new files are only stored in the local repo
         (None, Some(remote)) => (remote, RepoState::Unmodified), // unmodified files are only stored in the remote repo
-        (Some(local), Some(remote)) => (local, RepoState::Modifed), // modified files are stored in both repos
+        (Some(local), Some(_remote)) => (local, RepoState::Modifed), // modified files are stored in both repos
     };
     Ok(Some((target, state)))
 }
@@ -52,7 +52,7 @@ pub fn maybe_get_with_ancestors(
     config: &Config,
     id: Uuid,
 ) -> Result<Option<HashMap<Uuid, (FileMetadata, RepoState)>>, CoreError> {
-    let result = vec![get_metadata(config, id)?];
+    let mut result = vec![get_metadata(config, id)?];
     append_ancestors(config, &mut result)?;
     // file_repo functions do not return deleted files (including files with deleted ancestors) unless their name ends with _include_deleted
     if result.iter().any(|f| f.0.deleted) {
@@ -69,11 +69,13 @@ fn append_ancestors(
     let target = result
         .last()
         .ok_or_else(|| CoreError::Unexpected(String::from("append ancestors with no target")))?
-        .0;
+        .0
+        .clone();
     let original = result
         .first()
         .ok_or_else(|| CoreError::Unexpected(String::from("append ancestors with no target")))?
-        .0;
+        .0
+        .clone();
     if target.parent != target.id {
         if target.parent == original.id {
             return Err(CoreError::FolderMovedIntoSelf);
@@ -116,8 +118,9 @@ pub struct GetAllMetadataResult {
 
 impl GetAllMetadataResult {
     pub fn union(self: Self) -> Vec<FileMetadata> {
-        self.union_new_and_modified()
+        self.new
             .into_iter()
+            .chain(self.modified.into_iter())
             .chain(self.unmodified.into_iter())
             .collect()
     }
@@ -168,13 +171,13 @@ impl GetAllMetadataResult {
 fn get_all_metadata_include_deleted(config: &Config) -> Result<GetAllMetadataResult, CoreError> {
     let local = metadata_repo::get_all(config, RepoSource::Local)?;
     let remote = metadata_repo::get_all(config, RepoSource::Remote)?;
-    let local_map = metadata_vec_to_map(local);
-    let remote_map = metadata_vec_to_map(remote);
     let distinct_ids = local
         .iter()
         .map(|f| f.id)
         .chain(remote.iter().map(|f| f.id))
         .collect::<HashSet<Uuid>>();
+    let local_map = metadata_vec_to_map(local);
+    let remote_map = metadata_vec_to_map(remote);
     let mut result = GetAllMetadataResult {
         unmodified: Vec::new(),
         modified: Vec::new(),
@@ -213,7 +216,7 @@ pub fn get_with_descendants(
         .into_iter()
         .filter(|(f, _)| !f.deleted)
         .collect();
-    let result = vec![get_metadata(config, id)?];
+    let mut result = vec![get_metadata(config, id)?];
     append_descendants_recursive(config, &all, id, &mut result)?;
     Ok(result)
 }
@@ -266,7 +269,7 @@ pub fn maybe_get_document(
             (None, None) => Ok(None),
             (Some(local), None) => Ok(Some((local, RepoState::New))),
             (None, Some(remote)) => Ok(Some((remote, RepoState::Unmodified))),
-            (Some(local), Some(remote)) => Ok(Some((local, RepoState::Modifed))),
+            (Some(local), Some(_remote)) => Ok(Some((local, RepoState::Modifed))),
         }
     }
 }
@@ -328,7 +331,7 @@ pub fn insert_metadata(
 
     // delete documents from disk if their metadata is set to deleted
     if file.deleted {
-        if let Some((document, _)) = maybe_get_document(config, file.id)? {
+        if let Some(_) = maybe_get_document(config, file.id)? {
             delete_content(config, file.id)?;
         }
     }

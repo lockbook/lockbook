@@ -414,7 +414,7 @@ pub enum FileDeleteError {
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
     match file_repo::get_metadata(&config, id) {
-        Ok((meta, _)) => file_service::delete(&config, id).map_err(|e| match e {
+        Ok(_) => file_service::delete(&config, id).map_err(|e| match e {
             CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
             CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
             _ => unexpected!("{:#?}", e),
