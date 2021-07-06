@@ -52,7 +52,7 @@ macro_rules! unexpected {
     };
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CoreError {
     AccountExists,
     AccountNonexistent,
@@ -478,6 +478,15 @@ pub fn list_paths(
     filter: Option<path_service::Filter>,
 ) -> Result<Vec<String>, Error<ListPathsError>> {
     path_service::get_all_paths(&config, filter).map_err(|e| unexpected!("{:#?}", e))
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetPathError {
+    Stub, // TODO: Enums should not be empty
+}
+
+pub fn get_path_by_id(config: &Config, uuid: Uuid) -> Result<String, Error<GetPathError>> {
+    path_service::get_path_by_id(config, uuid).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]

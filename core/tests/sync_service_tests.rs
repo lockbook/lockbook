@@ -15,7 +15,7 @@ mod sync_tests {
     // TODO this can be moved to test_utils
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
-            assert!(integrity_service::test_repo_integrity($db)
+            assert!(integrity_service::test_repo_integrity($db, true)
                 .is_ok()
                );
         }
@@ -357,7 +357,7 @@ mod sync_tests {
             })
             .for_each(|work| sync_service::execute_work(&db1, &account, work).unwrap());
 
-        assert!(integrity_service::test_repo_integrity(&db1).is_ok());
+        assert!(integrity_service::test_repo_integrity(&db1, true).is_ok());
 
         assert_n_work_units!(db1, 1);
 
@@ -411,7 +411,7 @@ mod sync_tests {
             })
             .for_each(|work| sync_service::execute_work(&db2, &account, work).unwrap());
 
-        integrity_service::test_repo_integrity(&db2).unwrap();
+        integrity_service::test_repo_integrity(&db2, true).unwrap();
 
         assert_n_work_units!(db1, 0);
         assert_n_work_units!(db2, 1);

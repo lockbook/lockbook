@@ -1,5 +1,6 @@
 use crate::model::state::Config;
 use crate::repo::file_metadata_repo;
+use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::{
     Core, CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty,
     FileOrphaned, NameConflictDetected, NoRootFolder,
@@ -12,7 +13,7 @@ use uuid::Uuid;
 
 use super::file_encryption_service;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TestRepoError {
     NoRootFolder,
     DocumentTreatedAsFolder(Uuid),
@@ -24,7 +25,13 @@ pub enum TestRepoError {
     Core(CoreError),
 }
 
-pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
+#[derive(Debug, Clone)]
+pub enum Warning {
+    EmptyFile(Uuid),
+    InvalidUTF8(Uuid),
+}
+
+pub fn test_repo_integrity(config: &Config, ignore_warnings: bool) -> Result<Vec<Warning>, TestRepoError> {
     let root = file_metadata_repo::get_root(&config)
         .map_err(Core)?
         .ok_or(NoRootFolder)?;
@@ -108,5 +115,25 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
         }
     }
 
-    Ok(())
+    if ignore_warnings {
+        return Ok(Vec::new());
+    }
+
+    let mut warnings = Vec::new();
+    for file in all.clone() {
+        if file.file_type == Document {
+            let file_content = file_service::read_document(&config, file.id).map_err(Core)?;
+
+            if file_content.len() as u64 == 0 {
+                warnings.push(Warning::EmptyFile(file.id));
+                continue;
+            }
+
+            if let Err(_) = String::from_utf8(file_content) {
+                warnings.push(Warning::InvalidUTF8(file.id))
+            }
+        }
+    }
+
+    Ok(warnings)
 }

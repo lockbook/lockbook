@@ -21,7 +21,7 @@ mod unit_tests {
     use uuid::Uuid;
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
-            integrity_service::test_repo_integrity($db).unwrap()
+            integrity_service::test_repo_integrity($db, true).unwrap()
         }
     );
 
@@ -773,5 +773,39 @@ mod unit_tests {
         ));
 
         assert_total_local_changes!(config, 0);
+    }
+
+    #[test]
+    fn test_get_path_by_id() {
+        let config = &temp_config();
+        let account = test_account();
+        account_repo::insert_account(config, &account).unwrap();
+        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
+        file_metadata_repo::insert(config, &root).unwrap();
+
+        let folder1 = file_service::create(config, "folder1", root.id, Folder).unwrap();
+        let folder2 = file_service::create(config, "folder2", folder1.id, Folder).unwrap();
+        let folder3 = file_service::create(config, "folder3", folder2.id, Folder).unwrap();
+        let doc = file_service::create(config, "doc", folder3.id, Document).unwrap();
+
+        assert_eq!(
+            path_service::get_path_by_id(config, root.id).unwrap(),
+            "username"
+        );
+
+        assert_eq!(
+            path_service::get_path_by_id(config, folder2.id).unwrap(),
+            "username/folder1/folder2"
+        );
+
+        assert_eq!(
+            path_service::get_path_by_id(config, doc.id).unwrap(),
+            "username/folder1/folder2/folder3/doc"
+        );
+
+        assert!(matches!(
+            path_service::get_path_by_id(config, Uuid::new_v4()).unwrap_err(),
+            CoreError::FileNonexistent
+        ));
     }
 }
