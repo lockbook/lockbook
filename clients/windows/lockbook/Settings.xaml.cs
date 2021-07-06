@@ -56,26 +56,26 @@ namespace lockbook {
 
         private async void ReloadSpaceUsed() {
             var usageString = "";
-            switch (await App.CoreService.GetUsageHumanString()) {
-                case Core.GetUsageHumanString.Success success:
-                    usageString = success.usage;
+            switch (await App.CoreService.GetUsage()) {
+                case Core.GetUsage.Success success:
+                    usageString = success.usage.server_usage.readable;
                     break;
 
-                case Core.GetUsageHumanString.ExpectedError expectedError:
+                case Core.GetUsage.ExpectedError expectedError:
                     switch (expectedError.Error) {
-                        case Core.GetUsageHumanString.PossibleErrors.NoAccount:
+                        case Core.GetUsage.PossibleErrors.NoAccount:
                             usageString = "No Account!";
                             break;
-                        case Core.GetUsageHumanString.PossibleErrors.CouldNotReachServer:
+                        case Core.GetUsage.PossibleErrors.CouldNotReachServer:
                             usageString = "Offline!";
                             break;
-                        case Core.GetUsageHumanString.PossibleErrors.ClientUpdateRequired:
+                        case Core.GetUsage.PossibleErrors.ClientUpdateRequired:
                             usageString = "Update required to calculate usage!";
                             break;
                     }
                     break;
 
-                case Core.GetUsageHumanString.UnexpectedError ohNo:
+                case Core.GetUsage.UnexpectedError ohNo:
                     await new MessageDialog(ohNo.ErrorMessage, "Unexpected Error!").ShowAsync();
                     break;
             }

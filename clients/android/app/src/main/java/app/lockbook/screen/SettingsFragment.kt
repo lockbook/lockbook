@@ -15,6 +15,7 @@ import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
+import app.lockbook.model.VerificationItem
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
 import app.lockbook.util.*
@@ -40,10 +41,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
             if (newValue is String) {
                 BiometricModel.verify(
                     requireActivity(),
+                    VerificationItem.BiometricsSettingsChange,
                     {
                         findPreference<ListPreference>(getString(R.string.biometric_key))?.value = newValue
-                    },
-                    isThisBiometricsChange = true
+                    }
                 )
             }
 
@@ -79,10 +80,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
         when (preference?.key) {
             getString(R.string.export_account_qr_key) -> BiometricModel.verify(
                 requireActivity(),
+                VerificationItem.ViewPrivateKey,
                 ::exportAccountQR
             )
             getString(R.string.export_account_raw_key) -> BiometricModel.verify(
                 requireActivity(),
+                VerificationItem.ViewPrivateKey,
                 ::exportAccountRaw
             )
             getString(R.string.view_logs_key) -> startActivity(Intent(context, LogActivity::class.java))

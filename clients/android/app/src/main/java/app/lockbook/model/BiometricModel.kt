@@ -8,34 +8,27 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.PreferenceManager
 import app.lockbook.R
-import app.lockbook.util.exhaustive
 import app.lockbook.util.getString
 import timber.log.Timber
 import java.lang.ref.WeakReference
+
+enum class VerificationItem {
+    BiometricsSettingsChange,
+    ViewPrivateKey,
+    OpenApp
+}
 
 object BiometricModel {
     fun isBiometricVerificationAvailable(context: Context): Boolean =
         BiometricManager.from(context)
             .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 
-    fun verify(activity: Activity, onSuccess: () -> Unit, onFailure: (() -> Unit)? = null, isThisBiometricsChange: Boolean = false,) {
+    fun verify(activity: Activity, verificationItem: VerificationItem, onSuccess: () -> Unit, onFailure: (() -> Unit)? = null) {
         val alertModel = AlertModel(WeakReference(activity))
         val context = activity.applicationContext
 
-        val biometricKey = getString(context.resources, R.string.biometric_key)
-        val biometricNoneValue = getString(context.resources, R.string.biometric_none_value)
-        val biometricRecommendedValue = getString(context.resources, R.string.biometric_recommended_value)
-        val biometricStrictValue = getString(context.resources, R.string.biometric_strict_value)
-
-        val pref = PreferenceManager.getDefaultSharedPreferences(context)
-        val currentBiometricValue = pref.getString(
-            biometricKey,
-            biometricNoneValue
-        )
-
-        when {
-            currentBiometricValue == biometricStrictValue ||
-                isThisBiometricsChange && currentBiometricValue == biometricRecommendedValue -> {
+        when (doVerificationOrNot(context, verificationItem)) {
+            true -> {
                 if (BiometricManager.from(context)
                     .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
@@ -85,11 +78,22 @@ object BiometricModel {
 
                 biometricPrompt.authenticate(promptInfo)
             }
-            currentBiometricValue == biometricNoneValue || currentBiometricValue == biometricRecommendedValue -> onSuccess()
-            else -> {
-                Timber.e("Biometric shared preference does not match every supposed option: $currentBiometricValue")
-                alertModel.notifyBasicError()
-            }
-        }.exhaustive
+            false -> onSuccess()
+        }
+    }
+
+    private fun doVerificationOrNot(context: Context, verificationItem: VerificationItem): Boolean {
+        val currentBiometricValue = PreferenceManager.getDefaultSharedPreferences(context).getString(
+            getString(context.resources, R.string.biometric_key),
+            getString(context.resources, R.string.biometric_none_value)
+        )
+
+        val isStrict = currentBiometricValue == getString(context.resources, R.string.biometric_strict_value)
+        val isRecommended = currentBiometricValue == getString(context.resources, R.string.biometric_recommended_value)
+
+        val isABiometricsSettingChange = verificationItem == VerificationItem.BiometricsSettingsChange
+        val isViewingPrivateKey = verificationItem == VerificationItem.ViewPrivateKey
+
+        return isStrict || isRecommended && isABiometricsSettingChange || isRecommended && isViewingPrivateKey
     }
 }

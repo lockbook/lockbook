@@ -39,7 +39,7 @@ mod get_usage_tests {
         write_document(config, file.id, "0000000000".as_bytes()).unwrap();
 
         assert!(
-            get_usage(config).unwrap().is_empty(),
+            get_usage(config).unwrap().usages.is_empty(),
             "Returned non-empty usage!"
         );
 
@@ -47,10 +47,10 @@ mod get_usage_tests {
 
         let local_encrypted = document_repo::get(&config, file.id).unwrap().value;
 
-        assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
-        assert_eq!(get_usage(config).unwrap().len(), 1);
+        assert_eq!(get_usage(config).unwrap().usages[0].file_id, file.id);
+        assert_eq!(get_usage(config).unwrap().usages.len(), 1);
         assert_eq!(
-            get_usage(config).unwrap()[0].size_bytes,
+            get_usage(config).unwrap().usages[0].size_bytes,
             local_encrypted.len() as u64
         )
     }
@@ -74,9 +74,9 @@ mod get_usage_tests {
         delete_file(config, file.id).unwrap();
         sync_all!(config).unwrap();
 
-        assert_eq!(get_usage(config).unwrap()[0].file_id, file.id);
-        assert_eq!(get_usage(config).unwrap().len(), 1);
-        assert_eq!(get_usage(config).unwrap()[0].size_bytes, 0)
+        assert_eq!(get_usage(config).unwrap().usages[0].file_id, file.id);
+        assert_eq!(get_usage(config).unwrap().usages.len(), 1);
+        assert_eq!(get_usage(config).unwrap().usages[0].size_bytes, 0)
     }
 
     #[test]
@@ -108,11 +108,11 @@ mod get_usage_tests {
 
         let usages = get_usage(config).unwrap();
         let mut total_usage = 0;
-        for usage in usages {
+        for usage in usages.usages {
             total_usage += usage.size_bytes;
         }
 
-        assert_eq!(get_usage(config).unwrap().len(), 3);
+        assert_eq!(get_usage(config).unwrap().usages.len(), 3);
         assert_eq!(total_usage, local_encrypted.len() as u64)
     }
 }

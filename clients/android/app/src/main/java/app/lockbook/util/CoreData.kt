@@ -47,13 +47,24 @@ enum class State {
     StateRequiresClearing
 }
 
-data class LocalAndServerUsages(
+data class UsageMetrics(
+    val usages: List<FileUsage>,
     @Json(name = "server_usage")
-    val serverUsage: String,
-    @Json(name = "uncompressed_usage")
-    val uncompressedUsage: String,
+    val serverUsage: UsageItemMetric,
     @Json(name = "data_cap")
-    val dataCap: String,
+    val dataCap: UsageItemMetric,
+)
+
+data class UsageItemMetric(
+    val exact: Int,
+    val readable: String,
+)
+
+data class FileUsage(
+    @Json(name = "file_id")
+    val fileId: String,
+    @Json(name = "size_bytes")
+    val sizeBytes: Int,
 )
 
 inline fun <reified T : Enum<T>> String.asEnumOrDefault(defaultValue: T? = null): T? =

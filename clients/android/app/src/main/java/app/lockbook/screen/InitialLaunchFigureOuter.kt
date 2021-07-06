@@ -10,6 +10,7 @@ import app.lockbook.databinding.SplashScreenBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
+import app.lockbook.model.VerificationItem
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -97,7 +98,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 .apply()
         }
 
-        BiometricModel.verify(this, ::launchListFilesActivity, ::finish)
+        BiometricModel.verify(this, VerificationItem.OpenApp, ::launchListFilesActivity, ::finish)
     }
 
     private fun launchListFilesActivity() {
