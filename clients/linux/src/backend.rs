@@ -11,9 +11,8 @@ use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{
     calculate_work, create_account, create_file, delete_file, export_account, get_account,
     get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
-    get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db,
-    move_file, read_document,
-    rename_file, sync_all, write_document,
+    get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db, move_file,
+    read_document, rename_file, sync_all, write_document,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
@@ -234,13 +233,13 @@ impl LbCore {
 
     pub fn move_file(&self, parent: Uuid, id: Uuid) -> LbResult<()> {
         move_file(&self.config, parent, id).map_err(map_core_err!(MoveFileError,
-            CannotMoveRoot => uerr!("The root folder cannot be renamed."),
-            DocumentTreatedAsFolder => uerr!("A document is being treated as folder."),
-            FileDoesNotExist => uerr!("File with id '{}' does not exist.", id),
-            FolderMovedIntoItself => uerr!("The folder was moved into itself."),
-            NoAccount => uerr!("No account found."),
-            TargetParentDoesNotExist => uerr!("The folder does not exist."),
-            TargetParentHasChildNamedThat => uerr!("The folder already has a child named that."),
+            CannotMoveRoot => uerr_dialog!("The root folder cannot be renamed."),
+            DocumentTreatedAsFolder => uerr_dialog!("A document is being treated as folder."),
+            FileDoesNotExist => uerr_dialog!("File with id '{}' does not exist.", id),
+            FolderMovedIntoItself => uerr_dialog!("The folder was moved into itself."),
+            NoAccount => uerr_dialog!("No account found."),
+            TargetParentDoesNotExist => uerr_dialog!("The folder does not exist."),
+            TargetParentHasChildNamedThat => uerr_dialog!("The folder already has a child named that."),
         ))
     }
 

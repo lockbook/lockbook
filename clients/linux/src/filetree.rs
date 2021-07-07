@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use gdk::{EventKey as GdkEventKey, ModifierType};
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
+use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::{Menu as GtkMenu, TreePath, TreeDragDest};
 use gtk::MenuItem as GtkMenuItem;
 use gtk::SelectionMode as GtkSelectionMode;
 use gtk::TreeIter as GtkTreeIter;
@@ -18,6 +17,7 @@ use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
 };
 use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDropPosition};
+use gtk::{Menu as GtkMenu, TreeDragDest, TreePath};
 use uuid::Uuid;
 
 use lockbook_models::file_metadata::FileType;
@@ -27,8 +27,8 @@ use crate::closure;
 use crate::error::{LbError, LbResult};
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
-use std::sync::Arc;
 use lockbook_core::model::client_conversion::ClientFileMetadata;
+use std::sync::Arc;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -141,121 +141,142 @@ impl FileTree {
 
     fn on_drag_motion() -> impl Fn(&TreeView, &DragContext, i32, i32, u32) -> GtkInhibit {
         |w, d, x, y, time| {
-            // let (maybe_path, pos) = w.get_drag_dest_row();
-            //
-            // match pos {
-            //     TreeViewDropPosition::Before => w.set_drag_dest_row(maybe_path.as_ref(), TreeViewDropPosition::IntoOrBefore),
-            //     TreeViewDropPosition::After => w.set_drag_dest_row(maybe_path.as_ref(), TreeViewDropPosition::IntoOrAfter),
-            //     _ => {}
-            // }
-            //
-            // d.drag_status(d.get_suggested_action(), time);
-            //
-            // println!("Inhibitied");
-            // GtkInhibit(true)
-            match w.get_drag_dest_row() {
-                (Some(path), pos) => {
+            match w.get_dest_row_at_pos(x, y) {
+                Some((Some(path), pos)) => {
                     let model = w.get_model().unwrap();
                     let iter = model.get_iter(&path).unwrap();
                     let iter_file_type = tree_iter_value!(model, &iter, 2, String);
 
+                    println!("ID: {}", tree_iter_value!(model, &iter, 1, String));
+
                     if iter_file_type == format!("{:?}", FileType::Document) {
-                        let new_pos = match pos {
-                            TreeViewDropPosition::IntoOrAfter => TreeViewDropPosition::After,
-                            TreeViewDropPosition::IntoOrBefore => TreeViewDropPosition::Before,
-                            _ => {
-                                println!("Doc Early Return: {:?}", pos);
-                                return GtkInhibit(false);
+                        match pos {
+                            TreeViewDropPosition::IntoOrAfter => {
+                                println!("IntoOrAfter");
+                                w.set_drag_dest_row(Some(&path), TreeViewDropPosition::After);
+                                d.drag_status(d.get_suggested_action(), time);
+                                return GtkInhibit(true)
                             },
+                            TreeViewDropPosition::IntoOrBefore => {
+                                println!("IntoOrBefore");
+                                w.set_drag_dest_row(Some(&path), TreeViewDropPosition::Before);
+                                d.drag_status(d.get_suggested_action(), time);
+                                return GtkInhibit(true)
+                            },
+                            _ => {
+                                println!("NOT INTO");
+                            }
                         };
-
-                        println!("New Pos: {:?}", new_pos);
-
-                        w.set_drag_dest_row(Some(&path), new_pos);
-                        d.drag_status(d.get_suggested_action(), time);
-                        return GtkInhibit(true);
                     }
                 }
-                _ => {}
+                _ => println!("FAILURE")
             }
-
-            println!("FINISH");
 
             GtkInhibit(false)
         }
+    }
+
+    fn on_drag_data_received() {
+
     }
 
     fn on_drag_dropped(
         m: &Messenger,
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, u32) -> GtkInhibit {
-        closure!(m, c => move |w, d, x, y, _| {
-            let (_, dest) = w.get_drag_dest_row();
-            println!("DEST: {:?}", dest);
+        closure!(m, c => move |w, d, x, y, time| {
+            // let (_, dest) = w.get_drag_dest_row();
+            // println!("DEST: {:?}", dest);
+            //
+            // let (selected_files, model) = w.get_selection().get_selected_rows();
+            // if selected_files.is_empty() {
+            //     m.send_err(
+            //         "getting dragged files",
+            //         LbError::new_program_err(
+            //             "There seems to be no selected file for the drag.".to_string(),
+            //         ),
+            //     );
+            //
+            //     return GtkInhibit(true);
+            // }
+            //
+            // let mut selected_ids: Vec<Uuid> = Vec::new();
+            // for tpath in selected_files {
+            //     let iter = model.get_iter(&tpath).unwrap();
+            //     let id = tree_iter_value!(model, &iter, 1, String);
+            //     let uuid = Uuid::parse_str(&id).unwrap();
+            //
+            //     selected_ids.push(uuid);
+            // }
+            //
+            // if let Some((Some(dest_path), _, _, _)) = w.get_path_at_pos(x, y) {
+            //     let iter = model.get_iter(&dest_path).unwrap();
+            //     let iter_id = tree_iter_value!(model, &iter, 1, String);
+            //     let uuid = Uuid::parse_str(&iter_id).unwrap();
+            //
+            //     match c.file_by_id(uuid) {
+            //         Ok(file) => {
+            //             let dest = if let FileType::Document = file.file_type {
+            //                 file.parent
+            //             } else {
+            //                 let (_, pos) = w.get_drag_dest_row();
+            //                 match pos {
+            //                     TreeViewDropPosition::After | TreeViewDropPosition::Before => {
+            //                         file.parent
+            //                     }
+            //                     _ => file.id,
+            //                 }
+            //             };
+            //
+            //             for selected_id in selected_ids {
+            //                 if let Err(err) = c.move_file(selected_id, dest) {
+            //                     m.send_err("moving", err);
+            //                     return GtkInhibit(true);
+            //                 }
+            //             }
+            //         }
+            //         Err(err) => {
+            //             m.send_err("getting file", err);
+            //             return GtkInhibit(true);
+            //         }
+            //     }
+            // } else {
+            //     m.send_err(
+            //         "getting drag destination",
+            //         LbError::new_program_err("There seems to be no drag destination.".to_string()),
+            //     );
+            //     return GtkInhibit(true);
+            // }
+            //
+            // GtkInhibit(false)
 
-            let (selected_files, model) = w.get_selection().get_selected_rows();
-            if selected_files.is_empty() {
-                m.send_err(
-                    "getting dragged files",
-                    LbError::new_program_err(
-                        "There seems to be no selected file for the drag.".to_string(),
-                    ),
-                );
+            match w.get_dest_row_at_pos(x, y) {
+                Some((Some(path), pos)) => {
+                    let model = w.get_model().unwrap();
+                    let iter = model.get_iter(&path).unwrap();
+                    let iter_file_type = tree_iter_value!(model, &iter, 2, String);
 
-                return GtkInhibit(true);
-            }
+                    if iter_file_type == format!("{:?}", FileType::Document) {
+                        println!("THEN IT SAYS {:?}", pos);
 
-            let mut selected_ids: Vec<Uuid> = Vec::new();
-            for tpath in selected_files {
-                let iter = model.get_iter(&tpath).unwrap();
-                let id = tree_iter_value!(model, &iter, 1, String);
-                let uuid = Uuid::parse_str(&id).unwrap();
-
-                selected_ids.push(uuid);
-            }
-
-            if let Some((Some(dest_path), _, _, _)) = w.get_path_at_pos(x, y) {
-                let iter = model.get_iter(&dest_path).unwrap();
-                let iter_id = tree_iter_value!(model, &iter, 1, String);
-                let uuid = Uuid::parse_str(&iter_id).unwrap();
-
-                match c.file_by_id(uuid) {
-                    Ok(file) => {
-                        let dest = if let FileType::Document = file.file_type {
-                            file.parent
-                        } else {
-                            let (_, pos) = w.get_drag_dest_row();
-                            match pos {
-                                TreeViewDropPosition::After | TreeViewDropPosition::Before => {
-                                    file.parent
-                                }
-                                _ => file.id,
-                            }
-                        };
-
-                        for selected_id in selected_ids {
-                            if let Err(err) = c.move_file(selected_id, dest) {
-                                m.send_err("moving", err);
+                        match pos {
+                            TreeViewDropPosition::IntoOrAfter
+                            | TreeViewDropPosition::IntoOrBefore => {
+                                println!("WHAT DA FRICK WHY INTO?!");
                                 return GtkInhibit(true);
-                            }
-                        }
+                            },
+                            _ => {}
+                        };
                     }
-                    Err(err) => {
-                        m.send_err("getting file", err);
-                        return GtkInhibit(true);
-                    }
+
                 }
-            } else {
-                m.send_err(
-                    "getting drag destination",
-                    LbError::new_program_err("There seems to be no drag destination.".to_string()),
-                );
-                return GtkInhibit(true);
+                _ => println!("FAILED AT DROP")
             }
 
             GtkInhibit(false)
         })
     }
+
 
     pub fn widget(&self) -> &GtkTreeView {
         &self.tree
@@ -593,7 +614,5 @@ impl FileTreePopup {
         self.items.get(key).unwrap().set_sensitive(condition);
     }
 }
-
-
 
 const DELETE_KEY: u16 = 119;
