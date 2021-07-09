@@ -9,12 +9,16 @@ enum ClientFileTypes {
 }
 
 struct NewFileSheet: View {
+    
+    @Environment(\.presentationMode) var presentationMode
+
     let parent: ClientFileMetadata
     
     @ObservedObject var core: GlobalState
     
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
+    @State var errors: String = ""
     
     var onSuccess: (_: ClientFileMetadata) -> Void
     
@@ -25,7 +29,7 @@ struct NewFileSheet: View {
                     .bold()
                     .font(.title)
                 Spacer()
-                Button(action: {print("hi")}) {
+                Button(action: { presentationMode.wrappedValue.dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.gray)
                         .imageScale(.large)
@@ -49,6 +53,12 @@ struct NewFileSheet: View {
                 .autocapitalization(.none)
                 .tag("FileNameView")
                 .introspectTextField(customize: handleCursor)
+            
+            if errors != "" {
+                Text(errors)
+                    .foregroundColor(.red)
+                    .bold()
+            }
             
             Spacer()
         }.padding()
@@ -89,7 +99,22 @@ struct NewFileSheet: View {
             core.checkForLocalWork()
             onSuccess(newMeta)
         case .failure(let err):
-            core.handleError(err)
+            switch err.kind {
+            case .UiError(let uiError):
+                switch uiError {
+                case .FileNameContainsSlash:
+                    errors = "File names cannot contain slashes"
+                case .FileNameEmpty:
+                    errors = "File name cannot be empty"
+                case .FileNameNotAvailable:
+                    errors = "A file with that name exists in this folder already"
+                default:
+                    core.handleError(err)
+                }
+                break;
+            case .Unexpected:
+                core.handleError(err)
+            }
         }
     }
 }
