@@ -26,7 +26,6 @@ struct EditorLoader: View {
     @ObservedObject var content: Content
     let meta: ClientFileMetadata
     @State var editorContent: String = ""
-    @State var title: String = ""
     let deleteChannel: PassthroughSubject<ClientFileMetadata, Never>
     @State var deleted: ClientFileMetadata?
     
@@ -36,7 +35,12 @@ struct EditorLoader: View {
             /// We are forcing this view to hit the default case when it is in a transitionary stage!
             case .some(let c) where content.meta?.id == meta.id:
                 if (deleted != meta) {
+                    #if os(macOS)
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
+                    #else
+                    EditorView(meta: meta, text: c, changeCallback: content.updateText)
+                        .padding(.horizontal, 20)
+                    #endif
                     ActivityIndicator(status: $content.status)
                         .opacity(content.status == .WriteSuccess ? 1 : 0)
                 } else {
@@ -49,6 +53,7 @@ struct EditorLoader: View {
                     }
             }
         }
+        .navigationTitle(meta.name)
         .onReceive(deleteChannel) { deletedMeta in
             if (deletedMeta.id == meta.id) {
                 deleted = deletedMeta

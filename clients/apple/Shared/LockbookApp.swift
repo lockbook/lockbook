@@ -20,7 +20,7 @@ struct  LockbookApp: App {
 
         #if os(macOS)
         windowGroup
-                .windowStyle(HiddenTitleBarWindowStyle())
+//                .windowStyle(HiddenTitleBarWindowStyle())
         Settings {
             SettingsView(core: core)
         }
