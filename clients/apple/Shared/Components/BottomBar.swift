@@ -2,41 +2,28 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct BottomBar: View {
-
+    
     @ObservedObject var core: GlobalState
-
+    
     @State var offline: Bool = false
-
+    
     #if os(iOS)
-    var onNewDocument: () -> Void = {
-    }
-    var onNewDrawing: () -> Void = {
-    }
-    var onNewFolder: () -> Void = {
-    }
+    var onCreating: () -> Void = {}
     #endif
-
+    
     #if os(iOS)
     var menu: AnyView {
-        AnyView(Menu {
-            Button(action: onNewDocument) {
-                Label("Create a document", systemImage: "doc")
-            }
-
-            Button(action: onNewDrawing) {
-                Label("Create a drawing", systemImage: "scribble.variable")
-            }
-
-            Button(action: onNewFolder) {
-                Label("Create a folder", systemImage: "folder")
-            }
-        } label: {
-            Label("Add", systemImage: "plus.circle.fill")
-                    .imageScale(.large)
+        AnyView(Button(action: {
+            onCreating()
+        }) {
+            Image(systemName: "plus.circle.fill")
+                .imageScale(.large)
+                .foregroundColor(.blue)
+                .frame(width: 40, height: 40, alignment: .center)
         })
     }
     #endif
-
+    
     #if os(iOS)
     var syncButton: AnyView {
         if core.syncing {
@@ -44,7 +31,7 @@ struct BottomBar: View {
         } else {
             if offline {
                 return AnyView(Image(systemName: "xmark.icloud.fill")
-                        .foregroundColor(Color.gray))
+                                .foregroundColor(Color.gray))
             } else {
                 return AnyView(Button(action: {
                     core.syncing = true
@@ -52,6 +39,8 @@ struct BottomBar: View {
                 }) {
                     Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                         .imageScale(.large)
+                        .foregroundColor(.blue)
+                        .frame(width: 40, height: 40, alignment: .center)
                 })
             }
         }
@@ -59,21 +48,21 @@ struct BottomBar: View {
     #else
     var syncButton: AnyView {
         if core.syncing || offline {
-
+            
             return AnyView(
-                    Text("")
-                            .font(.callout)
-                            .foregroundColor(Color.gray)
+                Text("")
+                    .font(.callout)
+                    .foregroundColor(Color.gray)
             )
-
+            
         } else {
             return AnyView(Button(action: {
                 core.syncing = true
                 core.work = 0
             }) {
                 Text("Sync now")
-                        .font(.callout)
-                        .foregroundColor(Color.init(red: 0.3, green: 0.45, blue: 0.79))
+                    .font(.callout)
+                    .foregroundColor(Color.init(red: 0.3, green: 0.45, blue: 0.79))
             })
         }
     }
@@ -88,27 +77,27 @@ struct BottomBar: View {
             return "\(core.work) unsynced changes"
         }
     }
-
+    
     var statusText: AnyView {
         if core.syncing {
             return AnyView(Text("Syncing...")
-                    .foregroundColor(.secondary))
+                            .foregroundColor(.secondary))
         } else {
             if offline {
                 return AnyView(Text("Offline")
-                        .foregroundColor(.secondary)
+                                .foregroundColor(.secondary)
                 )
             } else {
                 return AnyView(
                     Text(core.work == 0 ? "Last update: \(core.lastSynced)" : localChangeText)
-                                .font(.callout)
-                                .foregroundColor(.secondary)
-                                .bold()
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                        .bold()
                 )
             }
         }
     }
-
+    
     var body: some View {
         #if os(iOS)
         syncButton
@@ -119,18 +108,18 @@ struct BottomBar: View {
         #else
         Divider()
         statusText
-                .padding(4)
+            .padding(4)
         syncButton
-                .padding(.bottom, 7)
+            .padding(.bottom, 7)
         #endif
     }
 }
 
 #if os(iOS)
 struct SyncingPreview: PreviewProvider {
-
+    
     static let core = GlobalState()
-
+    
     static var previews: some View {
         NavigationView {
             HStack {
@@ -142,15 +131,15 @@ struct SyncingPreview: PreviewProvider {
         }.onAppear {
             core.syncing = true
         }
-
-
+        
+        
     }
 }
 
 struct NonSyncingPreview: PreviewProvider {
-
+    
     static let core = GlobalState()
-
+    
     static var previews: some View {
         NavigationView {
             HStack {
@@ -162,15 +151,15 @@ struct NonSyncingPreview: PreviewProvider {
         }.onAppear {
             core.syncing = false
         }
-
-
+        
+        
     }
 }
 
 struct OfflinePreview: PreviewProvider {
-
+    
     static let core = GlobalState()
-
+    
     static var previews: some View {
         NavigationView {
             HStack {
@@ -180,15 +169,15 @@ struct OfflinePreview: PreviewProvider {
                 }
             }
         }
-
-
+        
+        
     }
 }
 
 struct WorkItemsPreview: PreviewProvider {
-
+    
     static let core = GlobalState()
-
+    
     static var previews: some View {
         NavigationView {
             HStack {
@@ -201,8 +190,8 @@ struct WorkItemsPreview: PreviewProvider {
                 }
             }
         }
-
-
+        
+        
     }
 }
 #endif
