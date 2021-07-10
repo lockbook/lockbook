@@ -1,4 +1,4 @@
-use crate::model::client_conversion::ClientWorkUnit;
+use crate::model::client_conversion::{generate_client_work_unit, ClientWorkUnit};
 use crate::model::document_type::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -28,9 +28,7 @@ pub struct SyncProgress {
 }
 
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
-    // todo: new definition of work
     info!("Calculating Work");
-    let mut work_units: Vec<WorkUnit> = vec![];
 
     let account = account_repo::get(config)?;
     let last_sync = last_updated_repo::get(config)?;
@@ -44,7 +42,16 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
     .map_err(CoreError::from)?
     .file_metadata;
 
+    calculate_work_from_updates(config, &server_updates, last_sync)
+}
+
+fn calculate_work_from_updates(
+    config: &Config,
+    server_updates: &Vec<FileMetadata>,
+    last_sync: u64,
+) -> Result<WorkCalculated, CoreError> {
     let mut most_recent_update_from_server: u64 = last_sync;
+    let mut work_units: Vec<WorkUnit> = vec![];
     for metadata in server_updates {
         if metadata.metadata_version > most_recent_update_from_server {
             most_recent_update_from_server = metadata.metadata_version;
@@ -54,12 +61,16 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
             None => {
                 if !metadata.deleted {
                     // no work for files we don't have that have been deleted
-                    work_units.push(ServerChange { metadata })
+                    work_units.push(ServerChange {
+                        metadata: metadata.clone(),
+                    })
                 }
             }
             Some((local_metadata, _)) => {
                 if metadata.metadata_version != local_metadata.metadata_version {
-                    work_units.push(ServerChange { metadata })
+                    work_units.push(ServerChange {
+                        metadata: metadata.clone(),
+                    })
                 }
             }
         };
@@ -242,11 +253,9 @@ fn get_document_type(config: &Config, metadata: &FileMetadata) -> Result<Documen
     ))
 }
 
-fn pull(
-    config: &Config,
-    account: &Account,
-    f: &Option<Box<dyn Fn(SyncProgress)>>, // todo: use f
-) -> Result<(), CoreError> {
+pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
+    let account = &account_repo::get(config)?;
+
     // pull remote changes
     let last_sync = last_updated_repo::get(config)?;
     let remote_changes = client::request(
@@ -257,9 +266,26 @@ fn pull(
     )
     .map_err(CoreError::from)?
     .file_metadata;
+    let total = calculate_work_from_updates(config, &remote_changes, last_sync)?
+        .work_units
+        .len();
+    let mut progress = 0;
 
     // merge with local changes; save results locally
     for remote_metadata in remote_changes {
+        if let Some(ref func) = f {
+            func(SyncProgress {
+                total,
+                progress,
+                current_work_unit: generate_client_work_unit(
+                    config,
+                    &WorkUnit::ServerChange {
+                        metadata: remote_metadata.clone(),
+                    },
+                )?,
+            })
+        }
+
         let maybe_base_metadata =
             metadata_repo::maybe_get(config, RepoSource::Remote, remote_metadata.id)?;
         let maybe_local_metadata =
@@ -378,15 +404,42 @@ fn pull(
 
         // update local repo to version from merge
         file_repo::insert_metadata(config, RepoSource::Local, &merged_metadata)?;
-    }
-    Ok(())
-}
 
-fn push(
-    config: &Config,
-    account: &Account,
-    f: &Option<Box<dyn Fn(SyncProgress)>>,
-) -> Result<(), CoreError> {
+        // finished remote work unit
+        progress += 1;
+    }
+
+    // push local content changes
+    for id in file_repo::get_all_with_document_changes(config)? {
+        let local_metadata = file_repo::get_metadata(config, id)?.0;
+
+        if let Some(ref func) = f {
+            func(SyncProgress {
+                total,
+                progress,
+                current_work_unit: generate_client_work_unit(
+                    config,
+                    &WorkUnit::ServerChange {
+                        metadata: local_metadata.clone(),
+                    },
+                )?,
+            })
+        }
+
+        client::request(
+            &account,
+            ChangeDocumentContentRequest {
+                id: id,
+                old_metadata_version: local_metadata.metadata_version,
+                new_content: file_repo::get_document(config, id)?.0,
+            },
+        )
+        .map_err(CoreError::from)?;
+
+        // finished local work unit
+        progress += 1;
+    }
+
     // push local metadata changes
     client::request(
         &account,
@@ -396,24 +449,5 @@ fn push(
     )
     .map_err(CoreError::from)?;
 
-    // push local content changes
-    for id in file_repo::get_all_with_document_changes(config)? {
-        client::request(
-            &account,
-            ChangeDocumentContentRequest {
-                id: id,
-                old_metadata_version: file_repo::get_metadata(config, id)?.0.metadata_version,
-                new_content: file_repo::get_document(config, id)?.0,
-            },
-        )
-        .map_err(CoreError::from)?;
-    }
-
     Ok(())
-}
-
-pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
-    let account = account_repo::get(config)?;
-    pull(config, &account, &f)?;
-    push(config, &account, &f)
 }
