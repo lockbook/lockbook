@@ -1,5 +1,5 @@
 use crate::model::state::Config;
-use crate::repo::{file_repo, root_repo};
+use crate::repo::file_repo;
 use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
 use lockbook_models::file_metadata::FileMetadata;
@@ -15,7 +15,7 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 
     let is_folder = path_and_name.ends_with('/');
 
-    let mut current = root_repo::maybe_get(config)?.ok_or(CoreError::RootNonexistent)?;
+    let mut current = file_repo::get_root(config)?;
 
     if file_encryption_service::get_name(&config, &current)? != path_components[0] {
         return Err(CoreError::PathStartsWithNonRoot);
@@ -60,8 +60,7 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 }
 
 pub fn get_by_path(config: &Config, path: &str) -> Result<FileMetadata, CoreError> {
-    let root = root_repo::maybe_get(&config)?
-        .ok_or_else(|| CoreError::Unexpected(String::from("no root")))?;
+    let root = file_repo::get_root(&config)?;
 
     let paths = split_path(path);
     let mut current = root;

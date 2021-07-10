@@ -3,7 +3,7 @@ mod integration_test;
 #[cfg(test)]
 mod sync_tests {
     use lockbook_core::path;
-    use lockbook_core::repo::{metadata_repo, remote_document_repo, remote_metadata_repo};
+    use lockbook_core::repo::metadata_repo;
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::service::{
         account_service, file_encryption_service, file_service, integrity_service, path_service,

@@ -10,8 +10,8 @@ use crate::model::client_conversion::{
     ClientWorkCalculated,
 };
 use crate::model::state::Config;
+use crate::repo::file_repo;
 use crate::repo::{account_repo, last_updated_repo};
-use crate::repo::{file_repo, root_repo};
 use crate::service::db_state_service::State;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::sync_service::SyncProgress;
@@ -312,7 +312,7 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
-    match root_repo::maybe_get(&config) {
+    match file_repo::maybe_get_root(&config) {
         Ok(file_metadata) => match file_metadata {
             None => Err(UiError(GetRootError::NoRoot)),
             Some(file_metadata) => match generate_client_file_metadata(config, &file_metadata) {

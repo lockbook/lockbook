@@ -1,35 +1,30 @@
 use crate::model::state::Config;
-use crate::repo::{file_repo, local_storage};
+use crate::repo::local_storage;
 use crate::CoreError;
-use lockbook_models::file_metadata::FileMetadata;
 use uuid::Uuid;
 
 pub static ROOT: &[u8; 4] = b"ROOT";
 
-pub fn maybe_get(config: &Config) -> Result<Option<FileMetadata>, CoreError> {
+pub fn maybe_get(config: &Config) -> Result<Option<Uuid>, CoreError> {
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, ROOT, ROOT)?;
     match maybe_value {
         None => Ok(None),
-        Some(value) => {
-            match String::from_utf8(value.clone()) {
-                Ok(id) => match Uuid::parse_str(&id) {
-                    Ok(uuid) => file_repo::maybe_get_metadata(&config, uuid).map(
-                        |maybe_root_and_repo_state| maybe_root_and_repo_state.map(|(root, _)| root),
-                    ),
-                    Err(err) => {
-                        error!("Failed to parse {:?} into a UUID. Error: {:?}", id, err);
-                        Ok(None)
-                    }
-                },
+        Some(value) => match String::from_utf8(value.clone()) {
+            Ok(id) => match Uuid::parse_str(&id) {
+                Ok(id) => Ok(Some(id)),
                 Err(err) => {
-                    error!("Failed to parse {:?} into a UUID. Error: {:?}", &value, err);
+                    error!("Failed to parse {:?} into a UUID. Error: {:?}", id, err);
                     Ok(None)
                 }
+            },
+            Err(err) => {
+                error!("Failed to parse {:?} into a UUID. Error: {:?}", &value, err);
+                Ok(None)
             }
-        }
+        },
     }
 }
 
-pub fn get(config: &Config) -> Result<FileMetadata, CoreError> {
+pub fn get(config: &Config) -> Result<Uuid, CoreError> {
     maybe_get(config).and_then(|f| f.ok_or(CoreError::RootNonexistent))
 }

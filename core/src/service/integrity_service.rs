@@ -1,5 +1,5 @@
 use crate::model::state::Config;
-use crate::repo::{file_repo, root_repo};
+use crate::repo::file_repo;
 use crate::service::integrity_service::TestRepoError::{
     Core, CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty,
     FileOrphaned, NameConflictDetected, NoRootFolder,
@@ -25,7 +25,7 @@ pub enum TestRepoError {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
-    let root = root_repo::maybe_get(&config)
+    let root = file_repo::maybe_get_root(&config)
         .map_err(Core)?
         .ok_or(NoRootFolder)?;
 

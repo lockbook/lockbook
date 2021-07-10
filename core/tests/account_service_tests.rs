@@ -2,7 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod account_tests {
-    use lockbook_core::repo::{account_repo, remote_metadata_repo};
+    use lockbook_core::repo::account_repo;
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
     use lockbook_core::service::{account_service, sync_service};
     use lockbook_core::{

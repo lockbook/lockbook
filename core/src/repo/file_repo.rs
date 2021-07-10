@@ -234,9 +234,21 @@ fn append_descendants_recursive(
     Ok(())
 }
 
+pub fn get_root(config: &Config) -> Result<FileMetadata, CoreError> {
+    maybe_get_root(config).and_then(|f| f.ok_or(CoreError::RootNonexistent))
+}
+
+pub fn maybe_get_root(config: &Config) -> Result<Option<FileMetadata>, CoreError> {
+    match root_repo::maybe_get(config)? {
+        Some(id) => maybe_get_metadata(config, id)
+            .map(|maybe_metadata_and_state| maybe_metadata_and_state.map(|(f, _)| f)),
+        None => Ok(None),
+    }
+}
+
 pub fn get_all_metadata(config: &Config) -> Result<GetAllMetadataResult, CoreError> {
     Ok(GetAllMetadataResult::from_union_with_state(
-        get_with_descendants(config, root_repo::get(config)?.id)?,
+        get_with_descendants(config, root_repo::get(config)?)?,
     ))
 }
 

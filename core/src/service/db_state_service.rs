@@ -1,7 +1,5 @@
 use crate::model::state::Config;
 use crate::repo::{account_repo, db_version_repo};
-use crate::service::db_state_service;
-use crate::service::db_state_service::State::{Empty, ReadyToUse, StateRequiresClearing};
 use crate::CoreError;
 use serde::Serialize;
 
@@ -19,19 +17,19 @@ pub enum State {
 
 pub fn get_state(config: &Config) -> Result<State, CoreError> {
     if account_repo::maybe_get(config)?.is_none() {
-        db_version_repo::set(config, db_state_service::get_code_version())?;
-        return Ok(Empty);
+        db_version_repo::set(config, get_code_version())?;
+        return Ok(State::Empty);
     }
 
     match db_version_repo::get(config)? {
-        None => Ok(StateRequiresClearing),
+        None => Ok(State::StateRequiresClearing),
         Some(state_version) => {
-            if state_version == db_state_service::get_code_version() {
-                Ok(ReadyToUse)
+            if state_version == get_code_version() {
+                Ok(State::ReadyToUse)
             } else {
                 match state_version.as_str() {
-                    "0.1.4" => Ok(ReadyToUse),
-                    _ => Ok(StateRequiresClearing),
+                    "0.1.4" => Ok(State::ReadyToUse),
+                    _ => Ok(State::StateRequiresClearing),
                 }
             }
         }
@@ -44,7 +42,7 @@ pub fn perform_migration(config: &Config) -> Result<(), CoreError> {
         Some(version) => version,
     };
 
-    if db_version == db_state_service::get_code_version() {
+    if db_version == get_code_version() {
         return Ok(());
     }
 
