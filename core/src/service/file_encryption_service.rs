@@ -140,17 +140,20 @@ pub fn read_document(
 
 pub fn user_read_document(
     account: &Account,
-    file: &EncryptedDocument,
+    maybe_file: &Option<EncryptedDocument>,
     user_access_info: &UserAccessInfo,
 ) -> Result<DecryptedDocument, CoreError> {
-    let key_decryption_key =
-        pubkey::get_aes_key(&account.private_key, &user_access_info.encrypted_by)
-            .map_err(core_err_unexpected)?;
-    let key = symkey::decrypt(&key_decryption_key, &user_access_info.access_key)
-        .map_err(core_err_unexpected)?;
-
-    let content = symkey::decrypt(&key, file).map_err(core_err_unexpected)?;
-    Ok(content)
+    match maybe_file {
+        None => Ok(Vec::new()),
+        Some(file) => {
+            let key_decryption_key =
+                pubkey::get_aes_key(&account.private_key, &user_access_info.encrypted_by)
+                    .map_err(core_err_unexpected)?;
+            let key = symkey::decrypt(&key_decryption_key, &user_access_info.access_key)
+                .map_err(core_err_unexpected)?;
+            Ok(symkey::decrypt(&key, file).map_err(core_err_unexpected)?)
+        }
+    }
 }
 
 pub fn get_name(config: &Config, meta: &FileMetadata) -> Result<String, CoreError> {

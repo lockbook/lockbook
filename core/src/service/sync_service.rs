@@ -200,7 +200,7 @@ fn get_local_document(
             Some(base_document) => Some(file_compression_service::decompress(
                 &file_encryption_service::user_read_document(
                     account,
-                    &base_document,
+                    &Some(base_document),
                     user_access_key,
                 )?,
             )?),

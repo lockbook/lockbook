@@ -118,13 +118,19 @@ pub async fn get(
     client: &S3Client,
     file_id: Uuid,
     content_version: u64,
-) -> Result<EncryptedDocument, Error> {
+) -> Result<Option<EncryptedDocument>, Error> {
     match client
         .get_object(&format!("/{}-{}", file_id, content_version))
         .await
         .map_err(|err| err.to_string())?
     {
-        (data, 200) => Ok(serde_json::from_slice(&data).map_err(Error::Deserialization)?),
+        (data, 200) => {
+            if data.len() == 0 {
+                Ok(None)
+            } else {
+                Ok(serde_json::from_slice(&data).map_err(Error::Deserialization)?)
+            }
+        }
         (body, _) => Err(Error::from(body)),
     }
 }
