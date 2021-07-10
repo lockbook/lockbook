@@ -1,5 +1,9 @@
-use crate::{file_index_repo, file_content_client, RequestContext};
+use crate::file_content_client;
+use crate::file_index_repo;
+use crate::file_index_repo::UpsertFileMetadataError;
+use crate::RequestContext;
 use lockbook_models::api::*;
+use lockbook_models::file_metadata::FileType;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
@@ -12,28 +16,33 @@ pub async fn upsert_file_metadata(
         }
     };
 
-    for upsert in context.request.updates {
-        let index_result = file_index_repo::upsert_file_metadata(
-            &mut transaction,
-            &context.public_key,
-            &upsert,
-        )
-        .await;
-        // todo: check if pull is required
-    };
-
-    // todo: create empty files for new files
-    // let files_result = file_content_client::create(
-    //     &server_state.files_db_client,
-    //     request.id,
-    //     new_version,
-    //     &request.content,
-    // )
-    // .await;
-
-    // if files_result.is_err() {
-    //     return Err(Err(format!("Cannot create file in S3: {:?}", files_result)));
-    // };
+    for upsert in &request.updates {
+        let index_result =
+            file_index_repo::upsert_file_metadata(&mut transaction, &context.public_key, &upsert)
+                .await;
+        match index_result {
+            Ok(new_version) => {
+                // create empty files for new document
+                if upsert.old_parent_and_name.is_none() && upsert.file_type == FileType::Document {
+                    let files_result = file_content_client::create_empty(
+                        &server_state.files_db_client,
+                        upsert.id,
+                        new_version,
+                    )
+                    .await;
+                    if let Err(e) = files_result {
+                        return Err(Err(format!("Cannot create file in S3: {:?}", e)));
+                    }
+                }
+            }
+            Err(UpsertFileMetadataError::FailedPreconditions) => {
+                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
+            }
+            Err(e) => {
+                return Err(Err(format!("Cannot begin transaction: {:?}", e)));
+            }
+        }
+    }
 
     match transaction.commit().await {
         Ok(()) => Ok(()),
@@ -122,7 +131,9 @@ pub async fn get_document(
     .await;
     match files_result {
         Ok(c) => Ok(GetDocumentResponse { content: c }),
-        Err(file_content_client::Error::NoSuchKey(_)) => Err(Ok(GetDocumentError::DocumentNotFound)),
+        Err(file_content_client::Error::NoSuchKey(_)) => {
+            Err(Ok(GetDocumentError::DocumentNotFound))
+        }
         Err(e) => Err(Err(format!("Cannot get file from S3: {:?}", e))),
     }
 }

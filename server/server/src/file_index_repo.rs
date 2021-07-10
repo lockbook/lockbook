@@ -1,8 +1,10 @@
 use crate::config::IndexDbConfig;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
-use lockbook_models::crypto::{EncryptedUserAccessKey, FolderAccessInfo, UserAccessInfo};
-use lockbook_models::file_metadata::{FileType, FileMetadata, FileMetadataDiff};
+use lockbook_models::crypto::{
+    EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
+};
+use lockbook_models::file_metadata::{FileMetadata, FileMetadataDiff, FileType};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
 use std::array::IntoIter;
@@ -44,20 +46,21 @@ pub async fn connect(config: &IndexDbConfig) -> Result<PgPool, ConnectError> {
 pub enum UpsertFileMetadataError {
     Postgres(sqlx::Error),
     Serialize(serde_json::Error),
+    FailedPreconditions,
 }
 
 pub async fn upsert_file_metadata(
     transaction: &mut Transaction<'_, Postgres>,
     public_key: &PublicKey,
     upsert: &FileMetadataDiff,
-) -> Result<(), UpsertFileMetadataError> {
+) -> Result<u64, UpsertFileMetadataError> {
     sqlx::query!(
         r#"
 WITH
     preconditions AS (
-        SELECT EXISTS(SELECT * FROM files WHERE id = $1 AND parent = $8) AS met
+        SELECT EXISTS(SELECT * FROM files WHERE id = $1 AND parent = $9) AS met
             UNION ALL
-        SELECT EXISTS(SELECT * FROM files WHERE id = $1 AND name = $9) AS met
+        SELECT EXISTS(SELECT * FROM files WHERE id = $1 AND name_hmac = $10) AS met
     ),
     insert AS (
         INSERT INTO files (
@@ -65,9 +68,9 @@ WITH
             parent,
             parent_access_key,
             is_folder,
-            name,
+            name_encrypted,
+            name_hmac,
             owner,
-            signature,
             deleted,
             metadata_version,
             content_version,
@@ -80,8 +83,8 @@ WITH
             $4,
             $5,
             $6,
-            'todo: real signature',
             $7,
+            $8,
             CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
             CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
             0
@@ -98,38 +101,70 @@ WITH
                 (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
                 THEN $3
                 ELSE files.parent_access_key END),
-            name =
+            name_encrypted =
                 (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
                 THEN $5
-                ELSE files.name END),
+                ELSE files.name_encrypted END),
+            name_hmac =
+                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
+                THEN $6
+                ELSE files.name_hmac END),
             deleted =
                 (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
-                THEN $7
+                THEN $8
                 ELSE files.deleted END)
     )
-SELECT BOOL_AND(met) FROM preconditions
+SELECT
+    BOOL_AND(met) AS "preconditions_met!",
+    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS "version!"
+FROM preconditions;
         "#,
-        &upsert.id.to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
-        &upsert.new_parent.to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
-        &serde_json::to_string(&upsert.new_folder_access_keys).map_err(UpsertFileMetadataError::Serialize)?,
-        &(upsert.file_type == FileType::Folder),
-        &upsert.new_name,
-        &serde_json::to_string(public_key).map_err(UpsertFileMetadataError::Serialize)?,
-        &upsert.new_deleted,
-        &upsert.old_parent.unwrap_or_default()
+        &upsert
+            .id
             .to_simple()
             .encode_lower(&mut Uuid::encode_buffer())
             .to_owned(),
-        &upsert.old_name.clone().unwrap_or(String::from("")),
+        &upsert
+            .new_parent
+            .to_simple()
+            .encode_lower(&mut Uuid::encode_buffer())
+            .to_owned(),
+        &serde_json::to_string(&upsert.new_folder_access_keys)
+            .map_err(UpsertFileMetadataError::Serialize)?,
+        &(upsert.file_type == FileType::Folder),
+        &serde_json::to_string(&upsert.new_name.encrypted_value)
+            .map_err(UpsertFileMetadataError::Serialize)?,
+        &serde_json::to_string(&upsert.new_name.hmac)
+            .map_err(UpsertFileMetadataError::Serialize)?,
+        &serde_json::to_string(public_key).map_err(UpsertFileMetadataError::Serialize)?,
+        &upsert.new_deleted,
+        &upsert
+            .old_parent_and_name
+            .clone()
+            .map(|(parent, _)| parent
+                .to_simple()
+                .encode_lower(&mut Uuid::encode_buffer())
+                .to_owned())
+            .unwrap_or_default(),
+        &serde_json::to_string(
+            &upsert
+                .old_parent_and_name
+                .clone()
+                .map(|(_, name)| name.hmac)
+                .unwrap_or_default()
+        )
+        .map_err(UpsertFileMetadataError::Serialize)?,
     )
     .fetch_one(transaction)
     .await
-    .map_err(UpsertFileMetadataError::Postgres)?;
-    Ok(())
+    .map(|row| {
+        if !row.preconditions_met {
+            Err(UpsertFileMetadataError::FailedPreconditions)
+        } else {
+            Ok(row.version as u64)
+        }
+    })
+    .map_err(UpsertFileMetadataError::Postgres)?
 }
 
 #[derive(Debug)]
