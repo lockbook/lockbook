@@ -231,9 +231,9 @@ impl LbCore {
         ))
     }
 
-    pub fn move_file(&self, parent: Uuid, id: Uuid) -> LbResult<()> {
-        move_file(&self.config, parent, id).map_err(map_core_err!(MoveFileError,
-            CannotMoveRoot => uerr_dialog!("The root folder cannot be renamed."),
+    pub fn move_file(&self, id: &Uuid, parent: Uuid) -> LbResult<()> {
+        move_file(&self.config, *id, parent).map_err(map_core_err!(MoveFileError,
+            CannotMoveRoot => uerr_dialog!("The root folder cannot be moved."),
             DocumentTreatedAsFolder => uerr_dialog!("A document is being treated as folder."),
             FileDoesNotExist => uerr_dialog!("File with id '{}' does not exist.", id),
             FolderMovedIntoItself => uerr_dialog!("The folder was moved into itself."),
