@@ -807,6 +807,6 @@ pub mod model;
 pub mod repo;
 pub mod service;
 
-pub static DEFAULT_API_LOCATION: &str = "http://api.lockbook.app:8000";
+pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 static LOG_FILE: &str = "lockbook.log";
