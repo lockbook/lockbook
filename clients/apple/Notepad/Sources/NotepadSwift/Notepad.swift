@@ -13,7 +13,6 @@ public class Notepad: UITextView, UITextViewDelegate {
         self.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     }
 
-
     override init(frame: CGRect, textContainer: NSTextContainer?) {
         let layoutManager = NSLayoutManager()
         let containerSize = CGSize(width: frame.size.width, height: frame.size.height)
@@ -25,8 +24,6 @@ public class Notepad: UITextView, UITextViewDelegate {
         super.init(frame: frame, textContainer: container)
         self.delegate = self
     }
-
-
 
     required public init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)

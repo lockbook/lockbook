@@ -14,6 +14,8 @@ struct NotepadView: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextView {
         let np = Notepad(frame: frame, theme: theme)
         np.smartQuotesType = .no
+        np.smartDashesType = .no
+        np.smartInsertDeleteType = .no
         np.onTextChange = onTextChange
         np.storage.markdowner = { engine.render($0) }
         np.storage.applyMarkdown = { m in applyMarkdown(markdown: m) }
@@ -41,6 +43,7 @@ struct NotepadView: NSViewRepresentable {
         let np = Notepad(frame: frame)
         np.allowsUndo = true
         np.isAutomaticQuoteSubstitutionEnabled = false
+        np.isAutomaticDashSubstitutionEnabled = false
         np.onTextChange = onTextChange
         np.storage.markdowner = { engine.render($0) }
         np.storage.applyMarkdown = { m in applyMarkdown(markdown: m) }

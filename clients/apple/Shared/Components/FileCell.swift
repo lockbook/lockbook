@@ -6,27 +6,19 @@ struct FileCell: View {
     let meta: ClientFileMetadata
     
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(meta.name)
-                    .font(.title3)
-                HStack {
-                    Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
-                        .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
-                    Text(intEpochToString(epoch: meta.contentVersion))
-                        .foregroundColor(.secondary)
-                    
-                }.font(.footnote)
-            }
-            .padding(.vertical, 5)
-            Spacer()
-            
-            if meta.fileType == .Folder {
-                Image(systemName: "chevron.right")
-                    .padding(.trailing, 10)
+        VStack(alignment: .leading, spacing: 5) {
+            Text(meta.name)
+                .font(.title3)
+            HStack {
+                Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
+                    .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
+                Text(intEpochToString(epoch: meta.contentVersion))
                     .foregroundColor(.secondary)
-            }
+                
+            }.font(.footnote)
         }
+        .padding(.vertical, 5)
+        
         .contentShape(Rectangle()) /// https://stackoverflow.com/questions/57258371/swiftui-increase-tap-drag-area-for-user-interaction
     }
 }
@@ -50,15 +42,15 @@ struct SyntheticFileCell: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 5) {
-                ZStack {
+//                ZStack {
                     TextField(type == .Folder ? "folder name" : "document name", text: $name, onCommit: onCommit)
                         .autocapitalization(.none)
                         .font(.title3)
                         .introspectTextField(customize: { textField in
                             textField.becomeFirstResponder()
-                            textField.selectedTextRange = textField.textRange(from: textField.beginningOfDocument, to: textField.beginningOfDocument)
+                            textField.selectedTextRange = textField.textRange(from: textField.beginningOfDocument, to: textField.endOfDocument)
                         })
-                }
+//                }
                 HStack {
                     Image(systemName: type == .Folder ? "folder" : "doc")
                         .foregroundColor(type == .Folder ? .blue : .secondary)
@@ -66,7 +58,7 @@ struct SyntheticFileCell: View {
                         .foregroundColor(.gray)
                 }.font(.footnote)
             }
-
+            
             Button(action: onCancel) {
                 Image(systemName: "xmark")
                     .foregroundColor(.red)
