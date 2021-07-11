@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,43 +28,32 @@ class CalculateWorkTest {
 
     @Test
     fun calculateWorkOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        assertType<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        assertType<WorkCalculated>(
-            CoreModel.calculateWork(config).component1()
-        )
+        CoreModel.calculateWork(config).unwrap()
     }
 
     @Test
     fun calculateWorkUnexpectedError() {
-        assertType<CalculateWorkError.Unexpected>(
-            Klaxon().converter(calculateWorkConverter).parse<Result<WorkCalculated, CalculateWorkError>>(
+        Klaxon().converter(calculateWorkConverter)
+            .parse<Result<WorkCalculated, CalculateWorkError>>(
                 calculateWork("")
-            )?.component2()
-        )
+            ).unwrapErrorType<CalculateWorkError.Unexpected>()
     }
 }

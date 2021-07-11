@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,19 +28,13 @@ class SetLastSyncedTest {
 
     @Test
     fun setLastSyncedOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<Unit>(
-            CoreModel.setLastSynced(config, 1).component1()
-        )
+        CoreModel.setLastSynced(config, 1).unwrap()
     }
 
     @Test
     fun setLastSyncedUnexpectedError() {
-        assertType<SetLastSyncedError.Unexpected>(
-            Klaxon().converter(setLastSyncedConverter).parse<Result<Unit, SetLastSyncedError>>(setLastSynced("", 0))?.component2()
-        )
+        Klaxon().converter(setLastSyncedConverter).parse<Result<Unit, SetLastSyncedError>>(setLastSynced("", 0)).unwrapErrorType<SetLastSyncedError.Unexpected>()
     }
 }

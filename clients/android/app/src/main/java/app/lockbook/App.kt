@@ -1,24 +1,18 @@
+
 package app.lockbook
 
 import android.app.Application
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.OnLifecycleEvent
-import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.*
 import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
+import app.lockbook.App.Companion.config
 import app.lockbook.model.CoreModel
-import app.lockbook.util.Config
-import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
-import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
-import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
-import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
-import app.lockbook.util.SyncAllError
-import app.lockbook.util.exhaustive
+import app.lockbook.util.*
 import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
@@ -27,14 +21,14 @@ class App : Application() {
         super.onCreate()
         loadLockbookCore()
         ProcessLifecycleOwner.get().lifecycle
-            .addObserver(ForegroundBackgroundObserver())
-        instance = this
+            .addObserver(ForegroundBackgroundObserver(this))
+        config = Config(this.filesDir.absolutePath)
 
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
     }
 
     companion object {
-        lateinit var instance: App
+        lateinit var config: Config
             private set
 
         const val PERIODIC_SYNC_TAG = "periodic_sync"
@@ -46,43 +40,43 @@ class App : Application() {
     }
 }
 
-class ForegroundBackgroundObserver : LifecycleObserver {
+class ForegroundBackgroundObserver(val context: Context) : LifecycleObserver {
 
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onMoveToForeground() {
-        if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-            .getBoolean(LOGGED_IN_KEY, false)
-        ) {
-            WorkManager.getInstance(App.instance)
+        doIfLoggedIn {
+            WorkManager.getInstance(context)
                 .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
         }
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
     fun onMoveToBackground() {
-        if (PreferenceManager.getDefaultSharedPreferences(App.instance)
-            .getBoolean(LOGGED_IN_KEY, false) && PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getBoolean(
-                        BACKGROUND_SYNC_ENABLED_KEY,
-                        true
-                    ) && !PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getBoolean(IS_THIS_AN_IMPORT_KEY, false)
-        ) {
+        doIfLoggedIn {
             val work = PeriodicWorkRequestBuilder<SyncWork>(
-                PreferenceManager.getDefaultSharedPreferences(App.instance)
-                    .getInt(BACKGROUND_SYNC_PERIOD_KEY, 30).toLong(),
+                PreferenceManager.getDefaultSharedPreferences(context)
+                    .getInt(getString(context.resources, R.string.background_sync_period_key), 30).toLong(),
                 TimeUnit.MINUTES
             )
                 .setConstraints(Constraints.NONE)
                 .addTag(PERIODIC_SYNC_TAG)
                 .build()
 
-            WorkManager.getInstance(App.instance)
+            WorkManager.getInstance(context)
                 .enqueueUniquePeriodicWork(
                     PERIODIC_SYNC_TAG,
                     ExistingPeriodicWorkPolicy.REPLACE,
                     work
                 )
+        }
+    }
+
+    private fun doIfLoggedIn(onSuccess: () -> Unit) {
+        when (val getDbStateResult = CoreModel.getDBState(config)) {
+            is Ok -> if (getDbStateResult.value == State.ReadyToUse) {
+                onSuccess()
+            }
+            is Err -> Timber.e("Error: ${getDbStateResult.error.toLbError(context.resources)}")
         }
     }
 }

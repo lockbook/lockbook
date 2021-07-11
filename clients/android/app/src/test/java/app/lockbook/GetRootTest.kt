@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,19 +28,15 @@ class GetRootTest {
 
     @Test
     fun getRootOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        CoreModel.getRoot(config).unwrap()
     }
 
     @Test
     fun getRootUnexpectedError() {
-        assertType<GetRootError.Unexpected>(
-            Klaxon().converter(getRootConverter).parse<Result<ClientFileMetadata, GetRootError>>(getRoot(""))?.component2()
-        )
+        Klaxon().converter(getRootConverter)
+            .parse<Result<ClientFileMetadata, GetRootError>>(getRoot(""))
+            .unwrapErrorType<GetRootError.Unexpected>()
     }
 }

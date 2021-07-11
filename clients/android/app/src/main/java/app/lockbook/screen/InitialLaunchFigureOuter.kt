@@ -4,20 +4,20 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
-import androidx.biometric.BiometricPrompt.*
 import androidx.preference.PreferenceManager
+import app.lockbook.App.Companion.config
+import app.lockbook.R
 import app.lockbook.databinding.SplashScreenBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
-import app.lockbook.model.OnFinishAlert
+import app.lockbook.model.VerificationItem
 import app.lockbook.util.*
-import app.lockbook.util.SharedPreferences.BIOMETRIC_NONE
-import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 import timber.log.Timber
+import java.lang.ref.WeakReference
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
     private var _binding: SplashScreenBinding? = null
@@ -28,9 +28,8 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
-    companion object {
-        private const val STATE_REQUIRES_CLEANING =
-            "This lockbook version is incompatible with your data, please clear your data or downgrade your lockbook."
+    private val alertModel by lazy {
+        AlertModel(WeakReference(this))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,11 +38,11 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         setContentView(binding.root)
         Timber.plant(Timber.DebugTree())
 
-        handleOnDBState()
+        handleDBState()
     }
 
-    private fun handleOnDBState() {
-        when (val getDBStateResult = CoreModel.getDBState(Config(filesDir.absolutePath))) {
+    private fun handleDBState() {
+        when (val getDBStateResult = CoreModel.getDBState(config)) {
             is Ok -> {
                 when (getDBStateResult.value) {
                     State.Empty -> {
@@ -52,30 +51,18 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     }
                     State.ReadyToUse -> startFromExistingAccount()
                     State.MigrationRequired -> {
-                        AlertModel.notify(
-                            binding.splashScreen,
-                            "Upgrading data...",
-                            OnFinishAlert.DoNothingOnFinishAlert
-                        )
+                        alertModel.notify(getString(R.string.initial_figure_outer_migrate_data))
                         binding.migrateProgressBar.visibility = View.VISIBLE
                         migrateDB()
                     }
                     State.StateRequiresClearing -> {
                         Timber.e("DB state requires cleaning!")
-                        AlertModel.errorHasOccurred(
-                            binding.splashScreen,
-                            Companion.STATE_REQUIRES_CLEANING, OnFinishAlert.DoNothingOnFinishAlert
-                        )
+                        alertModel.notify(getString(R.string.state_requires_cleaning))
                     }
                 }
             }
-            is Err -> when (val error = getDBStateResult.error) {
-                is GetStateError.Unexpected -> {
-                    AlertModel.unexpectedCoreErrorHasOccurred(this, error.error, OnFinishAlert.DoNothingOnFinishAlert)
-                    Timber.e("Unable to get DB State: ${error.error}")
-                }
-            }
-        }.exhaustive
+            is Err -> alertModel.notifyError(getDBStateResult.error.toLbError(resources))
+        }
     }
 
     private fun migrateDB() {
@@ -85,33 +72,13 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                     is Ok -> {
                         withContext(Dispatchers.Main) {
                             binding.migrateProgressBar.visibility = View.GONE
-                            AlertModel.notify(
-                                binding.splashScreen,
-                                "Your data has been migrated.",
-                                OnFinishAlert.DoSomethingOnFinishAlert(::startFromExistingAccount)
+                            alertModel.notify(
+                                getString(R.string.initial_figure_outer_finished_upgrading_data),
+                                ::startFromExistingAccount
                             )
                         }
                     }
-                    is Err -> when (val error = migrateDBResult.error) {
-                        is MigrationError.StateRequiresCleaning -> {
-                            withContext(Dispatchers.Main) {
-                                binding.migrateProgressBar.visibility = View.GONE
-                                AlertModel.errorHasOccurred(
-                                    binding.splashScreen,
-                                    Companion.STATE_REQUIRES_CLEANING,
-                                    OnFinishAlert.DoSomethingOnFinishAlert(::finish)
-                                )
-                            }
-                            Timber.e("DB state requires cleaning!")
-                        }
-                        is MigrationError.Unexpected -> {
-                            withContext(Dispatchers.Main) {
-                                binding.migrateProgressBar.visibility = View.GONE
-                                AlertModel.unexpectedCoreErrorHasOccurred(this@InitialLaunchFigureOuter, error.error, OnFinishAlert.DoSomethingOnFinishAlert(::finish))
-                            }
-                            Timber.e("Unable to migrate DB: ${error.error}")
-                        }
-                    }
+                    is Err -> alertModel.notifyError(migrateDBResult.error.toLbError(resources), ::finish)
                 }.exhaustive
             }
         }
@@ -119,18 +86,20 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
     private fun startFromExistingAccount() {
         val pref = PreferenceManager.getDefaultSharedPreferences(this)
+        val biometricKey = getString(R.string.biometric_key)
+        val biometricNoneValue = getString(R.string.biometric_none_value)
 
         if (!BiometricModel.isBiometricVerificationAvailable(this) && pref.getString(
-                BIOMETRIC_OPTION_KEY,
-                BIOMETRIC_NONE
-            ) != BIOMETRIC_NONE
+                biometricKey,
+                biometricNoneValue
+            ) != biometricNoneValue
         ) {
             pref.edit()
-                .putString(BIOMETRIC_OPTION_KEY, BIOMETRIC_NONE)
+                .putString(biometricKey, biometricNoneValue)
                 .apply()
         }
 
-        BiometricModel.verify(this, binding.splashScreen, this, ::launchListFilesActivity)
+        BiometricModel.verify(this, VerificationItem.OpenApp, ::launchListFilesActivity, ::finish)
     }
 
     private fun launchListFilesActivity() {

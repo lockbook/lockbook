@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,57 +28,41 @@ class GetFileByIdTest {
 
     @Test
     fun getFileByIdOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        assertType<ClientFileMetadata>(
-            CoreModel.getFileById(config, document.id).component1()
-        )
+        CoreModel.getFileById(config, document.id).unwrap()
 
-        assertType<ClientFileMetadata>(
-            CoreModel.getFileById(config, folder.id).component1()
-        )
+        CoreModel.getFileById(config, folder.id).unwrap()
     }
 
     @Test
     fun getFileByIdNoFile() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<GetFileByIdError.NoFileWithThatId>(
-            CoreModel.getFileById(config, generateId()).component2()
-        )
+        CoreModel.getFileById(config, generateId())
+            .unwrapErrorType<GetFileByIdError.NoFileWithThatId>()
     }
 
     @Test
     fun getFileByIdUnexpectedError() {
-        assertType<GetFileByIdError.Unexpected>(
-            Klaxon().converter(getFileByIdConverter)
-                .parse<Result<ClientFileMetadata, GetFileByIdError>>(exportAccount(""))?.component2()
-        )
+        Klaxon().converter(getFileByIdConverter)
+            .parse<Result<ClientFileMetadata, GetFileByIdError>>(exportAccount(""))
+            .unwrapErrorType<GetFileByIdError.Unexpected>()
     }
 }

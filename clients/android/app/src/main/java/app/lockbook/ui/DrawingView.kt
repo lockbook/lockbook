@@ -7,12 +7,11 @@ import android.os.Build
 import android.util.AttributeSet
 import android.view.*
 import androidx.core.content.res.ResourcesCompat
-import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.model.AlertModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.screen.DrawingActivity
 import app.lockbook.util.*
+import java.lang.ref.WeakReference
 import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -51,10 +50,14 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private var driftWhileScalingX = 0f
     private var driftWhileScalingY = 0f
 
-    abstract class Tool
+    sealed class Tool {
+        object Eraser : Tool()
+        data class Pen(val colorAlias: ColorAlias) : Tool()
+    }
 
-    data class Pen(val colorAlias: ColorAlias) : Tool()
-    object Eraser : Tool()
+    private val alertModel by lazy {
+        AlertModel(WeakReference(context as DrawingActivity))
+    }
 
     companion object {
         const val CANVAS_WIDTH = 2125
@@ -152,17 +155,17 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         )
 
         backgroundPaint.color = ResourcesCompat.getColor(
-            App.instance.resources,
+            resources,
             R.color.drawingUntouchableBackground,
-            App.instance.theme
+            context.theme
         )
 
         canvas.drawPaint(backgroundPaint)
 
         backgroundPaint.color = ResourcesCompat.getColor(
-            App.instance.resources,
+            resources,
             R.color.drawingTouchableBackground,
-            App.instance.theme
+            context.theme
         )
 
         canvas.drawRect(Rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT), backgroundPaint)
@@ -190,11 +193,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             val strokeColor = getColor(stroke.color, stroke.alpha)
 
             if (strokeColor == null) {
-                AlertModel.unexpectedCoreErrorHasOccurred(
-                    context,
-                    "Unable to get color from theme.",
-                    OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish)
-                )
+                alertModel.notifyBasicError((context as DrawingActivity)::finish)
                 return
             }
 
@@ -238,11 +237,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val strokeColor = colorAliasInARGB[ColorAlias.White]
 
         if (strokeColor == null) {
-            AlertModel.unexpectedCoreErrorHasOccurred(
-                context,
-                "Unable to get color from theme.",
-                OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish)
-            )
+            alertModel.notifyBasicError((context as DrawingActivity)::finish)
             return
         }
 
@@ -427,11 +422,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val strokeColor = getColor(strokeColor, alpha)
 
         if (strokeColor == null) {
-            AlertModel.unexpectedCoreErrorHasOccurred(
-                context,
-                "Unable to get color from theme.",
-                OnFinishAlert.DoSomethingOnFinishAlert((context as DrawingActivity)::finish)
-            )
+            alertModel.notifyBasicError((context as DrawingActivity)::finish)
             return
         }
 

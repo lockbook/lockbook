@@ -5,38 +5,36 @@
     android:layout_height="match_parent">
 
     <PreferenceCategory
-        android:key="view_logs_title"
         android:title="@string/settings_preference_debug"
         android:icon="@drawable/ic_baseline_bug_report_24">
         <Preference
-            android:key="view_logs"
+            android:id="@+id/view_logs"
+            android:key="@string/view_logs_key"
             android:title="@string/settings_preference_logs"
             app:iconSpaceReserved="false" />
         <Preference
-            android:key="clear_logs"
+            android:key="@string/clear_logs_key"
             android:title="@string/settings_preference_clear_logs"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:key="usage_category"
         android:title="@string/settings_preference_usage"
         android:icon="@drawable/ic_baseline_data_usage_24">
         <app.lockbook.ui.UsageBarPreference
-            android:key="usage_bar"
+            android:key="@string/usage_bar_key"
             app:iconSpaceReserved="false"/>
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:key="biometric_category"
         android:title="@string/settings_preference_title_biometrics"
         android:icon="@drawable/ic_baseline_fingerprint_24">
         <ListPreference
             android:defaultValue="@string/biometric_none_value"
             android:entries="@array/settings_biometric_names"
             android:entryValues="@array/settings_biometric_values"
-            android:key="biometric"
-            android:summary="Secure your account with biometrics"
+            android:key="@string/biometric_key"
+            android:summary="@string/settings_protect_account_biometric_summary"
             android:title="@string/settings_protect_account_biometric"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
@@ -45,12 +43,12 @@
         android:title="@string/settings_preference_title_account"
         android:icon="@drawable/ic_baseline_import_export_24">
         <Preference
-            android:key="export_account_raw"
+            android:key="@string/export_account_raw_key"
             android:title="@string/settings_export_account_raw"
             app:iconSpaceReserved="false" />
 
         <Preference
-            android:key="export_account_qr"
+            android:key="@string/export_account_qr_key"
             android:title="@string/settings_export_account_qr"
             app:iconSpaceReserved="false" />
 
@@ -62,13 +60,13 @@
 
         <SwitchPreference
             android:defaultValue="true"
-            android:key="background_sync_enabled"
+            android:key="@string/background_sync_enabled_key"
             android:title="@string/settings_preference_background_title_background_sync_enabled"
             app:iconSpaceReserved="false" />
 
         <app.lockbook.ui.NumberPickerPreference
             android:defaultValue="15"
-            android:key="background_sync_period"
+            android:key="@string/background_sync_period_key"
             android:summary="@string/settings_preference_background_summary_sync_period"
             android:title="@string/settings_preference_background_title_sync_period"
             app:iconSpaceReserved="false" />
@@ -82,7 +80,7 @@
 
         <SwitchPreference
             android:defaultValue="false"
-            android:key="sync_automatically_in_app"
+            android:key="@string/sync_automatically_key"
             android:title="@string/settings_sync_edit"
             app:iconSpaceReserved="false" />
 
@@ -94,7 +92,7 @@
 
         <SwitchPreference
             android:defaultValue="true"
-            android:key="open_new_doc_automatically"
+            android:key="@string/open_new_doc_automatically_key"
             android:title="@string/settings_open_new_document_automatically"
             app:iconSpaceReserved="false" />
 

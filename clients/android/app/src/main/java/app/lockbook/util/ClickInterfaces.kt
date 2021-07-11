@@ -1,8 +1,8 @@
 package app.lockbook.util
 
 interface ListFilesClickInterface {
-    fun onItemClick(position: Int, isSelecting: Boolean, selection: List<Boolean>)
-    fun onLongClick(position: Int, selection: List<Boolean>) {}
+    fun onItemClick(position: Int, newSelectedFiles: List<ClientFileMetadata>)
+    fun onLongClick(position: Int, newSelectedFiles: List<ClientFileMetadata>) {}
 }
 
 interface RegularClickInterface {

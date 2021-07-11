@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,24 +28,17 @@ class GetChildrenTest {
 
     @Test
     fun getChildrenOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        assertType<List<ClientFileMetadata>>(
-            CoreModel.getChildren(config, rootFileMetadata.id).component1()
-        )
+        CoreModel.getChildren(config, rootFileMetadata.id).unwrap()
     }
 
     @Test
     fun getChildrenUnexpectedError() {
-        assertType<GetChildrenError.Unexpected>(
-            Klaxon().converter(getChildrenConverter)
-                .parse<Result<List<ClientFileMetadata>, GetChildrenError>>(getChildren("", ""))?.component2()
-        )
+        Klaxon().converter(getChildrenConverter)
+            .parse<Result<List<ClientFileMetadata>, GetChildrenError>>(getChildren("", ""))
+            .unwrapErrorType<GetChildrenError.Unexpected>()
     }
 }

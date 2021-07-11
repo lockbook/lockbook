@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,143 +28,132 @@ class RenameFileTest {
 
     @Test
     fun renameFileOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.renameFile(config, document.id, generateAlphaString()).component1()
-        )
+        CoreModel.renameFile(config, document.id, generateAlphaString()).unwrap()
 
-        assertType<Unit>(
-            CoreModel.renameFile(config, folder.id, generateAlphaString()).component1()
-        )
+        CoreModel.renameFile(config, folder.id, generateAlphaString()).unwrap()
     }
 
     @Test
     fun renameFileDoesNotExist() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        CoreModel.getRoot(config).unwrap()
 
-        assertType<RenameFileError.FileDoesNotExist>(
-            CoreModel.renameFile(config, generateId(), generateAlphaString()).component2()
-        )
+        CoreModel.renameFile(config, generateId(), generateAlphaString())
+            .unwrapErrorType<RenameFileError.FileDoesNotExist>()
     }
 
     @Test
     fun renameFileContainsSlash() {
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
+
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
+
+        CoreModel.renameFile(config, document.id, "/")
+            .unwrapErrorType<RenameFileError.NewNameContainsSlash>()
+
+        CoreModel.renameFile(config, folder.id, "/")
+            .unwrapErrorType<RenameFileError.NewNameContainsSlash>()
+    }
+
+    @Test
+    fun renameFileNameNotAvailable() {
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+
         val fileName = generateAlphaString()
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            fileName,
+            FileType.Document
+        ).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                fileName,
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
-
-        assertType<RenameFileError.FileNameNotAvailable>(
-            CoreModel.renameFile(config, document.id, fileName).component2()
-        )
+        CoreModel.renameFile(config, folder.id, fileName)
+            .unwrapErrorType<RenameFileError.FileNameNotAvailable>()
     }
 
     @Test
     fun renameFileEmpty() {
         val fileName = generateAlphaString()
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                fileName,
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            fileName,
+            FileType.Folder
+        ).unwrap()
 
-        assertType<RenameFileError.NewNameEmpty>(
-            CoreModel.renameFile(config, document.id, "").component2()
-        )
+        CoreModel.renameFile(config, document.id, "").unwrapErrorType<RenameFileError.NewNameEmpty>()
+
+        CoreModel.renameFile(config, folder.id, "").unwrapErrorType<RenameFileError.NewNameEmpty>()
     }
 
     @Test
     fun cannotRenameRoot() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        assertType<RenameFileError.CannotRenameRoot>(
-            CoreModel.renameFile(config, rootFileMetadata.id, "not_root").component2()
-        )
+        CoreModel.renameFile(config, rootFileMetadata.id, generateAlphaString())
+            .unwrapErrorType<RenameFileError.CannotRenameRoot>()
     }
 
     @Test
     fun renameFileUnexpectedError() {
-        assertType<RenameFileError.Unexpected>(
-            Klaxon().converter(renameFileConverter).parse<Result<Unit, RenameFileError>>(renameFile("", "", ""))?.component2()
-        )
+        Klaxon().converter(renameFileConverter)
+            .parse<Result<Unit, RenameFileError>>(renameFile("", "", ""))
+            .unwrapErrorType<RenameFileError.Unexpected>()
     }
 }

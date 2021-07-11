@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,67 +28,49 @@ class WriteToDocumentTest {
 
     @Test
     fun writeToDocumentOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, "").component1()
-        )
+        CoreModel.writeToDocument(config, document.id, "").unwrap()
     }
 
     @Test
     fun writeToDocumentFileDoesNotExist() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<WriteToDocumentError.FileDoesNotExist>(
-            CoreModel.writeContentToDocument(config, generateId(), "").component2()
-        )
+        CoreModel.writeToDocument(config, generateId(), "")
+            .unwrapErrorType<WriteToDocumentError.FileDoesNotExist>()
     }
 
     @Test
     fun writeToDocumentFolderTreatedAsDocument() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        assertType<WriteToDocumentError.FolderTreatedAsDocument>(
-            CoreModel.writeContentToDocument(config, folder.id, "").component2()
-        )
+        CoreModel.writeToDocument(config, folder.id, "")
+            .unwrapErrorType<WriteToDocumentError.FolderTreatedAsDocument>()
     }
 
     @Test
     fun writeToDocumentUnexpectedError() {
-        assertType<WriteToDocumentError.Unexpected>(
-            Klaxon().converter(writeDocumentConverter).parse<Result<Unit, WriteToDocumentError>>(writeDocument("", "", ""))?.component2()
-        )
+        Klaxon().converter(writeDocumentConverter)
+            .parse<Result<Unit, WriteToDocumentError>>(writeDocument("", "", ""))
+            .unwrapErrorType<WriteToDocumentError.Unexpected>()
     }
 }

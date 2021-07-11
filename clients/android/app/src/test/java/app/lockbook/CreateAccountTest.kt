@@ -6,6 +6,7 @@ import app.lockbook.model.CoreModel.getAPIURL
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,46 +29,39 @@ class CreateAccountTest {
 
     @Test
     fun createAccountOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
     }
 
     @Test
     fun createAccountUsernameTaken() {
         val username = generateAlphaString()
-        assertType<Unit>(
-            CoreModel.generateAccount(config, username).component1()
-        )
+
+        CoreModel.generateAccount(config, username).unwrap()
+
         config = Config(createRandomPath())
 
-        assertType<CreateAccountError.UsernameTaken>(
-            CoreModel.generateAccount(config, username).component2()
-        )
+        CoreModel.generateAccount(config, username)
+            .unwrapErrorType<CreateAccountError.UsernameTaken>()
     }
 
     @Test
     fun createAccountInvalidUsername() {
-        assertType<CreateAccountError.InvalidUsername>(
-            CoreModel.generateAccount(config, "!@#$%^&*()").component2()
-        )
+        CoreModel.generateAccount(config, "!@#$%^&*()")
+            .unwrapErrorType<CreateAccountError.InvalidUsername>()
     }
 
     @Test
     fun createAccountExistsAlready() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
-        assertType<CreateAccountError.AccountExistsAlready>(
-            CoreModel.generateAccount(config, generateAlphaString()).component2()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+
+        CoreModel.generateAccount(config, generateAlphaString())
+            .unwrapErrorType<CreateAccountError.AccountExistsAlready>()
     }
 
     @Test
     fun createAccountUnexpectedError() {
-        assertType<CreateAccountError.Unexpected>(
-            Klaxon().converter(createAccountConverter)
-                .parse<Result<Unit, CreateAccountError>>(createAccount("", "", getAPIURL()))?.component2()
-        )
+        Klaxon().converter(createAccountConverter)
+            .parse<Result<Unit, CreateAccountError>>(createAccount("", "", getAPIURL()))
+            .unwrapErrorType<CreateAccountError.Unexpected>()
     }
 }

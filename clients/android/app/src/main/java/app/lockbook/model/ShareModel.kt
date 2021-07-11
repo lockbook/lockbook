@@ -1,30 +1,29 @@
 package app.lockbook.model
 
+import android.content.Context
+import android.content.res.Resources
 import android.text.format.DateUtils
-import app.lockbook.App
+import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import timber.log.Timber
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
 
 class ShareModel(
-    private val config: Config,
     private val _shareDocument: SingleMutableLiveData<ArrayList<File>>,
     private val _showHideProgressOverlay: SingleMutableLiveData<Boolean>,
-    private val _errorHasOccurred: SingleMutableLiveData<String>,
-    private val _unexpectedErrorHasOccurred: SingleMutableLiveData<String>
+    private val _notifyError: SingleMutableLiveData<LbError>
 ) {
     var isLoadingOverlayVisible = false
 
     companion object {
-        fun getMainShareFolder(): File = File(App.instance.applicationContext.cacheDir, "share/")
-        fun createRandomShareFolderInstance(): File = File(getMainShareFolder(), System.currentTimeMillis().toString())
+        private fun getMainShareFolder(context: Context): File = File(context.cacheDir, "share/")
+        fun createRandomShareFolderInstance(context: Context): File = File(getMainShareFolder(context), System.currentTimeMillis().toString())
 
-        fun clearShareStorage() {
-            val shareFolder = getMainShareFolder()
+        fun clearShareStorage(context: Context) {
+            val shareFolder = getMainShareFolder(context)
             val timeNow = System.currentTimeMillis()
 
             shareFolder.listFiles { file ->
@@ -39,17 +38,17 @@ class ShareModel(
         }
     }
 
-    fun shareDocuments(selectedFiles: List<ClientFileMetadata>) {
+    fun shareDocuments(context: Context, selectedFiles: List<ClientFileMetadata>) {
         isLoadingOverlayVisible = true
         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
 
-        clearShareStorage()
+        clearShareStorage(context)
 
         val documents = mutableListOf<ClientFileMetadata>()
-        retrieveSelectedDocuments(selectedFiles, documents)
+        retrieveSelectedDocuments(context.resources, selectedFiles, documents)
 
         val filesToShare = ArrayList<File>()
-        val shareFolder = createRandomShareFolderInstance()
+        val shareFolder = createRandomShareFolderInstance(context)
         shareFolder.mkdirs()
 
         for (file in documents) {
@@ -74,19 +73,7 @@ class ShareModel(
                     is Err -> {
                         isLoadingOverlayVisible = false
                         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
-
-                        return when (val error = exportDrawingToDiskResult.error) {
-                            ExportDrawingToDiskError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                            ExportDrawingToDiskError.FolderTreatedAsDrawing -> _errorHasOccurred.postValue("Error! Folder treated as document!")
-                            ExportDrawingToDiskError.InvalidDrawing -> _errorHasOccurred.postValue("Error! Invalid drawing!")
-                            ExportDrawingToDiskError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                            ExportDrawingToDiskError.BadPath -> _errorHasOccurred.postValue("Error! Bad path used!")
-                            ExportDrawingToDiskError.FileAlreadyExistsInDisk -> _errorHasOccurred.postValue("Error! File already exists in path!")
-                            is ExportDrawingToDiskError.Unexpected -> {
-                                Timber.e(error.error)
-                                _unexpectedErrorHasOccurred.postValue(error.error)
-                            }
-                        }.exhaustive
+                        return _notifyError.postValue(exportDrawingToDiskResult.error.toLbError(context.resources))
                     }
                 }
             } else {
@@ -100,22 +87,7 @@ class ShareModel(
                     is Err -> {
                         isLoadingOverlayVisible = false
                         _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
-
-                        return when (val error = saveDocumentToDiskResult.error) {
-                            SaveDocumentToDiskError.TreatedFolderAsDocument -> _errorHasOccurred.postValue(
-                                "Error! Folder treated as document!"
-                            )
-                            SaveDocumentToDiskError.NoAccount -> _errorHasOccurred.postValue("Error! No account!")
-                            SaveDocumentToDiskError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! File does not exist!")
-                            SaveDocumentToDiskError.BadPath -> _errorHasOccurred.postValue("Error! Bad path used!")
-                            SaveDocumentToDiskError.FileAlreadyExistsInDisk -> _errorHasOccurred.postValue("Error! File already exists in path!")
-                            is SaveDocumentToDiskError.Unexpected -> {
-                                Timber.e("Unable to get content of file: ${error.error}")
-                                _unexpectedErrorHasOccurred.postValue(
-                                    error.error
-                                )
-                            }
-                        }.exhaustive
+                        return _notifyError.postValue(saveDocumentToDiskResult.error.toLbError(context.resources))
                     }
                 }
             }
@@ -125,6 +97,7 @@ class ShareModel(
     }
 
     private fun retrieveSelectedDocuments(
+        resources: Resources,
         selectedFiles: List<ClientFileMetadata>,
         documents: MutableList<ClientFileMetadata>
     ): Boolean {
@@ -136,15 +109,10 @@ class ShareModel(
                         val getChildrenResult =
                             CoreModel.getChildren(config, file.id)
                     ) {
-                        is Ok -> if (!retrieveSelectedDocuments(getChildrenResult.value, documents)) {
+                        is Ok -> if (!retrieveSelectedDocuments(resources, getChildrenResult.value, documents)) {
                             return false
                         }
-                        is Err -> when (val error = getChildrenResult.error) {
-                            is GetChildrenError.Unexpected -> {
-                                Timber.e("Unable to get siblings of the parent: ${error.error}")
-                                _unexpectedErrorHasOccurred.postValue(error.error)
-                            }
-                        }.exhaustive
+                        is Err -> _notifyError.postValue(getChildrenResult.error.toLbError(resources))
                     }
             }
         }

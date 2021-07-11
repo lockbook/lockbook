@@ -66,3 +66,6 @@ data class FileUsage(
     @Json(name = "size_bytes")
     val sizeBytes: Int,
 )
+
+inline fun <reified T : Enum<T>> String.asEnumOrDefault(defaultValue: T? = null): T? =
+    enumValues<T>().firstOrNull { it.name.equals(this, ignoreCase = true) } ?: defaultValue

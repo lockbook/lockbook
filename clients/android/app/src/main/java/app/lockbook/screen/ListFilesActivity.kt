@@ -11,20 +11,9 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.databinding.ActivityListFilesBinding
 import app.lockbook.model.AlertModel
-import app.lockbook.model.OnFinishAlert
-import app.lockbook.util.Animate
-import app.lockbook.util.BASIC_ERROR
-import app.lockbook.util.SharedPreferences.FILE_LAYOUT_KEY
-import app.lockbook.util.SharedPreferences.GRID_LAYOUT
-import app.lockbook.util.SharedPreferences.LINEAR_LAYOUT
-import app.lockbook.util.SharedPreferences.SORT_FILES_A_Z
-import app.lockbook.util.SharedPreferences.SORT_FILES_FIRST_CHANGED
-import app.lockbook.util.SharedPreferences.SORT_FILES_KEY
-import app.lockbook.util.SharedPreferences.SORT_FILES_LAST_CHANGED
-import app.lockbook.util.SharedPreferences.SORT_FILES_TYPE
-import app.lockbook.util.SharedPreferences.SORT_FILES_Z_A
-import app.lockbook.util.exhaustive
+import app.lockbook.util.*
 import timber.log.Timber
+import java.lang.ref.WeakReference
 
 private val menuItemsNoneSelected = listOf(
     R.id.menu_list_files_sort,
@@ -42,6 +31,8 @@ private val menuItemsOneSelected = listOf(
     R.id.menu_list_files_info,
 )
 
+const val IS_THIS_AN_IMPORT = "is_this_an_import"
+
 class ListFilesActivity : AppCompatActivity() {
     private var _binding: ActivityListFilesBinding? = null
 
@@ -50,11 +41,19 @@ class ListFilesActivity : AppCompatActivity() {
     private val binding get() = _binding!!
     private var menu: Menu? = null
 
+    private val alertModel by lazy {
+        AlertModel(WeakReference(this))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityListFilesBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setSupportActionBar(binding.listFilesToolbar)
+    }
+
+    fun isThisAnImport(): Boolean {
+        return intent.extras?.getBoolean(IS_THIS_AN_IMPORT, false) ?: false
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -63,7 +62,7 @@ class ListFilesActivity : AppCompatActivity() {
         setSelectedMenuOptions()
 
         val selectedFiles = getListFilesFragment()?.listFilesViewModel?.selectedFiles
-        if (selectedFiles != null && selectedFiles.contains(true)) {
+        if (selectedFiles != null && selectedFiles.isNotEmpty()) {
             openFileMenu(selectedFiles)
         }
 
@@ -75,59 +74,50 @@ class ListFilesActivity : AppCompatActivity() {
 
         when (
             val optionValue = preference.getString(
-                SORT_FILES_KEY,
-                SORT_FILES_A_Z
+                getString(R.string.sort_files_key),
+                getString(R.string.sort_files_a_z_value)
             )
         ) {
-            SORT_FILES_A_Z -> menu?.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
-            SORT_FILES_Z_A -> menu?.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
-            SORT_FILES_LAST_CHANGED ->
+            getString(R.string.sort_files_a_z_value) -> menu?.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
+            getString(R.string.sort_files_z_a_value) -> menu?.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
+            getString(R.string.sort_files_last_changed_value) ->
                 menu?.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked =
                     true
-            SORT_FILES_FIRST_CHANGED ->
+            getString(R.string.sort_files_first_changed_value) ->
                 menu?.findItem(R.id.menu_list_files_sort_first_changed)?.isChecked =
                     true
-            SORT_FILES_TYPE -> menu?.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
+            getString(R.string.sort_files_type_value) -> menu?.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
             else -> {
                 Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(
-                    binding.listFilesActivityLayout,
-                    BASIC_ERROR,
-                    OnFinishAlert.DoNothingOnFinishAlert
-                )
+                alertModel.notifyBasicError()
             }
         }.exhaustive
 
-        val config = resources.configuration
+        val deviceConfig = resources.configuration
 
         when (
             val optionValue = preference.getString(
-                FILE_LAYOUT_KEY,
-                if (config.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
-                    GRID_LAYOUT
+                getString(R.string.file_layout_key),
+                if (deviceConfig.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_LARGE) || (deviceConfig.screenWidthDp >= 480 && deviceConfig.screenHeightDp >= 640)) {
+                    getString(R.string.file_layout_grid_value)
                 } else {
-                    LINEAR_LAYOUT
+                    getString(R.string.file_layout_linear_value)
                 }
             )
         ) {
-            LINEAR_LAYOUT -> menu?.findItem(R.id.menu_list_files_linear_view)?.isChecked = true
-            GRID_LAYOUT -> menu?.findItem(R.id.menu_list_files_grid_view)?.isChecked = true
+            getString(R.string.file_layout_linear_value) -> menu?.findItem(R.id.menu_list_files_linear_view)?.isChecked = true
+            getString(R.string.file_layout_grid_value) -> menu?.findItem(R.id.menu_list_files_grid_view)?.isChecked = true
             else -> {
                 Timber.e("File layout shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(
-                    binding.listFilesActivityLayout,
-                    BASIC_ERROR,
-                    OnFinishAlert.DoNothingOnFinishAlert
-                )
+                alertModel.notifyBasicError()
             }
         }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
+        when (item.itemId) {
             R.id.menu_list_files_settings -> {
                 startActivity(Intent(applicationContext, SettingsActivity::class.java))
-                true
             }
             R.id.menu_list_files_sort_last_changed,
             R.id.menu_list_files_sort_a_z,
@@ -138,7 +128,6 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_linear_view -> {
                 menu?.findItem(item.itemId)?.isChecked = true
                 getListFilesFragment()?.onMenuItemPressed(item.itemId)
-                true
             }
             R.id.menu_list_files_rename,
             R.id.menu_list_files_delete,
@@ -146,22 +135,23 @@ class ListFilesActivity : AppCompatActivity() {
             R.id.menu_list_files_move,
             R.id.menu_list_files_share -> {
                 getListFilesFragment()?.onMenuItemPressed(item.itemId)
-                true
             }
-            else -> false
-        }.exhaustive
+            else -> return false
+        }
+
+        return true
     }
 
-    fun switchMenu() {
+    fun switchMenu(expandOrNot: Boolean) {
         val fragment = getListFilesFragment() ?: return
-        if (fragment.listFilesViewModel.selectedFiles.contains(true)) {
+        if (expandOrNot) {
             openFileMenu(fragment.listFilesViewModel.selectedFiles)
         } else {
             closeFileMenu()
         }
     }
 
-    private fun openFileMenu(selected: List<Boolean>) {
+    private fun openFileMenu(selected: List<ClientFileMetadata>) {
         for (menuItem in menuItemsNoneSelected) {
             menu?.findItem(menuItem)?.isVisible = false
         }
@@ -170,7 +160,7 @@ class ListFilesActivity : AppCompatActivity() {
             menu?.findItem(menuItem)?.isVisible = true
         }
 
-        if (selected.filter { selectedFile -> selectedFile }.size == 1) {
+        if (selected.size == 1) {
             for (menuItem in menuItemsOneSelected) {
                 menu?.findItem(menuItem)?.isVisible = true
             }
@@ -202,11 +192,7 @@ class ListFilesActivity : AppCompatActivity() {
             listFilesFragment
         } else {
             Timber.e("Unable to retrieve ListFilesFragment.")
-            AlertModel.errorHasOccurred(
-                binding.listFilesActivityLayout,
-                BASIC_ERROR,
-                OnFinishAlert.DoNothingOnFinishAlert
-            )
+            alertModel.notifyBasicError()
 
             null
         }

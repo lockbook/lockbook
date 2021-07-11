@@ -10,7 +10,6 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout.HORIZONTAL
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
@@ -19,7 +18,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
-import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentListFilesBinding
 import app.lockbook.model.*
@@ -28,7 +26,9 @@ import app.lockbook.ui.*
 import app.lockbook.util.*
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
+import timber.log.Timber
 import java.io.File
+import java.lang.ref.WeakReference
 import java.util.*
 
 class ListFilesFragment : Fragment() {
@@ -39,14 +39,18 @@ class ListFilesFragment : Fragment() {
     // onDestroyView.
     private val binding get() = _binding!!
 
+    private val alertModel by lazy {
+        AlertModel(WeakReference(requireActivity()))
+    }
+
     private var onActivityResult =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             listFilesViewModel.onOpenedActivityEnd()
         }
 
-    var onShareResult =
+    private var onShareResult =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            getListFilesActivity()?.showHideProgressOverlay(false)
+            getListFilesActivity().showHideProgressOverlay(false)
             listFilesViewModel.shareModel.isLoadingOverlayVisible = false
         }
 
@@ -55,9 +59,9 @@ class ListFilesFragment : Fragment() {
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
             if (f is CreateFileDialogFragment) {
-                listFilesViewModel.refreshFiles(f.newDocument)
+                listFilesViewModel.onCreateFileDialogEnded(f.newDocument)
             } else {
-                listFilesViewModel.refreshFiles(null)
+                listFilesViewModel.onCreateFileDialogEnded(null)
             }
         }
     }
@@ -90,14 +94,13 @@ class ListFilesFragment : Fragment() {
         )
 
         val application = requireNotNull(this.activity).application
-        val filesDir = application.filesDir.absolutePath
         val listFilesViewModelFactory =
-            ListFilesViewModelFactory(filesDir, application)
+            ListFilesViewModelFactory(application, getListFilesActivity().isThisAnImport())
         listFilesViewModel =
             ViewModelProvider(this, listFilesViewModelFactory).get(ListFilesViewModel::class.java)
-        LinearRecyclerViewAdapter(listFilesViewModel, filesDir)
+        LinearRecyclerViewAdapter(listFilesViewModel)
 
-        var adapter = setFileAdapter(binding, filesDir)
+        var adapter = setFileAdapter()
 
         binding.listFilesRefresh.setOnRefreshListener {
             listFilesViewModel.onSwipeToRefresh()
@@ -115,19 +118,19 @@ class ListFilesFragment : Fragment() {
             30000
         )
 
-        binding.listFilesFab.setOnClickListener {
+        binding.fabsNewFile.listFilesFab.setOnClickListener {
             listFilesViewModel.collapseExpandFAB()
         }
 
-        binding.listFilesFabFolder.setOnClickListener {
+        binding.fabsNewFile.listFilesFabFolder.setOnClickListener {
             listFilesViewModel.onNewFolderFABClicked()
         }
 
-        binding.listFilesFabDocument.setOnClickListener {
+        binding.fabsNewFile.listFilesFabDocument.setOnClickListener {
             listFilesViewModel.onNewDocumentFABClicked(false)
         }
 
-        binding.listFilesFabDrawing.setOnClickListener {
+        binding.fabsNewFile.listFilesFabDrawing.setOnClickListener {
             listFilesViewModel.onNewDocumentFABClicked(true)
         }
 
@@ -169,15 +172,14 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.switchFileLayout.observe(
             viewLifecycleOwner,
             {
-                listFilesViewModel.refreshFiles(null)
-                adapter = setFileAdapter(binding, filesDir)
+                adapter = setFileAdapter(adapter)
             }
         )
 
-        listFilesViewModel.switchMenu.observe(
+        listFilesViewModel.expandCloseMenu.observe(
             viewLifecycleOwner,
-            {
-                moreOptionsMenu()
+            { expandOrNot ->
+                moreOptionsMenu(expandOrNot)
             }
         )
 
@@ -230,12 +232,12 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.showSnackBar.observe(
+        listFilesViewModel.notifyWithSnackbar.observe(
             viewLifecycleOwner,
             { msg ->
                 if (container != null) {
                     snackProgressBarManager.dismiss()
-                    AlertModel.notify(container, msg, OnFinishAlert.DoNothingOnFinishAlert)
+                    alertModel.notify(msg)
                 }
             }
         )
@@ -261,27 +263,12 @@ class ListFilesFragment : Fragment() {
             }
         )
 
-        listFilesViewModel.errorHasOccurred.observe(
+        listFilesViewModel.notifyError.observe(
             viewLifecycleOwner,
-            { errorText ->
+            { error ->
                 if (container != null) {
-                    AlertModel.errorHasOccurred(
-                        container,
-                        errorText,
-                        OnFinishAlert.DoNothingOnFinishAlert
-                    )
+                    alertModel.notifyError(error)
                 }
-            }
-        )
-
-        listFilesViewModel.unexpectedErrorHasOccurred.observe(
-            viewLifecycleOwner,
-            { errorText ->
-                AlertModel.unexpectedCoreErrorHasOccurred(
-                    requireContext(),
-                    errorText,
-                    OnFinishAlert.DoNothingOnFinishAlert
-                )
             }
         )
 
@@ -292,21 +279,17 @@ class ListFilesFragment : Fragment() {
         if (show) {
             listFilesViewModel.collapseMoreOptionsMenu()
         }
-        getListFilesActivity()?.showHideProgressOverlay(show)
+        getListFilesActivity().showHideProgressOverlay(show)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         binding.filesBreadcrumbBar.setListener(object : BreadCrumbItemClickListener {
             override fun onItemClick(breadCrumbItem: View, position: Int) {
-                listFilesViewModel.handleRefreshAtParent(position)
+                listFilesViewModel.refreshAtPastParent(position)
             }
         })
 
         snackProgressBarManager.useRoundedCornerBackground(true)
-
-        if (resources.configuration.orientation == ORIENTATION_LANDSCAPE && resources.configuration.screenLayout == SCREENLAYOUT_SIZE_SMALL) {
-            binding.listFilesFabHolder.orientation = HORIZONTAL
-        }
 
         setUpAfterConfigChange()
     }
@@ -324,30 +307,43 @@ class ListFilesFragment : Fragment() {
         listFilesViewModel.onMenuItemPressed(id)
     }
 
-    private fun setFileAdapter(
-        binding: FragmentListFilesBinding,
-        filesDir: String
-    ): GeneralViewAdapter {
-        val config = resources.configuration
+    private fun setFileAdapter(oldAdapter: GeneralViewAdapter? = null): GeneralViewAdapter {
+        if (binding.filesList.adapter is GeneralViewAdapter) {
+            Timber.e("SET FILE ADAPTER: ${oldAdapter?.files?.map { it.name }}")
 
-        val fileLayoutPreference = PreferenceManager.getDefaultSharedPreferences(App.instance)
+            Timber.e("CURRENT: ${(binding.filesList.adapter as GeneralViewAdapter).files.map { it.name }}")
+        }
+        val deviceConfig = resources.configuration
+
+        val linearLayoutValue = getString(R.string.file_layout_linear_value)
+        val gridLayoutValue = getString(R.string.file_layout_grid_value)
+
+        val fileLayoutPreference = PreferenceManager
+            .getDefaultSharedPreferences(context)
             .getString(
-                SharedPreferences.FILE_LAYOUT_KEY,
-                if (config.isLayoutSizeAtLeast(SCREENLAYOUT_SIZE_LARGE) || (config.screenWidthDp >= 480 && config.screenHeightDp >= 640)) {
-                    SharedPreferences.GRID_LAYOUT
+                getString(R.string.file_layout_key),
+                if (deviceConfig.isLayoutSizeAtLeast(SCREENLAYOUT_SIZE_LARGE) || (deviceConfig.screenWidthDp >= 480 && deviceConfig.screenHeightDp >= 640)) {
+                    gridLayoutValue
                 } else {
-                    SharedPreferences.LINEAR_LAYOUT
+                    linearLayoutValue
                 }
             )
 
-        if (fileLayoutPreference == SharedPreferences.LINEAR_LAYOUT) {
-            val adapter = LinearRecyclerViewAdapter(listFilesViewModel, filesDir)
+        if (fileLayoutPreference == linearLayoutValue) {
+            val adapter = LinearRecyclerViewAdapter(listFilesViewModel)
+            if (oldAdapter != null) {
+                adapter.files = oldAdapter.files
+            }
+
             binding.filesList.adapter = adapter
             binding.filesList.layoutManager = LinearLayoutManager(context)
             return adapter
         } else {
-            val orientation = config.orientation
+            val orientation = deviceConfig.orientation
             val adapter = GridRecyclerViewAdapter(listFilesViewModel)
+            if (oldAdapter != null) {
+                adapter.files = oldAdapter.files
+            }
             binding.filesList.adapter = adapter
 
             val displayMetrics = resources.displayMetrics
@@ -364,7 +360,7 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun unSelectAllFiles(adapter: GeneralViewAdapter) {
-        adapter.selectedFiles = MutableList(listFilesViewModel.files.value?.size ?: 0) { false }
+        adapter.clearSelectionMode()
     }
 
     private fun setUpAfterConfigChange() {
@@ -451,20 +447,22 @@ class ListFilesFragment : Fragment() {
     }
 
     private fun closeFABMenu() {
-        binding.listFilesFab.animate().setDuration(200L).rotation(90f)
-        binding.listFilesFab.setImageResource(R.drawable.ic_baseline_add_24)
-        binding.listFilesFabFolder.hide()
-        binding.listFilesFabDocument.hide()
-        binding.listFilesFabDrawing.hide()
+        val fabsNewFile = binding.fabsNewFile
+        fabsNewFile.listFilesFab.animate().setDuration(200L).rotation(90f)
+        fabsNewFile.listFilesFab.setImageResource(R.drawable.ic_baseline_add_24)
+        fabsNewFile.listFilesFabFolder.hide()
+        fabsNewFile.listFilesFabDocument.hide()
+        fabsNewFile.listFilesFabDrawing.hide()
         binding.listFilesRefresh.alpha = 1f
         binding.listFilesFrameLayout.isClickable = false
     }
 
     private fun showFABMenu() {
-        binding.listFilesFab.animate().setDuration(200L).rotation(-90f)
-        binding.listFilesFabFolder.show()
-        binding.listFilesFabDocument.show()
-        binding.listFilesFabDrawing.show()
+        val fabsNewFile = binding.fabsNewFile
+        fabsNewFile.listFilesFab.animate().setDuration(200L).rotation(-90f)
+        fabsNewFile.listFilesFabFolder.show()
+        fabsNewFile.listFilesFabDocument.show()
+        fabsNewFile.listFilesFabDrawing.show()
         binding.listFilesRefresh.alpha = 0.7f
         binding.listFilesFrameLayout.isClickable = true
         binding.listFilesFrameLayout.setOnClickListener {
@@ -477,11 +475,11 @@ class ListFilesFragment : Fragment() {
         adapter: GeneralViewAdapter
     ) {
         adapter.files = files
-        if (!listFilesViewModel.selectedFiles.contains(true)) {
-            listFilesViewModel.selectedFiles = MutableList(files.size) { false }
+        adapter.selectedFiles = listFilesViewModel.selectedFiles.toMutableList()
+        if (adapter.selectedFiles.isNotEmpty()) {
+            adapter.selectionMode = true
         }
 
-        adapter.selectedFiles = listFilesViewModel.selectedFiles.toMutableList()
         if (files.isEmpty()) {
             binding.listFilesEmptyFolder.visibility = View.VISIBLE
         } else if (files.isNotEmpty() && binding.listFilesEmptyFolder.visibility == View.VISIBLE) {
@@ -496,22 +494,12 @@ class ListFilesFragment : Fragment() {
         onActivityResult.launch(intent)
     }
 
-    private fun moreOptionsMenu() {
-        getListFilesActivity()?.switchMenu()
+    private fun moreOptionsMenu(expandOrNot: Boolean) {
+        getListFilesActivity().switchMenu(expandOrNot)
     }
 
-    private fun getListFilesActivity(): ListFilesActivity? {
-        if (activity is ListFilesActivity) {
-            return activity as ListFilesActivity
-        }
-
-        AlertModel.errorHasOccurred(
-            binding.fragmentListFiles,
-            BASIC_ERROR,
-            OnFinishAlert.DoNothingOnFinishAlert
-        )
-
-        return null
+    private fun getListFilesActivity(): ListFilesActivity {
+        return activity as ListFilesActivity
     }
 
     private fun navigateToDrawing(editableFile: EditableFile) {

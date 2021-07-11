@@ -1,174 +1,138 @@
 package app.lockbook.model
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
+import android.content.Context
 import androidx.preference.PreferenceManager
-import app.lockbook.App
-import app.lockbook.ui.BreadCrumbItem
+import app.lockbook.App.Companion.config
+import app.lockbook.R
 import app.lockbook.util.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
-import timber.log.Timber
+import com.github.michaelbull.result.*
 
-class FileModel(private val config: Config, private val _errorHasOccurred: SingleMutableLiveData<String>, private val _unexpectedErrorHasOccurred: SingleMutableLiveData<String>) {
-    private val _files = MutableLiveData<List<ClientFileMetadata>>()
-    private val _updateBreadcrumbBar = MutableLiveData<List<BreadCrumbItem>>()
-    lateinit var parentFileMetadata: ClientFileMetadata
-    lateinit var lastDocumentAccessed: ClientFileMetadata
-    private val filePath: MutableList<ClientFileMetadata> = mutableListOf()
+enum class SortStyle {
+    AToZ,
+    ZToA,
+    LastChanged,
+    FirstChanged,
+    FileType
+}
 
-    val files: LiveData<List<ClientFileMetadata>>
-        get() = _files
+class FileModel(var parent: ClientFileMetadata, var children: List<ClientFileMetadata>, val fileDir: MutableList<ClientFileMetadata>, private var sortStyle: SortStyle) {
+    companion object {
+        fun createAtRoot(context: Context): Result<FileModel, LbError> {
+            val pref = PreferenceManager.getDefaultSharedPreferences(context)
+            val res = context.resources
 
-    val updateBreadcrumbBar: LiveData<List<BreadCrumbItem>>
-        get() = _updateBreadcrumbBar
+            val sortStyle = when (
+                pref.getString(
+                    getString(res, R.string.sort_files_key),
+                    getString(res, R.string.sort_files_a_z_value)
+                )
+            ) {
+                getString(res, R.string.sort_files_a_z_value) -> SortStyle.AToZ
+                getString(res, R.string.sort_files_z_a_value) -> SortStyle.ZToA
+                getString(res, R.string.sort_files_first_changed_value) -> SortStyle.FirstChanged
+                getString(res, R.string.sort_files_last_changed_value) -> SortStyle.LastChanged
+                getString(res, R.string.sort_files_type_value) -> SortStyle.FileType
+                else -> return Err(LbError.basicError(context.resources))
+            }
 
-    fun isAtRoot(): Boolean = parentFileMetadata.id == parentFileMetadata.parent
+            return when (val getRootResult = CoreModel.getRoot(config)) {
+                is Ok -> {
+                    val root = getRootResult.value
+                    when (val getChildrenResult = CoreModel.getChildren(config, root.id)) {
+                        is Ok -> {
+                            val fileModel = FileModel(root, getChildrenResult.value, mutableListOf(root), sortStyle)
+                            fileModel.sortChildren()
 
-    fun upADirectory() {
-        when (
-            val getSiblingsOfParentResult =
-                CoreModel.getChildren(config, parentFileMetadata.parent)
-        ) {
-            is Ok -> {
-                when (
-                    val getParentOfParentResult =
-                        CoreModel.getFileById(config, parentFileMetadata.parent)
-                ) {
-                    is Ok -> {
-                        parentFileMetadata = getParentOfParentResult.value
-                        if (filePath.size != 1) {
-                            filePath.remove(filePath.last())
+                            Ok(fileModel)
                         }
-                        updateBreadCrumbWithLatest()
-                        sortChildren(getSiblingsOfParentResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent })
-                    }
-                    is Err -> when (val error = getParentOfParentResult.error) {
-                        is GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
-                        is GetFileByIdError.Unexpected -> {
-                            Timber.e("Unable to get the parent of the current path: ${error.error}")
-                            _unexpectedErrorHasOccurred.postValue(
-                                error.error
-                            )
-                        }
+                        is Err -> Err(getChildrenResult.error.toLbError(res))
                     }
                 }
-            }
-            is Err -> when (val error = getSiblingsOfParentResult.error) {
-                is GetChildrenError.Unexpected -> {
-                    Timber.e("Unable to get siblings of the parent: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(error.error)
-                }
-            }
-        }.exhaustive
-    }
-
-    fun intoFolder(fileMetadata: ClientFileMetadata) {
-        parentFileMetadata = fileMetadata
-        filePath.add(fileMetadata)
-        refreshFiles()
-    }
-
-    fun startUpInRoot() {
-        when (val getRootResult = CoreModel.getRoot(config)) {
-            is Ok -> {
-                parentFileMetadata = getRootResult.value
-                filePath.add(getRootResult.value)
-                updateBreadCrumbWithLatest()
-                refreshFiles()
-            }
-            is Err -> when (val error = getRootResult.error) {
-                is GetRootError.NoRoot -> _errorHasOccurred.postValue("No root!")
-                is GetRootError.Unexpected -> {
-                    Timber.e("Unable to set parent to root: ${error.error}")
-                    _unexpectedErrorHasOccurred.postValue(
-                        error.error
-                    )
-                }
-            }
-        }.exhaustive
-    }
-
-    fun refreshFiles() {
-        when (val getChildrenResult = CoreModel.getChildren(config, parentFileMetadata.id)) {
-            is Ok -> {
-                updateBreadCrumbWithLatest()
-                sortChildren(getChildrenResult.value.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent })
-            }
-            is Err -> when (val error = getChildrenResult.error) {
-                is GetChildrenError.Unexpected -> {
-                    Timber.e("Unable to get children: ${getChildrenResult.error}")
-                    _unexpectedErrorHasOccurred.postValue(error.error)
-                }
-            }
-        }.exhaustive
-    }
-
-    fun deleteFiles(ids: List<String>): Boolean {
-        for (id in ids) {
-            if (!deleteFile(id)) {
-                return false
+                is Err -> Err(getRootResult.error.toLbError(res))
             }
         }
-        return true
+
+        fun deleteFiles(ids: List<String>): Result<Unit, CoreError> {
+            for (id in ids) {
+                val deleteFileResult = CoreModel.deleteFile(config, id)
+                if (deleteFileResult is Err) {
+                    return deleteFileResult
+                }
+            }
+
+            return Ok(Unit)
+        }
     }
 
-    fun refreshAtParent(position: Int) {
+    fun refreshChildrenAtPastParent(position: Int): Result<Unit, GetChildrenError> {
         val firstChildPosition = position + 1
-        for (index in firstChildPosition until filePath.size) {
-            filePath.removeAt(firstChildPosition)
+        for (index in firstChildPosition until fileDir.size) {
+            fileDir.removeAt(firstChildPosition)
         }
 
-        parentFileMetadata = filePath.last()
-        refreshFiles()
+        parent = fileDir.last()
+        return refreshChildren()
     }
 
-    private fun updateBreadCrumbWithLatest() {
-        _updateBreadcrumbBar.postValue(filePath.map { file -> BreadCrumbItem(file.name) })
+    fun isAtRoot(): Boolean = parent.id == parent.parent
+
+    fun setSortStyle(newSortStyle: SortStyle) {
+        sortStyle = newSortStyle
+        sortChildren()
     }
 
-    private fun deleteFile(id: String): Boolean {
-        return when (val deleteFileResult = CoreModel.deleteFile(config, id)) {
-            is Ok -> true
-            is Err -> {
-                when (val error = deleteFileResult.error) {
-                    is FileDeleteError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! The file you selected does not exist!")
-                    is FileDeleteError.CannotDeleteRoot -> _errorHasOccurred.postValue("Error! The file you selected is root!")
-                    is FileDeleteError.Unexpected -> {
-                        Timber.e("Unable to delete file: ${error.error}")
-                        _unexpectedErrorHasOccurred.postValue(
-                            error.error
-                        )
-                    }
-                }.exhaustive
-
-                false
-            }
-        }.exhaustive
-    }
-
-    private fun sortFilesAlpha(files: List<ClientFileMetadata>, inReverse: Boolean): List<ClientFileMetadata> { // TODO: write less code by just reversing the original
-        return if (inReverse) {
-            files.sortedByDescending { fileMetadata ->
-                fileMetadata.name
-            }
-        } else {
-            files.sortedBy { fileMetadata ->
-                fileMetadata.name
-            }
+    private fun sortChildren() {
+        children = when (sortStyle) {
+            SortStyle.AToZ -> sortFilesAlpha(children)
+            SortStyle.ZToA -> sortFilesAlpha(children).reversed()
+            SortStyle.LastChanged -> sortFilesChanged(children)
+            SortStyle.FirstChanged -> sortFilesChanged(children).reversed()
+            SortStyle.FileType -> sortFilesType(children)
         }
     }
 
-    private fun sortFilesChanged(files: List<ClientFileMetadata>, inReverse: Boolean): List<ClientFileMetadata> {
-        return if (inReverse) {
-            files.sortedByDescending { fileMetadata ->
-                fileMetadata.metadataVersion
-            }
-        } else {
-            files.sortedBy { fileMetadata ->
-                fileMetadata.metadataVersion
+    private fun refreshChildrenAtNewParent(newParent: ClientFileMetadata): Result<Unit, GetChildrenError> {
+        val oldParent = parent
+        parent = newParent
+
+        val refreshChildrenResult = refreshChildren()
+        if (refreshChildrenResult is Err) {
+            parent = oldParent
+        }
+
+        return refreshChildrenResult
+    }
+
+    fun refreshChildren(): Result<Unit, GetChildrenError> {
+        return CoreModel.getChildren(config, parent.id).map { newChildren ->
+            children = newChildren.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent }
+            sortChildren()
+        }
+    }
+
+    fun intoChild(newParent: ClientFileMetadata): Result<Unit, GetChildrenError> {
+        return refreshChildrenAtNewParent(newParent).map {
+            fileDir.add(newParent)
+        }
+    }
+
+    fun intoParent(): Result<Unit, CoreError> {
+        return CoreModel.getFileById(config, parent.parent).andThen { newParent ->
+            refreshChildrenAtNewParent(newParent).map {
+                if (fileDir.size != 1) {
+                    fileDir.removeLastOrNull()
+                }
             }
         }
+    }
+
+    private fun sortFilesAlpha(files: List<ClientFileMetadata>): List<ClientFileMetadata> =
+        files.sortedBy { fileMetadata ->
+            fileMetadata.name
+        }
+
+    private fun sortFilesChanged(files: List<ClientFileMetadata>): List<ClientFileMetadata> = files.sortedBy { fileMetadata ->
+        fileMetadata.metadataVersion
     }
 
     private fun sortFilesType(files: List<ClientFileMetadata>): List<ClientFileMetadata> {
@@ -191,25 +155,5 @@ class FileModel(private val config: Config, private val _errorHasOccurred: Singl
                 )
             )
         ).toList()
-    }
-
-    private fun sortChildren(files: List<ClientFileMetadata>) {
-        val sortedFiles = when (
-            val optionValue = PreferenceManager.getDefaultSharedPreferences(App.instance)
-                .getString(SharedPreferences.SORT_FILES_KEY, SharedPreferences.SORT_FILES_A_Z)
-        ) {
-            SharedPreferences.SORT_FILES_A_Z -> sortFilesAlpha(files, false)
-            SharedPreferences.SORT_FILES_Z_A -> sortFilesAlpha(files, true)
-            SharedPreferences.SORT_FILES_LAST_CHANGED -> sortFilesChanged(files, false)
-            SharedPreferences.SORT_FILES_FIRST_CHANGED -> sortFilesChanged(files, true)
-            SharedPreferences.SORT_FILES_TYPE -> sortFilesType(files)
-            else -> {
-                Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
-                _errorHasOccurred.postValue(BASIC_ERROR)
-                return
-            }
-        }.exhaustive
-
-        _files.postValue(sortedFiles)
     }
 }

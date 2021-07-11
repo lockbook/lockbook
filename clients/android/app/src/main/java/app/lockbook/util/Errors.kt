@@ -1,9 +1,102 @@
 package app.lockbook.util
 
-val <T> T.exhaustive: T
-    get() = this
+import android.content.res.Resources
+import androidx.annotation.StringRes
+import app.lockbook.R
 
-sealed class CoreError
+sealed class CoreError {
+    fun toLbError(res: Resources): LbError = when (this) {
+        GetUsageError.NoAccount,
+        GetAccountError.NoAccount,
+        AccountExportError.NoAccount,
+        CreateFileError.NoAccount,
+        WriteToDocumentError.NoAccount,
+        ReadDocumentError.NoAccount,
+        SaveDocumentToDiskError.NoAccount,
+        ExportDrawingToDiskError.NoAccount,
+        ExportDrawingError.NoAccount,
+        MoveFileError.NoAccount,
+        CalculateWorkError.NoAccount,
+        SyncAllError.NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
+        GetUsageError.ClientUpdateRequired,
+        CreateAccountError.ClientUpdateRequired,
+        ImportError.ClientUpdateRequired,
+        CalculateWorkError.ClientUpdateRequired,
+        SyncAllError.ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+        GetUsageError.CouldNotReachServer,
+        CreateAccountError.CouldNotReachServer,
+        ImportError.CouldNotReachServer,
+        SyncAllError.CouldNotReachServer,
+        CalculateWorkError.CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        MigrationError.StateRequiresCleaning -> LbError.newUserError(getString(res, R.string.state_requires_cleaning))
+        CreateAccountError.AccountExistsAlready,
+        ImportError.AccountExistsAlready -> LbError.newUserError(getString(res, R.string.account_exists_already))
+        CreateAccountError.InvalidUsername -> LbError.newUserError(getString(res, R.string.invalid_username))
+        CreateAccountError.UsernameTaken -> LbError.newUserError(getString(res, R.string.username_taken))
+        ImportError.AccountDoesNotExist -> LbError.newUserError(getString(res, R.string.account_does_not_exist))
+        ImportError.AccountStringCorrupted -> LbError.newUserError(getString(res, R.string.account_string_corrupted))
+        ImportError.UsernamePKMismatch -> LbError.newUserError(getString(res, R.string.username_pk_mismatch))
+        GetRootError.NoRoot -> LbError.newUserError(getString(res, R.string.no_root))
+        WriteToDocumentError.FileDoesNotExist,
+        FileDeleteError.FileDoesNotExist,
+        ReadDocumentError.FileDoesNotExist,
+        SaveDocumentToDiskError.FileDoesNotExist,
+        ExportDrawingError.FileDoesNotExist,
+        ExportDrawingToDiskError.FileDoesNotExist,
+        RenameFileError.FileDoesNotExist,
+        MoveFileError.FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
+        WriteToDocumentError.FolderTreatedAsDocument,
+        ReadDocumentError.TreatedFolderAsDocument,
+        SaveDocumentToDiskError.TreatedFolderAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
+        CreateFileError.CouldNotFindAParent,
+        MoveFileError.TargetParentDoesNotExist -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
+        CreateFileError.DocumentTreatedAsFolder,
+        MoveFileError.DocumentTreatedAsFolder -> LbError.newUserError(getString(res, R.string.document_treated_as_folder))
+        CreateFileError.FileNameContainsSlash,
+        RenameFileError.NewNameContainsSlash -> LbError.newUserError(getString(res, R.string.file_name_contains_slash))
+        CreateFileError.FileNameEmpty,
+        RenameFileError.NewNameEmpty -> LbError.newUserError(getString(res, R.string.file_name_empty))
+        CreateFileError.FileNameNotAvailable,
+        RenameFileError.FileNameNotAvailable -> LbError.newUserError(getString(res, R.string.file_name_not_available))
+        GetFileByIdError.NoFileWithThatId -> LbError.newUserError(getString(res, R.string.no_file_with_that_id))
+        FileDeleteError.CannotDeleteRoot -> LbError.newUserError(getString(res, R.string.cannot_delete_root))
+        SaveDocumentToDiskError.BadPath,
+        ExportDrawingToDiskError.BadPath -> LbError.newUserError(getString(res, R.string.bad_path))
+        SaveDocumentToDiskError.FileAlreadyExistsInDisk,
+        ExportDrawingToDiskError.FileAlreadyExistsInDisk -> LbError.newUserError(getString(res, R.string.file_already_exists_on_disk))
+        ExportDrawingError.FolderTreatedAsDrawing,
+        ExportDrawingToDiskError.FolderTreatedAsDrawing -> LbError.newUserError(getString(res, R.string.folder_treated_as_drawing))
+        ExportDrawingError.InvalidDrawing,
+        ExportDrawingToDiskError.InvalidDrawing -> LbError.newUserError(getString(res, R.string.invalid_drawing))
+        RenameFileError.CannotRenameRoot -> LbError.newUserError(getString(res, R.string.cannot_rename_root))
+        MoveFileError.CannotMoveRoot -> LbError.newUserError(getString(res, R.string.cannot_move_root))
+        MoveFileError.FolderMovedIntoItself -> LbError.newUserError(getString(res, R.string.folder_moved_into_itself))
+        MoveFileError.TargetParentHasChildNamedThat -> LbError.newUserError(getString(res, R.string.target_parent_has_a_child_named_that))
+        is CalculateWorkError.Unexpected -> LbError.newProgError(this.error)
+        is SyncAllError.Unexpected -> LbError.newProgError(this.error)
+        is MoveFileError.Unexpected -> LbError.newProgError(this.error)
+        is RenameFileError.Unexpected -> LbError.newProgError(this.error)
+        is ExportDrawingToDiskError.Unexpected -> LbError.newProgError(this.error)
+        is ExportDrawingError.Unexpected -> LbError.newProgError(this.error)
+        is SaveDocumentToDiskError.Unexpected -> LbError.newProgError(this.error)
+        is FileDeleteError.Unexpected -> LbError.newProgError(this.error)
+        is GetFileByIdError.Unexpected -> LbError.newProgError(this.error)
+        is ReadDocumentError.Unexpected -> LbError.newProgError(this.error)
+        is GetRootError.Unexpected -> LbError.newProgError(this.error)
+        is WriteToDocumentError.Unexpected -> LbError.newProgError(this.error)
+        is GetAccountError.Unexpected -> LbError.newProgError(this.error)
+        is SetLastSyncedError.Unexpected -> LbError.newProgError(this.error)
+        is AccountExportError.Unexpected -> LbError.newProgError(this.error)
+        is ImportError.Unexpected -> LbError.newProgError(this.error)
+        is CreateAccountError.Unexpected -> LbError.newProgError(this.error)
+        is MigrationError.Unexpected -> LbError.newProgError(this.error)
+        is InitLoggerError.Unexpected -> LbError.newProgError(this.error)
+        is GetStateError.Unexpected -> LbError.newProgError(this.error)
+        is GetUsageError.Unexpected -> LbError.newProgError(this.error)
+        is CreateFileError.Unexpected -> LbError.newProgError(this.error)
+        is GetChildrenError.Unexpected -> LbError.newProgError(this.error)
+    }
+}
 
 sealed class InitLoggerError : CoreError() {
     data class Unexpected(val error: String) : InitLoggerError()
@@ -163,5 +256,23 @@ sealed class CalculateWorkError : CoreError() {
     data class Unexpected(val error: String) : CalculateWorkError()
 }
 
-const val UNEXPECTED_ERROR = "An unexpected error has occurred!"
-const val BASIC_ERROR = "An error has occurred."
+val <T> T.exhaustive: T
+    get() = this
+
+data class LbError(val kind: LbErrorKind, val msg: String) {
+    companion object {
+        fun newProgError(msg: String) = LbError(LbErrorKind.Program, msg)
+        fun newUserError(msg: String) = LbError(LbErrorKind.User, msg)
+        fun basicError(res: Resources) = LbError(LbErrorKind.Program, basicErrorString(res))
+    }
+}
+
+enum class LbErrorKind {
+    Program,
+    User,
+}
+
+fun getString(res: Resources, @StringRes stringRes: Int, vararg formatArgs: Any = emptyArray()): String = res.getString(stringRes, *formatArgs)
+
+// This will always be a valid call while the android app is running. This cannot be called during tests or you will get a nullpointerexception
+fun basicErrorString(res: Resources): String = getString(res, R.string.basic_error)

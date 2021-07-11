@@ -1,46 +1,44 @@
 package app.lockbook.model
 
+import android.app.Activity
 import android.content.Context
-import android.view.View
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.PreferenceManager
-import app.lockbook.util.BASIC_ERROR
-import app.lockbook.util.SharedPreferences
-import app.lockbook.util.exhaustive
+import app.lockbook.R
+import app.lockbook.util.getString
 import timber.log.Timber
+import java.lang.ref.WeakReference
+
+enum class VerificationItem {
+    BiometricsSettingsChange,
+    ViewPrivateKey,
+    OpenApp
+}
 
 object BiometricModel {
     fun isBiometricVerificationAvailable(context: Context): Boolean =
         BiometricManager.from(context)
             .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 
-    fun verify(context: Context, view: View, fragmentActivity: FragmentActivity, onSuccess: () -> Unit) {
-        val pref = PreferenceManager.getDefaultSharedPreferences(context)
+    fun verify(activity: Activity, verificationItem: VerificationItem, onSuccess: () -> Unit, onFailure: (() -> Unit)? = null) {
+        val alertModel = AlertModel(WeakReference(activity))
+        val context = activity.applicationContext
 
-        when (
-            val optionValue = pref.getString(
-                SharedPreferences.BIOMETRIC_OPTION_KEY,
-                SharedPreferences.BIOMETRIC_NONE
-            )
-        ) {
-            SharedPreferences.BIOMETRIC_STRICT -> {
+        when (doVerificationOrNot(context, verificationItem)) {
+            true -> {
                 if (BiometricManager.from(context)
                     .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) != BiometricManager.BIOMETRIC_SUCCESS
                 ) {
                     Timber.e("Biometric shared preference is strict despite no biometrics.")
-                    AlertModel.errorHasOccurred(
-                        view,
-                        BASIC_ERROR,
-                        OnFinishAlert.DoNothingOnFinishAlert
-                    )
+                    alertModel.notifyBasicError()
                 }
 
                 val executor = ContextCompat.getMainExecutor(context)
                 val biometricPrompt = BiometricPrompt(
-                    fragmentActivity,
+                    activity as FragmentActivity,
                     executor,
                     object : BiometricPrompt.AuthenticationCallback() {
                         override fun onAuthenticationError(
@@ -51,13 +49,15 @@ object BiometricModel {
                             when (errorCode) {
                                 BiometricPrompt.ERROR_HW_UNAVAILABLE, BiometricPrompt.ERROR_UNABLE_TO_PROCESS, BiometricPrompt.ERROR_NO_BIOMETRICS, BiometricPrompt.ERROR_HW_NOT_PRESENT -> {
                                     Timber.e("Biometric authentication error: $errString")
-                                    AlertModel.errorHasOccurred(view, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+                                    alertModel.notifyBasicError()
                                 }
-                                BiometricPrompt.ERROR_LOCKOUT, BiometricPrompt.ERROR_LOCKOUT_PERMANENT -> {
-                                    AlertModel.errorHasOccurred(view, "Too many tries, try again later!", OnFinishAlert.DoNothingOnFinishAlert)
+                                BiometricPrompt.ERROR_LOCKOUT, BiometricPrompt.ERROR_LOCKOUT_PERMANENT, BiometricPrompt.ERROR_CANCELED, BiometricPrompt.ERROR_NEGATIVE_BUTTON, BiometricPrompt.ERROR_USER_CANCELED, BiometricPrompt.ERROR_TIMEOUT -> {
+                                    if (onFailure != null) {
+                                        onFailure()
+                                    }
                                 }
                                 else -> {}
-                            }.exhaustive
+                            }
                         }
 
                         override fun onAuthenticationSucceeded(
@@ -70,19 +70,30 @@ object BiometricModel {
                 )
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Lockbook Biometric Verification")
-                    .setSubtitle("Verify your identity to access Lockbook.")
+                    .setTitle(getString(context.resources, R.string.biometrics_title))
+                    .setSubtitle(getString(context.resources, R.string.biometrics_subtitle))
                     .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
-                    .setNegativeButtonText("Cancel")
+                    .setNegativeButtonText(getString(context.resources, R.string.biometrics_cancel))
                     .build()
 
                 biometricPrompt.authenticate(promptInfo)
             }
-            SharedPreferences.BIOMETRIC_NONE, SharedPreferences.BIOMETRIC_RECOMMENDED -> onSuccess()
-            else -> {
-                Timber.e("Biometric shared preference does not match every supposed option: $optionValue")
-                AlertModel.errorHasOccurred(view, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
-            }
-        }.exhaustive
+            false -> onSuccess()
+        }
+    }
+
+    private fun doVerificationOrNot(context: Context, verificationItem: VerificationItem): Boolean {
+        val currentBiometricValue = PreferenceManager.getDefaultSharedPreferences(context).getString(
+            getString(context.resources, R.string.biometric_key),
+            getString(context.resources, R.string.biometric_none_value)
+        )
+
+        val isStrict = currentBiometricValue == getString(context.resources, R.string.biometric_strict_value)
+        val isRecommended = currentBiometricValue == getString(context.resources, R.string.biometric_recommended_value)
+
+        val isABiometricsSettingChange = verificationItem == VerificationItem.BiometricsSettingsChange
+        val isViewingPrivateKey = verificationItem == VerificationItem.ViewPrivateKey
+
+        return isStrict || isRecommended && isABiometricsSettingChange || isRecommended && isViewingPrivateKey
     }
 }

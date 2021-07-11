@@ -1,26 +1,23 @@
 package app.lockbook.model
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import android.app.Application
+import androidx.lifecycle.*
+import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 
-class MoveFileViewModel(path: String) :
-    ViewModel(),
+class MoveFileViewModel(application: Application) :
+    AndroidViewModel(application),
     RegularClickInterface {
-
-    private val config = Config(path)
-    lateinit var currentParent: ClientFileMetadata
+    private lateinit var currentParent: ClientFileMetadata
     lateinit var ids: Array<String>
     lateinit var names: Array<String>
 
     private val _files = MutableLiveData<List<ClientFileMetadata>>()
     private val _closeDialog = MutableLiveData<Unit>()
-    private val _errorHasOccurred = SingleMutableLiveData<String>()
+    private val _notifyError = SingleMutableLiveData<LbError>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
     val files: LiveData<List<ClientFileMetadata>>
@@ -29,11 +26,8 @@ class MoveFileViewModel(path: String) :
     val closeDialog: LiveData<Unit>
         get() = _closeDialog
 
-    val errorHasOccurred: LiveData<String>
-        get() = _errorHasOccurred
-
-    val unexpectedErrorHasOccurred: LiveData<String>
-        get() = _unexpectedErrorHasOccurred
+    val notifyError: LiveData<LbError>
+        get() = _notifyError
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -48,10 +42,7 @@ class MoveFileViewModel(path: String) :
                     currentParent = rootResult.value
                     refreshOverFolder()
                 }
-                is Err -> when (val error = rootResult.error) {
-                    is GetRootError.NoRoot -> _errorHasOccurred.postValue("Error! No root!")
-                    is GetRootError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
-                }
+                is Err -> _notifyError.postValue(rootResult.error.toLbError(getRes()))
             }.exhaustive
         }
     }
@@ -77,17 +68,7 @@ class MoveFileViewModel(path: String) :
         return when (val moveFileResult = CoreModel.moveFile(config, id, currentParent.id)) {
             is Ok -> true
             is Err -> {
-                val fileName = names[ids.indexOf(id)]
-                when (val error = moveFileResult.error) {
-                    MoveFileError.NoAccount -> _errorHasOccurred.postValue("Error! $fileName has no account!")
-                    MoveFileError.FileDoesNotExist -> _errorHasOccurred.postValue("Error! $fileName does not exist!")
-                    MoveFileError.DocumentTreatedAsFolder -> _errorHasOccurred.postValue("Error! $fileName treated as folder!")
-                    MoveFileError.TargetParentDoesNotExist -> _errorHasOccurred.postValue("Error! The parent file does not exist!")
-                    MoveFileError.TargetParentHasChildNamedThat -> _errorHasOccurred.postValue("Error! The parent file has a child named $fileName already!")
-                    MoveFileError.CannotMoveRoot -> _errorHasOccurred.postValue("Error! You cannot move root!")
-                    MoveFileError.FolderMovedIntoItself -> _errorHasOccurred.postValue("Error! Cannot move folder into itself!")
-                    is MoveFileError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
-                }.exhaustive
+                _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
                 false
             }
         }.exhaustive
@@ -111,10 +92,7 @@ class MoveFileViewModel(path: String) :
     private fun setParentAsParent() {
         when (val getFileById = CoreModel.getFileById(config, currentParent.parent)) {
             is Ok -> currentParent = getFileById.value
-            is Err -> when (val error = getFileById.error) {
-                GetFileByIdError.NoFileWithThatId -> _errorHasOccurred.postValue("Error! No file with that id!")
-                is GetFileByIdError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.error)
-            }
+            is Err -> _notifyError.postValue(getFileById.error.toLbError(getRes()))
         }.exhaustive
     }
 

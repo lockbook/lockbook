@@ -7,22 +7,18 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.appcompat.app.AppCompatActivity
-import androidx.preference.PreferenceManager
 import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.Config
 import app.lockbook.util.ImportError
-import app.lockbook.util.SharedPreferences.IS_THIS_AN_IMPORT_KEY
-import app.lockbook.util.SharedPreferences.LOGGED_IN_KEY
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.*
-import timber.log.Timber
+import java.lang.ref.WeakReference
 
 class ImportAccountActivity : AppCompatActivity() {
     private var _binding: ActivityImportAccountBinding? = null
@@ -33,7 +29,11 @@ class ImportAccountActivity : AppCompatActivity() {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
-    var onQRCodeResult = registerForActivityResult(StartActivityForResult()) { result ->
+    private val alertModel by lazy {
+        AlertModel(WeakReference(this))
+    }
+
+    private var onQRCodeResult = registerForActivityResult(StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             uiScope.launch {
                 withContext(Dispatchers.IO) {
@@ -103,55 +103,17 @@ class ImportAccountActivity : AppCompatActivity() {
             when (importAccountResult) {
                 is Ok -> {
                     binding.importAccountProgressBar.visibility = View.GONE
-                    setUpLoggedInImportState()
-                    startActivity(Intent(applicationContext, ListFilesActivity::class.java))
+                    val intent = Intent(applicationContext, ListFilesActivity::class.java)
+                    intent.putExtra("is_this_an_import", true)
+
+                    startActivity(intent)
                     finishAffinity()
                 }
                 is Err -> {
                     binding.importAccountProgressBar.visibility = View.GONE
-                    when (val error = importAccountResult.error) {
-                        is ImportError.AccountStringCorrupted -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "Invalid account string!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.AccountExistsAlready -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "Account already exists!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.AccountDoesNotExist -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "That account does not exist on this server!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.UsernamePKMismatch -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "That username does not correspond with that public_key on this server!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.CouldNotReachServer -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "Could not reach server!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.ClientUpdateRequired -> AlertModel.errorHasOccurred(
-                            binding.importAccountLayout,
-                            "Update required!", OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        is ImportError.Unexpected -> {
-                            AlertModel.unexpectedCoreErrorHasOccurred(this@ImportAccountActivity, error.error, OnFinishAlert.DoNothingOnFinishAlert)
-                            Timber.e("Unable to import an account.")
-                        }
-                    }
+                    alertModel.notifyError(importAccountResult.error.toLbError(resources))
                 }
             }.exhaustive
         }
-    }
-
-    private fun setUpLoggedInImportState() {
-        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
-            LOGGED_IN_KEY,
-            true
-        ).apply()
-        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(
-            IS_THIS_AN_IMPORT_KEY,
-            true
-        ).apply()
     }
 }

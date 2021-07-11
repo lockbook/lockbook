@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,139 +28,103 @@ class CreateFileTest {
 
     @Test
     fun createFileOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        assertType<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
     }
 
     @Test
     fun createFileContainsSlash() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        assertType<CreateFileError.FileNameContainsSlash>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                "/",
-                Klaxon().toJsonString(FileType.Document)
-            ).component2()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            "/",
+            FileType.Document
+        ).unwrapErrorType<CreateFileError.FileNameContainsSlash>()
 
-        assertType<CreateFileError.FileNameContainsSlash>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                "/",
-                Klaxon().toJsonString(FileType.Folder)
-            ).component2()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            "/",
+            FileType.Folder
+        ).unwrapErrorType<CreateFileError.FileNameContainsSlash>()
     }
 
     @Test
     fun createFileEmpty() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        assertType<CreateFileError.FileNameEmpty>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                "",
-                Klaxon().toJsonString(FileType.Document)
-            ).component2()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            "",
+            FileType.Document
+        ).unwrapErrorType<CreateFileError.FileNameEmpty>()
 
-        assertType<CreateFileError.FileNameEmpty>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                "",
-                Klaxon().toJsonString(FileType.Folder)
-            ).component2()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            "",
+            FileType.Folder
+        ).unwrapErrorType<CreateFileError.FileNameEmpty>()
     }
 
     @Test
     fun createFileNotAvailable() {
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
         val fileName = generateAlphaString()
 
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            fileName,
+            FileType.Document
+        ).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
-
-        assertType<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                fileName,
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
-
-        assertType<CreateFileError.FileNameNotAvailable>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                fileName,
-                Klaxon().toJsonString(FileType.Folder)
-            ).component2()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            fileName,
+            FileType.Folder
+        ).unwrapErrorType<CreateFileError.FileNameNotAvailable>()
     }
 
     @Test
     fun createFileNoAccount() {
-        assertType<CreateFileError.NoAccount>(
-            CoreModel.createFile(
-                config,
-                generateId(),
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component2()
-        )
+        CoreModel.createFile(
+            config,
+            generateId(),
+            generateAlphaString(),
+            FileType.Document
+        ).unwrapErrorType<CreateFileError.NoAccount>()
     }
 
     @Test
     fun createFileUnexpectedError() {
-        assertType<CreateFileError.Unexpected>(
-            Klaxon().converter(createFileConverter)
-                .parse<Result<ClientFileMetadata, CreateFileError>>(createFile("", "", "", ""))?.component2()
-        )
+        Klaxon().converter(createFileConverter)
+            .parse<Result<ClientFileMetadata, CreateFileError>>(createFile("", "", "", ""))
+            .unwrapErrorType<CreateFileError.Unexpected>()
     }
 }
