@@ -132,7 +132,7 @@
                     <TextBox
                         Width="300"
                         x:Name="apiLocationTextBox"
-                        Text="http://api.lockbook.app:8000"
+                        Text="https://api.prod.lockbook.net"
                         Header="Server"
                         Visibility="Collapsed"/>
                     <Button
