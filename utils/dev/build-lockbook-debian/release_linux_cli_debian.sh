@@ -41,7 +41,7 @@ then
 	exit 69
 fi
 
-cd ../../clients/cli
+cd ../../../clients/cli
 
 new_version=$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)
 
