@@ -1,4 +1,4 @@
-public struct Drawing: Codable {
+public struct Drawing: Codable, Equatable {
     public let scale: Float
     public let translationX: Float
     public let translationY: Float
@@ -19,7 +19,7 @@ public struct Drawing: Codable {
     }
 }
 
-public struct Stroke: Codable {
+public struct Stroke: Codable, Equatable {
     public let pointsX: [Float]
     public let pointsY: [Float]
     public let pointsGirth: [Float]
