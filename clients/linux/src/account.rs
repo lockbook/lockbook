@@ -27,6 +27,7 @@ use crate::settings::Settings;
 use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
 use gspell::TextViewExt as GtkTextViewExt;
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
+use std::sync::Arc;
 
 pub struct AccountScreen {
     header: Header,
@@ -36,9 +37,9 @@ pub struct AccountScreen {
 }
 
 impl AccountScreen {
-    pub fn new(m: &Messenger, s: &Settings) -> Self {
+    pub fn new(m: &Messenger, s: &Settings, c: &Arc<LbCore>) -> Self {
         let header = Header::new(&m);
-        let sidebar = Sidebar::new(&m, &s);
+        let sidebar = Sidebar::new(&m, c, &s);
         let editor = Editor::new(&m);
 
         let paned = GtkPaned::new(Horizontal);
@@ -223,9 +224,9 @@ pub struct Sidebar {
 }
 
 impl Sidebar {
-    fn new(m: &Messenger, s: &Settings) -> Self {
+    fn new(m: &Messenger, c: &Arc<LbCore>, s: &Settings) -> Self {
         let scroll = GtkScrolledWindow::new::<GtkAdjustment, GtkAdjustment>(None, None);
-        let tree = FileTree::new(&m, &s.hidden_tree_cols);
+        let tree = FileTree::new(&m, c, &s.hidden_tree_cols);
         let sync = Rc::new(StatusPanel::new(&m));
         scroll.add(tree.widget());
 
