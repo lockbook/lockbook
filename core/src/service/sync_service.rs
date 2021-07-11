@@ -1,18 +1,22 @@
+use crate::client;
 use crate::model::client_conversion::{generate_client_work_unit, ClientWorkUnit};
 use crate::model::document_type::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::{account_repo, document_repo, file_repo, last_updated_repo, metadata_repo};
-use crate::service::file_compression_service;
-use crate::service::{file_encryption_service, file_service};
-use crate::{client, CoreError};
+use crate::repo::account_repo;
+use crate::repo::file_repo;
+use crate::repo::last_updated_repo;
+use crate::repo::metadata_repo; // todo: remove
+use crate::service::file_compression_service; // todo: remove
+use crate::service::file_encryption_service; // todo: remove
+use crate::service::file_service;
+use crate::CoreError;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
-use lockbook_models::work_unit::WorkUnit::{LocalChange, ServerChange};
 use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone)]
@@ -57,18 +61,18 @@ fn calculate_work_from_updates(
             most_recent_update_from_server = metadata.metadata_version;
         }
 
-        match file_repo::maybe_get_metadata(config, metadata.id)? {
+        match file_repo::maybe_get_metadata(config, RepoSource::Local, metadata.id)? {
             None => {
                 if !metadata.deleted {
                     // no work for files we don't have that have been deleted
-                    work_units.push(ServerChange {
+                    work_units.push(WorkUnit::ServerChange {
                         metadata: metadata.clone(),
                     })
                 }
             }
-            Some((local_metadata, _)) => {
+            Some(local_metadata) => {
                 if metadata.metadata_version != local_metadata.metadata_version {
-                    work_units.push(ServerChange {
+                    work_units.push(WorkUnit::ServerChange {
                         metadata: metadata.clone(),
                     })
                 }
@@ -82,10 +86,10 @@ fn calculate_work_from_updates(
             .cmp(&f2.get_metadata().metadata_version)
     });
 
-    let changes = file_repo::get_all_metadata(config)?.union_new_and_modified();
+    let changes = file_repo::get_all_metadata_changes(config)?;
     for change_description in changes {
-        let (metadata, _) = file_repo::get_metadata(config, change_description.id)?;
-        work_units.push(LocalChange { metadata });
+        let metadata = file_repo::get_metadata(config, RepoSource::Local, change_description.id)?;
+        work_units.push(WorkUnit::LocalChange { metadata });
     }
     debug!("Work Calculated: {:#?}", work_units);
 
@@ -184,49 +188,7 @@ fn merge_metadata(base: FileMetadata, local: FileMetadata, remote: FileMetadata)
     }
 }
 
-fn get_local_document(
-    config: &Config,
-    account: &Account,
-    source: RepoSource,
-    metadata: &FileMetadata,
-) -> Result<Option<Vec<u8>>, CoreError> {
-    let user_access_key = metadata
-        .user_access_keys
-        .get(&account.username)
-        .ok_or_else(|| CoreError::Unexpected(String::from("no user access info for file")))?;
-    Ok(
-        match document_repo::maybe_get(config, source, metadata.id)? {
-            // todo: get this friggin crypto and compression out of here
-            Some(base_document) => Some(file_compression_service::decompress(
-                &file_encryption_service::user_read_document(
-                    account,
-                    &Some(base_document),
-                    user_access_key,
-                )?,
-            )?),
-            None => None,
-        },
-    )
-}
-
-fn save_local_document(
-    config: &Config,
-    source: RepoSource,
-    metadata: &FileMetadata,
-    content: &[u8],
-) -> Result<(), CoreError> {
-    document_repo::insert(
-        config,
-        source,
-        metadata.id,
-        &file_encryption_service::write_to_document(
-            config,
-            &file_compression_service::compress(content)?,
-            metadata,
-        )?,
-    )
-}
-
+// todo: remove
 fn get_remote_document(account: &Account, metadata: &FileMetadata) -> Result<Vec<u8>, CoreError> {
     let user_access_key = metadata
         .user_access_keys
@@ -314,16 +276,22 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
             };
             if content_updated {
                 let remote_document = get_remote_document(account, &remote_metadata)?;
-                let maybe_base_document =
-                    get_local_document(config, account, RepoSource::Remote, &remote_metadata)?;
-                let maybe_local_document =
-                    get_local_document(config, account, RepoSource::Local, &remote_metadata)?;
-
-                // update remote repo to version from server
-                save_local_document(
+                let maybe_base_document = file_service::maybe_read_document(
                     config,
                     RepoSource::Remote,
-                    &remote_metadata,
+                    remote_metadata.id,
+                )?;
+                let maybe_local_document = file_service::maybe_read_document(
+                    config,
+                    RepoSource::Local,
+                    remote_metadata.id,
+                )?;
+
+                // update remote repo to version from server
+                file_service::write_document(
+                    config,
+                    RepoSource::Remote,
+                    remote_metadata.id,
                     &remote_document,
                 )?;
 
@@ -357,6 +325,7 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
                                     file_encryption_service::get_name(&config, &remote_metadata)?;
                                 file_service::create(
                                     config,
+                                    RepoSource::Local,
                                     &format!(
                                         "{}-CONTENT-CONFLICT-{}",
                                         &remote_name,
@@ -368,8 +337,13 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
 
                                 file_service::write_document(
                                     config,
+                                    RepoSource::Local,
                                     remote_metadata.id.clone(),
-                                    &file_service::read_document(config, remote_metadata.id)?,
+                                    &file_service::read_document(
+                                        config,
+                                        RepoSource::Local,
+                                        remote_metadata.id,
+                                    )?,
                                 )?;
 
                                 remote_document
@@ -379,20 +353,26 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
                 };
 
                 // update local repo to version from merge
-                file_service::write_document(config, remote_metadata.id, &merged_document)?;
+                file_service::write_document(
+                    config,
+                    RepoSource::Local,
+                    remote_metadata.id,
+                    &merged_document,
+                )?;
             }
         }
 
         // update remote repo to version from server
-        metadata_repo::insert(config, RepoSource::Remote, &remote_metadata)?;
+        metadata_repo::insert(config, RepoSource::Remote, &remote_metadata)?; // todo: use file service
 
         // resolve path conflicts
-        if file_repo::get_children(config, merged_metadata.parent)?
+        if file_repo::get_children(config, RepoSource::Local, merged_metadata.parent)?
             .into_iter()
             .any(|f| f.id != merged_metadata.id && f.name.hmac == merged_metadata.name.hmac)
         {
             file_service::rename(
                 config,
+                RepoSource::Local,
                 merged_metadata.id,
                 &format!(
                     "{}-NAME-CONFLICT-{}",
@@ -411,7 +391,7 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
 
     // push local content changes
     for id in file_repo::get_all_with_document_changes(config)? {
-        let local_metadata = file_repo::get_metadata(config, id)?.0;
+        let local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
 
         if let Some(ref func) = f {
             func(SyncProgress {
@@ -431,7 +411,7 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
             ChangeDocumentContentRequest {
                 id: id,
                 old_metadata_version: local_metadata.metadata_version,
-                new_content: file_repo::get_document(config, id)?.0,
+                new_content: file_repo::get_document(config, RepoSource::Local, id)?,
             },
         )
         .map_err(CoreError::from)?;
@@ -448,6 +428,8 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
         },
     )
     .map_err(CoreError::from)?;
+
+    file_repo::prune_deleted(config)?;
 
     Ok(())
 }

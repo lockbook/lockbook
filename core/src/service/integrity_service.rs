@@ -1,3 +1,4 @@
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::file_repo;
 use crate::service::integrity_service::TestRepoError::{
@@ -25,11 +26,11 @@ pub enum TestRepoError {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
-    let root = file_repo::maybe_get_root(&config)
+    let root = file_repo::maybe_get_root(&config, RepoSource::Local)
         .map_err(Core)?
         .ok_or(NoRootFolder)?;
 
-    let all = file_repo::get_all_metadata(config).map_err(Core)?.union();
+    let all = file_repo::get_all_metadata(config, RepoSource::Local).map_err(Core)?;
 
     {
         let document_with_children = all
@@ -45,6 +46,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
     }
 
     // Find files that don't descend from root
+    // todo: file_repo::get_all_metadata is implemented as only getting root and its descendants, so this would never catch an issue
     {
         let mut not_orphaned = HashMap::new();
         not_orphaned.insert(root.id, root);
@@ -58,11 +60,13 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
                 }
                 visited.insert(current.id, current.clone());
 
-                match file_repo::maybe_get_metadata(&config, current.parent).map_err(Core)? {
+                match file_repo::maybe_get_metadata(&config, RepoSource::Local, current.parent)
+                    .map_err(Core)?
+                {
                     None => {
                         return Err(FileOrphaned(current.id));
                     }
-                    Some((parent, _)) => {
+                    Some(parent) => {
                         // No Problems
                         if not_orphaned.contains_key(&parent.id) {
                             for node in visited.values() {
@@ -94,7 +98,8 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
     // Find naming conflicts
     {
         for file in all.iter().filter(|f| f.file_type == Folder) {
-            let children = file_repo::get_children(&config, file.id).map_err(Core)?;
+            let children =
+                file_repo::get_children(&config, RepoSource::Local, file.id).map_err(Core)?;
             let mut children_set = HashSet::new();
             for child in children {
                 let name = file_encryption_service::get_name(&config, &child).map_err(Core)?;

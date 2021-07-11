@@ -2,14 +2,6 @@ use lockbook_models::file_metadata::FileMetadata;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::model::repo::RepoState;
-
-pub fn metadata_repo_state_vec_to_map(
-    metadata: Vec<(FileMetadata, RepoState)>,
-) -> HashMap<Uuid, (FileMetadata, RepoState)> {
-    metadata.into_iter().map(|m| (m.0.id, m)).collect()
-}
-
 pub fn metadata_vec_to_map(metadata: Vec<FileMetadata>) -> HashMap<Uuid, FileMetadata> {
     metadata.into_iter().map(|m| (m.id, m)).collect()
 }

@@ -1,3 +1,4 @@
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{account_repo, file_repo};
 use crate::{core_err_unexpected, CoreError};
@@ -11,8 +12,8 @@ use uuid::Uuid;
 
 pub fn decrypt_key_for_file(config: &Config, id: Uuid) -> Result<AESKey, CoreError> {
     let account = account_repo::get(&config)?;
-    let parents = file_repo::get_with_ancestors(&config, id)?;
-    let (access_key, _) = parents
+    let parents = file_repo::get_with_ancestors(&config, RepoSource::Local, id)?;
+    let access_key = parents
         .get(&id)
         .ok_or(())
         .map_err(|_| CoreError::Unexpected(String::from("client metadata missing")))?;

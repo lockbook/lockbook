@@ -1,3 +1,4 @@
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::file_repo;
 use crate::service::{file_encryption_service, file_service};
@@ -15,9 +16,9 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 
     let is_folder = path_and_name.ends_with('/');
 
-    let mut current = file_repo::get_root(config)?;
+    let mut current = file_repo::get_root(config, RepoSource::Local)?;
 
-    if file_encryption_service::get_name(&config, &current)? != path_components[0] {
+    if file_encryption_service::get_name(config, &current)? != path_components[0] {
         return Err(CoreError::PathStartsWithNonRoot);
     }
 
@@ -27,13 +28,13 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 
     // We're going to look ahead, and find or create the right child
     'path: for index in 0..path_components.len() - 1 {
-        let children = file_repo::get_children(config, current.id)?;
+        let children = file_repo::get_children(config, RepoSource::Local, current.id)?;
 
         let next_name = path_components[index + 1];
         debug!("child we're searching for: {}", next_name);
 
         for child in children {
-            if file_encryption_service::get_name(&config, &child)? == next_name {
+            if file_encryption_service::get_name(config, &child)? == next_name {
                 // If we're at the end and we find this child, that means this path already exists
                 if index == path_components.len() - 2 {
                     return Err(CoreError::PathTaken);
@@ -53,20 +54,21 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
             Document
         };
 
-        current = file_service::create(config, next_name, current.id, file_type)?;
+        current =
+            file_service::create(config, RepoSource::Local, next_name, current.id, file_type)?;
     }
 
     Ok(current)
 }
 
 pub fn get_by_path(config: &Config, path: &str) -> Result<FileMetadata, CoreError> {
-    let root = file_repo::get_root(&config)?;
+    let root = file_repo::get_root(config, RepoSource::Local)?;
 
     let paths = split_path(path);
     let mut current = root;
 
     for (i, value) in paths.iter().enumerate() {
-        if *value != file_encryption_service::get_name(&config, &current)? {
+        if *value != file_encryption_service::get_name(config, &current)? {
             return Err(CoreError::FileNonexistent);
         }
 
@@ -74,11 +76,11 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<FileMetadata, CoreErro
             return Ok(current);
         }
 
-        let children = file_repo::get_children(&config, current.id)?;
+        let children = file_repo::get_children(config, RepoSource::Local, current.id)?;
         let mut found_child = false;
 
         for child in children {
-            let child_name = file_encryption_service::get_name(&config, &child)?;
+            let child_name = file_encryption_service::get_name(config, &child)?;
 
             if child_name == paths[i + 1] {
                 current = child;
@@ -111,7 +113,7 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, CoreError> {
 }
 
 pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
-    let files = file_repo::get_all_metadata(&config)?.union();
+    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
 
     let mut filtered_files = files.clone();
 
@@ -130,16 +132,16 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
         let mut current = file.clone();
         let mut current_path = String::from("");
         while current.id != current.parent {
-            let current_name = file_encryption_service::get_name(&config, &current)?;
+            let current_name = file_encryption_service::get_name(config, &current)?;
             if current.file_type == Document {
                 current_path = current_name;
             } else {
                 current_path = format!("{}/{}", current_name, current_path);
             }
-            current = file_repo::get_metadata(&config, current.parent)?.0;
+            current = file_repo::get_metadata(config, RepoSource::Local, current.parent)?;
         }
 
-        let root_name = file_encryption_service::get_name(&config, &current)?;
+        let root_name = file_encryption_service::get_name(config, &current)?;
         current_path = format!("{}/{}", root_name, current_path);
         paths.push(current_path.to_string());
     }
