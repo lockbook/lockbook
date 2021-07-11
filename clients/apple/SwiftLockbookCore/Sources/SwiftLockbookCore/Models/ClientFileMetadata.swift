@@ -13,8 +13,8 @@ public struct ClientFileMetadata: Codable, Identifiable, Equatable, Hashable {
     public static func == (lhs: ClientFileMetadata, rhs: ClientFileMetadata) -> Bool {
         return lhs.fileType == rhs.fileType &&
             lhs.id == rhs.id &&
-            lhs.metadataVersion == rhs.metadataVersion &&
-            lhs.contentVersion == rhs.contentVersion &&
+//            lhs.metadataVersion == rhs.metadataVersion &&
+//            lhs.contentVersion == rhs.contentVersion &&
             lhs.parent == rhs.parent &&
             lhs.owner == rhs.owner &&
             lhs.name == rhs.name

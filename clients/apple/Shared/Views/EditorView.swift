@@ -26,7 +26,6 @@ struct EditorLoader: View {
     @ObservedObject var content: Content
     let meta: ClientFileMetadata
     @State var editorContent: String = ""
-    @State var title: String = ""
     let deleteChannel: PassthroughSubject<ClientFileMetadata, Never>
     @State var deleted: ClientFileMetadata?
     
@@ -36,7 +35,12 @@ struct EditorLoader: View {
             /// We are forcing this view to hit the default case when it is in a transitionary stage!
             case .some(let c) where content.meta?.id == meta.id:
                 if (deleted != meta) {
+                    #if os(macOS)
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
+                    #else
+                    EditorView(meta: meta, text: c, changeCallback: content.updateText)
+                        .padding(.horizontal, 20)
+                    #endif
                     ActivityIndicator(status: $content.status)
                         .opacity(content.status == .WriteSuccess ? 1 : 0)
                 } else {
@@ -49,6 +53,7 @@ struct EditorLoader: View {
                     }
             }
         }
+        .navigationTitle(meta.name)
         .onReceive(deleteChannel) { deletedMeta in
             if (deletedMeta.id == meta.id) {
                 deleted = deletedMeta
@@ -84,7 +89,7 @@ class Content: ObservableObject {
         self.text = text
         status = .Inactive
     }
-
+    
     func writeDocument(meta: ClientFileMetadata, content: String) {
         switch write(meta.id, content) {
         case .success(_):
@@ -98,6 +103,7 @@ class Content: ObservableObject {
     }
     
     func openDocument(meta: ClientFileMetadata) {
+        print("open document called")
         DispatchQueue.main.async {
             switch self.read(meta.id) {
             case .success(let txt):
@@ -109,9 +115,26 @@ class Content: ObservableObject {
         }
     }
     
-    func closeDocument(meta: ClientFileMetadata) {
-        self.meta = .none
+    func closeDocument() {
+        print("Close document")
+        meta = .none
         text = .none
+    }
+    
+    func reloadDocumentIfNeeded(meta: ClientFileMetadata) {
+        print("reload document called")
+        switch self.read(meta.id) {
+        case .success(let txt):
+            if self.text != txt { /// Close the document
+                print("reload")
+                self.closeDocument()
+                self.meta = meta
+                self.text = txt
+            }
+        case .failure(let err):
+            print(err)
+        }
+        
     }
 }
 
