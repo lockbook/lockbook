@@ -12,14 +12,31 @@ import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.MoveFileAdapter
 import app.lockbook.model.MoveFileViewModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.modelfactory.MoveFileViewModelFactory
-import app.lockbook.util.BASIC_ERROR
+import java.lang.ref.WeakReference
 
 data class MoveFileInfo(
     val ids: Array<String>,
     val names: Array<String>
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as MoveFileInfo
+
+        if (!ids.contentEquals(other.ids)) return false
+        if (!names.contentEquals(other.names)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = ids.contentHashCode()
+        result = 31 * result + names.contentHashCode()
+        return result
+    }
+}
 
 class MoveFileDialogFragment : DialogFragment() {
 
@@ -27,6 +44,10 @@ class MoveFileDialogFragment : DialogFragment() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
+
+    private val alertModel by lazy {
+        AlertModel(WeakReference(requireActivity()), view)
+    }
 
     private lateinit var ids: Array<String>
     private lateinit var names: Array<String>
@@ -73,12 +94,11 @@ class MoveFileDialogFragment : DialogFragment() {
             ids = nullableIds
             names = nullableNames
         } else {
-            AlertModel.errorHasOccurred(binding.moveFileDialog, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
+            alertModel.notifyBasicError(::dismiss)
         }
 
-        val application = requireNotNull(this.activity).application
         val moveFileViewModelFactory =
-            MoveFileViewModelFactory(application.filesDir.absolutePath)
+            MoveFileViewModelFactory(requireActivity().application)
         moveFileViewModel =
             ViewModelProvider(this, moveFileViewModelFactory).get(MoveFileViewModel::class.java)
         val adapter =
@@ -94,7 +114,7 @@ class MoveFileDialogFragment : DialogFragment() {
             moveFileViewModel.moveFilesToFolder()
         }
 
-        dialog?.setCanceledOnTouchOutside(false) ?: AlertModel.errorHasOccurred(binding.moveFileDialog, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+        dialog?.setCanceledOnTouchOutside(false) ?: alertModel.notifyBasicError()
 
         moveFileViewModel.ids = ids
         moveFileViewModel.names = names
@@ -112,16 +132,10 @@ class MoveFileDialogFragment : DialogFragment() {
             dismiss()
         }
 
-        moveFileViewModel.errorHasOccurred.observe(
+        moveFileViewModel.notifyError.observe(
             viewLifecycleOwner
-        ) { errorText ->
-            AlertModel.errorHasOccurred(binding.moveFileDialog, errorText, OnFinishAlert.DoNothingOnFinishAlert)
-        }
-
-        moveFileViewModel.unexpectedErrorHasOccurred.observe(
-            viewLifecycleOwner
-        ) { errorText ->
-            AlertModel.unexpectedCoreErrorHasOccurred(requireContext(), errorText, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
+        ) { error ->
+            alertModel.notifyError(error)
         }
     }
 

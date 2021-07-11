@@ -9,69 +9,58 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.PopupWindow
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
-import androidx.fragment.app.FragmentActivity
 import androidx.preference.*
+import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
-import app.lockbook.model.OnFinishAlert
+import app.lockbook.model.VerificationItem
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
 import app.lockbook.util.*
-import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_ENABLED_KEY
-import app.lockbook.util.SharedPreferences.BACKGROUND_SYNC_PERIOD_KEY
-import app.lockbook.util.SharedPreferences.BIOMETRIC_OPTION_KEY
-import app.lockbook.util.SharedPreferences.CLEAR_LOGS_KEY
-import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_QR_KEY
-import app.lockbook.util.SharedPreferences.EXPORT_ACCOUNT_RAW_KEY
-import app.lockbook.util.SharedPreferences.VIEW_LOGS_KEY
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
-import timber.log.Timber
 import java.io.File
+import java.lang.ref.WeakReference
 
 class SettingsFragment : PreferenceFragmentCompat() {
-    lateinit var config: Config
-    private lateinit var selectedKey: String
-    private lateinit var newValueForPref: String
+    val alertModel by lazy {
+        AlertModel(WeakReference(requireActivity()))
+    }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
-        config = Config(requireContext().filesDir.absolutePath)
         setUpPreferences()
     }
 
     private fun setUpPreferences() {
-        findPreference<Preference>(BIOMETRIC_OPTION_KEY)?.setOnPreferenceChangeListener { _, newValue ->
+        findPreference<Preference>(getString(R.string.biometric_key))?.setOnPreferenceChangeListener { _, newValue ->
             if (newValue is String) {
-                newValueForPref = newValue
-
                 BiometricModel.verify(
-                    requireContext(),
-                    requireActivity().findViewById(android.R.id.content),
-                    activity as FragmentActivity,
-                    ::matchKey
+                    requireActivity(),
+                    VerificationItem.BiometricsSettingsChange,
+                    {
+                        findPreference<ListPreference>(getString(R.string.biometric_key))?.value = newValue
+                    }
                 )
             }
 
             false
         }
 
-        findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
+        findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
             PreferenceManager.getDefaultSharedPreferences(
                 requireContext()
             ).getBoolean(
-                BACKGROUND_SYNC_ENABLED_KEY,
+                getString(R.string.background_sync_enabled_key),
                 true
             )
 
-        if (!isBiometricsOptionsAvailable()) {
-            findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.isEnabled = false
+        if (!BiometricModel.isBiometricVerificationAvailable(requireContext())) {
+            findPreference<ListPreference>(getString(R.string.biometric_key))?.isEnabled = false
         }
     }
 
@@ -88,48 +77,28 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     override fun onPreferenceTreeClick(preference: Preference?): Boolean {
-        selectedKey = preference?.key ?: ""
-
         when (preference?.key) {
-            EXPORT_ACCOUNT_QR_KEY, EXPORT_ACCOUNT_RAW_KEY -> {
-                BiometricModel.verify(
-                    requireContext(),
-                    requireActivity().findViewById(android.R.id.content),
-                    activity as FragmentActivity,
-                    ::matchKey
-                )
-            }
-            VIEW_LOGS_KEY -> startActivity(Intent(context, LogActivity::class.java))
-            CLEAR_LOGS_KEY -> File("${config.writeable_path}/${LogActivity.LOG_FILE_NAME}").writeText(
+            getString(R.string.export_account_qr_key) -> BiometricModel.verify(
+                requireActivity(),
+                VerificationItem.ViewPrivateKey,
+                ::exportAccountQR
+            )
+            getString(R.string.export_account_raw_key) -> BiometricModel.verify(
+                requireActivity(),
+                VerificationItem.ViewPrivateKey,
+                ::exportAccountRaw
+            )
+            getString(R.string.view_logs_key) -> startActivity(Intent(context, LogActivity::class.java))
+            getString(R.string.clear_logs_key) -> File("${config.writeable_path}/${LogActivity.LOG_FILE_NAME}").writeText(
                 ""
             )
-            BACKGROUND_SYNC_ENABLED_KEY ->
-                findPreference<Preference>(BACKGROUND_SYNC_PERIOD_KEY)?.isEnabled =
+            getString(R.string.background_sync_enabled_key) ->
+                findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
                     (preference as SwitchPreference).isChecked
             else -> super.onPreferenceTreeClick(preference)
         }
 
         return true
-    }
-
-    private fun matchKey() {
-        when (selectedKey) {
-            EXPORT_ACCOUNT_RAW_KEY -> exportAccountRaw()
-            EXPORT_ACCOUNT_QR_KEY -> exportAccountQR()
-            BIOMETRIC_OPTION_KEY -> changeBiometricPreference(newValueForPref)
-            else -> {
-                Timber.e("Shared preference key not matched: $selectedKey")
-                AlertModel.errorHasOccurred(
-                    requireActivity().findViewById(android.R.id.content),
-                    BASIC_ERROR,
-                    OnFinishAlert.DoNothingOnFinishAlert
-                )
-            }
-        }.exhaustive
-    }
-
-    private fun changeBiometricPreference(newValue: String) {
-        findPreference<ListPreference>(BIOMETRIC_OPTION_KEY)?.value = newValue
     }
 
     private fun exportAccountQR() {
@@ -151,23 +120,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
                 popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
             }
-            is Err -> {
-                when (val error = exportResult.error) {
-                    is AccountExportError.NoAccount -> AlertModel.errorHasOccurred(
-                        requireActivity().findViewById(android.R.id.content),
-                        "Error! No account!",
-                        OnFinishAlert.DoNothingOnFinishAlert
-                    )
-                    is AccountExportError.Unexpected -> {
-                        AlertModel.unexpectedCoreErrorHasOccurred(
-                            requireContext(),
-                            error.error,
-                            OnFinishAlert.DoNothingOnFinishAlert
-                        )
-                        Timber.e("Unable to export account: ${error.error}")
-                    }
-                }
-            }
+            is Err -> alertModel.notifyError(exportResult.error.toLbError(resources))
         }.exhaustive
     }
 
@@ -178,29 +131,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clipBoardData = ClipData.newPlainText("account string", exportResult.value)
                 clipBoard.setPrimaryClip(clipBoardData)
-                AlertModel.notify(
-                    requireActivity().findViewById(android.R.id.content),
-                    "Account string copied!", OnFinishAlert.DoNothingOnFinishAlert
-                )
+                alertModel.notify(getString(R.string.settings_export_account_copied))
             }
-            is Err -> when (val error = exportResult.error) {
-                is AccountExportError.NoAccount -> AlertModel.errorHasOccurred(
-                    requireActivity().findViewById(android.R.id.content),
-                    "Error! No account!", OnFinishAlert.DoNothingOnFinishAlert
-                )
-                is AccountExportError.Unexpected -> {
-                    AlertModel.unexpectedCoreErrorHasOccurred(
-                        requireContext(),
-                        error.error,
-                        OnFinishAlert.DoNothingOnFinishAlert
-                    )
-                    Timber.e("Unable to export account: ${error.error}")
-                }
-            }
+            is Err -> alertModel.notifyError(exportResult.error.toLbError(resources))
         }.exhaustive
     }
-
-    private fun isBiometricsOptionsAvailable(): Boolean =
-        BiometricManager.from(requireContext())
-            .canAuthenticate(BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 }

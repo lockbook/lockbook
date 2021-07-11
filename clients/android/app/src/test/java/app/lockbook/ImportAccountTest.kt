@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,33 +28,25 @@ class ImportAccountTest {
 
     @Test
     fun importAccountOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val exportAccountString = assertTypeReturn<String>(
-            CoreModel.exportAccount(config).component1()
-        )
+        val exportAccountString = CoreModel.exportAccount(config).unwrap()
 
         config = Config(createRandomPath())
 
-        assertType<Unit>(
-            CoreModel.importAccount(config, exportAccountString).component1()
-        )
+        CoreModel.importAccount(config, exportAccountString).unwrap()
     }
 
     @Test
     fun importAccountStringCorrupted() {
-        assertType<ImportError.AccountStringCorrupted>(
-            CoreModel.importAccount(config, "!@#$%^&*()").component2()
-        )
+        CoreModel.importAccount(config, "!@#$%^&*()")
+            .unwrapErrorType<ImportError.AccountStringCorrupted>()
     }
 
     @Test
     fun importAccountUnexpectedError() {
-        assertType<ImportError.Unexpected>(
-            Klaxon().converter(importAccountConverter)
-                .parse<Result<Unit, ImportError>>(importAccount("", ""))?.component2()
-        )
+        Klaxon().converter(importAccountConverter)
+            .parse<Result<Unit, ImportError>>(importAccount("", ""))
+            .unwrapErrorType<ImportError.Unexpected>()
     }
 }

@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,19 +28,14 @@ class GetDBStateTest {
 
     @Test
     fun getDBStateOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<State>(
-            CoreModel.getDBState(config).component1()
-        )
+        CoreModel.getDBState(config).unwrap()
     }
 
     @Test
     fun getDBStateUnexpectedError() {
-        assertType<GetStateError.Unexpected>(
-            Klaxon().converter(getStateConverter).parse<Result<State, GetStateError>>(getDBState(""))?.component2()
-        )
+        Klaxon().converter(getStateConverter).parse<Result<State, GetStateError>>(getDBState(""))
+            .unwrapErrorType<GetStateError.Unexpected>()
     }
 }
