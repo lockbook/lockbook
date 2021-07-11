@@ -5,7 +5,6 @@ use std::sync::Arc;
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::Menu as GtkMenu;
 use gtk::MenuItem as GtkMenuItem;
 use gtk::SelectionMode as GtkSelectionMode;
 use gtk::TreeIter as GtkTreeIter;
@@ -18,6 +17,7 @@ use gtk::TreeViewColumn as GtkTreeViewColumn;
 use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
 };
+use gtk::{IconTheme, Menu as GtkMenu};
 use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDropPosition};
 use uuid::Uuid;
 
@@ -27,8 +27,10 @@ use lockbook_models::file_metadata::FileType;
 use crate::backend::LbCore;
 use crate::closure;
 use crate::error::LbResult;
+use crate::intro::LOGO_INTRO;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
+use gdk_pixbuf::Pixbuf;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -73,24 +75,18 @@ impl FileTree {
             }
         }
 
-        let targets = [
-            TargetEntry::new("lockbook/files", TargetFlags::SAME_WIDGET, 0),
-            // TargetEntry::new("text/plain", TargetFlags::OTHER_APP | TargetFlags::OTHER_WIDGET, 0),
-            // TargetEntry::new("TEXT", TargetFlags::OTHER_APP | TargetFlags::OTHER_WIDGET, 0),
-            // TargetEntry::new("STRING", TargetFlags::OTHER_APP | TargetFlags::OTHER_WIDGET, 0),
-        ];
+        let targets = [TargetEntry::new(
+            "lockbook/files",
+            TargetFlags::SAME_WIDGET,
+            0,
+        )];
 
         tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::MOVE);
-
         tree.drag_source_set(ModifierType::BUTTON1_MASK, &targets, DragAction::MOVE);
 
-        // tree.drag_dest_add_image_targets();
-        // tree.drag_dest_add_text_targets();
-        // tree.drag_dest_add_uri_targets();
-
-        // tree.drag_source_add_image_targets();
-        // tree.drag_source_add_text_targets();
-        // tree.drag_source_add_uri_targets();
+        tree.drag_source_set_icon_gicon(
+            &gio::Icon::new_for_string("application-x-generic").unwrap(),
+        );
 
         tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
         tree.connect_drag_data_get(Self::on_drag_data_get());
@@ -150,35 +146,6 @@ impl FileTree {
 
     fn on_drag_data_get() -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
         |_, _, s, _, _| {
-            //
-            // I commented this out since this is unneeded for drags that take place just in the treeview. If I want to add any outside functionality I
-            // will need to bring this back
-            //
-            //
-            // let selection = w.get_selection();
-            // let (paths, model) = selection.get_selected_rows();
-            //
-            // println!("SELECTED {:?}", selection.get_selected());
-            //
-            // let iters = paths.iter().map(|path| model.get_iter(path).unwrap()).collect::<Vec<TreeIter>>();
-            //
-            // let mut data = String::new();
-            //
-            // iters.iter().enumerate().for_each(|(index, iter)| {
-            //     data.push_str(model.get_value(&iter, 0).get::<String>().unwrap().unwrap().as_str());
-            //     data.push_str("|");
-            //     data.push_str(model.get_value(&iter, 1).get::<String>().unwrap().unwrap().as_str());
-            //     data.push_str("|");
-            //     data.push_str(model.get_value(&iter, 2).get::<String>().unwrap().unwrap().as_str());
-            //     if index != iters.len() - 1 {
-            //         data.push_str("|");
-            //     }
-            // });
-            //
-            // println!("TARGET: {} | DATA: {}", s.get_target().name(), data);
-            //
-            // s.set(&s.get_target(), 8, data.as_bytes());
-
             s.set(&s.get_target(), 8, &[]);
         }
     }
@@ -188,8 +155,6 @@ impl FileTree {
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
         closure!(m, c => move |w, d, x, y, _, _, time| {
-            println!("Drag received");
-
             match w.get_dest_row_at_pos(x, y) {
                 Some((Some(mut path), _)) => {
                     let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
