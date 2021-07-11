@@ -15,7 +15,8 @@ You should only ever do this once per machine, if you are prompted to do it agai
 5. View Certificate button
 6. Install Certificate button
 7. Local Machine radio button
-8. Accept defaults
+8. Place all certificates in the following store: Trusted Root Certification Authorities
+9. Accept defaults
 
 Why did you have to do this? Because Microsoft is interested in pushing people to use the Microsft store to download applications, not run applications from "untrusted" developers.
 
