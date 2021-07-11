@@ -27,8 +27,8 @@ echo "Performing clean build"
 cd ../../clients/cli
 current_version=$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)
 cargo clean
-API_URL="http://api.lockbook.app:8000" cargo build --release
-cd target/release
+cargo build --release
+cd ../../target/release
 
 echo "taring"
 tar -czf lockbook-cli-macos.tar.gz lockbook
@@ -63,7 +63,7 @@ github-release upload \
 
 echo "Verify this sha is a part of the release on github: $sha"
 
-cd ../../../../../homebrew-lockbook/Formula
+cd ../../../homebrew-lockbook/Formula
 sed -i '' 's=url.*=url "https://github.com/lockbook/lockbook/releases/download/'$current_version'/lockbook-cli-macos.tar.gz"=g' lockbook.rb
 sed -i '' "s/sha256.*/sha256 \"$sha\"/g" lockbook.rb
 sed -i '' "s/version.*/version \"$current_version\"/g" lockbook.rb
