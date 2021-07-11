@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,21 +28,15 @@ class GetUncompressedUsageTest {
 
     @Test
     fun getUncompressedUsageOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<UsageItemMetric>(
-            CoreModel.getUncompressedUsage(config).component1()
-        )
+        CoreModel.getUncompressedUsage(config).unwrap()
     }
 
     @Test
     fun getUncompressedUsageUnexpectedError() {
-        assertType<GetUsageError.Unexpected>(
-            Klaxon().converter(getUncompressedUsageConverter).parse<Result<UsageItemMetric, GetUsageError>>(
-                getUncompressedUsage("")
-            )?.component2()
-        )
+        Klaxon().converter(getUncompressedUsageConverter).parse<Result<UsageItemMetric, GetUsageError>>(
+            getUncompressedUsage("")
+        ).unwrapErrorType<GetUsageError.Unexpected>()
     }
 }

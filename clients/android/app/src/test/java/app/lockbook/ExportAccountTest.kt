@@ -4,7 +4,7 @@ import app.lockbook.core.exportAccount
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.*
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,27 +27,20 @@ class ExportAccountTest {
 
     @Test
     fun exportAccountOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<String>(
-            CoreModel.exportAccount(config).component1()
-        )
+        CoreModel.exportAccount(config).unwrap()
     }
 
     @Test
     fun exportAccountNoAccount() {
-        assertType<AccountExportError.NoAccount>(
-            CoreModel.exportAccount(config).component2()
-        )
+        CoreModel.exportAccount(config).unwrapErrorType<AccountExportError.NoAccount>()
     }
 
     @Test
     fun exportAccountUnexpectedError() {
-        assertType<AccountExportError.Unexpected>(
-            Klaxon().converter(exportAccountConverter)
-                .parse<Result<String, AccountExportError>>(exportAccount(""))?.component2()
-        )
+        Klaxon().converter(exportAccountConverter)
+            .parse<Result<String, AccountExportError>>(exportAccount(""))
+            .unwrapErrorType<AccountExportError.Unexpected>()
     }
 }

@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,28 +28,20 @@ class GetUsageTest {
 
     @Test
     fun getUsageOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<UsageMetrics>(
-            CoreModel.getUsage(config).component1()
-        )
+        CoreModel.getUsage(config).unwrap()
     }
 
     @Test
     fun getUsageNoAccount() {
-        assertType<GetUsageError.NoAccount>(
-            CoreModel.getUsage(config).component2()
-        )
+        CoreModel.getUsage(config).unwrapErrorType<GetUsageError.NoAccount>()
     }
 
     @Test
     fun getUsageUnexpectedError() {
-        assertType<GetUsageError.Unexpected>(
-            Klaxon().converter(getUsageConverter).parse<Result<UsageMetrics, GetUsageError>>(
-                getUsage("")
-            )?.component2()
-        )
+        Klaxon().converter(getUsageConverter)
+            .parse<Result<UsageMetrics, GetUsageError>>(getUsage(""))
+            .unwrapErrorType<GetUsageError.Unexpected>()
     }
 }

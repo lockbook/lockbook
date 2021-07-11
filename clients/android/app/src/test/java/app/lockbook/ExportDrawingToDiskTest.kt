@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,173 +28,142 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, Klaxon().toJsonString(Drawing())).component1()
-        )
+        CoreModel.writeToDocument(config, document.id, Klaxon().toJsonString(Drawing())).unwrap()
 
-        assertType<Unit>(
-            CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, generateFakeRandomPath()).component1()
-        )
+        CoreModel.exportDrawingToDisk(
+            config,
+            document.id,
+            SupportedImageFormats.Jpeg,
+            generateFakeRandomPath()
+        ).unwrap()
     }
 
     @Test
     fun exportDrawingToDiskNoAccount() {
-        assertType<ExportDrawingToDiskError.NoAccount>(
-            CoreModel.exportDrawingToDisk(config, generateId(), SupportedImageFormats.Jpeg, generateFakeRandomPath()).component2()
-        )
+        CoreModel.exportDrawingToDisk(
+            config,
+            generateId(),
+            SupportedImageFormats.Jpeg,
+            generateFakeRandomPath()
+        ).unwrapErrorType<ExportDrawingToDiskError.NoAccount>()
     }
 
     @Test
     fun exportDrawingToDiskFileDoesNotExist() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        CoreModel.getRoot(config).unwrap()
 
-        assertType<ExportDrawingToDiskError.FileDoesNotExist>(
-            CoreModel.exportDrawingToDisk(config, generateId(), SupportedImageFormats.Jpeg, generateFakeRandomPath()).component2()
-        )
+        CoreModel.exportDrawingToDisk(
+            config,
+            generateId(),
+            SupportedImageFormats.Jpeg,
+            generateFakeRandomPath()
+        ).unwrapErrorType<ExportDrawingToDiskError.FileDoesNotExist>()
     }
 
     @Test
     fun exportDrawingToDiskInvalidDrawing() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, "").component1()
-        )
+        CoreModel.writeToDocument(config, document.id, "").unwrap()
 
-        assertType<ExportDrawingToDiskError.InvalidDrawing>(
-            CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, generateFakeRandomPath()).component2()
-        )
+        CoreModel.exportDrawingToDisk(
+            config,
+            document.id,
+            SupportedImageFormats.Jpeg,
+            generateFakeRandomPath()
+        ).unwrapErrorType<ExportDrawingToDiskError.InvalidDrawing>()
     }
 
     @Test
     fun exportDrawingToDiskFolderTreatedAsDrawing() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        assertType<ExportDrawingToDiskError.FolderTreatedAsDrawing>(
-            CoreModel.exportDrawingToDisk(config, folder.id, SupportedImageFormats.Jpeg, generateFakeRandomPath()).component2()
-        )
+        CoreModel.exportDrawingToDisk(
+            config,
+            folder.id,
+            SupportedImageFormats.Jpeg,
+            generateFakeRandomPath()
+        ).unwrapErrorType<ExportDrawingToDiskError.FolderTreatedAsDrawing>()
     }
 
     @Test
     fun exportDrawingToDiskBadPath() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, Klaxon().toJsonString(Drawing())).component1()
-        )
+        CoreModel.writeToDocument(config, document.id, Klaxon().toJsonString(Drawing())).unwrap()
 
-        assertType<ExportDrawingToDiskError.BadPath>(
-            CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, "").component2()
-        )
+        CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, "")
+            .unwrapErrorType<ExportDrawingToDiskError.BadPath>()
     }
 
     @Test
     fun exportDrawingToDiskFileAlreadyExistsInDisk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, Klaxon().toJsonString(Drawing())).component1()
-        )
+        CoreModel.writeToDocument(config, document.id, Klaxon().toJsonString(Drawing())).unwrap()
 
         val path = generateFakeRandomPath()
 
-        assertType<Unit>(
-            CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, path).component1()
-        )
+        CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, path)
+            .unwrap()
 
-        assertType<ExportDrawingToDiskError.FileAlreadyExistsInDisk>(
-            CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, path).component2()
-        )
+        CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, path)
+            .unwrapErrorType<ExportDrawingToDiskError.FileAlreadyExistsInDisk>()
     }
 
     @Test
     fun exportDrawingToDiskUnexpectedError() {
-        assertType<ExportDrawingToDiskError.Unexpected>(
-            Klaxon().converter(exportDrawingToDiskConverter)
-                .parse<Result<Unit, ExportDrawingToDiskError>>(exportDrawingToDisk("", "", "", ""))?.component2()
-        )
+        Klaxon().converter(exportDrawingToDiskConverter)
+            .parse<Result<Unit, ExportDrawingToDiskError>>(exportDrawingToDisk("", "", "", ""))
+            .unwrapErrorType<ExportDrawingToDiskError.Unexpected>()
     }
 }
