@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
-use gdk::EventButton as GdkEventButton;
-use gdk::EventKey as GdkEventKey;
+use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
+use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::CellRendererText as GtkCellRendererText;
-use gtk::Inhibit as GtkInhibit;
 use gtk::Menu as GtkMenu;
 use gtk::MenuItem as GtkMenuItem;
 use gtk::SelectionMode as GtkSelectionMode;
@@ -16,8 +15,13 @@ use gtk::TreeSelection as GtkTreeSelection;
 use gtk::TreeStore as GtkTreeStore;
 use gtk::TreeView as GtkTreeView;
 use gtk::TreeViewColumn as GtkTreeViewColumn;
+use gtk::{
+    CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
+};
+use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDropPosition};
 use uuid::Uuid;
 
+use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_models::file_metadata::FileType;
 
 use crate::backend::LbCore;
@@ -25,7 +29,6 @@ use crate::closure;
 use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
-use lockbook_core::model::client_conversion::ClientFileMetadata;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -48,7 +51,7 @@ pub struct FileTree {
 }
 
 impl FileTree {
-    pub fn new(m: &Messenger, hidden_cols: &Vec<String>) -> Self {
+    pub fn new(m: &Messenger, c: &Arc<LbCore>, hidden_cols: &Vec<String>) -> Self {
         let popup = Rc::new(FileTreePopup::new(&m));
 
         let model = GtkTreeStore::new(&FileTreeCol::all_types());
@@ -69,6 +72,23 @@ impl FileTree {
                 tree.append_column(&c.to_tree_view_col());
             }
         }
+
+        let targets = [TargetEntry::new(
+            "lockbook/files",
+            TargetFlags::SAME_WIDGET,
+            0,
+        )];
+
+        tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::MOVE);
+        tree.drag_source_set(ModifierType::BUTTON1_MASK, &targets, DragAction::MOVE);
+
+        tree.drag_source_set_icon_gicon(
+            &gio::Icon::new_for_string("application-x-generic").unwrap(),
+        );
+
+        tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
+        tree.connect_drag_data_get(Self::on_drag_data_get());
+        tree.connect_drag_motion(Self::on_drag_motion());
 
         Self { cols, model, tree }
     }
@@ -120,6 +140,77 @@ impl FileTree {
                 m.send(Msg::OpenFile(Some(iter_uuid)));
             }
         })
+    }
+
+    fn on_drag_data_get() -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
+        |_, _, s, _, _| {
+            s.set(&s.get_target(), 8, &[]);
+        }
+    }
+
+    fn on_drag_data_received(
+        m: &Messenger,
+        c: &Arc<LbCore>,
+    ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
+        closure!(m, c => move |w, d, x, y, _, _, time| {
+            if let Some((Some(mut path), _)) = w.get_dest_row_at_pos(x, y) {
+                let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
+
+                let mut parent = model.get_iter(&path).unwrap();
+                if tree_iter_value!(model, &parent, 2, String) == format!("{:?}", FileType::Document) {
+                    path.up();
+                    parent = model.get_iter(&path).unwrap();
+                }
+
+                let (paths, _) = w.get_selection().get_selected_rows();
+
+                let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
+                let iters_name = iters.iter().map(|iter| tree_iter_value!(model, &iter, 0, String)).collect::<Vec<String>>();
+                let iters_id = iters.iter().map(|iter| tree_iter_value!(model, &iter, 1, String)).collect::<Vec<String>>();
+                let iters_ftype = iters.iter().map(|iter| tree_iter_value!(model, &iter, 2, String)).collect::<Vec<String>>();
+
+                let ids = iters_id.iter().map(|id| Uuid::parse_str(id).unwrap()).collect::<Vec<Uuid>>();
+                let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 1, String).as_str()).unwrap();
+
+                ids.iter().enumerate().for_each(|(index, id)| {
+                    match c.move_file(id, parent_id) {
+                        Ok(_) => {
+                            model.insert_with_values(Some(&parent), None, &[0, 1, 2], &[&iters_name[index], &iters_id[index], &iters_ftype[index]]);
+                            model.remove(&iters[index]);
+                        }
+                        Err(err) => m.send_err_dialog("moving", err)
+                    }
+                });
+
+                d.drop_finish(true, time);
+            }
+        })
+    }
+
+    fn on_drag_motion() -> impl Fn(&TreeView, &DragContext, i32, i32, u32) -> GtkInhibit {
+        |w, d, x, y, time| {
+            if let Some((Some(path), pos)) = w.get_dest_row_at_pos(x, y) {
+                let model = w.get_model().unwrap();
+
+                let pos_corrected =
+                    if tree_iter_value!(model, &model.get_iter(&path).unwrap(), 2, String)
+                        == format!("{:?}", FileType::Document)
+                    {
+                        match pos {
+                            TreeViewDropPosition::IntoOrBefore => TreeViewDropPosition::Before,
+                            TreeViewDropPosition::IntoOrAfter => TreeViewDropPosition::After,
+                            _ => pos,
+                        }
+                    } else {
+                        pos
+                    };
+
+                w.set_drag_dest_row(Some(&path), pos_corrected);
+                d.drag_status(d.get_suggested_action(), time);
+            }
+
+            GtkInhibit(true)
+        }
     }
 
     pub fn widget(&self) -> &GtkTreeView {
