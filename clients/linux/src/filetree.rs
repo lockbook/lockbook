@@ -5,6 +5,7 @@ use std::sync::Arc;
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
+use gtk::Menu as GtkMenu;
 use gtk::MenuItem as GtkMenuItem;
 use gtk::SelectionMode as GtkSelectionMode;
 use gtk::TreeIter as GtkTreeIter;
@@ -17,7 +18,6 @@ use gtk::TreeViewColumn as GtkTreeViewColumn;
 use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
 };
-use gtk::{IconTheme, Menu as GtkMenu};
 use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDropPosition};
 use uuid::Uuid;
 
@@ -27,10 +27,8 @@ use lockbook_models::file_metadata::FileType;
 use crate::backend::LbCore;
 use crate::closure;
 use crate::error::LbResult;
-use crate::intro::LOGO_INTRO;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
-use gdk_pixbuf::Pixbuf;
 
 #[macro_export]
 macro_rules! tree_iter_value {
