@@ -61,7 +61,7 @@ macro_rules! account {
 }
 
 fn api_url() -> String {
-    env::var("LOCKBOOK_API_URL").unwrap_or_else(|_| "http://qa.lockbook.app:8000".to_string())
+    env::var("API_URL").unwrap_or_else(|_| lockbook_core::DEFAULT_API_LOCATION.to_string())
 }
 
 pub struct LbSyncMsg {
