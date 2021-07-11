@@ -13,7 +13,6 @@ let boldEmphasisTraits: NSFontDescriptor.SymbolicTraits = [.bold, .italic]
 func systemFontWithTraits(_ traits: NSFontDescriptor.SymbolicTraits, _ size: CGFloat = fontSize) -> NSFont {
     NSFont(descriptor: NSFont.systemFont(ofSize: size).fontDescriptor.withSymbolicTraits(traits), size: size)!
 }
-
 #else
 let fontSize = UIFont.systemFontSize
 let systemFont = UIFont.systemFont(ofSize: fontSize)
@@ -25,8 +24,8 @@ let boldEmphasisTraits: UIFontDescriptor.SymbolicTraits = [.traitBold, .traitIta
 func systemFontWithTraits(_ traits: UIFontDescriptor.SymbolicTraits, _ size: CGFloat = fontSize) -> UIFont {
     UIFont(descriptor: UIFont.systemFont(ofSize: size).fontDescriptor.withSymbolicTraits(traits)!, size: size)
 }
-
 #endif
+
 let LockbookTheme: Theme = {
     var t = Theme()
     t.tintColor = UniversalColor.fromColorAlias(from: .Red)

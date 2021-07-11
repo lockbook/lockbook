@@ -5,6 +5,7 @@ import PencilKit
 struct FileListView: View {
     @ObservedObject var core: GlobalState
     @State var showingAccount: Bool = false
+    @State var creatingFile: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
     let currentFolder: ClientFileMetadata
@@ -13,7 +14,7 @@ struct FileListView: View {
     @State var renaming: ClientFileMetadata?
     static var toolbar = ToolbarModel()
     @State private var selection: ClientFileMetadata?
-
+    
     var files: [ClientFileMetadata] {
         core.files.filter {
             $0.parent == currentFolder.id && $0.id != currentFolder.id
@@ -21,69 +22,54 @@ struct FileListView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack {
-                creating.map { type in
-                    SyntheticFileCell(
-                        parent: currentFolder,
-                        type: type,
-                        name: $creatingName,
-                        onCommit: {
-                            handleCreate(meta: currentFolder, type: type)
-                        },
-                        onCancel: doneCreating,
-                        renaming: false
-                    )
-                }
-
-                ForEach(files) { meta in
-                    renderCell(meta: meta)
-                        .popover(item: $moving, content: renderMoveDialog)
-                        .contextMenu(menuItems: {
-                            Button(action: {
-                                handleDelete(meta: meta)
-                            }) {
-                                Label("Delete", systemImage: "trash.fill")
-                            }
-                            Button(action: {
-                                moving = meta
-                            }, label: {
-                                Label("Move", systemImage: "folder")
-                            })
-                            Button(action: {
-                                renaming = meta
-                                creatingName = meta.name
-                            }, label: {
-                                Label("Rename", systemImage: "pencil")
-                            })
+        VStack {
+            List (files) { meta in
+                renderCell(meta: meta)
+                    .popover(item: $moving, content: renderMoveDialog)
+                    .contextMenu(menuItems: {
+                        Button(action: {
+                            handleDelete(meta: meta)
+                        }) {
+                            Label("Delete", systemImage: "trash.fill")
+                        }
+                        Button(action: {
+                            moving = meta
+                        }, label: {
+                            Label("Move", systemImage: "folder")
                         })
+                        Button(action: {
+                            renaming = meta
+                            creatingName = meta.name
+                        }, label: {
+                            Label("Rename", systemImage: "pencil")
+                        })
+                    })
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                core.syncing = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                core.syncing = true
+            }
+            .sheet(isPresented: $showingAccount, content: {
+                AccountView(core: core, account: account)
+            })
+            .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, core: core, onSuccess: fileSuccessfullyCreated)})
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showingAccount.toggle() }) {
+                        Image(systemName: "gearshape.fill")
+                            .foregroundColor(.blue)
+                    }
                 }
             }
-            .padding(.leading, 20)
+            .navigationBarTitle(currentFolder.name)
+            HStack {
+                BottomBar(core: core, onCreating: { creatingFile = true })
+            }.padding(.horizontal, 10)
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-            core.syncing = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            core.syncing = true
-        }
-        .sheet(isPresented: $showingAccount, content: {
-            AccountView(core: core, account: account)
-        })
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: { showingAccount.toggle() }) {
-                    Image(systemName: "gearshape.fill")
-                }
-            }
-            ToolbarItemGroup(placement: .bottomBar) {
-                BottomBar(core: core, onNewDocument: newDocument, onNewDrawing: newDrawing, onNewFolder: newFolder)
-            }
-        }
-        .navigationBarTitle(currentFolder.name)
-        
     }
-
+    
     func renderMoveDialog(meta: ClientFileMetadata) -> some View {
         let root = core.files.first(where: { $0.parent == $0.id })!
         let wc = WithChild(root, core.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
@@ -103,10 +89,8 @@ struct FileListView: View {
                                         core.handleError(err)
                                     }
                                 } else {
-                                    withAnimation {
-                                        core.updateFiles()
-                                        core.checkForLocalWork()
-                                    }
+                                    core.updateFiles()
+                                    core.checkForLocalWork()
                                 }
                             }, label: {
                                 Label(dest.name, systemImage: "folder")
@@ -129,17 +113,13 @@ struct FileListView: View {
                         if case .failure(let err) = core.api.renameFile(id: meta.id, name: creatingName) {
                             core.handleError(err)
                         } else {
-                            withAnimation {
-                                core.updateFiles()
-                                core.checkForLocalWork()
-                            }
+                            core.updateFiles()
+                            core.checkForLocalWork()
                         }
                     },
                     onCancel: {
-                        withAnimation {
-                            renaming = nil
-                            creatingName = ""
-                        }
+                        renaming = nil
+                        creatingName = ""
                     },
                     renaming: true
                 )
@@ -154,8 +134,6 @@ struct FileListView: View {
                 )
             } else {
                 if meta.name.hasSuffix(".draw") {
-                    // This is how you can pop without the navigation bar
-                    // https://stackoverflow.com/questions/56513568/ios-swiftui-pop-or-dismiss-view-programmatically
                     let dl = DrawingLoader(model: core.openDrawing, toolbar: FileListView.toolbar, meta: meta, deleteChannel: core.deleteChannel)
                     return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline), tag: meta, selection: $selection) {
                         FileCell(meta: meta)
@@ -169,7 +147,7 @@ struct FileListView: View {
             }
         }
     }
-
+    
     func handleDelete(meta: ClientFileMetadata) {
         switch core.api.deleteFile(id: meta.id) {
         case .success(_):
@@ -182,45 +160,10 @@ struct FileListView: View {
         }
     }
     
-    func handleCreate(meta: ClientFileMetadata, type: FileType) {
-        switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
-        case .success(let newMeta):
-            doneCreating()
-            core.updateFiles()
-            core.checkForLocalWork()
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
-                selection = newMeta
-            }
-        case .failure(let err):
-            core.handleError(err)
-        }
-    }
-    
-    func doneCreating() {
-        withAnimation {
-            creating = .none
-            creatingName = ""
-        }
-    }
-    
-    func newDocument() {
-        withAnimation {
-            creating = .Document
-            creatingName = ".md"
-        }
-    }
-    
-    func newDrawing() {
-        withAnimation {
-            creating = .Document
-            creatingName = ".draw"
-        }
-    }
-    
-    func newFolder() {
-        withAnimation {
-            creating = .Folder
-            creatingName = ""
+    func fileSuccessfullyCreated(new: ClientFileMetadata) {
+        creatingFile = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
+            selection = new
         }
     }
 }
