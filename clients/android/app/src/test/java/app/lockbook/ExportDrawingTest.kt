@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,111 +28,79 @@ class ExportDrawingTest {
 
     @Test
     fun exportDrawingOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, Klaxon().toJsonString(Drawing())).component1()
-        )
+        CoreModel.writeToDocument(config, document.id, Klaxon().toJsonString(Drawing()))
+            .unwrap()
 
-        assertType<List<Byte>>(
-            CoreModel.exportDrawing(config, document.id, SupportedImageFormats.Jpeg).component1()
-        )
+        CoreModel.exportDrawing(config, document.id, SupportedImageFormats.Jpeg).unwrap()
     }
 
     @Test
     fun exportDrawingNoAccount() {
-        assertType<ExportDrawingError.NoAccount>(
-            CoreModel.exportDrawing(config, generateId(), SupportedImageFormats.Jpeg).component2()
-        )
+        CoreModel.exportDrawing(config, generateId(), SupportedImageFormats.Jpeg)
+            .unwrapErrorType<ExportDrawingError.NoAccount>()
     }
 
     @Test
     fun exportDrawingFileDoesNotExist() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        CoreModel.getRoot(config).unwrap()
 
-        assertType<ExportDrawingError.FileDoesNotExist>(
-            CoreModel.exportDrawing(config, generateId(), SupportedImageFormats.Jpeg).component2()
-        )
+        CoreModel.exportDrawing(config, generateId(), SupportedImageFormats.Jpeg)
+            .unwrapErrorType<ExportDrawingError.FileDoesNotExist>()
     }
 
     @Test
     fun exportDrawingInvalidDrawing() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.writeContentToDocument(config, document.id, "").component1()
-        )
+        CoreModel.writeToDocument(config, document.id, "").unwrap()
 
-        assertType<ExportDrawingError.InvalidDrawing>(
-            CoreModel.exportDrawing(config, document.id, SupportedImageFormats.Jpeg).component2()
-        )
+        CoreModel.exportDrawing(config, document.id, SupportedImageFormats.Jpeg)
+            .unwrapErrorType<ExportDrawingError.InvalidDrawing>()
     }
 
     @Test
     fun exportDrawingFolderTreatedAsDrawing() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        assertType<ExportDrawingError.FolderTreatedAsDrawing>(
-            CoreModel.exportDrawing(config, folder.id, SupportedImageFormats.Jpeg).component2()
-        )
+        CoreModel.exportDrawing(config, folder.id, SupportedImageFormats.Jpeg)
+            .unwrapErrorType<ExportDrawingError.FolderTreatedAsDrawing>()
     }
 
     @Test
     fun unexpectedDrawingUnexpectedError() {
-        assertType<ExportDrawingError.Unexpected>(
-            Klaxon().converter(exportDrawingConverter)
-                .parse<Result<List<Byte>, ExportDrawingError>>(exportDrawing("", "", ""))?.component2()
-        )
+        Klaxon().converter(exportDrawingConverter)
+            .parse<Result<List<Byte>, ExportDrawingError>>(exportDrawing("", "", ""))
+            .unwrapErrorType<ExportDrawingError.Unexpected>()
     }
 }

@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,67 +28,49 @@ class ReadDocumentTest {
 
     @Test
     fun readDocumentOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        assertType<String>(
-            CoreModel.readDocument(config, document.id).component1()
-        )
+        CoreModel.readDocument(config, document.id).unwrap()
     }
 
     @Test
     fun readFolder() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        assertType<ReadDocumentError.TreatedFolderAsDocument>(
-            CoreModel.readDocument(config, folder.id).component2()
-        )
+        CoreModel.readDocument(config, folder.id)
+            .unwrapErrorType<ReadDocumentError.TreatedFolderAsDocument>()
     }
 
     @Test
     fun readDocumentDoesNotExist() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<ReadDocumentError.FileDoesNotExist>(
-            CoreModel.readDocument(config, generateId()).component2()
-        )
+        CoreModel.readDocument(config, generateId())
+            .unwrapErrorType<ReadDocumentError.FileDoesNotExist>()
     }
 
     @Test
     fun readDocumentUnexpectedError() {
-        assertType<ReadDocumentError.Unexpected>(
-            Klaxon().converter(readDocumentConverter).parse<Result<String, ReadDocumentError>>(readDocument("", ""))?.component2()
-        )
+        Klaxon().converter(readDocumentConverter)
+            .parse<Result<String, ReadDocumentError>>(readDocument("", ""))
+            .unwrapErrorType<ReadDocumentError.Unexpected>()
     }
 }

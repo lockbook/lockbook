@@ -14,15 +14,14 @@ import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.ActivityTextEditorBinding
 import app.lockbook.model.AlertModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.model.TextEditorViewModel
 import app.lockbook.modelfactory.TextEditorViewModelFactory
-import app.lockbook.util.BASIC_ERROR
 import app.lockbook.util.exhaustive
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
 import timber.log.Timber
+import java.lang.ref.WeakReference
 import java.util.*
 import java.util.concurrent.Executors
 
@@ -32,7 +31,10 @@ class TextEditorActivity : AppCompatActivity() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    private val textEditorLayout get() = binding.textEditorLayout
+    private val alertModel by lazy {
+        AlertModel(WeakReference(this))
+    }
+
     private val textEditorToolbar get() = binding.textEditorToolbar
     private val textField get() = binding.textEditorTextField
 
@@ -54,7 +56,7 @@ class TextEditorActivity : AppCompatActivity() {
         val id = intent.getStringExtra("id")
 
         if (id == null) {
-            AlertModel.unexpectedCoreErrorHasOccurred(this, "Unable to retrieve id.", OnFinishAlert.DoSomethingOnFinishAlert(::finish))
+            alertModel.notifyBasicError(::finish)
             return
         }
 
@@ -81,17 +83,10 @@ class TextEditorActivity : AppCompatActivity() {
             }
         )
 
-        textEditorViewModel.errorHasOccurred.observe(
+        textEditorViewModel.notifyError.observe(
             this,
-            { errorText ->
-                AlertModel.errorHasOccurred(textEditorLayout, errorText, OnFinishAlert.DoNothingOnFinishAlert)
-            }
-        )
-
-        textEditorViewModel.unexpectedErrorHasOccurred.observe(
-            this,
-            { errorText ->
-                AlertModel.unexpectedCoreErrorHasOccurred(this, errorText, OnFinishAlert.DoSomethingOnFinishAlert(::finish))
+            { error ->
+                alertModel.notifyError(error)
             }
         )
 
@@ -115,7 +110,7 @@ class TextEditorActivity : AppCompatActivity() {
     private fun setUpView(id: String) {
         val name = intent.getStringExtra("name")
         if (name == null) {
-            AlertModel.errorHasOccurred(textEditorLayout, "Unable to retrieve file name.", OnFinishAlert.DoSomethingOnFinishAlert(::finish))
+            alertModel.notifyBasicError(::finish)
             return
         }
 
@@ -262,11 +257,7 @@ class TextEditorActivity : AppCompatActivity() {
             R.id.menu_text_editor_undo -> handleTextUndo()
             else -> {
                 Timber.e("Menu item not matched: ${item.itemId}")
-                AlertModel.errorHasOccurred(
-                    textEditorLayout,
-                    BASIC_ERROR,
-                    OnFinishAlert.DoNothingOnFinishAlert
-                )
+                alertModel.notifyBasicError(::finish)
             }
         }.exhaustive
 

@@ -4,6 +4,8 @@ import app.lockbook.util.*
 import com.beust.klaxon.Converter
 import com.beust.klaxon.JsonValue
 import com.beust.klaxon.Klaxon
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrapError
 import java.util.*
 import kotlin.reflect.KClass
 
@@ -24,23 +26,17 @@ fun createRandomPath(): String {
     return path
 }
 
-inline fun <reified T> assertType(comparableValue: Any?) {
-    require(comparableValue is T) {
-        "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
-    }
-}
-
-inline fun <reified T> assertTypeReturn(comparableValue: Any?): T {
-    require(comparableValue is T) {
-        "${Thread.currentThread().stackTrace[1]}: ${if (comparableValue == null) "null" else comparableValue::class.qualifiedName} is not of type ${T::class.qualifiedName}"
+inline fun <reified T : CoreError> Result<*, CoreError>?.unwrapErrorType(): T {
+    val error = this?.unwrapError()
+    require(error is T) {
+        "${Thread.currentThread().stackTrace[1]}: ${if (error == null) "null" else error::class.qualifiedName} is not of type ${T::class.qualifiedName}"
     }
 
-    return comparableValue
+    return error
 }
 
 const val unrecognizedErrorTemplate = " is an unrecognized error type from "
 const val obsoleteErrorTemplate = "There is an obsolete error type from "
-const val stubError = "Stub"
 
 val errorsToCheck = listOf<KClass<*>>(
     CalculateWorkError::class,
@@ -68,7 +64,7 @@ val errorsToCheck = listOf<KClass<*>>(
 val checkIfAllErrorsPresentConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 
-    override fun fromJson(jv: JsonValue): Any? {
+    override fun fromJson(jv: JsonValue): Any {
         val jsonObject = jv.obj!!
 
         for (error in errorsToCheck) {
@@ -77,7 +73,7 @@ val checkIfAllErrorsPresentConverter = object : Converter {
             jsonObject.array<String>(error.simpleName!!)!!.forEach { variant ->
                 val sizeBefore = variantsToCheck.size
                 variantsToCheck = variantsToCheck.filter { kClass -> variant != kClass.simpleName }
-                if (variantsToCheck.size == sizeBefore && variant != stubError) {
+                if (variantsToCheck.size == sizeBefore && variant != "Stub") {
                     throw Throwable(variant + unrecognizedErrorTemplate + error.simpleName)
                 }
             }

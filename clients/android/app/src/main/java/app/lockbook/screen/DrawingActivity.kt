@@ -18,11 +18,11 @@ import app.lockbook.R
 import app.lockbook.databinding.ActivityDrawingBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.DrawingViewModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.modelfactory.DrawingViewModelFactory
 import app.lockbook.screen.TextEditorActivity.Companion.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
-import app.lockbook.ui.DrawingView
+import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
+import java.lang.ref.WeakReference
 import java.util.*
 
 class DrawingActivity : AppCompatActivity() {
@@ -55,6 +55,10 @@ class DrawingActivity : AppCompatActivity() {
     private lateinit var id: String
     private lateinit var gestureDetector: GestureDetector
 
+    private val alertModel by lazy {
+        AlertModel(WeakReference(this))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityDrawingBinding.inflate(layoutInflater)
@@ -63,7 +67,7 @@ class DrawingActivity : AppCompatActivity() {
         val maybeId = intent.getStringExtra("id")
 
         if (maybeId == null) {
-            AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to get get file id.", OnFinishAlert.DoSomethingOnFinishAlert(::finish))
+            alertModel.notifyBasicError(::finish)
             return
         }
 
@@ -75,16 +79,10 @@ class DrawingActivity : AppCompatActivity() {
                 DrawingViewModelFactory(application, id)
             ).get(DrawingViewModel::class.java)
 
-        drawingViewModel.errorHasOccurred.observe(
+        drawingViewModel.notifyError.observe(
             this
-        ) { errorText ->
-            AlertModel.errorHasOccurred(binding.drawingLayout, errorText, OnFinishAlert.DoSomethingOnFinishAlert(::finish))
-        }
-
-        drawingViewModel.unexpectedErrorHasOccurred.observe(
-            this
-        ) { errorText ->
-            AlertModel.unexpectedCoreErrorHasOccurred(this, errorText, OnFinishAlert.DoSomethingOnFinishAlert(::finish))
+        ) { error ->
+            alertModel.notifyError(error, ::finish)
         }
 
         drawingViewModel.drawableReady.observe(
@@ -137,9 +135,9 @@ class DrawingActivity : AppCompatActivity() {
         }
     }
 
-    private fun selectNewTool(oldTool: DrawingView.Tool?, newTool: DrawingView.Tool) {
+    private fun selectNewTool(oldTool: Tool?, newTool: Tool) {
         when (oldTool) {
-            is DrawingView.Pen -> {
+            is Tool.Pen -> {
                 val previousButton = when (oldTool.colorAlias) {
                     ColorAlias.White -> whiteButton
                     ColorAlias.Blue -> blueButton
@@ -153,16 +151,15 @@ class DrawingActivity : AppCompatActivity() {
 
                 previousButton.strokeWidth = 0
             }
-            is DrawingView.Eraser -> {
+            is Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_outline)
                 drawingView.isErasing = false
             }
             null -> {}
-            else -> AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to recognize previous tool.", OnFinishAlert.DoNothingOnFinishAlert)
         }
 
         when (newTool) {
-            is DrawingView.Pen -> {
+            is Tool.Pen -> {
                 val newButton = when (newTool.colorAlias) {
                     ColorAlias.White -> whiteButton
                     ColorAlias.Blue -> blueButton
@@ -177,11 +174,10 @@ class DrawingActivity : AppCompatActivity() {
                 newButton.strokeWidth = 4
                 drawingView.strokeColor = newTool.colorAlias
             }
-            is DrawingView.Eraser -> {
+            is Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_filled)
                 drawingView.isErasing = true
             }
-            else -> AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to recognize new tool.", OnFinishAlert.DoNothingOnFinishAlert)
         }.exhaustive
     }
 
@@ -228,7 +224,7 @@ class DrawingActivity : AppCompatActivity() {
         val drawing = drawingViewModel.backupDrawing
 
         if (drawing == null) {
-            AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to get backup drawing.", OnFinishAlert.DoNothingOnFinishAlert)
+            alertModel.notifyBasicError()
             return
         }
 
@@ -244,7 +240,7 @@ class DrawingActivity : AppCompatActivity() {
         val yellow = colorAliasInARGB[ColorAlias.Yellow]
 
         if (white == null || black == null || red == null || green == null || cyan == null || magenta == null || blue == null || yellow == null) {
-            AlertModel.errorHasOccurred(binding.drawingLayout, "Unable to get 1 or more colors from theme.", OnFinishAlert.DoNothingOnFinishAlert)
+            alertModel.notifyBasicError()
             return
         }
 
@@ -279,39 +275,39 @@ class DrawingActivity : AppCompatActivity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun setUpToolbarListeners() {
         whiteButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.White))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.White))
         }
 
         blackButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Black))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Black))
         }
 
         blueButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Blue))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Blue))
         }
 
         greenButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Green))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Green))
         }
 
         yellowButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Yellow))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Yellow))
         }
 
         magentaButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Magenta))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Magenta))
         }
 
         redButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Red))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Red))
         }
 
         cyanButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Pen(ColorAlias.Cyan))
+            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Cyan))
         }
 
         eraser.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(DrawingView.Eraser)
+            drawingViewModel.handleNewToolSelected(Tool.Eraser)
         }
 
         penSizeChooser.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {

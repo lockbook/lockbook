@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,48 +28,36 @@ class SyncAllTest {
 
     @Test
     fun syncAllOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.sync(config, null).component1()
-        )
+        CoreModel.sync(config, null).unwrap()
     }
 
     @Test
     fun syncAllNoAccount() {
-        assertType<SyncAllError.NoAccount>(
-            CoreModel.sync(config, null).component2()
-        )
+        CoreModel.sync(config, null).unwrapErrorType<SyncAllError.NoAccount>()
     }
 
     @Test
     fun syncAllUnexpectedError() {
-        assertType<SyncAllError.Unexpected>(
-            Klaxon().converter(syncConverter).parse<Result<Unit, SyncAllError>>(backgroundSync(Klaxon().toJsonString("")))?.component2()
-        )
+        Klaxon().converter(syncConverter)
+            .parse<Result<Unit, SyncAllError>>(backgroundSync(Klaxon().toJsonString("")))
+            .unwrapErrorType<SyncAllError.Unexpected>()
     }
 }

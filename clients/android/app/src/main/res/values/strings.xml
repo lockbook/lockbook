@@ -51,17 +51,10 @@
 
     <string name="settings_export_account_raw">Copy account string to clipboard</string>
     <string name="settings_export_account_qr">Export account string (QR Code)</string>
+    <string name="settings_export_account_copied">Account string copied!</string>
     <string name="settings_protect_account_biometric">Biometric options</string>
 
-    <array name="settings_biometric_names">
-        <item>@string/biometric_disabled</item>
-        <item>@string/biometric_recommended</item>
-        <item>@string/biometric_strict</item>
-    </array>
-
     <string name="biometrics_save">Save</string>
-    <string name="biometrics_cancel">Cancel</string>
-    <string name="biometrics_title">Protect your key with biometrics.</string>
 
     <string name="biometric_disabled">Disabled</string>
     <string name="biometric_recommended">Protect key export with biometrics (recommended)</string>
@@ -75,9 +68,6 @@
     <string name="menu_text_editor_redo">Redo</string>
     <string name="menu_text_editor_undo">Undo</string>
 
-    <string name="biometric_none_value">biometric_none</string>
-    <string name="biometric_recommended_value">biometric_recommended</string>
-    <string name="biometric_strict_value">biometric_strict</string>
     <string name="menu_list_files_sort_a_z">Sort from a-z</string>
     <string name="menu_list_files_last_changed">Sort by last changed</string>
     <string name="menu_list_files_sort_z_a">Sort from z-a</string>
@@ -87,7 +77,7 @@
 
     <string name="settings_sync_startup">Sync at startup</string>
     <string name="settings_sync_edit">Sync automatically in app</string>
-    <string name="settings_preference_background_summary_sync_period">The time between each automatic sync</string>
+    <string name="settings_preference_background_summary_sync_period">The time between each automatic sync.</string>
     <string name="settings_preference_background_title_sync_period">Background sync period</string>
     <string name="settings_preference_background_title_background_sync_enabled">Background sync enabled</string>
     <string name="settings_preference_title_biometrics">Biometrics</string>
@@ -98,12 +88,6 @@
     <string name="qr_code_content_description">QR code</string>
     <string name="file_image_content_description">File image</string>
     <string name="overflow">Overflow</string>
-
-    <array name="settings_biometric_values">
-        <item>@string/biometric_none_value</item>
-        <item>@string/biometric_recommended_value</item>
-        <item>@string/biometric_strict_value</item>
-    </array>
 
     <string name="list_files_offline_snackbar">You are offline</string>
     <string name="list_files_sync_info_snackbar">%s items to sync</string>
@@ -117,16 +101,16 @@
     <string name="dialog_duration_days_label">Days</string>
     <string name="dialog_duration_error">Your duration cannot be less than 15 minutes.</string>
 
-    <string name="drawing_pallete_red">Red</string>
-    <string name="drawing_pallete_blue">Blue</string>
-    <string name="drawing_pallete_white">White</string>
-    <string name="drawing_pallete_yellow">Yellow</string>
+    <string name="drawing_pallet_red">Red</string>
+    <string name="drawing_pallet_blue">Blue</string>
+    <string name="drawing_pallet_white">White</string>
+    <string name="drawing_pallet_yellow">Yellow</string>
 
-    <array name="drawing_pallete_colors">
-        <item>@string/drawing_pallete_white</item>
-        <item>@string/drawing_pallete_yellow</item>
-        <item>@string/drawing_pallete_red</item>
-        <item>@string/drawing_pallete_blue</item>
+    <array name="drawing_pallet_colors">
+        <item>@string/drawing_pallet_white</item>
+        <item>@string/drawing_pallet_yellow</item>
+        <item>@string/drawing_pallet_red</item>
+        <item>@string/drawing_pallet_blue</item>
     </array>
 
     <string name="drawing_pen_1">1dp</string>
@@ -148,7 +132,7 @@
     <string name="menu_list_files_delete">Delete file</string>
     <string name="menu_list_files_info">File info</string>
     <string name="menu_list_files_move">Move file</string>
-    <string name="default_value">ERROR</string>
+    <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
     <string name="menu_markdown_link">Insert link</string>
@@ -167,7 +151,6 @@
     <string name="dialog_file_extension">File Ext.</string>
     <string name="dialog_file_folder">Folder Name</string>
     <string name="empty_folder">There are no files, please click the bottom right button to create a new file, folder, or drawing.</string>
-    <string name="krumbs_start_item">Root</string>
     <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
     <string name="create_file_dialog_document_extension">.md</string>
     <string name="create_file_dialog_drawing_extension">.draw</string>
@@ -191,10 +174,96 @@
     <string name="drawing_pen_large_description">Large</string>
     <string name="settings_open_new_document_automatically">Automatically open new documents</string>
 
+    <string name="initial_figure_outer_migrate_data">Migrating your data…</string>
+    <string name="initial_figure_outer_finished_upgrading_data">Your data has been migrated.</string>
+
+    <!-- Errors -->
+    <string name="no_account">You have no account.</string>
+    <string name="could_not_reach_server">Offline.</string>
+    <string name="client_update_required">Update required.</string>
+    <string name="state_requires_cleaning">This lockbook version is incompatible with your data, please clear your data or downgrade your lockbook.</string>
+    <string name="username_taken">This username has been taken.</string>
+    <string name="invalid_username">This username is invalid.</string>
+    <string name="account_exists_already">An account already exists on this device.</string>
+    <string name="account_string_corrupted">Invalid account string.</string>
+    <string name="account_does_not_exist">That account does not exist.</string>
+    <string name="username_pk_mismatch">That username does not correspond with that public_key on this server.</string>
+    <string name="file_does_not_exist">That file does not exist.</string>
+    <string name="folder_treated_as_document">A folder cannot be treated as document.</string>
+    <string name="document_treated_as_folder">A document cannot be treated as folder.</string>
+    <string name="could_not_find_a_parent">Could not find that file\'s parent.</string>
+    <string name="file_name_not_available">That file name is not available.</string>
+    <string name="file_name_contains_slash">A file name cannot contain a slash.</string>
+    <string name="file_name_empty">A file\'s name cannot be empty.</string>
+    <string name="no_file_with_that_id">No file with that id exists.</string>
+    <string name="cannot_delete_root">You cannot delete root.</string>
+    <string name="bad_path">A bad path was given.</string>
+    <string name="file_already_exists_on_disk">A file with that name already exists on your device.</string>
+    <string name="folder_treated_as_drawing">A folder cannot be treated as a drawing.</string>
+    <string name="invalid_drawing">That drawing is invalid.</string>
+    <string name="cannot_rename_root">You cannot rename root.</string>
+    <string name="target_parent_does_not_exist">Your target parent does not exist.</string>
+    <string name="target_parent_has_a_child_named_that">Your target parent already has a child named that.</string>
+    <string name="folder_moved_into_itself">A folder cannot be moved into itself.</string>
+    <string name="no_root">No root!</string>
+    <string name="cannot_move_root">Cannot move root!</string>
+
+    <string name="unexpected_error">An unexpected error has occurred!</string>
+    <string name="basic_error">An error has occurred.</string>
+    <string name="settings_protect_account_biometric_summary">Secure your account with biometrics.</string>
+
+    <string name="biometrics_title">Lockbook Biometric Verification</string>
+    <string name="biometrics_subtitle">Verify your identity to access Lockbook.</string>
+    <string name="biometrics_cancel">Cancel</string>
+
     <array name="drawing_pen_size">
         <item>@string/drawing_pen_1</item>
         <item>@string/drawing_pen_2</item>
         <item>@string/drawing_pen_3</item>
         <item>@string/drawing_pen_4</item>
     </array>
+
+    <array name="settings_biometric_names">
+        <item>@string/biometric_disabled</item>
+        <item>@string/biometric_recommended</item>
+        <item>@string/biometric_strict</item>
+    </array>
+
+    <!-- Preference keys -->
+
+    <array name="settings_biometric_values">
+        <item>@string/biometric_none_value</item>
+        <item>@string/biometric_recommended_value</item>
+        <item>@string/biometric_strict_value</item>
+    </array>
+
+    <string name="biometric_key" translatable="false">biometric</string>
+    <string name="biometric_none_value" translatable="false">biometric_none</string>
+    <string name="biometric_recommended_value" translatable="false">biometric_recommended</string>
+    <string name="biometric_strict_value" translatable="false">biometric_strict</string>
+
+    <string name="usage_bar_key" translatable="false">usage_bar</string>
+
+    <string name="export_account_raw_key" translatable="false">export_account_raw</string>
+    <string name="export_account_qr_key" translatable="false">export_account_qr</string>
+
+    <string name="sort_files_key" translatable="false">sort_files</string>
+    <string name="sort_files_a_z_value" translatable="false">sort_files_a_z</string>
+    <string name="sort_files_z_a_value" translatable="false">sort_files_z_a</string>
+    <string name="sort_files_type_value" translatable="false">sort_files_type</string>
+    <string name="sort_files_first_changed_value" translatable="false">sort_files_first_changed</string>
+    <string name="sort_files_last_changed_value" translatable="false">sort_files_last_changed</string>
+
+    <string name="background_sync_period_key" translatable="false">background_sync_period</string>
+    <string name="background_sync_enabled_key" translatable="false">background_sync_enabled</string>
+    <string name="sync_automatically_key" translatable="false">sync_automatically_in_app</string>
+
+    <string name="view_logs_key" translatable="false">view_logs</string>
+    <string name="clear_logs_key" translatable="false">clear_logs</string>
+
+    <string name="file_layout_key" translatable="false">file_layout</string>
+    <string name="file_layout_grid_value" translatable="false">grid_layout</string>
+    <string name="file_layout_linear_value" translatable="false">linear_layout</string>
+
+    <string name="open_new_doc_automatically_key" translatable="false">open_new_doc_automatically</string>
 </resources>

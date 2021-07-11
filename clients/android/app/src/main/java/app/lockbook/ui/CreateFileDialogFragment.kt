@@ -11,13 +11,11 @@ import app.lockbook.R
 import app.lockbook.databinding.DialogCreateFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
-import app.lockbook.model.OnFinishAlert
 import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
-import timber.log.Timber
+import java.lang.ref.WeakReference
 import kotlin.properties.Delegates
 
 data class CreateFileInfo(
@@ -32,8 +30,6 @@ class CreateFileDialogFragment : DialogFragment() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
-    private val createFileLayout get() = binding.createFileLayout
-    private val createFileCancel get() = binding.createFileCancel
     private val createFileCreate get() = binding.createFileCreate
     private val createFileExtension get() = binding.createFileExtension
     private val createFileText get() = binding.createFileText
@@ -43,10 +39,14 @@ class CreateFileDialogFragment : DialogFragment() {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
     private lateinit var parentId: String
-    private lateinit var fileType: String
+    private lateinit var fileType: FileType
     private var isDrawing by Delegates.notNull<Boolean>()
     var newDocument: ClientFileMetadata? = null
     lateinit var config: Config
+
+    private val alertModel by lazy {
+        AlertModel(WeakReference(requireActivity()), view)
+    }
 
     companion object {
         const val CREATE_FILE_DIALOG_TAG = "CreateFileDialogFragment"
@@ -89,10 +89,11 @@ class CreateFileDialogFragment : DialogFragment() {
 
         if (nullableParentId != null && nullableFileType != null && nullableIsDrawing != null) {
             parentId = nullableParentId
-            fileType = nullableFileType
+            fileType = FileType.values().find { it.name == nullableFileType } ?: return alertModel.notifyBasicError(::dismiss)
             isDrawing = nullableIsDrawing
         } else {
-            AlertModel.errorHasOccurred(createFileLayout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
+            alertModel.notifyBasicError(::dismiss)
+            return
         }
 
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
@@ -102,10 +103,10 @@ class CreateFileDialogFragment : DialogFragment() {
         }
 
         dialog?.setCanceledOnTouchOutside(false)
-            ?: AlertModel.errorHasOccurred(createFileLayout, BASIC_ERROR, OnFinishAlert.DoNothingOnFinishAlert)
+            ?: alertModel.notifyBasicError()
 
         when (fileType) {
-            Klaxon().toJsonString(FileType.Folder) -> {
+            FileType.Folder -> {
                 createFileExtension.visibility = View.GONE
                 createFileTextPart.visibility = View.GONE
                 createFileText.visibility = View.VISIBLE
@@ -129,7 +130,7 @@ class CreateFileDialogFragment : DialogFragment() {
                 createFileTitle.setText(R.string.create_file_title_folder)
                 createFileText.setHint(R.string.create_file_hint_folder)
             }
-            Klaxon().toJsonString(FileType.Document) -> {
+            FileType.Document -> {
                 createFileTextPart.setOnEditorActionListener { _, actionId, _ ->
                     if (actionId == EditorInfo.IME_ACTION_NEXT) {
                         createFileExtension.requestFocus()
@@ -169,9 +170,6 @@ class CreateFileDialogFragment : DialogFragment() {
                     createFileExtension.setText(R.string.create_file_dialog_document_extension)
                 }
             }
-            else -> {
-                AlertModel.errorHasOccurred(createFileLayout, BASIC_ERROR, OnFinishAlert.DoSomethingOnFinishAlert(::dismiss))
-            }
         }.exhaustive
     }
 
@@ -189,31 +187,14 @@ class CreateFileDialogFragment : DialogFragment() {
                 CoreModel.createFile(config, parentId, name, fileType)
         ) {
             is Ok -> {
-                if (fileType == Klaxon().toJsonString(FileType.Document)) {
+                if (fileType == FileType.Document) {
                     newDocument = createFileResult.value
                 }
                 withContext(Dispatchers.Main) {
                     dismiss()
                 }
             }
-            is Err -> when (val error = createFileResult.error) {
-                is CreateFileError.NoAccount -> AlertModel.errorHasOccurred(createFileLayout, "Error! No account!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.DocumentTreatedAsFolder -> AlertModel.errorHasOccurred(createFileLayout, "Error! Document is treated as folder!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.CouldNotFindAParent -> AlertModel.errorHasOccurred(createFileLayout, "Error! Could not find file parent!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.FileNameNotAvailable -> AlertModel.errorHasOccurred(createFileLayout, "Error! File name not available!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.FileNameContainsSlash -> AlertModel.errorHasOccurred(createFileLayout, "Error! File contains a slash!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.FileNameEmpty -> AlertModel.errorHasOccurred(createFileLayout, "Error! File cannot be empty!", OnFinishAlert.DoNothingOnFinishAlert)
-                is CreateFileError.Unexpected -> {
-                    Timber.e("Unable to create a file: ${error.error}")
-                    withContext(Dispatchers.Main) {
-                        AlertModel.unexpectedCoreErrorHasOccurred(
-                            requireContext(),
-                            error.error,
-                            OnFinishAlert.DoSomethingOnFinishAlert(::dismiss)
-                        )
-                    }
-                }
-            }
+            is Err -> alertModel.notifyError(createFileResult.error.toLbError(resources))
         }.exhaustive
     }
 
