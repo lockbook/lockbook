@@ -1,4 +1,5 @@
 use crate::config::IndexDbConfig;
+use crate::file_index_repo;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::{
@@ -6,6 +7,7 @@ use lockbook_models::crypto::{
 };
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType;
+use log::warn;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
 use std::array::IntoIter;
@@ -50,6 +52,9 @@ pub enum ChangeDocumentVersionAndSizeError {
     DoesNotExist,
     Deleted,
     IncorrectOldVersion,
+    GetFileUsage(GetFileUsageError),
+    GetDataCap(GetDataCapError),
+    DataCapExceed,
 }
 
 pub async fn change_document_version_and_size(
@@ -57,7 +62,31 @@ pub async fn change_document_version_and_size(
     id: Uuid,
     document_size_bytes: u64,
     old_metadata_version: u64,
+    public_key: &PublicKey,
 ) -> Result<(u64, u64), ChangeDocumentVersionAndSizeError> {
+    let usages = file_index_repo::get_file_usages(transaction, public_key)
+        .await
+        .map_err(ChangeDocumentVersionAndSizeError::GetFileUsage)?;
+    let total_usage = usages.iter().fold(0, |tu, u| tu + u.size_bytes);
+    let cap = file_index_repo::get_account_data_cap(transaction, public_key)
+        .await
+        .map_err(ChangeDocumentVersionAndSizeError::GetDataCap)?;
+    let current_usage = usages
+        .iter()
+        .filter(|u| u.file_id == id)
+        .collect::<Vec<&FileUsage>>()
+        .first()
+        .ok_or(ChangeDocumentVersionAndSizeError::DoesNotExist)?
+        .size_bytes;
+    let projected_usage = total_usage - current_usage + document_size_bytes;
+    if projected_usage > cap {
+        warn!(
+            "tried to sync {} old_size={} new_size={} cap={} current_usage={} projected_usage={}",
+            id, current_usage, document_size_bytes, cap, total_usage, projected_usage
+        );
+        return Err(ChangeDocumentVersionAndSizeError::DataCapExceed);
+    }
+
     match sqlx::query!(
         r#"
 WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)

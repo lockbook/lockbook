@@ -24,6 +24,7 @@ pub async fn change_document_content(
         request.id,
         request.new_content.value.len() as u64,
         request.old_metadata_version,
+        &context.public_key,
     )
     .await;
 
@@ -37,9 +38,17 @@ pub async fn change_document_content(
         ChangeDocumentVersionAndSizeError::Deleted => {
             Ok(ChangeDocumentContentError::DocumentDeleted)
         }
+        ChangeDocumentVersionAndSizeError::DataCapExceed => {
+            Ok(ChangeDocumentContentError::DataCapExceeded)
+        }
         ChangeDocumentVersionAndSizeError::Postgres(_)
         | ChangeDocumentVersionAndSizeError::Deserialize(_) => Err(format!(
             "Cannot change document content version in Postgres: {:?}",
+            e
+        )),
+        ChangeDocumentVersionAndSizeError::GetDataCap(_)
+        | ChangeDocumentVersionAndSizeError::GetFileUsage(_) => Err(format!(
+            "Could not get usage information, cannot perform usage pre-check: {:?}",
             e
         )),
     })?;
