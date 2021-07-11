@@ -1989,7 +1989,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.2.21"
+version = "0.2.22"
 dependencies = [
  "atty",
  "chrono",
@@ -2053,7 +2053,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "fuzzy-matcher",
  "gdk",

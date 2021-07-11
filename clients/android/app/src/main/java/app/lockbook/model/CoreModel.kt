@@ -8,8 +8,7 @@ import com.github.michaelbull.result.Result
 
 object CoreModel {
 
-    private const val QA_API_URL = "http://qa.lockbook.app:8000"
-    private const val PROD_API_URL = "http://api.lockbook.app:8000"
+    private const val PROD_API_URL = "https://api.prod.lockbook.net"
     fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
     fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
