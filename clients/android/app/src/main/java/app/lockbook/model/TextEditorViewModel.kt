@@ -60,6 +60,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
             } else {
                 historyIndex++
             }
+
             history.add(history.lastIndex + 1, s.toString())
         } else {
             ignoreChange = false

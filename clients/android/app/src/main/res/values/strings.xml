@@ -242,6 +242,8 @@
     <string name="biometric_recommended_value" translatable="false">biometric_recommended</string>
     <string name="biometric_strict_value" translatable="false">biometric_strict</string>
 
+    <string name="usage_bar_key" translatable="false">usage_bar</string>
+
     <string name="export_account_raw_key" translatable="false">export_account_raw</string>
     <string name="export_account_qr_key" translatable="false">export_account_qr</string>
 

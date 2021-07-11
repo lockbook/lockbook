@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
+import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.databinding.SplashScreenBinding
 import app.lockbook.model.AlertModel
@@ -37,11 +38,11 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         setContentView(binding.root)
         Timber.plant(Timber.DebugTree())
 
-        handleOnDBState()
+        handleDBState()
     }
 
-    private fun handleOnDBState() {
-        when (val getDBStateResult = CoreModel.getDBState(Config(filesDir.absolutePath))) {
+    private fun handleDBState() {
+        when (val getDBStateResult = CoreModel.getDBState(config)) {
             is Ok -> {
                 when (getDBStateResult.value) {
                     State.Empty -> {
