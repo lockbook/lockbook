@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/fabs_holder"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="bottom|end"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/list_files_fab_drawing"
+        style="@style/Main.Widget.FAB"
+        android:contentDescription="@string/list_files_create_document"
+        android:src="@drawable/ic_baseline_border_color_24"
+        android:visibility="gone" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/list_files_fab_document"
+        style="@style/Main.Widget.FAB"
+        android:contentDescription="@string/list_files_create_document"
+        android:src="@drawable/ic_baseline_insert_drive_file_24"
+        android:visibility="gone" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/list_files_fab_folder"
+        style="@style/Main.Widget.FAB"
+        android:contentDescription="@string/list_files_create_folder"
+        android:src="@drawable/round_folder_white_18dp"
+        android:visibility="gone" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/list_files_fab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:contentDescription="@string/list_files_create_file"
+        android:src="@drawable/ic_baseline_add_24"
+        app:backgroundTint="@color/colorPrimary"
+        app:rippleColor="@color/colorPrimaryDark"
+        app:tint="@color/white" />
+
+</LinearLayout>

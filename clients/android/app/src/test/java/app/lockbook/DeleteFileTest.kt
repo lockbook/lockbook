@@ -5,6 +5,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.unwrap
 import org.junit.*
 
 class DeleteFileTest {
@@ -25,71 +26,50 @@ class DeleteFileTest {
 
     @Test
     fun deleteFileOk() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        val document = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Document)
-            ).component1()
-        )
+        val document = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Document
+        ).unwrap()
 
-        val folder = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.createFile(
-                config,
-                rootFileMetadata.id,
-                generateAlphaString(),
-                Klaxon().toJsonString(FileType.Folder)
-            ).component1()
-        )
+        val folder = CoreModel.createFile(
+            config,
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrap()
 
-        assertType<Unit>(
-            CoreModel.deleteFile(config, document.id).component1()
-        )
+        CoreModel.deleteFile(config, document.id).unwrap()
 
-        assertType<Unit>(
-            CoreModel.deleteFile(config, folder.id).component1()
-        )
+        CoreModel.deleteFile(config, folder.id).unwrap()
     }
 
     @Test
     fun deleteFileNoFileWithThatId() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        assertType<FileDeleteError.FileDoesNotExist>(
-            CoreModel.deleteFile(config, generateId()).component2()
-        )
+        CoreModel.deleteFile(config, generateId()).unwrapErrorType<FileDeleteError.FileDoesNotExist>()
     }
 
     @Test
     fun deleteFileCannotDeleteRoot() {
-        assertType<Unit>(
-            CoreModel.generateAccount(config, generateAlphaString()).component1()
-        )
+        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
 
-        val rootFileMetadata = assertTypeReturn<ClientFileMetadata>(
-            CoreModel.getRoot(config).component1()
-        )
+        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
-        assertType<FileDeleteError.CannotDeleteRoot>(
-            CoreModel.deleteFile(config, rootFileMetadata.id).component2()
-        )
+        CoreModel.deleteFile(config, rootFileMetadata.id)
+            .unwrapErrorType<FileDeleteError.CannotDeleteRoot>()
     }
 
     @Test
     fun deleteFileUnexpectedError() {
-        assertType<FileDeleteError.Unexpected>(
-            Klaxon().converter(deleteFileConverter).parse<Result<Unit, FileDeleteError>>(deleteFile("", ""))?.component2()
-        )
+        Klaxon().converter(deleteFileConverter)
+            .parse<Result<Unit, FileDeleteError>>(deleteFile("", ""))
+            .unwrapErrorType<FileDeleteError.Unexpected>()
     }
 }
