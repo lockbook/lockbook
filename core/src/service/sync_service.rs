@@ -1,3 +1,4 @@
+use crate::client::ApiError;
 use crate::model::client_conversion::{generate_client_work_unit, ClientWorkUnit};
 use crate::model::state::Config;
 use crate::repo::{account_repo, document_repo, file_metadata_repo, local_changes_repo};
@@ -6,9 +7,10 @@ use crate::service::{file_encryption_service, file_service};
 use crate::{client, CoreError};
 use lockbook_models::account::Account;
 use lockbook_models::api::{
-    ChangeDocumentContentRequest, CreateDocumentRequest, CreateFolderRequest,
-    DeleteDocumentRequest, DeleteFolderRequest, GetDocumentRequest, GetUpdatesRequest,
-    MoveDocumentRequest, MoveFolderRequest, RenameDocumentRequest, RenameFolderRequest,
+    ChangeDocumentContentError, ChangeDocumentContentRequest, CreateDocumentRequest,
+    CreateFolderRequest, DeleteDocumentRequest, DeleteFolderRequest, GetDocumentRequest,
+    GetUpdatesRequest, MoveDocumentRequest, MoveFolderRequest, RenameDocumentRequest,
+    RenameFolderRequest,
 };
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
@@ -123,6 +125,7 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
                     debug!("{:#?} executed successfully", work_unit);
                     sync_errors.remove(&work_unit.get_metadata().id);
                 }
+                Err(CoreError::DataCapExceeded) => return Err(CoreError::DataCapExceeded),
                 Err(err) => {
                     error!("Sync error detected: {:#?} {:#?}", work_unit, err);
                     sync_errors.insert(work_unit.get_metadata().id, err);
@@ -516,7 +519,12 @@ fn handle_local_change(
                             id: metadata.id,
                             old_metadata_version: metadata.metadata_version,
                             new_content: document_repo::get(config, metadata.id)?,
-                        }).map_err(CoreError::from)?.new_metadata_and_content_version;
+                        }).map_err(|e| match e {
+                            ApiError::Endpoint(ChangeDocumentContentError::DataCapExceeded) => {
+                                CoreError::DataCapExceeded
+                            }
+                            oe => CoreError::from(oe)
+                        })?.new_metadata_and_content_version;
 
                         metadata.content_version = version;
                         metadata.metadata_version = version;
