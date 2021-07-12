@@ -92,7 +92,7 @@ fn copy_file(
     config: &Config,
     edit: bool,
 ) -> Result<String, Error> {
-    let content = fs::read_to_string(&filesystem_path)
+    let content = fs::read(&filesystem_path)
         .map_err(|err| err!(OsCouldNotReadFile(path_string!(filesystem_path), err)))?;
 
     let fs_absolute_path = fs::canonicalize(&filesystem_path)
@@ -147,7 +147,7 @@ fn copy_file(
         },
     };
 
-    match write_document(config, file_metadata.id, content.as_bytes()) {
+    match write_document(config, file_metadata.id, content.as_slice()) {
         Ok(_) => Ok(format!("imported to {}", lb_path_with_filename)),
         Err(err) => Err(err_unexpected!("{:#?}", err)),
     }
