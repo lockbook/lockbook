@@ -6,12 +6,8 @@ use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::file_repo;
 use crate::repo::last_updated_repo;
-use crate::repo::metadata_repo; // todo: remove
-use crate::service::file_compression_service; // todo: remove
-use crate::service::file_encryption_service; // todo: remove
-use crate::service::file_service;
+use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
-use lockbook_models::account::Account;
 use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
@@ -188,33 +184,6 @@ fn merge_metadata(base: FileMetadata, local: FileMetadata, remote: FileMetadata)
     }
 }
 
-// todo: remove
-fn get_remote_document(account: &Account, metadata: &FileMetadata) -> Result<Vec<u8>, CoreError> {
-    let user_access_key = metadata
-        .user_access_keys
-        .get(&account.username)
-        .ok_or_else(|| CoreError::Unexpected(String::from("no user access info for file")))?;
-    // todo: get this friggin crypto and compression out of here
-    file_compression_service::decompress(&file_encryption_service::user_read_document(
-        account,
-        &client::request(
-            &account,
-            GetDocumentRequest {
-                id: metadata.id,
-                content_version: metadata.content_version,
-            },
-        )?
-        .content,
-        user_access_key,
-    )?)
-}
-
-fn get_document_type(config: &Config, metadata: &FileMetadata) -> Result<DocumentType, CoreError> {
-    Ok(DocumentType::from_file_name_using_extension(
-        &file_encryption_service::get_name(&config, &metadata)?,
-    ))
-}
-
 pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
     let account = &account_repo::get(config)?;
 
@@ -249,9 +218,11 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
         }
 
         let maybe_base_metadata =
-            metadata_repo::maybe_get(config, RepoSource::Remote, remote_metadata.id)?;
+            file_service::maybe_get_metadata(config, RepoSource::Remote, remote_metadata.id)?
+                .map(|(m, _)| m);
         let maybe_local_metadata =
-            metadata_repo::maybe_get(config, RepoSource::Local, remote_metadata.id)?;
+            file_service::maybe_get_metadata(config, RepoSource::Local, remote_metadata.id)?
+                .map(|(m, _)| m);
 
         // merge metadata
         let merged_metadata = match maybe_merge(
@@ -275,7 +246,19 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
                 true
             };
             if content_updated {
-                let remote_document = get_remote_document(account, &remote_metadata)?;
+                let remote_document = file_service::read_document_content(
+                    config,
+                    &remote_metadata,
+                    &client::request(
+                        &account,
+                        GetDocumentRequest {
+                            id: remote_metadata.id,
+                            content_version: remote_metadata.content_version,
+                        },
+                    )?
+                    .content,
+                )?;
+
                 let maybe_base_document = file_service::maybe_read_document(
                     config,
                     RepoSource::Remote,
@@ -307,7 +290,9 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
                         local: local_document,
                         remote: remote_document,
                     } => {
-                        match get_document_type(config, &remote_metadata)? {
+                        match DocumentType::from_file_name_using_extension(
+                            &file_encryption_service::get_name(config, &remote_metadata)?,
+                        ) {
                             // text documents get 3-way merged
                             DocumentType::Text => {
                                 match diffy::merge_bytes(
@@ -322,7 +307,7 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
                             // other documents have local version copied to new file
                             DocumentType::Drawing | DocumentType::Other => {
                                 let remote_name =
-                                    file_encryption_service::get_name(&config, &remote_metadata)?;
+                                    file_encryption_service::get_name(config, &remote_metadata)?;
                                 file_service::create(
                                     config,
                                     RepoSource::Local,
@@ -363,7 +348,7 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
         }
 
         // update remote repo to version from server
-        metadata_repo::insert(config, RepoSource::Remote, &remote_metadata)?; // todo: use file service
+        file_service::insert_metadata(config, RepoSource::Remote, &remote_metadata)?;
 
         // resolve path conflicts
         if file_repo::get_children(config, RepoSource::Local, merged_metadata.parent)?

@@ -1,11 +1,12 @@
+use crate::model::client_conversion::{self, ClientFileMetadata};
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::{account_repo, file_repo};
+use crate::repo::{account_repo, file_repo, metadata_repo};
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::CoreError;
 use lockbook_models::account::Account;
-use lockbook_models::crypto::DecryptedDocument;
+use lockbook_models::crypto::{DecryptedDocument, EncryptedDocument};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use sha2::{Digest, Sha256};
 use std::fs::OpenOptions;
@@ -13,13 +14,9 @@ use std::io::Write;
 use std::path::Path;
 use uuid::Uuid;
 
-// todo: new vision for the purpose of this service
-
 // return client file metadata? what are the usages of the functions here and is client file metadata ok for those
 // no, the usages are:
 // - sending requests to the server (that's all)
-
-// be able to process files by content rather than id
 
 pub fn create_root(
     config: &Config,
@@ -43,9 +40,11 @@ pub fn create(
 ) -> Result<FileMetadata, CoreError> {
     validate_file_name(name)?;
     account_repo::get(config)?;
+
     let file_metadata =
         file_encryption_service::create_file_metadata(&config, name, file_type, parent)?;
     insert_metadata(config, source, &file_metadata)?;
+
     Ok(file_metadata)
 }
 
@@ -58,7 +57,30 @@ pub fn insert_metadata(
     validate_not_root(&file_metadata)?;
     validate_parent_exists_and_is_folder(config, source, &file_metadata)?;
     validate_path(config, source, &file_metadata)?;
+
     file_repo::insert_metadata(config, source, &file_metadata)
+}
+
+pub fn maybe_get_metadata(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+) -> Result<Option<(FileMetadata, ClientFileMetadata)>, CoreError> {
+    Ok(match metadata_repo::maybe_get(config, source, id)? {
+        Some(metadata) => Some((
+            metadata.clone(),
+            client_conversion::generate_client_file_metadata(config, &metadata)?,
+        )),
+        None => None,
+    })
+}
+
+pub fn get_metadata(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+) -> Result<(FileMetadata, ClientFileMetadata), CoreError> {
+    maybe_get_metadata(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn rename(
@@ -69,8 +91,10 @@ pub fn rename(
 ) -> Result<(), CoreError> {
     account_repo::get(config)?;
     validate_file_name(new_name)?;
+
     let mut file_metadata = file_repo::get_metadata(config, source, id)?;
     file_metadata.name = file_encryption_service::create_name(&config, &file_metadata, new_name)?;
+
     insert_metadata(config, source, &file_metadata)
 }
 
@@ -81,8 +105,10 @@ pub fn move_(
     new_parent: Uuid,
 ) -> Result<(), CoreError> {
     account_repo::get(config)?;
+
     let mut file_metadata = file_repo::get_metadata(config, source, id)?;
     let parent_metadata = validate_parent_exists_and_is_folder(config, source, &file_metadata)?;
+
     file_metadata.parent = new_parent;
     file_metadata.name =
         file_encryption_service::rekey_secret_filename(&config, &file_metadata, &parent_metadata)?;
@@ -91,13 +117,17 @@ pub fn move_(
         file_encryption_service::decrypt_key_for_file(&config, file_metadata.id)?,
         parent_metadata.id,
     )?;
+
     insert_metadata(config, source, &file_metadata)
 }
 
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
     account_repo::get(config)?;
+
     let mut file_metadata = file_repo::get_metadata(config, source, id)?;
+
     file_metadata.deleted = true;
+
     insert_metadata(config, source, &file_metadata)
 }
 
@@ -110,12 +140,14 @@ pub fn write_document(
     account_repo::get(config)?;
 
     let file_metadata = file_repo::get_metadata(config, source, id)?;
+
     validate_is_document(&file_metadata)?;
 
     let digest = Sha256::digest(content);
     let compressed_content = file_compression_service::compress(content)?;
     let encrypted_content =
         file_encryption_service::write_to_document(&config, &compressed_content, &file_metadata)?;
+
     file_repo::insert_document(config, source, id, encrypted_content, &digest)
 }
 
@@ -146,6 +178,22 @@ pub fn read_document(
     id: Uuid,
 ) -> Result<DecryptedDocument, CoreError> {
     maybe_read_document(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
+}
+
+pub fn read_document_content(
+    config: &Config,
+    file_metadata: &FileMetadata,
+    maybe_encrypted_content: &Option<EncryptedDocument>,
+) -> Result<DecryptedDocument, CoreError> {
+    account_repo::get(config)?;
+
+    if let Some(encrypted_content) = maybe_encrypted_content {
+        let compressed_content =
+            file_encryption_service::read_document(&config, encrypted_content, &file_metadata)?;
+        file_compression_service::decompress(&compressed_content)
+    } else {
+        Ok(Vec::new())
+    }
 }
 
 pub fn save_document_to_disk(
