@@ -16,6 +16,7 @@ use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use shadow_rs::shadow;
 use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
@@ -23,6 +24,8 @@ use tokio::runtime::Handle;
 
 static LOG_FILE: &str = "lockbook_server.log";
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+shadow!(build_info);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -206,6 +209,12 @@ async fn route(
             hyper_request,
             server_state
         ),
+        route_case!(GetBuildInfoRequest) => route_handler!(
+            GetBuildInfoRequest,
+            get_build_info,
+            hyper_request,
+            server_state
+        ),
         _ => {
             warn!(
                 "Request matched no endpoints: {} {}",
@@ -217,6 +226,15 @@ async fn route(
                 .body(hyper::Body::empty())
         }
     }
+}
+
+async fn get_build_info(
+    _: &mut RequestContext<'_, GetBuildInfoRequest>,
+) -> Result<GetBuildInfoResponse, Result<GetBuildInfoError, String>> {
+    Ok(GetBuildInfoResponse {
+        build_version: env!("CARGO_PKG_VERSION"),
+        git_commit_hash: build_info::COMMIT_HASH,
+    })
 }
 
 fn wrap_err<TRequest: Request>(
