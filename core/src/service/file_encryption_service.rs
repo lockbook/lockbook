@@ -97,14 +97,14 @@ pub fn create_metadata_for_root_folder(account: &Account) -> Result<FileMetadata
         .map_err(core_err_unexpected)?;
     let encrypted_access_key =
         symkey::encrypt(&key_encryption_key, &key).map_err(core_err_unexpected)?;
-    let use_access_key = UserAccessInfo {
+    let user_access_key = UserAccessInfo {
         username: account.username.clone(),
         encrypted_by: account.public_key(),
         access_key: encrypted_access_key,
     };
 
     let mut user_access_keys = HashMap::new();
-    user_access_keys.insert(account.username.clone(), use_access_key);
+    user_access_keys.insert(account.username.clone(), user_access_key);
 
     Ok(FileMetadata {
         file_type: Folder,
@@ -164,10 +164,10 @@ pub fn get_name(config: &Config, meta: &FileMetadata) -> Result<String, CoreErro
 
 pub fn create_name(
     config: &Config,
-    meta: &FileMetadata,
+    parent: Uuid,
     name: &str,
 ) -> Result<SecretFileName, CoreError> {
-    let parent_key = decrypt_key_for_file(&config, meta.parent)?;
+    let parent_key = decrypt_key_for_file(&config, parent)?;
     symkey::encrypt_and_hmac(&parent_key, name).map_err(core_err_unexpected)
 }
 

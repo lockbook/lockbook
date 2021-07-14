@@ -163,11 +163,11 @@ fn merge_metadata(base: FileMetadata, local: FileMetadata, remote: FileMetadata)
 
     let local_moved = local.parent != base.parent;
     let remote_moved = remote.parent != remote.parent;
-    let parent = match (local_moved, remote_moved) {
-        (false, false) => base.parent,
-        (true, false) => local.parent,
-        (false, true) => remote.parent,
-        (true, true) => remote.parent, // resolve move conflicts in favor of remote
+    let (parent, folder_access_keys) = match (local_moved, remote_moved) {
+        (false, false) => (base.parent, base.folder_access_keys),
+        (true, false) => (local.parent, local.folder_access_keys),
+        (false, true) => (remote.parent, remote.folder_access_keys),
+        (true, true) => (remote.parent, remote.folder_access_keys), // resolve move conflicts in favor of remote
     };
 
     FileMetadata {
@@ -180,7 +180,7 @@ fn merge_metadata(base: FileMetadata, local: FileMetadata, remote: FileMetadata)
         content_version: remote.content_version, // resolve content version conflicts in favor of remote
         deleted: base.deleted || local.deleted || remote.deleted, // resolve delete conflicts by deleting
         user_access_keys: base.user_access_keys,                  // user access keys never change
-        folder_access_keys: base.folder_access_keys,              // folder access keys never change
+        folder_access_keys,
     }
 }
 

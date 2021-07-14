@@ -1,5 +1,5 @@
 use crate::model::state::Config;
-use crate::service::file_encryption_service::get_name;
+use crate::service::file_encryption_service;
 use crate::service::sync_service::WorkCalculated;
 use crate::CoreError;
 use lockbook_models::account::Username;
@@ -40,7 +40,7 @@ pub fn generate_client_file_metadata(
     config: &Config,
     meta: &FileMetadata,
 ) -> Result<ClientFileMetadata, CoreError> {
-    let name = get_name(config, meta)?;
+    let name = file_encryption_service::get_name(config, meta)?;
 
     Ok(ClientFileMetadata {
         id: meta.id,
@@ -69,7 +69,7 @@ pub fn generate_client_work_unit(
         WorkUnit::LocalChange { .. } => ClientWorkUnit::Local(maybe_file_metadata?),
         WorkUnit::ServerChange { metadata } => match maybe_file_metadata {
             Ok(file_metadata) => ClientWorkUnit::Server(file_metadata),
-            Err(_) => ClientWorkUnit::ServerUnknownName(metadata.id),
+            Err(_) => ClientWorkUnit::ServerUnknownName(metadata.id), // todo: this can be triggered by unexpected errors; what's this supposed to mean, anyway?
         },
     })
 }
