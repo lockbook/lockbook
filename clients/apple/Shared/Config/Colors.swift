@@ -12,35 +12,36 @@ extension Color {
 
 extension ColorAlias {
     static func fromUIColor(from color: UniversalColor) -> ColorAlias {
-        if UIColor.fromColorAlias(from: .Black) == color {
+
+        if UniversalColor.fromColorAlias(from: .Black) == color {
             return .Black
         }
         
-        if UIColor.fromColorAlias(from: .White) == color {
+        if UniversalColor.fromColorAlias(from: .White) == color {
             return .White
         }
         
-        if UIColor.fromColorAlias(from: .Cyan) == color {
+        if UniversalColor.fromColorAlias(from: .Cyan) == color {
             return .Cyan
         }
         
-        if UIColor.fromColorAlias(from: .Magenta) == color {
+        if UniversalColor.fromColorAlias(from: .Magenta) == color {
             return .Magenta
         }
         
-        if UIColor.fromColorAlias(from: .Red) == color {
+        if UniversalColor.fromColorAlias(from: .Red) == color {
             return .Red
         }
         
-        if UIColor.fromColorAlias(from: .Green) == color {
+        if UniversalColor.fromColorAlias(from: .Green) == color {
             return .Green
         }
         
-        if UIColor.fromColorAlias(from: .Blue) == color {
+        if UniversalColor.fromColorAlias(from: .Blue) == color {
             return .Blue
         }
         
-        if UIColor.fromColorAlias(from: .Yellow) == color {
+        if UniversalColor.fromColorAlias(from: .Yellow) == color {
             return .Yellow
         }
 
@@ -49,6 +50,7 @@ extension ColorAlias {
     }
 }
 
+#if os(iOS)
 public extension UIColor {
 
     static func == (l: UIColor, r: UIColor) -> Bool {
@@ -69,6 +71,7 @@ public extension UIColor {
         return l_red == r_red && l_green == r_green && l_blue == r_blue && l_alpha == r_alpha
     }
 }
+#endif
 
 extension UniversalColor {
     static func fromColorAlias(from color: ColorAlias) -> UniversalColor {
