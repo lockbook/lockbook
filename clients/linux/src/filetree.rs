@@ -171,7 +171,7 @@ impl FileTree {
                 let (paths, _) = w.get_selection().get_selected_rows();
 
                 let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
-                let iters_icon = iters.iter().map(|iter| tree_iter_value!(model, &iter, 0, Pixbuf)).collect::<Vec<Pixbuf>>();
+                let iters_icon = iters.iter().map(|iter| tree_iter_value!(model, &iter, 0, String)).collect::<Vec<String>>();
                 let iters_name = iters.iter().map(|iter| tree_iter_value!(model, &iter, 1, String)).collect::<Vec<String>>();
                 let iters_id = iters.iter().map(|iter| tree_iter_value!(model, &iter, 2, String)).collect::<Vec<String>>();
                 let iters_ftype = iters.iter().map(|iter| tree_iter_value!(model, &iter, 3, String)).collect::<Vec<String>>();
@@ -301,19 +301,14 @@ impl FileTree {
                 }
             }
             FileType::Folder => "folder",
-        };
+        }.to_string();
 
-        let icon = IconTheme::get_default()
-            .unwrap()
-            .load_icon(icon_name, IconSize::Menu.into(), IconLookupFlags::empty())
-            .unwrap()
-            .unwrap();
         let name = &f.name;
         let id = &f.id.to_string();
         let ftype = &format!("{:?}", f.file_type);
         let item_iter =
             self.model
-                .insert_with_values(it, None, &[0, 1, 2, 3], &[&icon, name, id, ftype]);
+                .insert_with_values(it, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype]);
 
         if f.file_type == FileType::Folder {
             let files = b.children(f)?;
@@ -479,13 +474,7 @@ impl FileTreeCol {
     pub fn all_types() -> Vec<glib::Type> {
         Self::all()
             .iter()
-            .map(|col| {
-                if col.name() == "Icon" {
-                    glib::Type::BaseObject
-                } else {
-                    glib::Type::String
-                }
-            })
+            .map(|col| glib::Type::String)
             .collect::<Vec<glib::Type>>()
     }
 
@@ -498,8 +487,8 @@ impl FileTreeCol {
 
         match self {
             FileTreeCol::Icon => {
-                let (cell, attr) = (CellRendererPixbuf::new(), "pixbuf");
-                cell.set_padding(8, 0);
+                let (cell, attr) = (CellRendererPixbuf::new(), "icon-name");
+                cell.set_padding(4, 0);
 
                 c.pack_start(&cell, true);
                 c.add_attribute(&cell, attr, *self as i32);
