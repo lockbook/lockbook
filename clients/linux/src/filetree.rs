@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{mpsc, Arc};
+use std::sync::Arc;
 
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
@@ -15,7 +15,7 @@ use gtk::TreeStore as GtkTreeStore;
 use gtk::TreeView as GtkTreeView;
 use gtk::TreeViewColumn as GtkTreeViewColumn;
 use gtk::{
-    render_icon, CellRendererPixbuf, CellRendererPixbufBuilder, IconLookupFlags, IconSize,
+    CellRendererPixbuf, IconLookupFlags, IconSize,
     IconTheme, Menu as GtkMenu,
 };
 use gtk::{
@@ -33,13 +33,8 @@ use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
 use gdk_pixbuf::Pixbuf;
-use gio::Icon;
-use glib::glib_sys::g_timeout_add;
-use glib::{timeout_add_local, timeout_add_seconds_local};
-use std::cell::{RefCell, RefMut};
-use std::thread;
-use std::thread::spawn;
-use std::time::Duration;
+use glib::timeout_add_local;
+use std::cell::RefCell;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -60,8 +55,6 @@ pub struct FileTree {
     model: GtkTreeStore,
     tree: GtkTreeView,
 }
-
-pub struct TreeHover {}
 
 impl FileTree {
     pub fn new(m: &Messenger, c: &Arc<LbCore>, hidden_cols: &Vec<String>) -> Self {
@@ -86,7 +79,7 @@ impl FileTree {
             }
         }
 
-        let mut hover_last_occurred = Rc::new(RefCell::new(None));
+        let hover_last_occurred = Rc::new(RefCell::new(None));
 
         let targets = [TargetEntry::new(
             "lockbook/files",
@@ -102,7 +95,6 @@ impl FileTree {
         tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
         tree.connect_drag_data_get(Self::on_drag_data_get());
         tree.connect_drag_motion(Self::on_drag_motion(&hover_last_occurred));
-        tree.connect_drag_begin(Self::on_drag_begin());
 
         Self { cols, model, tree }
     }
@@ -154,10 +146,6 @@ impl FileTree {
                 m.send(Msg::OpenFile(Some(iter_uuid)));
             }
         })
-    }
-
-    fn on_drag_begin() -> impl Fn(&TreeView, &DragContext) {
-        |w, d| {}
     }
 
     fn on_drag_data_get() -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
