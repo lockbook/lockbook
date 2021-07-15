@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::{Menu as GtkMenu, render_icon, CellRendererPixbuf, CellRendererPixbufBuilder, IconTheme, IconSize, IconLookupFlags};
 use gtk::MenuItem as GtkMenuItem;
 use gtk::SelectionMode as GtkSelectionMode;
 use gtk::TreeIter as GtkTreeIter;
@@ -15,6 +14,10 @@ use gtk::TreeSelection as GtkTreeSelection;
 use gtk::TreeStore as GtkTreeStore;
 use gtk::TreeView as GtkTreeView;
 use gtk::TreeViewColumn as GtkTreeViewColumn;
+use gtk::{
+    render_icon, CellRendererPixbuf, CellRendererPixbufBuilder, IconLookupFlags, IconSize,
+    IconTheme, Menu as GtkMenu,
+};
 use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
 };
@@ -31,6 +34,12 @@ use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
 use gdk_pixbuf::Pixbuf;
 use gio::Icon;
+use glib::glib_sys::g_timeout_add;
+use glib::{timeout_add_local, timeout_add_seconds_local};
+use std::cell::{RefCell, RefMut};
+use std::thread;
+use std::thread::spawn;
+use std::time::Duration;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -50,9 +59,9 @@ pub struct FileTree {
     cols: Vec<FileTreeCol>,
     model: GtkTreeStore,
     tree: GtkTreeView,
-    doc_icon: Icon,
-    folder_icon: Icon,
 }
+
+pub struct TreeHover {}
 
 impl FileTree {
     pub fn new(m: &Messenger, c: &Arc<LbCore>, hidden_cols: &Vec<String>) -> Self {
@@ -77,6 +86,8 @@ impl FileTree {
             }
         }
 
+        let mut hover_last_occurred = Rc::new(RefCell::new(None));
+
         let targets = [TargetEntry::new(
             "lockbook/files",
             TargetFlags::SAME_WIDGET,
@@ -90,15 +101,10 @@ impl FileTree {
 
         tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
         tree.connect_drag_data_get(Self::on_drag_data_get());
-        tree.connect_drag_motion(Self::on_drag_motion());
+        tree.connect_drag_motion(Self::on_drag_motion(&hover_last_occurred));
+        tree.connect_drag_begin(Self::on_drag_begin());
 
-        Self {
-            cols,
-            model,
-            tree,
-            doc_icon: gio::Icon::new_for_string("text-x-generic").unwrap(),
-            folder_icon: gio::Icon::new_for_string("inode-directory").unwrap(),
-        }
+        Self { cols, model, tree }
     }
 
     fn on_selection_change(popup: &Rc<FileTreePopup>) -> impl Fn(&GtkTreeSelection) {
@@ -150,6 +156,10 @@ impl FileTree {
         })
     }
 
+    fn on_drag_begin() -> impl Fn(&TreeView, &DragContext) {
+        |w, d| {}
+    }
+
     fn on_drag_data_get() -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
         |_, _, s, _, _| {
             s.set(&s.get_target(), 8, &[]);
@@ -196,10 +206,13 @@ impl FileTree {
         })
     }
 
-    fn on_drag_motion() -> impl Fn(&TreeView, &DragContext, i32, i32, u32) -> GtkInhibit {
-        |w, d, x, y, time| {
+    fn on_drag_motion(
+        hover_last_occurred: &Rc<RefCell<Option<u32>>>,
+    ) -> impl Fn(&TreeView, &DragContext, i32, i32, u32) -> GtkInhibit {
+        closure!(hover_last_occurred => move |w, d, x, y, time| {
             if let Some((Some(path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap();
+                *hover_last_occurred.borrow_mut() = Some(time);
 
                 let pos_corrected =
                     if tree_iter_value!(model, &model.get_iter(&path).unwrap(), 3, String)
@@ -211,6 +224,16 @@ impl FileTree {
                             _ => pos,
                         }
                     } else {
+                        timeout_add_local(400, closure!(hover_last_occurred, w, path => move || {
+                            if let Some(t) = *hover_last_occurred.borrow() {
+                                if t == time {
+                                    w.expand_row(&path, false);
+                                }
+                            }
+
+                            Continue(false)
+                        }));
+
                         pos
                     };
 
@@ -219,7 +242,7 @@ impl FileTree {
             }
 
             GtkInhibit(true)
-        }
+        })
     }
 
     pub fn widget(&self) -> &GtkTreeView {
@@ -289,16 +312,20 @@ impl FileTree {
                     "text-x-generic"
                 }
             }
-            FileType::Folder => "folder"
+            FileType::Folder => "folder",
         };
 
-        let icon = IconTheme::get_default().unwrap().load_icon(icon_name, IconSize::Menu.into(), IconLookupFlags::empty()).unwrap().unwrap();
+        let icon = IconTheme::get_default()
+            .unwrap()
+            .load_icon(icon_name, IconSize::Menu.into(), IconLookupFlags::empty())
+            .unwrap()
+            .unwrap();
         let name = &f.name;
         let id = &f.id.to_string();
         let ftype = &format!("{:?}", f.file_type);
-        let item_iter = self
-            .model
-            .insert_with_values(it, None, &[0, 1, 2, 3], &[&icon, name, id, ftype]);
+        let item_iter =
+            self.model
+                .insert_with_values(it, None, &[0, 1, 2, 3], &[&icon, name, id, ftype]);
 
         if f.file_type == FileType::Folder {
             let files = b.children(f)?;
@@ -464,10 +491,12 @@ impl FileTreeCol {
     pub fn all_types() -> Vec<glib::Type> {
         Self::all()
             .iter()
-            .map(|col| if col.name() == "Icon" {
-                glib::Type::BaseObject
-            } else {
-                glib::Type::String
+            .map(|col| {
+                if col.name() == "Icon" {
+                    glib::Type::BaseObject
+                } else {
+                    glib::Type::String
+                }
             })
             .collect::<Vec<glib::Type>>()
     }
@@ -486,9 +515,7 @@ impl FileTreeCol {
 
                 c.pack_start(&cell, true);
                 c.add_attribute(&cell, attr, *self as i32);
-
-                c
-            },
+            }
             _ => {
                 let (cell, attr) = (GtkCellRendererText::new(), "text");
                 cell.set_padding(8, 0);
@@ -496,10 +523,10 @@ impl FileTreeCol {
                 c.set_title(&self.name());
                 c.pack_start(&cell, true);
                 c.add_attribute(&cell, attr, *self as i32);
-
-                c
             }
         }
+
+        c
     }
 }
 
