@@ -5,7 +5,6 @@ use std::sync::Arc;
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::MenuItem as GtkMenuItem;
 use gtk::SelectionMode as GtkSelectionMode;
 use gtk::TreeIter as GtkTreeIter;
 use gtk::TreeModel as GtkTreeModel;
@@ -14,13 +13,11 @@ use gtk::TreeSelection as GtkTreeSelection;
 use gtk::TreeStore as GtkTreeStore;
 use gtk::TreeView as GtkTreeView;
 use gtk::TreeViewColumn as GtkTreeViewColumn;
-use gtk::{
-    CellRendererPixbuf, IconLookupFlags, IconSize,
-    IconTheme, Menu as GtkMenu,
-};
+use gtk::{CellRendererPixbuf, IconSize, Menu as GtkMenu};
 use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
 };
+use gtk::{Image, Label, MenuItem as GtkMenuItem};
 use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDropPosition};
 use uuid::Uuid;
 
@@ -32,7 +29,6 @@ use crate::closure;
 use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
-use gdk_pixbuf::Pixbuf;
 use glib::timeout_add_local;
 use std::cell::RefCell;
 
@@ -103,7 +99,7 @@ impl FileTree {
     fn tree_store_types() -> Vec<glib::Type> {
         let mut columns = FileTreeCol::all()
             .iter()
-            .map(|col| glib::Type::String)
+            .map(|_col| glib::Type::String)
             .collect::<Vec<glib::Type>>();
 
         columns.insert(0, glib::Type::String);
@@ -304,16 +300,7 @@ impl FileTree {
         it: Option<&GtkTreeIter>,
         f: &ClientFileMetadata,
     ) -> LbResult<()> {
-        let icon_name = match f.file_type {
-            FileType::Document => {
-                if f.name.ends_with(".draw") {
-                    "image-x-generic"
-                } else {
-                    "text-x-generic"
-                }
-            }
-            FileType::Folder => "folder",
-        }.to_string();
+        let icon_name = self.get_icon_name(&f.name, &f.file_type);
 
         let name = &f.name;
         let id = &f.id.to_string();
@@ -330,6 +317,34 @@ impl FileTree {
         }
 
         Ok(())
+    }
+
+    fn get_icon_name(&self, fname: &String, ftype: &FileType) -> String {
+        let image_suffixes = vec![
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".pnm",
+            ".tga",
+            ".farbfeld",
+            ".bmp",
+            ".draw",
+        ];
+        let script_suffixes = vec![".sh", ".bash", ".zsh"];
+
+        match ftype {
+            FileType::Document => {
+                if image_suffixes.iter().any(|suffix| fname.ends_with(suffix)) {
+                    "image-x-generic"
+                } else if script_suffixes.iter().any(|suffix| fname.ends_with(suffix)) {
+                    "text-x-script"
+                } else {
+                    "text-x-generic"
+                }
+            }
+            FileType::Folder => "folder",
+        }
+        .to_string()
     }
 
     pub fn search(&self, iter: &GtkTreeIter, id: &Uuid) -> Option<GtkTreeIter> {
@@ -485,9 +500,8 @@ impl FileTreeCol {
     pub fn name(&self) -> String {
         match self {
             FileTreeCol::IconAndName => "Name".to_string(),
-            _ => format!("{:?}", self)
+            _ => format!("{:?}", self),
         }
-
     }
 
     fn to_tree_view_col(&self) -> GtkTreeViewColumn {
@@ -527,7 +541,7 @@ enum PopupItem {
 impl PopupItem {
     fn hashmap(m: &Messenger) -> HashMap<Self, GtkMenuItem> {
         let mut items = HashMap::new();
-        for (item_key, action) in Self::data() {
+        for (item_key, icon_name, action) in Self::data() {
             let name = if let PopupItem::NewFolder = item_key {
                 "New Folder".to_string()
             } else if let PopupItem::NewDocument = item_key {
@@ -536,7 +550,24 @@ impl PopupItem {
                 format!("{:?}", item_key)
             };
 
-            let mi = GtkMenuItem::with_label(&name);
+            let mi = match icon_name {
+                None => GtkMenuItem::with_label(&name),
+                Some(_) => {
+                    let cntr = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+                    cntr.pack_start(
+                        &Image::from_icon_name(icon_name.as_deref(), IconSize::Menu),
+                        false,
+                        false,
+                        0,
+                    );
+                    cntr.pack_start(&Label::new(Some(&name)), false, false, 10);
+
+                    let mi = GtkMenuItem::new();
+                    mi.add(&cntr);
+                    mi
+                }
+            };
+
             mi.connect_activate(closure!(m => move |_| m.send(action())));
             items.insert(item_key, mi);
         }
@@ -544,13 +575,13 @@ impl PopupItem {
     }
 
     #[rustfmt::skip]
-    fn data() -> Vec<(Self, MsgFn)> {
+    fn data() -> Vec<(Self, Option<String>, MsgFn)> {
         vec![
-            (Self::NewDocument, || Msg::NewFile(FileType::Document)),
-            (Self::NewFolder, || Msg::NewFile(FileType::Folder)),
-            (Self::Rename, || Msg::RenameFile),
-            (Self::Open, || Msg::OpenFile(None)),
-            (Self::Delete, || Msg::DeleteFiles),
+            (Self::NewDocument, Some("document-new".to_string()), || Msg::NewFile(FileType::Document)),
+            (Self::NewFolder, Some("folder-new".to_string()), || Msg::NewFile(FileType::Folder)),
+            (Self::Rename, None, || Msg::RenameFile),
+            (Self::Open, Some("document-open".to_string()), || Msg::OpenFile(None)),
+            (Self::Delete, Some("edit-delete".to_string()), || Msg::DeleteFiles),
         ]
     }
 }
@@ -564,7 +595,7 @@ impl FileTreePopup {
     fn new(m: &Messenger) -> Self {
         let items = PopupItem::hashmap(&m);
         let menu = GtkMenu::new();
-        for (key, _) in &PopupItem::data() {
+        for (key, _, _) in &PopupItem::data() {
             menu.append(items.get(&key).unwrap());
         }
 

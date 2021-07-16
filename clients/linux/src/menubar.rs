@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use gtk::prelude::*;
-use gtk::{AccelGroup as GtkAccelGroup, Image, IconSize, Label};
 use gtk::Menu as GtkMenu;
 use gtk::MenuBar as GtkMenuBar;
 use gtk::MenuItem as GtkMenuItem;
 use gtk::SeparatorMenuItem as GtkSeparatorMenuItem;
+use gtk::{AccelGroup as GtkAccelGroup, IconSize, Image, Label};
 
 use crate::editmode::EditMode;
 use crate::messages::{Messenger, Msg};
@@ -162,9 +162,13 @@ impl Item {
                 None => GtkMenuItem::with_label(name),
                 Some(_) => {
                     let cntr = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-                    cntr.pack_start(&Image::from_icon_name(icon_name.as_deref(), IconSize::Menu), false, false, 0);
+                    cntr.pack_start(
+                        &Image::from_icon_name(icon_name.as_deref(), IconSize::Menu),
+                        false,
+                        false,
+                        0,
+                    );
                     cntr.pack_start(&Label::new(Some(name)), false, false, 10);
-
 
                     let mi = GtkMenuItem::new();
                     mi.add(&cntr);
