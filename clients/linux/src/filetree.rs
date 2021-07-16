@@ -60,7 +60,7 @@ impl FileTree {
     pub fn new(m: &Messenger, c: &Arc<LbCore>, hidden_cols: &Vec<String>) -> Self {
         let popup = Rc::new(FileTreePopup::new(&m));
 
-        let model = GtkTreeStore::new(&FileTreeCol::all_types());
+        let model = GtkTreeStore::new(&Self::tree_store_types());
         let tree = GtkTreeView::with_model(&model);
         tree.set_enable_search(false);
         tree.connect_columns_changed(|t| t.set_headers_visible(t.get_columns().len() > 1));
@@ -73,8 +73,9 @@ impl FileTree {
         sel.set_mode(GtkSelectionMode::Multiple);
 
         let cols = FileTreeCol::all();
+
         for c in &cols {
-            if c.name().eq("Icon") || c.name().eq("Name") || !hidden_cols.contains(&c.name()) {
+            if c.name().eq("Name") || !hidden_cols.contains(&c.name()) {
                 tree.append_column(&c.to_tree_view_col());
             }
         }
@@ -97,6 +98,17 @@ impl FileTree {
         tree.connect_drag_motion(Self::on_drag_motion(&hover_last_occurred));
 
         Self { cols, model, tree }
+    }
+
+    fn tree_store_types() -> Vec<glib::Type> {
+        let mut columns = FileTreeCol::all()
+            .iter()
+            .map(|col| glib::Type::String)
+            .collect::<Vec<glib::Type>>();
+
+        columns.insert(0, glib::Type::String);
+
+        columns
     }
 
     fn on_selection_change(popup: &Rc<FileTreePopup>) -> impl Fn(&GtkTreeSelection) {
@@ -381,7 +393,7 @@ impl FileTree {
     }
 
     pub fn toggle_col(&self, col: &FileTreeCol) {
-        if *col != FileTreeCol::Name {
+        if *col != FileTreeCol::IconAndName {
             for c in self.tree.get_columns() {
                 if c.get_title().unwrap().eq(&col.name()) {
                     self.tree.remove_column(&c);
@@ -393,8 +405,8 @@ impl FileTree {
     }
 
     pub fn insert_col(&self, col: &FileTreeCol) {
-        let mut i = *col as i32;
-        while i >= 0 {
+        let mut i = col.to_tree_store_index();
+        while i >= 1 {
             i -= 1;
             let prev = self.cols.get(i as usize).unwrap();
             if self.tree_has_col(&prev) {
@@ -454,56 +466,52 @@ impl FileTree {
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum FileTreeCol {
-    Icon,
-    Name,
+    IconAndName,
     Id,
     Type,
 }
 
 impl FileTreeCol {
     pub fn all() -> Vec<Self> {
-        vec![Self::Icon, Self::Name, Self::Id, Self::Type]
+        vec![Self::IconAndName, Self::Id, Self::Type]
     }
 
     pub fn removable() -> Vec<Self> {
         let mut all = Self::all();
-        all.retain(|c| !(matches!(c, Self::Name) || matches!(c, Self::Icon)));
+        all.retain(|c| !matches!(c, Self::IconAndName));
         all
     }
 
-    pub fn all_types() -> Vec<glib::Type> {
-        Self::all()
-            .iter()
-            .map(|col| glib::Type::String)
-            .collect::<Vec<glib::Type>>()
-    }
-
     pub fn name(&self) -> String {
-        format!("{:?}", self)
+        match self {
+            FileTreeCol::IconAndName => "Name".to_string(),
+            _ => format!("{:?}", self)
+        }
+
     }
 
     fn to_tree_view_col(&self) -> GtkTreeViewColumn {
         let c = GtkTreeViewColumn::new();
 
-        match self {
-            FileTreeCol::Icon => {
-                let (cell, attr) = (CellRendererPixbuf::new(), "icon-name");
-                cell.set_padding(4, 0);
+        c.set_title(&self.name());
 
-                c.pack_start(&cell, true);
-                c.add_attribute(&cell, attr, *self as i32);
-            }
-            _ => {
-                let (cell, attr) = (GtkCellRendererText::new(), "text");
-                cell.set_padding(8, 0);
+        let (cell, attr) = (GtkCellRendererText::new(), "text");
+        if let FileTreeCol::IconAndName = self {
+            let (renderer_cell, renderer_icon) = (CellRendererPixbuf::new(), "icon-name");
+            renderer_cell.set_padding(4, 0);
 
-                c.set_title(&self.name());
-                c.pack_start(&cell, true);
-                c.add_attribute(&cell, attr, *self as i32);
-            }
+            c.pack_start(&renderer_cell, false);
+            c.add_attribute(&renderer_cell, renderer_icon, 0);
         }
 
+        c.pack_start(&cell, false);
+        c.add_attribute(&cell, attr, self.to_tree_store_index());
+
         c
+    }
+
+    fn to_tree_store_index(&self) -> i32 {
+        *self as i32 + 1
     }
 }
 
