@@ -192,15 +192,15 @@ impl Item {
     #[rustfmt::skip]
     fn data() -> Vec<(Self, Option<String>, ItemData)> {
         vec![
-            (Self::FileOpen, Some("document-open".to_string()), ("Open", "<Primary>L", || Msg::SearchFieldFocus)),
-            (Self::FileSave, Some("document-save".to_string()), ("Save", "<Primary>S", || Msg::SaveFile)),
-            (Self::FileClose, Some("window-close".to_string()), ("Close File", "<Primary>W", || Msg::CloseFile)),
-            (Self::FileQuit, Some("application-exit".to_string()), ("Quit", "", || Msg::Quit)),
-            (Self::EditPreferences, Some("preferences-desktop".to_string()), ("Preferences", "", || Msg::ShowDialogPreferences)),
+            (Self::FileOpen, Some("document-open-symbolic".to_string()), ("Open", "<Primary>L", || Msg::SearchFieldFocus)),
+            (Self::FileSave, Some("document-save-symbolic".to_string()), ("Save", "<Primary>S", || Msg::SaveFile)),
+            (Self::FileClose, Some("window-close-symbolic".to_string()), ("Close File", "<Primary>W", || Msg::CloseFile)),
+            (Self::FileQuit, Some("application-exit-symbolic".to_string()), ("Quit", "", || Msg::Quit)),
+            (Self::EditPreferences, Some("preferences-system-symbolic".to_string()), ("Preferences", "", || Msg::ShowDialogPreferences)),
             (Self::AccountSync, None, ("Sync", "", || Msg::PerformSync)),
-            (Self::AccountUsage, Some("network-receive".to_string()), ("Usage", "", || Msg::ShowDialogUsage)),
-            (Self::AccountExport, Some("emblem-shared".to_string()), ("Export", "", || Msg::ExportAccount)),
-            (Self::HelpAbout, Some("help-about".to_string()), ("About", "", || Msg::ShowDialogAbout)),
+            (Self::AccountUsage, Some("network-receive-symbolic".to_string()), ("Usage", "", || Msg::ShowDialogUsage)),
+            (Self::AccountExport, Some("emblem-shared-symbolic".to_string()), ("Export", "", || Msg::ExportAccount)),
+            (Self::HelpAbout, Some("help-about-symbolic".to_string()), ("About", "", || Msg::ShowDialogAbout)),
         ]
     }
 }
