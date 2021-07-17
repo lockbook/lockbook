@@ -167,11 +167,25 @@ impl FileTree {
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
         closure!(m, c => move |w, d, x, y, _, _, time| {
-            if let Some((Some(mut path), _)) = w.get_dest_row_at_pos(x, y) {
+            if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
 
                 let mut parent = model.get_iter(&path).unwrap();
-                if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document) {
+                match pos {
+                    TreeViewDropPosition::Before |
+                    TreeViewDropPosition::After => {
+                        path.up();
+                        parent = model.get_iter(&path).unwrap();
+                    }
+                    _ => {
+                        if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document)  {
+                            path.up();
+                            parent = model.get_iter(&path).unwrap();
+                        }
+                    }
+                }
+
+                if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document)  {
                     path.up();
                     parent = model.get_iter(&path).unwrap();
                 }
@@ -216,15 +230,23 @@ impl FileTree {
                             _ => pos,
                         }
                     } else {
-                        timeout_add_local(400, closure!(hover_last_occurred, w, path => move || {
-                            if let Some(t) = *hover_last_occurred.borrow() {
-                                if t == time {
-                                    w.expand_row(&path, false);
-                                }
-                            }
+                        match pos {
+                            TreeViewDropPosition::IntoOrBefore
+                            | TreeViewDropPosition::IntoOrAfter => {
+                                timeout_add_local(
+                                    400,
+                                    closure!(hover_last_occurred, w, path => move || {
+                                    if let Some(t) = *hover_last_occurred.borrow() {
+                                        if t == time {
+                                            w.expand_row(&path, false);
+                                        }
+                                    }
 
-                            Continue(false)
-                        }));
+                                    Continue(false)
+                                }));
+                            },
+                            _ => {}
+                        }
 
                         pos
                     };
