@@ -197,7 +197,7 @@ impl Item {
             (Self::FileClose, Some("window-close".to_string()), ("Close File", "<Primary>W", || Msg::CloseFile)),
             (Self::FileQuit, Some("application-exit".to_string()), ("Quit", "", || Msg::Quit)),
             (Self::EditPreferences, Some("preferences-desktop".to_string()), ("Preferences", "", || Msg::ShowDialogPreferences)),
-            (Self::AccountSync, Some("sync-synchronizing".to_string()), ("Sync", "", || Msg::PerformSync)),
+            (Self::AccountSync, None, ("Sync", "", || Msg::PerformSync)),
             (Self::AccountUsage, Some("network-receive".to_string()), ("Usage", "", || Msg::ShowDialogUsage)),
             (Self::AccountExport, Some("emblem-shared".to_string()), ("Export", "", || Msg::ExportAccount)),
             (Self::HelpAbout, Some("help-about".to_string()), ("About", "", || Msg::ShowDialogAbout)),

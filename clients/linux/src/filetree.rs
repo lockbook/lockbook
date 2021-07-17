@@ -179,18 +179,14 @@ impl FileTree {
                 let (paths, _) = w.get_selection().get_selected_rows();
 
                 let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
-                let iters_icon = iters.iter().map(|iter| tree_iter_value!(model, &iter, 0, String)).collect::<Vec<String>>();
-                let iters_name = iters.iter().map(|iter| tree_iter_value!(model, &iter, 1, String)).collect::<Vec<String>>();
-                let iters_id = iters.iter().map(|iter| tree_iter_value!(model, &iter, 2, String)).collect::<Vec<String>>();
-                let iters_ftype = iters.iter().map(|iter| tree_iter_value!(model, &iter, 3, String)).collect::<Vec<String>>();
+                let ids = iters.iter().map(|iter| Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap()).collect::<Vec<Uuid>>();
 
-                let ids = iters_id.iter().map(|id| Uuid::parse_str(id).unwrap()).collect::<Vec<Uuid>>();
                 let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
 
                 ids.iter().enumerate().for_each(|(index, id)| {
                     match c.move_file(id, parent_id) {
                         Ok(_) => {
-                            model.insert_with_values(Some(&parent), None, &[0, 1, 2, 3], &[&iters_icon[index], &iters_name[index], &iters_id[index], &iters_ftype[index]]);
+                            Self::move_iter(&model, &iters[index], &parent, true);
                             model.remove(&iters[index]);
                         }
                         Err(err) => m.send_err_dialog("moving", err)
@@ -239,6 +235,28 @@ impl FileTree {
 
             GtkInhibit(true)
         })
+    }
+
+    fn move_iter(model: &TreeStore, iter: &TreeIter, parent: &TreeIter, is_at_top: bool) {
+        let iter_icon = tree_iter_value!(model, &iter, 0, String);
+        let iter_name = tree_iter_value!(model, &iter, 1, String);
+        let iter_id = tree_iter_value!(model, &iter, 2, String);
+        let iter_ftype = tree_iter_value!(model, &iter, 3, String);
+
+        let new_parent = model.insert_with_values(
+            Some(&parent),
+            None,
+            &[0, 1, 2, 3],
+            &[&iter_icon, &iter_name, &iter_id, &iter_ftype],
+        );
+
+        if let Some(it) = model.iter_children(Some(&iter)) {
+            Self::move_iter(model, &it, &new_parent, false);
+        }
+
+        if !is_at_top && model.iter_next(&iter) {
+            Self::move_iter(model, iter, parent, false);
+        }
     }
 
     pub fn widget(&self) -> &GtkTreeView {
