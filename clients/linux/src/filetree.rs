@@ -615,13 +615,13 @@ impl PopupItem {
     }
 
     #[rustfmt::skip]
-    fn data() -> Vec<(Self, Option<String>, MsgFn)> {
+    fn data() -> Vec<(Self, Option<&'static str>, MsgFn)> {
         vec![
-            (Self::NewDocument, Some("document-new-symbolic".to_string()), || Msg::NewFile(FileType::Document)),
-            (Self::NewFolder, Some("folder-new-symbolic".to_string()), || Msg::NewFile(FileType::Folder)),
+            (Self::NewDocument, Some("document-new-symbolic"), || Msg::NewFile(FileType::Document)),
+            (Self::NewFolder, Some("folder-new-symbolic"), || Msg::NewFile(FileType::Folder)),
             (Self::Rename, None, || Msg::RenameFile),
-            (Self::Open, Some("document-open-symbolic".to_string()), || Msg::OpenFile(None)),
-            (Self::Delete, Some("edit-delete-symbolic".to_string()), || Msg::DeleteFiles),
+            (Self::Open, Some("document-open-symbolic"), || Msg::OpenFile(None)),
+            (Self::Delete, Some("edit-delete-symbolic"), || Msg::DeleteFiles),
         ]
     }
 }

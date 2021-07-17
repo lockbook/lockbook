@@ -190,17 +190,17 @@ impl Item {
     }
 
     #[rustfmt::skip]
-    fn data() -> Vec<(Self, Option<String>, ItemData)> {
+    fn data() -> Vec<(Self, Option<&'static str>, ItemData)> {
         vec![
-            (Self::FileOpen, Some("document-open-symbolic".to_string()), ("Open", "<Primary>L", || Msg::SearchFieldFocus)),
-            (Self::FileSave, Some("document-save-symbolic".to_string()), ("Save", "<Primary>S", || Msg::SaveFile)),
-            (Self::FileClose, Some("window-close-symbolic".to_string()), ("Close File", "<Primary>W", || Msg::CloseFile)),
-            (Self::FileQuit, Some("application-exit-symbolic".to_string()), ("Quit", "", || Msg::Quit)),
-            (Self::EditPreferences, Some("preferences-system-symbolic".to_string()), ("Preferences", "", || Msg::ShowDialogPreferences)),
+            (Self::FileOpen, Some("document-open-symbolic"), ("Open", "<Primary>L", || Msg::SearchFieldFocus)),
+            (Self::FileSave, Some("document-save-symbolic"), ("Save", "<Primary>S", || Msg::SaveFile)),
+            (Self::FileClose, Some("window-close-symbolic"), ("Close File", "<Primary>W", || Msg::CloseFile)),
+            (Self::FileQuit, Some("application-exit-symbolic"), ("Quit", "", || Msg::Quit)),
+            (Self::EditPreferences, Some("preferences-system-symbolic"), ("Preferences", "", || Msg::ShowDialogPreferences)),
             (Self::AccountSync, None, ("Sync", "", || Msg::PerformSync)),
-            (Self::AccountUsage, Some("network-receive-symbolic".to_string()), ("Usage", "", || Msg::ShowDialogUsage)),
-            (Self::AccountExport, Some("emblem-shared-symbolic".to_string()), ("Export", "", || Msg::ExportAccount)),
-            (Self::HelpAbout, Some("help-about-symbolic".to_string()), ("About", "", || Msg::ShowDialogAbout)),
+            (Self::AccountUsage, Some("network-receive-symbolic"), ("Usage", "", || Msg::ShowDialogUsage)),
+            (Self::AccountExport, Some("emblem-shared-symbolic"), ("Export", "", || Msg::ExportAccount)),
+            (Self::HelpAbout, Some("help-about-symbolic"), ("About", "", || Msg::ShowDialogAbout)),
         ]
     }
 }
