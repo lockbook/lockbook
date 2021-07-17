@@ -1,0 +1,38 @@
+html, body {
+	margin: 0;
+	height: 100%;
+	padding: 0;
+}
+
+#intro {
+	display: inline-block;
+	background: red;
+	width: 100%;
+	height: 100%;
+}
+
+#intro-desc {
+	background: blue;
+	height: 100%;
+	width: 50%;
+	float: left;
+}
+
+#intro-pic {
+	background: green;
+	height: 100%;
+	width: 50%;
+	float: right;
+}
+
+@media only screen and (max-width: 600px) {
+	span {
+		min-width: 100%;
+		height: 50%;
+		display: table-row;
+	}
+
+	#intro {
+		  display: table;
+	}
+}
