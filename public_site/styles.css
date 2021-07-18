@@ -10,14 +10,12 @@
 
 	@media (min-height: 450px) {
 		.container {
-			background: blue;
 			height: 100%;
 		}
 	}
 
 	@media (max-height: 450px) {
 		.container {
-			background: yellow;
 			min-height: 100%;
 		}
 	}
@@ -79,7 +77,6 @@ p {
 }
 
 /* * * * Colors * * * */
-/** 
 h1 {
 	background: black;
 	color: white;
@@ -96,4 +93,3 @@ h1 {
 		color: black;
 	}
 }
-**/
