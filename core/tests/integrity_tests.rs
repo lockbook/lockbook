@@ -147,7 +147,7 @@ mod integrity_tests {
         let warnings = integrity_service::test_repo_integrity(&cfg, false);
 
         assert_matches!(
-            warnings.as_ref().map(| w | &w[..]),
+            warnings.as_ref().map(|w| &w[..]),
             Ok([Warning::EmptyFile(_)])
         );
     }
@@ -157,12 +157,13 @@ mod integrity_tests {
         let cfg = test_config();
         let account = create_account(&cfg, &random_username(), &url()).unwrap();
         let doc = create_file_at_path(&cfg, path!(account, "document.txt")).unwrap();
-        file_service::write_document(&cfg, doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref()).unwrap();
+        file_service::write_document(&cfg, doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
+            .unwrap();
 
         let warnings = integrity_service::test_repo_integrity(&cfg, false);
 
         assert_matches!(
-            warnings.as_ref().map(| w | &w[..]),
+            warnings.as_ref().map(|w| &w[..]),
             Ok([Warning::InvalidUTF8(_)])
         );
     }

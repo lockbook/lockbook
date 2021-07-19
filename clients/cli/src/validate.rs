@@ -1,9 +1,9 @@
 use crate::error::CliResult;
 use crate::utils::{get_account_or_exit, get_config};
 use crate::{err, err_unexpected};
+use lockbook_core::get_path_by_id;
 use lockbook_core::model::state::Config;
 use lockbook_core::service::integrity_service::{test_repo_integrity, TestRepoError, Warning};
-use lockbook_core::get_path_by_id;
 use uuid::Uuid;
 
 pub fn validate() -> CliResult<()> {

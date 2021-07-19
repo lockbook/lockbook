@@ -31,7 +31,10 @@ pub enum Warning {
     InvalidUTF8(Uuid),
 }
 
-pub fn test_repo_integrity(config: &Config, ignore_warnings: bool) -> Result<Vec<Warning>, TestRepoError> {
+pub fn test_repo_integrity(
+    config: &Config,
+    ignore_warnings: bool,
+) -> Result<Vec<Warning>, TestRepoError> {
     let root = file_metadata_repo::get_root(&config)
         .map_err(Core)?
         .ok_or(NoRootFolder)?;
