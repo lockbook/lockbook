@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use gtk::prelude::*;
+use gtk::AccelGroup as GtkAccelGroup;
 use gtk::Menu as GtkMenu;
 use gtk::MenuBar as GtkMenuBar;
 use gtk::MenuItem as GtkMenuItem;
 use gtk::SeparatorMenuItem as GtkSeparatorMenuItem;
-use gtk::{AccelGroup as GtkAccelGroup, IconSize, Image, Label};
 
 use crate::editmode::EditMode;
 use crate::messages::{Messenger, Msg};
@@ -157,24 +157,8 @@ enum Item {
 impl Item {
     fn hashmap(m: &Messenger, accels: &GtkAccelGroup) -> HashMap<Self, GtkMenuItem> {
         let mut items = HashMap::new();
-        for (item_key, icon_name, (name, accel, msg)) in Self::data() {
-            let mi = match icon_name {
-                None => GtkMenuItem::with_label(name),
-                Some(_) => {
-                    let cntr = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-                    cntr.pack_start(
-                        &Image::from_icon_name(icon_name.as_deref(), IconSize::Menu),
-                        false,
-                        false,
-                        0,
-                    );
-                    cntr.pack_start(&Label::new(Some(name)), false, false, 10);
-
-                    let mi = GtkMenuItem::new();
-                    mi.add(&cntr);
-                    mi
-                }
-            };
+        for (item_key, (name, accel, msg)) in Self::data() {
+            let mi = GtkMenuItem::with_label(name);
 
             if !accel.is_empty() {
                 let (key, modifier) = gtk::accelerator_parse(accel);
@@ -190,17 +174,17 @@ impl Item {
     }
 
     #[rustfmt::skip]
-    fn data() -> Vec<(Self, Option<&'static str>, ItemData)> {
+    fn data() -> Vec<(Self, ItemData)> {
         vec![
-            (Self::FileOpen, Some("document-open-symbolic"), ("Open", "<Primary>L", || Msg::SearchFieldFocus)),
-            (Self::FileSave, Some("document-save-symbolic"), ("Save", "<Primary>S", || Msg::SaveFile)),
-            (Self::FileClose, Some("window-close-symbolic"), ("Close File", "<Primary>W", || Msg::CloseFile)),
-            (Self::FileQuit, Some("application-exit-symbolic"), ("Quit", "", || Msg::Quit)),
-            (Self::EditPreferences, Some("preferences-system-symbolic"), ("Preferences", "", || Msg::ShowDialogPreferences)),
-            (Self::AccountSync, None, ("Sync", "", || Msg::PerformSync)),
-            (Self::AccountUsage, Some("network-receive-symbolic"), ("Usage", "", || Msg::ShowDialogUsage)),
-            (Self::AccountExport, Some("emblem-shared-symbolic"), ("Export", "", || Msg::ExportAccount)),
-            (Self::HelpAbout, Some("help-about-symbolic"), ("About", "", || Msg::ShowDialogAbout)),
+            (Self::FileOpen, ("Open", "<Primary>L", || Msg::SearchFieldFocus)),
+            (Self::FileSave, ("Save", "<Primary>S", || Msg::SaveFile)),
+            (Self::FileClose, ("Close File", "<Primary>W", || Msg::CloseFile)),
+            (Self::FileQuit, ("Quit", "", || Msg::Quit)),
+            (Self::EditPreferences, ("Preferences", "", || Msg::ShowDialogPreferences)),
+            (Self::AccountSync, ("Sync", "", || Msg::PerformSync)),
+            (Self::AccountUsage, ("Usage", "", || Msg::ShowDialogUsage)),
+            (Self::AccountExport, ("Export", "", || Msg::ExportAccount)),
+            (Self::HelpAbout, ("About", "", || Msg::ShowDialogAbout)),
         ]
     }
 }

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
+use gtk::MenuItem as GtkMenuItem;
 use gtk::SelectionMode as GtkSelectionMode;
 use gtk::TreeIter as GtkTreeIter;
 use gtk::TreeModel as GtkTreeModel;
@@ -13,11 +14,10 @@ use gtk::TreeSelection as GtkTreeSelection;
 use gtk::TreeStore as GtkTreeStore;
 use gtk::TreeView as GtkTreeView;
 use gtk::TreeViewColumn as GtkTreeViewColumn;
-use gtk::{CellRendererPixbuf, IconSize, Menu as GtkMenu};
+use gtk::{CellRendererPixbuf, Menu as GtkMenu};
 use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
 };
-use gtk::{Image, Label, MenuItem as GtkMenuItem};
 use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDropPosition};
 use uuid::Uuid;
 
@@ -581,7 +581,7 @@ enum PopupItem {
 impl PopupItem {
     fn hashmap(m: &Messenger) -> HashMap<Self, GtkMenuItem> {
         let mut items = HashMap::new();
-        for (item_key, icon_name, action) in Self::data() {
+        for (item_key, action) in Self::data() {
             let name = if let PopupItem::NewFolder = item_key {
                 "New Folder".to_string()
             } else if let PopupItem::NewDocument = item_key {
@@ -590,23 +590,7 @@ impl PopupItem {
                 format!("{:?}", item_key)
             };
 
-            let mi = match icon_name {
-                None => GtkMenuItem::with_label(&name),
-                Some(_) => {
-                    let cntr = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-                    cntr.pack_start(
-                        &Image::from_icon_name(icon_name.as_deref(), IconSize::Menu),
-                        false,
-                        false,
-                        0,
-                    );
-                    cntr.pack_start(&Label::new(Some(&name)), false, false, 10);
-
-                    let mi = GtkMenuItem::new();
-                    mi.add(&cntr);
-                    mi
-                }
-            };
+            let mi = GtkMenuItem::with_label(&name);
 
             mi.connect_activate(closure!(m => move |_| m.send(action())));
             items.insert(item_key, mi);
@@ -615,13 +599,13 @@ impl PopupItem {
     }
 
     #[rustfmt::skip]
-    fn data() -> Vec<(Self, Option<&'static str>, MsgFn)> {
+    fn data() -> Vec<(Self, MsgFn)> {
         vec![
-            (Self::NewDocument, Some("document-new-symbolic"), || Msg::NewFile(FileType::Document)),
-            (Self::NewFolder, Some("folder-new-symbolic"), || Msg::NewFile(FileType::Folder)),
-            (Self::Rename, None, || Msg::RenameFile),
-            (Self::Open, Some("document-open-symbolic"), || Msg::OpenFile(None)),
-            (Self::Delete, Some("edit-delete-symbolic"), || Msg::DeleteFiles),
+            (Self::NewDocument, || Msg::NewFile(FileType::Document)),
+            (Self::NewFolder, || Msg::NewFile(FileType::Folder)),
+            (Self::Rename, || Msg::RenameFile),
+            (Self::Open, || Msg::OpenFile(None)),
+            (Self::Delete, || Msg::DeleteFiles),
         ]
     }
 }
@@ -635,7 +619,7 @@ impl FileTreePopup {
     fn new(m: &Messenger) -> Self {
         let items = PopupItem::hashmap(&m);
         let menu = GtkMenu::new();
-        for (key, _, _) in &PopupItem::data() {
+        for (key, _) in &PopupItem::data() {
             menu.append(items.get(&key).unwrap());
         }
 
