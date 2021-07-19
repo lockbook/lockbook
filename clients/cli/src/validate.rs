@@ -13,7 +13,7 @@ pub fn validate() -> CliResult<()> {
 
     let err = match test_repo_integrity(&config, false) {
         Ok(warnings) => {
-            if warnings.len() == 0 {
+            if warnings.is_empty() {
                 return Ok(());
             };
 

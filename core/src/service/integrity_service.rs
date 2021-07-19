@@ -132,7 +132,7 @@ pub fn test_repo_integrity(
                 continue;
             }
 
-            if let Err(_) = String::from_utf8(file_content) {
+            if String::from_utf8(file_content).is_err() {
                 warnings.push(Warning::InvalidUTF8(file.id))
             }
         }

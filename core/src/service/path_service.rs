@@ -150,14 +150,14 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
 }
 
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
-    let mut current_id = id.clone();
+    let mut current_id = id;
     let mut current_metadata = file_metadata_repo::get(config, current_id)?;
     let mut path = String::from("");
 
     while current_metadata.parent != current_id {
         let name = file_encryption_service::get_name(&config, &current_metadata)?;
         path = format!("{}/{}", name, path);
-        current_id = current_metadata.parent.clone();
+        current_id = current_metadata.parent;
         current_metadata = file_metadata_repo::get(config, current_id)?
     }
 
