@@ -29,7 +29,6 @@ pub enum ErrorWrapper<E> {
     InternalError,
     BadRequest,
 }
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentRequest {
     pub id: Uuid,
@@ -523,4 +522,23 @@ impl Request for NewAccountRequest {
     type Error = NewAccountError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/new-account";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetBuildInfoRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetBuildInfoError {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetBuildInfoResponse {
+    pub build_version: &'static str,
+    pub git_commit_hash: &'static str,
+}
+
+impl Request for GetBuildInfoRequest {
+    type Response = GetBuildInfoResponse;
+    type Error = GetBuildInfoError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-build-info";
 }
