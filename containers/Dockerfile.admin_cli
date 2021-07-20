@@ -9,6 +9,7 @@ WORKDIR admin-cli
 
 # Admin CLI depends on server and core via a relative import
 COPY server/server/Cargo.toml /server/Cargo.toml
+COPY server/server/build.rs /server/build.rs
 COPY core/Cargo.toml /core/Cargo.toml
 COPY core/libs/models/Cargo.toml /core/libs/models/Cargo.toml
 COPY core/libs/crypto/Cargo.toml /core/libs/crypto/Cargo.toml
