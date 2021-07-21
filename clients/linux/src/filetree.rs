@@ -97,14 +97,14 @@ impl FileTree {
 
         tree.drag_source_set_icon_name("application-x-generic");
 
-        tree.connect_drag_data_received(Self::on_drag_data_received(
-            m,
-            c,
+        tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
+        tree.connect_drag_data_get(Self::on_drag_data_get());
+        tree.connect_drag_motion(Self::on_drag_motion(
             &drag_hover_last_occurred,
             &drag_ends_last_occurred,
         ));
-        tree.connect_drag_data_get(Self::on_drag_data_get());
-        tree.connect_drag_motion(Self::on_drag_motion(
+
+        tree.connect_drag_end(Self::on_drag_end(
             &drag_hover_last_occurred,
             &drag_ends_last_occurred,
         ));
@@ -170,13 +170,8 @@ impl FileTree {
     fn on_drag_data_received(
         m: &Messenger,
         c: &Arc<LbCore>,
-        drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
-        drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
-        closure!(m, c, drag_hover_last_occurred, drag_ends_last_occurred => move |w, d, x, y, _, _, time| {
-            *drag_hover_last_occurred.borrow_mut() = None;
-            *drag_ends_last_occurred.borrow_mut() = None;
-
+        closure!(m, c => move |w, d, x, y, _, _, time| {
             if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
 
@@ -222,6 +217,16 @@ impl FileTree {
         })
     }
 
+    fn on_drag_end(
+        drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
+        drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
+    ) -> impl Fn(&TreeView, &DragContext) {
+        closure!(drag_hover_last_occurred, drag_ends_last_occurred => move |_, _| {
+            *drag_hover_last_occurred.borrow_mut() = None;
+            *drag_ends_last_occurred.borrow_mut() = None;
+        })
+    }
+
     fn on_drag_motion(
         drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
         drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
@@ -253,11 +258,6 @@ impl FileTree {
             } else {
                 *drag_ends_last_occurred.borrow_mut() = None;
             }
-
-            // if y > height - 50 || y < 50 {
-            //     w.scroll_to_point(-1, y);
-            // }
-
 
             if let Some((Some(path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap();
