@@ -56,7 +56,14 @@ impl FileTree {
     pub fn new(m: &Messenger, c: &Arc<LbCore>, hidden_cols: &Vec<String>) -> Self {
         let popup = Rc::new(FileTreePopup::new(&m));
 
-        let model = GtkTreeStore::new(&Self::tree_store_types());
+        let mut column_types = FileTreeCol::all()
+            .iter()
+            .map(|_col| glib::Type::String)
+            .collect::<Vec<glib::Type>>();
+
+        column_types.insert(0, glib::Type::String);
+
+        let model = GtkTreeStore::new(&column_types);
         let tree = GtkTreeView::with_model(&model);
         tree.set_enable_search(false);
         tree.connect_columns_changed(|t| t.set_headers_visible(t.get_columns().len() > 1));
@@ -76,7 +83,8 @@ impl FileTree {
             }
         }
 
-        let hover_last_occurred = Rc::new(RefCell::new(None));
+        let drag_hover_last_occurred = Rc::new(RefCell::new(None));
+        let drag_ends_last_occurred = Rc::new(RefCell::new(None));
 
         let targets = [TargetEntry::new(
             "lockbook/files",
@@ -89,22 +97,19 @@ impl FileTree {
 
         tree.drag_source_set_icon_name("application-x-generic");
 
-        tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
+        tree.connect_drag_data_received(Self::on_drag_data_received(
+            m,
+            c,
+            &drag_hover_last_occurred,
+            &drag_ends_last_occurred,
+        ));
         tree.connect_drag_data_get(Self::on_drag_data_get());
-        tree.connect_drag_motion(Self::on_drag_motion(&hover_last_occurred));
+        tree.connect_drag_motion(Self::on_drag_motion(
+            &drag_hover_last_occurred,
+            &drag_ends_last_occurred,
+        ));
 
         Self { cols, model, tree }
-    }
-
-    fn tree_store_types() -> Vec<glib::Type> {
-        let mut columns = FileTreeCol::all()
-            .iter()
-            .map(|_col| glib::Type::String)
-            .collect::<Vec<glib::Type>>();
-
-        columns.insert(0, glib::Type::String);
-
-        columns
     }
 
     fn on_selection_change(popup: &Rc<FileTreePopup>) -> impl Fn(&GtkTreeSelection) {
@@ -165,8 +170,13 @@ impl FileTree {
     fn on_drag_data_received(
         m: &Messenger,
         c: &Arc<LbCore>,
+        drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
+        drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
-        closure!(m, c => move |w, d, x, y, _, _, time| {
+        closure!(m, c, drag_hover_last_occurred, drag_ends_last_occurred => move |w, d, x, y, _, _, time| {
+            *drag_hover_last_occurred.borrow_mut() = None;
+            *drag_ends_last_occurred.borrow_mut() = None;
+
             if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
 
@@ -213,12 +223,45 @@ impl FileTree {
     }
 
     fn on_drag_motion(
-        hover_last_occurred: &Rc<RefCell<Option<u32>>>,
+        drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
+        drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, u32) -> GtkInhibit {
-        closure!(hover_last_occurred => move |w, d, x, y, time| {
+        closure!(drag_hover_last_occurred, drag_ends_last_occurred => move |w, d, x, y, time| {
+            let vadj = w.get_vadjustment().unwrap();
+            let height = w.get_allocated_height();
+
+            if y > height - 50 || y < 50 {
+                *drag_ends_last_occurred.borrow_mut() = Some(time);
+                timeout_add_local(
+                    10,
+                    closure!(drag_ends_last_occurred, height, y => move || {
+                        if let Some(t) = *drag_ends_last_occurred.borrow() {
+                            if t == time {
+                                if y > height - 50 {
+                                    vadj.set_value(vadj.get_value() + (y - (height - 50)) as f64);
+                                } else if y < 50 {
+                                    vadj.set_value(vadj.get_value() - (50 - y) as f64);
+                                } else {
+                                    panic!("impossible")
+                                }
+
+                                return Continue(true);
+                            }
+                        }
+                        Continue(false)
+                    }));
+            } else {
+                *drag_ends_last_occurred.borrow_mut() = None;
+            }
+
+            // if y > height - 50 || y < 50 {
+            //     w.scroll_to_point(-1, y);
+            // }
+
+
             if let Some((Some(path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap();
-                *hover_last_occurred.borrow_mut() = Some(time);
+                *drag_hover_last_occurred.borrow_mut() = Some(time);
 
                 let pos_corrected =
                     if tree_iter_value!(model, &model.get_iter(&path).unwrap(), 3, String)
@@ -235,8 +278,8 @@ impl FileTree {
                             | TreeViewDropPosition::IntoOrAfter => {
                                 timeout_add_local(
                                     400,
-                                    closure!(hover_last_occurred, w, path => move || {
-                                    if let Some(t) = *hover_last_occurred.borrow() {
+                                    closure!(drag_hover_last_occurred, w, path => move || {
+                                    if let Some(t) = *drag_hover_last_occurred.borrow() {
                                         if t == time {
                                             w.expand_row(&path, false);
                                         }
