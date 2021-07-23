@@ -620,7 +620,7 @@ impl LbApp {
         let mut file_data: Vec<(String, Uuid, String)> = Vec::new();
         for tpath in selected_files {
             let iter = tmodel.get_iter(&tpath).unwrap();
-            let id = tree_iter_value!(tmodel, &iter, 1, String);
+            let id = tree_iter_value!(tmodel, &iter, 2, String);
             let uuid = Uuid::parse_str(&id).unwrap();
 
             let meta = self.core.file_by_id(uuid)?;
@@ -702,7 +702,7 @@ impl LbApp {
             .ok_or_else(|| progerr!("Unable to get the tree iterator for tree path: {}", tpath))?;
 
         // Get the FileMetadata from the iterator.
-        let id = tree_iter_value!(tmodel, &iter, 1, String);
+        let id = tree_iter_value!(tmodel, &iter, 2, String);
         let uuid = Uuid::parse_str(&id).map_err(LbError::fmt_program_err)?;
         let meta = self.core.file_by_id(uuid)?;
 
