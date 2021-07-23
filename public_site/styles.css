@@ -115,17 +115,49 @@ p {
 }
 
 /* * * * Colors * * * */
+a {
+    text-decoration: none;
+    color: white;
+}
+
+#term-icon:hover {
+    color: black;
+    transition: color 250ms linear;
+
+}
+
+#apple-icon:hover {
+    color: rgb(142, 142, 142);
+    transition: color 250ms linear;
+}
+
+#windows-icon:hover {
+    color: rgb(0, 122, 255);
+    transition: color 250ms linear;
+}
+
+#android-icon:hover {
+    color: rgb(52, 199, 89);
+    transition: color 250ms linear;
+}
+
+#linux-icon:hover {
+    color: rgb(175, 82, 222);
+    transition: color 250ms linear;
+
+}
+
 h1 {
     background: black;
     color: white;
 }
 
-#polish-section {
+#native {
     background: rgb(255, 45, 85);
     color: white;
 }
 
-#honest-section {
+#pricing {
     background: rgb(0, 122, 255);
     color: white;
 }
@@ -152,61 +184,21 @@ h1 {
 
 .good {
     color: rgb(52, 199, 89);
-    font-size: 1em;
+    font-size: 1.25em;
 }
 
 .bad {
-    color: rgb(255, 45, 85);
-    font-size: 1em;
+    color: rgb(255, 149, 0);
+    font-size: 1.25em;
 }
 
 /* * * * Animations * * * */
 
 .content {
     animation: fadeIn 2s;
-    -webkit-animation: fadeIn 2s;
-    -moz-animation: fadeIn 2s;
-    -o-animation: fadeIn 2s;
-    -ms-animation: fadeIn 2s;
 }
 
 @keyframes fadeIn {
-    0% {
-        opacity: 0;
-    }
-    100% {
-        opacity: 1;
-    }
-}
-
-@-moz-keyframes fadeIn {
-    0% {
-        opacity: 0;
-    }
-    100% {
-        opacity: 1;
-    }
-}
-
-@-webkit-keyframes fadeIn {
-    0% {
-        opacity: 0;
-    }
-    100% {
-        opacity: 1;
-    }
-}
-
-@-o-keyframes fadeIn {
-    0% {
-        opacity: 0;
-    }
-    100% {
-        opacity: 1;
-    }
-}
-
-@-ms-keyframes fadeIn {
     0% {
         opacity: 0;
     }
