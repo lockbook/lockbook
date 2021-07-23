@@ -1,58 +1,228 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <title>Lockbook</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;700&display=swap" rel="stylesheet">
-    <meta name='viewport'
-     content='width=device-width, initial-scale=1.0, maximum-scale=1.0,
-     user-scalable=0' >
-    <link rel="stylesheet" href="styles.css">
-  </head>
-  <body>
-    <div class="container">
-     <span class="left">
-        <div class="centered">
-          <div class="content">
-            <h1 id="text">LOCKBOOK</h1>
-            <h3>The best place to store and share thoughts</h3>
-            <p>
-            Privacy shouldn’t be a compromise. That’s why we made Lockbook, a companion for recording thoughts on all your devices. Record, sync, and share your notes with apps engineered to feel like home on every platform. We collect no personal information and encrypt your notes so even we can’t see them. Don’t take our word for it: Lockbook is 100% open-source.
-            </p>
-          </div>
-        </div>
-      </span> 
-      <span class="right">
-        <div class="centered">
-          <div class="content">
-            <img style='height: 100%; width: 100%; object-fit: contain' src="intro.png">
-          </div>
-        </div>
-      </span>
-    </div>
-    <div class="container">
-     <span class="left">
-        <div class="centered">
-          <div class="content">
-            <h3>Polished</h3>
-            <p>
-            We built Lockbook for everyday use because we use Lockbook everyday. We need a note-taking app that doesn't make trade-offs with respect to speed, stability, efficiency, device integration, or delightfulness. The only way to have that is put in the effort, including writing native apps for every platform, and we can't wait for you to try it.
-            </p>
-          </div>
-        </div>
-      </span> 
-      <span class="right">
-        <div class="centered">
-          <div class="content">
-            <img style='height: 100%; width: 100%; object-fit: contain' src="https://lockbook.net/images/screenshots.png">
-          </div>
-        </div>
-      </span>
-    </div>
-    <div class="container">
-
-  </body>
+	<head>
+		<meta charset="UTF-8">
+		<title>Lockbook</title>
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;700&display=swap" rel="stylesheet">
+		<link href="fontawesome/css/all.min.css" rel="stylesheet">
+		<meta name='viewport'
+			  content='width=device-width, initial-scale=1.0, maximum-scale=1.0,
+			user-scalable=0'>
+		<link rel="stylesheet" href="styles.css">
+	</head>
+	<body>
+		<div class="container">
+			<span class="left">
+				<div class="centered">
+					<div class="content">
+						<h1 id="text">LOCKBOOK</h1>
+						<h3>The best place to store and share thoughts</h3>
+						<p>
+							Privacy shouldn’t be a compromise. That’s why we made Lockbook, a companion for recording thoughts on all your devices. Record, sync, and share your notes with apps engineered to feel like home on every platform. We collect no personal information and encrypt your notes so even we can’t see them. Don’t take our word for it: Lockbook is 100% open-source.
+						</p>
+					</div>
+				</div>
+			</span>
+			<span class="right">
+				<div class="centered">
+					<div class="content">
+						<img id="intro-img" style='height: 100%; width: 100%; object-fit: contain'>
+					</div>
+				</div>
+			</span>
+		</div>
+		<div id="polish-section" class="container">
+			<span class="left">
+				<div class="centered">
+					<div class="content">
+						<h2>Polished</h2>
+						<p>
+							We built Lockbook for everyday use because we use Lockbook everyday. We need a note-taking app that doesn't make trade-offs with respect to speed, stability, efficiency, device integration, or delightfulness. The only way to have that is put in the effort, including writing native apps for every platform, and we can't wait for you to try it.
+						</p>
+						<div class="icons">
+							<span>
+							<i class="fas fa-terminal"></i>
+							<i class="fab fa-apple"></i>
+							<i class="fab fa-windows"></i>
+							<i class="fab fa-android"></i>
+							<i class="fab fa-linux"></i>
+							</span>
+						</div>
+					</div>
+				</div>
+			</span>
+			<span class="right">
+				<div class="centered">
+					<div class="content">
+						<img style='height: 100%; width: 100%; object-fit: contain'
+							 src="https://lockbook.net/images/screenshots.png">
+					</div>
+				</div>
+			</span>
+		</div>
+		<div id="security-privacy-section" class="container">
+			<span class="left">
+				<div class="centered">
+					<div class="content">
+						<h2>Secure</h2>
+						<p>
+							Keep your thoughts to yourself. Your notes are encrypted with keys that are generated on your devices and stay on your devices. The people that can see your notes are you and the users you share them with. The people that can't are everyone else, including infrastructure providers, state actors, and Lockbook employees.
+						</p>
+						<div class="icons">
+							<i class="fas fa-lock"></i>
+						</div>
+					</div>
+				</div>
+			</span>
+			<span class="right">
+				<div class="centered">
+					<div class="content">
+						<h2>Private</h2>
+						<p>
+							Know your customer? We sure don't. We don't collect your email, phone number, or name. We don't need a password. We don't even want your credit card number: pay anonymously with bitcoin and get a discount. Lockbook is for people with better things to worry about than privacy.
+						</p>
+						<div class="icons">
+							<i class="fas fa-user-secret"></i>
+						</div>
+					</div>
+				</div>
+			</span>
+		</div>
+		<div id="honest-section" class="container">
+			<span class="left">
+				<div class="centered">
+					<div class="content">
+						<h2>Honest</h2>
+						<p>
+							Be the customer, not the product. We make money by selling a note-taking app, not your data.
+						</p>
+						<p class="right-align">
+							$2.50 / 50gb / month
+						</p>
+						<p class="right-align">
+							$25 / 50gb / year
+						</p>
+					</div>
+				</div>
+			</span>
+			<span class="right">
+				<div class="centered">
+					<div class="content">
+						<div id="comparison-wrapper">
+							<table id="comparison">
+								<tr>
+									<th></th>
+									<th title="All user content is end-to-end encrypted and only accessible to the user.">Secure<sup>?</sup></th>
+									<th title="Email, phone number, or credit card is not required to use the service.">Private<sup>?</sup></th>
+									<th title="Users don't have to use a different service for collaboration.">Collaborative<sup>?</sup></th>
+									<th title="All source code is publicly accessible, servers are self-hostable.">Open<sup>?</sup></th>
+									<th title="A native client exists for each platform (no browser dependencies).">Native<sup>?</sup></th>
+									<th title="Anyone can create bridges to other services, and trivially backup all data.">Extensible<sup>?</sup></th>
+								</tr>
+								<tr>
+									<td>Lockbook</td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+								</tr>
+								<tr>
+									<td>Google Drive</td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+								</tr>
+								<tr>
+									<td>Bear</td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+								</tr>
+								<tr>
+									<td>Simplenote</td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+								</tr>
+								<tr>
+									<td>Onenote</td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+								</tr>
+								<tr>
+									<td>Evernote</td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+								</tr>
+								<tr>
+									<td>Standard Notes</td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+								</tr>
+								<tr>
+									<td>Apple Notes</td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-check good"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+									<td><i class="fas fa-times bad"></i></td>
+								</tr>
+							</table>
+						</div>
+					</div>
+				</div>
+			</span>
+		</div>
+		<div id="developer-friendly-section" class="container">
+			<span class="left">
+				<div class="centered">
+					<div class="content">
+						<h2>Developer Friendly
+</h2>
+						<p>
+						The Lockbook CLI will right into your favorite chain of piped-together unix commands. Search your notes with fzf, edit them with vim, and schedule backups with cron. When scripting doesn't cut it, use our Rust library for a robust programmatic interface with Lockbook.
+						</p>
+					</div>
+				</div>
+			</span>
+			<span class="right">
+				<div class="centered">
+					<div class="content">
+						<p class="dev-p"><i
+								class="dev-icon fas fa-terminal"></i>Automate your workflow with our CLI.</p>
+						<p class="dev-p"><i class="dev-icon fas fa-stream"></i>Edit your notes in your favorite text editor.</p>
+						<p class="dev-p"><i class="dev-icon fab fa-rust"></i>Use our core library from any programming language.</p>
+						<p class="dev-p"><i class="dev-icon fab fa-github"></i>Contribute to our source code.</p>
+					</div>
+				</div>
+			</span>
+		</div>
+	</body>
 </html>
