@@ -235,14 +235,14 @@ impl FileTree {
             let vadj = w.get_vadjustment().unwrap();
             let height = w.get_allocated_height();
 
-            if y > height - 50 || y < 50 {
+            if y > height - 50 || y < 50 { // is the drag cursor 50 pixels from the top or bottom
                 *drag_ends_last_occurred.borrow_mut() = Some(time);
-                timeout_add_local(
+                timeout_add_local( // call a closure every 10 ms that will move the filetree up or down
                     10,
                     closure!(drag_ends_last_occurred, height, y => move || {
                         if let Some(t) = *drag_ends_last_occurred.borrow() {
                             if t == time {
-                                if y > height - 50 {
+                                if y > height - 50 { // move the filtree by an amount in respect to how close it is to the top or bottom
                                     vadj.set_value(vadj.get_value() + (y - (height - 50)) as f64);
                                 } else if y < 50 {
                                     vadj.set_value(vadj.get_value() - (50 - y) as f64);
