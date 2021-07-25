@@ -10,7 +10,7 @@ extension Color {
     static let textEditorBackgroundDark = Color(red: 30.0/256.0, green: 30.0/256.0, blue: 30.0/256.0, opacity: 1.0)
 }
 
-extension ColorAlias {
+extension ColorAlias { 
     static func fromUIColor(from color: UniversalColor) -> ColorAlias {
 
         if UniversalColor.fromColorAlias(from: .Black) == color {
