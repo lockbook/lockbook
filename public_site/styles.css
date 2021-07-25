@@ -1,0 +1,210 @@
+/* * * * Layout * * * */
+
+.icons {
+    display: flex;
+    justify-content: center;
+    padding: 10px;
+}
+
+.dev-icon {
+    width: 65px;
+    height: 30px
+}
+
+.dev-p {
+    margin: 0;
+}
+
+i {
+    font-size: 1.5em;
+    padding: 10px;
+}
+
+html, body {
+    margin: 0;
+    height: 100%;
+    padding: 0;
+}
+
+.right-align {
+    text-align: center;
+}
+
+#comparison-wrapper {
+    overflow-x: scroll;
+}
+
+#comparison {
+    font-size: 16px;
+    width: 100%;
+    text-align: center;
+}
+
+@media (min-aspect-ratio: 1/1), (min-width: 800px) {
+
+
+    @media (min-height: 450px) {
+        .container {
+            height: 100%;
+        }
+    }
+
+    @media (max-height: 450px) {
+        .container {
+            min-height: 100%;
+        }
+    }
+
+    .container {
+        width: 100%;
+        display: flex;
+    }
+
+    .left, .right {
+        height: 100%;
+        width: 50%;
+    }
+
+    .centered {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        width: 100%;
+    }
+
+    .content {
+        padding: 50px;
+        width: 100%;
+    }
+}
+
+@media (max-aspect-ratio: 1/1) and (max-width: 800px) {
+    .container {
+        padding: 30px 10%;
+    }
+}
+
+/* * * * Font * * * */
+html {
+    font-size: 16px;
+}
+
+@media screen and (min-width: 320px) {
+    html {
+        font-size: calc(16px + 6 * ((100vw - 320px) / 680));
+    }
+}
+
+@media screen and (min-width: 1000px) {
+    html {
+        font-size: 22px;
+    }
+}
+
+body {
+    font-family: 'Lato', sans-serif;
+}
+
+h1 {
+    font-weight: 700;
+}
+
+p {
+    font-weight: 300;
+}
+
+/* * * * Colors * * * */
+a {
+    text-decoration: none;
+    color: white;
+}
+
+#term-icon:hover {
+    color: black;
+    transition: color 250ms linear;
+
+}
+
+#apple-icon:hover {
+    color: rgb(142, 142, 142);
+    transition: color 250ms linear;
+}
+
+#windows-icon:hover {
+    color: rgb(0, 122, 255);
+    transition: color 250ms linear;
+}
+
+#android-icon:hover {
+    color: rgb(52, 199, 89);
+    transition: color 250ms linear;
+}
+
+#linux-icon:hover {
+    color: rgb(175, 82, 222);
+    transition: color 250ms linear;
+
+}
+
+h1 {
+    background: black;
+    color: white;
+}
+
+#native {
+    background: rgb(255, 45, 85);
+    color: white;
+}
+
+#pricing {
+    background: rgb(0, 122, 255);
+    color: white;
+}
+
+#intro-img {
+    content: url(intro-dark.png);
+}
+
+@media (prefers-color-scheme: dark) {
+    html {
+        background: black;
+        color: white;
+    }
+
+    h1 {
+        background: white;
+        color: black;
+    }
+
+    #intro-img {
+        content: url(intro-light.png);
+    }
+}
+
+.good {
+    color: rgb(52, 199, 89);
+    font-size: 1.25em;
+}
+
+.bad {
+    color: rgb(255, 149, 0);
+    font-size: 1.25em;
+}
+
+/* * * * Animations * * * */
+
+.content {
+    animation: fadeIn 2s;
+}
+
+@keyframes fadeIn {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* * * * Images * * * */
