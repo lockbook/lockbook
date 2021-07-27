@@ -264,7 +264,6 @@ pub fn delete_folder(config: &Config, id: Uuid) -> Result<(), CoreError> {
 
     let files_to_delete = file_metadata_repo::get_and_get_children_recursively(config, id)?;
 
-    // Server has told us we have the most recent version of all children in this directory and that we can delete now
     for mut file in files_to_delete {
         if file.file_type == Document {
             document_repo::delete(config, file.id)?;
