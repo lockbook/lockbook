@@ -52,6 +52,9 @@ enum Lockbook {
         /// to select an editor. In the absence of this variable, it will default to vim. Editor
         /// options are: Vim, Emacs, Nano, Sublime, Code
         path: String,
+        /// Indicate that the contents of the file should be read from Standard Input
+        #[structopt(long)]
+        stdin: bool,
     },
 
     /// Print out what each error code means
@@ -105,6 +108,9 @@ enum Lockbook {
     New {
         /// Absolute path of the file you're creating. Will create folders that do not exist.
         path: String,
+        /// Indicate that the contents of the file should be read from Standard Input
+        #[structopt(long)]
+        stdin: bool,
     },
 
     /// Create a new Lockbook account
@@ -163,7 +169,7 @@ fn main() {
             destination,
             edit,
         } => copy::copy(file, &destination, edit),
-        Lockbook::Edit { path } => edit::edit(&path.trim()),
+        Lockbook::Edit { path, stdin } => edit::edit(&path.trim(), stdin),
         Lockbook::ExportPrivateKey => export_private_key::export_private_key(),
         Lockbook::ImportPrivateKey => import_private_key::import_private_key(),
         Lockbook::NewAccount => new_account::new_account(),
@@ -172,7 +178,7 @@ fn main() {
         Lockbook::ListDocs => list::list(Some(DocumentsOnly)),
         Lockbook::ListFolders => list::list(Some(FoldersOnly)),
         Lockbook::Move { target, new_parent } => move_file::move_file(&target, &new_parent),
-        Lockbook::New { path } => new::new(&path.trim()),
+        Lockbook::New { path, stdin } => new::new(&path.trim(), stdin),
         Lockbook::Print { path } => print::print(&path.trim()),
         Lockbook::Remove { path, force } => remove::remove(&path.trim(), force),
         Lockbook::Rename { path, name } => rename::rename(&path, &name),

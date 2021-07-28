@@ -49,6 +49,7 @@ pub enum ChangeDocumentContentError {
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
+    DataCapExceeded,
 }
 
 impl Request for ChangeDocumentContentRequest {

@@ -59,6 +59,7 @@ pub enum CoreError {
     AccountStringCorrupted,
     ClientUpdateRequired,
     ClientWipeRequired,
+    DataCapExceeded,
     DiskPathInvalid,
     DiskPathTaken,
     DrawingInvalid,
@@ -562,6 +563,7 @@ pub enum SyncAllError {
     NoAccount,
     ClientUpdateRequired,
     CouldNotReachServer,
+    DataCapExceeded,
 }
 
 pub fn sync_all(
@@ -572,6 +574,7 @@ pub fn sync_all(
         CoreError::AccountNonexistent => UiError(SyncAllError::NoAccount),
         CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
         CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
+        CoreError::DataCapExceeded => UiError(SyncAllError::DataCapExceeded),
         _ => unexpected!("{:#?}", e),
     })
 }

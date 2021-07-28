@@ -1,6 +1,6 @@
 use lockbook_core::model::state::Config;
 use lockbook_core::{
-    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
+    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db, Error,
     GetAccountError, GetStateError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
@@ -290,20 +290,24 @@ pub fn save_temp_file_contents(
         }
         Err(err) => {
             if !silent {
-                match err {
-                    CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
-                    CoreError::UiError(WriteToDocumentError::NoAccount) => err_unexpected!(
-                        "No account! Run 'new-account' or 'import-private-key' to get started!"
-                    )
-                    .exit(),
-                    CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
-                        err_unexpected!("FileDoesNotExist").exit()
-                    }
-                    CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
-                        err_unexpected!("CannotWriteToFolder").exit()
-                    }
-                }
+                handle_write_err(err)
             }
+        }
+    }
+}
+
+pub fn handle_write_err(err: Error<WriteToDocumentError>) {
+    match err {
+        CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
+        CoreError::UiError(WriteToDocumentError::NoAccount) => {
+            err_unexpected!("No account! Run 'new-account' or 'import-private-key' to get started!")
+                .exit()
+        }
+        CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
+            err_unexpected!("FileDoesNotExist").exit()
+        }
+        CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
+            err_unexpected!("CannotWriteToFolder").exit()
         }
     }
 }
