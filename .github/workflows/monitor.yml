@@ -1,0 +1,13 @@
+on:
+  schedule:
+    - cron:  '* * * * *'
+jobs:
+  Server-Status:
+    runs-on: ubuntu-latest
+    env:
+      STATUS_API_URL: https://api.prod.lockbook.net/get-build-information
+      PD_API_KEY: ${{ secrets.PD_API_KEY }}
+    steps:
+      - name: 'Check on server'
+        working-directory: utils/dev
+        run: ./page_if_server_down.sh
