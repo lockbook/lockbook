@@ -12,6 +12,9 @@ then
 	exit 69
 fi
 
+key="offline-`date '+%m/%d/%y'`"
+
+# In the future we want to replace --fail with --fail-with-body once new curl proliferates enough
 curl $STATUS_API_URL || \
 curl --fail \
 	-X POST \
@@ -22,7 +25,7 @@ curl --fail \
 	-d '{
 		  "incident": {
 			"type": "incident",
-			"title": "string",
+			"title": "The server is failing health-checks!",
 			"service": {
 			  "id": "PJV4ZJU",
 			  "type": "service_reference",
@@ -33,9 +36,9 @@ curl --fail \
 			"urgency": "high",
 			"body": {
 			  "type": "incident_body",
-			  "details": "string"
+			  "details": "Github Actions checks prod every 1-5mins, it hits the /get-build-info endpoint. If curls exit code is non-zero this page occurs."
 			},
-			"incident_key": "string"
+			"incident_key": "'$key'"
 		  }
 		}' \
 	 'https://api.pagerduty.com/incidents'
