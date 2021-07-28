@@ -16,7 +16,7 @@ use super::file_encryption_service;
 use crate::service::drawing_service::get_drawing;
 use crate::service::path_service::get_path_by_id;
 
-const UTF8_SUFFIXES: [&'static str; 12] = [
+const UTF8_SUFFIXES: [&str; 12] = [
     "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
 ];
 
@@ -141,10 +141,8 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
                 continue;
             }
 
-            if extension == "draw" {
-                if get_drawing(config, file.id).is_err() {
-                    warnings.push(Warning::UnreadableDrawing(file.id));
-                }
+            if extension == "draw" && get_drawing(config, file.id).is_err() {
+                warnings.push(Warning::UnreadableDrawing(file.id));
             }
         }
     }
