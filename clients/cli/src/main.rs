@@ -23,6 +23,7 @@ mod rename;
 mod status;
 mod sync;
 mod utils;
+mod validate;
 mod whoami;
 
 #[derive(Debug, PartialEq, StructOpt)]
@@ -143,6 +144,9 @@ enum Lockbook {
     /// Display Lockbook username
     #[structopt(name = "whoami")]
     WhoAmI,
+
+    /// Find lockbook file structure problems, corrupted or missing files.
+    Validate,
 }
 
 fn main() {
@@ -175,6 +179,7 @@ fn main() {
         Lockbook::Status => status::status(),
         Lockbook::Sync => sync::sync(),
         Lockbook::WhoAmI => whoami::whoami(),
+        Lockbook::Validate => validate::validate(),
         Lockbook::Backup => backup::backup(),
         Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact),
         Lockbook::ExportDrawing { path, format } => export_drawing::export_drawing(&path, &format),

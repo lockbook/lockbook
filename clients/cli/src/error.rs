@@ -93,7 +93,7 @@ make_errkind_enum!(
     37 => OsCouldNotWriteFile(String, IoError),
     38 => OsCouldNotDeleteFile(String, IoError),
 
-    // Lockbook file ops (40-50)
+    // Lockbook file ops (40-51)
     40 => FileNotFound(String),
     41 => FileAlreadyExists(String),
     42 => FileNameEmpty,
@@ -106,6 +106,12 @@ make_errkind_enum!(
     49 => NoRootOps(&'static str),
     50 => InvalidDrawing(String),
     51 => FolderTreatedAsDoc(String),
+
+    // Validation errors (52 - 55)
+    52 => FileOrphaned(String),
+    53 => CycleDetected,
+    54 => NameConflictDetected(String),
+    55 => WarningsFound(i32),
 );
 
 impl ErrorKind {
@@ -149,6 +155,10 @@ impl ErrorKind {
             Self::NoRootOps(op) => format!("cannot {} your root directory!", op),
             Self::InvalidDrawing(name) => format!("'{}' is an invalid drawing", name),
             Self::FolderTreatedAsDoc(path) => format!("a file in path '{}' is a folder being treated as a document", path),
+            Self::FileOrphaned(path) => format!("file '{}' has no path to root", path),
+            Self::CycleDetected => "A cycle was detected in the file hierarchy".to_string(),
+            Self::NameConflictDetected(path) => format!("A name conflict was detected for file at path `{}`", path),
+            Self::WarningsFound(count) => format!("{} warnings found", count),
         }
     }
 }

@@ -4,6 +4,7 @@ use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
 use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
+use uuid::Uuid;
 
 pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetadata, CoreError> {
     if path_and_name.contains("//") {
@@ -146,6 +147,31 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
     }
 
     Ok(paths)
+}
+
+pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
+    let mut current_id = id;
+    let mut current_metadata = file_metadata_repo::get(config, current_id)?;
+    let mut path = String::from("");
+
+    let is_folder = current_metadata.file_type == Folder;
+
+    while current_metadata.parent != current_id {
+        let name = file_encryption_service::get_name(&config, &current_metadata)?;
+        path = format!("{}/{}", name, path);
+        current_id = current_metadata.parent;
+        current_metadata = file_metadata_repo::get(config, current_id)?
+    }
+
+    {
+        let name = file_encryption_service::get_name(&config, &current_metadata)?;
+        path = format!("{}/{}", name, path);
+    }
+    // Remove the last forward slash if not a folder.
+    if !is_folder {
+        path.pop();
+    }
+    Ok(path)
 }
 
 fn split_path(path: &str) -> Vec<&str> {
