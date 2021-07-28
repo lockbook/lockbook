@@ -11,7 +11,7 @@ pub fn validate() -> CliResult<()> {
 
     let config = get_config();
 
-    let err = match test_repo_integrity(&config, false) {
+    let err = match test_repo_integrity(&config) {
         Ok(warnings) => {
             if warnings.is_empty() {
                 return Ok(());

@@ -154,6 +154,8 @@ pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
     let mut current_metadata = file_metadata_repo::get(config, current_id)?;
     let mut path = String::from("");
 
+    let is_folder = current_metadata.file_type == Folder;
+
     while current_metadata.parent != current_id {
         let name = file_encryption_service::get_name(&config, &current_metadata)?;
         path = format!("{}/{}", name, path);
@@ -165,8 +167,10 @@ pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
         let name = file_encryption_service::get_name(&config, &current_metadata)?;
         path = format!("{}/{}", name, path);
     }
-    // Remove the last forward slash.
-    path.pop();
+    // Remove the last forward slash if not a folder.
+    if !is_folder {
+        path.pop();
+    }
     Ok(path)
 }
 

@@ -21,7 +21,7 @@ mod unit_tests {
     use uuid::Uuid;
     macro_rules! assert_no_metadata_problems (
         ($db:expr) => {
-            integrity_service::test_repo_integrity($db, true).unwrap()
+            integrity_service::test_repo_integrity($db).unwrap()
         }
     );
 
@@ -790,12 +790,12 @@ mod unit_tests {
 
         assert_eq!(
             path_service::get_path_by_id(config, root.id).unwrap(),
-            "username"
+            "username/"
         );
 
         assert_eq!(
             path_service::get_path_by_id(config, folder2.id).unwrap(),
-            "username/folder1/folder2"
+            "username/folder1/folder2/"
         );
 
         assert_eq!(

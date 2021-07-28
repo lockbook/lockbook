@@ -14,14 +14,14 @@ mod integrity_tests {
     fn test_integrity_no_problems() {
         let cfg = test_config();
         create_account(&cfg, &random_username(), &url()).unwrap();
-        integrity_service::test_repo_integrity(&cfg, true).unwrap();
+        integrity_service::test_repo_integrity(&cfg).unwrap();
     }
 
     #[test]
     fn test_no_root() {
         let cfg = test_config();
         assert_matches!(
-            integrity_service::test_repo_integrity(&cfg, true),
+            integrity_service::test_repo_integrity(&cfg),
             Err(NoRootFolder)
         );
     }
@@ -32,7 +32,7 @@ mod integrity_tests {
         let account = create_account(&cfg, &random_username(), &url()).unwrap();
         create_file_at_path(&cfg, path!(account, "folder1/folder2/document1.md")).unwrap();
 
-        integrity_service::test_repo_integrity(&cfg, true).unwrap();
+        integrity_service::test_repo_integrity(&cfg).unwrap();
 
         file_metadata_repo::non_recursive_delete(
             &cfg,
@@ -43,7 +43,7 @@ mod integrity_tests {
         .unwrap();
 
         assert_matches!(
-            integrity_service::test_repo_integrity(&cfg, true),
+            integrity_service::test_repo_integrity(&cfg),
             Err(FileOrphaned(_))
         );
     }
@@ -58,7 +58,7 @@ mod integrity_tests {
         file_metadata_repo::insert(&cfg, &doc).unwrap();
 
         assert_matches!(
-            integrity_service::test_repo_integrity(&cfg, true),
+            integrity_service::test_repo_integrity(&cfg),
             Err(FileNameContainsSlash(_))
         );
     }
@@ -73,7 +73,7 @@ mod integrity_tests {
         file_metadata_repo::insert(&cfg, &doc).unwrap();
 
         assert_matches!(
-            integrity_service::test_repo_integrity(&cfg, true),
+            integrity_service::test_repo_integrity(&cfg),
             Err(FileNameEmpty(_))
         );
     }
@@ -95,7 +95,7 @@ mod integrity_tests {
         file_metadata_repo::insert(&cfg, &parent).unwrap();
 
         assert_matches!(
-            integrity_service::test_repo_integrity(&cfg, true),
+            integrity_service::test_repo_integrity(&cfg),
             Err(CycleDetected(_))
         );
     }
@@ -116,7 +116,7 @@ mod integrity_tests {
         file_metadata_repo::insert(&cfg, &parent).unwrap();
 
         assert_matches!(
-            integrity_service::test_repo_integrity(&cfg, true),
+            integrity_service::test_repo_integrity(&cfg),
             Err(DocumentTreatedAsFolder(_))
         );
     }
@@ -132,7 +132,7 @@ mod integrity_tests {
         file_metadata_repo::insert(&cfg, &doc).unwrap();
 
         assert_matches!(
-            integrity_service::test_repo_integrity(&cfg, true),
+            integrity_service::test_repo_integrity(&cfg),
             Err(NameConflictDetected(_))
         );
     }
@@ -144,7 +144,7 @@ mod integrity_tests {
         let doc = create_file_at_path(&cfg, path!(account, "document.txt")).unwrap();
         file_service::write_document(&cfg, doc.id, "".as_bytes()).unwrap();
 
-        let warnings = integrity_service::test_repo_integrity(&cfg, false);
+        let warnings = integrity_service::test_repo_integrity(&cfg);
 
         assert_matches!(
             warnings.as_ref().map(|w| &w[..]),
@@ -160,7 +160,7 @@ mod integrity_tests {
         file_service::write_document(&cfg, doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
             .unwrap();
 
-        let warnings = integrity_service::test_repo_integrity(&cfg, false);
+        let warnings = integrity_service::test_repo_integrity(&cfg);
 
         assert_matches!(
             warnings.as_ref().map(|w| &w[..]),
