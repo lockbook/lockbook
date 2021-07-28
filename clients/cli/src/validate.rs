@@ -27,6 +27,10 @@ pub fn validate() -> CliResult<()> {
                         let path = get_path_by_id_or_err(&config, *id)?;
                         eprintln!("File at path {} contains invalid UTF8.", path);
                     }
+                    Warning::UnreadableDrawing(id) => {
+                        let path = get_path_by_id_or_err(&config, *id)?;
+                        eprintln!("Drawing at path {} is unreadable.", path);
+                    }
                 }
             }
             err!(WarningsFound(warnings.len() as i32))

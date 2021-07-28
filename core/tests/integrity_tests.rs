@@ -178,10 +178,7 @@ mod integrity_tests {
 
         let warnings = integrity_service::test_repo_integrity(&cfg);
 
-        assert_matches!(
-            warnings.as_ref().map(|w| &w[..]),
-            Ok([])
-        );
+        assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([]));
     }
 
     #[test]
