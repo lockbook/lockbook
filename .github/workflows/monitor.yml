@@ -1,6 +1,8 @@
+name: Monitor Server
+
 on:
   schedule:
-    - cron:  '* * * * *'
+    - cron:  '0/5 * * * *'
 jobs:
   Server-Status:
     runs-on: ubuntu-latest
