@@ -7,7 +7,7 @@ jobs:
   Server-Status:
     runs-on: ubuntu-latest
     env:
-      STATUS_API_URL: https://api.prod.lockbook.net/get-build-information
+      STATUS_API_URL: https://api.prod.lockbook.net/get-build-info
       PD_API_KEY: ${{ secrets.PD_API_KEY }}
     steps:
       - uses: actions/checkout@v2
