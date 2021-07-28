@@ -15,7 +15,7 @@ fi
 key="offline-`date '+%m/%d/%y'`"
 
 # In the future we want to replace --fail with --fail-with-body once new curl proliferates enough
-curl $STATUS_API_URL || \
+curl --fail $STATUS_API_URL || \
 curl --fail \
 	-X POST \
 	--header 'Content-Type: application/json' \
