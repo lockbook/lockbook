@@ -12,30 +12,24 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use uuid::Uuid;
 
-extern crate lazy_static;
-
 use super::file_encryption_service;
 use crate::service::drawing_service::get_drawing;
 use crate::service::path_service::get_path_by_id;
 
-lazy_static::lazy_static! {
-    static ref UTF8_SUFFIXES: HashSet<&'static str> = {
-        let mut m = HashSet::new();
-        m.insert("md");
-        m.insert("txt");
-        m.insert("text");
-        m.insert("markdown");
-        m.insert("sh");
-        m.insert("zsh");
-        m.insert("bash");
-        m.insert("html");
-        m.insert("css");
-        m.insert("js");
-        m.insert("csv");
-        m.insert("rs");
-        m
-    };
-}
+const UTF8_SUFFIXES: [&'static str; 12] = [
+    "md",
+    "txt",
+    "text",
+    "markdown",
+    "sh",
+    "zsh",
+    "bash",
+    "html",
+    "css",
+    "js",
+    "csv",
+    "rs"
+];
 
 #[derive(Debug, Clone)]
 pub enum TestRepoError {
@@ -153,7 +147,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
             let file_path = get_path_by_id(config, file.id).map_err(Core)?;
             let extension = Path::new(&file_path).extension().unwrap().to_str().unwrap();
 
-            if UTF8_SUFFIXES.contains(extension) && String::from_utf8(file_content).is_err() {
+            if UTF8_SUFFIXES.contains(&extension) && String::from_utf8(file_content).is_err() {
                 warnings.push(Warning::InvalidUTF8(file.id));
                 continue;
             }

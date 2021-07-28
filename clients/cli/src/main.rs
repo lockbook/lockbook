@@ -145,7 +145,7 @@ enum Lockbook {
     #[structopt(name = "whoami")]
     WhoAmI,
 
-    /// Validate Lockbook state
+    /// Find lockbook file structure problems, corrupted or missing files.
     Validate,
 }
 

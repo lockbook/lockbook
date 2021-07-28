@@ -2017,7 +2017,6 @@ dependencies = [
  "flate2",
  "image",
  "jni",
- "lazy_static",
  "libsecp256k1",
  "lockbook-crypto",
  "lockbook-models",

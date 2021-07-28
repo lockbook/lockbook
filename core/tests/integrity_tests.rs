@@ -167,4 +167,36 @@ mod integrity_tests {
             Ok([Warning::InvalidUTF8(_)])
         );
     }
+
+    #[test]
+    fn test_invalid_utf8_ignores_non_utf_file_extensions() {
+        let cfg = test_config();
+        let account = create_account(&cfg, &random_username(), &url()).unwrap();
+        let doc = create_file_at_path(&cfg, path!(account, "document.png")).unwrap();
+        file_service::write_document(&cfg, doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
+            .unwrap();
+
+        let warnings = integrity_service::test_repo_integrity(&cfg);
+
+        assert_matches!(
+            warnings.as_ref().map(|w| &w[..]),
+            Ok([])
+        );
+    }
+
+    #[test]
+    fn test_invalid_drawing() {
+        let cfg = test_config();
+        let account = create_account(&cfg, &random_username(), &url()).unwrap();
+        let doc = create_file_at_path(&cfg, path!(account, "document.draw")).unwrap();
+        file_service::write_document(&cfg, doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
+            .unwrap();
+
+        let warnings = integrity_service::test_repo_integrity(&cfg);
+
+        assert_matches!(
+            warnings.as_ref().map(|w| &w[..]),
+            Ok([Warning::UnreadableDrawing(_)])
+        );
+    }
 }
