@@ -7,12 +7,13 @@ tasks, including:
 * sharing individual documents or whole folders
 * sharing with readonly vs read/write access
 * managing who is billed for shared documents
-* linking to shared documents from shared documents and from unshared documents We evaluate 3 design alternatives
-  according to their suitability for individuals, teams, and enterprises. Individuals are users who store thoughts in
-  lockbook and occassionally want to share a file with another user. Teams are small groups of users who generally want
-  someplace to store personal things and someplace to store team things, which are shared with the whole team.
-  Enterprises are large organizations that want to control how things are shared in sophisticated ways, such as having
-  teams with subteams that have at least as much access. The designs we consider are:
+* linking to shared documents from shared documents and from unshared documents
+
+We evaluate 3 design alternatives according to their suitability for individuals, teams, and enterprises. Individuals
+are users who store thoughts in lockbook and occassionally want to share a file with another user. Teams are small groups
+of users who generally want someplace to store personal things and someplace to store team things, which are shared with
+the whole team. Enterprises are large organizations that want to control how things are shared in sophisticated ways, such
+as having teams with subteams that have at least as much access. The designs we consider are:
 
 1. Root sharing
 2. Folder sharing
