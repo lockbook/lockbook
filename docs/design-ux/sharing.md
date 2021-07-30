@@ -102,4 +102,19 @@ still wouldn't be able to organize files in a way that mirror's the organization
 
 ## 3. Policy Sharing
 
-todo
+### UX
+
+Under policy sharing, users create policies which describe conditions under which a user has access to a file. Example policies include:
+
+* Share document `d` with user `u`
+* Share all documents with ancestor `a` with user `u` (folder sharing)
+* Share all documents shared with user `u1` with user `u2` (subteam sharing)
+
+More sophisticated options for constructing policies increase flexibility but also complexity.
+
+### Technical Implementation
+
+In a normal policy-based model, such as in Google's
+[Zanzibar](https://storage.googleapis.com/pub-tools-public-publication-data/pdf/41f08f03da59f5518802898f68730e247e23c331.pdf)
+access control system, a central server evaluates an individual access attempt using the relevant policies. To do this
+cryptographically is something I'm not even going to consider right now.
