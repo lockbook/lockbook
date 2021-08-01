@@ -216,14 +216,11 @@ pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
 
     match watcher {
         Ok(mut ok) => {
-            ok.watch(location.clone(), move |event: Event| {
-                if let Event::NoticeWrite(_) = event {
-                    save_temp_file_contents(id, &location, Path::new(location.as_str()), true)
-                } else if let Event::Write(_) = event {
-                    save_temp_file_contents(id, &location, Path::new(location.as_str()), true)
-                } else if let Event::Create(_) = event {
+            ok.watch(location.clone(), move |event: Event| match event {
+                Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
                     save_temp_file_contents(id, &location, Path::new(location.as_str()), true)
                 }
+                _ => {}
             })
             .unwrap_or_else(|err| {
                 println!("file watcher failed to watch: {:#?}", err);
