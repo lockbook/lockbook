@@ -218,7 +218,7 @@ pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
         Ok(mut ok) => {
             ok.watch(location.clone(), move |event: Event| match event {
                 Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
-                    save_temp_file_contents(id, &location, Path::new(location.as_str()), true)
+                    save_temp_file_contents(id, &location, Path::new(&location), true)
                 }
                 _ => {}
             })
