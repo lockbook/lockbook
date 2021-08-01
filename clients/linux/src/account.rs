@@ -11,22 +11,26 @@ use gtk::{
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
     Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
     ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator,
-    Spinner as GtkSpinner, Stack as GtkStack, WrapMode as GtkWrapMode,
+    Spinner as GtkSpinner, Stack as GtkStack, TextWindowType, WrapMode as GtkWrapMode,
 };
 use sourceview::prelude::*;
 use sourceview::View as GtkSourceView;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 
 use crate::backend::{LbCore, LbSyncMsg};
-use crate::closure;
 use crate::editmode::EditMode;
-use crate::error::LbResult;
+use crate::error::{LbErrTarget, LbError, LbResult};
 use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
+use crate::util::gui::LEFT_CLICK;
 use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
+use crate::{closure, get_data_dir};
+use gdk::ModifierType;
 use gspell::TextViewExt as GtkTextViewExt;
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
+use regex::Regex;
+use std::path::Path;
 use std::sync::Arc;
 
 pub struct AccountScreen {
@@ -88,6 +92,7 @@ impl AccountScreen {
             } => {
                 self.header.set_file(path);
                 self.sidebar.tree.focus();
+                self.sidebar.tree.select(&meta.id);
                 self.editor.show_folder_info(meta, *n_children);
             }
             EditMode::None => {
@@ -361,6 +366,36 @@ impl Editor {
         let gspell_view = gspell::TextView::get_from_gtk_text_view(textview).unwrap();
         gspell_view.basic_setup();
 
+        textarea.connect_button_press_event(closure!(m => move |w, evt| {
+            if evt.get_button() == LEFT_CLICK && evt.get_state() == ModifierType::CONTROL_MASK {
+                let (absol_x, absol_y) = evt.get_position();
+                let (x, y) = w.window_to_buffer_coords(TextWindowType::Text, absol_x as i32, absol_y as i32);
+                if let Some(iter) = w.get_iter_at_location(x, y) {
+                    let mut end = iter.clone();
+                    let mut start = iter.clone();
+
+                    start.backward_line();
+                    end.forward_line();
+
+                    let maybe_selected = w.get_buffer().unwrap().downcast::<GtkSourceViewBuffer>().unwrap().get_text(&start, &end, false);
+
+                    if let Some(text) = maybe_selected {
+                        let uri_regex = Regex::new(r"(\[.*])?\(([a-zA-z]+://)?(.*)\)").unwrap();
+
+                        if let Some(uri_capture) = uri_regex.captures(text.as_str()) {
+                            let scheme = uri_capture.get(2).map(|scheme| scheme.as_str()).unwrap_or("");
+                            let uri = uri_capture.get(3).unwrap().as_str();
+
+                            m.send(Msg::MarkdownLinkExec(scheme.to_string(), uri.to_string()))
+                        }
+                    }
+                }
+
+            }
+
+            Inhibit(false)
+        }));
+
         let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
         scroll.add(&textarea);
 
@@ -369,14 +404,41 @@ impl Editor {
         cntr.add_named(&info, "folderinfo");
         cntr.add_named(&scroll, "scroll");
 
+        let highlighter = LanguageManager::get_default().unwrap_or(LanguageManager::new());
+
+        match Self::language_specs_in_data_dir() {
+            Ok(path) => {
+                let paths = highlighter.get_search_path();
+                let mut str_paths: Vec<&str> = paths.iter().map(|path| path.as_str()).collect();
+                str_paths.push(path.as_str());
+                highlighter.set_search_path(str_paths.as_slice());
+            }
+            Err(err) => match err.target() {
+                LbErrTarget::Dialog => m.send_err_dialog("language specs", err),
+                LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
+            },
+        }
+
         Self {
             info,
             textarea,
-            highlighter: LanguageManager::new(),
+            highlighter,
             change_sig_id: RefCell::new(None),
             cntr,
             messenger: m.clone(),
         }
+    }
+
+    fn language_specs_in_data_dir() -> LbResult<String> {
+        let language_specs = format!("{}/language-specs", get_data_dir());
+        let language = format!("{}/custom.lang", language_specs);
+
+        if !Path::new(&language_specs).exists() {
+            std::fs::create_dir(&language_specs).map_err(LbError::fmt_program_err)?;
+            std::fs::write(language, CUSTOM_LANG).map_err(LbError::fmt_program_err)?;
+        }
+
+        Ok(language_specs)
     }
 
     fn set_file(&self, name: &str, content: &str) {
@@ -390,7 +452,14 @@ impl Editor {
         let svb = tvb.downcast::<GtkSourceViewBuffer>().unwrap();
         svb.begin_not_undoable_action();
         svb.set_text(content);
-        svb.set_language(self.highlighter.guess_language(Some(name), None).as_ref());
+
+        let guess = if name.ends_with(".md") {
+            self.highlighter.get_language("lbmd")
+        } else {
+            self.highlighter.guess_language(Some(name), None)
+        };
+
+        svb.set_language(guess.as_ref());
         svb.end_not_undoable_action();
 
         self.change_sig_id.replace(Some(svb.connect_changed(
@@ -441,6 +510,7 @@ fn entry_set_primary_icon_tooltip(entry: &GtkEntry, tooltip: Option<&str>) {
 }
 
 const LOGO: &[u8] = include_bytes!("../res/lockbook-pixdata");
+const CUSTOM_LANG: &[u8] = include_bytes!("../res/custom.lang");
 
 const ESC: u16 = 9;
 const ARROW_UP: u16 = 111;

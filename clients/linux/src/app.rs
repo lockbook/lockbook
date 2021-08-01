@@ -9,16 +9,17 @@ use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
-    AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Align as GtkAlign,
-    Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button,
-    CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
-    Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, Image as GtkImage, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
-    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode,
-    SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
-    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
-    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
-    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
+    get_current_event_time, AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup,
+    Align as GtkAlign, Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox,
+    Button, CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox,
+    Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
+    Image as GtkImage, Label as GtkLabel, ListStore as GtkListStore, Notebook as GtkNotebook,
+    ProgressBar as GtkProgressBar, ResponseType as GtkResponseType,
+    SelectionMode as GtkSelectionMode, SortColumn as GtkSortColumn, SortType as GtkSortType,
+    Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter, TreeModel as GtkTreeModel,
+    TreeModelSort as GtkTreeModelSort, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
+    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
+    WindowPosition as GtkWindowPosition,
 };
 use uuid::Uuid;
 
@@ -100,6 +101,7 @@ impl LbApp {
                 Msg::Quit => lb.quit(),
 
                 Msg::AccountScreenShown => lb.account_screen_shown(),
+                Msg::MarkdownLinkExec(scheme, uri) => lb.markdown_lb_link_exec(scheme, uri),
 
                 Msg::NewFile(file_type) => lb.new_file(file_type),
                 Msg::OpenFile(id) => lb.open_file(id),
@@ -353,6 +355,23 @@ impl LbApp {
         let background_work = self.state.borrow().background_work.clone();
 
         thread::spawn(move || BackgroundWork::init_background_work(background_work));
+
+        Ok(())
+    }
+
+    fn markdown_lb_link_exec(&self, scheme: String, uri: String) -> LbResult<()> {
+        if &scheme == "lb://" || scheme.is_empty() {
+            let f = self.core.file_by_path(&uri)?;
+            self.messenger.send(Msg::OpenFile(Some(f.id)));
+        } else {
+            if let Err(err) = gtk::show_uri_on_window(
+                Some(&self.gui.win),
+                &format!("{}{}", scheme, uri),
+                get_current_event_time(),
+            ) {
+                uerr_dialog!("Failed to open link.");
+            }
+        }
 
         Ok(())
     }
