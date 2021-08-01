@@ -364,7 +364,7 @@ impl LbApp {
             let f = self.core.file_by_path(&uri)?;
             self.messenger.send(Msg::OpenFile(Some(f.id)));
         } else {
-            if let Err(err) = gtk::show_uri_on_window(
+            if let Err(_) = gtk::show_uri_on_window(
                 Some(&self.gui.win),
                 &format!("{}{}", scheme, uri),
                 get_current_event_time(),
