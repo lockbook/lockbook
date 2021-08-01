@@ -212,9 +212,7 @@ pub fn print_last_successful_sync() -> CliResult<()> {
 }
 
 pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
-    let watcher = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5));
-
-    match watcher {
+    match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
         Ok(mut ok) => {
             ok.watch(location.clone(), move |event: Event| match event {
                 Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
