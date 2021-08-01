@@ -360,7 +360,7 @@ impl LbApp {
     }
 
     fn markdown_lb_link_exec(&self, scheme: String, uri: String) -> LbResult<()> {
-        if &scheme == "lb://" || scheme.is_empty() {
+        if &scheme == "lb://" {
             let f = self.core.file_by_path(&uri)?;
             self.messenger.send(Msg::OpenFile(Some(f.id)));
         } else {

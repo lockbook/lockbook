@@ -380,11 +380,11 @@ impl Editor {
                     let maybe_selected = w.get_buffer().unwrap().downcast::<GtkSourceViewBuffer>().unwrap().get_text(&start, &end, false);
 
                     if let Some(text) = maybe_selected {
-                        let uri_regex = Regex::new(r"(\[.*])?\(([a-zA-z]+://)?(.*)\)").unwrap();
+                        let uri_regex = Regex::new(r"\[.*]\(([a-zA-z]+://)(.*)\)").unwrap();
 
                         if let Some(uri_capture) = uri_regex.captures(text.as_str()) {
-                            let scheme = uri_capture.get(2).map(|scheme| scheme.as_str()).unwrap_or("");
-                            let uri = uri_capture.get(3).unwrap().as_str();
+                            let scheme = uri_capture.get(1).map(|scheme| scheme.as_str()).unwrap();
+                            let uri = uri_capture.get(2).unwrap().as_str();
 
                             m.send(Msg::MarkdownLinkExec(scheme.to_string(), uri.to_string()))
                         }

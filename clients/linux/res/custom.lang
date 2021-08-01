@@ -12,7 +12,7 @@
 
     <definitions>
         <context id="document-link" class="no-spell-check">
-            <match>(\[.*])?\((lb://.*)\)</match>
+            <match>\[(.*)]\((lb://.*)\)</match>
 
             <include>
                 <context sub-pattern="1" style-ref="label"/>
