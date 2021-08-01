@@ -366,27 +366,38 @@ impl Editor {
         let gspell_view = gspell::TextView::get_from_gtk_text_view(textview).unwrap();
         gspell_view.basic_setup();
 
-        textarea.connect_button_press_event(closure!(m => move |w, evt| {
+        textarea.connect_button_press_event(
+            closure!(m => move
+                |w, evt| {
             if evt.get_button() == LEFT_CLICK && evt.get_state() == ModifierType::CONTROL_MASK {
                 let (absol_x, absol_y) = evt.get_position();
                 let (x, y) = w.window_to_buffer_coords(TextWindowType::Text, absol_x as i32, absol_y as i32);
                 if let Some(iter) = w.get_iter_at_location(x, y) {
-                    let mut end = iter.clone();
                     let mut start = iter.clone();
+                    let mut end = iter.clone();
 
-                    start.backward_line();
-                    end.forward_line();
+                    start.backward_visible_line();
+                    start.forward_visible_line();
+                    end.forward_visible_line();
 
-                    let maybe_selected = w.get_buffer().unwrap().downcast::<GtkSourceViewBuffer>().unwrap().get_text(&start, &end, false);
+                    let svb = w.get_buffer().unwrap().downcast::<GtkSourceViewBuffer>().unwrap();
+                    let maybe_selected = svb.get_text(&start, &end, false);
+                    let index = iter.get_line_index();
 
                     if let Some(text) = maybe_selected {
                         let uri_regex = Regex::new(r"\[.*]\(([a-zA-z]+://)(.*)\)").unwrap();
 
-                        if let Some(uri_capture) = uri_regex.captures(text.as_str()) {
-                            let scheme = uri_capture.get(1).map(|scheme| scheme.as_str()).unwrap();
-                            let uri = uri_capture.get(2).unwrap().as_str();
+                        for capture in uri_regex.captures_iter(text.as_str()) {
+                            let whole = capture.get(0).unwrap();
+                            let loc = whole.start()..whole.end();
 
-                            m.send(Msg::MarkdownLinkExec(scheme.to_string(), uri.to_string()))
+                            if loc.contains(&(index as usize)) {
+                                let scheme = capture.get(1).map(|scheme| scheme.as_str()).unwrap();
+                                let uri = capture.get(2).unwrap().as_str();
+
+                                m.send(Msg::MarkdownLinkExec(scheme.to_string(), uri.to_string()));
+                                break
+                            }
                         }
                     }
                 }
@@ -394,7 +405,9 @@ impl Editor {
             }
 
             Inhibit(false)
-        }));
+        }
+        )
+        );
 
         let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
         scroll.add(&textarea);
@@ -404,7 +417,7 @@ impl Editor {
         cntr.add_named(&info, "folderinfo");
         cntr.add_named(&scroll, "scroll");
 
-        let highlighter = LanguageManager::get_default().unwrap_or(LanguageManager::new());
+        let highlighter = LanguageManager::get_default().unwrap_or_default();
 
         match Self::language_specs_in_data_dir() {
             Ok(path) => {

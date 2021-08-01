@@ -363,14 +363,14 @@ impl LbApp {
         if &scheme == "lb://" {
             let f = self.core.file_by_path(&uri)?;
             self.messenger.send(Msg::OpenFile(Some(f.id)));
-        } else {
-            if let Err(_) = gtk::show_uri_on_window(
-                Some(&self.gui.win),
-                &format!("{}{}", scheme, uri),
-                get_current_event_time(),
-            ) {
-                uerr_dialog!("Failed to open link.");
-            }
+        } else if gtk::show_uri_on_window(
+            Some(&self.gui.win),
+            &format!("{}{}", scheme, uri),
+            get_current_event_time(),
+        )
+        .is_err()
+        {
+            uerr_dialog!("Failed to open link.");
         }
 
         Ok(())
