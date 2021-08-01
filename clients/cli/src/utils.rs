@@ -213,8 +213,8 @@ pub fn print_last_successful_sync() -> CliResult<()> {
 
 pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
     match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
-        Ok(mut ok) => {
-            ok.watch(location.clone(), move |event: Event| match event {
+        Ok(mut watcher) => {
+            watcher.watch(location.clone(), move |event: Event| match event {
                 Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
                     save_temp_file_contents(id, &location, Path::new(&location), true)
                 }
@@ -224,7 +224,7 @@ pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
                 println!("file watcher failed to watch: {:#?}", err);
             });
 
-            Some(ok)
+            Some(watcher)
         }
         Err(err) => {
             println!("file watcher failed to initialize: {:#?}", err);
