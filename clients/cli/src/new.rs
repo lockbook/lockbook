@@ -44,7 +44,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
         exit_success("Folder created.");
     }
 
-    let watcher = set_up_auto_save(file_metadata.clone(), file_location.clone());
+    let watcher = set_up_auto_save(file_metadata.id, file_location.clone());
 
     let edit_was_successful = edit_file_with_editor(&file_location);
 
@@ -53,7 +53,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
     }
 
     if edit_was_successful {
-        save_temp_file_contents(file_metadata, &file_location, temp_file_path, false)
+        save_temp_file_contents(file_metadata.id, &file_location, temp_file_path, false)
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
