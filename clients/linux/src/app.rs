@@ -2,6 +2,8 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
@@ -21,9 +23,9 @@ use gtk::{
     TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
     WindowPosition as GtkWindowPosition,
 };
-use uuid::Uuid;
 
 use lockbook_models::file_metadata::FileType;
+use uuid::Uuid;
 
 use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
@@ -40,9 +42,8 @@ use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
+
 use lockbook_core::model::client_conversion::ClientFileMetadata;
-use std::thread;
-use std::time::Duration;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{

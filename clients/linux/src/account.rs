@@ -1,8 +1,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
+use gdk::ModifierType;
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use glib::SignalHandlerId;
+use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
@@ -19,19 +22,15 @@ use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
-use crate::error::{LbErrTarget, LbError, LbResult};
+use crate::error::LbResult;
 use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
-use crate::util::gui::LEFT_CLICK;
-use crate::util::{gui as gui_util, gui::RIGHT_CLICK};
-use crate::{closure, get_data_dir};
-use gdk::ModifierType;
-use gspell::TextViewExt as GtkTextViewExt;
+use crate::util::{gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK};
+use crate::{closure, get_language_specs_dir};
+
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
 use regex::Regex;
-use std::path::Path;
-use std::sync::Arc;
 
 pub struct AccountScreen {
     header: Header,
@@ -414,19 +413,12 @@ impl Editor {
         cntr.add_named(&scroll, "scroll");
 
         let highlighter = LanguageManager::get_default().unwrap_or_default();
+        let lang_paths = highlighter.get_search_path();
 
-        match Self::language_specs_in_data_dir() {
-            Ok(path) => {
-                let paths = highlighter.get_search_path();
-                let mut str_paths: Vec<&str> = paths.iter().map(|path| path.as_str()).collect();
-                str_paths.push(path.as_str());
-                highlighter.set_search_path(str_paths.as_slice());
-            }
-            Err(err) => match err.target() {
-                LbErrTarget::Dialog => m.send_err_dialog("language specs", err),
-                LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
-            },
-        }
+        let mut str_paths: Vec<&str> = lang_paths.iter().map(|path| path.as_str()).collect();
+        let lang_specs = get_language_specs_dir();
+        str_paths.push(lang_specs.as_str());
+        highlighter.set_search_path(str_paths.as_slice());
 
         Self {
             info,
@@ -436,18 +428,6 @@ impl Editor {
             cntr,
             messenger: m.clone(),
         }
-    }
-
-    fn language_specs_in_data_dir() -> LbResult<String> {
-        let language_specs = format!("{}/language-specs", get_data_dir());
-        let language = format!("{}/custom.lang", language_specs);
-
-        if !Path::new(&language_specs).exists() {
-            std::fs::create_dir(&language_specs).map_err(LbError::fmt_program_err)?;
-            std::fs::write(language, CUSTOM_LANG).map_err(LbError::fmt_program_err)?;
-        }
-
-        Ok(language_specs)
     }
 
     fn set_file(&self, name: &str, content: &str) {
@@ -519,7 +499,6 @@ fn entry_set_primary_icon_tooltip(entry: &GtkEntry, tooltip: Option<&str>) {
 }
 
 const LOGO: &[u8] = include_bytes!("../res/lockbook-pixdata");
-const CUSTOM_LANG: &[u8] = include_bytes!("../res/custom.lang");
 
 const ESC: u16 = 9;
 const ARROW_UP: u16 = 111;
