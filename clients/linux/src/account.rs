@@ -366,9 +366,7 @@ impl Editor {
         let gspell_view = gspell::TextView::get_from_gtk_text_view(textview).unwrap();
         gspell_view.basic_setup();
 
-        textarea.connect_button_press_event(
-            closure!(m => move
-                |w, evt| {
+        textarea.connect_button_press_event(closure!(m => move |w, evt| {
             if evt.get_button() == LEFT_CLICK && evt.get_state() == ModifierType::CONTROL_MASK {
                 let (absol_x, absol_y) = evt.get_position();
                 let (x, y) = w.window_to_buffer_coords(TextWindowType::Text, absol_x as i32, absol_y as i32);
@@ -405,9 +403,7 @@ impl Editor {
             }
 
             Inhibit(false)
-        }
-        )
-        );
+        }));
 
         let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
         scroll.add(&textarea);
