@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
+use gdk::{DragAction, DragContext, EventButton as GdkEventButton, TARGET_STRING, TARGET_BITMAP, TARGET_COLORMAP, TARGET_DRAWABLE, TARGET_PIXMAP, SELECTION_TYPE_STRING, SELECTION_TYPE_BITMAP, SELECTION_TYPE_COLORMAP, SELECTION_TYPE_ATOM, SELECTION_TYPE_DRAWABLE, SELECTION_TYPE_INTEGER, SELECTION_TYPE_PIXMAP, SELECTION_TYPE_WINDOW};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::MenuItem as GtkMenuItem;
+use gtk::{MenuItem as GtkMenuItem, TargetList};
 use gtk::SelectionMode as GtkSelectionMode;
 use gtk::TreeIter as GtkTreeIter;
 use gtk::TreeModel as GtkTreeModel;
@@ -86,14 +86,20 @@ impl FileTree {
         let drag_hover_last_occurred = Rc::new(RefCell::new(None));
         let drag_ends_last_occurred = Rc::new(RefCell::new(None));
 
-        let targets = [TargetEntry::new(
-            "lockbook/files",
-            TargetFlags::SAME_WIDGET,
-            0,
-        )];
+        let targets = [
+            TargetEntry::new("lockbook/files", TargetFlags::SAME_WIDGET, LOCKBOOK_FILES_TARGET_INFO),
+        ];
 
         tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::MOVE);
         tree.drag_source_set(ModifierType::BUTTON1_MASK, &targets, DragAction::MOVE);
+
+        let target_list = TargetList::new(&targets);
+        target_list.add_uri_targets(URI_TARGET_INFO);
+        target_list.add_text_targets(TEXT_TARGET_INFO);
+        target_list.add_image_targets(IMAGE_TARGET_INFO, false);
+
+        tree.drag_dest_set_target_list(Some(&target_list));
+        tree.drag_source_set_target_list(Some(&target_list));
 
         tree.drag_source_set_icon_name("application-x-generic");
 
@@ -171,8 +177,17 @@ impl FileTree {
         m: &Messenger,
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
-        closure!(m, c => move |w, d, x, y, _, _, time| {
+        closure!(m, c => move
+        |w, d, x, y, s, info, time| {
             if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
+                println!("TARGET: {} {:?} {} {} {} {}",
+                         info,
+                         s.get_uris().iter().map(|l| l.to_string()).collect::<Vec<String>>(),
+                         info == LOCKBOOK_FILES_TARGET_INFO,
+                         info == URI_TARGET_INFO,
+                         info == TEXT_TARGET_INFO,
+                         info == IMAGE_TARGET_INFO);
+
                 let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
 
                 let mut parent = model.get_iter(&path).unwrap();
@@ -183,38 +198,63 @@ impl FileTree {
                         parent = model.get_iter(&path).unwrap();
                     }
                     _ => {
-                        if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document)  {
+                        if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document) {
                             path.up();
                             parent = model.get_iter(&path).unwrap();
                         }
                     }
                 }
 
-                if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document)  {
+                if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document) {
                     path.up();
                     parent = model.get_iter(&path).unwrap();
                 }
 
-                let (paths, _) = w.get_selection().get_selected_rows();
+                match info {
+                    LOCKBOOK_FILES_TARGET_INFO => {
+                        let (paths, _) = w.get_selection().get_selected_rows();
 
-                let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
-                let ids = iters.iter().map(|iter| Uuid::parse_str(&tree_iter_value!(model, iter, 2, String)).unwrap()).collect::<Vec<Uuid>>();
+                        let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
+                        let ids = iters.iter().map(|iter| Uuid::parse_str(&tree_iter_value!(model, iter, 2, String)).unwrap()).collect::<Vec<Uuid>>();
 
-                let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
+                        let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
 
-                ids.iter().enumerate().for_each(|(index, id)| {
-                    match c.move_file(id, parent_id) {
-                        Ok(_) => {
-                            Self::move_iter(&model, &iters[index], &parent, true);
-                            model.remove(&iters[index]);
-                        }
-                        Err(err) => m.send_err_dialog("moving", err)
+                        ids.iter().enumerate().for_each(|(index, id)| {
+                            match c.move_file(id, parent_id) {
+                                Ok(_) => {
+                                    Self::move_iter(&model, &iters[index], &parent, true);
+                                    model.remove(&iters[index]);
+                                }
+                                Err(err) => m.send_err_dialog("moving", err)
+                            }
+                        });
                     }
-                });
+                    URI_TARGET_INFO => {
+                        let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
 
-                d.drop_finish(true, time);
+                        for g_uri in s.get_uris().iter() {
+                            let uri = g_uri.to_string();
+                                println!("URI: {} {}", uri, uri[7..].to_string());
+                            if uri.starts_with("file://") {
+                                let path = uri[7..].to_string();
+
+                                c.import_file(parent_id.clone(), path, false);
+                            }
+                        }
+
+                        let uris = s.get_uris().iter().map(|l| l.to_string()).collect::<Vec<String>>();
+
+                    }
+                    // TEXT_TARGET_INFO => {}
+                    // IMAGE_TARGET_INFO => {}
+                    _ => panic!("unrecognized target info that should not exist")
+                }
+
+                    d.drop_finish(true, time);
+
             }
-        })
+        }
+        )
     }
 
     fn on_drag_end(
@@ -427,7 +467,7 @@ impl FileTree {
             }
             FileType::Folder => "folder",
         }
-        .to_string()
+            .to_string()
     }
 
     pub fn search(&self, iter: &GtkTreeIter, id: &Uuid) -> Option<GtkTreeIter> {
@@ -702,3 +742,10 @@ impl FileTreePopup {
 }
 
 const DELETE_KEY: u16 = 119;
+
+const LOCKBOOK_FILES_TARGET_INFO: u32 = 0;
+const URI_TARGET_INFO: u32 = 1;
+const TEXT_TARGET_INFO: u32 = 2;
+const IMAGE_TARGET_INFO: u32 = 3;
+
+

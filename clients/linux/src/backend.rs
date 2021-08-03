@@ -8,12 +8,7 @@ use uuid::Uuid;
 use lockbook_core::model::state::Config;
 use lockbook_core::service::db_state_service::State as DbState;
 use lockbook_core::service::sync_service::SyncProgress;
-use lockbook_core::{
-    calculate_work, create_account, create_file, delete_file, export_account, get_account,
-    get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
-    get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db, move_file,
-    read_document, rename_file, sync_all, write_document,
-};
+use lockbook_core::{calculate_work, create_account, create_file, delete_file, export_account, get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path, get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db, move_file, read_document, rename_file, sync_all, write_document, import_file};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
@@ -240,6 +235,17 @@ impl LbCore {
             NoAccount => uerr_dialog!("No account found."),
             TargetParentDoesNotExist => uerr_dialog!("The folder does not exist."),
             TargetParentHasChildNamedThat => uerr_dialog!("The folder already has a child named that."),
+        ))
+    }
+
+    pub fn import_file(&self, parent: Uuid, location: String, edit: bool) -> LbResult<()> {
+        import_file(&self.config, parent, location, edit).map_err(map_core_err!(ImportFileError,
+            FileAlreadyExists => uerr_dialog!("A file already exists in the path with the same name."),
+            DocumentTreatedAsFolder => uerr_dialog!("A document is being treated as folder."),
+            ParentDoesNotExist => uerr_dialog!("The folder does not exist."),
+            LocalFileDoesNotExist => uerr_dialog!("The local file does not exist."),
+            NoAccount => uerr_dialog!("No account found."),
+            BadPath => uerr_dialog!("An invalid path was used."),
         ))
     }
 

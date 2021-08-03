@@ -760,6 +760,33 @@ pub fn export_drawing_to_disk(
     )
 }
 
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ImportFileError {
+    FileAlreadyExists,
+    DocumentTreatedAsFolder,
+    ParentDoesNotExist,
+    LocalFileDoesNotExist,
+    NoAccount,
+    BadPath,
+}
+
+pub fn import_file(
+    config: &Config,
+    parent: Uuid,
+    location: String,
+    edit: bool
+) -> Result<(), Error<ImportFileError>> {
+    file_service::import_file(config, parent, location, edit).map_err(
+        |e| match e {
+            CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
+            CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
+            CoreError::DiskPathInvalid => UiError(ImportFileError::BadPath),
+            _ => unexpected!("{:#?}", e),
+        }
+    )
+}
+
 // This basically generates a function called `get_all_error_variants`,
 // which will produce a big json dict of { "Error": ["Values"] }.
 // Clients can consume this and attempt deserializing each array of errors to see

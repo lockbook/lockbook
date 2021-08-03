@@ -12,9 +12,12 @@ use lockbook_crypto::clock_service;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, DirEntry};
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use crate::service::path_service::{create_at_path, get_path_by_id};
+use std::fs;
+use std::ffi::OsStr;
 
 pub fn create(
     config: &Config,
@@ -286,3 +289,78 @@ pub fn delete_folder(config: &Config, id: Uuid) -> Result<(), CoreError> {
 
     Ok(())
 }
+
+pub fn import_file(config: &Config, parent: Uuid, location: String, edit: bool) -> Result<(), CoreError> {
+    let disk_path = Path::new(&location);
+    let lockbook_path = get_path_by_id(config, parent)?;
+
+    if disk_path.is_file() {
+        copy_document(config, disk_path, lockbook_path.as_str(), edit)
+    } else {
+        match disk_path.file_name().and_then(|name| name.to_str()) {
+            None => Err(CoreError::DiskPathInvalid),
+            Some(name) => {
+                let lockbook_path_mod = format!("{}{}", lockbook_path, name);
+
+                copy_folder_recursively(&config, &disk_path, &lockbook_path_mod, edit)
+            }
+        }
+    }
+}
+
+fn copy_folder_recursively(
+    config: &Config,
+    disk_path: &Path,
+    lockbook_path: &str,
+    edit: bool
+) -> Result<(), CoreError> {
+    if disk_path.is_file() {
+        copy_document(config, &disk_path, lockbook_path, edit)?;
+    } else {
+        let children: Vec<Result<DirEntry, std::io::Error>> = fs::read_dir(disk_path).map_err(CoreError::from)?.collect();
+        if children.is_empty() {
+            create_at_path(config, &lockbook_path)?;
+        } else {
+            for maybe_child in children {
+                let child = maybe_child.map_err(CoreError::from)?;
+                let child_path = child.path();
+
+                match child_path.file_name().and_then(|name| name.to_str()) {
+                    None => Err(CoreError::DiskPathInvalid)?,
+                    Some(name) => {
+                        let lb_child_path = format!("{}/{}", lockbook_path, name);
+
+                        copy_folder_recursively(config, &child_path, &lb_child_path, edit);
+                    }
+                };
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn copy_document(
+    config: &Config,
+    disk_path: &Path,
+    lockbook_path: &str,
+    edit: bool
+) -> Result<(), CoreError> {
+    let content = fs::read(&disk_path).map_err(CoreError::from)?;
+    let absolute_path = fs::canonicalize(&disk_path).map_err(CoreError::from)?;
+
+    let lb_path_with_filename = if lockbook_path.ends_with('/') {
+        match absolute_path.file_name().and_then(|name| name.to_str()) {
+            Some(name) => format!("{}{}", &lockbook_path, name),
+            None => Err(CoreError::DiskPathInvalid)?,
+        }
+    } else {
+        lockbook_path.to_string()
+    };
+
+    let file_metadata = create_at_path(config, lb_path_with_filename.as_str())?;
+
+    write_document(config, file_metadata.id, content.as_slice())
+}
+
+
