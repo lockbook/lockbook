@@ -1,23 +1,24 @@
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use crate::model::client_conversion;
+use crate::model::client_conversion::ClientFileMetadata;
 use crate::model::state::Config;
 use crate::repo::document_repo;
 use crate::repo::file_metadata_repo;
 use crate::repo::{account_repo, local_changes_repo};
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
+use crate::service::path_service::{create_at_path, get_path_by_id};
 use crate::CoreError;
 use lockbook_crypto::clock_service;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
-use std::fs::{OpenOptions, DirEntry};
+use std::fs;
+use std::fs::{DirEntry, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use crate::service::path_service::{create_at_path, get_path_by_id};
-use std::fs;
-use std::ffi::OsStr;
 
 pub fn create(
     config: &Config,
@@ -290,49 +291,46 @@ pub fn delete_folder(config: &Config, id: Uuid) -> Result<(), CoreError> {
     Ok(())
 }
 
-pub fn import_file(config: &Config, parent: Uuid, location: String, edit: bool) -> Result<(), CoreError> {
+pub fn import_file(config: &Config, parent: Uuid, location: String) -> Result<(), CoreError> {
     let disk_path = Path::new(&location);
-    let lockbook_path = get_path_by_id(config, parent)?;
 
-    if disk_path.is_file() {
-        copy_document(config, disk_path, lockbook_path.as_str(), edit)
-    } else {
-        match disk_path.file_name().and_then(|name| name.to_str()) {
-            None => Err(CoreError::DiskPathInvalid),
-            Some(name) => {
-                let lockbook_path_mod = format!("{}{}", lockbook_path, name);
-
-                copy_folder_recursively(&config, &disk_path, &lockbook_path_mod, edit)
-            }
-        }
-    }
+    import_file_recursively(
+        &config,
+        &disk_path,
+        get_path_by_id(config, parent)?.as_str(),
+    )
 }
 
-fn copy_folder_recursively(
+fn import_file_recursively(
     config: &Config,
     disk_path: &Path,
     lockbook_path: &str,
-    edit: bool
 ) -> Result<(), CoreError> {
+    let lockbook_path_with_new = format!(
+        "{}{}",
+        lockbook_path,
+        disk_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or(CoreError::DiskPathInvalid)?
+    );
+
     if disk_path.is_file() {
-        copy_document(config, &disk_path, lockbook_path, edit)?;
+        let content = fs::read(&disk_path).map_err(CoreError::from)?;
+        let file_metadata = create_at_path(config, lockbook_path_with_new.as_str())?;
+
+        write_document(config, file_metadata.id, content.as_slice())?;
     } else {
-        let children: Vec<Result<DirEntry, std::io::Error>> = fs::read_dir(disk_path).map_err(CoreError::from)?.collect();
+        let children: Vec<Result<DirEntry, std::io::Error>> =
+            fs::read_dir(disk_path).map_err(CoreError::from)?.collect();
+
         if children.is_empty() {
-            create_at_path(config, &lockbook_path)?;
+            create_at_path(config, &lockbook_path_with_new)?;
         } else {
             for maybe_child in children {
-                let child = maybe_child.map_err(CoreError::from)?;
-                let child_path = child.path();
+                let child_path = maybe_child.map_err(CoreError::from)?.path();
 
-                match child_path.file_name().and_then(|name| name.to_str()) {
-                    None => Err(CoreError::DiskPathInvalid)?,
-                    Some(name) => {
-                        let lb_child_path = format!("{}/{}", lockbook_path, name);
-
-                        copy_folder_recursively(config, &child_path, &lb_child_path, edit);
-                    }
-                };
+                import_file_recursively(config, &child_path, &lockbook_path_with_new)?;
             }
         }
     }
@@ -340,27 +338,53 @@ fn copy_folder_recursively(
     Ok(())
 }
 
-fn copy_document(
-    config: &Config,
-    disk_path: &Path,
-    lockbook_path: &str,
-    edit: bool
-) -> Result<(), CoreError> {
-    let content = fs::read(&disk_path).map_err(CoreError::from)?;
-    let absolute_path = fs::canonicalize(&disk_path).map_err(CoreError::from)?;
+pub fn export_file(config: &Config, parent: Uuid, location: String) -> Result<(), CoreError> {
+    let dest = Path::new(&location).to_path_buf();
 
-    let lb_path_with_filename = if lockbook_path.ends_with('/') {
-        match absolute_path.file_name().and_then(|name| name.to_str()) {
-            Some(name) => format!("{}{}", &lockbook_path, name),
-            None => Err(CoreError::DiskPathInvalid)?,
-        }
-    } else {
-        lockbook_path.to_string()
-    };
+    if dest.is_file() {
+        return Err(CoreError::DiskPathInvalid);
+    }
 
-    let file_metadata = create_at_path(config, lb_path_with_filename.as_str())?;
-
-    write_document(config, file_metadata.id, content.as_slice())
+    let file_metadata = client_conversion::generate_client_file_metadata(
+        config,
+        &file_metadata_repo::get(config, parent)?,
+    )?;
+    export_file_recursively(config, &file_metadata, &dest)
 }
 
+fn export_file_recursively(
+    config: &Config,
+    parent_file_metadata: &ClientFileMetadata,
+    dest: &PathBuf,
+) -> Result<(), CoreError> {
+    let dest_with_new = dest.join(&parent_file_metadata.name);
 
+    match parent_file_metadata.file_type {
+        FileType::Folder => {
+            println!("FOLDER");
+            let children =
+                file_metadata_repo::get_children_non_recursively(config, parent_file_metadata.id)?;
+            fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
+
+            for child in children.iter() {
+                let child_file_metadata =
+                    client_conversion::generate_client_file_metadata(config, &child)?;
+
+                export_file_recursively(config, &child_file_metadata, &dest_with_new)?;
+            }
+        }
+        FileType::Document => {
+            println!("DOCUMENT");
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(dest_with_new)
+                .map_err(CoreError::from)?;
+
+            file.write_all(read_document(config, parent_file_metadata.id)?.as_slice())
+                .map_err(CoreError::from)?;
+        }
+    }
+
+    Ok(())
+}

@@ -774,17 +774,36 @@ pub fn import_file(
     config: &Config,
     parent: Uuid,
     location: String,
-    edit: bool
 ) -> Result<(), Error<ImportFileError>> {
-    file_service::import_file(config, parent, location, edit).map_err(
-        |e| match e {
-            CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
-            CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
-            CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
-            CoreError::DiskPathInvalid => UiError(ImportFileError::BadPath),
-            _ => unexpected!("{:#?}", e),
-        }
-    )
+    file_service::import_file(config, parent, location).map_err(|e| match e {
+        CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
+        CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
+        CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
+        CoreError::DiskPathInvalid => UiError(ImportFileError::BadPath),
+        _ => unexpected!("{:#?}", e),
+    })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ExportFileError {
+    FileDoesNotExist,
+    NoAccount,
+    BadPath,
+    FileAlreadyExistsInDisk,
+}
+
+pub fn export_file(
+    config: &Config,
+    parent: Uuid,
+    location: String,
+) -> Result<(), Error<ExportFileError>> {
+    file_service::export_file(config, parent, location).map_err(|e| match e {
+        CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
+        CoreError::FileNonexistent => UiError(ExportFileError::FileDoesNotExist),
+        CoreError::DiskPathInvalid => UiError(ExportFileError::BadPath),
+        CoreError::DiskPathTaken => UiError(ExportFileError::FileAlreadyExistsInDisk),
+        _ => unexpected!("{:#?}", e),
+    })
 }
 
 // This basically generates a function called `get_all_error_variants`,

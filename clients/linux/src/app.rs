@@ -109,6 +109,8 @@ impl LbApp {
                 Msg::DeleteFiles => lb.delete_files(),
                 Msg::RenameFile => lb.rename_file(),
 
+                Msg::ToggleDragOverlay(maybe_msg) => lb.toggle_drag_overlay(maybe_msg),
+
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
                 Msg::RefreshTree => lb.refresh_tree(),
 
@@ -764,6 +766,12 @@ impl LbApp {
         }));
 
         d.show_all();
+        Ok(())
+    }
+
+    fn toggle_drag_overlay(&self, maybe_msg: Option<String>) -> LbResult<()> {
+        self.gui.account.toggle_drag_info_overlay(maybe_msg);
+
         Ok(())
     }
 

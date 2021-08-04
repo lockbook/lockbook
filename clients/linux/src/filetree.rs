@@ -2,10 +2,14 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk::{DragAction, DragContext, EventButton as GdkEventButton, TARGET_STRING, TARGET_BITMAP, TARGET_COLORMAP, TARGET_DRAWABLE, TARGET_PIXMAP, SELECTION_TYPE_STRING, SELECTION_TYPE_BITMAP, SELECTION_TYPE_COLORMAP, SELECTION_TYPE_ATOM, SELECTION_TYPE_DRAWABLE, SELECTION_TYPE_INTEGER, SELECTION_TYPE_PIXMAP, SELECTION_TYPE_WINDOW};
+use gdk::{
+    DragAction, DragContext, EventButton as GdkEventButton, SELECTION_TYPE_ATOM,
+    SELECTION_TYPE_BITMAP, SELECTION_TYPE_COLORMAP, SELECTION_TYPE_DRAWABLE,
+    SELECTION_TYPE_INTEGER, SELECTION_TYPE_PIXMAP, SELECTION_TYPE_STRING, SELECTION_TYPE_WINDOW,
+    TARGET_BITMAP, TARGET_COLORMAP, TARGET_DRAWABLE, TARGET_PIXMAP, TARGET_STRING,
+};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::{MenuItem as GtkMenuItem, TargetList};
 use gtk::SelectionMode as GtkSelectionMode;
 use gtk::TreeIter as GtkTreeIter;
 use gtk::TreeModel as GtkTreeModel;
@@ -19,6 +23,7 @@ use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
 };
 use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDropPosition};
+use gtk::{MenuItem as GtkMenuItem, TargetList};
 use uuid::Uuid;
 
 use lockbook_core::model::client_conversion::ClientFileMetadata;
@@ -31,6 +36,8 @@ use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
 use glib::timeout_add_local;
 use std::cell::RefCell;
+use std::fs::File;
+use std::path::Path;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -86,17 +93,17 @@ impl FileTree {
         let drag_hover_last_occurred = Rc::new(RefCell::new(None));
         let drag_ends_last_occurred = Rc::new(RefCell::new(None));
 
-        let targets = [
-            TargetEntry::new("lockbook/files", TargetFlags::SAME_WIDGET, LOCKBOOK_FILES_TARGET_INFO),
-        ];
+        let targets = [TargetEntry::new(
+            "lockbook/files",
+            TargetFlags::SAME_WIDGET,
+            LOCKBOOK_FILES_TARGET_INFO,
+        )];
 
         tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::MOVE);
         tree.drag_source_set(ModifierType::BUTTON1_MASK, &targets, DragAction::MOVE);
 
         let target_list = TargetList::new(&targets);
         target_list.add_uri_targets(URI_TARGET_INFO);
-        target_list.add_text_targets(TEXT_TARGET_INFO);
-        target_list.add_image_targets(IMAGE_TARGET_INFO, false);
 
         tree.drag_dest_set_target_list(Some(&target_list));
         tree.drag_source_set_target_list(Some(&target_list));
@@ -104,7 +111,7 @@ impl FileTree {
         tree.drag_source_set_icon_name("application-x-generic");
 
         tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
-        tree.connect_drag_data_get(Self::on_drag_data_get());
+        tree.connect_drag_data_get(Self::on_drag_data_get(c));
         tree.connect_drag_motion(Self::on_drag_motion(
             &drag_hover_last_occurred,
             &drag_ends_last_occurred,
@@ -167,27 +174,41 @@ impl FileTree {
         })
     }
 
-    fn on_drag_data_get() -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
-        |_, _, s, _, _| {
-            s.set(&s.get_target(), 8, &[]);
-        }
+    fn on_drag_data_get(
+        c: &Arc<LbCore>,
+    ) -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
+        closure!(c => move |w, _, s, info, _| {
+            match info {
+                LOCKBOOK_FILES_TARGET_INFO => s.set(&s.get_target(), 8, &[]),
+                URI_TARGET_INFO => {
+                    let model = w.get_model().unwrap();
+                    let (paths, _) = w.get_selection().get_selected_rows();
+
+                    let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
+                    let dest = "file:///tmp/";
+                    let mut uris = Vec::new();
+
+                    for iter in iters.iter() {
+                        let name = tree_iter_value!(model, &iter, 1, String);
+                        let id = Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap();
+
+                        c.set_up_drag_export(id);
+                        uris.push(format!("{}{}", dest, name));
+                    }
+
+                    s.set_uris(uris.iter().map(|uri| uri.as_str()).collect::<Vec<&str>>().as_slice());
+                }
+                _ => panic!("unrecognized target info that should not exist")
+            }
+        })
     }
 
     fn on_drag_data_received(
         m: &Messenger,
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
-        closure!(m, c => move
-        |w, d, x, y, s, info, time| {
+        closure!(m, c => move |w, d, x, y, s, info, time| {
             if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
-                println!("TARGET: {} {:?} {} {} {} {}",
-                         info,
-                         s.get_uris().iter().map(|l| l.to_string()).collect::<Vec<String>>(),
-                         info == LOCKBOOK_FILES_TARGET_INFO,
-                         info == URI_TARGET_INFO,
-                         info == TEXT_TARGET_INFO,
-                         info == IMAGE_TARGET_INFO);
-
                 let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
 
                 let mut parent = model.get_iter(&path).unwrap();
@@ -231,30 +252,27 @@ impl FileTree {
                     }
                     URI_TARGET_INFO => {
                         let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
+                        let g_uris = s.get_uris();
 
-                        for g_uri in s.get_uris().iter() {
-                            let uri = g_uri.to_string();
-                                println!("URI: {} {}", uri, uri[7..].to_string());
-                            if uri.starts_with("file://") {
-                                let path = uri[7..].to_string();
+                        std::thread::spawn(closure!(m, c => move || {
+                            let file_scheme = "file://";
 
-                                c.import_file(parent_id.clone(), path, false);
+                            for g_uri in g_uris {
+                                let uri = g_uri.to_string();
+                                if uri.starts_with(file_scheme) {
+                                    let path = uri[file_scheme.len()..].to_string();
+                                    c.import_file(parent_id.clone(), path);
+                                }
                             }
-                        }
-
-                        let uris = s.get_uris().iter().map(|l| l.to_string()).collect::<Vec<String>>();
-
+                            m.send(Msg::RefreshTree)
+                        }));
                     }
-                    // TEXT_TARGET_INFO => {}
-                    // IMAGE_TARGET_INFO => {}
                     _ => panic!("unrecognized target info that should not exist")
                 }
 
-                    d.drop_finish(true, time);
-
+                d.drop_finish(true, time);
             }
-        }
-        )
+        })
     }
 
     fn on_drag_end(
@@ -467,7 +485,7 @@ impl FileTree {
             }
             FileType::Folder => "folder",
         }
-            .to_string()
+        .to_string()
     }
 
     pub fn search(&self, iter: &GtkTreeIter, id: &Uuid) -> Option<GtkTreeIter> {
@@ -745,7 +763,3 @@ const DELETE_KEY: u16 = 119;
 
 const LOCKBOOK_FILES_TARGET_INFO: u32 = 0;
 const URI_TARGET_INFO: u32 = 1;
-const TEXT_TARGET_INFO: u32 = 2;
-const IMAGE_TARGET_INFO: u32 = 3;
-
-

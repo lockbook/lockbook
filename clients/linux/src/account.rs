@@ -9,7 +9,7 @@ use gtk::{
     Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
-    Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
+    Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Overlay, Paned as GtkPaned,
     ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator,
     Spinner as GtkSpinner, Stack as GtkStack, WrapMode as GtkWrapMode,
 };
@@ -57,6 +57,16 @@ impl AccountScreen {
             sidebar,
             editor,
             cntr,
+        }
+    }
+
+    pub fn toggle_drag_info_overlay(&self, maybe_msg: Option<String>) {
+        match maybe_msg {
+            None => self.editor.drag_info_overlay.hide(),
+            Some(msg) => {
+                self.editor.drag_info_overlay.show();
+                self.editor.drag_info_overlay.set_text(msg.as_str());
+            }
         }
     }
 
@@ -335,7 +345,9 @@ struct Editor {
     textarea: GtkSourceView,
     highlighter: LanguageManager,
     change_sig_id: RefCell<Option<SignalHandlerId>>,
-    cntr: GtkStack,
+    stack: GtkStack,
+    drag_info_overlay: GtkLabel,
+    cntr: Overlay,
     messenger: Messenger,
 }
 
@@ -364,16 +376,24 @@ impl Editor {
         let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
         scroll.add(&textarea);
 
-        let cntr = GtkStack::new();
-        cntr.add_named(&empty, "empty");
-        cntr.add_named(&info, "folderinfo");
-        cntr.add_named(&scroll, "scroll");
+        let stack = GtkStack::new();
+        stack.add_named(&empty, "empty");
+        stack.add_named(&info, "folderinfo");
+        stack.add_named(&scroll, "scroll");
+
+        let drag_info_overlay = GtkLabel::new(None);
+
+        let cntr = Overlay::new();
+        cntr.add(&stack);
+        cntr.add_overlay(&drag_info_overlay);
 
         Self {
             info,
             textarea,
             highlighter: LanguageManager::new(),
             change_sig_id: RefCell::new(None),
+            stack,
+            drag_info_overlay,
             cntr,
             messenger: m.clone(),
         }
@@ -428,7 +448,7 @@ impl Editor {
     }
 
     fn show(&self, name: &str) {
-        self.cntr.set_visible_child_name(name);
+        self.stack.set_visible_child_name(name);
     }
 }
 

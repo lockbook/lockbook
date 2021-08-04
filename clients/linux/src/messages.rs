@@ -23,6 +23,8 @@ pub enum Msg {
     DeleteFiles,
     RenameFile,
 
+    ToggleDragOverlay(Option<String>),
+
     SearchFieldFocus,
     SearchFieldBlur(bool),
     SearchFieldUpdate,
