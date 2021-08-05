@@ -39,7 +39,7 @@ macro_rules! hashmap {
 }
 
 pub fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), CoreError> {
-    let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
+    let drawing_string = String::from(String::from_utf8_lossy(drawing_bytes));
 
     // validate drawing
     match serde_json::from_str::<Drawing>(drawing_string.as_str()) {

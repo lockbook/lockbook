@@ -32,7 +32,7 @@ pub fn create(
     let _account = account_repo::get_account(config)?;
 
     let parent =
-        file_metadata_repo::maybe_get(&config, parent)?.ok_or(CoreError::FileParentNonexistent)?;
+        file_metadata_repo::maybe_get(config, parent)?.ok_or(CoreError::FileParentNonexistent)?;
 
     // Make sure parent is in fact a folder
     if parent.file_type == Document {
@@ -41,13 +41,13 @@ pub fn create(
 
     // Check that this file name is available
     for child in file_metadata_repo::get_children_non_recursively(config, parent.id)? {
-        if file_encryption_service::get_name(&config, &child)? == name {
+        if file_encryption_service::get_name(config, &child)? == name {
             return Err(CoreError::PathTaken);
         }
     }
 
     let new_metadata =
-        file_encryption_service::create_file_metadata(&config, name, file_type, parent.id)?;
+        file_encryption_service::create_file_metadata(config, name, file_type, parent.id)?;
 
     file_metadata_repo::insert(config, &new_metadata)?;
     local_changes_repo::track_new_file(config, new_metadata.id, clock_service::get_time)?;
@@ -70,14 +70,14 @@ pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), C
 
     let compressed_content = file_compression_service::compress(content)?;
     let new_file =
-        file_encryption_service::write_to_document(&config, &compressed_content, &file_metadata)?;
+        file_encryption_service::write_to_document(config, &compressed_content, &file_metadata)?;
     file_metadata_repo::insert(config, &file_metadata)?;
 
     if let Some(old_encrypted) = document_repo::maybe_get(config, id)? {
         let decrypted =
-            file_encryption_service::read_document(&config, &old_encrypted, &file_metadata)?;
+            file_encryption_service::read_document(config, &old_encrypted, &file_metadata)?;
         let decompressed = file_compression_service::decompress(&decrypted)?;
-        let permanent_access_info = file_encryption_service::get_key_for_user(&config, id)?;
+        let permanent_access_info = file_encryption_service::get_key_for_user(config, id)?;
 
         local_changes_repo::track_edit(
             config,
@@ -85,7 +85,7 @@ pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), C
             &old_encrypted,
             &permanent_access_info,
             Sha256::digest(&decompressed).to_vec(),
-            Sha256::digest(&content).to_vec(),
+            Sha256::digest(content).to_vec(),
             clock_service::get_time,
         )?;
     };
@@ -114,12 +114,12 @@ pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), Core
 
             // Check that this file name is available
             for child in siblings {
-                if file_encryption_service::get_name(&config, &child)? == new_name {
+                if file_encryption_service::get_name(config, &child)? == new_name {
                     return Err(CoreError::PathTaken);
                 }
             }
 
-            let old_file_name = file_encryption_service::get_name(&config, &file)?;
+            let old_file_name = file_encryption_service::get_name(config, &file)?;
 
             local_changes_repo::track_rename(
                 config,
@@ -129,7 +129,7 @@ pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), Core
                 clock_service::get_time,
             )?;
 
-            file.name = file_encryption_service::create_name(&config, &file, new_name)?;
+            file.name = file_encryption_service::create_name(config, &file, new_name)?;
             file_metadata_repo::insert(config, &file)?;
 
             Ok(())
@@ -152,8 +152,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Core
     }
 
     let siblings = file_metadata_repo::get_children_non_recursively(config, parent_metadata.id)?;
-    let new_name =
-        file_encryption_service::rekey_secret_filename(&config, &file, &parent_metadata)?;
+    let new_name = file_encryption_service::rekey_secret_filename(config, &file, &parent_metadata)?;
 
     // Check that this file name is available
     for child in siblings {
@@ -172,9 +171,9 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Core
         }
     }
 
-    let access_key = file_encryption_service::decrypt_key_for_file(&config, file.id)?;
+    let access_key = file_encryption_service::decrypt_key_for_file(config, file.id)?;
     let new_access_info =
-        file_encryption_service::re_encrypt_key_for_file(&config, access_key, parent_metadata.id)?;
+        file_encryption_service::re_encrypt_key_for_file(config, access_key, parent_metadata.id)?;
 
     local_changes_repo::track_move(
         config,
@@ -204,7 +203,7 @@ pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, Cor
 
     let document = document_repo::get(config, id)?;
     let compressed_content =
-        file_encryption_service::read_document(&config, &document, &file_metadata)?;
+        file_encryption_service::read_document(config, &document, &file_metadata)?;
     let content = file_compression_service::decompress(&compressed_content)?;
 
     Ok(content)

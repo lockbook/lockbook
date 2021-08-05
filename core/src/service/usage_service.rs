@@ -54,7 +54,7 @@ pub fn server_usage(config: &Config) -> Result<GetUsageResponse, CoreError> {
 }
 
 pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
-    let server_usage_and_cap = server_usage(&config)?;
+    let server_usage_and_cap = server_usage(config)?;
 
     let server_usage = server_usage_and_cap.sum_server_usage();
     let cap = server_usage_and_cap.cap;
@@ -76,7 +76,7 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
 }
 
 pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreError> {
-    let doc_ids: Vec<Uuid> = file_metadata_repo::get_all(&config)?
+    let doc_ids: Vec<Uuid> = file_metadata_repo::get_all(config)?
         .into_iter()
         .filter(|f| f.file_type == Document)
         .map(|f| f.id)
@@ -84,7 +84,7 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreEr
 
     let mut local_usage: u64 = 0;
     for id in doc_ids {
-        local_usage += file_service::read_document(&config, id)?.len() as u64
+        local_usage += file_service::read_document(config, id)?.len() as u64
     }
 
     let readable = bytes_to_human(local_usage);

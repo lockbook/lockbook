@@ -132,7 +132,7 @@ pub enum GetStateError {
 }
 
 pub fn get_db_state(config: &Config) -> Result<State, Error<GetStateError>> {
-    db_state_service::get_state(&config).map_err(|e| unexpected!("{:#?}", e))
+    db_state_service::get_state(config).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -141,7 +141,7 @@ pub enum MigrationError {
 }
 
 pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
-    db_state_service::perform_migration(&config).map_err(|e| match e {
+    db_state_service::perform_migration(config).map_err(|e| match e {
         CoreError::ClientWipeRequired => UiError(MigrationError::StateRequiresCleaning),
         _ => unexpected!("{:#?}", e),
     })
@@ -161,7 +161,7 @@ pub fn create_account(
     username: &str,
     api_url: &str,
 ) -> Result<Account, Error<CreateAccountError>> {
-    account_service::create_account(&config, username, api_url).map_err(|e| match e {
+    account_service::create_account(config, username, api_url).map_err(|e| match e {
         CoreError::AccountExists => UiError(CreateAccountError::AccountExistsAlready),
         CoreError::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
         CoreError::UsernameInvalid => UiError(CreateAccountError::InvalidUsername),
@@ -185,7 +185,7 @@ pub fn import_account(
     config: &Config,
     account_string: &str,
 ) -> Result<Account, Error<ImportError>> {
-    account_service::import_account(&config, account_string).map_err(|e| match e {
+    account_service::import_account(config, account_string).map_err(|e| match e {
         CoreError::AccountStringCorrupted => UiError(ImportError::AccountStringCorrupted),
         CoreError::AccountExists => UiError(ImportError::AccountExistsAlready),
         CoreError::UsernamePublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
@@ -202,7 +202,7 @@ pub enum AccountExportError {
 }
 
 pub fn export_account(config: &Config) -> Result<String, Error<AccountExportError>> {
-    account_service::export_account(&config).map_err(|e| match e {
+    account_service::export_account(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(AccountExportError::NoAccount),
         _ => unexpected!("{:#?}", e),
     })
@@ -214,7 +214,7 @@ pub enum GetAccountError {
 }
 
 pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
-    account_repo::get_account(&config).map_err(|e| match e {
+    account_repo::get_account(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetAccountError::NoAccount),
         _ => unexpected!("{:#?}", e),
     })
@@ -234,7 +234,7 @@ pub fn create_file_at_path(
     config: &Config,
     path_and_name: &str,
 ) -> Result<ClientFileMetadata, Error<CreateFileAtPathError>> {
-    path_service::create_at_path(&config, path_and_name)
+    path_service::create_at_path(config, path_and_name)
         .map_err(|e| match e {
             CoreError::PathStartsWithNonRoot => {
                 UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
@@ -266,7 +266,7 @@ pub fn write_document(
     id: Uuid,
     content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
-    file_service::write_document(&config, id, content).map_err(|e| match e {
+    file_service::write_document(config, id, content).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
         CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
         CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
@@ -290,7 +290,7 @@ pub fn create_file(
     parent: Uuid,
     file_type: FileType,
 ) -> Result<ClientFileMetadata, Error<CreateFileError>> {
-    file_service::create(&config, name, parent, file_type)
+    file_service::create(config, name, parent, file_type)
         .map_err(|e| match e {
             CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
             CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
@@ -312,7 +312,7 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
-    match file_metadata_repo::get_root(&config) {
+    match file_metadata_repo::get_root(config) {
         Ok(file_metadata) => match file_metadata {
             None => Err(UiError(GetRootError::NoRoot)),
             Some(file_metadata) => match generate_client_file_metadata(config, &file_metadata) {
@@ -333,7 +333,7 @@ pub fn get_children(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<ClientFileMetadata>, Error<GetChildrenError>> {
-    let children: Vec<FileMetadata> = file_metadata_repo::get_children_non_recursively(&config, id)
+    let children: Vec<FileMetadata> = file_metadata_repo::get_children_non_recursively(config, id)
         .map_err(|e| unexpected!("{:#?}", e))?;
 
     let mut client_children = vec![];
@@ -357,7 +357,7 @@ pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
-    file_metadata_repo::get_and_get_children_recursively(&config, id).map_err(|e| match e {
+    file_metadata_repo::get_and_get_children_recursively(config, id).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
         CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
         _ => unexpected!("{:#?}", e),
@@ -373,7 +373,7 @@ pub fn get_file_by_id(
     config: &Config,
     id: Uuid,
 ) -> Result<ClientFileMetadata, Error<GetFileByIdError>> {
-    file_metadata_repo::get(&config, id)
+    file_metadata_repo::get(config, id)
         .map_err(|e| match e {
             CoreError::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
             _ => unexpected!("{:#?}", e),
@@ -393,7 +393,7 @@ pub fn get_file_by_path(
     config: &Config,
     path: &str,
 ) -> Result<ClientFileMetadata, Error<GetFileByPathError>> {
-    path_service::get_by_path(&config, path)
+    path_service::get_by_path(config, path)
         .map_err(|e| match e {
             CoreError::FileNonexistent => UiError(GetFileByPathError::NoFileAtThatPath),
             _ => unexpected!("{:#?}", e),
@@ -411,10 +411,10 @@ pub enum FileDeleteError {
 }
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-    match file_metadata_repo::get(&config, id) {
+    match file_metadata_repo::get(config, id) {
         Ok(meta) => match meta.file_type {
-            FileType::Document => file_service::delete_document(&config, id),
-            FileType::Folder => file_service::delete_folder(&config, id),
+            FileType::Document => file_service::delete_document(config, id),
+            FileType::Folder => file_service::delete_folder(config, id),
         }
         .map_err(|e| match e {
             CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
@@ -436,7 +436,7 @@ pub fn read_document(
     config: &Config,
     id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    file_service::read_document(&config, id).map_err(|e| match e {
+    file_service::read_document(config, id).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
         CoreError::AccountNonexistent => UiError(ReadDocumentError::NoAccount),
         CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
@@ -458,7 +458,7 @@ pub fn save_document_to_disk(
     id: Uuid,
     location: String,
 ) -> Result<(), Error<SaveDocumentToDiskError>> {
-    file_service::save_document_to_disk(&config, id, location).map_err(|e| match e {
+    file_service::save_document_to_disk(config, id, location).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
         CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
         CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
@@ -477,7 +477,7 @@ pub fn list_paths(
     config: &Config,
     filter: Option<path_service::Filter>,
 ) -> Result<Vec<String>, Error<ListPathsError>> {
-    path_service::get_all_paths(&config, filter).map_err(|e| unexpected!("{:#?}", e))
+    path_service::get_all_paths(config, filter).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -497,7 +497,7 @@ pub enum ListMetadatasError {
 pub fn list_metadatas(
     config: &Config,
 ) -> Result<Vec<ClientFileMetadata>, Error<ListMetadatasError>> {
-    let metas = file_metadata_repo::get_all(&config).map_err(|e| unexpected!("{:#?}", e))?;
+    let metas = file_metadata_repo::get_all(config).map_err(|e| unexpected!("{:#?}", e))?;
     let mut client_metas = vec![];
 
     for meta in metas {
@@ -523,7 +523,7 @@ pub fn rename_file(
     id: Uuid,
     new_name: &str,
 ) -> Result<(), Error<RenameFileError>> {
-    file_service::rename_file(&config, id, new_name).map_err(|e| match e {
+    file_service::rename_file(config, id, new_name).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(RenameFileError::FileDoesNotExist),
         CoreError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
         CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
@@ -545,7 +545,7 @@ pub enum MoveFileError {
 }
 
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-    file_service::move_file(&config, id, new_parent).map_err(|e| match e {
+    file_service::move_file(config, id, new_parent).map_err(|e| match e {
         CoreError::RootModificationInvalid => UiError(MoveFileError::CannotMoveRoot),
         CoreError::FileNotFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
         CoreError::FileNonexistent => UiError(MoveFileError::FileDoesNotExist),
@@ -568,7 +568,7 @@ pub fn sync_all(
     config: &Config,
     f: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), Error<SyncAllError>> {
-    sync_service::sync(&config, f).map_err(|e| match e {
+    sync_service::sync(config, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(SyncAllError::NoAccount),
         CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
         CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
@@ -582,7 +582,7 @@ pub enum GetLocalChangesError {
 }
 
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, Error<GetLocalChangesError>> {
-    Ok(local_changes_repo::get_all_local_changes(&config)
+    Ok(local_changes_repo::get_all_local_changes(config)
         .map_err(|err| unexpected!("{:#?}", err))?
         .iter()
         .map(|change| change.id)
@@ -597,7 +597,7 @@ pub enum CalculateWorkError {
 }
 
 pub fn calculate_work(config: &Config) -> Result<ClientWorkCalculated, Error<CalculateWorkError>> {
-    sync_service::calculate_work(&config)
+    sync_service::calculate_work(config)
         .map_err(|e| match e {
             CoreError::AccountNonexistent => UiError(CalculateWorkError::NoAccount),
             CoreError::ServerUnreachable => UiError(CalculateWorkError::CouldNotReachServer),
@@ -616,7 +616,7 @@ pub enum SetLastSyncedError {
 }
 
 pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), Error<SetLastSyncedError>> {
-    file_metadata_repo::set_last_synced(&config, last_sync).map_err(|e| unexpected!("{:#?}", e))
+    file_metadata_repo::set_last_synced(config, last_sync).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -625,7 +625,7 @@ pub enum GetLastSyncedError {
 }
 
 pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>> {
-    file_metadata_repo::get_last_updated(&config)
+    file_metadata_repo::get_last_updated(config)
         .map(|n| n as i64)
         .map_err(|e| unexpected!("{:#?}", e))
 }
@@ -650,7 +650,7 @@ pub enum GetUsageError {
 }
 
 pub fn get_usage(config: &Config) -> Result<UsageMetrics, Error<GetUsageError>> {
-    usage_service::get_usage(&config).map_err(|e| match e {
+    usage_service::get_usage(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
         CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
         CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
@@ -659,7 +659,7 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, Error<GetUsageError>> 
 }
 
 pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, Error<GetUsageError>> {
-    usage_service::get_uncompressed_usage(&config).map_err(|e| match e {
+    usage_service::get_uncompressed_usage(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
         CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
         CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
@@ -676,7 +676,7 @@ pub enum GetDrawingError {
 }
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    drawing_service::get_drawing(&config, id).map_err(|e| match e {
+    drawing_service::get_drawing(config, id).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
         CoreError::FileNotDocument => UiError(GetDrawingError::FolderTreatedAsDrawing),
         CoreError::AccountNonexistent => UiError(GetDrawingError::NoAccount),
@@ -698,7 +698,7 @@ pub fn save_drawing(
     id: Uuid,
     drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
-    drawing_service::save_drawing(&config, id, drawing_bytes).map_err(|e| match e {
+    drawing_service::save_drawing(config, id, drawing_bytes).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
         CoreError::AccountNonexistent => UiError(SaveDrawingError::NoAccount),
         CoreError::FileNonexistent => UiError(SaveDrawingError::FileDoesNotExist),
@@ -721,7 +721,7 @@ pub fn export_drawing(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    drawing_service::export_drawing(&config, id, format, render_theme).map_err(|e| match e {
+    drawing_service::export_drawing(config, id, format, render_theme).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(ExportDrawingError::InvalidDrawing),
         CoreError::AccountNonexistent => UiError(ExportDrawingError::NoAccount),
         CoreError::FileNonexistent => UiError(ExportDrawingError::FileDoesNotExist),
@@ -747,7 +747,7 @@ pub fn export_drawing_to_disk(
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     location: String,
 ) -> Result<(), Error<ExportDrawingToDiskError>> {
-    drawing_service::export_drawing_to_disk(&config, id, format, render_theme, location).map_err(
+    drawing_service::export_drawing_to_disk(config, id, format, render_theme, location).map_err(
         |e| match e {
             CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
             CoreError::AccountNonexistent => UiError(ExportDrawingToDiskError::NoAccount),
