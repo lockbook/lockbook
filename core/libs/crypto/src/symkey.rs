@@ -148,7 +148,7 @@ pub fn decrypt_and_verify(
 }
 
 fn convert_key(to_convert: &AESKey) -> Aes256Gcm {
-    Aes256Gcm::new(GenericArray::clone_from_slice(to_convert))
+    Aes256Gcm::new(&GenericArray::clone_from_slice(to_convert))
 }
 
 fn generate_nonce() -> [u8; 12] {
