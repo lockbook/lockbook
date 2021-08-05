@@ -92,10 +92,10 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
 pub fn execute_work(config: &Config, account: &Account, work: WorkUnit) -> Result<(), CoreError> {
     match work {
         WorkUnit::LocalChange { mut metadata } => {
-            handle_local_change(config, &account, &mut metadata)
+            handle_local_change(config, account, &mut metadata)
         }
         WorkUnit::ServerChange { mut metadata } => {
-            handle_server_change(config, &account, &mut metadata)
+            handle_server_change(config, account, &mut metadata)
         }
     }
 }
@@ -114,7 +114,7 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
                 func(SyncProgress {
                     total: work_calculated.work_units.len(),
                     progress,
-                    current_work_unit: generate_client_work_unit(config, &work_unit)?,
+                    current_work_unit: generate_client_work_unit(config, work_unit)?,
                 })
             }
 
@@ -174,7 +174,7 @@ fn rename_local_conflicting_files(
 
     // There should only be one of these
     for conflicting_file in conflicting_files {
-        let old_name = file_encryption_service::get_name(&config, &conflicting_file)?;
+        let old_name = file_encryption_service::get_name(config, &conflicting_file)?;
         file_service::rename_file(
             config,
             conflicting_file.id,
@@ -191,11 +191,11 @@ fn save_file_locally(
     account: &Account,
     metadata: &FileMetadata,
 ) -> Result<(), CoreError> {
-    file_metadata_repo::insert(config, &metadata)?;
+    file_metadata_repo::insert(config, metadata)?;
 
     if metadata.file_type == Document {
         let document = client::request(
-            &account,
+            account,
             GetDocumentRequest {
                 id: metadata.id,
                 content_version: metadata.content_version,
@@ -257,11 +257,11 @@ fn merge_documents(
     local_changes: &LocalChangeRepoLocalChange,
     edited_locally: &Edited,
 ) -> Result<(), CoreError> {
-    let local_name = file_encryption_service::get_name(&config, &local_metadata)?;
+    let local_name = file_encryption_service::get_name(config, local_metadata)?;
     if local_name.ends_with(".md") || local_name.ends_with(".txt") {
         let common_ancestor = {
             let compressed_common_ancestor = file_encryption_service::user_read_document(
-                &account,
+                account,
                 &edited_locally.old_value,
                 &edited_locally.access_info,
             )?;
@@ -273,7 +273,7 @@ fn merge_documents(
 
         let server_version = {
             let server_document = client::request(
-                &account,
+                account,
                 GetDocumentRequest {
                     id: metadata.id,
                     content_version: metadata.content_version,
@@ -282,7 +282,7 @@ fn merge_documents(
             .content;
 
             let compressed_server_version = file_encryption_service::user_read_document(
-                &account,
+                account,
                 &server_document,
                 &edited_locally.access_info,
             )?;
@@ -315,7 +315,7 @@ fn merge_documents(
 
         // Overwrite local file with server copy
         let new_content = client::request(
-            &account,
+            account,
             GetDocumentRequest {
                 id: metadata.id,
                 content_version: metadata.content_version,
@@ -342,7 +342,7 @@ fn merge_files(
 ) -> Result<(), CoreError> {
     if let Some(renamed_locally) = &local_changes.renamed {
         // Check if both renamed, if so, server wins
-        let server_name = file_encryption_service::get_name(&config, &metadata)?;
+        let server_name = file_encryption_service::get_name(config, metadata)?;
         if server_name != renamed_locally.old_value {
             local_changes_repo::untrack_rename(config, metadata.id)?;
         } else {
@@ -370,11 +370,11 @@ fn merge_files(
             }
 
             merge_documents(
-                &config,
-                &account,
+                config,
+                account,
                 metadata,
-                &local_metadata,
-                &local_changes,
+                local_metadata,
+                local_changes,
                 edited_locally,
             )?;
         }
@@ -388,12 +388,12 @@ fn handle_server_change(
     account: &Account,
     metadata: &mut FileMetadata,
 ) -> Result<(), CoreError> {
-    rename_local_conflicting_files(&config, &metadata)?;
+    rename_local_conflicting_files(config, metadata)?;
 
     match file_metadata_repo::maybe_get(config, metadata.id)? {
         None => {
             if !metadata.deleted {
-                save_file_locally(&config, &account, &metadata)?;
+                save_file_locally(config, account, metadata)?;
             } else {
                 debug!(
                     "Server deleted a file we don't know about, ignored. id: {:?}",
@@ -405,19 +405,19 @@ fn handle_server_change(
             match local_changes_repo::get_local_changes(config, metadata.id)? {
                 None => {
                     if metadata.deleted {
-                        delete_file_locally(&config, &metadata)?;
+                        delete_file_locally(config, metadata)?;
                     } else {
-                        save_file_locally(&config, &account, &metadata)?;
+                        save_file_locally(config, account, metadata)?;
                     }
                 }
                 Some(local_changes) => {
                     if !local_changes.deleted && !metadata.deleted {
-                        merge_files(&config, &account, metadata, &local_metadata, &local_changes)?;
+                        merge_files(config, account, metadata, &local_metadata, &local_changes)?;
 
-                        file_metadata_repo::insert(config, &metadata)?;
+                        file_metadata_repo::insert(config, metadata)?;
                     } else if metadata.deleted {
                         // Adding checks here is how you can protect local state from being deleted
-                        delete_file_locally(&config, &metadata)?;
+                        delete_file_locally(config, metadata)?;
                     }
                 }
             }
@@ -439,8 +439,8 @@ fn handle_local_change(
                         if metadata.file_type == Document {
                             let content = document_repo::get(config, metadata.id)?;
                             let version = client::request(
-                                &account,
-                                CreateDocumentRequest::new(&metadata, content),
+                                account,
+                                CreateDocumentRequest::new(metadata, content),
                             )
                                 .map_err(CoreError::from)?
                                 .new_metadata_and_content_version;
@@ -449,8 +449,8 @@ fn handle_local_change(
                             metadata.content_version = version;
                         } else {
                             let version = client::request(
-                                &account,
-                                CreateFolderRequest::new(&metadata),
+                                account,
+                                CreateFolderRequest::new(metadata),
                             )
                                 .map_err(CoreError::from)?
                                 .new_metadata_version;
@@ -459,7 +459,7 @@ fn handle_local_change(
                             metadata.content_version = version;
                         }
 
-                        file_metadata_repo::insert(config, &metadata)?;
+                        file_metadata_repo::insert(config, metadata)?;
 
                         local_changes_repo::untrack_new_file(config, metadata.id)?;
                         local_change.new = false;
@@ -476,14 +476,14 @@ fn handle_local_change(
 
                     if local_change.renamed.is_some() {
                         let version = if metadata.file_type == Document {
-                            client::request(&account, RenameDocumentRequest::new(&metadata))
+                            client::request(account, RenameDocumentRequest::new(metadata))
                                 .map_err(CoreError::from)?.new_metadata_version
                         } else {
-                            client::request(&account, RenameFolderRequest::new(&metadata))
+                            client::request(account, RenameFolderRequest::new(metadata))
                                 .map_err(CoreError::from)?.new_metadata_version
                         };
                         metadata.metadata_version = version;
-                        file_metadata_repo::insert(config, &metadata)?;
+                        file_metadata_repo::insert(config, metadata)?;
 
                         local_changes_repo::untrack_rename(config, metadata.id)?;
                         local_change.renamed = None;
@@ -491,28 +491,28 @@ fn handle_local_change(
 
                     if local_change.moved.is_some() {
                         metadata.metadata_version = if metadata.file_type == Document {
-                            client::request(&account, RenameDocumentRequest::new(&metadata))
+                            client::request(account, RenameDocumentRequest::new(metadata))
                                 .map_err(CoreError::from)?.new_metadata_version
                         } else {
-                            client::request(&account, RenameFolderRequest::new(&metadata))
+                            client::request(account, RenameFolderRequest::new(metadata))
                                 .map_err(CoreError::from)?.new_metadata_version
                         };
 
                         let version = if metadata.file_type == Document {
-                            client::request(&account, MoveDocumentRequest::new(&metadata)).map_err(CoreError::from)?.new_metadata_version
+                            client::request(account, MoveDocumentRequest::new(metadata)).map_err(CoreError::from)?.new_metadata_version
                         } else {
-                            client::request(&account, MoveFolderRequest::new(&metadata)).map_err(CoreError::from)?.new_metadata_version
+                            client::request(account, MoveFolderRequest::new(metadata)).map_err(CoreError::from)?.new_metadata_version
                         };
 
                         metadata.metadata_version = version;
-                        file_metadata_repo::insert(config, &metadata)?;
+                        file_metadata_repo::insert(config, metadata)?;
 
                         local_changes_repo::untrack_move(config, metadata.id)?;
                         local_change.moved = None;
                     }
 
                     if local_change.content_edited.is_some() && metadata.file_type == Document {
-                        let version = client::request(&account, ChangeDocumentContentRequest{
+                        let version = client::request(account, ChangeDocumentContentRequest{
                             id: metadata.id,
                             old_metadata_version: metadata.metadata_version,
                             new_content: document_repo::get(config, metadata.id)?,
@@ -520,7 +520,7 @@ fn handle_local_change(
 
                         metadata.content_version = version;
                         metadata.metadata_version = version;
-                        file_metadata_repo::insert(config, &metadata)?;
+                        file_metadata_repo::insert(config, metadata)?;
 
                         local_changes_repo::untrack_edit(config, metadata.id)?;
                         local_change.content_edited = None;
@@ -528,9 +528,9 @@ fn handle_local_change(
 
                     if local_change.deleted {
                         if metadata.file_type == Document {
-                            client::request(&account, DeleteDocumentRequest{ id: metadata.id }).map_err(CoreError::from)?;
+                            client::request(account, DeleteDocumentRequest{ id: metadata.id }).map_err(CoreError::from)?;
                         } else {
-                            client::request(&account, DeleteFolderRequest{ id: metadata.id }).map_err(CoreError::from)?;
+                            client::request(account, DeleteFolderRequest{ id: metadata.id }).map_err(CoreError::from)?;
                         }
 
                         local_changes_repo::delete(config, metadata.id)?;

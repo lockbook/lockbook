@@ -71,7 +71,7 @@ impl LbApp {
         let (sender, receiver) = glib::MainContext::channel::<Msg>(glib::PRIORITY_DEFAULT);
         let m = Messenger::new(sender);
 
-        let gui = Gui::new(&a, &m, &s.borrow(), c);
+        let gui = Gui::new(a, &m, &s.borrow(), c);
 
         let lb_app = Self {
             core: c.clone(),
@@ -165,7 +165,7 @@ impl LbApp {
                     }
                 }
                 Err(err) => match err.kind() {
-                    UserErr => lb.gui.intro.error_create(&err.msg()),
+                    UserErr => lb.gui.intro.error_create(err.msg()),
                     ProgErr => lb.messenger.send_err_dialog("creating account", err),
                 },
             }
@@ -417,7 +417,7 @@ impl LbApp {
                 Err(err) => match err.kind() {
                     UserErr => {
                         util::gui::add(&d.get_content_area(), &errlbl);
-                        errlbl.set_text(&err.msg());
+                        errlbl.set_text(err.msg());
                         errlbl.show();
                     }
                     ProgErr => {
@@ -530,7 +530,7 @@ impl LbApp {
 
     fn open_document(&self, id: &Uuid) -> LbResult<()> {
         // Check for file dirtiness here
-        let (meta, content) = self.core.open(&id)?;
+        let (meta, content) = self.core.open(id)?;
         self.state.borrow_mut().open_file_dirty = false;
         self.edit(&EditMode::PlainText {
             path: self.core.full_path_for(&meta),
@@ -540,17 +540,17 @@ impl LbApp {
     }
 
     fn open_folder(&self, f: &ClientFileMetadata) -> LbResult<()> {
-        let children = self.core.children(&f)?;
+        let children = self.core.children(f)?;
         self.edit(&EditMode::Folder {
-            path: self.core.full_path_for(&f),
+            path: self.core.full_path_for(f),
             meta: f.clone(),
             n_children: children.len(),
         })
     }
 
     fn edit(&self, mode: &EditMode) -> LbResult<()> {
-        self.gui.menubar.set(&mode);
-        self.gui.account.show(&mode);
+        self.gui.menubar.set(mode);
+        self.gui.account.show(mode);
         Ok(())
     }
 
@@ -641,7 +641,7 @@ impl LbApp {
             cell.set_padding(12, 4);
 
             let c = GtkTreeViewColumn::new();
-            c.set_title(&name);
+            c.set_title(name);
             c.pack_start(&cell, true);
             c.add_attribute(&cell, "text", id);
             tree.append_column(&c);
@@ -661,7 +661,7 @@ impl LbApp {
         }
 
         let msg = "Are you absolutely sure you want to delete the following files?";
-        let lbl = GtkLabel::new(Some(&msg));
+        let lbl = GtkLabel::new(Some(msg));
         util::gui::set_marginx(&lbl, 16);
         lbl.set_margin_top(16);
 
@@ -698,7 +698,7 @@ impl LbApp {
             progerr!("No file tree items selected! At least one file tree item must be selected.")
         })?;
         let iter = tmodel
-            .get_iter(&tpath)
+            .get_iter(tpath)
             .ok_or_else(|| progerr!("Unable to get the tree iterator for tree path: {}", tpath))?;
 
         // Get the FileMetadata from the iterator.
@@ -752,7 +752,7 @@ impl LbApp {
                 Err(err) => match err.kind() {
                     UserErr => {
                         util::gui::add(&d.get_content_area(), &errlbl);
-                        errlbl.set_text(&err.msg());
+                        errlbl.set_text(err.msg());
                         errlbl.show();
                     }
                     ProgErr => {
@@ -939,11 +939,11 @@ impl LbApp {
     }
 
     fn err_dialog(&self, title: &str, err: &LbError) {
-        let details = util::gui::scrollable(&GtkLabel::new(Some(&err.msg())));
+        let details = util::gui::scrollable(&GtkLabel::new(Some(err.msg())));
         util::gui::set_margin(&details, 16);
 
         let copy = GtkBox::new(Horizontal, 0);
-        copy.set_center_widget(Some(&util::gui::clipboard_btn(&err.msg())));
+        copy.set_center_widget(Some(&util::gui::clipboard_btn(err.msg())));
         copy.set_margin_bottom(16);
 
         let d = self.gui.new_dialog(&format!("Error: {}", title));
@@ -969,7 +969,7 @@ impl LbState {
             search: None,
             opened_file: None,
             open_file_dirty: false,
-            background_work: Arc::new(Mutex::new(BackgroundWork::default(&m))),
+            background_work: Arc::new(Mutex::new(BackgroundWork::default(m))),
         }
     }
 
@@ -1023,7 +1023,7 @@ impl SearchComponents {
             Ordering::Equal => {
                 let text1 = tree_iter_value!(model, it1, 1, String);
                 let text2 = model
-                    .get_value(&it2, 1)
+                    .get_value(it2, 1)
                     .get::<String>()
                     .unwrap_or_default()
                     .unwrap_or_default();
@@ -1054,7 +1054,7 @@ impl SearchComponents {
         list.clear();
 
         for p in &self.possibs {
-            if let Some(score) = self.matcher.fuzzy_match(&p, &pattern) {
+            if let Some(score) = self.matcher.fuzzy_match(p, pattern) {
                 let values: [&dyn ToValue; 2] = [&score, &p];
                 list.set(&list.append(), &[0, 1], &values);
             }
@@ -1080,7 +1080,7 @@ impl Gui {
 
         // Screens.
         let intro = IntroScreen::new(m);
-        let account = AccountScreen::new(m, &s, c);
+        let account = AccountScreen::new(m, s, c);
         let screens = GtkStack::new();
         screens.add_named(&intro.cntr, "intro");
         screens.add_named(&account.cntr, "account");
@@ -1116,7 +1116,7 @@ impl Gui {
     fn show(&self, core: &LbCore) -> LbResult<()> {
         self.win.show_all();
         if core.has_account()? {
-            self.show_account_screen(&core)
+            self.show_account_screen(core)
         } else {
             self.show_intro_screen()
         }
@@ -1132,7 +1132,7 @@ impl Gui {
     fn show_account_screen(&self, core: &LbCore) -> LbResult<()> {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
-        self.account.fill(&core, &self.messenger)?;
+        self.account.fill(core, &self.messenger)?;
         self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
         self.messenger.send(Msg::AccountScreenShown);
@@ -1143,7 +1143,7 @@ impl Gui {
         let d = GtkDialog::new();
         d.set_transient_for(Some(&self.win));
         d.set_position(GtkWindowPosition::CenterOnParent);
-        d.set_title(&title);
+        d.set_title(title);
         d
     }
 }
@@ -1153,9 +1153,9 @@ impl SettingsUi {
     fn create(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkNotebook {
         let tabs = GtkNotebook::new();
         for tab_data in vec![
-            ("File Tree", Self::filetree(&s, &m)),
-            ("Window", Self::window(&s)),
-            ("Editor", Self::editor(&s, &m)),
+            ("File Tree", Self::filetree(s, m)),
+            ("Window", Self::window(s)),
+            ("Editor", Self::editor(s, m)),
         ] {
             let (title, content) = tab_data;
             let tab_btn = GtkLabel::new(Some(title));
@@ -1244,7 +1244,7 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
             cell.set_padding(12, 4);
 
             let c = GtkTreeViewColumn::new();
-            c.set_title(&name);
+            c.set_title(name);
             c.pack_start(&cell, true);
             c.add_attribute(&cell, "text", id);
             tree.append_column(&c);
