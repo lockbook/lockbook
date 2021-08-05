@@ -52,7 +52,7 @@ pub struct Menubar {
 
 impl Menubar {
     pub fn new(m: &Messenger, accels: &GtkAccelGroup) -> Self {
-        let items = Item::hashmap(&m, &accels);
+        let items = Item::hashmap(m, accels);
 
         let file = GtkMenuItem::with_label("File");
         let edit = GtkMenuItem::with_label("Edit");

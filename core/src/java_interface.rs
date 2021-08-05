@@ -43,7 +43,7 @@ fn string_to_jstring(env: &JNIEnv, result: String) -> jstring {
 fn jstring_to_string(env: &JNIEnv, json: JString, name: &str) -> Result<String, jstring> {
     env.get_string(json).map(|ok| ok.into()).map_err(|err| {
         string_to_jstring(
-            &env,
+            env,
             translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
                 "Could not parse {} jstring: {:?}",
                 name, err
@@ -57,7 +57,7 @@ fn deserialize_id(env: &JNIEnv, json: JString) -> Result<Uuid, jstring> {
 
     Uuid::parse_str(&json_string).map_err(|err| {
         string_to_jstring(
-            &env,
+            env,
             translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
                 "Couldn't deserialize id: {:?}",
                 err

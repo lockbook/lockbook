@@ -108,7 +108,7 @@ impl LbCore {
 
     pub fn create_account(&self, uname: &str) -> LbResult<()> {
         let api_url = api_url();
-        let new_acct = create_account(&self.config, &uname, &api_url).map_err(map_core_err!(
+        let new_acct = create_account(&self.config, uname, &api_url).map_err(map_core_err!(
             CreateAccountError,
             UsernameTaken => uerr_dialog!("The username '{}' is already taken.", uname),
             InvalidUsername => uerr_dialog!("Invalid username '{}' ({}).", uname, UNAME_REQS),

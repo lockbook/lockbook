@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 pub fn decrypt_key_for_file(config: &Config, id: Uuid) -> Result<AESKey, CoreError> {
-    let account = account_repo::get_account(&config)?;
-    let parents = file_metadata_repo::get_with_all_parents(&config, id)?;
+    let account = account_repo::get_account(config)?;
+    let parents = file_metadata_repo::get_with_all_parents(config, id)?;
     let access_key = parents
         .get(&id)
         .ok_or(())
@@ -19,7 +19,7 @@ pub fn decrypt_key_for_file(config: &Config, id: Uuid) -> Result<AESKey, CoreErr
     match access_key.user_access_keys.get(&account.username) {
         None => {
             let folder_access = access_key.folder_access_keys.clone();
-            let decrypted_parent = decrypt_key_for_file(&config, access_key.parent)?;
+            let decrypted_parent = decrypt_key_for_file(config, access_key.parent)?;
             let key =
                 symkey::decrypt(&decrypted_parent, &folder_access).map_err(core_err_unexpected)?;
             Ok(key)
@@ -40,14 +40,14 @@ pub fn re_encrypt_key_for_file(
     file_key: AESKey,
     new_parent_id: Uuid,
 ) -> Result<EncryptedFolderAccessKey, CoreError> {
-    let parent_key = decrypt_key_for_file(&config, new_parent_id)?;
+    let parent_key = decrypt_key_for_file(config, new_parent_id)?;
     let access_key = symkey::encrypt(&parent_key, &file_key).map_err(core_err_unexpected)?;
     Ok(access_key)
 }
 
 pub fn get_key_for_user(config: &Config, id: Uuid) -> Result<UserAccessInfo, CoreError> {
-    let account = account_repo::get_account(&config)?;
-    let key = decrypt_key_for_file(&config, id)?;
+    let account = account_repo::get_account(config)?;
+    let key = decrypt_key_for_file(config, id)?;
     let public_key = account.public_key();
     let key_encryption_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
         .map_err(core_err_unexpected)?;
@@ -66,8 +66,8 @@ pub fn create_file_metadata(
     file_type: FileType,
     parent: Uuid,
 ) -> Result<FileMetadata, CoreError> {
-    let account = account_repo::get_account(&config)?;
-    let parent_key = decrypt_key_for_file(&config, parent)?;
+    let account = account_repo::get_account(config)?;
+    let parent_key = decrypt_key_for_file(config, parent)?;
     let folder_access_keys =
         symkey::encrypt(&parent_key, &symkey::generate_key()).map_err(core_err_unexpected)?;
     let id = Uuid::new_v4();
@@ -125,7 +125,7 @@ pub fn write_to_document(
     content: &[u8],
     metadata: &FileMetadata,
 ) -> Result<EncryptedDocument, CoreError> {
-    let key = decrypt_key_for_file(&config, metadata.id)?;
+    let key = decrypt_key_for_file(config, metadata.id)?;
     symkey::encrypt(&key, &content.to_vec()).map_err(core_err_unexpected)
 }
 
@@ -134,7 +134,7 @@ pub fn read_document(
     file: &EncryptedDocument,
     metadata: &FileMetadata,
 ) -> Result<DecryptedDocument, CoreError> {
-    let key = decrypt_key_for_file(&config, metadata.id)?;
+    let key = decrypt_key_for_file(config, metadata.id)?;
     symkey::decrypt(&key, file).map_err(core_err_unexpected)
 }
 
@@ -154,7 +154,7 @@ pub fn user_read_document(
 }
 
 pub fn get_name(config: &Config, meta: &FileMetadata) -> Result<String, CoreError> {
-    let parent_access_key = decrypt_key_for_file(&config, meta.parent)?;
+    let parent_access_key = decrypt_key_for_file(config, meta.parent)?;
     symkey::decrypt_and_verify(&parent_access_key, &meta.name).map_err(core_err_unexpected)
 }
 
@@ -163,7 +163,7 @@ pub fn create_name(
     meta: &FileMetadata,
     name: &str,
 ) -> Result<SecretFileName, CoreError> {
-    let parent_key = decrypt_key_for_file(&config, meta.parent)?;
+    let parent_key = decrypt_key_for_file(config, meta.parent)?;
     symkey::encrypt_and_hmac(&parent_key, name).map_err(core_err_unexpected)
 }
 
@@ -172,7 +172,7 @@ pub fn rekey_secret_filename(
     old_meta: &FileMetadata,
     new_parent: &FileMetadata,
 ) -> Result<SecretFileName, CoreError> {
-    let old_name = get_name(&config, &old_meta)?;
-    let new_parent_key = decrypt_key_for_file(&config, new_parent.id)?;
+    let old_name = get_name(config, old_meta)?;
+    let new_parent_key = decrypt_key_for_file(config, new_parent.id)?;
     symkey::encrypt_and_hmac(&new_parent_key, &old_name).map_err(core_err_unexpected)
 }

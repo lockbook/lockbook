@@ -54,7 +54,7 @@ pub struct FileTree {
 
 impl FileTree {
     pub fn new(m: &Messenger, c: &Arc<LbCore>, hidden_cols: &Vec<String>) -> Self {
-        let popup = Rc::new(FileTreePopup::new(&m));
+        let popup = Rc::new(FileTreePopup::new(m));
 
         let mut column_types = FileTreeCol::all()
             .iter()
@@ -68,8 +68,8 @@ impl FileTree {
         tree.set_enable_search(false);
         tree.connect_columns_changed(|t| t.set_headers_visible(t.get_columns().len() > 1));
         tree.connect_button_press_event(Self::on_button_press(&popup));
-        tree.connect_key_press_event(Self::on_key_press(&m));
-        tree.connect_row_activated(Self::on_row_activated(&m));
+        tree.connect_key_press_event(Self::on_key_press(m));
+        tree.connect_row_activated(Self::on_row_activated(m));
 
         let sel = tree.get_selection();
         sel.connect_changed(Self::on_selection_change(&popup));
@@ -79,7 +79,7 @@ impl FileTree {
 
         for c in &cols {
             if c.name().eq("Name") || !hidden_cols.contains(&c.name()) {
-                tree.append_column(&c.to_tree_view_col());
+                tree.append_column(&c.as_tree_view_col());
             }
         }
 
@@ -126,7 +126,7 @@ impl FileTree {
             if event.get_button() != RIGHT_CLICK {
                 return GtkInhibit(false);
             }
-            popup.update(&tree);
+            popup.update(tree);
             popup.menu.popup_at_pointer(Some(event));
 
             GtkInhibit(Self::inhibit_right_click(tree, event))
@@ -144,14 +144,14 @@ impl FileTree {
 
     fn on_row_activated(m: &Messenger) -> impl Fn(&GtkTreeView, &GtkTreePath, &GtkTreeViewColumn) {
         closure!(m => move |t, path, _| {
-            if t.row_expanded(&path) {
-                t.collapse_row(&path);
+            if t.row_expanded(path) {
+                t.collapse_row(path);
                 return;
             }
 
-            t.expand_to_path(&path);
+            t.expand_to_path(path);
             let model = t.get_model().unwrap();
-            let iter = model.get_iter(&path).unwrap();
+            let iter = model.get_iter(path).unwrap();
 
             if Self::iter_is_document(&model, &iter) {
                 let iter_id = tree_iter_value!(model, &iter, 2, String);
@@ -198,7 +198,7 @@ impl FileTree {
                 let (paths, _) = w.get_selection().get_selected_rows();
 
                 let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
-                let ids = iters.iter().map(|iter| Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap()).collect::<Vec<Uuid>>();
+                let ids = iters.iter().map(|iter| Uuid::parse_str(&tree_iter_value!(model, iter, 2, String)).unwrap()).collect::<Vec<Uuid>>();
 
                 let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
 
@@ -303,23 +303,23 @@ impl FileTree {
     }
 
     fn move_iter(model: &TreeStore, iter: &TreeIter, parent: &TreeIter, is_at_top: bool) {
-        let iter_icon = tree_iter_value!(model, &iter, 0, String);
-        let iter_name = tree_iter_value!(model, &iter, 1, String);
-        let iter_id = tree_iter_value!(model, &iter, 2, String);
-        let iter_ftype = tree_iter_value!(model, &iter, 3, String);
+        let iter_icon = tree_iter_value!(model, iter, 0, String);
+        let iter_name = tree_iter_value!(model, iter, 1, String);
+        let iter_id = tree_iter_value!(model, iter, 2, String);
+        let iter_ftype = tree_iter_value!(model, iter, 3, String);
 
         let new_parent = model.insert_with_values(
-            Some(&parent),
+            Some(parent),
             None,
             &[0, 1, 2, 3],
             &[&iter_icon, &iter_name, &iter_id, &iter_ftype],
         );
 
-        if let Some(it) = model.iter_children(Some(&iter)) {
+        if let Some(it) = model.iter_children(Some(iter)) {
             Self::move_iter(model, &it, &new_parent, false);
         }
 
-        if !is_at_top && model.iter_next(&iter) {
+        if !is_at_top && model.iter_next(iter) {
             Self::move_iter(model, iter, parent, false);
         }
     }
@@ -345,7 +345,7 @@ impl FileTree {
         let sel = self.tree.get_selection();
         let (selected_paths, _) = sel.get_selected_rows();
 
-        self.fill(&c)?;
+        self.fill(c)?;
 
         for path in expanded_paths {
             self.tree.expand_row(&path, false);
@@ -436,12 +436,12 @@ impl FileTree {
         if iter_id.eq(&id.to_string()) {
             return Some(iter.clone());
         }
-        if let Some(it) = self.model.iter_children(Some(&iter)) {
+        if let Some(it) = self.model.iter_children(Some(iter)) {
             if let Some(chit) = self.search(&it, id) {
                 return Some(chit);
             }
         }
-        if self.model.iter_next(&iter) {
+        if self.model.iter_next(iter) {
             if let Some(it) = self.search(iter, id) {
                 return Some(it);
             }
@@ -450,7 +450,7 @@ impl FileTree {
     }
 
     pub fn search_expanded(&self, iter: &GtkTreeIter, expanded_paths: &mut Vec<GtkTreePath>) {
-        let maybe_path = self.model.get_path(&iter);
+        let maybe_path = self.model.get_path(iter);
 
         if let Some(path) = maybe_path {
             if self.tree.row_expanded(&path) {
@@ -458,17 +458,17 @@ impl FileTree {
             }
         }
 
-        if let Some(it) = self.model.iter_children(Some(&iter)) {
+        if let Some(it) = self.model.iter_children(Some(iter)) {
             self.search_expanded(&it, expanded_paths)
         }
 
-        if self.model.iter_next(&iter) {
-            self.search_expanded(&iter, expanded_paths)
+        if self.model.iter_next(iter) {
+            self.search_expanded(iter, expanded_paths)
         }
     }
 
     pub fn select(&self, id: &Uuid) {
-        if let Some(it) = self.search(&self.iter(), &id) {
+        if let Some(it) = self.search(&self.iter(), id) {
             let p = self.model.get_path(&it).expect("could not get path");
             self.tree.expand_to_path(&p);
 
@@ -479,13 +479,13 @@ impl FileTree {
     }
 
     pub fn set_name(&self, id: &Uuid, name: &str) {
-        if let Some(iter) = self.search(&self.iter(), &id) {
+        if let Some(iter) = self.search(&self.iter(), id) {
             self.model.set(&iter, &[0], &[&name.to_string()]);
         }
     }
 
     pub fn remove(&self, id: &Uuid) {
-        if let Some(iter) = self.search(&self.iter(), &id) {
+        if let Some(iter) = self.search(&self.iter(), id) {
             self.model.remove(&iter);
         }
     }
@@ -503,12 +503,12 @@ impl FileTree {
     }
 
     pub fn insert_col(&self, col: &FileTreeCol) {
-        let mut i = col.to_tree_store_index();
+        let mut i = col.as_tree_store_index();
         while i >= 1 {
             i -= 1;
             let prev = self.cols.get(i as usize).unwrap();
-            if self.tree_has_col(&prev) {
-                self.tree.insert_column(&col.to_tree_view_col(), i + 1);
+            if self.tree_has_col(prev) {
+                self.tree.insert_column(&col.as_tree_view_col(), i + 1);
                 return;
             }
         }
@@ -535,7 +535,7 @@ impl FileTree {
         let (rows, model) = self.tree.get_selection().get_selected_rows();
         match rows.get(0) {
             Some(tpath) => {
-                let iter = model.get_iter(&tpath).unwrap();
+                let iter = model.get_iter(tpath).unwrap();
                 let iter_id = tree_iter_value!(model, &iter, 2, String);
                 Some(Uuid::parse_str(&iter_id).unwrap())
             }
@@ -544,7 +544,7 @@ impl FileTree {
     }
 
     pub fn iter_is_document(model: &GtkTreeModel, iter: &GtkTreeIter) -> bool {
-        tree_iter_value!(model, &iter, 3, String) == format!("{:?}", FileType::Document)
+        tree_iter_value!(model, iter, 3, String) == format!("{:?}", FileType::Document)
     }
 
     fn inhibit_right_click(t: &GtkTreeView, e: &GdkEventButton) -> bool {
@@ -587,7 +587,7 @@ impl FileTreeCol {
         }
     }
 
-    fn to_tree_view_col(&self) -> GtkTreeViewColumn {
+    fn as_tree_view_col(&self) -> GtkTreeViewColumn {
         let c = GtkTreeViewColumn::new();
 
         c.set_title(&self.name());
@@ -602,12 +602,12 @@ impl FileTreeCol {
         }
 
         c.pack_start(&cell, false);
-        c.add_attribute(&cell, attr, self.to_tree_store_index());
+        c.add_attribute(&cell, attr, self.as_tree_store_index());
 
         c
     }
 
-    fn to_tree_store_index(&self) -> i32 {
+    fn as_tree_store_index(&self) -> i32 {
         *self as i32 + 1
     }
 }
@@ -660,10 +660,10 @@ struct FileTreePopup {
 
 impl FileTreePopup {
     fn new(m: &Messenger) -> Self {
-        let items = PopupItem::hashmap(&m);
+        let items = PopupItem::hashmap(m);
         let menu = GtkMenu::new();
         for (key, _) in &PopupItem::data() {
-            menu.append(items.get(&key).unwrap());
+            menu.append(items.get(key).unwrap());
         }
 
         Self { items, menu }
@@ -689,7 +689,7 @@ impl FileTreePopup {
                 (PopupItem::Open, only_1),
                 (PopupItem::Delete, at_least_1),
             ] {
-                self.set_enabled(&key, *is_enabled);
+                self.set_enabled(key, *is_enabled);
             }
 
             self.menu.show_all();

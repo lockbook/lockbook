@@ -28,7 +28,7 @@ macro_rules! path_string {
 }
 
 pub fn init_logger_or_print() {
-    if let Err(err) = init_logger(&get_config().path()) {
+    if let Err(err) = init_logger(get_config().path()) {
         eprintln!("Logger failed to initialize! {:#?}", err)
     }
 }

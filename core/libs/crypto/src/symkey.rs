@@ -37,7 +37,7 @@ pub fn encrypt<T: Serialize + DeserializeOwned>(
     let nonce = &generate_nonce();
     let encrypted = convert_key(key)
         .encrypt(
-            &GenericArray::from_slice(nonce),
+            GenericArray::from_slice(nonce),
             aead::Payload {
                 msg: &serialized,
                 aad: &[],
@@ -72,7 +72,7 @@ pub fn encrypt_and_hmac(
         let nonce = &generate_nonce();
         let encrypted = convert_key(key)
             .encrypt(
-                &GenericArray::from_slice(nonce),
+                GenericArray::from_slice(nonce),
                 aead::Payload {
                     msg: &serialized,
                     aad: &[],
@@ -101,7 +101,7 @@ pub fn decrypt<T: DeserializeOwned>(
     let nonce = GenericArray::from_slice(&to_decrypt.nonce);
     let decrypted = convert_key(key)
         .decrypt(
-            &nonce,
+            nonce,
             aead::Payload {
                 msg: &to_decrypt.value,
                 aad: &[],
@@ -128,7 +128,7 @@ pub fn decrypt_and_verify(
     let nonce = GenericArray::from_slice(&to_decrypt.encrypted_value.nonce);
     let decrypted = convert_key(key)
         .decrypt(
-            &nonce,
+            nonce,
             aead::Payload {
                 msg: &to_decrypt.encrypted_value.value,
                 aad: &[],
@@ -148,7 +148,7 @@ pub fn decrypt_and_verify(
 }
 
 fn convert_key(to_convert: &AESKey) -> Aes256Gcm {
-    Aes256Gcm::new(GenericArray::clone_from_slice(to_convert))
+    Aes256Gcm::new(&GenericArray::clone_from_slice(to_convert))
 }
 
 fn generate_nonce() -> [u8; 12] {

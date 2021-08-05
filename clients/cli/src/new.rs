@@ -15,7 +15,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
     get_account_or_exit();
     let cfg = get_config();
 
-    let file_metadata = create_file_at_path(&cfg, &file_name).map_err(|err| match err {
+    let file_metadata = create_file_at_path(&cfg, file_name).map_err(|err| match err {
         CoreError::UiError(err) => match err {
             CreateFileAtPathError::FileAlreadyExists => {
                 err!(FileAlreadyExists(file_name.to_string()))

@@ -143,17 +143,17 @@ pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
     key: &AESKey,
     to_decrypt: &AESEncrypted<T>,
 ) -> T {
-    symkey::decrypt(&key, &to_decrypt).unwrap()
+    symkey::decrypt(key, to_decrypt).unwrap()
 }
 
 pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
-    let value1: Vec<FileMetadata> = local_storage::dump::<_, Vec<u8>>(&db1, FILE_METADATA)
+    let value1: Vec<FileMetadata> = local_storage::dump::<_, Vec<u8>>(db1, FILE_METADATA)
         .unwrap()
         .iter()
         .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
         .collect();
 
-    let value2: Vec<FileMetadata> = local_storage::dump::<_, Vec<u8>>(&db2, FILE_METADATA)
+    let value2: Vec<FileMetadata> = local_storage::dump::<_, Vec<u8>>(db2, FILE_METADATA)
         .unwrap()
         .iter()
         .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
@@ -161,33 +161,33 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     assert_eq!(value1, value2);
 
     assert_eq!(
-        account_repo::get_account(&db1).unwrap(),
-        account_repo::get_account(&db2).unwrap()
+        account_repo::get_account(db1).unwrap(),
+        account_repo::get_account(db2).unwrap()
     );
 
     assert_eq!(
-        local_changes_repo::get_all_local_changes(&db1).unwrap(),
-        local_changes_repo::get_all_local_changes(&db2).unwrap()
+        local_changes_repo::get_all_local_changes(db1).unwrap(),
+        local_changes_repo::get_all_local_changes(db2).unwrap()
     );
 
     assert_eq!(
-        db_version_repo::get(&db1).unwrap(),
-        db_version_repo::get(&db2).unwrap()
+        db_version_repo::get(db1).unwrap(),
+        db_version_repo::get(db2).unwrap()
     );
 
     assert_eq!(
-        file_metadata_repo::get_last_updated(&db1).unwrap(),
-        file_metadata_repo::get_last_updated(&db2).unwrap()
+        file_metadata_repo::get_last_updated(db1).unwrap(),
+        file_metadata_repo::get_last_updated(db2).unwrap()
     );
 
     let value1: Vec<EncryptedDocument> =
-        local_storage::dump::<_, Vec<u8>>(&db1, document_repo::NAMESPACE)
+        local_storage::dump::<_, Vec<u8>>(db1, document_repo::NAMESPACE)
             .unwrap()
             .iter()
             .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
             .collect();
     let value2: Vec<EncryptedDocument> =
-        local_storage::dump::<_, Vec<u8>>(&db2, document_repo::NAMESPACE)
+        local_storage::dump::<_, Vec<u8>>(db2, document_repo::NAMESPACE)
             .unwrap()
             .iter()
             .map(|s| serde_json::from_slice(s.as_ref()).unwrap())

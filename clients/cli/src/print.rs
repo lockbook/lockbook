@@ -9,7 +9,7 @@ pub fn print(file_name: &str) -> CliResult<()> {
     get_account_or_exit();
     let cfg = get_config();
 
-    let file_metadata = get_file_by_path(&cfg, &file_name).map_err(|err| match err {
+    let file_metadata = get_file_by_path(&cfg, file_name).map_err(|err| match err {
         CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
             err!(FileNotFound(file_name.to_string()))
         }

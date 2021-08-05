@@ -38,9 +38,9 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(m: &Messenger, s: &Settings, c: &Arc<LbCore>) -> Self {
-        let header = Header::new(&m);
-        let sidebar = Sidebar::new(&m, c, &s);
-        let editor = Editor::new(&m);
+        let header = Header::new(m);
+        let sidebar = Sidebar::new(m, c, s);
+        let editor = Editor::new(m);
 
         let paned = GtkPaned::new(Horizontal);
         paned.set_position(350);
@@ -61,7 +61,7 @@ impl AccountScreen {
     }
 
     pub fn fill(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
-        self.sidebar.fill(&core)?;
+        self.sidebar.fill(core)?;
         m.send(Msg::RefreshSyncStatus);
         Ok(())
     }
@@ -77,9 +77,9 @@ impl AccountScreen {
                 meta,
                 content,
             } => {
-                self.header.set_file(&path);
+                self.header.set_file(path);
                 self.sidebar.tree.select(&meta.id);
-                self.editor.set_file(&meta.name, &content);
+                self.editor.set_file(&meta.name, content);
             }
             EditMode::Folder {
                 path,
@@ -88,7 +88,7 @@ impl AccountScreen {
             } => {
                 self.header.set_file(path);
                 self.sidebar.tree.focus();
-                self.editor.show_folder_info(&meta, *n_children);
+                self.editor.show_folder_info(meta, *n_children);
             }
             EditMode::None => {
                 self.header.set_file("");
@@ -151,7 +151,7 @@ struct Header {
 
 impl Header {
     fn new(m: &Messenger) -> Self {
-        let search = Self::new_search_field(&m);
+        let search = Self::new_search_field(m);
 
         let spinner = GtkSpinner::new();
         spinner.set_margin_start(6);
@@ -226,8 +226,8 @@ pub struct Sidebar {
 impl Sidebar {
     fn new(m: &Messenger, c: &Arc<LbCore>, s: &Settings) -> Self {
         let scroll = GtkScrolledWindow::new::<GtkAdjustment, GtkAdjustment>(None, None);
-        let tree = FileTree::new(&m, c, &s.hidden_tree_cols);
-        let sync = Rc::new(StatusPanel::new(&m));
+        let tree = FileTree::new(m, c, &s.hidden_tree_cols);
+        let sync = Rc::new(StatusPanel::new(m));
         scroll.add(tree.widget());
 
         let cntr = GtkBox::new(Vertical, 0);
@@ -315,7 +315,7 @@ impl StatusPanel {
     }
 
     pub fn set_status(&self, txt: &str, tool_tip_txt: Option<&str>) {
-        self.status.set_markup(&txt);
+        self.status.set_markup(txt);
         self.status.set_tooltip_text(tool_tip_txt)
     }
 

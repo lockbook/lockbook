@@ -45,12 +45,12 @@ fn recursive_copy_folder(
     edit: bool,
 ) {
     if filesystem_path.is_file() {
-        match copy_file(&filesystem_path, lockbook_path, config, edit) {
+        match copy_file(filesystem_path, lockbook_path, config, edit) {
             Ok(msg) => println!("{}", msg),
             Err(err) => err.print(),
         }
     } else {
-        let children: Vec<DirEntry> = read_dir_entries_or_exit(&filesystem_path);
+        let children: Vec<DirEntry> = read_dir_entries_or_exit(filesystem_path);
 
         if !children.is_empty() {
             for child in children {
@@ -66,7 +66,7 @@ fn recursive_copy_folder(
 
                 recursive_copy_folder(&child_path, &lb_child_path, config, edit);
             }
-        } else if let Err(err) = create_file_at_path(config, &lockbook_path) {
+        } else if let Err(err) = create_file_at_path(config, lockbook_path) {
             match err {
                 CoreError::UiError(err) => match err {
                     CreateFileAtPathError::FileAlreadyExists => {

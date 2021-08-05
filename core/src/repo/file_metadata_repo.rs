@@ -31,7 +31,7 @@ pub fn get_root(config: &Config) -> Result<Option<FileMetadata>, CoreError> {
         None => Ok(None),
         Some(value) => match String::from_utf8(value.clone()) {
             Ok(id) => match Uuid::parse_str(&id) {
-                Ok(uuid) => maybe_get(&config, uuid),
+                Ok(uuid) => maybe_get(config, uuid),
                 Err(err) => {
                     error!("Failed to parse {:?} into a UUID. Error: {:?}", id, err);
                     Ok(None)
