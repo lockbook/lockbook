@@ -20,8 +20,8 @@ pub struct IntroScreen {
 
 impl IntroScreen {
     pub fn new(m: &Messenger) -> Self {
-        let create = IntroInput::new(&m, Msg::CreateAccount, "Pick a username...");
-        let import = IntroInput::new(&m, Msg::ImportAccount, "Private key...");
+        let create = IntroInput::new(m, Msg::CreateAccount, "Pick a username...");
+        let import = IntroInput::new(m, Msg::ImportAccount, "Private key...");
         let doing = IntroDoing::new();
 
         let bottom = GtkStack::new();

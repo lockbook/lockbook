@@ -40,7 +40,7 @@ pub enum Warning {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoError> {
-    let root = file_metadata_repo::get_root(&config)
+    let root = file_metadata_repo::get_root(config)
         .map_err(Core)?
         .ok_or(NoRootFolder)?;
 
@@ -73,7 +73,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
                 }
                 visited.insert(current.id, current.clone());
 
-                match file_metadata_repo::maybe_get(&config, current.parent).map_err(Core)? {
+                match file_metadata_repo::maybe_get(config, current.parent).map_err(Core)? {
                     None => {
                         return Err(FileOrphaned(current.id));
                     }
@@ -96,7 +96,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
 
     // Find files with invalid names
     for file in all.clone() {
-        let name = file_encryption_service::get_name(&config, &file).map_err(Core)?;
+        let name = file_encryption_service::get_name(config, &file).map_err(Core)?;
         if name.is_empty() {
             return Err(FileNameEmpty(file.id));
         }
@@ -110,10 +110,10 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     {
         for file in all.iter().filter(|f| f.file_type == Folder) {
             let children =
-                file_metadata_repo::get_children_non_recursively(&config, file.id).map_err(Core)?;
+                file_metadata_repo::get_children_non_recursively(config, file.id).map_err(Core)?;
             let mut children_set = HashSet::new();
             for child in children {
-                let name = file_encryption_service::get_name(&config, &child).map_err(Core)?;
+                let name = file_encryption_service::get_name(config, &child).map_err(Core)?;
                 if children_set.contains(&name) {
                     return Err(NameConflictDetected(child.id));
                 }
@@ -126,7 +126,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     let mut warnings = Vec::new();
     for file in all.clone() {
         if file.file_type == Document {
-            let file_content = file_service::read_document(&config, file.id).map_err(Core)?;
+            let file_content = file_service::read_document(config, file.id).map_err(Core)?;
 
             if file_content.len() as u64 == 0 {
                 warnings.push(Warning::EmptyFile(file.id));
