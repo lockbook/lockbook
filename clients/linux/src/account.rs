@@ -60,16 +60,6 @@ impl AccountScreen {
         }
     }
 
-    pub fn toggle_drag_info_overlay(&self, maybe_msg: Option<String>) {
-        match maybe_msg {
-            None => self.editor.drag_info_overlay.hide(),
-            Some(msg) => {
-                self.editor.drag_info_overlay.show();
-                self.editor.drag_info_overlay.set_text(msg.as_str());
-            }
-        }
-    }
-
     pub fn fill(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
         self.sidebar.fill(core)?;
         m.send(Msg::RefreshSyncStatus);
@@ -345,9 +335,7 @@ struct Editor {
     textarea: GtkSourceView,
     highlighter: LanguageManager,
     change_sig_id: RefCell<Option<SignalHandlerId>>,
-    stack: GtkStack,
-    drag_info_overlay: GtkLabel,
-    cntr: Overlay,
+    cntr: GtkStack,
     messenger: Messenger,
 }
 
@@ -376,24 +364,16 @@ impl Editor {
         let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
         scroll.add(&textarea);
 
-        let stack = GtkStack::new();
-        stack.add_named(&empty, "empty");
-        stack.add_named(&info, "folderinfo");
-        stack.add_named(&scroll, "scroll");
-
-        let drag_info_overlay = GtkLabel::new(None);
-
-        let cntr = Overlay::new();
-        cntr.add(&stack);
-        cntr.add_overlay(&drag_info_overlay);
+        let cntr = GtkStack::new();
+        cntr.add_named(&empty, "empty");
+        cntr.add_named(&info, "folderinfo");
+        cntr.add_named(&scroll, "scroll");
 
         Self {
             info,
             textarea,
             highlighter: LanguageManager::new(),
             change_sig_id: RefCell::new(None),
-            stack,
-            drag_info_overlay,
             cntr,
             messenger: m.clone(),
         }

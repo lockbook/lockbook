@@ -109,8 +109,6 @@ impl LbApp {
                 Msg::DeleteFiles => lb.delete_files(),
                 Msg::RenameFile => lb.rename_file(),
 
-                Msg::ToggleDragOverlay(maybe_msg) => lb.toggle_drag_overlay(maybe_msg),
-
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
                 Msg::RefreshTree => lb.refresh_tree(),
 
@@ -124,6 +122,7 @@ impl LbApp {
                 Msg::ShowDialogPreferences => lb.show_dialog_preferences(),
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
+                Msg::ShowDialogImportFile(uris) => lb.show_dialog_import_file(uris),
 
                 Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
                 Msg::ToggleAutoSync(auto_sync) => lb.toggle_auto_sync(auto_sync),
@@ -769,12 +768,6 @@ impl LbApp {
         Ok(())
     }
 
-    fn toggle_drag_overlay(&self, maybe_msg: Option<String>) -> LbResult<()> {
-        self.gui.account.toggle_drag_info_overlay(maybe_msg);
-
-        Ok(())
-    }
-
     fn toggle_tree_col(&self, c: FileTreeCol) -> LbResult<()> {
         self.gui.account.sidebar.tree.toggle_col(&c);
         self.settings.borrow_mut().toggle_tree_col(c.name());
@@ -912,6 +905,10 @@ impl LbApp {
             d.close();
         }
         Ok(())
+    }
+
+    fn show_dialog_import_file(&self, uris: Vec<String>) -> LbResult<()> {
+
     }
 
     fn show_dialog_usage(&self) -> LbResult<()> {

@@ -23,8 +23,6 @@ pub enum Msg {
     DeleteFiles,
     RenameFile,
 
-    ToggleDragOverlay(Option<String>),
-
     SearchFieldFocus,
     SearchFieldBlur(bool),
     SearchFieldUpdate,
@@ -39,6 +37,7 @@ pub enum Msg {
     ShowDialogPreferences,
     ShowDialogUsage,
     ShowDialogAbout,
+    ShowDialogImportFile(Vec<String>),
 
     ToggleAutoSave(bool),
     ToggleAutoSync(bool),

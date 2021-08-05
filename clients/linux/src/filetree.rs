@@ -38,6 +38,7 @@ use glib::timeout_add_local;
 use std::cell::RefCell;
 use std::fs::File;
 use std::path::Path;
+use lockbook_core::service::file_service::ImportExportFileProgress;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -256,6 +257,10 @@ impl FileTree {
 
                         std::thread::spawn(closure!(m, c => move || {
                             let file_scheme = "file://";
+
+                            let f = closure!(m => move |progress: ImportExportFileProgress| {
+
+                            });
 
                             for g_uri in g_uris {
                                 let uri = g_uri.to_string();

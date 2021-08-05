@@ -32,12 +32,13 @@ use serde_json::{json, value::Value};
 use std::collections::HashMap;
 use std::env;
 use std::io::ErrorKind;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 use Error::UiError;
+use crate::service::file_service::ImportExportFileProgress;
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -773,9 +774,10 @@ pub enum ImportFileError {
 pub fn import_file(
     config: &Config,
     parent: Uuid,
-    location: String,
+    source: PathBuf,
+    f: Option<Box<dyn Fn(ImportExportFileProgress)>>
 ) -> Result<(), Error<ImportFileError>> {
-    file_service::import_file(config, parent, location).map_err(|e| match e {
+    file_service::import_file(config, parent, source, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
         CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
         CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
@@ -795,9 +797,10 @@ pub enum ExportFileError {
 pub fn export_file(
     config: &Config,
     parent: Uuid,
-    location: String,
+    destination: PathBuf,
+    f: Option<Box<dyn Fn(ImportExportFileProgress)>>
 ) -> Result<(), Error<ExportFileError>> {
-    file_service::export_file(config, parent, location).map_err(|e| match e {
+    file_service::export_file(config, parent, destination, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
         CoreError::FileNonexistent => UiError(ExportFileError::FileDoesNotExist),
         CoreError::DiskPathInvalid => UiError(ExportFileError::BadPath),

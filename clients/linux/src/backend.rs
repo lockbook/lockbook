@@ -1,5 +1,5 @@
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use qrcode_generator::QrCodeEcc;
@@ -24,6 +24,7 @@ use lockbook_core::model::client_conversion::{
     ClientFileMetadata, ClientWorkCalculated, ClientWorkUnit,
 };
 use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
+use lockbook_core::service::file_service::ImportExportFileProgress;
 
 macro_rules! match_core_err {
     (
@@ -243,8 +244,8 @@ impl LbCore {
         ))
     }
 
-    pub fn import_file(&self, parent: Uuid, location: String) -> LbResult<()> {
-        import_file(&self.config, parent, location).map_err(map_core_err!(ImportFileError,
+    pub fn import_file(&self, parent: Uuid, destination: String, f: impl Fn(ImportExportFileProgress)) -> LbResult<()> {
+        import_file(&self.config, parent, PathBuf::from(destination), f).map_err(map_core_err!(ImportFileError,
             FileAlreadyExists => uerr_dialog!("A file already exists in the path with the same name."),
             DocumentTreatedAsFolder => uerr_dialog!("A document is being treated as folder."),
             ParentDoesNotExist => uerr_dialog!("The folder does not exist."),
@@ -255,7 +256,7 @@ impl LbCore {
     }
 
     pub fn set_up_drag_export(&self, parent: Uuid) -> LbResult<()> {
-        export_file(&self.config, parent, "/tmp/".to_string()).map_err(map_core_err!(ExportFileError,
+        export_file(&self.config, parent, PathBuf::from("/tmp/"), None).map_err(map_core_err!(ExportFileError,
             FileDoesNotExist => uerr_dialog!("The folder does not exist."),
             FileAlreadyExistsInDisk => uerr_dialog!("A file already exists in the path with the same name."),
             NoAccount => uerr_dialog!("No account found."),
