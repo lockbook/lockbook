@@ -12,7 +12,7 @@ gdk = "0.13.2"
 gdk-pixbuf = "0.9.0"
 glib = "0.10"
 gtk = { version = "0.9.0", features = ["v3_22"] }
-gio = { version = "", features = ["v2_44"] }
+gio = { version = "0.9.1", features = ["v2_44"] }
 gspell = "0.5.0"
 pango = "0.9.1"
 qrcode-generator = "*"

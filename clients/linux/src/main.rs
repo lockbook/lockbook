@@ -43,7 +43,7 @@ fn main() {
 
     let core = match LbCore::new(&data_dir) {
         Ok(c) => Arc::new(c),
-        Err(err) => launch_err("initializing db", &err.msg()),
+        Err(err) => launch_err("initializing db", err.msg()),
     };
 
     let settings = match Settings::from_data_dir(&data_dir) {
@@ -57,9 +57,9 @@ fn main() {
             launch_err("adding css provider", &err);
         }
 
-        let lb = LbApp::new(&core, &settings, &app);
+        let lb = LbApp::new(&core, &settings, app);
         if let Err(err) = lb.show() {
-            launch_err("displaying app", &err.msg());
+            launch_err("displaying app", err.msg());
         }
     }));
     gtk_app.connect_shutdown(closure!(settings => move |_| {
