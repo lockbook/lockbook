@@ -27,11 +27,11 @@ pub fn sign<T: Serialize>(
     let serialized = bincode::serialize(&timestamped).map_err(ECSignError::Serialization)?;
     let digest = Sha256::digest(&serialized);
     let message = &Message::parse_slice(&digest).map_err(ECSignError::ParseError)?;
-    let (signature, _) = libsecp256k1::sign(&message, &sk);
+    let (signature, _) = libsecp256k1::sign(message, sk);
     Ok(ECSigned {
         timestamped_value: timestamped,
         signature: signature.serialize().to_vec(),
-        public_key: PublicKey::from_secret_key(&sk),
+        public_key: PublicKey::from_secret_key(sk),
     })
 }
 
@@ -81,7 +81,7 @@ pub fn verify<T: Serialize>(
     let signature =
         Signature::parse_standard_slice(&signed.signature).map_err(ECVerifyError::ParseError)?;
 
-    if libsecp256k1::verify(&message, &signature, &signed.public_key) {
+    if libsecp256k1::verify(message, &signature, &signed.public_key) {
         Ok(())
     } else {
         Err(ECVerifyError::SignatureInvalid)
@@ -95,7 +95,7 @@ pub enum GetAesKeyError {
 }
 
 pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> Result<AESKey, GetAesKeyError> {
-    SharedSecret::<Sha256>::new(&pk, &sk)
+    SharedSecret::<Sha256>::new(pk, sk)
         .map_err(GetAesKeyError::SharedSecretError)?
         .as_ref()
         .try_into()
