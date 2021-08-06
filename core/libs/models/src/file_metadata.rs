@@ -1,5 +1,5 @@
 use crate::account::Username;
-use crate::crypto::{EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
+use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::collections::HashMap;
@@ -35,6 +35,20 @@ pub struct FileMetadata {
     pub deleted: bool,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct DecryptedFileMetadata {
+    pub id: Uuid,
+    pub file_type: FileType,
+    pub parent: Uuid,
+    pub decrypted_name: String,
+    pub owner: String,
+    pub metadata_version: u64,
+    pub content_version: u64,
+    pub deleted: bool,
+    pub decrypted_user_access_key: Option<AESKey>,
+    pub decrypted_folder_access_keys: AESKey,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

@@ -3,14 +3,13 @@ use crate::repo::local_storage;
 use crate::{core_err_unexpected, CoreError};
 use lockbook_models::account::{Account, ApiUrl};
 
-static ACCOUNT: &str = "account";
-static YOU: &str = "you";
+static ACCOUNT: &str = "ACCOUNT";
 
 pub fn insert(config: &Config, account: &Account) -> Result<(), CoreError> {
     local_storage::write(
         config,
         ACCOUNT,
-        YOU,
+        ACCOUNT,
         serde_json::to_vec(account).map_err(core_err_unexpected)?,
     )
 }
@@ -26,7 +25,7 @@ pub fn maybe_get(config: &Config) -> Result<Option<Account>, CoreError> {
 }
 
 pub fn get(config: &Config) -> Result<Account, CoreError> {
-    let maybe_value: Option<Vec<u8>> = local_storage::read(config, ACCOUNT, YOU)?;
+    let maybe_value: Option<Vec<u8>> = local_storage::read(config, ACCOUNT, ACCOUNT)?;
     match maybe_value {
         None => Err(CoreError::AccountNonexistent),
         Some(account) => Ok(serde_json::from_slice(account.as_ref()).map_err(core_err_unexpected)?),

@@ -93,7 +93,7 @@ pub fn rename(
     validate_file_name(new_name)?;
 
     let mut file_metadata = file_repo::get_metadata(config, source, id)?;
-    file_metadata.name = file_encryption_service::create_name(&config, &file_metadata, new_name)?;
+    file_metadata.name = file_encryption_service::create_name(&config, file_metadata.id, new_name)?;
 
     insert_metadata(config, source, &file_metadata)
 }
