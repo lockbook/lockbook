@@ -11,3 +11,11 @@ pub fn slices_equal<T: PartialEq>(a: &[T], b: &[T]) -> bool {
     let matching = a.iter().zip(b.iter()).filter(|&(a, b)| a == b).count();
     matching == a.len() && matching == b.len()
 }
+
+pub fn single_or<T, E>(v: Vec<T>, e: E) -> Result<T, E> {
+    let mut v = v;
+    match &v[..] {
+        [_v0] => Ok(v.remove(0)),
+        _ => Err(e),
+    }
+}

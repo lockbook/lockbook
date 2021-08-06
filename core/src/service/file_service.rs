@@ -6,7 +6,6 @@ use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::CoreError;
 use lockbook_crypto::symkey;
-use lockbook_models::account::Account;
 use lockbook_models::crypto::{DecryptedDocument, EncryptedDocument};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
 use sha2::{Digest, Sha256};
@@ -36,7 +35,7 @@ pub fn create_2(
     }
 }
 
-pub fn create_root_2(username: &str) -> DecryptedFileMetadata {
+pub fn create_root(username: &str) -> DecryptedFileMetadata {
     let id = Uuid::new_v4();
     let key = symkey::generate_key();
     DecryptedFileMetadata {
@@ -283,19 +282,6 @@ pub fn get_path_conflicts(
 
 // ------------------------------------------------------------------------------------------------------------------- new ^ / v old
 
-pub fn create_root(
-    config: &Config,
-    account: &Account,
-    source: RepoSource,
-) -> Result<FileMetadata, CoreError> {
-    let file_metadata = file_encryption_service::create_metadata_for_root_folder(&account)?;
-
-    validate_is_root(&file_metadata)?;
-
-    file_repo::insert_metadata(config, source, &file_metadata)?;
-    Ok(file_metadata)
-}
-
 pub fn create(
     config: &Config,
     source: RepoSource,
@@ -485,14 +471,6 @@ pub fn get_all_document_ids(config: &Config, source: RepoSource) -> Result<Vec<U
         .filter(|f| f.file_type == FileType::Document)
         .map(|f| f.id)
         .collect())
-}
-
-fn validate_is_root(file: &FileMetadata) -> Result<(), CoreError> {
-    if file.id == file.parent {
-        Ok(())
-    } else {
-        Err(CoreError::RootModificationInvalid)
-    }
 }
 
 fn validate_not_root(file: &FileMetadata) -> Result<(), CoreError> {

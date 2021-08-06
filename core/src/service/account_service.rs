@@ -1,11 +1,10 @@
-use crate::client;
 use crate::client::ApiError;
 use crate::core_err_unexpected;
-use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::account_repo;
-use crate::service::file_service;
+use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
+use crate::{client, utils};
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
@@ -34,10 +33,20 @@ pub fn create_account(
     };
 
     info!("Generating Root Folder");
-    let file_metadata = file_service::create_root(config, &account, RepoSource::Local)?;
+    let file_metadata = file_service::create_root(&account.username);
+    let encrypted_metadata = file_encryption_service::encrypt_metadata(&account, &[file_metadata])?;
+    let encrypted_metadatum = utils::single_or(
+        encrypted_metadata,
+        CoreError::Unexpected(String::from(
+            "create_account: multiple metadata decrypted from root",
+        )),
+    )?;
 
     info!("Sending username & public key to server");
-    match client::request(&account, NewAccountRequest::new(&account, &file_metadata)) {
+    match client::request(
+        &account,
+        NewAccountRequest::new(&account, &encrypted_metadatum),
+    ) {
         Ok(response) => response.folder_metadata_version,
         Err(ApiError::SendFailed(_)) => {
             return Err(CoreError::ServerUnreachable);
