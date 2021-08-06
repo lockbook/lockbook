@@ -10,7 +10,7 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileTy
 use std::collections::HashMap;
 use uuid::Uuid;
 
-/// Converts a set of DecryptedFileMetadata's to FileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys are encrypted for the provided account.
+/// Converts a set of DecryptedFileMetadata's to FileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys are encrypted for the provided account. This is a pure function.
 pub fn encrypt_metadata(
     account: &Account,
     files: &[DecryptedFileMetadata],
@@ -82,7 +82,7 @@ fn encrypt_folder_access_keys(
     symkey::encrypt(parent_key, target_key).map_err(core_err_unexpected)
 }
 
-/// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys not for the provided account are ignored.
+/// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
 /// CPU optimization opportunity: this function decrypts all ancestors for each file provided, which duplicates a lot of decryption.
 pub fn decrypt_metadata(
     account: &Account,
