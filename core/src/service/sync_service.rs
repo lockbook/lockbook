@@ -184,6 +184,11 @@ fn merge_metadata(base: FileMetadata, local: FileMetadata, remote: FileMetadata)
     }
 }
 
+
+// sync write: submit changes to remote, validate on local (errors -> resolve)
+// sync read: get all local changes, send to server (both can be metadata_repo or doc_repo)
+// todo: this function is too long!
+
 pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
     let account = &account_repo::get(config)?;
 

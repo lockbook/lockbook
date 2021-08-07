@@ -47,8 +47,7 @@ pub struct DecryptedFileMetadata {
     pub metadata_version: u64,
     pub content_version: u64,
     pub deleted: bool,
-    pub decrypted_user_access_key: Option<AESKey>,
-    pub decrypted_folder_access_keys: AESKey,
+    pub decrypted_access_key: AESKey, // access key is the same whether it's decrypted for user or for folder
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
