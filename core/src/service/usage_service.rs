@@ -1,8 +1,7 @@
 use crate::model::state::Config;
-use crate::repo::account_repo;
-use crate::service::file_service;
-use crate::CoreError;
+use crate::repo::{account_repo, file_repo};
 use crate::{client, model::repo::RepoSource};
+use crate::{utils, CoreError};
 use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use serde::Serialize;
 
@@ -74,11 +73,12 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
 }
 
 pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreError> {
-    let doc_ids = file_service::get_all_document_ids(config, RepoSource::Local)?;
+    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let docs = utils::filter_documents(&files);
 
     let mut local_usage: u64 = 0;
-    for id in doc_ids {
-        local_usage += file_service::read_document(&config, RepoSource::Local, id)?.len() as u64
+    for doc in docs {
+        local_usage += file_repo::get_document(&config, RepoSource::Local, doc.id)?.len() as u64
     }
 
     let readable = bytes_to_human(local_usage);

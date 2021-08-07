@@ -150,8 +150,8 @@ pub fn get_invalid_cycles(
 }
 
 pub struct PathConflict {
-    existing: Uuid,
-    staged: Uuid,
+    pub existing: Uuid,
+    pub staged: Uuid,
 }
 
 pub fn get_path_conflicts(

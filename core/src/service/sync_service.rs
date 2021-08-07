@@ -1,4 +1,4 @@
-use crate::client;
+use crate::{client, utils};
 use crate::model::client_conversion::{generate_client_work_unit, ClientWorkUnit};
 use crate::model::document_type::DocumentType;
 use crate::model::repo::RepoSource;
@@ -52,6 +52,13 @@ fn calculate_work_from_updates(
 ) -> Result<WorkCalculated, CoreError> {
     let mut most_recent_update_from_server: u64 = last_sync;
     let mut work_units: Vec<WorkUnit> = vec![];
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    // todo
+    // really have to get to the bottom of decryption context
+    // stage encrypted changes? then decrypt?
+    // is there a way to avoid decrypt-encrypt? stage edits on stage local on stage remote? generic stage? maps? wrapper fns? do i care about original source for 3-way stage?
+    // seems like there's space for a better encrypt/decrypt abstraction
+    let all_metadata_with_updates = utils::stage(&all_metadata, &server_updates);
     for metadata in server_updates {
         if metadata.metadata_version > most_recent_update_from_server {
             most_recent_update_from_server = metadata.metadata_version;

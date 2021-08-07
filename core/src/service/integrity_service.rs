@@ -1,17 +1,9 @@
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::file_repo;
-use crate::service::integrity_service::TestRepoError::{
-    Core, CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty,
-    FileOrphaned, NameConflictDetected, NoRootFolder,
-};
-use crate::CoreError;
-use lockbook_models::file_metadata::FileMetadata;
-use lockbook_models::file_metadata::FileType::{Document, Folder};
-use std::collections::{HashMap, HashSet};
+use crate::repo::{file_repo, root_repo};
+use crate::service::file_service;
+use crate::{CoreError, utils};
 use uuid::Uuid;
-
-use super::file_encryption_service;
 
 #[derive(Debug)]
 pub enum TestRepoError {
@@ -26,90 +18,39 @@ pub enum TestRepoError {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
-    let root = file_repo::maybe_get_root(&config, RepoSource::Local)
-        .map_err(Core)?
-        .ok_or(NoRootFolder)?;
+    let root_id = root_repo::maybe_get(config).map_err(TestRepoError::Core)?.ok_or(TestRepoError::NoRootFolder)?;
+    let root = file_repo::maybe_get_metadata(config, RepoSource::Local, root_id).map_err(TestRepoError::Core)?.ok_or(TestRepoError::NoRootFolder)?;
+    let files = file_repo::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
 
-    let all = file_repo::get_all_metadata(config, RepoSource::Local).map_err(Core)?;
-
-    {
-        let document_with_children = all
-            .clone()
-            .into_iter()
-            .filter(|f| f.file_type == Document)
-            .filter(|doc| all.clone().into_iter().any(|child| child.parent == doc.id))
-            .last();
-
-        if let Some(file) = document_with_children {
-            return Err(DocumentTreatedAsFolder(file.id));
-        }
+    let maybe_doc_with_children = utils::filter_documents(&files).iter().find(|d| !utils::find_children(&files, d.id).is_empty());
+    if let Some(doc) = maybe_doc_with_children {
+        return Err(TestRepoError::DocumentTreatedAsFolder(doc.id));
     }
 
-    // Find files that don't descend from root
-    // todo: file_repo::get_all_metadata is implemented as only getting root and its descendants, so this would never catch an issue
-    {
-        let mut not_orphaned = HashMap::new();
-        not_orphaned.insert(root.id, root);
-
-        for file in all.clone() {
-            let mut visited: HashMap<Uuid, FileMetadata> = HashMap::new();
-            let mut current = file.clone();
-            'parent_finder: loop {
-                if visited.contains_key(&current.id) {
-                    return Err(CycleDetected(current.id));
-                }
-                visited.insert(current.id, current.clone());
-
-                match file_repo::maybe_get_metadata(&config, RepoSource::Local, current.parent)
-                    .map_err(Core)?
-                {
-                    None => {
-                        return Err(FileOrphaned(current.id));
-                    }
-                    Some(parent) => {
-                        // No Problems
-                        if not_orphaned.contains_key(&parent.id) {
-                            for node in visited.values() {
-                                not_orphaned.insert(node.id, node.clone());
-                            }
-
-                            break 'parent_finder;
-                        } else {
-                            current = parent.clone();
-                        }
-                    }
-                }
-            }
-        }
+    let root_with_descendants = utils::find_with_descendants(&files, root.id).map_err(TestRepoError::Core)?;
+    let maybe_non_root_descendant = files.iter().filter(|f| utils::maybe_find(&root_with_descendants, f.id).is_none()).next();
+    if let Some(non_root_descendant) = maybe_non_root_descendant {
+        return Err(TestRepoError::FileOrphaned(non_root_descendant.id));
     }
 
-    // Find files with invalid names
-    for file in all.clone() {
-        let name = file_encryption_service::get_name(&config, &file).map_err(Core)?;
-        if name.is_empty() {
-            return Err(FileNameEmpty(file.id));
-        }
-
-        if name.contains('/') {
-            return Err(FileNameContainsSlash(file.id));
-        }
+    let maybe_file_with_empty_name = files.iter().find(|f| f.decrypted_name.is_empty());
+    if let Some(file_with_empty_name) = maybe_file_with_empty_name {
+        return Err(TestRepoError::FileNameEmpty(file_with_empty_name.id));
     }
 
-    // Find naming conflicts
-    {
-        for file in all.iter().filter(|f| f.file_type == Folder) {
-            let children =
-                file_repo::get_children(&config, RepoSource::Local, file.id).map_err(Core)?;
-            let mut children_set = HashSet::new();
-            for child in children {
-                let name = file_encryption_service::get_name(&config, &child).map_err(Core)?;
-                if children_set.contains(&name) {
-                    return Err(NameConflictDetected(child.id));
-                }
+    let maybe_file_with_name_with_slash = files.iter().find(|f| f.decrypted_name.contains('/'));
+    if let Some(file_with_name_with_slash) = maybe_file_with_name_with_slash {
+        return Err(TestRepoError::FileNameContainsSlash(file_with_name_with_slash.id));
+    }
 
-                children_set.insert(name);
-            }
-        }
+    let maybe_self_descendant = file_service::get_invalid_cycles(&files, &[]).map_err(TestRepoError::Core)?.into_iter().next();
+    if let Some(self_descendant) = maybe_self_descendant {
+        return Err(TestRepoError::CycleDetected(self_descendant));
+    }
+
+    let maybe_path_conflict = file_service::get_path_conflicts(&files, &[]).map_err(TestRepoError::Core)?.into_iter().next();
+    if let Some(path_conflict) = maybe_path_conflict {
+        return Err(TestRepoError::NameConflictDetected(path_conflict.existing));
     }
 
     Ok(())

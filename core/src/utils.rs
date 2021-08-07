@@ -57,6 +57,26 @@ pub fn find_children(
         .collect()
 }
 
+pub fn find_with_descendants(
+    files: &[DecryptedFileMetadata],
+    target_id: Uuid,
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+    let mut result = Vec::new();
+    result.push(find(files, target_id)?);
+    let mut i = 0;
+    while i < result.len() {
+        let target = result.get(i).ok_or(CoreError::Unexpected(String::from(
+            "filter_deleted: missing target",
+        )))?;
+        let children = find_children(files, target.id);
+        for child in children {
+            result.push(child);
+        }
+        i += 1;
+    }
+    Ok(result)
+}
+
 pub fn find_root(files: &[DecryptedFileMetadata]) -> Result<DecryptedFileMetadata, CoreError> {
     maybe_find_root(files).ok_or(CoreError::RootNonexistent)
 }

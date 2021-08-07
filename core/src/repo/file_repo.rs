@@ -1,5 +1,4 @@
 use crate::model::repo::RepoSource;
-use crate::model::repo::RepoState;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::digest_repo;
@@ -10,7 +9,7 @@ use crate::service::file_encryption_service;
 use crate::utils;
 use crate::utils::slices_equal;
 use crate::CoreError;
-use lockbook_models::crypto::EncryptedDocument;
+use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
@@ -107,7 +106,7 @@ pub fn maybe_get_metadata(
     Ok(utils::maybe_find(&all_metadata, id))
 }
 
-fn get_all_metadata(
+pub fn get_all_metadata(
     config: &Config,
     source: RepoSource,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
@@ -139,8 +138,7 @@ pub fn insert_document(
     // encrypt document and compute digest
     let digest = Sha256::digest(&document);
     let compressed_document = file_compression_service::compress(&document)?;
-    let encrypted_document =
-        file_encryption_service::encrypt_document(config, document, &metadata)?;
+    let encrypted_document = file_encryption_service::encrypt_document(document, &metadata)?;
 
     // perform insertions
     document_repo::insert(config, source, metadata.id, &encrypted_document)?;
@@ -161,7 +159,7 @@ pub fn get_document(
     config: &Config,
     source: RepoSource,
     id: Uuid,
-) -> Result<EncryptedDocument, CoreError> {
+) -> Result<DecryptedDocument, CoreError> {
     maybe_get_document(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
@@ -169,14 +167,14 @@ pub fn maybe_get_document(
     config: &Config,
     source: RepoSource,
     id: Uuid,
-) -> Result<Option<EncryptedDocument>, CoreError> {
-    if maybe_get_metadata(config, source, id)?.is_none() {
-        Ok(None)
-    } else {
-        let maybe_local = document_repo::maybe_get(config, RepoSource::Local, id)?;
-        let maybe_remote = document_repo::maybe_get(config, RepoSource::Remote, id)?;
-        Ok(RepoState::from_local_and_remote(maybe_local, maybe_remote)
-            .and_then(|s| s.source(source)))
+) -> Result<Option<DecryptedDocument>, CoreError> {
+    let maybe_metadata = maybe_get_metadata(config, source, id)?;
+    let maybe_encrypted = document_repo::maybe_get(config, source, id)?;
+    match (maybe_metadata, maybe_encrypted) {
+        (Some(metadata), Some(encrypted)) => Ok(Some(file_encryption_service::decrypt_document(
+            &encrypted, &metadata,
+        )?)),
+        _ => Ok(None),
     }
 }
 

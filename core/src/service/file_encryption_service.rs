@@ -1,4 +1,3 @@
-use crate::model::state::Config;
 use crate::{core_err_unexpected, CoreError};
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
@@ -180,7 +179,6 @@ fn decrypt_folder_access_keys(
 }
 
 pub fn encrypt_document(
-    config: &Config,
     document: &[u8],
     metadata: &DecryptedFileMetadata,
 ) -> Result<EncryptedDocument, CoreError> {
@@ -188,7 +186,6 @@ pub fn encrypt_document(
 }
 
 pub fn decrypt_document(
-    config: &Config,
     document: &EncryptedDocument,
     metadata: &DecryptedFileMetadata,
 ) -> Result<DecryptedDocument, CoreError> {
