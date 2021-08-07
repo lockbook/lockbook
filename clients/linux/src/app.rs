@@ -1026,7 +1026,7 @@ impl SearchComponents {
         sort_model.set_sort_func(GtkSortColumn::Index(0), Self::compare_possibs);
 
         Self {
-            possibs: core.list_paths_without_root().unwrap_or_default(),
+            possibs: core.list_paths().unwrap_or_default(),
             list_store,
             sort_model,
             matcher: SkimMatcherV2::default(),
