@@ -23,7 +23,7 @@ pub fn import_file(
     f: Option<Box<dyn Fn(ImportExportFileProgress)>>,
 ) -> Result<(), CoreError> {
     import_file_recursively(
-        &config,
+        config,
         &source,
         path_service::get_path_by_id(config, parent)?.as_str(),
         &f,
@@ -120,7 +120,7 @@ fn export_file_recursively(
 
             for child in children.iter() {
                 let child_file_metadata =
-                    client_conversion::generate_client_file_metadata(config, &child)?;
+                    client_conversion::generate_client_file_metadata(config, child)?;
 
                 export_file_recursively(config, &child_file_metadata, &dest_with_new, f)?;
             }

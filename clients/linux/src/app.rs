@@ -920,6 +920,11 @@ impl LbApp {
         util::gui::set_marginy(&scroll, 16);
         scroll.add(&lbl);
 
+        lbl.connect_size_allocate(closure!(scroll => move |_, _| {
+            let hadj = scroll.get_hadjustment().unwrap();
+            hadj.set_value(hadj.get_upper() - hadj.get_page_size());
+        }));
+
         d.get_content_area().add(&scroll);
 
         let pbar = GtkProgressBar::new();
@@ -928,7 +933,6 @@ impl LbApp {
         pbar.set_size_request(300, -1);
 
         d.get_content_area().add(&pbar);
-        d.get_content_area().add(&lbl);
 
         util::gui::set_marginy(&d, 36);
         util::gui::set_marginx(&d, 100);
@@ -939,9 +943,13 @@ impl LbApp {
 
         let mut total = 0;
         for uri in &uris {
-            if uri.starts_with(FILE_SCHEME) {
-                let path = uri[FILE_SCHEME.len()..].to_string();
+            if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
                 total += io::get_children_count(Path::new(&path).to_path_buf())?;
+            } else {
+                return Err(LbError::new_user_err(
+                    "Unsupported uri is used.".to_string(),
+                    LbErrTarget::Dialog,
+                ));
             }
         }
 
@@ -969,13 +977,13 @@ impl LbApp {
 
         spawn!(self.core as c, self.messenger as m => move || {
             for uri in uris {
-                if uri.starts_with(FILE_SCHEME) {
-                    let path = uri[FILE_SCHEME.len()..].to_string();
-
-                    if let Err(err) = c.import_file(parent.clone(), path, Some(Box::new(f.clone()))) {
+                if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
+                    if let Err(err) = c.import_file(parent, path.to_string(), Some(Box::new(f.clone()))) {
                         m.send_err_dialog("Importing files", err);
                         break;
                     };
+                } else {
+                    panic!("impossible");
                 }
             }
 

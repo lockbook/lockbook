@@ -183,8 +183,8 @@ impl FileTree {
                     let mut uris = Vec::new();
 
                     for iter in iters.iter() {
-                        let name = tree_iter_value!(model, &iter, 1, String);
-                        let id = Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap();
+                        let name = tree_iter_value!(model, iter, 1, String);
+                        let id = Uuid::parse_str(&tree_iter_value!(model, iter, 2, String)).unwrap();
 
                         if let Err(err) = c.set_up_drag_export(id) {
                             m.send_err_dialog("Exporting file", err);
@@ -251,23 +251,6 @@ impl FileTree {
                         let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
                         let uris: Vec<String> = s.get_uris().iter().map(|uri| uri.to_string()).collect();
                         m.send(Msg::ShowDialogImportFile(parent_id, uris))
-
-                        // std::thread::spawn(closure!(m, c => move || {
-                        //     let file_scheme = "file://";
-                        //
-                        //     let f = closure!(m => move |progress: ImportExportFileProgress| {
-                        //
-                        //     });
-                        //
-                        //     for g_uri in g_uris {
-                        //         let uri = g_uri.to_string();
-                        //         if uri.starts_with(file_scheme) {
-                        //             let path = uri[file_scheme.len()..].to_string();
-                        //             c.import_file(parent_id.clone(), path);
-                        //         }
-                        //     }
-                        //     m.send(Msg::RefreshTree)
-                        // }));
                     }
                     _ => panic!("unrecognized target info that should not exist")
                 }
