@@ -14,11 +14,12 @@ use crate::repo::local_changes_repo;
 use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::db_state_service::State;
 use crate::service::drawing_service::SupportedImageFormats;
+use crate::service::import_export_service::ImportExportFileProgress;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
-    account_service, db_state_service, drawing_service, file_service, path_service, sync_service,
-    usage_service,
+    account_service, db_state_service, drawing_service, file_service, import_export_service,
+    path_service, sync_service, usage_service,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -38,7 +39,6 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 use Error::UiError;
-use crate::service::file_service::ImportExportFileProgress;
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
@@ -775,9 +775,9 @@ pub fn import_file(
     config: &Config,
     parent: Uuid,
     source: PathBuf,
-    f: Option<Box<dyn Fn(ImportExportFileProgress)>>
+    f: Option<Box<dyn Fn(ImportExportFileProgress)>>,
 ) -> Result<(), Error<ImportFileError>> {
-    file_service::import_file(config, parent, source, f).map_err(|e| match e {
+    import_export_service::import_file(config, parent, source, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
         CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
         CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
@@ -798,9 +798,9 @@ pub fn export_file(
     config: &Config,
     parent: Uuid,
     destination: PathBuf,
-    f: Option<Box<dyn Fn(ImportExportFileProgress)>>
+    f: Option<Box<dyn Fn(ImportExportFileProgress)>>,
 ) -> Result<(), Error<ExportFileError>> {
-    file_service::export_file(config, parent, destination, f).map_err(|e| match e {
+    import_export_service::export_file(config, parent, destination, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
         CoreError::FileNonexistent => UiError(ExportFileError::FileDoesNotExist),
         CoreError::DiskPathInvalid => UiError(ExportFileError::BadPath),

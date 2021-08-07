@@ -9,7 +9,7 @@ use gtk::{
     Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
-    Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Overlay, Paned as GtkPaned,
+    Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
     ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator,
     Spinner as GtkSpinner, Stack as GtkStack, WrapMode as GtkWrapMode,
 };
@@ -428,7 +428,7 @@ impl Editor {
     }
 
     fn show(&self, name: &str) {
-        self.stack.set_visible_child_name(name);
+        self.cntr.set_visible_child_name(name);
     }
 }
 

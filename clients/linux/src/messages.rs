@@ -37,7 +37,7 @@ pub enum Msg {
     ShowDialogPreferences,
     ShowDialogUsage,
     ShowDialogAbout,
-    ShowDialogImportFile(Vec<String>),
+    ShowDialogImportFile(Uuid, Vec<String>),
 
     ToggleAutoSave(bool),
     ToggleAutoSync(bool),

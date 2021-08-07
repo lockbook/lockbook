@@ -2,12 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk::{
-    DragAction, DragContext, EventButton as GdkEventButton, SELECTION_TYPE_ATOM,
-    SELECTION_TYPE_BITMAP, SELECTION_TYPE_COLORMAP, SELECTION_TYPE_DRAWABLE,
-    SELECTION_TYPE_INTEGER, SELECTION_TYPE_PIXMAP, SELECTION_TYPE_STRING, SELECTION_TYPE_WINDOW,
-    TARGET_BITMAP, TARGET_COLORMAP, TARGET_DRAWABLE, TARGET_PIXMAP, TARGET_STRING,
-};
+use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
 use gtk::SelectionMode as GtkSelectionMode;
@@ -36,9 +31,6 @@ use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
 use glib::timeout_add_local;
 use std::cell::RefCell;
-use std::fs::File;
-use std::path::Path;
-use lockbook_core::service::file_service::ImportExportFileProgress;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -112,7 +104,7 @@ impl FileTree {
         tree.drag_source_set_icon_name("application-x-generic");
 
         tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
-        tree.connect_drag_data_get(Self::on_drag_data_get(c));
+        tree.connect_drag_data_get(Self::on_drag_data_get(m, c));
         tree.connect_drag_motion(Self::on_drag_motion(
             &drag_hover_last_occurred,
             &drag_ends_last_occurred,
@@ -176,9 +168,10 @@ impl FileTree {
     }
 
     fn on_drag_data_get(
+        m: &Messenger,
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
-        closure!(c => move |w, _, s, info, _| {
+        closure!(m, c => move |w, _, s, info, _| {
             match info {
                 LOCKBOOK_FILES_TARGET_INFO => s.set(&s.get_target(), 8, &[]),
                 URI_TARGET_INFO => {
@@ -193,7 +186,9 @@ impl FileTree {
                         let name = tree_iter_value!(model, &iter, 1, String);
                         let id = Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap();
 
-                        c.set_up_drag_export(id);
+                        if let Err(err) = c.set_up_drag_export(id) {
+                            m.send_err_dialog("Exporting file", err);
+                        };
                         uris.push(format!("{}{}", dest, name));
                     }
 
@@ -208,7 +203,8 @@ impl FileTree {
         m: &Messenger,
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
-        closure!(m, c => move |w, d, x, y, s, info, time| {
+        closure!(m, c => move
+            |w, d, x, y, s, info, time| {
             if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
 
@@ -253,31 +249,33 @@ impl FileTree {
                     }
                     URI_TARGET_INFO => {
                         let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
-                        let g_uris = s.get_uris();
+                        let uris: Vec<String> = s.get_uris().iter().map(|uri| uri.to_string()).collect();
+                        m.send(Msg::ShowDialogImportFile(parent_id, uris))
 
-                        std::thread::spawn(closure!(m, c => move || {
-                            let file_scheme = "file://";
-
-                            let f = closure!(m => move |progress: ImportExportFileProgress| {
-
-                            });
-
-                            for g_uri in g_uris {
-                                let uri = g_uri.to_string();
-                                if uri.starts_with(file_scheme) {
-                                    let path = uri[file_scheme.len()..].to_string();
-                                    c.import_file(parent_id.clone(), path);
-                                }
-                            }
-                            m.send(Msg::RefreshTree)
-                        }));
+                        // std::thread::spawn(closure!(m, c => move || {
+                        //     let file_scheme = "file://";
+                        //
+                        //     let f = closure!(m => move |progress: ImportExportFileProgress| {
+                        //
+                        //     });
+                        //
+                        //     for g_uri in g_uris {
+                        //         let uri = g_uri.to_string();
+                        //         if uri.starts_with(file_scheme) {
+                        //             let path = uri[file_scheme.len()..].to_string();
+                        //             c.import_file(parent_id.clone(), path);
+                        //         }
+                        //     }
+                        //     m.send(Msg::RefreshTree)
+                        // }));
                     }
                     _ => panic!("unrecognized target info that should not exist")
                 }
 
                 d.drop_finish(true, time);
             }
-        })
+        }
+        )
     }
 
     fn on_drag_end(
