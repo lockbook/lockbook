@@ -1,8 +1,8 @@
-use crate::CoreError;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{account_repo, file_repo};
 use crate::service::sync_service::WorkCalculated;
+use crate::CoreError;
 use lockbook_models::account::Username;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
@@ -50,7 +50,7 @@ pub fn generate_client_file_metadata(
         owner: meta.owner.clone(),
         content_version: meta.content_version,
         deleted: meta.deleted,
-        users_with_access: vec!(account_repo::get(config)?.username.clone()), // todo: fix
+        users_with_access: vec![account_repo::get(config)?.username.clone()], // todo: fix
     })
 }
 

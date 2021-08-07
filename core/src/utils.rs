@@ -66,12 +66,16 @@ pub fn maybe_find_root(files: &[DecryptedFileMetadata]) -> Option<DecryptedFileM
 }
 
 /// Returns the files which are not deleted and have no deleted ancestors.
-pub fn filter_not_deleted(files: &[DecryptedFileMetadata]) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+pub fn filter_not_deleted(
+    files: &[DecryptedFileMetadata],
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let mut result = Vec::new();
     result.push(find_root(files)?);
     let mut i = 0;
     while i < result.len() {
-        let target = result.get(i).ok_or(CoreError::Unexpected(String::from("filter_deleted: missing target")))?;
+        let target = result.get(i).ok_or(CoreError::Unexpected(String::from(
+            "filter_deleted: missing target",
+        )))?;
         let children = find_children(files, target.id);
         for child in children {
             if !child.deleted {
@@ -84,14 +88,24 @@ pub fn filter_not_deleted(files: &[DecryptedFileMetadata]) -> Result<Vec<Decrypt
 }
 
 /// Returns the files which are deleted or have deleted ancestors.
-pub fn filter_deleted(files: &[DecryptedFileMetadata]) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+pub fn filter_deleted(
+    files: &[DecryptedFileMetadata],
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let not_deleted = filter_not_deleted(&files)?;
-    Ok(files.iter().filter(|f| !not_deleted.iter().any(|nd| nd.id == f.id)).map(|f| f.clone()).collect())
+    Ok(files
+        .iter()
+        .filter(|f| !not_deleted.iter().any(|nd| nd.id == f.id))
+        .map(|f| f.clone())
+        .collect())
 }
 
 /// Returns the files which are documents.
 pub fn filter_documents(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMetadata> {
-    files.iter().filter(|f| f.file_type == FileType::Document).map(|f| f.clone()).collect()
+    files
+        .iter()
+        .filter(|f| f.file_type == FileType::Document)
+        .map(|f| f.clone())
+        .collect()
 }
 
 pub enum StageSource {

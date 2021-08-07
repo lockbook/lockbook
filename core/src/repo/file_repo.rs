@@ -1,10 +1,10 @@
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::model::state::Config;
+use crate::repo::account_repo;
 use crate::repo::digest_repo;
 use crate::repo::document_repo;
 use crate::repo::metadata_repo;
-use crate::repo::account_repo;
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::utils;
@@ -59,13 +59,19 @@ pub fn insert_metadata(
     let account = account_repo::get(config)?;
     let all_metadata = get_all_metadata(config, source)?;
     let parent = utils::find_parent(&all_metadata, metadata.id)?;
-    let encrypted_metadata = file_encryption_service::encrypt_metadatum(&account, &parent.decrypted_access_key, metadata)?;
+    let encrypted_metadata = file_encryption_service::encrypt_metadatum(
+        &account,
+        &parent.decrypted_access_key,
+        metadata,
+    )?;
 
     // perform insertion
     metadata_repo::insert(config, source, &encrypted_metadata)?;
 
     // remove local if local == remote
-    if let Some(opposite) = metadata_repo::maybe_get(config, source.opposite(), encrypted_metadata.id)? {
+    if let Some(opposite) =
+        metadata_repo::maybe_get(config, source.opposite(), encrypted_metadata.id)?
+    {
         if slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
             && opposite.parent == metadata.parent
             && opposite.deleted == metadata.deleted
@@ -112,11 +118,12 @@ fn get_all_metadata(
         RepoSource::Local => {
             let encrypted_local = metadata_repo::get_all(config, RepoSource::Local)?;
             let local = file_encryption_service::decrypt_metadata(&account, &encrypted_local)?;
-            Ok(utils::stage(&local, &remote).into_iter().map(|(f, _)| f).collect())
-        },
-        RepoSource::Remote => {
-            Ok(remote)
+            Ok(utils::stage(&local, &remote)
+                .into_iter()
+                .map(|(f, _)| f)
+                .collect())
         }
+        RepoSource::Remote => Ok(remote),
     }
 }
 
@@ -132,7 +139,8 @@ pub fn insert_document(
     // encrypt document and compute digest
     let digest = Sha256::digest(&document);
     let compressed_document = file_compression_service::compress(&document)?;
-    let encrypted_document = file_encryption_service::encrypt_document(config, document, &metadata)?;
+    let encrypted_document =
+        file_encryption_service::encrypt_document(config, document, &metadata)?;
 
     // perform insertions
     document_repo::insert(config, source, metadata.id, &encrypted_document)?;

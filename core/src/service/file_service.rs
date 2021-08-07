@@ -1,7 +1,7 @@
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::utils::StageSource;
-use crate::{CoreError, utils};
+use crate::{utils, CoreError};
 use lockbook_crypto::symkey;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use std::collections::HashMap;
@@ -10,12 +10,7 @@ use std::io::Write;
 use std::path::Path;
 use uuid::Uuid;
 
-pub fn create(
-    file_type: FileType,
-    parent: Uuid,
-    name: &str,
-    owner: &str,
-) -> DecryptedFileMetadata {
+pub fn create(file_type: FileType, parent: Uuid, name: &str, owner: &str) -> DecryptedFileMetadata {
     DecryptedFileMetadata {
         id: Uuid::new_v4(),
         file_type,

@@ -28,10 +28,7 @@ pub fn encrypt_metadatum(
         content_version: target.content_version,
         deleted: target.deleted,
         user_access_keys,
-        folder_access_keys: encrypt_folder_access_keys(
-            &target.decrypted_access_key,
-            &parent_key,
-        )?,
+        folder_access_keys: encrypt_folder_access_keys(&target.decrypted_access_key, &parent_key)?,
     })
 }
 
@@ -103,10 +100,7 @@ pub fn decrypt_metadatum(
         metadata_version: target.metadata_version,
         content_version: target.content_version,
         deleted: target.deleted,
-        decrypted_access_key: decrypt_folder_access_keys(
-            &target.folder_access_keys,
-            &parent_key,
-        )?,
+        decrypted_access_key: decrypt_folder_access_keys(&target.folder_access_keys, &parent_key)?,
     })
 }
 
