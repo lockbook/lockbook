@@ -54,12 +54,6 @@ macro_rules! lock {
     };
 }
 
-macro_rules! account {
-    ($guard:expr) => {
-        $guard.as_ref().ok_or(uerr_dialog!("No account found."))
-    };
-}
-
 fn api_url() -> String {
     env::var("API_URL").unwrap_or_else(|_| lockbook_core::DEFAULT_API_LOCATION.to_string())
 }
@@ -191,12 +185,8 @@ impl LbCore {
     }
 
     pub fn file_by_path(&self, path: &str) -> LbResult<ClientFileMetadata> {
-        let acct_lock = lock!(self.account, read)?;
-        let acct = account!(acct_lock)?;
-        let p = format!("{}/{}", acct.username, path);
-
-        get_file_by_path(&self.config, &p).map_err(map_core_err!(GetFileByPathError,
-            NoFileAtThatPath => uerr_dialog!("No file at path '{}'.", p),
+        get_file_by_path(&self.config, path).map_err(map_core_err!(GetFileByPathError,
+            NoFileAtThatPath => uerr_dialog!("No file at path '{}'.", path),
         ))
     }
 
@@ -318,14 +308,6 @@ impl LbCore {
             qrcode_generator::to_png_to_file(bytes, QrCodeEcc::Low, 400, &path).unwrap();
         }
         Ok(path)
-    }
-
-    pub fn list_paths_without_root(&self) -> LbResult<Vec<String>> {
-        let paths = self.list_paths()?;
-        let acct_lock = lock!(self.account, read)?;
-        let acct = account!(acct_lock)?;
-        let root = &acct.username;
-        Ok(paths.iter().map(|p| p.replacen(root, "", 1)).collect())
     }
 
     pub fn full_path_for(&self, f: &ClientFileMetadata) -> String {

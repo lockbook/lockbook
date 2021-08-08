@@ -21,6 +21,7 @@ mod settings;
 mod util;
 
 use std::cell::RefCell;
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -50,6 +51,10 @@ fn main() {
         Ok(s) => Rc::new(RefCell::new(s)),
         Err(err) => launch_err("unable to read settings", &err.to_string()),
     };
+
+    if let Err(err) = add_language_specs_to_data_dir() {
+        launch_err("adding language file for sourceview", &err.to_string());
+    }
 
     let gtk_app = GtkApp::new(None, Default::default()).unwrap();
     gtk_app.connect_activate(closure!(core, settings => move |app| {
@@ -92,6 +97,22 @@ fn gtk_add_css_provider() -> Result<(), String> {
     }
 }
 
+fn add_language_specs_to_data_dir() -> Result<(), std::io::Error> {
+    let lang_specs = get_language_specs_dir();
+    let language = format!("{}/custom.lang", lang_specs);
+
+    if !Path::new(&lang_specs).exists() {
+        std::fs::create_dir(&lang_specs)?;
+        std::fs::write(language, CUSTOM_LANG)?;
+    }
+
+    Ok(())
+}
+
+fn get_language_specs_dir() -> String {
+    format!("{}/language-specs", get_data_dir())
+}
+
 fn launch_err(prefix: &str, err: &str) -> ! {
     let lbl = GtkLabel::new(Some(&format!("error: {}: {}", prefix, err)));
     lbl.set_margin_top(20);
@@ -108,3 +129,6 @@ fn launch_err(prefix: &str, err: &str) -> ! {
 
     std::process::exit(1);
 }
+
+// the language file for special syntax highlighting in sourceview
+const CUSTOM_LANG: &[u8] = include_bytes!("../res/custom.lang");
