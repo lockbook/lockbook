@@ -5,14 +5,14 @@ use std::sync::Arc;
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::SelectionMode as GtkSelectionMode;
-use gtk::TreeIter as GtkTreeIter;
+use gtk::{TreeIter as GtkTreeIter, WindowPosition, Dialog, Label, ProgressBar, ResponseType};
 use gtk::TreeModel as GtkTreeModel;
 use gtk::TreePath as GtkTreePath;
 use gtk::TreeSelection as GtkTreeSelection;
 use gtk::TreeStore as GtkTreeStore;
 use gtk::TreeView as GtkTreeView;
 use gtk::TreeViewColumn as GtkTreeViewColumn;
+use gtk::{Adjustment, ScrolledWindow, SelectionMode as GtkSelectionMode};
 use gtk::{CellRendererPixbuf, Menu as GtkMenu};
 use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
@@ -22,15 +22,16 @@ use gtk::{MenuItem as GtkMenuItem, TargetList};
 use uuid::Uuid;
 
 use lockbook_core::model::client_conversion::ClientFileMetadata;
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::{FileType};
 
 use crate::backend::LbCore;
-use crate::closure;
-use crate::error::LbResult;
+use crate::error::{LbResult};
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
+use crate::{closure, make_glib_chan, spawn, util};
 use glib::timeout_add_local;
 use std::cell::RefCell;
+use lockbook_core::service::import_export_service::ImportExportFileProgress;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -171,31 +172,113 @@ impl FileTree {
         m: &Messenger,
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
-        closure!(m, c => move |w, _, s, info, _| {
-            match info {
-                LOCKBOOK_FILES_TARGET_INFO => s.set(&s.get_target(), 8, &[]),
-                URI_TARGET_INFO => {
-                    let model = w.get_model().unwrap();
-                    let (paths, _) = w.get_selection().get_selected_rows();
+        closure!(m, c => move |w, _, s, info, _| match info {
+            LOCKBOOK_FILES_TARGET_INFO => s.set(&s.get_target(), 8, &[]),
+            URI_TARGET_INFO => {
+                let model = w.get_model().unwrap();
+                let (paths, _) = w.get_selection().get_selected_rows();
 
-                    let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
-                    let dest = "file:///tmp/";
-                    let mut uris = Vec::new();
+                let d = Dialog::new();
+                d.set_position(WindowPosition::CenterOnParent);
+                d.set_title("Export Files");
 
-                    for iter in iters.iter() {
-                        let name = tree_iter_value!(model, iter, 1, String);
-                        let id = Uuid::parse_str(&tree_iter_value!(model, iter, 2, String)).unwrap();
+                let lbl = Label::new(None);
 
-                        if let Err(err) = c.set_up_drag_export(id) {
+                let scroll = ScrolledWindow::new::<Adjustment, Adjustment>(None, None);
+                util::gui::set_marginx(&scroll, 16);
+                util::gui::set_marginy(&scroll, 16);
+                scroll.add(&lbl);
+
+                lbl.connect_size_allocate(closure!(scroll => move |_, _| {
+                    let hadj = scroll.get_hadjustment().unwrap();
+                    hadj.set_value(hadj.get_upper() - hadj.get_page_size());
+                }));
+
+                d.get_content_area().add(&scroll);
+
+                let pbar = ProgressBar::new();
+                util::gui::set_marginx(&pbar, 16);
+                util::gui::set_marginy(&pbar, 16);
+                pbar.set_size_request(300, -1);
+
+                d.get_content_area().add(&pbar);
+
+                util::gui::set_marginy(&d, 36);
+                util::gui::set_marginx(&d, 100);
+
+                d.get_content_area().show_all();
+
+                let mut file_info = Vec::new();
+                let iters = paths
+                    .iter()
+                    .map(|selected| model.get_iter(selected).unwrap())
+                    .collect::<Vec<TreeIter>>();
+                for iter in iters {
+                    let name = tree_iter_value!(model, &iter, 1, String);
+                    let id = Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap();
+
+                    file_info.push((id, name));
+                }
+
+                let mut uris = Vec::new();
+                let mut total = 0;
+                let progress = Rc::new(RefCell::new(0));
+
+                for (id, name) in &file_info {
+                    uris.push(format!("{}{}", "file:///tmp/", name));
+
+                    match c.get_children_recursively(*id) {
+                        Ok(children) => total += children.len(),
+                        Err(err) => {
+                            m.send_err_dialog("Getting children of export", err);
+                            return;
+                        }
+                    }
+                }
+
+                let ch = make_glib_chan!(m, d, progress => move |maybe_path: Option<String>| {
+                    *progress.borrow_mut() += 1;
+
+                    d.close();
+
+                    match maybe_path {
+                        None => {
+                            d.close();
+                        }
+                        Some(path) => {
+                            pbar.set_fraction(*progress.borrow() as f64 / total as f64);
+                            lbl.set_text(&path);
+                        }
+                    }
+                    glib::Continue(true)
+                });
+
+                let f = closure!(ch => move |progress: ImportExportFileProgress| {
+                    ch.send(Some(progress.lockbook_path)).unwrap();
+                });
+
+                spawn!(c, m, file_info => move || {
+                    for (id, _) in file_info {
+                        if let Err(err) = c.set_up_drag_export(id, "/tmp/", Some(Box::new(f.clone()))) {
                             m.send_err_dialog("Exporting file", err);
+                            return;
                         };
-                        uris.push(format!("{}{}", dest, name));
                     }
 
-                    s.set_uris(uris.iter().map(|uri| uri.as_str()).collect::<Vec<&str>>().as_slice());
+                    ch.send(None).unwrap();
+                });
+
+                if d.run() == ResponseType::DeleteEvent {
+
                 }
-                _ => panic!("unrecognized target info that should not exist")
+                s.set_uris(
+                        uris.iter()
+                        .map(|uri| uri.as_str())
+                        .collect::<Vec<&str>>()
+                        .as_slice(),
+                    );
             }
+            _ => panic!("unrecognized target info that should not exist"),
         })
     }
 

@@ -46,6 +46,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
+#[macro_export]
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
         let (s, r) = glib::MainContext::channel::<$param_type>(glib::PRIORITY_DEFAULT);
@@ -54,6 +55,7 @@ macro_rules! make_glib_chan {
     }};
 }
 
+#[macro_export]
 macro_rules! spawn {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => $fn:expr) => {
         std::thread::spawn(closure!($( $( $vars ).+ $( as $aliases )* ),+ => $fn));
@@ -911,7 +913,7 @@ impl LbApp {
     }
 
     fn show_dialog_import_file(&self, parent: Uuid, uris: Vec<String>) -> LbResult<()> {
-        let d = self.gui.new_dialog("Importing Files");
+        let d = self.gui.new_dialog("Import Files");
 
         let lbl = GtkLabel::new(None);
 
@@ -955,7 +957,7 @@ impl LbApp {
 
         let progress = Rc::new(RefCell::new(0));
 
-        let ch = make_glib_chan!(self.messenger as m, d, total, progress => move |maybe_path: Option<PathBuf>| {
+        let ch = make_glib_chan!(self.messenger as m, d, progress => move |maybe_path: Option<PathBuf>| {
             *progress.borrow_mut() += 1;
 
             match maybe_path {
@@ -972,14 +974,14 @@ impl LbApp {
         });
 
         let f = closure!(ch => move |progress: ImportExportFileProgress| {
-            ch.send(Some(progress.current_disk_path)).unwrap();
+            ch.send(Some(progress.disk_path)).unwrap();
         });
 
         spawn!(self.core as c, self.messenger as m => move || {
             for uri in uris {
                 if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
                     if let Err(err) = c.import_file(parent, path.to_string(), Some(Box::new(f.clone()))) {
-                        m.send_err_dialog("Importing files", err);
+                        m.send_err_dialog("Import files", err);
                         break;
                     };
                 } else {

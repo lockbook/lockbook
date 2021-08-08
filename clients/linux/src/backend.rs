@@ -260,8 +260,12 @@ impl LbCore {
         ))
     }
 
-    pub fn set_up_drag_export(&self, parent: Uuid) -> LbResult<()> {
-        export_file(&self.config, parent, PathBuf::from("/tmp/"), None).map_err(map_core_err!(ExportFileError,
+    pub fn set_up_drag_export(
+        &self,
+        parent: Uuid,
+        destination: &str,
+        f: Option<Box<dyn Fn(ImportExportFileProgress)>>) -> LbResult<()> {
+        export_file(&self.config, parent, PathBuf::from(destination), f).map_err(map_core_err!(ExportFileError,
             FileDoesNotExist => uerr_dialog!("The folder does not exist."),
             FileAlreadyExistsInDisk => uerr_dialog!("A file already exists in the path with the same name."),
             NoAccount => uerr_dialog!("No account found."),

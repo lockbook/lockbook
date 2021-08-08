@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 pub struct ImportExportFileProgress {
-    pub current_disk_path: PathBuf,
-    pub current_lockbook_path: String,
+    pub disk_path: PathBuf,
+    pub lockbook_path: String,
 }
 
 pub fn import_file(
@@ -49,8 +49,8 @@ fn import_file_recursively(
 
     if let Some(ref func) = f {
         func(ImportExportFileProgress {
-            current_disk_path: disk_path.to_path_buf(),
-            current_lockbook_path: lockbook_path_with_new.clone(),
+            disk_path: disk_path.to_path_buf(),
+            lockbook_path: lockbook_path_with_new.clone(),
         })
     }
 
@@ -104,8 +104,8 @@ fn export_file_recursively(
 
     if let Some(ref func) = f {
         func(ImportExportFileProgress {
-            current_disk_path: disk_path.to_path_buf(),
-            current_lockbook_path: crate::path_service::get_path_by_id(
+            disk_path: disk_path.to_path_buf(),
+            lockbook_path: crate::path_service::get_path_by_id(
                 config,
                 parent_file_metadata.id,
             )?,
