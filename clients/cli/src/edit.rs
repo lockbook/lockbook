@@ -1,5 +1,4 @@
 use std::fs;
-use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
@@ -35,7 +34,7 @@ pub fn edit(file_name: &str) -> CliResult<()> {
 
     let file_location = format!("{}/{}", get_directory_location()?, file_metadata.name);
     let temp_file_path = Path::new(file_location.as_str());
-    let mut file_handle = File::create(&temp_file_path)
+    let mut file_handle = fs::File::create(&temp_file_path)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
 
     file_handle
@@ -55,7 +54,7 @@ pub fn edit(file_name: &str) -> CliResult<()> {
     }
 
     if edit_was_successful {
-        save_temp_file_contents(file_metadata.id, &file_location, temp_file_path, false)
+        save_temp_file_contents(file_metadata.id, &file_location, false)
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }

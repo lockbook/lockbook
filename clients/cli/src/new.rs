@@ -36,7 +36,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
     })?;
 
     let file_location = format!("{}/{}", get_directory_location()?, file_metadata.name);
-    let temp_file_path = Path::new(file_location.as_str());
+    let temp_file_path = Path::new(&file_location);
     let _ = File::create(&temp_file_path)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
 
@@ -53,7 +53,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
     }
 
     if edit_was_successful {
-        save_temp_file_contents(file_metadata.id, &file_location, temp_file_path, false)
+        save_temp_file_contents(file_metadata.id, &file_location, false)
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
