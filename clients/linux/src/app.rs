@@ -102,7 +102,7 @@ impl LbApp {
                 Msg::Quit => lb.quit(),
 
                 Msg::AccountScreenShown => lb.account_screen_shown(),
-                Msg::MarkdownLinkExec(scheme, uri) => lb.markdown_lb_link_exec(scheme, uri),
+                Msg::MarkdownLinkExec(scheme, uri) => lb.markdown_lb_link_exec(&scheme, &uri),
 
                 Msg::NewFile(file_type) => lb.new_file(file_type),
                 Msg::OpenFile(id) => lb.open_file(id),
@@ -360,9 +360,9 @@ impl LbApp {
         Ok(())
     }
 
-    fn markdown_lb_link_exec(&self, scheme: String, uri: String) -> LbResult<()> {
-        if &scheme == "lb://" {
-            let f = self.core.file_by_path(&uri)?;
+    fn markdown_lb_link_exec(&self, scheme: &str, uri: &str) -> LbResult<()> {
+        if scheme == "lb://" {
+            let f = self.core.file_by_path(uri)?;
             self.messenger.send(Msg::OpenFile(Some(f.id)));
         } else if gtk::show_uri_on_window(
             Some(&self.gui.win),

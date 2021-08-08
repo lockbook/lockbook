@@ -385,7 +385,12 @@ impl Editor {
                         let uri_regex = Regex::new(r"\[.*]\(([a-zA-z]+://)(.*)\)").unwrap();
 
                         for capture in uri_regex.captures_iter(text.as_str()) {
-                            let whole = capture.get(0).unwrap();
+                            let whole = match capture.get(0) {
+                                Some(whole) => whole,
+                                None => {
+                                    return Inhibit(false);
+                                }
+                            };
                             let loc = whole.start()..whole.end();
 
                             if loc.contains(&(index as usize)) {
