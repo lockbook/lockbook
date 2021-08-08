@@ -34,21 +34,21 @@ struct AccountSettingsView: View {
     
     var body: some View {
         VStack (spacing: 20){
-            HStack {
+            HStack (alignment: .top) {
                 Text("Username:")
                     .frame(maxWidth: 175, alignment: .trailing)
-                Text("parth")
+                Text(account.username)
                     .font(.system(.body, design: .monospaced))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            HStack {
+            HStack (alignment: .top) {
                 Text("Server Location:")
                     .frame(maxWidth: 175, alignment: .trailing)
-                Text("https://api.prod.lockbook.net")
+                Text(account.apiUrl)
                     .font(.system(.body, design: .monospaced))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            HStack {
+            HStack (alignment: .top) {
                 Text("Account Secret:")
                     .frame(maxWidth: 175, alignment: .trailing)
                 VStack {

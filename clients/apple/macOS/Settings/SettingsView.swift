@@ -17,7 +17,7 @@ struct SettingsView: View {
                     .tabItem {
                         Label("Account", systemImage: "person")
                     }
-                AccountSettingsView(core: core, account: account)
+                UsageSettingsView(core: core)
                     .tabItem {
                         Label("Usage", systemImage: "externaldrive")
                     }
