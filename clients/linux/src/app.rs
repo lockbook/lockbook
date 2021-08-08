@@ -2,6 +2,8 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
@@ -9,20 +11,21 @@ use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
-    AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Align as GtkAlign,
-    Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button,
-    CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
-    Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, Image as GtkImage, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
-    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode,
-    SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
-    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
-    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
-    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
+    get_current_event_time, AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup,
+    Align as GtkAlign, Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox,
+    Button, CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox,
+    Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
+    Image as GtkImage, Label as GtkLabel, ListStore as GtkListStore, Notebook as GtkNotebook,
+    ProgressBar as GtkProgressBar, ResponseType as GtkResponseType,
+    SelectionMode as GtkSelectionMode, SortColumn as GtkSortColumn, SortType as GtkSortType,
+    Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter, TreeModel as GtkTreeModel,
+    TreeModelSort as GtkTreeModelSort, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
+    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
+    WindowPosition as GtkWindowPosition,
 };
-use uuid::Uuid;
 
 use lockbook_models::file_metadata::FileType;
+use uuid::Uuid;
 
 use crate::account::AccountScreen;
 use crate::backend::{LbCore, LbSyncMsg};
@@ -39,9 +42,8 @@ use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
+
 use lockbook_core::model::client_conversion::ClientFileMetadata;
-use std::thread;
-use std::time::Duration;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -100,6 +102,7 @@ impl LbApp {
                 Msg::Quit => lb.quit(),
 
                 Msg::AccountScreenShown => lb.account_screen_shown(),
+                Msg::MarkdownLinkExec(scheme, uri) => lb.markdown_lb_link_exec(&scheme, &uri),
 
                 Msg::NewFile(file_type) => lb.new_file(file_type),
                 Msg::OpenFile(id) => lb.open_file(id),
@@ -353,6 +356,23 @@ impl LbApp {
         let background_work = self.state.borrow().background_work.clone();
 
         thread::spawn(move || BackgroundWork::init_background_work(background_work));
+
+        Ok(())
+    }
+
+    fn markdown_lb_link_exec(&self, scheme: &str, uri: &str) -> LbResult<()> {
+        if scheme == "lb://" {
+            let f = self.core.file_by_path(uri)?;
+            self.messenger.send(Msg::OpenFile(Some(f.id)));
+        } else if gtk::show_uri_on_window(
+            Some(&self.gui.win),
+            &format!("{}{}", scheme, uri),
+            get_current_event_time(),
+        )
+        .is_err()
+        {
+            uerr_dialog!("Failed to open link.");
+        }
 
         Ok(())
     }
@@ -1006,7 +1026,7 @@ impl SearchComponents {
         sort_model.set_sort_func(GtkSortColumn::Index(0), Self::compare_possibs);
 
         Self {
-            possibs: core.list_paths_without_root().unwrap_or_default(),
+            possibs: core.list_paths().unwrap_or_default(),
             list_store,
             sort_model,
             matcher: SkimMatcherV2::default(),
