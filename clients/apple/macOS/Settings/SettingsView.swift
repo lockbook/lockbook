@@ -13,11 +13,11 @@ struct SettingsView: View {
             }.padding(100)
         case .some(let account):
             TabView {
-                AccountSettingsView(core: core, account: account)
+                AccountSettingsView(core: core, settingsState: SettingsState(core:core), account: account)
                     .tabItem {
                         Label("Account", systemImage: "person")
                     }
-                UsageSettingsView(core: core)
+                UsageSettingsView(core: core, settingsState: SettingsState(core:core))
                     .tabItem {
                         Label("Usage", systemImage: "externaldrive")
                     }
@@ -26,7 +26,5 @@ struct SettingsView: View {
             .frame(width: 600)
             
         }
-        
     }
 }
-

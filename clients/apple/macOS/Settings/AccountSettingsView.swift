@@ -4,6 +4,7 @@ import SwiftLockbookCore
 struct AccountSettingsView: View {
     
     @ObservedObject var core: GlobalState
+    @ObservedObject var settingsState: SettingsState
     let account: Account
     
     // MARK: Copy Button Things
@@ -64,7 +65,7 @@ struct AccountSettingsView: View {
             }
             
             if codeRevealed {
-                accountCode()
+                settingsState.accountCode()
             }
         }.padding(20)
     }
@@ -79,23 +80,5 @@ struct AccountSettingsView: View {
             core.handleError(err)
         }
     }
-    
-    func accountCode() -> AnyView {
-        switch core.api.exportAccount() {
-        case .success(let accountString):
-            let data = accountString.data(using: String.Encoding.ascii)
-            if let filter = CIFilter(name: "CIQRCodeGenerator") {
-                filter.setValue(data, forKey: "inputMessage")
-                let transform = CGAffineTransform(scaleX: 3, y: 3)
-                if let output = filter.outputImage?.transformed(by: transform) {
-                    if let cgCode = CIContext().createCGImage(output, from: output.extent) {
-                        return AnyView(Image(cgCode, scale: 1.0, label: Text("")))
-                    }
-                }
-            }
-        case .failure(let err):
-            core.handleError(err)
-        }
-        return AnyView(Text("Failed to generate QR Code"))
-    }
+
 }
