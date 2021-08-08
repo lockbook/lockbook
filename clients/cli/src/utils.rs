@@ -10,14 +10,12 @@ use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
-use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::db_state_service::State;
 use lockbook_core::service::drawing_service::SupportedImageFormats;
 use lockbook_core::service::drawing_service::SupportedImageFormats::{
     Bmp, Farbfeld, Jpeg, Png, Pnm, Tga,
 };
 use lockbook_models::account::Account;
-use std::path::Path;
 use uuid::Uuid;
 
 #[macro_export]
@@ -145,8 +143,7 @@ pub fn get_directory_location() -> CliResult<String> {
 }
 
 pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
-    let corrected_format = image_format.to_lowercase();
-    match corrected_format.as_str() {
+    match image_format.to_lowercase().as_str() {
         "png" => Png,
         "jpeg" | "jpg" => Jpeg,
         "bmp" => Bmp,
@@ -212,40 +209,21 @@ pub fn print_last_successful_sync() -> CliResult<()> {
     Ok(())
 }
 
-pub fn set_up_auto_save(file_metadata: ClientFileMetadata, location: String) -> Option<Hotwatch> {
-    let watcher = Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5));
+pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
+    match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
+        Ok(mut watcher) => {
+            watcher
+                .watch(location.clone(), move |event: Event| match event {
+                    Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
+                        save_temp_file_contents(id, &location, true)
+                    }
+                    _ => {}
+                })
+                .unwrap_or_else(|err| {
+                    println!("file watcher failed to watch: {:#?}", err);
+                });
 
-    match watcher {
-        Ok(mut ok) => {
-            ok.watch(location.clone(), move |event: Event| {
-                if let Event::NoticeWrite(_) = event {
-                    save_temp_file_contents(
-                        file_metadata.clone(),
-                        &location,
-                        Path::new(location.as_str()),
-                        true,
-                    )
-                } else if let Event::Write(_) = event {
-                    save_temp_file_contents(
-                        file_metadata.clone(),
-                        &location,
-                        Path::new(location.as_str()),
-                        true,
-                    )
-                } else if let Event::Create(_) = event {
-                    save_temp_file_contents(
-                        file_metadata.clone(),
-                        &location,
-                        Path::new(location.as_str()),
-                        true,
-                    )
-                }
-            })
-            .unwrap_or_else(|err| {
-                println!("file watcher failed to watch: {:#?}", err);
-            });
-
-            Some(ok)
+            Some(watcher)
         }
         Err(err) => {
             println!("file watcher failed to initialize: {:#?}", err);
@@ -260,13 +238,8 @@ pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
         .unwrap_or_else(|err| err_unexpected!("file watcher failed to unwatch: {:#?}", err).exit());
 }
 
-pub fn save_temp_file_contents(
-    file_metadata: ClientFileMetadata,
-    location: &String,
-    temp_file_path: &Path,
-    silent: bool,
-) {
-    let secret = match fs::read_to_string(temp_file_path) {
+pub fn save_temp_file_contents(id: Uuid, location: &str, silent: bool) {
+    let secret = match fs::read_to_string(&location) {
         Ok(content) => content.into_bytes(),
         Err(err) => {
             if !silent {
@@ -282,7 +255,7 @@ pub fn save_temp_file_contents(
         }
     };
 
-    match write_document(&get_config(), file_metadata.id, &secret) {
+    match write_document(&get_config(), id, &secret) {
         Ok(_) => {
             if !silent {
                 exit_success("Document encrypted and saved. Cleaning up temporary file.")
