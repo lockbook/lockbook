@@ -18,8 +18,8 @@ use crate::service::import_export_service::ImportExportFileInfo;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
-    account_service, db_state_service, drawing_service, file_service, import_export_service,
-    path_service, sync_service, usage_service,
+    account_service, db_state_service, drawing_service, file_service, file_search_service,
+    import_export_service, path_service, sync_service, usage_service,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -28,6 +28,7 @@ use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_search_result::FileSearchResult;
 use serde::Serialize;
 use serde_json::{json, value::Value};
 use std::collections::HashMap;
@@ -488,6 +489,18 @@ pub enum GetPathError {
 
 pub fn get_path_by_id(config: &Config, uuid: Uuid) -> Result<String, Error<GetPathError>> {
     path_service::get_path_by_id(config, uuid).map_err(|e| unexpected!("{:#?}", e))
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum SearchPathsError {
+    Stub, // TODO: Enums should not be empty
+}
+
+pub fn search_paths(
+    config: &Config,
+    string: &str,
+) -> Result<Vec<FileSearchResult>, Error<SearchPathsError>> {
+    file_search_service::fuzzy_search_all_paths(config, string).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]

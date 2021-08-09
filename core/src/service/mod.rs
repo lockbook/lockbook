@@ -4,6 +4,7 @@ pub mod drawing_service;
 pub mod file_compression_service;
 pub mod file_encryption_service;
 pub mod file_service;
+pub mod file_search_service;
 pub mod import_export_service;
 pub mod integrity_service;
 pub mod path_service;
