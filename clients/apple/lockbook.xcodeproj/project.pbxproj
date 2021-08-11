@@ -16,6 +16,7 @@
 		870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870DC0A326BF37C0002E9A92 /* UsageSettingsView.swift */; };
 		87206EB525C61B2A00870A42 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C118E525C5E1E700D28A04 /* CreateAccountView.swift */; };
 		87206EBD25C61DF300870A42 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87206EBC25C61DF300870A42 /* CreateAccountView.swift */; };
+		873559BE26C31210008B3C36 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873559BD26C31210008B3C36 /* SettingsView.swift */; };
 		8737B2BE25D83EE600C93E09 /* DrawingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8737B2BD25D83EE600C93E09 /* DrawingView.swift */; };
 		8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		8741E8FA25ACBCF9005B7B01 /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* FileListView.swift */; };
@@ -41,8 +42,6 @@
 		EA349F0725BC7C360016241E /* OutlineRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA349F0125BC7C110016241E /* OutlineRow.swift */; };
 		EA349F0B25BE6BD80016241E /* ActivityIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */; };
 		EA349F0C25BE6BD80016241E /* ActivityIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */; };
-		EA380B202561FA2C0021C4FA /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B1F2561FA2C0021C4FA /* AccountView.swift */; };
-		EA380B212561FA2C0021C4FA /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B1F2561FA2C0021C4FA /* AccountView.swift */; };
 		EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA380B242561FAEF0021C4FA /* FileListView.swift */; };
 		EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4559BD25169F7D003AD80A /* CodeScannerView.swift */; };
 		EA5979A126040DB1007B9357 /* NestedList.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5979A026040DB1007B9357 /* NestedList.swift */; };
@@ -82,6 +81,7 @@
 		870DC0A126BF378F002E9A92 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		870DC0A326BF37C0002E9A92 /* UsageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageSettingsView.swift; sourceTree = "<group>"; };
 		87206EBC25C61DF300870A42 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
+		873559BD26C31210008B3C36 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		8737B2BD25D83EE600C93E09 /* DrawingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingView.swift; sourceTree = "<group>"; };
 		8741E8E325AAA524005B7B01 /* BottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomBar.swift; sourceTree = "<group>"; };
 		8741E8F925ACBCF9005B7B01 /* FileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
@@ -100,7 +100,6 @@
 		EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageIndicator.swift; sourceTree = "<group>"; };
 		EA349F0125BC7C110016241E /* OutlineRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineRow.swift; sourceTree = "<group>"; };
 		EA349F0A25BE6BD80016241E /* ActivityIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityIndicator.swift; sourceTree = "<group>"; };
-		EA380B1F2561FA2C0021C4FA /* AccountView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		EA380B242561FAEF0021C4FA /* FileListView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
 		EA4559BD25169F7D003AD80A /* CodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeScannerView.swift; sourceTree = "<group>"; };
 		EA5979A026040DB1007B9357 /* NestedList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NestedList.swift; sourceTree = "<group>"; };
@@ -233,6 +232,7 @@
 				EA4559BD25169F7D003AD80A /* CodeScannerView.swift */,
 				EA5C7D722516606000F7F358 /* Info.plist */,
 				87AA99F2269610D8009E5591 /* NewFileSheet.swift */,
+				873559BD26C31210008B3C36 /* SettingsView.swift */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -272,7 +272,6 @@
 		EADE1A5725352E5D00710996 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				EA380B1F2561FA2C0021C4FA /* AccountView.swift */,
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
 				EAEDCD112517193500EBE313 /* EditorView.swift */,
 				EA831A542534E3C80048CE26 /* AppView.swift */,
@@ -423,13 +422,13 @@
 				EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */,
 				EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
 				EAB4B50025167AF50071D1CD /* GlobalState.swift in Sources */,
+				873559BE26C31210008B3C36 /* SettingsView.swift in Sources */,
 				EAEDCD122517193500EBE313 /* EditorView.swift in Sources */,
 				87E198DB25C5E139003E7420 /* OnboardingView.swift in Sources */,
 				8778F44C25E16805009CCEC3 /* DrawingLoader.swift in Sources */,
 				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
 				EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				B2B7E2EB25C669C400B9EFAD /* NotificationButton.swift in Sources */,
-				EA380B202561FA2C0021C4FA /* AccountView.swift in Sources */,
 				8741E93625AD9F9C005B7B01 /* LockbookMarkdownConfig.swift in Sources */,
 				5036A72711D09E92A5EE75B1 /* DrawingToolbar.swift in Sources */,
 				5036A0B7393E8C43AAF095A2 /* LBDrawingPKDrawingConversions.swift in Sources */,
@@ -447,7 +446,6 @@
 				EA831A562534E3C80048CE26 /* AppView.swift in Sources */,
 				EA5C9F4D25E4C4D500DA7C6D /* NotepadView.swift in Sources */,
 				B2B7E2EC25C669C400B9EFAD /* NotificationButton.swift in Sources */,
-				EA380B212561FA2C0021C4FA /* AccountView.swift in Sources */,
 				EA9EEFE025FC06FC00E8C790 /* GlobalState.swift in Sources */,
 				EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
 				870DC09F26BDE6F4002E9A92 /* SettingsView.swift in Sources */,

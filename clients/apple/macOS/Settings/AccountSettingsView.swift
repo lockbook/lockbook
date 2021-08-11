@@ -7,22 +7,6 @@ struct AccountSettingsView: View {
     @ObservedObject var settingsState: SettingsState
     let account: Account
     
-    // MARK: Copy Button Things
-    @State var copied: Bool = false {
-        didSet {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                self.copied = false
-            }
-        }
-    }
-    var copyToClipboardText: String {
-        if copied {
-            return "Copied"
-        } else {
-            return "Copy to clipboard"
-        }
-    }
-    
     // MARK: QR Code things
     @State var codeRevealed: Bool = false
     var qrCodeText: String {
@@ -53,8 +37,8 @@ struct AccountSettingsView: View {
                 Text("Account Secret:")
                     .frame(maxWidth: 175, alignment: .trailing)
                 VStack {
-                    Button(action: copyAccountString, label: {
-                        Text(copyToClipboardText)
+                    Button(action: settingsState.copyAccountString, label: {
+                        Text(settingsState.copyToClipboardText)
                     }).frame(maxWidth: .infinity, alignment: .leading)
                     
                     Button(action: {codeRevealed.toggle()}, label: {
@@ -69,16 +53,4 @@ struct AccountSettingsView: View {
             }
         }.padding(20)
     }
-    
-    func copyAccountString() {
-        switch core.api.exportAccount() {
-        case .success(let accountString):
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(accountString, forType: .string)
-            copied = true
-        case .failure(let err):
-            core.handleError(err)
-        }
-    }
-
 }

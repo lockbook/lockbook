@@ -23,8 +23,38 @@ class SettingsState: ObservableObject {
         }
     }
     
+    @Published var copied: Bool = false {
+        didSet {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                self.copied = false
+            }
+        }
+    }
+    var copyToClipboardText: String {
+        if copied {
+            return "Copied"
+        } else {
+            return "Copy to clipboard"
+        }
+    }
+    
     init(core: GlobalState) {
         self.core = core
+    }
+    
+    func copyAccountString() {
+        switch core.api.exportAccount() {
+        case .success(let accountString):
+            #if os(iOS)
+            UIPasteboard.general.string = accountString
+            #else
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(accountString, forType: .string)
+            #endif
+            copied = true
+        case .failure(let err):
+            core.handleError(err)
+        }
     }
     
     // This is the actual right way to do async stuff
@@ -65,5 +95,9 @@ class SettingsState: ObservableObject {
             core.handleError(err)
         }
         return AnyView(Text("Failed to generate QR Code"))
+    }
+    
+    func purgeAndLogout() {
+        DispatchQueue.global(qos: .userInteractive).async { self.core.purge() }
     }
 }
