@@ -11,7 +11,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub struct ImportExportFileProgress {
+pub struct ImportExportFileInfo {
     pub disk_path: PathBuf,
     pub lockbook_path: String,
 }
@@ -20,7 +20,7 @@ pub fn import_file(
     config: &Config,
     parent: Uuid,
     source: PathBuf,
-    f: Option<Box<dyn Fn(ImportExportFileProgress)>>,
+    f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     import_file_recursively(
         config,
@@ -34,7 +34,7 @@ fn import_file_recursively(
     config: &Config,
     disk_path: &Path,
     lockbook_path: &str,
-    f: &Option<Box<dyn Fn(ImportExportFileProgress)>>,
+    f: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     let is_file = disk_path.is_file();
     let lockbook_path_with_new = format!(
@@ -48,9 +48,9 @@ fn import_file_recursively(
     );
 
     if let Some(ref func) = f {
-        func(ImportExportFileProgress {
+        func(ImportExportFileInfo {
             disk_path: disk_path.to_path_buf(),
-            lockbook_path: lockbook_path_with_new.clone(),
+            lockbook_path: lockbook_path.to_string(),
         })
     }
 
@@ -81,7 +81,7 @@ pub fn export_file(
     config: &Config,
     parent: Uuid,
     destination: PathBuf,
-    f: Option<Box<dyn Fn(ImportExportFileProgress)>>,
+    f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     if destination.is_file() {
         return Err(CoreError::DiskPathInvalid);
@@ -98,17 +98,14 @@ fn export_file_recursively(
     config: &Config,
     parent_file_metadata: &ClientFileMetadata,
     disk_path: &Path,
-    f: &Option<Box<dyn Fn(ImportExportFileProgress)>>,
+    f: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     let dest_with_new = disk_path.join(&parent_file_metadata.name);
 
     if let Some(ref func) = f {
-        func(ImportExportFileProgress {
+        func(ImportExportFileInfo {
             disk_path: disk_path.to_path_buf(),
-            lockbook_path: crate::path_service::get_path_by_id(
-                config,
-                parent_file_metadata.id,
-            )?,
+            lockbook_path: crate::path_service::get_path_by_id(config, parent_file_metadata.id)?,
         })
     }
 

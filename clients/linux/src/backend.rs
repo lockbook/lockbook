@@ -23,7 +23,7 @@ use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
 use lockbook_core::model::client_conversion::{
     ClientFileMetadata, ClientWorkCalculated, ClientWorkUnit,
 };
-use lockbook_core::service::import_export_service::ImportExportFileProgress;
+use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
 
 macro_rules! match_core_err {
@@ -248,13 +248,12 @@ impl LbCore {
         &self,
         parent: Uuid,
         destination: String,
-        f: Option<Box<dyn Fn(ImportExportFileProgress)>>,
+        f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
         import_file(&self.config, parent, PathBuf::from(destination), f).map_err(map_core_err!(ImportFileError,
             FileAlreadyExists => uerr_dialog!("A file already exists in the path with the same name."),
             DocumentTreatedAsFolder => uerr_dialog!("A document is being treated as folder."),
             ParentDoesNotExist => uerr_dialog!("The folder does not exist."),
-            LocalFileDoesNotExist => uerr_dialog!("The local file does not exist."),
             NoAccount => uerr_dialog!("No account found."),
             BadPath => uerr_dialog!("An invalid path was used."),
         ))
@@ -264,9 +263,10 @@ impl LbCore {
         &self,
         parent: Uuid,
         destination: &str,
-        f: Option<Box<dyn Fn(ImportExportFileProgress)>>) -> LbResult<()> {
+        f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    ) -> LbResult<()> {
         export_file(&self.config, parent, PathBuf::from(destination), f).map_err(map_core_err!(ExportFileError,
-            FileDoesNotExist => uerr_dialog!("The folder does not exist."),
+            ParentDoesNotExist => uerr_dialog!("The folder does not exist."),
             FileAlreadyExistsInDisk => uerr_dialog!("A file already exists in the path with the same name."),
             NoAccount => uerr_dialog!("No account found."),
             BadPath => uerr_dialog!("An invalid path was used."),

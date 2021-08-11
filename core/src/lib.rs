@@ -14,7 +14,7 @@ use crate::repo::local_changes_repo;
 use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::db_state_service::State;
 use crate::service::drawing_service::SupportedImageFormats;
-use crate::service::import_export_service::ImportExportFileProgress;
+use crate::service::import_export_service::ImportExportFileInfo;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
@@ -763,11 +763,10 @@ pub fn export_drawing_to_disk(
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum ImportFileError {
+    NoAccount,
+    ParentDoesNotExist,
     FileAlreadyExists,
     DocumentTreatedAsFolder,
-    ParentDoesNotExist,
-    LocalFileDoesNotExist,
-    NoAccount,
     BadPath,
 }
 
@@ -775,34 +774,35 @@ pub fn import_file(
     config: &Config,
     parent: Uuid,
     source: PathBuf,
-    f: Option<Box<dyn Fn(ImportExportFileProgress)>>,
+    f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ImportFileError>> {
     import_export_service::import_file(config, parent, source, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
         CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
         CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
         CoreError::DiskPathInvalid => UiError(ImportFileError::BadPath),
+        CoreError::PathTaken => UiError(ImportFileError::FileAlreadyExists),
         _ => unexpected!("{:#?}", e),
     })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum ExportFileError {
-    FileDoesNotExist,
     NoAccount,
-    BadPath,
+    ParentDoesNotExist,
     FileAlreadyExistsInDisk,
+    BadPath,
 }
 
 pub fn export_file(
     config: &Config,
     parent: Uuid,
     destination: PathBuf,
-    f: Option<Box<dyn Fn(ImportExportFileProgress)>>,
+    f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ExportFileError>> {
     import_export_service::export_file(config, parent, destination, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
-        CoreError::FileNonexistent => UiError(ExportFileError::FileDoesNotExist),
+        CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
         CoreError::DiskPathInvalid => UiError(ExportFileError::BadPath),
         CoreError::DiskPathTaken => UiError(ExportFileError::FileAlreadyExistsInDisk),
         _ => unexpected!("{:#?}", e),

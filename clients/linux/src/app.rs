@@ -9,16 +9,17 @@ use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
-    AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Adjustment, Align as GtkAlign,
+    AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup, Align as GtkAlign,
     Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox, Button,
     CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
-    Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, Image as GtkImage, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
-    ResponseType as GtkResponseType, ScrolledWindow, SelectionMode as GtkSelectionMode,
-    SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
-    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
-    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
-    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
+    Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, FileChooserAction, FileChooserDialog,
+    Image as GtkImage, Label as GtkLabel, ListStore as GtkListStore, Notebook as GtkNotebook,
+    ProgressBar as GtkProgressBar, ResponseType as GtkResponseType,
+    SelectionMode as GtkSelectionMode, SortColumn as GtkSortColumn, SortType as GtkSortType,
+    Spinner as GtkSpinner, Stack as GtkStack, TreeIter as GtkTreeIter, TreeModel as GtkTreeModel,
+    TreeModelSort as GtkTreeModelSort, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
+    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt,
+    WindowPosition as GtkWindowPosition,
 };
 use uuid::Uuid;
 
@@ -41,12 +42,11 @@ use crate::util;
 use crate::util::io;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 use lockbook_core::model::client_conversion::ClientFileMetadata;
-use lockbook_core::service::import_export_service::ImportExportFileProgress;
-use std::path::{Path, PathBuf};
+use lockbook_core::service::import_export_service::ImportExportFileInfo;
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
 
-#[macro_export]
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
         let (s, r) = glib::MainContext::channel::<$param_type>(glib::PRIORITY_DEFAULT);
@@ -55,7 +55,6 @@ macro_rules! make_glib_chan {
     }};
 }
 
-#[macro_export]
 macro_rules! spawn {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => $fn:expr) => {
         std::thread::spawn(closure!($( $( $vars ).+ $( as $aliases )* ),+ => $fn));
@@ -128,6 +127,7 @@ impl LbApp {
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
                 Msg::ShowDialogImportFile(parent, uris) => lb.show_dialog_import_file(parent, uris),
+                Msg::ShowDialogExportFile => lb.show_dialog_export_file(),
 
                 Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
                 Msg::ToggleAutoSync(auto_sync) => lb.toggle_auto_sync(auto_sync),
@@ -913,37 +913,13 @@ impl LbApp {
     }
 
     fn show_dialog_import_file(&self, parent: Uuid, uris: Vec<String>) -> LbResult<()> {
-        let d = self.gui.new_dialog("Import Files");
-
-        let lbl = GtkLabel::new(None);
-
-        let scroll = ScrolledWindow::new::<Adjustment, Adjustment>(None, None);
-        util::gui::set_marginx(&scroll, 16);
-        util::gui::set_marginy(&scroll, 16);
-        scroll.add(&lbl);
-
-        lbl.connect_size_allocate(closure!(scroll => move |_, _| {
-            let hadj = scroll.get_hadjustment().unwrap();
-            hadj.set_value(hadj.get_upper() - hadj.get_page_size());
-        }));
-
-        d.get_content_area().add(&scroll);
-
-        let pbar = GtkProgressBar::new();
-        util::gui::set_marginx(&pbar, 16);
-        util::gui::set_marginy(&pbar, 16);
-        pbar.set_size_request(300, -1);
-
-        d.get_content_area().add(&pbar);
-
-        util::gui::set_marginy(&d, 36);
-        util::gui::set_marginx(&d, 100);
-
-        d.show_all();
+        let (d, disk_lbl, lb_lbl, prog_lbl, pbar) = self.gui.new_import_export_dialog(true);
 
         const FILE_SCHEME: &str = "file://";
 
         let mut total = 0;
+        let progress = Rc::new(RefCell::new(-1));
+
         for uri in &uris {
             if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
                 total += io::get_children_count(Path::new(&path).to_path_buf())?;
@@ -955,26 +931,28 @@ impl LbApp {
             }
         }
 
-        let progress = Rc::new(RefCell::new(0));
+        d.show_all();
 
-        let ch = make_glib_chan!(self.messenger as m, d, progress => move |maybe_path: Option<PathBuf>| {
+        let ch = make_glib_chan!(self.messenger as m, progress => move |maybe_info: Option<ImportExportFileInfo>| {
             *progress.borrow_mut() += 1;
+            pbar.set_fraction(*progress.borrow() as f64 / total as f64);
 
-            match maybe_path {
+            match maybe_info {
                 None => {
                     d.close();
                     m.send(Msg::RefreshTree);
                 }
-                Some(path) => {
-                    pbar.set_fraction(*progress.borrow() as f64 / total as f64);
-                    lbl.set_text(format!("{:?}", path).as_str());
+                Some(info) => {
+                    lb_lbl.set_text(&info.lockbook_path);
+                    disk_lbl.set_text(&format!("{}", info.disk_path.display()));
+                    prog_lbl.set_text(&format!("{}/{}", *progress.borrow(), total));
                 }
             }
             glib::Continue(true)
         });
 
-        let f = closure!(ch => move |progress: ImportExportFileProgress| {
-            ch.send(Some(progress.disk_path)).unwrap();
+        let f = closure!(ch => move |progress: ImportExportFileInfo| {
+            ch.send(Some(progress)).unwrap();
         });
 
         spawn!(self.core as c, self.messenger as m => move || {
@@ -991,6 +969,92 @@ impl LbApp {
 
             ch.send(None).unwrap();
         });
+
+        Ok(())
+    }
+
+    fn show_dialog_export_file(&self) -> LbResult<()> {
+        let (selected_tpaths, model) = self.gui.account.sidebar.tree.selected_rows();
+
+        let iters = selected_tpaths
+            .iter()
+            .map(|selected| model.get_iter(selected).unwrap())
+            .collect::<Vec<GtkTreeIter>>();
+        let ids = iters
+            .iter()
+            .map(|iter| Uuid::parse_str(&tree_iter_value!(model, iter, 2, String)).unwrap())
+            .collect::<Vec<Uuid>>();
+
+        let d = FileChooserDialog::new(None, Some(&self.gui.win), FileChooserAction::SelectFolder);
+
+        d.add_buttons(&[
+            ("Cancel", GtkResponseType::Cancel),
+            ("Select", GtkResponseType::Ok),
+        ]);
+
+        let resp = d.run();
+        d.close();
+
+        if resp == GtkResponseType::Ok {
+            let dest = d
+                .get_filename()
+                .unwrap()
+                .into_os_string()
+                .into_string()
+                .map_err(LbError::fmt_program_err)?;
+
+            let (load_d, lb_lbl, disk_lbl, prog_lbl, pbar) =
+                self.gui.new_import_export_dialog(false);
+
+            load_d.show_all();
+
+            let mut total = 0;
+            let progress = Rc::new(RefCell::new(-1));
+
+            for id in ids.clone() {
+                let meta = self.core.file_by_id(id)?;
+
+                total += match meta.file_type {
+                    FileType::Document => 1,
+                    FileType::Folder => match self.core.get_children_recursively(id) {
+                        Ok(children) => children.len(),
+                        Err(err) => return Err(err),
+                    },
+                }
+            }
+
+            let ch = make_glib_chan!(load_d, progress => move |maybe_info: Option<ImportExportFileInfo>| {
+                *progress.borrow_mut() += 1;
+                pbar.set_fraction(*progress.borrow() as f64 / total as f64);
+
+                match maybe_info {
+                    None => {
+                        load_d.close();
+                    }
+                    Some(info) => {
+                        lb_lbl.set_text(&info.lockbook_path);
+                        disk_lbl.set_text(&format!("{}", info.disk_path.display()));
+                        prog_lbl.set_text(&format!("{}/{}", *progress.borrow(), total));
+                    }
+                }
+                glib::Continue(true)
+            });
+
+            let f = closure!(ch => move |progress: ImportExportFileInfo| {
+                ch.send(Some(progress)).unwrap();
+            });
+
+            spawn!(self.core as c, self.messenger as m, dest, ch => move || {
+                for id in ids {
+                    if let Err(err) = c.set_up_drag_export(id, dest.as_str(), Some(Box::new(f.clone()))) {
+                        m.send_err_dialog("Exporting file", err);
+                        break;
+                    };
+                }
+
+                ch.send(None).unwrap();
+            });
+        }
 
         Ok(())
     }
@@ -1234,6 +1298,47 @@ impl Gui {
         d.set_position(GtkWindowPosition::CenterOnParent);
         d.set_title(title);
         d
+    }
+
+    fn new_import_export_dialog(
+        &self,
+        is_import: bool,
+    ) -> (GtkDialog, GtkLabel, GtkLabel, GtkLabel, GtkProgressBar) {
+        let title = if is_import {
+            "Import Files"
+        } else {
+            "Export Files"
+        };
+
+        let load_d = self.new_dialog(title);
+        util::gui::set_marginy(&load_d, 36);
+        util::gui::set_marginx(&load_d, 100);
+
+        let path_lbl_1 = GtkLabel::new(None);
+        util::gui::set_marginx(&path_lbl_1, 16);
+        path_lbl_1.set_margin_top(5);
+
+        let to_lbl = GtkLabel::new(Some("to"));
+        util::gui::set_marginy(&to_lbl, 6);
+
+        let path_lbl_2 = GtkLabel::new(None);
+        util::gui::set_marginx(&path_lbl_2, 16);
+
+        let pbar = GtkProgressBar::new();
+        util::gui::set_marginx(&pbar, 16);
+        util::gui::set_marginy(&pbar, 16);
+        pbar.set_size_request(300, -1);
+
+        let prog_lbl = GtkLabel::new(None);
+        util::gui::set_marginy(&prog_lbl, 4);
+
+        load_d.get_content_area().add(&path_lbl_1);
+        load_d.get_content_area().add(&to_lbl);
+        load_d.get_content_area().add(&path_lbl_2);
+        load_d.get_content_area().add(&pbar);
+        load_d.get_content_area().add(&prog_lbl);
+
+        (load_d, path_lbl_1, path_lbl_2, prog_lbl, pbar)
     }
 }
 

@@ -5,14 +5,14 @@ use std::sync::Arc;
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::{TreeIter as GtkTreeIter, WindowPosition, Dialog, Label, ProgressBar, ResponseType};
+use gtk::SelectionMode as GtkSelectionMode;
+use gtk::TreeIter as GtkTreeIter;
 use gtk::TreeModel as GtkTreeModel;
 use gtk::TreePath as GtkTreePath;
 use gtk::TreeSelection as GtkTreeSelection;
 use gtk::TreeStore as GtkTreeStore;
 use gtk::TreeView as GtkTreeView;
 use gtk::TreeViewColumn as GtkTreeViewColumn;
-use gtk::{Adjustment, ScrolledWindow, SelectionMode as GtkSelectionMode};
 use gtk::{CellRendererPixbuf, Menu as GtkMenu};
 use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
@@ -22,17 +22,15 @@ use gtk::{MenuItem as GtkMenuItem, TargetList};
 use uuid::Uuid;
 
 use lockbook_core::model::client_conversion::ClientFileMetadata;
-use lockbook_models::file_metadata::{FileType};
+use lockbook_models::file_metadata::FileType;
 
 use crate::backend::LbCore;
-use crate::error::{LbResult};
+use crate::closure;
+use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
-use crate::{closure, make_glib_chan, spawn, util};
 use glib::timeout_add_local;
 use std::cell::RefCell;
-use lockbook_core::service::import_export_service::ImportExportFileProgress;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -87,7 +85,6 @@ impl FileTree {
 
         let drag_hover_last_occurred = Rc::new(RefCell::new(None));
         let drag_ends_last_occurred = Rc::new(RefCell::new(None));
-        let drag_time = Rc::new(RefCell::new(None));
 
         let targets = [TargetEntry::new(
             "lockbook/files",
@@ -95,19 +92,18 @@ impl FileTree {
             LOCKBOOK_FILES_TARGET_INFO,
         )];
 
-        tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::MOVE);
+        tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::COPY);
         tree.drag_source_set(ModifierType::BUTTON1_MASK, &targets, DragAction::MOVE);
 
         let target_list = TargetList::new(&targets);
         target_list.add_uri_targets(URI_TARGET_INFO);
 
         tree.drag_dest_set_target_list(Some(&target_list));
-        tree.drag_source_set_target_list(Some(&target_list));
 
         tree.drag_source_set_icon_name("application-x-generic");
 
         tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
-        tree.connect_drag_data_get(Self::on_drag_data_get(m, c, &drag_time));
+        tree.connect_drag_data_get(Self::on_drag_data_get());
         tree.connect_drag_motion(Self::on_drag_motion(
             &drag_hover_last_occurred,
             &drag_ends_last_occurred,
@@ -115,7 +111,7 @@ impl FileTree {
 
         tree.connect_drag_end(Self::on_drag_end(
             &drag_hover_last_occurred,
-            &drag_ends_last_occurred
+            &drag_ends_last_occurred,
         ));
 
         Self { cols, model, tree }
@@ -170,127 +166,13 @@ impl FileTree {
         })
     }
 
-    fn on_drag_data_get(
-        m: &Messenger,
-        c: &Arc<LbCore>,
-        drag_time: &Rc<RefCell<Option<u128>>>,
-    ) -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
-        closure!(drag_time, m, c => move |w, _, s, info, time| match info {
+    fn on_drag_data_get() -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
+        |_, _, s, info, _| match info {
             LOCKBOOK_FILES_TARGET_INFO => {
                 s.set(&s.get_target(), 8, &[]);
             }
-            URI_TARGET_INFO => {
-                let model = w.get_model().unwrap();
-                let (paths, _) = w.get_selection().get_selected_rows();
-
-                let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-                let destination = format!("/tmp/lockbook-{}/", current_time);
-
-                *drag_time.borrow_mut() = Some(current_time);
-
-                let d = Dialog::new();
-                d.set_position(WindowPosition::CenterOnParent);
-                d.set_title("Export Files");
-
-                let lbl = Label::new(None);
-
-                let scroll = ScrolledWindow::new::<Adjustment, Adjustment>(None, None);
-                util::gui::set_marginx(&scroll, 16);
-                util::gui::set_marginy(&scroll, 16);
-                scroll.add(&lbl);
-
-                lbl.connect_size_allocate(closure!(scroll => move |_, _| {
-                    let hadj = scroll.get_hadjustment().unwrap();
-                    hadj.set_value(hadj.get_upper() - hadj.get_page_size());
-                }));
-
-                d.get_content_area().add(&scroll);
-
-                let pbar = ProgressBar::new();
-                util::gui::set_marginx(&pbar, 16);
-                util::gui::set_marginy(&pbar, 16);
-                pbar.set_size_request(300, -1);
-
-                d.get_content_area().add(&pbar);
-                d.set_can_focus(false);
-                d.set_can_default(false);
-
-                util::gui::set_marginy(&d, 36);
-                util::gui::set_marginx(&d, 100);
-
-                d.get_content_area().show_all();
-
-                let mut file_info = Vec::new();
-                let iters = paths
-                    .iter()
-                    .map(|selected| model.get_iter(selected).unwrap())
-                    .collect::<Vec<TreeIter>>();
-                for iter in iters {
-                    let name = tree_iter_value!(model, &iter, 1, String);
-                    let id = Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap();
-
-                    file_info.push((id, name));
-                }
-
-                let mut uris = Vec::new();
-                let mut total = 0;
-                let progress = Rc::new(RefCell::new(0));
-
-                for (id, name) in &file_info {
-                    uris.push(format!("file://{}{}", destination, name));
-
-                    match c.get_children_recursively(*id) {
-                        Ok(children) => total += children.len(),
-                        Err(err) => {
-                            m.send_err_dialog("Getting children of export", err);
-                            return;
-                        }
-                    }
-                }
-
-                let ch = make_glib_chan!(m, d, progress => move |maybe_path: Option<String>| {
-                    *progress.borrow_mut() += 1;
-
-                    match maybe_path {
-                        None => {
-                            println!("CLOSING NOW");
-                            d.hide();
-                        }
-                        Some(path) => {
-                            pbar.set_fraction(*progress.borrow() as f64 / total as f64);
-                            lbl.set_text(&path);
-                        }
-                    }
-                    glib::Continue(true)
-                });
-
-                let f = closure!(ch => move |progress: ImportExportFileProgress| {
-                    ch.send(Some(progress.lockbook_path)).unwrap();
-                });
-
-                std::fs::create_dir(&destination).unwrap();
-
-                spawn!(c, m, file_info, destination, ch => move || {
-                    for (id, _) in file_info {
-                        if let Err(err) = c.set_up_drag_export(id, destination.as_str(), Some(Box::new(f.clone()))) {
-                            m.send_err_dialog("Exporting file", err);
-                            return;
-                        };
-                    }
-
-                    ch.send(None).unwrap();
-                });
-
-                println!("{:?}", d.run());
-                s.set_uris(
-                    uris.iter()
-                    .map(|uri| uri.as_str())
-                    .collect::<Vec<&str>>()
-                    .as_slice(),
-                );
-            }
             _ => panic!("unrecognized target info that should not exist"),
-        })
+        }
     }
 
     fn on_drag_data_received(
@@ -359,10 +241,7 @@ impl FileTree {
         drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
         drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
     ) -> impl Fn(&TreeView, &DragContext) {
-        closure!(drag_hover_last_occurred, drag_ends_last_occurred, drag_time => move |_, _| {
-            if let Some(time) = *drag_time.borrow() {
-                std::fs::remove_dir_all(format!("/tmp/lockbook-{}", time));
-            }
+        closure!(drag_hover_last_occurred, drag_ends_last_occurred => move |_, _| {
             *drag_hover_last_occurred.borrow_mut() = None;
             *drag_ends_last_occurred.borrow_mut() = None;
         })
@@ -757,6 +636,7 @@ impl FileTreeCol {
 enum PopupItem {
     NewDocument,
     NewFolder,
+    Export,
     Rename,
     Open,
     Delete,
@@ -787,6 +667,7 @@ impl PopupItem {
         vec![
             (Self::NewDocument, || Msg::NewFile(FileType::Document)),
             (Self::NewFolder, || Msg::NewFile(FileType::Folder)),
+            (Self::Export, || Msg::ShowDialogExportFile),
             (Self::Rename, || Msg::RenameFile),
             (Self::Open, || Msg::OpenFile(None)),
             (Self::Delete, || Msg::DeleteFiles),
@@ -826,6 +707,7 @@ impl FileTreePopup {
             for (key, is_enabled) in &[
                 (PopupItem::NewFolder, only_1),
                 (PopupItem::NewDocument, only_1),
+                (PopupItem::Export, true),
                 (PopupItem::Rename, only_1 && !is_root),
                 (PopupItem::Open, only_1),
                 (PopupItem::Delete, at_least_1),
