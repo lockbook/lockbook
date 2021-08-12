@@ -23,6 +23,8 @@ pub enum Msg {
     DeleteFiles,
     RenameFile,
 
+    MarkdownLinkExec(String, String),
+
     SearchFieldFocus,
     SearchFieldBlur(bool),
     SearchFieldUpdate,

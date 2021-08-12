@@ -92,6 +92,7 @@ pub mod gui {
     }
 
     pub const RIGHT_CLICK: u32 = 3;
+    pub const LEFT_CLICK: u32 = 1;
 }
 
 pub mod io {
