@@ -104,17 +104,19 @@ struct OutlineBranch: View {
                 }
             }
             .contextMenu(menuItems: {
-                makeContextActions(
-                    meta: file,
-                    creating: {
-                        creating = $0
-                        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
-                            withAnimation {
-                                scrollView.scrollTo(1, anchor: .center)
+                if (file.fileType == FileType.Folder) {
+                    makeContextActions(
+                        meta: file,
+                        creating: {
+                            creating = $0
+                            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+                                withAnimation {
+                                    scrollView.scrollTo(1, anchor: .center)
+                                }
                             }
                         }
-                    }
-                )
+                    )
+                }
                 if (!file.isRoot) {
                     makeNonRootActions(
                         meta: file,

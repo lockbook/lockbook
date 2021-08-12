@@ -309,6 +309,13 @@ pub unsafe extern "C" fn get_usage(writeable_path: *const c_char) -> *const c_ch
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn get_uncomressed_usage(writeable_path: *const c_char) -> *const c_char {
+    c_string(translate(crate::get_uncompressed_usage(&Config {
+        writeable_path: str_from_ptr(writeable_path),
+    })))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn get_local_changes(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_local_changes(&Config {
         writeable_path: str_from_ptr(writeable_path),

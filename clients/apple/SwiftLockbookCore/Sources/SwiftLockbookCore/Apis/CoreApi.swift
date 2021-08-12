@@ -2,6 +2,7 @@ import Foundation
 import CLockbookCore
 
 public struct CoreApi: LockbookApi {
+
     var documentsDirectory: String
     
     public init(documentsDirectory: String) {
@@ -28,6 +29,10 @@ public struct CoreApi: LockbookApi {
     
     public func getUsage() -> FfiResult<UsageMetrics, GetUsageError> {
         fromPrimitiveResult(result: get_usage(documentsDirectory))
+    }
+    
+    public func getUncompressedUsage() -> FfiResult<UsageItemMetric, GetUsageError> {
+        fromPrimitiveResult(result: get_uncomressed_usage(documentsDirectory))
     }
     
     public func syncAll() -> FfiResult<Empty, SyncAllError> {

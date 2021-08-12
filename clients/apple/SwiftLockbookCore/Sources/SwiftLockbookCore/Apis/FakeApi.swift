@@ -23,6 +23,10 @@ public struct FakeApi: LockbookApi {
     public func getUsage() -> FfiResult<UsageMetrics, GetUsageError> {
         .failure(.init(unexpected: "LAZY"))
     }
+    
+    public func getUncompressedUsage() -> FfiResult<UsageItemMetric, GetUsageError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
 
     public func syncAll() -> FfiResult<Empty, SyncAllError> {
         .failure(.init(unexpected: "LAZY"))

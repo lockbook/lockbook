@@ -4,7 +4,6 @@ import PencilKit
 
 struct FileListView: View {
     @ObservedObject var core: GlobalState
-    @State var showingAccount: Bool = false
     @State var creatingFile: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
@@ -45,28 +44,27 @@ struct FileListView: View {
                         })
                     })
             }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink(
+                        destination: SettingsView(core: core, settingsState: SettingsState(core: core), account: account).equatable()) {
+                        Image(systemName: "gearshape.fill")
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
                 core.syncing = true
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 core.syncing = true
             }
-            .sheet(isPresented: $showingAccount, content: {
-                AccountView(core: core, account: account)
-            })
             .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, core: core, onSuccess: fileSuccessfullyCreated)})
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingAccount.toggle() }) {
-                        Image(systemName: "gearshape.fill")
-                            .foregroundColor(.blue)
-                    }
-                }
-            }
             .navigationBarTitle(currentFolder.name)
             HStack {
                 BottomBar(core: core, onCreating: { creatingFile = true })
-            }.padding(.horizontal, 10)
+            }
+            .padding(.horizontal, 10)
         }
     }
     
@@ -173,7 +171,7 @@ struct FileListView_Previews: PreviewProvider {
     
     static var previews: some View {
         NavigationView {
-            FileListView(core: core, showingAccount: false, currentFolder: core.root!, account: core.account!, moving: .constant(.none))
+            FileListView(core: core, currentFolder: core.root!, account: core.account!, moving: .constant(.none))
         }
     }
 }

@@ -12,7 +12,7 @@ public struct Account: Codable {
     }
     
     public static func fake(username: Username) -> Account {
-        Account(username: username, apiUrl: "test://api", keys: [])
+        Account(username: username, apiUrl: "test://test.net.prod.lockbook.api", keys: [])
     }
     
     public func qualified() -> String {
