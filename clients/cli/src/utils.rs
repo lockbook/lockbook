@@ -248,32 +248,32 @@ pub fn save_temp_file_contents(id: Uuid, location: &str, silent: bool) {
                     location,
                     err
                 )
-                .exit()
-            } else {
-                return;
+                .print()
             }
+
+            return;
         }
     };
 
     match write_document(&get_config(), id, &secret) {
         Ok(_) => {
             if !silent {
-                exit_success("Document encrypted and saved. Cleaning up temporary file.")
+                println!("Document encrypted and saved. Cleaning up temporary file.")
             }
         }
         Err(err) => {
             if !silent {
                 match err {
-                    CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
+                    CoreError::Unexpected(msg) => err_unexpected!("{}", msg).print(),
                     CoreError::UiError(WriteToDocumentError::NoAccount) => err_unexpected!(
                         "No account! Run 'new-account' or 'import-private-key' to get started!"
                     )
-                    .exit(),
+                    .print(),
                     CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
-                        err_unexpected!("FileDoesNotExist").exit()
+                        err_unexpected!("FileDoesNotExist").print()
                     }
                     CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
-                        err_unexpected!("CannotWriteToFolder").exit()
+                        err_unexpected!("CannotWriteToFolder").print()
                     }
                 }
             }
