@@ -92,7 +92,7 @@ fn import_file_recursively(
 
 pub fn export_file(
     config: &Config,
-    parent: Uuid,
+    id: Uuid,
     destination: PathBuf,
     edit: bool,
     f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
@@ -103,7 +103,7 @@ pub fn export_file(
 
     let file_metadata = client_conversion::generate_client_file_metadata(
         config,
-        &file_metadata_repo::get(config, parent)?,
+        &file_metadata_repo::get(config, id)?,
     )?;
     export_file_recursively(config, &file_metadata, &destination, edit, &f)
 }

@@ -251,11 +251,11 @@ impl LbCore {
 
     pub fn set_up_drag_export(
         &self,
-        parent: Uuid,
+        id: Uuid,
         destination: &str,
         f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
-        export_file(&self.config, parent, PathBuf::from(destination), false, f).map_err(
+        export_file(&self.config, id, PathBuf::from(destination), false, f).map_err(
             map_core_err!(ExportFileError,
                 ParentDoesNotExist => uerr_dialog!("Invalid export destination, parent not found."),
                 FileAlreadyExistsInDisk => uerr_dialog!("File collision detected during export."),

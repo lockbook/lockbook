@@ -797,12 +797,12 @@ pub enum ExportFileError {
 
 pub fn export_file(
     config: &Config,
-    parent: Uuid,
+    id: Uuid,
     destination: PathBuf,
     edit: bool,
     f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ExportFileError>> {
-    import_export_service::export_file(config, parent, destination, edit, f).map_err(|e| match e {
+    import_export_service::export_file(config, id, destination, edit, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
         CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
         CoreError::DiskPathInvalid => UiError(ExportFileError::BadPath),
