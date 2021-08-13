@@ -944,7 +944,7 @@ impl LbApp {
                 total += io::get_children_count(Path::new(&path).to_path_buf())?;
             } else {
                 return Err(LbError::new_user_err(
-                    "Unsupported uri is used.".to_string(),
+                    "Unsupported uri!".to_string(),
                     LbErrTarget::Dialog,
                 ));
             }
@@ -982,7 +982,8 @@ impl LbApp {
                         break;
                     };
                 } else {
-                    panic!("impossible");
+                    eprintln!("A uri scheme besides {} got through somehow!", FILE_SCHEME);
+                    return;
                 }
             }
 
