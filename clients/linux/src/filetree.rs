@@ -179,52 +179,36 @@ impl FileTree {
         m: &Messenger,
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
-        closure!(m, c => move
-            |w, d, x, y, s, info, time| {
+        closure!(m, c => move |w, d, x, y, s, info, time| {
             if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
 
                 let mut parent = model.get_iter(&path).unwrap();
-                match pos {
-                    TreeViewDropPosition::Before |
-                    TreeViewDropPosition::After => {
-                        path.up();
-                        parent = model.get_iter(&path).unwrap();
-                    }
-                    _ => {
-                        if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document) {
-                            path.up();
-                            parent = model.get_iter(&path).unwrap();
-                        }
-                    }
-                }
-
-                if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document) {
+                if (pos == TreeViewDropPosition::Before || pos == TreeViewDropPosition::After) || tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document) {
                     path.up();
                     parent = model.get_iter(&path).unwrap();
                 }
+
+                let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
 
                 match info {
                     LOCKBOOK_FILES_TARGET_INFO => {
                         let (paths, _) = w.get_selection().get_selected_rows();
 
-                        let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
-                        let ids = iters.iter().map(|iter| Uuid::parse_str(&tree_iter_value!(model, iter, 2, String)).unwrap()).collect::<Vec<Uuid>>();
+                        for selected in paths {
+                            let iter = model.get_iter(&selected).unwrap();
+                            let id = Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap();
 
-                        let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
-
-                        ids.iter().enumerate().for_each(|(index, id)| {
-                            match c.move_file(id, parent_id) {
+                            match c.move_file(&id, parent_id) {
                                 Ok(_) => {
-                                    Self::move_iter(&model, &iters[index], &parent, true);
-                                    model.remove(&iters[index]);
+                                    Self::move_iter(&model, &iter, &parent, true);
+                                    model.remove(&iter);
                                 }
                                 Err(err) => m.send_err_dialog("moving", err)
                             }
-                        });
+                        }
                     }
                     URI_TARGET_INFO => {
-                        let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
                         let uris: Vec<String> = s.get_uris().iter().map(|uri| uri.to_string()).collect();
                         m.send(Msg::ShowDialogImportFile(parent_id, uris))
                     }
@@ -233,8 +217,7 @@ impl FileTree {
 
                 d.drop_finish(true, time);
             }
-        }
-        )
+        })
     }
 
     fn on_drag_end(

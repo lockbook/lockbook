@@ -24,21 +24,21 @@ mod import_export_file_tests {
             &generated_account.api_url,
         )
         .unwrap();
-        let root = get_root(config).unwrap();
-
-        let tmp_dir = tempfile::tempdir().unwrap().path().to_path_buf();
-
-        let config_copy = config.clone();
-        let f = move |info: ImportExportFileInfo| {
-            get_file_by_path(&config_copy, info.lockbook_path.as_str()).unwrap();
-            assert!(info.disk_path.exists());
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let tmp_path = tmp.path().to_path_buf();
 
         // generating document in /tmp/
         let name = Uuid::new_v4().to_string();
-        let doc_path = tmp_dir.join(&name);
+        let doc_path = tmp_path.join(&name);
 
         std::fs::write(&doc_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
+
+        let root = get_root(config).unwrap();
+
+        let f = move |info: ImportExportFileInfo| {
+            // only checking if the disk path exists since a lockbook folder that has children won't be created until its first child is
+            assert!(info.disk_path.exists());
+        };
 
         import_file(&config, root.id, doc_path, false, Some(Box::new(f.clone()))).unwrap();
 
@@ -46,16 +46,19 @@ mod import_export_file_tests {
 
         // generating folder with a document in /tmp/
         let parent_name = Uuid::new_v4().to_string();
-        let child_name = Uuid::new_v4().to_string();
-        let child_path = tmp_dir.join(&parent_name).join(&child_name);
+        let parent_path = tmp_path.join(&parent_name);
 
-        std::fs::create_dir_all(&child_path).unwrap();
+        std::fs::create_dir(&parent_path).unwrap();
+
+        let child_name = Uuid::new_v4().to_string();
+        let child_path = parent_path.join(&child_name);
+
         std::fs::write(&child_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
         import_file(
             &config,
             root.id,
-            child_path,
+            parent_path,
             false,
             Some(Box::new(f.clone())),
         )
@@ -82,16 +85,29 @@ mod import_export_file_tests {
         .unwrap();
         let root = get_root(config).unwrap();
 
-        let tmp_dir = tempfile::tempdir().unwrap().path().to_path_buf();
+        let tmp = tempfile::tempdir().unwrap();
+        let tmp_path = tmp.path().to_path_buf();
 
         // generating document in lockbook
         let name = Uuid::new_v4().to_string();
         let file = create_file(&config, name.as_str(), root.id, FileType::Document).unwrap();
         write_document(&config, file.id, &rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
-        export_file(&config, file.id, tmp_dir.clone(), false, None).unwrap();
+        let config_copy = config.clone();
+        let f = move |info: ImportExportFileInfo| {
+            get_file_by_path(&config_copy, info.lockbook_path.as_str()).unwrap();
+            assert!(info.disk_path.exists());
+        };
+        export_file(
+            &config,
+            file.id,
+            tmp_path.clone(),
+            false,
+            Some(Box::new(f.clone())),
+        )
+        .unwrap();
 
-        assert!(tmp_dir.join(file.name).exists());
+        assert!(tmp_path.join(file.name).exists());
 
         // generating folder with a document in lockbook
         let parent_name = Uuid::new_v4().to_string();
@@ -104,6 +120,15 @@ mod import_export_file_tests {
 
         write_document(&config, child.id, &rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
-        assert!(tmp_dir.join(parent_name).join(child_name).exists());
+        export_file(
+            &config,
+            child.parent,
+            tmp_path.clone(),
+            false,
+            Some(Box::new(f.clone())),
+        )
+        .unwrap();
+
+        assert!(tmp_path.join(parent_name).join(child_name).exists());
     }
 }

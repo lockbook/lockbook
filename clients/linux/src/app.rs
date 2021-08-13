@@ -41,7 +41,6 @@ use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
-use crate::util::io;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 
 use lockbook_core::model::client_conversion::ClientFileMetadata;
@@ -941,7 +940,7 @@ impl LbApp {
 
         for uri in &uris {
             if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
-                total += io::get_children_count(Path::new(&path).to_path_buf())?;
+                total += util::io::get_children_count(Path::new(&path).to_path_buf())?;
             } else {
                 return Err(LbError::new_user_err(
                     "Unsupported uri!".to_string(),
@@ -996,13 +995,17 @@ impl LbApp {
     fn show_dialog_export_file(&self) -> LbResult<()> {
         let (selected_tpaths, model) = self.gui.account.sidebar.tree.selected_rows();
 
-        let iters = selected_tpaths
+        let ids = selected_tpaths
             .iter()
-            .map(|selected| model.get_iter(selected).unwrap())
-            .collect::<Vec<GtkTreeIter>>();
-        let ids = iters
-            .iter()
-            .map(|iter| Uuid::parse_str(&tree_iter_value!(model, iter, 2, String)).unwrap())
+            .map(|selected| {
+                Uuid::parse_str(&tree_iter_value!(
+                    model,
+                    &model.get_iter(selected).unwrap(),
+                    2,
+                    String
+                ))
+                .unwrap()
+            })
             .collect::<Vec<Uuid>>();
 
         let d = FileChooserDialog::new(None, Some(&self.gui.win), FileChooserAction::SelectFolder);
@@ -1031,12 +1034,12 @@ impl LbApp {
             let mut total = 0;
             let progress = Rc::new(RefCell::new(-1));
 
-            for id in ids.clone() {
-                let meta = self.core.file_by_id(id)?;
+            for id in &ids {
+                let meta = self.core.file_by_id(*id)?;
 
                 total += match meta.file_type {
                     FileType::Document => 1,
-                    FileType::Folder => match self.core.get_children_recursively(id) {
+                    FileType::Folder => match self.core.get_children_recursively(*id) {
                         Ok(children) => children.len(),
                         Err(err) => return Err(err),
                     },
@@ -1048,9 +1051,7 @@ impl LbApp {
                 pbar.set_fraction(*progress.borrow() as f64 / total as f64);
 
                 match maybe_info {
-                    None => {
-                        load_d.close();
-                    }
+                    None => load_d.close(),
                     Some(info) => {
                         lb_lbl.set_text(&info.lockbook_path);
                         disk_lbl.set_text(&format!("{}", info.disk_path.display()));
