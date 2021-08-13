@@ -237,15 +237,15 @@ impl LbCore {
     pub fn import_file(
         &self,
         parent: Uuid,
-        destination: String,
+        source: String,
         f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
-        import_file(&self.config, parent, PathBuf::from(destination), f).map_err(map_core_err!(ImportFileError,
-            FileAlreadyExists => uerr_dialog!("A file already exists in the path with the same name."),
-            DocumentTreatedAsFolder => uerr_dialog!("A document is being treated as folder."),
-            ParentDoesNotExist => uerr_dialog!("The folder does not exist."),
-            NoAccount => uerr_dialog!("No account found."),
-            BadPath => uerr_dialog!("An invalid path was used."),
+        import_file(&self.config, parent, PathBuf::from(source), false, f).map_err(map_core_err!(ImportFileError,
+            FileAlreadyExists => uerr_dialog!("File collision detected during import."),
+            DocumentTreatedAsFolder => uerr_dialog!("Invalid import destination, document treated as folder."),
+            ParentDoesNotExist => uerr_dialog!("Invalid import destination, parent not found."),
+            NoAccount => uerr_dialog!("No account."),
+            BadPath => uerr_dialog!("Invalid path!"),
         ))
     }
 
@@ -255,12 +255,14 @@ impl LbCore {
         destination: &str,
         f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
-        export_file(&self.config, parent, PathBuf::from(destination), f).map_err(map_core_err!(ExportFileError,
-            ParentDoesNotExist => uerr_dialog!("The folder does not exist."),
-            FileAlreadyExistsInDisk => uerr_dialog!("A file already exists in the path with the same name."),
-            NoAccount => uerr_dialog!("No account found."),
-            BadPath => uerr_dialog!("An invalid path was used."),
-        ))
+        export_file(&self.config, parent, PathBuf::from(destination), false, f).map_err(
+            map_core_err!(ExportFileError,
+                ParentDoesNotExist => uerr_dialog!("Invalid export destination, parent not found."),
+                FileAlreadyExistsInDisk => uerr_dialog!("File collision detected during export."),
+                NoAccount => uerr_dialog!("No account."),
+                BadPath => uerr_dialog!("Invalid path!"),
+            ),
+        )
     }
 
     pub fn sync(&self, ch: glib::Sender<Option<LbSyncMsg>>) -> LbResult<()> {

@@ -20,12 +20,14 @@ pub fn import_file(
     config: &Config,
     parent: Uuid,
     source: PathBuf,
+    edit: bool,
     f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     import_file_recursively(
         config,
         &source,
         path_service::get_path_by_id(config, parent)?.as_str(),
+        edit,
         &f,
     )
 }
@@ -34,6 +36,7 @@ fn import_file_recursively(
     config: &Config,
     disk_path: &Path,
     lockbook_path: &str,
+    edit: bool,
     f: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     let is_file = disk_path.is_file();
@@ -56,7 +59,17 @@ fn import_file_recursively(
 
     if disk_path.is_file() {
         let content = fs::read(&disk_path).map_err(CoreError::from)?;
-        let file_metadata = path_service::create_at_path(config, lockbook_path_with_new.as_str())?;
+        let file_metadata =
+            match path_service::create_at_path(config, lockbook_path_with_new.as_str()) {
+                Ok(file_metadata) => file_metadata,
+                Err(err) => {
+                    if edit && CoreError::PathTaken == err {
+                        path_service::get_by_path(config, lockbook_path_with_new.as_str())?
+                    } else {
+                        return Err(err);
+                    }
+                }
+            };
 
         file_service::write_document(config, file_metadata.id, content.as_slice())?;
     } else {
@@ -69,7 +82,7 @@ fn import_file_recursively(
             for maybe_child in children {
                 let child_path = maybe_child.map_err(CoreError::from)?.path();
 
-                import_file_recursively(config, &child_path, &lockbook_path_with_new, f)?;
+                import_file_recursively(config, &child_path, &lockbook_path_with_new, edit, f)?;
             }
         }
     }
@@ -81,6 +94,7 @@ pub fn export_file(
     config: &Config,
     parent: Uuid,
     destination: PathBuf,
+    edit: bool,
     f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     if destination.is_file() {
@@ -91,13 +105,14 @@ pub fn export_file(
         config,
         &file_metadata_repo::get(config, parent)?,
     )?;
-    export_file_recursively(config, &file_metadata, &destination, &f)
+    export_file_recursively(config, &file_metadata, &destination, edit, &f)
 }
 
 fn export_file_recursively(
     config: &Config,
     parent_file_metadata: &ClientFileMetadata,
     disk_path: &Path,
+    edit: bool,
     f: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     let dest_with_new = disk_path.join(&parent_file_metadata.name);
@@ -119,15 +134,22 @@ fn export_file_recursively(
                 let child_file_metadata =
                     client_conversion::generate_client_file_metadata(config, child)?;
 
-                export_file_recursively(config, &child_file_metadata, &dest_with_new, f)?;
+                export_file_recursively(config, &child_file_metadata, &dest_with_new, edit, f)?;
             }
         }
         FileType::Document => {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(dest_with_new)
-                .map_err(CoreError::from)?;
+            let mut file = if edit {
+                OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .open(dest_with_new)
+            } else {
+                OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(dest_with_new)
+            }
+            .map_err(CoreError::from)?;
 
             file.write_all(
                 file_service::read_document(config, parent_file_metadata.id)?.as_slice(),

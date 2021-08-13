@@ -84,16 +84,14 @@ make_errkind_enum!(
 
     // OS (30s)
     30 => OsPwdMissing(IoError),
-    31 => OsCouldNotGetAbsPath(String, IoError),
-    32 => OsCouldNotGetFileName(String),
-    33 => OsCouldNotCreateDir(String, IoError),
-    34 => OsCouldNotListChildren(String, IoError),
-    35 => OsCouldNotReadFile(String, IoError),
-    36 => OsCouldNotCreateFile(String, IoError),
-    37 => OsCouldNotWriteFile(String, IoError),
-    38 => OsCouldNotDeleteFile(String, IoError),
+    31 => OsCouldNotCreateDir(String, IoError),
+    32 => OsCouldNotCreateFile(String, IoError),
+    33 => OsCouldNotWriteFile(String, IoError),
+    34 => OsCouldNotDeleteFile(String, IoError),
+    35 => OsInvalidPath(String),
+    36 => OsFileCollision(String),
 
-    // Lockbook file ops (40-51)
+    // Lockbook file ops (40-52)
     40 => FileNotFound(String),
     41 => FileAlreadyExists(String),
     42 => FileNameEmpty,
@@ -106,12 +104,13 @@ make_errkind_enum!(
     49 => NoRootOps(&'static str),
     50 => InvalidDrawing(String),
     51 => FolderTreatedAsDoc(String),
+    52 => FileCollision(String),
 
-    // Validation errors (52 - 55)
-    52 => FileOrphaned(String),
-    53 => CycleDetected,
-    54 => NameConflictDetected(String),
-    55 => WarningsFound(i32),
+    // Validation errors (53 - 55)
+    53 => FileOrphaned(String),
+    54 => CycleDetected,
+    55 => NameConflictDetected(String),
+    56 => WarningsFound(i32),
 );
 
 impl ErrorKind {
@@ -134,14 +133,12 @@ impl ErrorKind {
             Self::UsernamePkMismatch => "The public_key in this account_string does not match what is on the server.".to_string(),
 
             Self::OsPwdMissing(err) => format!("getting PWD from OS: {}", err),
-            Self::OsCouldNotGetAbsPath(path, err) => format!("could not get absolute path for '{}': {}", path, err),
-            Self::OsCouldNotGetFileName(path) => format!("could not get file name for '{}'", path),
             Self::OsCouldNotCreateDir(path, err) => format!("could not create directory '{}': {}", path, err),
-            Self::OsCouldNotListChildren(path, err) => format!("could not list children for directory '{}': {}", path, err),
-            Self::OsCouldNotReadFile(path, err) => format!("could not read file '{}': {}", path, err),
             Self::OsCouldNotCreateFile(path, err) => format!("could not create file '{}': {}", path, err),
             Self::OsCouldNotWriteFile(path, err) => format!("could not write file '{}': {}", path, err),
             Self::OsCouldNotDeleteFile(path, err) => format!("could not delete file '{}': {}", path, err),
+            Self::OsInvalidPath(path) => format!("'{}' is an invalid path", path),
+            Self::OsFileCollision(path) => format!("A file collision was detected in '{}'", path),
 
             Self::FileNotFound(path) => format!("file '{}' not found", path),
             Self::FileAlreadyExists(path) => format!("the file '{}' already exists", path),
@@ -155,6 +152,8 @@ impl ErrorKind {
             Self::NoRootOps(op) => format!("cannot {} your root directory!", op),
             Self::InvalidDrawing(name) => format!("'{}' is an invalid drawing", name),
             Self::FolderTreatedAsDoc(path) => format!("a file in path '{}' is a folder being treated as a document", path),
+            Self::FileCollision(path) => format!("a file collision was detected in '{}'", path),
+
             Self::FileOrphaned(path) => format!("file '{}' has no path to root", path),
             Self::CycleDetected => "A cycle was detected in the file hierarchy".to_string(),
             Self::NameConflictDetected(path) => format!("A name conflict was detected for file at path `{}`", path),

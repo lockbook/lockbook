@@ -53,7 +53,7 @@ macro_rules! unexpected {
     };
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CoreError {
     AccountExists,
     AccountNonexistent,
@@ -774,9 +774,10 @@ pub fn import_file(
     config: &Config,
     parent: Uuid,
     source: PathBuf,
+    edit: bool,
     f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ImportFileError>> {
-    import_export_service::import_file(config, parent, source, f).map_err(|e| match e {
+    import_export_service::import_file(config, parent, source, edit, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
         CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
         CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
@@ -798,9 +799,10 @@ pub fn export_file(
     config: &Config,
     parent: Uuid,
     destination: PathBuf,
+    edit: bool,
     f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ExportFileError>> {
-    import_export_service::export_file(config, parent, destination, f).map_err(|e| match e {
+    import_export_service::export_file(config, parent, destination, edit, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
         CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
         CoreError::DiskPathInvalid => UiError(ExportFileError::BadPath),
