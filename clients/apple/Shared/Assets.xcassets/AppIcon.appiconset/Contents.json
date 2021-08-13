@@ -103,7 +103,7 @@
       "size" : "83.5x83.5"
     },
     {
-      "filename" : "lockbook-1024px.png",
+      "filename" : "lockbook-1024px-1.png",
       "idiom" : "ios-marketing",
       "scale" : "1x",
       "size" : "1024x1024"
@@ -163,7 +163,7 @@
       "size" : "512x512"
     },
     {
-      "filename" : "lockbook-1024px-1.png",
+      "filename" : "lockbook-1024px-2.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"
