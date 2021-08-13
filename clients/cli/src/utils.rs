@@ -264,18 +264,18 @@ pub fn save_temp_file_contents(id: Uuid, location: &str, silent: bool) {
         Err(err) => {
             if !silent {
                 match err {
-                    CoreError::Unexpected(msg) => err_unexpected!("{}", msg).print(),
+                    CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
                     CoreError::UiError(WriteToDocumentError::NoAccount) => err_unexpected!(
                         "No account! Run 'new-account' or 'import-private-key' to get started!"
-                    )
-                    .print(),
+                    ),
                     CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
-                        err_unexpected!("FileDoesNotExist").print()
+                        err_unexpected!("FileDoesNotExist")
                     }
                     CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
-                        err_unexpected!("CannotWriteToFolder").print()
+                        err_unexpected!("CannotWriteToFolder")
                     }
                 }
+                .print()
             }
         }
     }
