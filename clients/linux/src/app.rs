@@ -45,7 +45,7 @@ use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
-use std::path::Path;
+use std::path::PathBuf;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -940,7 +940,7 @@ impl LbApp {
 
         for uri in &uris {
             if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
-                total += util::io::get_children_count(Path::new(&path).to_path_buf())?;
+                total += util::io::get_children_count(PathBuf::from(path))?;
             } else {
                 return Err(LbError::new_user_err(
                     "Unsupported uri!".to_string(),
@@ -1019,12 +1019,7 @@ impl LbApp {
         d.close();
 
         if resp == GtkResponseType::Ok {
-            let dest = d
-                .get_filename()
-                .unwrap()
-                .into_os_string()
-                .into_string()
-                .map_err(LbError::fmt_program_err)?;
+            let dest = d.get_filename().unwrap().to_string_lossy().into_owned();
 
             let (load_d, lb_lbl, disk_lbl, prog_lbl, pbar) =
                 self.gui.new_import_export_dialog(false);
@@ -1039,10 +1034,7 @@ impl LbApp {
 
                 total += match meta.file_type {
                     FileType::Document => 1,
-                    FileType::Folder => match self.core.get_children_recursively(*id) {
-                        Ok(children) => children.len(),
-                        Err(err) => return Err(err),
-                    },
+                    FileType::Folder => self.core.get_children_recursively(*id)?.len(),
                 }
             }
 
@@ -1067,7 +1059,7 @@ impl LbApp {
 
             spawn!(self.core as c, self.messenger as m, dest, ch => move || {
                 for id in ids {
-                    if let Err(err) = c.set_up_drag_export(id, dest.as_str(), Some(Box::new(f.clone()))) {
+                    if let Err(err) = c.set_up_drag_export(id, &dest, Some(Box::new(f.clone()))) {
                         m.send_err_dialog("Exporting file", err);
                         break;
                     };
