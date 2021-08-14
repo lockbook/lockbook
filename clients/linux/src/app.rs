@@ -43,6 +43,7 @@ use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 
+use glib::uri_unescape_string;
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use std::path::PathBuf;
@@ -938,14 +939,17 @@ impl LbApp {
         let mut total = 0;
         let progress = Rc::new(RefCell::new(-1));
 
+        let mut paths = Vec::new();
+
         for uri in &uris {
             if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
-                total += util::io::get_children_count(PathBuf::from(path))?;
+                let escaped_uri = uri_unescape_string(path, None)
+                    .ok_or_else(|| uerr_dialog!("Unable to escape uri!"))?
+                    .to_string();
+                total += util::io::get_children_count(PathBuf::from(&escaped_uri))?;
+                paths.push(escaped_uri);
             } else {
-                return Err(LbError::new_user_err(
-                    "Unsupported uri!".to_string(),
-                    LbErrTarget::Dialog,
-                ));
+                return Err(uerr_dialog!("Unsupported uri!"));
             }
         }
 
@@ -974,16 +978,11 @@ impl LbApp {
         });
 
         spawn!(self.core as c, self.messenger as m => move || {
-            for uri in uris {
-                if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
-                    if let Err(err) = c.import_file(parent, path.to_string(), Some(Box::new(f.clone()))) {
-                        m.send_err_dialog("Import files", err);
-                        break;
-                    };
-                } else {
-                    eprintln!("A uri scheme besides {} got through somehow!", FILE_SCHEME);
-                    return;
-                }
+            for path in paths {
+                if let Err(err) = c.import_file(parent, path.to_string(), Some(Box::new(f.clone()))) {
+                    m.send_err_dialog("Import files", err);
+                    break;
+                };
             }
 
             ch.send(None).unwrap();
