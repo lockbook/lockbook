@@ -42,7 +42,7 @@ mod import_export_file_tests {
 
         import_file(&config, root.id, doc_path, false, Some(Box::new(f.clone()))).unwrap();
 
-        get_file_by_path(&config, format!("/{}/{}", root.name, name).as_str()).unwrap();
+        get_file_by_path(&config, &format!("/{}/{}", root.name, name)).unwrap();
 
         // generating folder with a document in /tmp/
         let parent_name = Uuid::new_v4().to_string();
@@ -66,7 +66,7 @@ mod import_export_file_tests {
 
         get_file_by_path(
             &config,
-            format!("/{}/{}/{}", root.name, parent_name, child_name).as_str(),
+            &format!("/{}/{}/{}", root.name, parent_name, child_name),
         )
         .unwrap();
     }
@@ -90,12 +90,12 @@ mod import_export_file_tests {
 
         // generating document in lockbook
         let name = Uuid::new_v4().to_string();
-        let file = create_file(&config, name.as_str(), root.id, FileType::Document).unwrap();
+        let file = create_file(&config, &name, root.id, FileType::Document).unwrap();
         write_document(&config, file.id, &rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
         let config_copy = config.clone();
-        let f = move |info: ImportExportFileInfo| {
-            get_file_by_path(&config_copy, info.lockbook_path.as_str()).unwrap();
+        let export_progress = move |info: ImportExportFileInfo| {
+            get_file_by_path(&config_copy, &info.lockbook_path).unwrap();
             assert!(info.disk_path.exists());
         };
         export_file(
@@ -103,7 +103,7 @@ mod import_export_file_tests {
             file.id,
             tmp_path.clone(),
             false,
-            Some(Box::new(f.clone())),
+            Some(Box::new(export_progress.clone())),
         )
         .unwrap();
 
@@ -125,7 +125,7 @@ mod import_export_file_tests {
             child.parent,
             tmp_path.clone(),
             false,
-            Some(Box::new(f.clone())),
+            Some(Box::new(export_progress.clone())),
         )
         .unwrap();
 

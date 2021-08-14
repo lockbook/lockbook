@@ -21,7 +21,7 @@ pub fn copy(disk_path: PathBuf, lb_path: &str, edit: bool) -> CliResult<()> {
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
-    let f = |info: ImportExportFileInfo| {
+    let import_progress = |info: ImportExportFileInfo| {
         println!(
             "{} imported to {}",
             info.disk_path.display(),
@@ -34,7 +34,7 @@ pub fn copy(disk_path: PathBuf, lb_path: &str, edit: bool) -> CliResult<()> {
         file_metadata.id,
         disk_path,
         edit,
-        Some(Box::new(f)),
+        Some(Box::new(import_progress)),
     )
     .map_err(|err| match err {
         CoreError::UiError(err) => match err {

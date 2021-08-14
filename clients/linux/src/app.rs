@@ -973,13 +973,13 @@ impl LbApp {
             glib::Continue(true)
         });
 
-        let f = closure!(ch => move |progress: ImportExportFileInfo| {
+        let import_progress = closure!(ch => move |progress: ImportExportFileInfo| {
             ch.send(Some(progress)).unwrap();
         });
 
         spawn!(self.core as c, self.messenger as m => move || {
             for path in paths {
-                if let Err(err) = c.import_file(parent, path.to_string(), Some(Box::new(f.clone()))) {
+                if let Err(err) = c.import_file(parent, path.to_string(), Some(Box::new(import_progress.clone()))) {
                     m.send_err_dialog("Import files", err);
                     break;
                 };
@@ -1052,13 +1052,13 @@ impl LbApp {
                 glib::Continue(true)
             });
 
-            let f = closure!(ch => move |progress: ImportExportFileInfo| {
+            let export_progress = closure!(ch => move |progress: ImportExportFileInfo| {
                 ch.send(Some(progress)).unwrap();
             });
 
             spawn!(self.core as c, self.messenger as m, dest, ch => move || {
                 for id in ids {
-                    if let Err(err) = c.set_up_drag_export(id, &dest, Some(Box::new(f.clone()))) {
+                    if let Err(err) = c.export_file(id, &dest, Some(Box::new(export_progress.clone()))) {
                         m.send_err_dialog("Exporting file", err);
                         break;
                     };

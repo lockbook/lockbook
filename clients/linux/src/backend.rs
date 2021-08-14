@@ -238,9 +238,9 @@ impl LbCore {
         &self,
         parent: Uuid,
         source: String,
-        f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+        import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
-        import_file(&self.config, parent, PathBuf::from(source), false, f).map_err(map_core_err!(ImportFileError,
+        import_file(&self.config, parent, PathBuf::from(source), false, import_progress).map_err(map_core_err!(ImportFileError,
             FileAlreadyExists => uerr_dialog!("File collision detected during import."),
             DocumentTreatedAsFolder => uerr_dialog!("Invalid import destination, document treated as folder."),
             ParentDoesNotExist => uerr_dialog!("Invalid import destination, parent not found."),
@@ -249,20 +249,25 @@ impl LbCore {
         ))
     }
 
-    pub fn set_up_drag_export(
+    pub fn export_file(
         &self,
         id: Uuid,
         destination: &str,
-        f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+        export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
-        export_file(&self.config, id, PathBuf::from(destination), false, f).map_err(
-            map_core_err!(ExportFileError,
-                ParentDoesNotExist => uerr_dialog!("Invalid export destination, parent not found."),
-                FileAlreadyExistsInDisk => uerr_dialog!("File collision detected during export."),
-                NoAccount => uerr_dialog!("No account."),
-                BadPath => uerr_dialog!("Invalid path!"),
-            ),
+        export_file(
+            &self.config,
+            id,
+            PathBuf::from(destination),
+            false,
+            export_progress,
         )
+        .map_err(map_core_err!(ExportFileError,
+            ParentDoesNotExist => uerr_dialog!("Invalid export destination, parent not found."),
+            FileAlreadyExistsInDisk => uerr_dialog!("File collision detected during export."),
+            NoAccount => uerr_dialog!("No account."),
+            BadPath => uerr_dialog!("Invalid path!"),
+        ))
     }
 
     pub fn sync(&self, ch: glib::Sender<Option<LbSyncMsg>>) -> LbResult<()> {

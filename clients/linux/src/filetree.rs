@@ -189,7 +189,7 @@ impl FileTree {
                     parent = model.get_iter(&path).unwrap();
                 }
 
-                let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
+                let parent_id = Uuid::parse_str(&tree_iter_value!(model, &parent, 2, String)).unwrap();
 
                 match info {
                     LOCKBOOK_FILES_TARGET_INFO => {

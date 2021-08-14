@@ -775,15 +775,17 @@ pub fn import_file(
     parent: Uuid,
     source: PathBuf,
     edit: bool,
-    f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ImportFileError>> {
-    import_export_service::import_file(config, parent, source, edit, f).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
-        CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
-        CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
-        CoreError::DiskPathInvalid => UiError(ImportFileError::BadPath),
-        CoreError::PathTaken => UiError(ImportFileError::FileAlreadyExists),
-        _ => unexpected!("{:#?}", e),
+    import_export_service::import_file(config, parent, source, edit, import_progress).map_err(|e| {
+        match e {
+            CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
+            CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
+            CoreError::DiskPathInvalid => UiError(ImportFileError::BadPath),
+            CoreError::PathTaken => UiError(ImportFileError::FileAlreadyExists),
+            _ => unexpected!("{:#?}", e),
+        }
     })
 }
 
@@ -800,15 +802,17 @@ pub fn export_file(
     id: Uuid,
     destination: PathBuf,
     edit: bool,
-    f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ExportFileError>> {
-    import_export_service::export_file(config, id, destination, edit, f).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
-        CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
-        CoreError::DiskPathInvalid => UiError(ExportFileError::BadPath),
-        CoreError::DiskPathTaken => UiError(ExportFileError::FileAlreadyExistsInDisk),
-        _ => unexpected!("{:#?}", e),
-    })
+    import_export_service::export_file(config, id, destination, edit, export_progress).map_err(
+        |e| match e {
+            CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
+            CoreError::DiskPathInvalid => UiError(ExportFileError::BadPath),
+            CoreError::DiskPathTaken => UiError(ExportFileError::FileAlreadyExistsInDisk),
+            _ => unexpected!("{:#?}", e),
+        },
+    )
 }
 
 // This basically generates a function called `get_all_error_variants`,

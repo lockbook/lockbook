@@ -21,14 +21,14 @@ pub fn import_file(
     parent: Uuid,
     source: PathBuf,
     edit: bool,
-    f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     import_file_recursively(
         config,
         &source,
         path_service::get_path_by_id(config, parent)?.as_str(),
         edit,
-        &f,
+        &import_progress,
     )
 }
 
@@ -37,7 +37,7 @@ fn import_file_recursively(
     disk_path: &Path,
     lockbook_path: &str,
     edit: bool,
-    f: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    import_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     let is_file = disk_path.is_file();
     let lockbook_path_with_new = format!(
@@ -50,7 +50,7 @@ fn import_file_recursively(
         if is_file { "" } else { "/" }
     );
 
-    if let Some(ref func) = f {
+    if let Some(ref func) = import_progress {
         func(ImportExportFileInfo {
             disk_path: disk_path.to_path_buf(),
             lockbook_path: lockbook_path.to_string(),
@@ -82,7 +82,13 @@ fn import_file_recursively(
             for maybe_child in children {
                 let child_path = maybe_child.map_err(CoreError::from)?.path();
 
-                import_file_recursively(config, &child_path, &lockbook_path_with_new, edit, f)?;
+                import_file_recursively(
+                    config,
+                    &child_path,
+                    &lockbook_path_with_new,
+                    edit,
+                    import_progress,
+                )?;
             }
         }
     }
@@ -95,7 +101,7 @@ pub fn export_file(
     id: Uuid,
     destination: PathBuf,
     edit: bool,
-    f: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     if destination.is_file() {
         return Err(CoreError::DiskPathInvalid);
@@ -105,7 +111,7 @@ pub fn export_file(
         config,
         &file_metadata_repo::get(config, id)?,
     )?;
-    export_file_recursively(config, &file_metadata, &destination, edit, &f)
+    export_file_recursively(config, &file_metadata, &destination, edit, &export_progress)
 }
 
 fn export_file_recursively(
@@ -113,11 +119,11 @@ fn export_file_recursively(
     parent_file_metadata: &ClientFileMetadata,
     disk_path: &Path,
     edit: bool,
-    f: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     let dest_with_new = disk_path.join(&parent_file_metadata.name);
 
-    if let Some(ref func) = f {
+    if let Some(ref func) = export_progress {
         func(ImportExportFileInfo {
             disk_path: disk_path.to_path_buf(),
             lockbook_path: crate::path_service::get_path_by_id(config, parent_file_metadata.id)?,
@@ -134,7 +140,13 @@ fn export_file_recursively(
                 let child_file_metadata =
                     client_conversion::generate_client_file_metadata(config, child)?;
 
-                export_file_recursively(config, &child_file_metadata, &dest_with_new, edit, f)?;
+                export_file_recursively(
+                    config,
+                    &child_file_metadata,
+                    &dest_with_new,
+                    edit,
+                    export_progress,
+                )?;
             }
         }
         FileType::Document => {
