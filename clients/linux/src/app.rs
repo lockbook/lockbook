@@ -473,7 +473,13 @@ impl LbApp {
             self.state.borrow_mut().set_opened_file(Some(meta.clone()));
 
             match meta.file_type {
-                FileType::Document => self.open_document(&meta.id),
+                FileType::Document => {
+                    if meta.name.ends_with(".pdf") {
+                        self.open_pdf(&meta.id)
+                    } else {
+                        self.open_document(&meta.id)
+                    }
+                },
                 FileType::Folder => self.open_folder(&meta),
             }
         } else {
@@ -553,6 +559,16 @@ impl LbApp {
         let (meta, content) = self.core.open(id)?;
         self.state.borrow_mut().open_file_dirty = false;
         self.edit(&EditMode::PlainText {
+            path: self.core.full_path_for(&meta),
+            meta,
+            content,
+        })
+    }
+
+    fn open_pdf(&self, id: &Uuid) -> LbResult<()> {
+        let (meta, content) = self.core.open_as_bytes(id)?;
+        self.state.borrow_mut().open_file_dirty = false;
+        self.edit(&EditMode::Pdf {
             path: self.core.full_path_for(&meta),
             meta,
             content,

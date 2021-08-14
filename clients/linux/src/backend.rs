@@ -335,9 +335,13 @@ impl LbCore {
     }
 
     pub fn open(&self, id: &Uuid) -> LbResult<(ClientFileMetadata, String)> {
+        self.open_as_bytes(id).map(|(meta, decrypted)| (meta, String::from_utf8_lossy(&decrypted).to_string()))
+    }
+
+    pub fn open_as_bytes(&self, id: &Uuid) -> LbResult<(ClientFileMetadata, Vec<u8>)> {
         let meta = self.file_by_id(*id)?;
         let decrypted = self.read(meta.id)?;
-        Ok((meta, String::from_utf8_lossy(&decrypted).to_string()))
+        Ok((meta, decrypted))
     }
 
     pub fn sync_status(&self) -> LbResult<String> {

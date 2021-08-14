@@ -13,5 +13,16 @@ pub enum EditMode {
         content: String,
     },
 
+    Pdf {
+        path: String,
+        meta: ClientFileMetadata,
+        content: Vec<u8>
+    },
+    // Image {
+    //     path: String,
+    //     meta: ClientFileMetadata,
+    //     content: Vec<u8>
+    // },
+
     None,
 }

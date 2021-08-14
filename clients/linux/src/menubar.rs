@@ -101,6 +101,16 @@ impl Menubar {
                     FileQuit
                 );
             }
+            EditMode::Pdf {
+                path: _,
+                meta: _,
+                content: _,
+            } => {
+                menu_set!(
+                    self.file, self.items, FileOpen, Separator, FileClose, Separator,
+                    FileQuit
+                );
+            }
             EditMode::None => {
                 menu_set!(self.file, self.items, FileOpen, FileQuit);
                 menu_set!(self.edit, self.items, EditPreferences);
