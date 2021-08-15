@@ -16,10 +16,10 @@ mod import_export_file_tests {
     #[test]
     fn import_file_successfully() {
         // new account
-        let config = &temp_config();
+        let config = temp_config();
         let generated_account = generate_account();
         create_account(
-            config,
+            &config,
             &generated_account.username,
             &generated_account.api_url,
         )
@@ -33,7 +33,7 @@ mod import_export_file_tests {
 
         std::fs::write(&doc_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
-        let root = get_root(config).unwrap();
+        let root = get_root(&config).unwrap();
 
         let f = move |info: ImportExportFileInfo| {
             // only checking if the disk path exists since a lockbook folder that has children won't be created until its first child is
@@ -74,16 +74,16 @@ mod import_export_file_tests {
     #[test]
     fn export_file_successfully() {
         // new account
-        let config = &temp_config();
+        let config = temp_config();
         let generated_account = generate_account();
 
         create_account(
-            config,
+            &config,
             &generated_account.username,
             &generated_account.api_url,
         )
         .unwrap();
-        let root = get_root(config).unwrap();
+        let root = get_root(&config).unwrap();
 
         let tmp = tempfile::tempdir().unwrap();
         let tmp_path = tmp.path().to_path_buf();
