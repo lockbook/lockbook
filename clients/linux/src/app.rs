@@ -979,7 +979,7 @@ impl LbApp {
 
         spawn!(self.core as c, self.messenger as m => move || {
             for path in paths {
-                if let Err(err) = c.import_file(parent, path.to_string(), Some(Box::new(import_progress.clone()))) {
+                if let Err(err) = c.import_file(parent, &path, Some(Box::new(import_progress.clone()))) {
                     m.send_err_dialog("Import files", err);
                     break;
                 };

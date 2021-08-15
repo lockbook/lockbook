@@ -26,7 +26,7 @@ pub fn import_file(
     import_file_recursively(
         config,
         &source,
-        path_service::get_path_by_id(config, parent)?.as_str(),
+        &path_service::get_path_by_id(config, parent)?,
         edit,
         &import_progress,
     )
@@ -59,17 +59,16 @@ fn import_file_recursively(
 
     if disk_path.is_file() {
         let content = fs::read(&disk_path).map_err(CoreError::from)?;
-        let file_metadata =
-            match path_service::create_at_path(config, lockbook_path_with_new.as_str()) {
-                Ok(file_metadata) => file_metadata,
-                Err(err) => {
-                    if edit && CoreError::PathTaken == err {
-                        path_service::get_by_path(config, lockbook_path_with_new.as_str())?
-                    } else {
-                        return Err(err);
-                    }
+        let file_metadata = match path_service::create_at_path(config, &lockbook_path_with_new) {
+            Ok(file_metadata) => file_metadata,
+            Err(err) => {
+                if edit && CoreError::PathTaken == err {
+                    path_service::get_by_path(config, &lockbook_path_with_new)?
+                } else {
+                    return Err(err);
                 }
-            };
+            }
+        };
 
         file_service::write_document(config, file_metadata.id, content.as_slice())?;
     } else {

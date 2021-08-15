@@ -237,7 +237,7 @@ impl LbCore {
     pub fn import_file(
         &self,
         parent: Uuid,
-        source: String,
+        source: &str,
         import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
         import_file(&self.config, parent, PathBuf::from(source), false, import_progress).map_err(map_core_err!(ImportFileError,
