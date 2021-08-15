@@ -5,7 +5,6 @@ use std::sync::Arc;
 use gdk::{DragAction, DragContext, EventButton as GdkEventButton};
 use gdk::{EventKey as GdkEventKey, ModifierType};
 use gtk::prelude::*;
-use gtk::MenuItem as GtkMenuItem;
 use gtk::SelectionMode as GtkSelectionMode;
 use gtk::TreeIter as GtkTreeIter;
 use gtk::TreeModel as GtkTreeModel;
@@ -19,6 +18,7 @@ use gtk::{
     CellRendererText as GtkCellRendererText, DestDefaults, TargetEntry, TargetFlags, TreeView,
 };
 use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDropPosition};
+use gtk::{MenuItem as GtkMenuItem, TargetList};
 use uuid::Uuid;
 
 use lockbook_core::model::client_conversion::ClientFileMetadata;
@@ -89,11 +89,16 @@ impl FileTree {
         let targets = [TargetEntry::new(
             "lockbook/files",
             TargetFlags::SAME_WIDGET,
-            0,
+            LOCKBOOK_FILES_TARGET_INFO,
         )];
 
-        tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::MOVE);
+        tree.drag_dest_set(DestDefaults::ALL, &targets, DragAction::COPY);
         tree.drag_source_set(ModifierType::BUTTON1_MASK, &targets, DragAction::MOVE);
+
+        let target_list = TargetList::new(&targets);
+        target_list.add_uri_targets(URI_TARGET_INFO);
+
+        tree.drag_dest_set_target_list(Some(&target_list));
 
         tree.drag_source_set_icon_name("application-x-generic");
 
@@ -162,8 +167,11 @@ impl FileTree {
     }
 
     fn on_drag_data_get() -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
-        |_, _, s, _, _| {
-            s.set(&s.get_target(), 8, &[]);
+        |_, _, s, info, _| match info {
+            LOCKBOOK_FILES_TARGET_INFO => {
+                s.set(&s.get_target(), 8, &[]);
+            }
+            _ => panic!("unrecognized target info that should not exist"),
         }
     }
 
@@ -171,46 +179,41 @@ impl FileTree {
         m: &Messenger,
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
-        closure!(m, c => move |w, d, x, y, _, _, time| {
+        closure!(m, c => move |w, d, x, y, s, info, time| {
             if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
 
                 let mut parent = model.get_iter(&path).unwrap();
-                match pos {
-                    TreeViewDropPosition::Before |
-                    TreeViewDropPosition::After => {
-                        path.up();
-                        parent = model.get_iter(&path).unwrap();
-                    }
-                    _ => {
-                        if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document)  {
-                            path.up();
-                            parent = model.get_iter(&path).unwrap();
-                        }
-                    }
-                }
-
-                if tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document)  {
+                if (pos == TreeViewDropPosition::Before || pos == TreeViewDropPosition::After) || tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document) {
                     path.up();
                     parent = model.get_iter(&path).unwrap();
                 }
 
-                let (paths, _) = w.get_selection().get_selected_rows();
+                let parent_id = Uuid::parse_str(&tree_iter_value!(model, &parent, 2, String)).unwrap();
 
-                let iters = paths.iter().map(|selected| model.get_iter(selected).unwrap()).collect::<Vec<TreeIter>>();
-                let ids = iters.iter().map(|iter| Uuid::parse_str(&tree_iter_value!(model, iter, 2, String)).unwrap()).collect::<Vec<Uuid>>();
+                match info {
+                    LOCKBOOK_FILES_TARGET_INFO => {
+                        let (paths, _) = w.get_selection().get_selected_rows();
 
-                let parent_id = Uuid::parse_str(tree_iter_value!(model, &parent, 2, String).as_str()).unwrap();
+                        for selected in paths {
+                            let iter = model.get_iter(&selected).unwrap();
+                            let id = Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap();
 
-                ids.iter().enumerate().for_each(|(index, id)| {
-                    match c.move_file(id, parent_id) {
-                        Ok(_) => {
-                            Self::move_iter(&model, &iters[index], &parent, true);
-                            model.remove(&iters[index]);
+                            match c.move_file(&id, parent_id) {
+                                Ok(_) => {
+                                    Self::move_iter(&model, &iter, &parent, true);
+                                    model.remove(&iter);
+                                }
+                                Err(err) => m.send_err_dialog("moving", err)
+                            }
                         }
-                        Err(err) => m.send_err_dialog("moving", err)
                     }
-                });
+                    URI_TARGET_INFO => {
+                        let uris: Vec<String> = s.get_uris().iter().map(|uri| uri.to_string()).collect();
+                        m.send(Msg::ShowDialogImportFile(parent_id, uris))
+                    }
+                    _ => panic!("unrecognized target info that should not exist")
+                }
 
                 d.drop_finish(true, time);
             }
@@ -616,6 +619,7 @@ impl FileTreeCol {
 enum PopupItem {
     NewDocument,
     NewFolder,
+    Export,
     Rename,
     Open,
     Delete,
@@ -646,6 +650,7 @@ impl PopupItem {
         vec![
             (Self::NewDocument, || Msg::NewFile(FileType::Document)),
             (Self::NewFolder, || Msg::NewFile(FileType::Folder)),
+            (Self::Export, || Msg::ShowDialogExportFile),
             (Self::Rename, || Msg::RenameFile),
             (Self::Open, || Msg::OpenFile(None)),
             (Self::Delete, || Msg::DeleteFiles),
@@ -685,6 +690,7 @@ impl FileTreePopup {
             for (key, is_enabled) in &[
                 (PopupItem::NewFolder, only_1),
                 (PopupItem::NewDocument, only_1),
+                (PopupItem::Export, true),
                 (PopupItem::Rename, only_1 && !is_root),
                 (PopupItem::Open, only_1),
                 (PopupItem::Delete, at_least_1),
@@ -702,3 +708,6 @@ impl FileTreePopup {
 }
 
 const DELETE_KEY: u16 = 119;
+
+const LOCKBOOK_FILES_TARGET_INFO: u32 = 0;
+const URI_TARGET_INFO: u32 = 1;
