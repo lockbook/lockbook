@@ -44,7 +44,7 @@ pub fn copy(disk_path: PathBuf, lb_path: &str, edit: bool) -> CliResult<()> {
             ImportFileError::DocumentTreatedAsFolder => {
                 err!(DocTreatedAsFolder(file_metadata.name.clone()))
             }
-            ImportFileError::BadPath => err!(OsInvalidPath(lb_path.to_string())),
+            ImportFileError::DiskPathInvalid => err!(OsInvalidPath(lb_path.to_string())),
         },
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })

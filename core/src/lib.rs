@@ -767,7 +767,7 @@ pub enum ImportFileError {
     ParentDoesNotExist,
     FileAlreadyExists,
     DocumentTreatedAsFolder,
-    BadPath,
+    DiskPathInvalid,
 }
 
 pub fn import_file(
@@ -782,7 +782,7 @@ pub fn import_file(
             CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
             CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
             CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
-            CoreError::DiskPathInvalid => UiError(ImportFileError::BadPath),
+            CoreError::DiskPathInvalid => UiError(ImportFileError::DiskPathInvalid),
             CoreError::PathTaken => UiError(ImportFileError::FileAlreadyExists),
             _ => unexpected!("{:#?}", e),
         }
@@ -793,8 +793,8 @@ pub fn import_file(
 pub enum ExportFileError {
     NoAccount,
     ParentDoesNotExist,
-    FileAlreadyExistsInDisk,
-    BadPath,
+    DiskPathTaken,
+    DiskPathInvalid,
 }
 
 pub fn export_file(
@@ -808,8 +808,8 @@ pub fn export_file(
         |e| match e {
             CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
             CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
-            CoreError::DiskPathInvalid => UiError(ExportFileError::BadPath),
-            CoreError::DiskPathTaken => UiError(ExportFileError::FileAlreadyExistsInDisk),
+            CoreError::DiskPathInvalid => UiError(ExportFileError::DiskPathInvalid),
+            CoreError::DiskPathTaken => UiError(ExportFileError::DiskPathTaken),
             _ => unexpected!("{:#?}", e),
         },
     )

@@ -245,7 +245,7 @@ impl LbCore {
             DocumentTreatedAsFolder => uerr_dialog!("Invalid import destination, document treated as folder."),
             ParentDoesNotExist => uerr_dialog!("Invalid import destination, parent not found."),
             NoAccount => uerr_dialog!("No account."),
-            BadPath => uerr_dialog!("Invalid path!"),
+            DiskPathInvalid => uerr_dialog!("Invalid path!"),
         ))
     }
 
@@ -264,9 +264,9 @@ impl LbCore {
         )
         .map_err(map_core_err!(ExportFileError,
             ParentDoesNotExist => uerr_dialog!("Invalid export destination, parent not found."),
-            FileAlreadyExistsInDisk => uerr_dialog!("File collision detected during export."),
+            DiskPathTaken => uerr_dialog!("File collision detected during export."),
             NoAccount => uerr_dialog!("No account."),
-            BadPath => uerr_dialog!("Invalid path!"),
+            DiskPathInvalid => uerr_dialog!("Invalid path!"),
         ))
     }
 

@@ -80,10 +80,10 @@ pub fn backup() -> CliResult<()> {
 
     export_file(&config, root.id, backup_directory.clone(), false, None).map_err(|err| match err {
         CoreError::UiError(ExportFileError::NoAccount) => err!(NoAccount),
-        CoreError::UiError(ExportFileError::FileAlreadyExistsInDisk) => {
+        CoreError::UiError(ExportFileError::DiskPathTaken) => {
             err!(OsFileCollision(format!("{}", backup_directory.display())))
         }
-        CoreError::UiError(ExportFileError::BadPath) => {
+        CoreError::UiError(ExportFileError::DiskPathInvalid) => {
             err!(OsInvalidPath(format!("{}", backup_directory.display())))
         }
         CoreError::UiError(ExportFileError::ParentDoesNotExist) | CoreError::Unexpected(_) => {
