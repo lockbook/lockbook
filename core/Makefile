@@ -72,8 +72,9 @@ lib_c_for_swift_ios:
 	@mkdir -p ${swift_lib_ios}
 	cp ../target/universal/release/liblockbook_core.a ${swift_lib_ios}
 
-.PHONY: lib_c_for_swift
-lib_c_for_swift:
+# for non lipo builds (linux)
+.PHONY: lib_c_for_swift_native
+lib_c_for_swift_native:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
 	@rm ${swift_inc}lockbook_core.h || echo "no prior .h"
@@ -86,8 +87,26 @@ lib_c_for_swift:
 	@mkdir -p ${swift_lib}
 	cp ../target/release/liblockbook_core.a ${swift_lib}
 
+.PHONY: lib_c_for_swift_universal
+lib_c_for_swift_universal:
+	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
+	@echo "Creating header"
+	@rm ${swift_inc}lockbook_core.h || echo "no prior .h"
+	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	@mkdir -p ${swift_inc}
+	cp lockbook_core.h ${swift_inc}
+	@echo "Building fat library"
+	@rm ${swift_lib}liblockbook_core.a || echo "no prior .a"
+	cargo build --release --target=x86_64-apple-darwin
+	cargo build --release --target=aarch64-apple-darwin
+	rm -rf ../target/xcode-lipo-universal
+	mkdir ../target/xcode-lipo-universal
+	lipo -create -output ../target/xcode-lipo-universal/liblockbook_core.a ../target/x86_64-apple-darwin/release/liblockbook_core.a ../target/aarch64-apple-darwin/release/liblockbook_core.a
+	@mkdir -p ${swift_lib}
+	cp ../target/xcode-lipo-universal/liblockbook_core.a ${swift_lib}
+
 .PHONY: swift_libs
-swift_libs: lib_c_for_swift lib_c_for_swift_ios
+swift_libs: lib_c_for_swift_universal lib_c_for_swift_ios
 
 .PHONY: lib_c_for_windows
 lib_c_for_windows:

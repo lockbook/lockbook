@@ -13,7 +13,7 @@ COPY . .
 WORKDIR core
 # This will cause problems for you during tests
 ENV API_URL=http://lockbook_server:8000
-RUN make lib_c_for_swift
+RUN make lib_c_for_swift_native
 
 # Build Swift Package
 COPY clients/apple ../clients/apple
