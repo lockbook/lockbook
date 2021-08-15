@@ -95,8 +95,10 @@ rustup target add aarch64-apple-ios x86_64-apple-ios
 + The build targets:
 
 ```shell script
-rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios
+rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios aarch64-apple-darwin x86_64-apple-darwin
 ```
+
+`make lib_c_for_swift_universal` in the `core` folder.
 
 ## Reference Instructions
 
