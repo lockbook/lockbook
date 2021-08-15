@@ -1,5 +1,5 @@
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use qrcode_generator::QrCodeEcc;
@@ -9,10 +9,10 @@ use lockbook_core::model::state::Config;
 use lockbook_core::service::db_state_service::State as DbState;
 use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{
-    calculate_work, create_account, create_file, delete_file, export_account, get_account,
-    get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path,
-    get_last_synced, get_root, get_usage, import_account, list_paths, migrate_db, move_file,
-    read_document, rename_file, sync_all, write_document,
+    calculate_work, create_account, create_file, delete_file, export_account, export_file,
+    get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
+    get_file_by_path, get_last_synced, get_root, get_usage, import_account, import_file,
+    list_paths, migrate_db, move_file, read_document, rename_file, sync_all, write_document,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
@@ -23,6 +23,7 @@ use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
 use lockbook_core::model::client_conversion::{
     ClientFileMetadata, ClientWorkCalculated, ClientWorkUnit,
 };
+use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
 
 macro_rules! match_core_err {
@@ -230,6 +231,42 @@ impl LbCore {
             NoAccount => uerr_dialog!("No account found."),
             TargetParentDoesNotExist => uerr_dialog!("The folder does not exist."),
             TargetParentHasChildNamedThat => uerr_dialog!("The folder already has a child named that."),
+        ))
+    }
+
+    pub fn import_file(
+        &self,
+        parent: Uuid,
+        source: &str,
+        import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    ) -> LbResult<()> {
+        import_file(&self.config, parent, PathBuf::from(source), false, import_progress).map_err(map_core_err!(ImportFileError,
+            FileAlreadyExists => uerr_dialog!("File collision detected during import."),
+            DocumentTreatedAsFolder => uerr_dialog!("Invalid import destination, document treated as folder."),
+            ParentDoesNotExist => uerr_dialog!("Invalid import destination, parent not found."),
+            NoAccount => uerr_dialog!("No account."),
+            DiskPathInvalid => uerr_dialog!("Invalid path!"),
+        ))
+    }
+
+    pub fn export_file(
+        &self,
+        id: Uuid,
+        destination: &str,
+        export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    ) -> LbResult<()> {
+        export_file(
+            &self.config,
+            id,
+            PathBuf::from(destination),
+            false,
+            export_progress,
+        )
+        .map_err(map_core_err!(ExportFileError,
+            ParentDoesNotExist => uerr_dialog!("Invalid export destination, parent not found."),
+            DiskPathTaken => uerr_dialog!("File collision detected during export."),
+            NoAccount => uerr_dialog!("No account."),
+            DiskPathInvalid => uerr_dialog!("Invalid path!"),
         ))
     }
 

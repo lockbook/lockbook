@@ -134,7 +134,10 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
             }
 
             let file_path = get_path_by_id(config, file.id).map_err(Core)?;
-            let extension = Path::new(&file_path).extension().unwrap().to_str().unwrap();
+            let extension = Path::new(&file_path)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .unwrap_or("");
 
             if UTF8_SUFFIXES.contains(&extension) && String::from_utf8(file_content).is_err() {
                 warnings.push(Warning::InvalidUTF8(file.id));

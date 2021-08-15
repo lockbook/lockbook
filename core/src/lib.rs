@@ -14,11 +14,12 @@ use crate::repo::local_changes_repo;
 use crate::repo::{account_repo, file_metadata_repo};
 use crate::service::db_state_service::State;
 use crate::service::drawing_service::SupportedImageFormats;
+use crate::service::import_export_service::ImportExportFileInfo;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
-    account_service, db_state_service, drawing_service, file_service, path_service, sync_service,
-    usage_service,
+    account_service, db_state_service, drawing_service, file_service, import_export_service,
+    path_service, sync_service, usage_service,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -32,7 +33,7 @@ use serde_json::{json, value::Value};
 use std::collections::HashMap;
 use std::env;
 use std::io::ErrorKind;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -52,7 +53,7 @@ macro_rules! unexpected {
     };
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CoreError {
     AccountExists,
     AccountNonexistent,
@@ -755,6 +756,60 @@ pub fn export_drawing_to_disk(
             CoreError::FileNotDocument => UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing),
             CoreError::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
             CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
+            _ => unexpected!("{:#?}", e),
+        },
+    )
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ImportFileError {
+    NoAccount,
+    ParentDoesNotExist,
+    FileAlreadyExists,
+    DocumentTreatedAsFolder,
+    DiskPathInvalid,
+}
+
+pub fn import_file(
+    config: &Config,
+    parent: Uuid,
+    source: PathBuf,
+    edit: bool,
+    import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+) -> Result<(), Error<ImportFileError>> {
+    import_export_service::import_file(config, parent, source, edit, import_progress).map_err(|e| {
+        match e {
+            CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
+            CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
+            CoreError::DiskPathInvalid => UiError(ImportFileError::DiskPathInvalid),
+            CoreError::PathTaken => UiError(ImportFileError::FileAlreadyExists),
+            _ => unexpected!("{:#?}", e),
+        }
+    })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ExportFileError {
+    NoAccount,
+    ParentDoesNotExist,
+    DiskPathTaken,
+    DiskPathInvalid,
+}
+
+pub fn export_file(
+    config: &Config,
+    id: Uuid,
+    destination: PathBuf,
+    edit: bool,
+    export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+) -> Result<(), Error<ExportFileError>> {
+    import_export_service::export_file(config, id, destination, edit, export_progress).map_err(
+        |e| match e {
+            CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
+            CoreError::DiskPathInvalid => UiError(ExportFileError::DiskPathInvalid),
+            CoreError::DiskPathTaken => UiError(ExportFileError::DiskPathTaken),
             _ => unexpected!("{:#?}", e),
         },
     )
