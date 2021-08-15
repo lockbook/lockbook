@@ -52,12 +52,12 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 |                       |  [CLI]  |  [Linux]  |  [Android]  |  [Windows]  |  [iOS/iPadOS]  |  [macOS]  |
 |-----------------------|:-------:|:---------:|:-----------:|:-----------:|:--------------:|:---------:|
 | Rename                |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Move                  |   ✅     |    📆     |     ✅      |     ✅       |      ✅        |    ✅     |
+| Move                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Delete                |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Sync                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Export file to host   |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
-| Import file from host |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
-| Sharing               |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Export file to host   |   ✅     |    ✅     |     ✅      |     📆       |      📆        |    📆     |
+| Import file from host |   ✅     |    ✅     |     📆      |     📆       |      📆        |    📆     |
+| Sharing               |   📆     |    📆     |     ✅      |     📆       |      📆        |    📆     |
 
 ### Document Types
 
@@ -69,7 +69,7 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 | Images                |   ✅     |    🏗     |     📆      |     📆       |      📆        |    📆     |
 | PDFs                  |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 | Todo lists            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
-| Document Linking      |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Document Linking      |   📆     |    ✅     |     📆      |     📆       |      📆        |    📆     |
 
 # Further Reading
 
