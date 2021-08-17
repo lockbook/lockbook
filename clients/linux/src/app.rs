@@ -479,7 +479,7 @@ impl LbApp {
                     } else {
                         self.open_document(&meta.id)
                     }
-                },
+                }
                 FileType::Folder => self.open_folder(&meta),
             }
         } else {

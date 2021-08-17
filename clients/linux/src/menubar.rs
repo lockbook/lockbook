@@ -107,8 +107,7 @@ impl Menubar {
                 content: _,
             } => {
                 menu_set!(
-                    self.file, self.items, FileOpen, Separator, FileClose, Separator,
-                    FileQuit
+                    self.file, self.items, FileOpen, Separator, FileClose, Separator, FileQuit
                 );
             }
             EditMode::None => {

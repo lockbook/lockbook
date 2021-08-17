@@ -2,13 +2,21 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk::ModifierType;
-use gdk_pixbuf::{Pixbuf as GdkPixbuf};
+use gdk::{ModifierType, WindowExt};
+use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use glib::SignalHandlerId;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
-use gtk::{Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage, Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned, ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, TextWindowType, WrapMode as GtkWrapMode, DrawingArea, ScrolledWindow, Adjustment};
+use gtk::{
+    Adjustment as GtkAdjustment, Adjustment, Align as GtkAlign, Align, Box as GtkBox,
+    Button as GtkBtn, DrawingArea, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
+    EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
+    Label as GtkLabel, ListBox, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
+    ProgressBar as GtkProgressBar, Rectangle, ScrolledWindow as GtkScrolledWindow, ScrolledWindow,
+    Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, TextWindowType,
+    WrapMode as GtkWrapMode,
+};
 use sourceview::prelude::*;
 use sourceview::View as GtkSourceView;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
@@ -67,6 +75,18 @@ impl AccountScreen {
     }
 
     pub fn show(&self, mode: &EditMode) {
+        if !self.editor.pdf_viewer.drawing_area.borrow().is_empty() {
+            self.editor.pdf_viewer.drawing_area.borrow_mut().clear();
+            self.editor
+                .pdf_viewer
+                .cntr
+                .get_children()
+                .iter()
+                .for_each(|child| self.editor.pdf_viewer.cntr.remove(child));
+            if let Some(adj) = self.editor.pdf_viewer.scroll.get_vadjustment() {
+                adj.set_value(0f64);
+            }
+        }
         match mode {
             EditMode::PlainText {
                 path,
@@ -80,7 +100,7 @@ impl AccountScreen {
             EditMode::Pdf {
                 path,
                 meta,
-                content
+                content,
             } => {
                 self.header.set_file(&path);
                 self.sidebar.tree.select(&meta.id);
@@ -421,7 +441,7 @@ impl Editor {
         cntr.add_named(&empty, "empty");
         cntr.add_named(&info, "folderinfo");
         cntr.add_named(&scroll, "scroll");
-        cntr.add_named(&pdf_viewer.cntr, "pdfviewer");
+        cntr.add_named(&pdf_viewer.scroll, "pdfviewer");
 
         let highlighter = LanguageManager::get_default().unwrap_or_default();
         let lang_paths = highlighter.get_search_path();
@@ -474,24 +494,9 @@ impl Editor {
     fn show_pdf(&self, content: &[u8]) {
         self.pdf_viewer.open_pdf(content.to_vec());
 
-        self.show("drawingarea");
-        // self.drawingarea.get_window().unwrap().invalidate_rect(Some(&Rectangle {
-        //     x: 0,
-        //     y: 0,
-        //     width: self.drawingarea.get_allocated_width(),
-        //     height: self.drawingarea.get_allocated_height()
-        // }), false);
+        self.show("pdfviewer");
+        self.pdf_viewer.cntr.show_all();
     }
-
-    // fn show_image(&self, content: &[u8]) {
-    //     let stream = MemoryInputStream::from_bytes(&glib::Bytes::from(&content.to_vec()));
-    //     println!("WIDTH: {} | HEIGHT: {}", self.cntr.get_allocated_width(), self.cntr.get_allocated_height());
-    //     let pixbuf = Pixbuf::from_stream_at_scale(&stream, self.cntr.get_allocated_width(), self.cntr.get_allocated_height(), true, NONE_CANCELLABLE).unwrap();
-    //
-    //     self.imagearea.set_from_pixbuf(Some(&pixbuf));
-    //
-    //     self.show("imagearea");
-    // }
 
     fn show_folder_info(&self, f: &ClientFileMetadata, n_children: usize) {
         let name = GtkLabel::new(None);
@@ -524,33 +529,48 @@ impl Editor {
     }
 }
 
-struct PdfViewer{
-    pub cntr: ScrolledWindow,
+struct PdfViewer {
+    pub scroll: ScrolledWindow,
+    pub cntr: ListBox,
     drawing_area: RefCell<Vec<DrawingArea>>,
     pdf_src: RefCell<Vec<u8>>,
 }
 
 impl PdfViewer {
     fn new() -> Self {
+        let cntr = ListBox::new();
+        cntr.set_sensitive(false);
+
+        let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
+        scroll.add(&cntr);
+
         Self {
-            cntr: GtkScrolledWindow::new(None::<&Adjustment>, None::<&Adjustment>),
+            scroll,
+            cntr,
             drawing_area: RefCell::new(Vec::new()),
-            pdf_src: RefCell::new(Vec::new())
+            pdf_src: RefCell::new(Vec::new()),
         }
     }
 
     fn open_pdf(&self, src: Vec<u8>) {
         self.pdf_src.replace(src);
-        let pdf = poppler::PopplerDocument::new_from_data( &mut *self.pdf_src.borrow_mut(), "").unwrap();
+        let pdf =
+            poppler::PopplerDocument::new_from_data(&mut *self.pdf_src.borrow_mut(), "").unwrap();
 
         for index in 0..pdf.get_n_pages() {
             let page = pdf.get_page(index).unwrap();
+            let (width, height) = page.get_size();
+
             let area = DrawingArea::new();
             area.connect_draw(move |da, c| {
                 page.render(c);
-
-                Inhibit(false)
+                Inhibit(true)
             });
+
+            area.set_halign(Align::Center);
+            area.set_vexpand(true);
+
+            area.set_size_request(width as i32, height as i32);
 
             self.cntr.add(&area);
             self.drawing_area.borrow_mut().push(area);

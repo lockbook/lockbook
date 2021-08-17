@@ -335,7 +335,8 @@ impl LbCore {
     }
 
     pub fn open(&self, id: &Uuid) -> LbResult<(ClientFileMetadata, String)> {
-        self.open_as_bytes(id).map(|(meta, decrypted)| (meta, String::from_utf8_lossy(&decrypted).to_string()))
+        self.open_as_bytes(id)
+            .map(|(meta, decrypted)| (meta, String::from_utf8_lossy(&decrypted).to_string()))
     }
 
     pub fn open_as_bytes(&self, id: &Uuid) -> LbResult<(ClientFileMetadata, Vec<u8>)> {
