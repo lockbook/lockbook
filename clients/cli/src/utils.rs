@@ -215,7 +215,9 @@ pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
             watcher
                 .watch(location.clone(), move |event: Event| match event {
                     Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
-                        save_temp_file_contents(id, &location, true)
+                        if let Err(err) = save_temp_file_contents(id, &location) {
+                            err.print();
+                        }
                     }
                     _ => {}
                 })
@@ -238,45 +240,27 @@ pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
         .unwrap_or_else(|err| err_unexpected!("file watcher failed to unwatch: {:#?}", err).exit());
 }
 
-pub fn save_temp_file_contents(id: Uuid, location: &str, silent: bool) {
-    let secret = match fs::read_to_string(&location) {
-        Ok(content) => content.into_bytes(),
-        Err(err) => {
-            if !silent {
-                err_unexpected!(
-                    "could not read from temporary file, not deleting {}, err: {:#?}",
-                    location,
-                    err
-                )
-                .print()
-            }
+pub fn save_temp_file_contents(id: Uuid, location: &str) -> CliResult<()> {
+    let secret = fs::read_to_string(&location)
+        .map_err(|err| {
+            err_unexpected!(
+                "could not read from temporary file, not deleting {}, err: {:#?}",
+                location,
+                err
+            )
+        })?
+        .into_bytes();
 
-            return;
+    write_document(&get_config(), id, &secret).map_err(|err| match err {
+        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+        CoreError::UiError(WriteToDocumentError::NoAccount) => {
+            err_unexpected!("No account! Run 'new-account' or 'import-private-key' to get started!")
         }
-    };
-
-    match write_document(&get_config(), id, &secret) {
-        Ok(_) => {
-            if !silent {
-                println!("Document encrypted and saved. Cleaning up temporary file.")
-            }
+        CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
+            err_unexpected!("FileDoesNotExist")
         }
-        Err(err) => {
-            if !silent {
-                match err {
-                    CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-                    CoreError::UiError(WriteToDocumentError::NoAccount) => err_unexpected!(
-                        "No account! Run 'new-account' or 'import-private-key' to get started!"
-                    ),
-                    CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
-                        err_unexpected!("FileDoesNotExist")
-                    }
-                    CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
-                        err_unexpected!("CannotWriteToFolder")
-                    }
-                }
-                .print()
-            }
+        CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
+            err_unexpected!("CannotWriteToFolder")
         }
-    }
+    })
 }
