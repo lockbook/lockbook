@@ -199,6 +199,16 @@ impl FileTree {
                             let iter = model.get_iter(&selected).unwrap();
                             let id = Uuid::parse_str(&tree_iter_value!(model, &iter, 2, String)).unwrap();
 
+                            match c.file_by_id(id) {
+                                Ok(metadata) => if metadata.parent == parent_id {
+                                    continue;
+                                },
+                                Err(err) => {
+                                    m.send_err_dialog("getting metadata", err);
+                                    continue;
+                                }
+                            };
+
                             match c.move_file(&id, parent_id) {
                                 Ok(_) => {
                                     Self::move_iter(&model, &iter, &parent, true);
