@@ -54,7 +54,10 @@ pub fn edit(file_name: &str) -> CliResult<()> {
     }
 
     if edit_was_successful {
-        save_temp_file_contents(file_metadata.id, &file_location, false)
+        match save_temp_file_contents(file_metadata.id, &file_location) {
+            Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
+            Err(err) => err.print(),
+        }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
