@@ -8,22 +8,22 @@ mod unit_tests_file {
 
     #[test]
     fn read() {
-        let config = &temp_config();
+        let config = temp_config();
 
-        let result = local_storage::read::<_, _, Vec<u8>>(config, "files", "notes.txt").unwrap();
+        let result = local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt").unwrap();
 
         assert_eq!(result, None);
     }
 
     #[test]
     fn write_and_read() {
-        let config = &temp_config();
+        let config = temp_config();
 
         let data = "noice";
 
-        local_storage::write(config, "files", "notes.txt", data).unwrap();
+        local_storage::write(&config, "files", "notes.txt", data).unwrap();
 
-        let result = local_storage::read::<_, _, Vec<u8>>(config, "files", "notes.txt")
+        let result = local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt")
             .unwrap()
             .unwrap();
 
@@ -32,15 +32,15 @@ mod unit_tests_file {
 
     #[test]
     fn write_and_dump() {
-        let config = &temp_config();
+        let config = temp_config();
 
         println!("{:?}", config);
 
         let data = "noice";
 
-        local_storage::write(config, "files", "a.txt", data).unwrap();
-        local_storage::write(config, "files", "b.txt", data).unwrap();
-        local_storage::write(config, "files", "c.txt", data).unwrap();
+        local_storage::write(&config, "files", "a.txt", data).unwrap();
+        local_storage::write(&config, "files", "b.txt", data).unwrap();
+        local_storage::write(&config, "files", "c.txt", data).unwrap();
 
         assert_eq!(
             vec![
@@ -48,30 +48,30 @@ mod unit_tests_file {
                 data.as_bytes().to_vec(),
                 data.as_bytes().to_vec()
             ],
-            local_storage::dump::<_, Vec<u8>>(config, "files").unwrap()
+            local_storage::dump::<_, Vec<u8>>(&config, "files").unwrap()
         )
     }
 
     #[test]
     fn write_read_delete() {
-        let config = &temp_config();
+        let config = temp_config();
 
         let data = "noice";
 
-        local_storage::write(config, "files", "notes.txt", data).unwrap();
+        local_storage::write(&config, "files", "notes.txt", data).unwrap();
 
         assert_eq!(
             data.as_bytes().to_vec(),
-            local_storage::read::<_, _, Vec<u8>>(config, "files", "notes.txt")
+            local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt")
                 .unwrap()
                 .unwrap()
         );
 
-        local_storage::delete(config, "files", "notes.txt").unwrap();
+        local_storage::delete(&config, "files", "notes.txt").unwrap();
 
         assert_eq!(
             None,
-            local_storage::read::<_, _, Vec<u8>>(config, "files", "notes.txt").unwrap()
+            local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt").unwrap()
         );
     }
 }
