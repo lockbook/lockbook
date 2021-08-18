@@ -241,7 +241,7 @@ impl LbCore {
         import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
         import_file(&self.config, parent, PathBuf::from(source), false, import_progress).map_err(map_core_err!(ImportFileError,
-            FileAlreadyExists(path) => uerr_dialog!("File collision at {}.", path),
+            FileAlreadyExists(path) => uerr_dialog!("File already exists at {}.", path),
             DocumentTreatedAsFolder => uerr_dialog!("Invalid import destination, document treated as folder."),
             ParentDoesNotExist => uerr_dialog!("Invalid import destination, parent not found."),
             NoAccount => uerr_dialog!("No account."),
