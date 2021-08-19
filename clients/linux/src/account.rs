@@ -2,14 +2,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk::ModifierType;
-use gdk_pixbuf::Pixbuf as GdkPixbuf;
+use gdk::{ModifierType, WindowExt, Cursor, Display, CursorType};
+use gdk_pixbuf::{Pixbuf as GdkPixbuf, Pixbuf};
 use glib::SignalHandlerId;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
-    Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn,
+    Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Clipboard,
     Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
     Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
@@ -22,15 +22,20 @@ use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
-use crate::error::LbResult;
+use crate::error::{LbError, LbResult};
 use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
 use crate::util::{gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK};
-use crate::{closure, get_language_specs_dir};
+use crate::{closure, get_language_specs_dir, make_glib_chan, spawn};
 
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
+use lockbook_models::file_metadata::FileType;
 use regex::Regex;
+use std::thread::spawn;
+use uuid::Uuid;
+use crate::app::LbState;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct AccountScreen {
     header: Header,
@@ -40,10 +45,10 @@ pub struct AccountScreen {
 }
 
 impl AccountScreen {
-    pub fn new(m: &Messenger, s: &Settings, c: &Arc<LbCore>) -> Self {
+    pub fn new(m: &Messenger, s: &Settings, c: &Arc<LbCore>, lbs: &Rc<RefCell<LbState>>) -> Self {
         let header = Header::new(m);
         let sidebar = Sidebar::new(m, c, s);
-        let editor = Editor::new(m);
+        let editor = Editor::new(m, c, lbs);
 
         let paned = GtkPaned::new(Horizontal);
         paned.set_position(350);
@@ -344,7 +349,7 @@ struct Editor {
 }
 
 impl Editor {
-    fn new(m: &Messenger) -> Self {
+    fn new(m: &Messenger, c: &Arc<LbCore>, lbs: &Rc<RefCell<LbState>>) -> Self {
         let empty = GtkBox::new(Vertical, 0);
         empty.set_valign(GtkAlign::Center);
         empty.add(&GtkImage::from_pixbuf(Some(
@@ -362,6 +367,62 @@ impl Editor {
         textarea.set_tab_width(4);
 
         let textview = textarea.upcast_ref::<gtk::TextView>();
+        textarea.connect_paste_clipboard(closure!(c, m, lbs => move |w| {
+            Clipboard::get(&gdk::SELECTION_CLIPBOARD).request_image(closure!(c, m, lbs, w => move |_, pixbuf| {
+                let format = "jpeg";
+
+                let window = gtk::WidgetExt::get_window(&w).unwrap();
+
+                match pixbuf.save_to_bufferv(format, &[]) {
+                    Ok(bytes) => {
+                        let opened_file = match &lbs.borrow().opened_file {
+                            None => return,
+                            Some(metadata) => metadata.clone(),
+                        };
+
+                        let parent_path = match c.full_path_for(&opened_file.parent) {
+                            Ok(path) => path,
+                            Err(err) => {
+                                m.send_err_dialog("getting parent path", err);
+                                return;
+                            }
+                        };
+
+                        let image_name = format!("img-{}.{}", Uuid::new_v4(), format);
+                        let svb = w
+                            .get_buffer()
+                            .unwrap()
+                            .downcast::<GtkSourceViewBuffer>()
+                            .unwrap();
+
+                        let ch = make_glib_chan!(image_name => move |nothing: ()| {
+                            svb.insert_at_cursor(&format!("[](lb://{}{})", parent_path, image_name));
+                            window.set_cursor(None);
+
+                            glib::Continue(true)
+                        });
+
+                        spawn!(c, m => move || {
+                            match c.create_file(&image_name, opened_file.parent, FileType::Document) {
+                                Ok(metadata) => {
+                                    c.write(metadata.id, bytes.as_slice());
+                                    m.send(Msg::RefreshTree);
+                                    ch.send(());
+                                }
+                                Err(err) => {
+                                    m.send_err_dialog("pasting image", err);
+                                }
+                            }
+                        });
+                    },
+                    Err(err) => {
+                        m.send_err_dialog("Pasting image", LbError::fmt_program_err(err));
+                        return;
+                    }
+                }
+            }));
+        }));
+
         let gspell_view = gspell::TextView::get_from_gtk_text_view(textview).unwrap();
         gspell_view.basic_setup();
 

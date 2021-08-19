@@ -46,8 +46,10 @@ use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 use glib::uri_unescape_string;
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
+use sourceview::Buffer;
 use std::path::PathBuf;
 
+#[macro_export]
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
         let (s, r) = glib::MainContext::channel::<$param_type>(glib::PRIORITY_DEFAULT);
@@ -56,6 +58,7 @@ macro_rules! make_glib_chan {
     }};
 }
 
+#[macro_export]
 macro_rules! spawn {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => $fn:expr) => {
         std::thread::spawn(closure!($( $( $vars ).+ $( as $aliases )* ),+ => $fn));
@@ -75,13 +78,14 @@ impl LbApp {
     pub fn new(c: &Arc<LbCore>, s: &Rc<RefCell<Settings>>, a: &GtkApp) -> Self {
         let (sender, receiver) = glib::MainContext::channel::<Msg>(glib::PRIORITY_DEFAULT);
         let m = Messenger::new(sender);
+        let lbs = Rc::new(RefCell::new(LbState::default(&m)));
 
-        let gui = Gui::new(a, &m, &s.borrow(), c);
+        let gui = Gui::new(a, &m, &s.borrow(), c, &lbs);
 
         let lb_app = Self {
             core: c.clone(),
             settings: s.clone(),
-            state: Rc::new(RefCell::new(LbState::default(&m))),
+            state: lbs,
             gui: Rc::new(gui),
             messenger: m,
         };
@@ -558,7 +562,7 @@ impl LbApp {
         let (meta, content) = self.core.open(id)?;
         self.state.borrow_mut().open_file_dirty = false;
         self.edit(&EditMode::PlainText {
-            path: self.core.full_path_for(&meta),
+            path: self.core.full_path_for(&meta.id)?,
             meta,
             content,
         })
@@ -567,7 +571,7 @@ impl LbApp {
     fn open_folder(&self, f: &ClientFileMetadata) -> LbResult<()> {
         let children = self.core.children(f)?;
         self.edit(&EditMode::Folder {
-            path: self.core.full_path_for(f),
+            path: self.core.full_path_for(&f.id)?,
             meta: f.clone(),
             n_children: children.len(),
         })
@@ -649,7 +653,7 @@ impl LbApp {
             let uuid = Uuid::parse_str(&id).unwrap();
 
             let meta = self.core.file_by_id(uuid)?;
-            let path = self.core.full_path_for(&meta);
+            let path = self.core.full_path_for(&meta.id)?;
 
             let n_children = if meta.file_type == FileType::Folder {
                 let children = self.core.get_children_recursively(meta.id).ok().unwrap();
@@ -768,8 +772,10 @@ impl LbApp {
 
                     match lb.core.file_by_id(id) {
                         Ok(f) => {
-                            acctscr.set_search_field_text(&lb.core.full_path_for(&f));
-                            lb.messenger.send(Msg::RefreshSyncStatus);
+                            if let Ok(path) = lb.core.full_path_for(&f.id) {
+                                acctscr.set_search_field_text(&path);
+                                lb.messenger.send(Msg::RefreshSyncStatus);
+                            }
                         }
                         Err(err) => lb.messenger.send_err_dialog("getting renamed file", err)
                     }
@@ -855,7 +861,10 @@ impl LbApp {
             }
         }
 
-        let txt = opened_file.map_or("".to_string(), |f| self.core.full_path_for(f));
+        let txt = match opened_file {
+            None => "".to_string(),
+            Some(f) => self.core.full_path_for(&f.id)?,
+        };
         self.gui.account.deselect_search_field();
         self.gui.account.set_search_field_text(&txt);
         Ok(())
@@ -1079,6 +1088,10 @@ impl LbApp {
         Ok(())
     }
 
+    fn paste_image(&self, bytes: Vec<u8>) -> LbResult<()> {
+        Ok(())
+    }
+
     fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
         self.state
             .borrow()
@@ -1121,9 +1134,9 @@ impl LbApp {
     }
 }
 
-struct LbState {
+pub struct LbState {
     search: Option<SearchComponents>,
-    opened_file: Option<ClientFileMetadata>,
+    pub opened_file: Option<ClientFileMetadata>,
     open_file_dirty: bool,
     background_work: Arc<Mutex<BackgroundWork>>,
 }
@@ -1237,7 +1250,7 @@ struct Gui {
 }
 
 impl Gui {
-    fn new(app: &GtkApp, m: &Messenger, s: &Settings, c: &Arc<LbCore>) -> Self {
+    fn new(app: &GtkApp, m: &Messenger, s: &Settings, c: &Arc<LbCore>, lbs: &Rc<RefCell<LbState>>) -> Self {
         // Menubar.
         let accels = GtkAccelGroup::new();
         let menubar = Menubar::new(m, &accels);
@@ -1245,7 +1258,7 @@ impl Gui {
 
         // Screens.
         let intro = IntroScreen::new(m);
-        let account = AccountScreen::new(m, s, c);
+        let account = AccountScreen::new(m, s, c, lbs);
         let screens = GtkStack::new();
         screens.add_named(&intro.cntr, "intro");
         screens.add_named(&account.cntr, "account");
