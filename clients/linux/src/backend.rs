@@ -30,11 +30,11 @@ macro_rules! match_core_err {
     (
         $err:expr,
         $enum:ident,
-        $( $variants:ident $( ( $val:ident ) )? => $matches:expr ),*,
+        $( $variants:ident $( ( $val:ident ) )? => $matches:expr ),+,
         @Unexpected($msg:ident) => $unexp:expr,
     ) => {
         match $err {
-            $( lockbook_core::Error::UiError(lockbook_core::$enum::$variants $( ( $val ) )? ) => $matches, )*
+            $( lockbook_core::Error::UiError(lockbook_core::$enum::$variants $( ( $val ) )? ) => $matches, )+
             lockbook_core::Error::Unexpected($msg) => $unexp,
         }
     };
