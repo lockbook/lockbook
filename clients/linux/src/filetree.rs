@@ -220,7 +220,7 @@ impl FileTree {
                     }
                     URI_TARGET_INFO => {
                         let uris: Vec<String> = s.get_uris().iter().map(|uri| uri.to_string()).collect();
-                        m.send(Msg::ShowDialogImportFile(parent_id, uris))
+                        m.send(Msg::ShowDialogImportFile(parent_id, uris, None))
                     }
                     _ => panic!("unrecognized target info that should not exist")
                 }

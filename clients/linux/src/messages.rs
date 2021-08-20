@@ -39,7 +39,7 @@ pub enum Msg {
     ShowDialogPreferences,
     ShowDialogUsage,
     ShowDialogAbout,
-    ShowDialogImportFile(Uuid, Vec<String>),
+    ShowDialogImportFile(Uuid, Vec<String>, Option<glib::Sender<Vec<String>>>),
     ShowDialogExportFile,
 
     ToggleAutoSave(bool),

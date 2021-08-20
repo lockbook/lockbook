@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk::{ModifierType, WindowExt, Cursor, Display, CursorType};
-use gdk_pixbuf::{Pixbuf as GdkPixbuf, Pixbuf};
+use gdk::ModifierType;
+use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use glib::SignalHandlerId;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
@@ -17,8 +17,8 @@ use gtk::{
     Spinner as GtkSpinner, Stack as GtkStack, TextWindowType, WrapMode as GtkWrapMode,
 };
 use sourceview::prelude::*;
-use sourceview::View as GtkSourceView;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
+use sourceview::{View as GtkSourceView, View};
 
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
@@ -29,13 +29,11 @@ use crate::settings::Settings;
 use crate::util::{gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK};
 use crate::{closure, get_language_specs_dir, make_glib_chan, spawn};
 
+use crate::app::LbState;
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
 use lockbook_models::file_metadata::FileType;
 use regex::Regex;
-use std::thread::spawn;
 use uuid::Uuid;
-use crate::app::LbState;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct AccountScreen {
     header: Header,
@@ -366,12 +364,57 @@ impl Editor {
         textarea.set_left_margin(4);
         textarea.set_tab_width(4);
 
-        let textview = textarea.upcast_ref::<gtk::TextView>();
-        textarea.connect_paste_clipboard(closure!(c, m, lbs => move |w| {
-            Clipboard::get(&gdk::SELECTION_CLIPBOARD).request_image(closure!(c, m, lbs, w => move |_, pixbuf| {
-                let format = "jpeg";
+        textarea.connect_paste_clipboard(Self::on_paste_clipboard(m, c, lbs));
+        textarea.connect_button_press_event(Self::on_button_press(m));
 
-                let window = gtk::WidgetExt::get_window(&w).unwrap();
+        let textview = textarea.upcast_ref::<gtk::TextView>();
+
+        let gspell_view = gspell::TextView::get_from_gtk_text_view(textview).unwrap();
+        gspell_view.basic_setup();
+
+        let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
+        scroll.add(&textarea);
+
+        let cntr = GtkStack::new();
+        cntr.add_named(&empty, "empty");
+        cntr.add_named(&info, "folderinfo");
+        cntr.add_named(&scroll, "scroll");
+
+        let highlighter = LanguageManager::get_default().unwrap_or_default();
+        let lang_paths = highlighter.get_search_path();
+
+        let mut str_paths: Vec<&str> = lang_paths.iter().map(|path| path.as_str()).collect();
+        let lang_specs = get_language_specs_dir();
+        str_paths.push(lang_specs.as_str());
+        highlighter.set_search_path(str_paths.as_slice());
+
+        Self {
+            info,
+            textarea,
+            highlighter,
+            change_sig_id: RefCell::new(None),
+            cntr,
+            messenger: m.clone(),
+        }
+    }
+
+    fn on_paste_clipboard(
+        m: &Messenger,
+        c: &Arc<LbCore>,
+        lbs: &Rc<RefCell<LbState>>,
+    ) -> impl Fn(&View) {
+        closure!(c, m, lbs => move |w| {
+            let clipboard = Clipboard::get(&gdk::SELECTION_CLIPBOARD);
+
+            let svb = w.get_buffer()
+            .unwrap()
+            .downcast::<GtkSourceViewBuffer>()
+            .unwrap();
+
+            let mut paste_loc = svb.get_iter_at_mark(&svb.get_insert().unwrap());
+
+            if let Some(pixbuf) = clipboard.wait_for_image() {
+                let format = "jpeg";
 
                 match pixbuf.save_to_bufferv(format, &[]) {
                     Ok(bytes) => {
@@ -389,15 +432,9 @@ impl Editor {
                         };
 
                         let image_name = format!("img-{}.{}", Uuid::new_v4(), format);
-                        let svb = w
-                            .get_buffer()
-                            .unwrap()
-                            .downcast::<GtkSourceViewBuffer>()
-                            .unwrap();
 
-                        let ch = make_glib_chan!(image_name => move |nothing: ()| {
-                            svb.insert_at_cursor(&format!("[](lb://{}{})", parent_path, image_name));
-                            window.set_cursor(None);
+                        let ch = make_glib_chan!(image_name => move |_nothing: ()| {
+                            svb.insert(&mut paste_loc, &format!("[](lb://{}{})", parent_path, image_name));
 
                             glib::Continue(true)
                         });
@@ -405,28 +442,49 @@ impl Editor {
                         spawn!(c, m => move || {
                             match c.create_file(&image_name, opened_file.parent, FileType::Document) {
                                 Ok(metadata) => {
-                                    c.write(metadata.id, bytes.as_slice());
+                                    if let Err(err) = c.write(metadata.id, bytes.as_slice()) {
+                                        m.send_err_dialog("writing image", err);
+                                    }
                                     m.send(Msg::RefreshTree);
-                                    ch.send(());
+                                    ch.send(()).unwrap();
                                 }
                                 Err(err) => {
-                                    m.send_err_dialog("pasting image", err);
+                                    m.send_err_dialog("creating image", err);
                                 }
                             }
                         });
                     },
                     Err(err) => {
                         m.send_err_dialog("Pasting image", LbError::fmt_program_err(err));
-                        return;
                     }
                 }
-            }));
-        }));
+            } else {
+                let uris = clipboard.wait_for_uris();
+                if !uris.is_empty() {
+                    w.stop_signal_emission("paste-clipboard");
 
-        let gspell_view = gspell::TextView::get_from_gtk_text_view(textview).unwrap();
-        gspell_view.basic_setup();
+                    let finish_ch = make_glib_chan!(svb => move |dests: Vec<String>| {
+                        for dest in dests {
+                            svb.insert(&mut paste_loc, &format!("[](lb://{})\n", dest));
+                        }
 
-        textarea.connect_button_press_event(closure!(m => move |w, evt| {
+                        glib::Continue(true)
+                    });
+
+                    let opened_file = match &lbs.borrow().opened_file {
+                        None => return,
+                        Some(metadata) => metadata.clone(),
+                    };
+
+                    m.send(Msg::ShowDialogImportFile(opened_file.parent, uris.iter().map(|uri| uri.to_string()).collect(), Some(finish_ch)));
+                }
+            }
+
+        })
+    }
+
+    fn on_button_press(m: &Messenger) -> impl Fn(&View, &gdk::EventButton) -> Inhibit {
+        closure!(m => move |w, evt| {
             if evt.get_button() == LEFT_CLICK && evt.get_state() == ModifierType::CONTROL_MASK {
                 let (absol_x, absol_y) = evt.get_position();
                 let (x, y) = w.window_to_buffer_coords(TextWindowType::Text, absol_x as i32, absol_y as i32);
@@ -468,32 +526,7 @@ impl Editor {
             }
 
             Inhibit(false)
-        }));
-
-        let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
-        scroll.add(&textarea);
-
-        let cntr = GtkStack::new();
-        cntr.add_named(&empty, "empty");
-        cntr.add_named(&info, "folderinfo");
-        cntr.add_named(&scroll, "scroll");
-
-        let highlighter = LanguageManager::get_default().unwrap_or_default();
-        let lang_paths = highlighter.get_search_path();
-
-        let mut str_paths: Vec<&str> = lang_paths.iter().map(|path| path.as_str()).collect();
-        let lang_specs = get_language_specs_dir();
-        str_paths.push(lang_specs.as_str());
-        highlighter.set_search_path(str_paths.as_slice());
-
-        Self {
-            info,
-            textarea,
-            highlighter,
-            change_sig_id: RefCell::new(None),
-            cntr,
-            messenger: m.clone(),
-        }
+        })
     }
 
     fn set_file(&self, name: &str, content: &str) {

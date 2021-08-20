@@ -46,7 +46,6 @@ use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 use glib::uri_unescape_string;
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
-use sourceview::Buffer;
 use std::path::PathBuf;
 
 #[macro_export]
@@ -132,7 +131,9 @@ impl LbApp {
                 Msg::ShowDialogPreferences => lb.show_dialog_preferences(),
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
-                Msg::ShowDialogImportFile(parent, uris) => lb.show_dialog_import_file(parent, uris),
+                Msg::ShowDialogImportFile(parent, uris, finish_ch) => {
+                    lb.show_dialog_import_file(parent, uris, finish_ch)
+                }
                 Msg::ShowDialogExportFile => lb.show_dialog_export_file(),
 
                 Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
@@ -940,7 +941,12 @@ impl LbApp {
         Ok(())
     }
 
-    fn show_dialog_import_file(&self, parent: Uuid, uris: Vec<String>) -> LbResult<()> {
+    fn show_dialog_import_file(
+        &self,
+        parent: Uuid,
+        uris: Vec<String>,
+        finish_ch: Option<glib::Sender<Vec<String>>>,
+    ) -> LbResult<()> {
         let (d, disk_lbl, lb_lbl, prog_lbl, pbar) = self.gui.new_import_export_dialog(true);
 
         const FILE_SCHEME: &str = "file://";
@@ -987,14 +993,39 @@ impl LbApp {
         });
 
         spawn!(self.core as c, self.messenger as m => move || {
-            for path in paths {
-                if let Err(err) = c.import_file(parent, &path, Some(Box::new(import_progress.clone()))) {
+            for path in &paths {
+                if let Err(err) = c.import_file(parent, path, Some(Box::new(import_progress.clone()))) {
                     m.send_err_dialog("Import files", err);
                     break;
                 };
             }
 
             ch.send(None).unwrap();
+
+            if let Some(finish_ch) = finish_ch {
+                let mut new_dests = Vec::new();
+                let parent_path = match c.full_path_for(&parent) {
+                    Ok(path) => path,
+                    Err(err) => {
+                        m.send_err_dialog("getting parent path", err);
+                        return;
+                    }
+                };
+
+                for path in paths {
+                    let name = match PathBuf::from(path).file_name() {
+                        None => {
+                            m.send_err_dialog("getting disk file name", uerr_dialog!("Unable to get disk file's name"));
+                            return;
+                        }
+                        Some(os_name) => os_name.to_string_lossy().into_owned(),
+                    };
+
+                    new_dests.push(format!("{}{}", parent_path, name));
+                }
+
+                finish_ch.send(new_dests).unwrap();
+            }
         });
 
         Ok(())
@@ -1085,10 +1116,6 @@ impl LbApp {
         let d = self.gui.new_dialog("My Lockbook Usage");
         d.get_content_area().add(&usage);
         d.show_all();
-        Ok(())
-    }
-
-    fn paste_image(&self, bytes: Vec<u8>) -> LbResult<()> {
         Ok(())
     }
 
@@ -1250,7 +1277,13 @@ struct Gui {
 }
 
 impl Gui {
-    fn new(app: &GtkApp, m: &Messenger, s: &Settings, c: &Arc<LbCore>, lbs: &Rc<RefCell<LbState>>) -> Self {
+    fn new(
+        app: &GtkApp,
+        m: &Messenger,
+        s: &Settings,
+        c: &Arc<LbCore>,
+        lbs: &Rc<RefCell<LbState>>,
+    ) -> Self {
         // Menubar.
         let accels = GtkAccelGroup::new();
         let menubar = Menubar::new(m, &accels);
