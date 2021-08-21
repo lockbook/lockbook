@@ -119,4 +119,4 @@ pub mod io {
 pub const LOCKBOOK_FILES_TARGET_INFO: u32 = 0;
 pub const TEXT_TARGET_INFO: u32 = 1;
 pub const URI_TARGET_INFO: u32 = 2;
-pub const IMAGE_TARGET_INFO: u32 = 0;
+pub const IMAGE_TARGET_INFO: u32 = 3;
