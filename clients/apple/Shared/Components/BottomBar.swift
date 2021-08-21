@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 struct BottomBar: View {
     
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     
     @State var offline: Bool = false
     

@@ -11,9 +11,9 @@ struct BookView: View {
     var body: some View {
         NavigationView {
             #if os(iOS)
-            FileListView(core: core, currentFolder: currentFolder, account: account, moving: $moving)
+            FileListView(currentFolder: currentFolder, account: account, moving: $moving)
             #else
-            FileListView(core: core, currentFolder: currentFolder, account: account)
+            FileListView(currentFolder: currentFolder, account: account)
             #endif
         }
     }

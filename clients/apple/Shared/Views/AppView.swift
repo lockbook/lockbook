@@ -2,14 +2,14 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct AppView: View {
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     var body: some View {
         let view = VStack {
             switch core.state {
             case .ReadyToUse, .Empty:
                 switch core.account {
                 case .none:
-                    AnyView(OnboardingView(core: core, onboardingState: OnboardingState(core: core)))
+                    AnyView(OnboardingView(onboardingState: OnboardingState(core: core)))
                 case .some(let account):
                     switch core.root {
                     case .some(let root):

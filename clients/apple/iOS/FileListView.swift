@@ -3,7 +3,7 @@ import SwiftLockbookCore
 import PencilKit
 
 struct FileListView: View {
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     @State var creatingFile: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
@@ -47,7 +47,7 @@ struct FileListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(
-                        destination: SettingsView(core: core, settingsState: SettingsState(core: core), account: account).equatable()) {
+                        destination: SettingsView(settingsState: SettingsState(core: core), account: account).equatable()) {
                         Image(systemName: "gearshape.fill")
                             .foregroundColor(.blue)
                     }
@@ -59,7 +59,7 @@ struct FileListView: View {
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 core.syncing = true
             }
-            .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, core: core, onSuccess: fileSuccessfullyCreated)})
+            .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, onSuccess: fileSuccessfullyCreated)})
             .navigationBarTitle(currentFolder.name)
             HStack {
                 BottomBar(core: core, onCreating: { creatingFile = true })
@@ -126,7 +126,7 @@ struct FileListView: View {
             if meta.fileType == .Folder {
                 return AnyView (
                     NavigationLink(
-                        destination: FileListView(core: core, currentFolder: meta, account: account, moving: $moving), tag: meta, selection: $selection) {
+                        destination: FileListView(currentFolder: meta, account: account, moving: $moving), tag: meta, selection: $selection) {
                         FileCell(meta: meta)
                     }.isDetailLink(false)
                 )
@@ -171,7 +171,7 @@ struct FileListView_Previews: PreviewProvider {
     
     static var previews: some View {
         NavigationView {
-            FileListView(core: core, currentFolder: core.root!, account: core.account!, moving: .constant(.none))
+            FileListView(currentFolder: core.root!, account: core.account!, moving: .constant(.none))
         }
     }
 }

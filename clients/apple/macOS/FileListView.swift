@@ -5,21 +5,20 @@ struct FileListView: View {
     
     @State var selectedItem: ClientFileMetadata? = nil
     
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     let currentFolder: ClientFileMetadata
     let account: Account
     
-    init(core: GlobalState, currentFolder: ClientFileMetadata, account: Account) {
-        self.core = core
+    init(currentFolder: ClientFileMetadata, account: Account) {
         self.account = account
         self.currentFolder = currentFolder
     }
     
     var body: some View {
         VStack {
-            OutlineSection(core: core, root: currentFolder, selectedItem: $selectedItem)
+            OutlineSection(root: currentFolder, selectedItem: $selectedItem)
             VStack (spacing: 3) {
-                BottomBar(core: core)
+                BottomBar()
             }
         }
         if let item = selectedItem {

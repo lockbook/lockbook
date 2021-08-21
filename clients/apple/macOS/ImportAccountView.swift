@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct ImportAccountView: View {
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     @ObservedObject var onboardingState: OnboardingState
     
     var body: some View {

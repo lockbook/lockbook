@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 struct SettingsView: View, Equatable {
     
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     @ObservedObject var settingsState: SettingsState
     let account: Account
     
@@ -90,7 +90,8 @@ struct SettingsViewPreview: PreviewProvider {
     
     static var previews: some View {
         NavigationView {
-            SettingsView(core: GlobalState(), settingsState: SettingsState(core: GlobalState()), account: .fake(username: "test"))
+            SettingsView(settingsState: SettingsState(core: GlobalState()), account: .fake(username: "test"))
+                .environmentObject(GlobalState())
         }
     }
 }

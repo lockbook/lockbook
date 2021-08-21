@@ -14,7 +14,7 @@ struct NewFileSheet: View {
 
     let parent: ClientFileMetadata
     
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"

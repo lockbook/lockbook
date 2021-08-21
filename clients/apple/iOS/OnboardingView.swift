@@ -2,7 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     @ObservedObject var onboardingState: OnboardingState
     
     @Environment(\.horizontalSizeClass) var horizontal
@@ -30,10 +30,10 @@ struct OnboardingView: View {
                 NavigationView {
                     VStack(spacing: 40) {
                         Text("Lockbook").font(.system(.largeTitle, design: .monospaced))
-                        NavigationLink(destination: CreateAccountView(core: core, onboardingState: onboardingState)) {
+                        NavigationLink(destination: CreateAccountView(onboardingState: onboardingState)) {
                             Label("Create", systemImage: "person.crop.circle.badge.plus")
                         }
-                        NavigationLink(destination: ImportAccountView(core: self.core, onboardingState: onboardingState)) {
+                        NavigationLink(destination: ImportAccountView(onboardingState: onboardingState)) {
                             Label("Import", systemImage: "rectangle.stack.person.crop")
                         }
                     }
@@ -46,9 +46,9 @@ struct OnboardingView: View {
                         .font(.system(.largeTitle, design: .monospaced))
                         .padding()
                     HStack {
-                        CreateAccountView(core: self.core, onboardingState: onboardingState)
+                        CreateAccountView(onboardingState: onboardingState)
                         Divider().frame(height: 300)
-                        ImportAccountView(core: self.core, onboardingState: onboardingState)
+                        ImportAccountView(onboardingState: onboardingState)
                     }
                 }
             }
@@ -60,7 +60,8 @@ struct OnboardingView_Previews: PreviewProvider {
     static var previews: some View {
         /// You can point this to a real directory with:
         // OnboardingView(core: Core(documenstDirectory: "<somedir>"))
-        OnboardingView(core: GlobalState(), onboardingState: OnboardingState(core: GlobalState()))
+        OnboardingView(onboardingState: OnboardingState(core: GlobalState()))
+            .environmentObject(GlobalState())
     }
 }
 
@@ -70,7 +71,8 @@ struct Syncing_Previews: PreviewProvider {
     static var previews: some View {
         /// You can point this to a real directory with:
         // OnboardingView(core: Core(documenstDirectory: "<somedir>"))
-        OnboardingView(core: GlobalState(), onboardingState: onboardingState)
+        OnboardingView(onboardingState: onboardingState)
+            .environmentObject(GlobalState())
             .onAppear {
                 onboardingState.initialSyncing = true
             }

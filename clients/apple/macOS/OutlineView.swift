@@ -7,7 +7,7 @@ import SwiftLockbookCore
 import UniformTypeIdentifiers
 
 struct OutlineBranch: View {
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     
     var file: ClientFileMetadata
     @Binding var selectedItem: ClientFileMetadata?
@@ -64,12 +64,12 @@ struct OutlineBranch: View {
                         }
                     } else {
                         if file == selectedItem {
-                            OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
+                            OutlineRow(file: file, level: level, open: $open, dragging: $dragging)
                                 .background(Color.accentColor)
                                 .foregroundColor(Color.white)
                                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                         } else {
-                            OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
+                            OutlineRow(file: file, level: level, open: $open, dragging: $dragging)
                                 .onTapGesture {
                                     if file.fileType == .Folder {
                                         withAnimation {
@@ -85,7 +85,7 @@ struct OutlineBranch: View {
                 }
                 if isLeaf == false && (open == true || level == -1) {
                     ForEach(children) { child in
-                        OutlineBranch(core: core, file: child, selectedItem: self.$selectedItem, level: self.level + 1, dragging: self.$dragging, renaming: self.$renaming)
+                        OutlineBranch(file: child, selectedItem: self.$selectedItem, level: self.level + 1, dragging: self.$dragging, renaming: self.$renaming)
                     }
                 }
                 creating.map { c in
@@ -209,7 +209,7 @@ struct DragDropper: DropDelegate {
 
 struct OutlineSection: View {
     
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var core: GlobalState
     
     var root: ClientFileMetadata
     @Binding var selectedItem: ClientFileMetadata?
@@ -230,7 +230,7 @@ struct OutlineSection: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 // The padding in the section header is there to adjust for the inset hack.
-                OutlineBranch(core: core, file: root, selectedItem: self.$selectedItem, level: -1, dragging: self.$dragging, renaming: self.$renaming)
+                OutlineBranch(file: root, selectedItem: self.$selectedItem, level: -1, dragging: self.$dragging, renaming: self.$renaming)
                 Spacer()
             }
             .listStyle(SidebarListStyle())

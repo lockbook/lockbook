@@ -24,6 +24,8 @@
 		8741E92825AD9B02005B7B01 /* LockbookMarkdownConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E92725AD9B02005B7B01 /* LockbookMarkdownConfig.swift */; };
 		8741E93625AD9F9C005B7B01 /* LockbookMarkdownConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E92725AD9B02005B7B01 /* LockbookMarkdownConfig.swift */; };
 		8778F44C25E16805009CCEC3 /* DrawingLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8778F44B25E16805009CCEC3 /* DrawingLoader.swift */; };
+		877FB54A26D1788D0008AB3F /* CoreProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54926D1788D0008AB3F /* CoreProvider.swift */; };
+		877FB54B26D1788D0008AB3F /* CoreProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB54926D1788D0008AB3F /* CoreProvider.swift */; };
 		87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AA99F2269610D8009E5591 /* NewFileSheet.swift */; };
 		87BD383826C020B00030D2B1 /* SettingsState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD383726C020B00030D2B1 /* SettingsState.swift */; };
 		87BD383926C020B00030D2B1 /* SettingsState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD383726C020B00030D2B1 /* SettingsState.swift */; };
@@ -87,6 +89,7 @@
 		8741E90E25AD1565005B7B01 /* OutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineView.swift; sourceTree = "<group>"; };
 		8741E92725AD9B02005B7B01 /* LockbookMarkdownConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookMarkdownConfig.swift; sourceTree = "<group>"; };
 		8778F44B25E16805009CCEC3 /* DrawingLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingLoader.swift; sourceTree = "<group>"; };
+		877FB54926D1788D0008AB3F /* CoreProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreProvider.swift; sourceTree = "<group>"; };
 		87AA99F2269610D8009E5591 /* NewFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFileSheet.swift; sourceTree = "<group>"; };
 		87BD383726C020B00030D2B1 /* SettingsState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsState.swift; sourceTree = "<group>"; };
 		87C118E125C5E1BA00D28A04 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -175,6 +178,7 @@
 				EAB4B4FF25167AF50071D1CD /* GlobalState.swift */,
 				B2B7E2E125C6411800B9EFAD /* OnboardingState.swift */,
 				87BD383726C020B00030D2B1 /* SettingsState.swift */,
+				877FB54926D1788D0008AB3F /* CoreProvider.swift */,
 			);
 			path = "Stateful Logic";
 			sourceTree = "<group>";
@@ -408,6 +412,7 @@
 				EA349F0B25BE6BD80016241E /* ActivityIndicator.swift in Sources */,
 				87E198DA25C5E139003E7420 /* ImportAccountView.swift in Sources */,
 				87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */,
+				877FB54A26D1788D0008AB3F /* CoreProvider.swift in Sources */,
 				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
 				B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				87BD383826C020B00030D2B1 /* SettingsState.swift in Sources */,
@@ -441,6 +446,7 @@
 				87206EBD25C61DF300870A42 /* CreateAccountView.swift in Sources */,
 				B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				EA5979A226040DB1007B9357 /* NestedList.swift in Sources */,
+				877FB54B26D1788D0008AB3F /* CoreProvider.swift in Sources */,
 				EA831A562534E3C80048CE26 /* AppView.swift in Sources */,
 				EA5C9F4D25E4C4D500DA7C6D /* NotepadView.swift in Sources */,
 				B2B7E2EC25C669C400B9EFAD /* NotificationButton.swift in Sources */,
