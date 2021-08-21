@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk::ModifierType;
+use gdk::{DragAction, DragContext, ModifierType};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use glib::SignalHandlerId;
 use gspell::TextViewExt as GtkTextViewExt;
@@ -10,11 +10,12 @@ use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
     Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Clipboard,
-    Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
+    DestDefaults, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
     Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
-    ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator,
-    Spinner as GtkSpinner, Stack as GtkStack, TextMark, TextWindowType, WrapMode as GtkWrapMode,
+    ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, SelectionData,
+    Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, TargetList, TextMark,
+    TextWindowType, WrapMode as GtkWrapMode,
 };
 use sourceview::prelude::*;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
@@ -26,7 +27,10 @@ use crate::error::{LbErrTarget, LbError, LbResult};
 use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
-use crate::util::{gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK};
+use crate::util::{
+    gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK, IMAGE_TARGET_INFO, TEXT_TARGET_INFO,
+    URI_TARGET_INFO,
+};
 use crate::{closure, get_language_specs_dir, uerr, uerr_dialog};
 
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
@@ -111,14 +115,15 @@ impl AccountScreen {
             .unwrap();
 
         svb.create_mark(
+            // Since get_insert gives me the textmark of the cursor, and it is subject to change, I make my own textmark so multiple pastes won't collide
             None,
             &svb.get_iter_at_mark(
                 &svb.get_insert()
-                    .ok_or(uerr_dialog!("No cursor found in textview!"))?,
+                    .ok_or_else(|| uerr_dialog!("No cursor found in textview!"))?,
             ),
             true,
         )
-        .ok_or(uerr_dialog!("Cannot create textmark!"))
+        .ok_or_else(|| uerr_dialog!("Cannot create textmark!"))
     }
 
     pub fn insert_text_at_mark(&self, mark: &TextMark, txt: &str) {
@@ -366,7 +371,7 @@ impl StatusPanel {
     }
 }
 
-pub enum TextAreaPasteInfo {
+pub enum TextAreaDropPasteInfo {
     Image(Vec<u8>),
     Uris(Vec<String>),
 }
@@ -398,6 +403,17 @@ impl Editor {
         textarea.set_left_margin(4);
         textarea.set_tab_width(4);
 
+        let target_list = TargetList::new(&[]);
+
+        textarea.drag_dest_set(DestDefaults::ALL, &[], DragAction::COPY);
+
+        target_list.add_uri_targets(URI_TARGET_INFO);
+        target_list.add_text_targets(TEXT_TARGET_INFO);
+        target_list.add_image_targets(IMAGE_TARGET_INFO, true);
+
+        textarea.drag_dest_set_target_list(Some(&target_list));
+
+        textarea.connect_drag_data_received(Self::on_drag_data_received(m));
         textarea.connect_paste_clipboard(Self::on_paste_clipboard(m));
         textarea.connect_button_press_event(Self::on_button_press(m));
 
@@ -432,6 +448,35 @@ impl Editor {
         }
     }
 
+    fn on_drag_data_received(
+        m: &Messenger,
+    ) -> impl Fn(&View, &DragContext, i32, i32, &SelectionData, u32, u32) {
+        closure!(m => move |_, _, _, _, s, info, _| {
+            let target = match info {
+                URI_TARGET_INFO => {
+                    TextAreaDropPasteInfo::Uris(s.get_uris().iter().map(|uri| uri.to_string()).collect())
+                }
+                IMAGE_TARGET_INFO => match s.get_pixbuf() {
+                    None => {
+                        m.send_err_dialog("Dragging bytes", uerr_dialog!("Unsupported format"));
+                        return;
+                    }
+                    Some(pixbuf) => match pixbuf.save_to_bufferv("jpg", &[]) {
+                        Ok(bytes) => TextAreaDropPasteInfo::Image(bytes),
+                        Err(err) => {
+                            m.send_err_dialog("Dragging bytes", LbError::fmt_program_err(err));
+                            return;
+                        }
+                    },
+                },
+                TEXT_TARGET_INFO => return,
+                _ => panic!("impossible"),
+            };
+
+            m.send(Msg::DropPasteInTextArea(target))
+        })
+    }
+
     fn on_paste_clipboard(m: &Messenger) -> impl Fn(&View) {
         closure!(m => move |w| {
             let clipboard = Clipboard::get(&gdk::SELECTION_CLIPBOARD);
@@ -439,7 +484,7 @@ impl Editor {
             if let Some(pixbuf) = clipboard.wait_for_image() {
                 match pixbuf.save_to_bufferv("jpeg", &[]) {
                     Ok(bytes) => {
-                        m.send(Msg::PasteInTextArea(TextAreaPasteInfo::Image(bytes)))
+                        m.send(Msg::DropPasteInTextArea(TextAreaDropPasteInfo::Image(bytes)))
                     },
                     Err(err) => {
                         m.send_err_dialog("Pasting image", LbError::fmt_program_err(err));
@@ -450,7 +495,7 @@ impl Editor {
                 if !uris.is_empty() {
                     w.stop_signal_emission("paste-clipboard");
 
-                    m.send(Msg::PasteInTextArea(TextAreaPasteInfo::Uris(uris.iter().map(|uri| uri.to_string()).collect())))
+                    m.send(Msg::DropPasteInTextArea(TextAreaDropPasteInfo::Uris(uris.iter().map(|uri| uri.to_string()).collect())))
                 }
             }
 

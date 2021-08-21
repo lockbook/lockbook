@@ -27,7 +27,7 @@ use gtk::{
 use lockbook_models::file_metadata::FileType;
 use uuid::Uuid;
 
-use crate::account::{AccountScreen, TextAreaPasteInfo};
+use crate::account::{AccountScreen, TextAreaDropPasteInfo};
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::background_work::BackgroundWork;
 use crate::editmode::EditMode;
@@ -136,7 +136,7 @@ impl LbApp {
                 }
                 Msg::ShowDialogExportFile => lb.show_dialog_export_file(),
 
-                Msg::PasteInTextArea(info) => lb.paste_in_text_area(info),
+                Msg::DropPasteInTextArea(info) => lb.paste_in_text_area(info),
 
                 Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
                 Msg::ToggleAutoSync(auto_sync) => lb.toggle_auto_sync(auto_sync),
@@ -1121,7 +1121,7 @@ impl LbApp {
         Ok(())
     }
 
-    fn paste_in_text_area(&self, info: TextAreaPasteInfo) -> LbResult<()> {
+    fn paste_in_text_area(&self, info: TextAreaDropPasteInfo) -> LbResult<()> {
         let mark = self.gui.account.get_cursor_mark()?;
 
         let opened_file = self
@@ -1129,14 +1129,15 @@ impl LbApp {
             .borrow()
             .opened_file
             .clone()
-            .ok_or(uerr_dialog!("Open a file before pasting!"))?;
+            .ok_or_else(|| uerr_dialog!("Open a file before pasting!"))?;
 
         match info {
-            TextAreaPasteInfo::Image(bytes) => {
+            TextAreaDropPasteInfo::Image(bytes) => {
+                let parent_path = self.core.full_path_for(&opened_file.parent)?;
+
                 let gdk_win = self.gui.account.cntr.get_window().unwrap();
                 gdk_win.set_cursor(Cursor::from_name(&gdk_win.get_display(), "wait").as_ref());
 
-                let parent_path = self.core.full_path_for(&opened_file.parent)?;
                 let image_name = format!("img-{}.{}", Uuid::new_v4(), "jpeg");
 
                 let ch = make_glib_chan!(self.gui.account as a, image_name, mark => move |is_successful: bool| {
@@ -1172,7 +1173,7 @@ impl LbApp {
                     ch.send(is_successful).unwrap();
                 });
             }
-            TextAreaPasteInfo::Uris(uris) => {
+            TextAreaDropPasteInfo::Uris(uris) => {
                 let finish_ch = make_glib_chan!(self.gui.account as a, mark => move |dests: Vec<String>| {
 
                     for dest in dests {

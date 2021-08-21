@@ -29,6 +29,7 @@ use crate::closure;
 use crate::error::LbResult;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
+use crate::util::{LOCKBOOK_FILES_TARGET_INFO, URI_TARGET_INFO};
 use glib::timeout_add_local;
 use std::cell::RefCell;
 
@@ -718,6 +719,3 @@ impl FileTreePopup {
 }
 
 const DELETE_KEY: u16 = 119;
-
-const LOCKBOOK_FILES_TARGET_INFO: u32 = 0;
-const URI_TARGET_INFO: u32 = 1;
