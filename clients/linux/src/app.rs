@@ -43,11 +43,11 @@ use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 
+use gdk::{Cursor, WindowExt};
 use glib::uri_unescape_string;
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use std::path::PathBuf;
-use gdk::{WindowExt, Cursor};
 
 #[macro_export]
 macro_rules! make_glib_chan {
@@ -1122,10 +1122,7 @@ impl LbApp {
     }
 
     fn paste_in_text_area(&self, info: TextAreaPasteInfo) -> LbResult<()> {
-        let mut iter = self.gui.account.get_iter_of_mark()?;
-
-        let gdk_win = self.gui.account.cntr.get_window().unwrap();
-        gdk_win.set_cursor(Cursor::from_name(&gdk_win.get_display(), "wait").as_ref());
+        let mark = self.gui.account.get_cursor_mark()?;
 
         let opened_file = self
             .state
@@ -1136,36 +1133,50 @@ impl LbApp {
 
         match info {
             TextAreaPasteInfo::Image(bytes) => {
-                const FORMAT: &str = "jpeg";
+                let gdk_win = self.gui.account.cntr.get_window().unwrap();
+                gdk_win.set_cursor(Cursor::from_name(&gdk_win.get_display(), "wait").as_ref());
 
                 let parent_path = self.core.full_path_for(&opened_file.parent)?;
-                let image_name = format!("img-{}.{}", Uuid::new_v4(), FORMAT);
+                let image_name = format!("img-{}.{}", Uuid::new_v4(), "jpeg");
 
-                let ch = make_glib_chan!(self.gui.account as a, image_name => move |_nothing: ()| {
-                    a.insert_text_at_iter(&mut iter, &format!("[](lb://{}{})", parent_path, image_name));
+                let ch = make_glib_chan!(self.gui.account as a, image_name, mark => move |is_successful: bool| {
+                    if is_successful {
+                        let link = format!("[](lb://{}{})\n", parent_path, image_name);
+                        a.insert_text_at_mark(&mark, &link);
+                    }
+
+                    gdk_win.set_cursor(None);
 
                     glib::Continue(true)
                 });
 
                 spawn!(self.core as c, self.messenger as m => move || {
-                    match c.create_file(&image_name, opened_file.parent, FileType::Document) {
+                    let is_successful = match c.create_file(&image_name, opened_file.parent, FileType::Document) {
                         Ok(metadata) => {
-                            if let Err(err) = c.write(metadata.id, bytes.as_slice()) {
-                                m.send_err_dialog("writing image", err);
-                            }
+                            let is_successful = match c.write(metadata.id, bytes.as_slice()) {
+                                Ok(_) => true,
+                                Err(err) => {
+                                    m.send_err_dialog("writing image", err);
+                                    false
+                                }
+                            };
                             m.send(Msg::RefreshTree);
-                            ch.send(()).unwrap();
+                            is_successful
                         }
                         Err(err) => {
                             m.send_err_dialog("creating image", err);
+                            false
                         }
-                    }
+                    };
+
+                    ch.send(is_successful).unwrap();
                 });
             }
             TextAreaPasteInfo::Uris(uris) => {
-                let finish_ch = make_glib_chan!(self.gui.account as a => move |dests: Vec<String>| {
+                let finish_ch = make_glib_chan!(self.gui.account as a, mark => move |dests: Vec<String>| {
+
                     for dest in dests {
-                        a.insert_text_at_iter(&mut iter, &format!("[](lb://{})\n", dest));
+                        a.insert_text_at_mark(&mark, &format!("[](lb://{})\n", dest));
                     }
 
                     glib::Continue(true)
@@ -1178,8 +1189,6 @@ impl LbApp {
                 ));
             }
         }
-
-        gdk_win.set_cursor(None);
 
         Ok(())
     }

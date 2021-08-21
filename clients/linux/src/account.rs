@@ -8,19 +8,26 @@ use glib::SignalHandlerId;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
-use gtk::{Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Clipboard, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage, Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned, ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, TextWindowType, WrapMode as GtkWrapMode, TextIter};
+use gtk::{
+    Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Clipboard,
+    Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
+    EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
+    Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
+    ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator,
+    Spinner as GtkSpinner, Stack as GtkStack, TextMark, TextWindowType, WrapMode as GtkWrapMode,
+};
 use sourceview::prelude::*;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 use sourceview::{View as GtkSourceView, View};
 
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
-use crate::error::{LbError, LbResult, LbErrTarget};
+use crate::error::{LbErrTarget, LbError, LbResult};
 use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
 use crate::util::{gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK};
-use crate::{closure, get_language_specs_dir, spawn, uerr_dialog, uerr};
+use crate::{closure, get_language_specs_dir, uerr, uerr_dialog};
 
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
 use regex::Regex;
@@ -94,21 +101,36 @@ impl AccountScreen {
         }
     }
 
-    pub fn get_iter_of_mark(&self) -> LbResult<TextIter> {
-        let svb = self.editor.textarea.get_buffer()
+    pub fn get_cursor_mark(&self) -> LbResult<TextMark> {
+        let svb = self
+            .editor
+            .textarea
+            .get_buffer()
             .unwrap()
             .downcast::<GtkSourceViewBuffer>()
             .unwrap();
 
-        Ok(svb.get_iter_at_mark(&svb.get_insert().ok_or(uerr_dialog!("No cursor found in textview!"))?))
+        svb.create_mark(
+            None,
+            &svb.get_iter_at_mark(
+                &svb.get_insert()
+                    .ok_or(uerr_dialog!("No cursor found in textview!"))?,
+            ),
+            true,
+        )
+        .ok_or(uerr_dialog!("Cannot create textmark!"))
     }
 
-    pub fn insert_text_at_iter(&self, iter: &mut TextIter, txt: &str) {
-        self.editor.textarea.get_buffer()
+    pub fn insert_text_at_mark(&self, mark: &TextMark, txt: &str) {
+        let svb = self
+            .editor
+            .textarea
+            .get_buffer()
             .unwrap()
             .downcast::<GtkSourceViewBuffer>()
-            .unwrap()
-            .insert(iter, txt)
+            .unwrap();
+
+        svb.insert(&mut svb.get_iter_at_mark(mark), txt)
     }
 
     pub fn text_content(&self) -> String {
