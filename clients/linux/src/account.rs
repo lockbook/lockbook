@@ -8,32 +8,22 @@ use glib::SignalHandlerId;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
-use gtk::{
-    Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Clipboard,
-    Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
-    EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
-    Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
-    ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator,
-    Spinner as GtkSpinner, Stack as GtkStack, TextWindowType, WrapMode as GtkWrapMode,
-};
+use gtk::{Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Clipboard, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion, EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage, Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned, ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, TextWindowType, WrapMode as GtkWrapMode, TextIter};
 use sourceview::prelude::*;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 use sourceview::{View as GtkSourceView, View};
 
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
-use crate::error::{LbError, LbResult};
+use crate::error::{LbError, LbResult, LbErrTarget};
 use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
 use crate::util::{gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK};
-use crate::{closure, get_language_specs_dir, make_glib_chan, spawn};
+use crate::{closure, get_language_specs_dir, spawn, uerr_dialog, uerr};
 
-use crate::app::LbState;
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
-use lockbook_models::file_metadata::FileType;
 use regex::Regex;
-use uuid::Uuid;
 
 pub struct AccountScreen {
     header: Header,
@@ -43,10 +33,10 @@ pub struct AccountScreen {
 }
 
 impl AccountScreen {
-    pub fn new(m: &Messenger, s: &Settings, c: &Arc<LbCore>, lbs: &Rc<RefCell<LbState>>) -> Self {
+    pub fn new(m: &Messenger, s: &Settings, c: &Arc<LbCore>) -> Self {
         let header = Header::new(m);
         let sidebar = Sidebar::new(m, c, s);
-        let editor = Editor::new(m, c, lbs);
+        let editor = Editor::new(m);
 
         let paned = GtkPaned::new(Horizontal);
         paned.set_position(350);
@@ -102,6 +92,23 @@ impl AccountScreen {
                 self.editor.show("empty");
             }
         }
+    }
+
+    pub fn get_iter_of_mark(&self) -> LbResult<TextIter> {
+        let svb = self.editor.textarea.get_buffer()
+            .unwrap()
+            .downcast::<GtkSourceViewBuffer>()
+            .unwrap();
+
+        Ok(svb.get_iter_at_mark(&svb.get_insert().ok_or(uerr_dialog!("No cursor found in textview!"))?))
+    }
+
+    pub fn insert_text_at_iter(&self, iter: &mut TextIter, txt: &str) {
+        self.editor.textarea.get_buffer()
+            .unwrap()
+            .downcast::<GtkSourceViewBuffer>()
+            .unwrap()
+            .insert(iter, txt)
     }
 
     pub fn text_content(&self) -> String {
@@ -337,6 +344,11 @@ impl StatusPanel {
     }
 }
 
+pub enum TextAreaPasteInfo {
+    Image(Vec<u8>),
+    Uris(Vec<String>),
+}
+
 struct Editor {
     info: GtkBox,
     textarea: GtkSourceView,
@@ -347,7 +359,7 @@ struct Editor {
 }
 
 impl Editor {
-    fn new(m: &Messenger, c: &Arc<LbCore>, lbs: &Rc<RefCell<LbState>>) -> Self {
+    fn new(m: &Messenger) -> Self {
         let empty = GtkBox::new(Vertical, 0);
         empty.set_valign(GtkAlign::Center);
         empty.add(&GtkImage::from_pixbuf(Some(
@@ -364,7 +376,7 @@ impl Editor {
         textarea.set_left_margin(4);
         textarea.set_tab_width(4);
 
-        textarea.connect_paste_clipboard(Self::on_paste_clipboard(m, c, lbs));
+        textarea.connect_paste_clipboard(Self::on_paste_clipboard(m));
         textarea.connect_button_press_event(Self::on_button_press(m));
 
         let textview = textarea.upcast_ref::<gtk::TextView>();
@@ -398,61 +410,14 @@ impl Editor {
         }
     }
 
-    fn on_paste_clipboard(
-        m: &Messenger,
-        c: &Arc<LbCore>,
-        lbs: &Rc<RefCell<LbState>>,
-    ) -> impl Fn(&View) {
-        closure!(c, m, lbs => move |w| {
+    fn on_paste_clipboard(m: &Messenger) -> impl Fn(&View) {
+        closure!(m => move |w| {
             let clipboard = Clipboard::get(&gdk::SELECTION_CLIPBOARD);
 
-            let svb = w.get_buffer()
-            .unwrap()
-            .downcast::<GtkSourceViewBuffer>()
-            .unwrap();
-
-            let mut paste_loc = svb.get_iter_at_mark(&svb.get_insert().unwrap());
-
             if let Some(pixbuf) = clipboard.wait_for_image() {
-                let format = "jpeg";
-
-                match pixbuf.save_to_bufferv(format, &[]) {
+                match pixbuf.save_to_bufferv("jpeg", &[]) {
                     Ok(bytes) => {
-                        let opened_file = match &lbs.borrow().opened_file {
-                            None => return,
-                            Some(metadata) => metadata.clone(),
-                        };
-
-                        let parent_path = match c.full_path_for(&opened_file.parent) {
-                            Ok(path) => path,
-                            Err(err) => {
-                                m.send_err_dialog("getting parent path", err);
-                                return;
-                            }
-                        };
-
-                        let image_name = format!("img-{}.{}", Uuid::new_v4(), format);
-
-                        let ch = make_glib_chan!(image_name => move |_nothing: ()| {
-                            svb.insert(&mut paste_loc, &format!("[](lb://{}{})", parent_path, image_name));
-
-                            glib::Continue(true)
-                        });
-
-                        spawn!(c, m => move || {
-                            match c.create_file(&image_name, opened_file.parent, FileType::Document) {
-                                Ok(metadata) => {
-                                    if let Err(err) = c.write(metadata.id, bytes.as_slice()) {
-                                        m.send_err_dialog("writing image", err);
-                                    }
-                                    m.send(Msg::RefreshTree);
-                                    ch.send(()).unwrap();
-                                }
-                                Err(err) => {
-                                    m.send_err_dialog("creating image", err);
-                                }
-                            }
-                        });
+                        m.send(Msg::PasteInTextArea(TextAreaPasteInfo::Image(bytes)))
                     },
                     Err(err) => {
                         m.send_err_dialog("Pasting image", LbError::fmt_program_err(err));
@@ -463,20 +428,7 @@ impl Editor {
                 if !uris.is_empty() {
                     w.stop_signal_emission("paste-clipboard");
 
-                    let finish_ch = make_glib_chan!(svb => move |dests: Vec<String>| {
-                        for dest in dests {
-                            svb.insert(&mut paste_loc, &format!("[](lb://{})\n", dest));
-                        }
-
-                        glib::Continue(true)
-                    });
-
-                    let opened_file = match &lbs.borrow().opened_file {
-                        None => return,
-                        Some(metadata) => metadata.clone(),
-                    };
-
-                    m.send(Msg::ShowDialogImportFile(opened_file.parent, uris.iter().map(|uri| uri.to_string()).collect(), Some(finish_ch)));
+                    m.send(Msg::PasteInTextArea(TextAreaPasteInfo::Uris(uris.iter().map(|uri| uri.to_string()).collect())))
                 }
             }
 

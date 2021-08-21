@@ -27,7 +27,7 @@ use gtk::{
 use lockbook_models::file_metadata::FileType;
 use uuid::Uuid;
 
-use crate::account::AccountScreen;
+use crate::account::{AccountScreen, TextAreaPasteInfo};
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::background_work::BackgroundWork;
 use crate::editmode::EditMode;
@@ -47,6 +47,7 @@ use glib::uri_unescape_string;
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use std::path::PathBuf;
+use gdk::{WindowExt, Cursor};
 
 #[macro_export]
 macro_rules! make_glib_chan {
@@ -77,14 +78,13 @@ impl LbApp {
     pub fn new(c: &Arc<LbCore>, s: &Rc<RefCell<Settings>>, a: &GtkApp) -> Self {
         let (sender, receiver) = glib::MainContext::channel::<Msg>(glib::PRIORITY_DEFAULT);
         let m = Messenger::new(sender);
-        let lbs = Rc::new(RefCell::new(LbState::default(&m)));
 
-        let gui = Gui::new(a, &m, &s.borrow(), c, &lbs);
+        let gui = Gui::new(a, &m, &s.borrow(), c);
 
         let lb_app = Self {
             core: c.clone(),
             settings: s.clone(),
-            state: lbs,
+            state: Rc::new(RefCell::new(LbState::default(&m))),
             gui: Rc::new(gui),
             messenger: m,
         };
@@ -135,6 +135,8 @@ impl LbApp {
                     lb.show_dialog_import_file(parent, uris, finish_ch)
                 }
                 Msg::ShowDialogExportFile => lb.show_dialog_export_file(),
+
+                Msg::PasteInTextArea(info) => lb.paste_in_text_area(info),
 
                 Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
                 Msg::ToggleAutoSync(auto_sync) => lb.toggle_auto_sync(auto_sync),
@@ -1119,6 +1121,69 @@ impl LbApp {
         Ok(())
     }
 
+    fn paste_in_text_area(&self, info: TextAreaPasteInfo) -> LbResult<()> {
+        let mut iter = self.gui.account.get_iter_of_mark()?;
+
+        let gdk_win = self.gui.account.cntr.get_window().unwrap();
+        gdk_win.set_cursor(Cursor::from_name(&gdk_win.get_display(), "wait").as_ref());
+
+        let opened_file = self
+            .state
+            .borrow()
+            .opened_file
+            .clone()
+            .ok_or(uerr_dialog!("Open a file before pasting!"))?;
+
+        match info {
+            TextAreaPasteInfo::Image(bytes) => {
+                const FORMAT: &str = "jpeg";
+
+                let parent_path = self.core.full_path_for(&opened_file.parent)?;
+                let image_name = format!("img-{}.{}", Uuid::new_v4(), FORMAT);
+
+                let ch = make_glib_chan!(self.gui.account as a, image_name => move |_nothing: ()| {
+                    a.insert_text_at_iter(&mut iter, &format!("[](lb://{}{})", parent_path, image_name));
+
+                    glib::Continue(true)
+                });
+
+                spawn!(self.core as c, self.messenger as m => move || {
+                    match c.create_file(&image_name, opened_file.parent, FileType::Document) {
+                        Ok(metadata) => {
+                            if let Err(err) = c.write(metadata.id, bytes.as_slice()) {
+                                m.send_err_dialog("writing image", err);
+                            }
+                            m.send(Msg::RefreshTree);
+                            ch.send(()).unwrap();
+                        }
+                        Err(err) => {
+                            m.send_err_dialog("creating image", err);
+                        }
+                    }
+                });
+            }
+            TextAreaPasteInfo::Uris(uris) => {
+                let finish_ch = make_glib_chan!(self.gui.account as a => move |dests: Vec<String>| {
+                    for dest in dests {
+                        a.insert_text_at_iter(&mut iter, &format!("[](lb://{})\n", dest));
+                    }
+
+                    glib::Continue(true)
+                });
+
+                self.messenger.send(Msg::ShowDialogImportFile(
+                    opened_file.parent,
+                    uris,
+                    Some(finish_ch),
+                ));
+            }
+        }
+
+        gdk_win.set_cursor(None);
+
+        Ok(())
+    }
+
     fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
         self.state
             .borrow()
@@ -1161,9 +1226,9 @@ impl LbApp {
     }
 }
 
-pub struct LbState {
+struct LbState {
     search: Option<SearchComponents>,
-    pub opened_file: Option<ClientFileMetadata>,
+    opened_file: Option<ClientFileMetadata>,
     open_file_dirty: bool,
     background_work: Arc<Mutex<BackgroundWork>>,
 }
@@ -1277,13 +1342,7 @@ struct Gui {
 }
 
 impl Gui {
-    fn new(
-        app: &GtkApp,
-        m: &Messenger,
-        s: &Settings,
-        c: &Arc<LbCore>,
-        lbs: &Rc<RefCell<LbState>>,
-    ) -> Self {
+    fn new(app: &GtkApp, m: &Messenger, s: &Settings, c: &Arc<LbCore>) -> Self {
         // Menubar.
         let accels = GtkAccelGroup::new();
         let menubar = Menubar::new(m, &accels);
@@ -1291,7 +1350,7 @@ impl Gui {
 
         // Screens.
         let intro = IntroScreen::new(m);
-        let account = AccountScreen::new(m, s, c, lbs);
+        let account = AccountScreen::new(m, s, c);
         let screens = GtkStack::new();
         screens.add_named(&intro.cntr, "intro");
         screens.add_named(&account.cntr, "account");
