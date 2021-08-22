@@ -61,309 +61,148 @@ pub fn delete_all(config: &Config, source: RepoSource) -> Result<(), CoreError> 
     local_storage::delete_all(config, namespace(source))
 }
 
-// todo: replace
-// #[cfg(test)]
-// mod unit_tests {
-//     use uuid::Uuid;
+#[cfg(test)]
+mod unit_tests {
+    use crate::model::repo::RepoSource;
+    use crate::model::state::temp_config;
+    use crate::repo::metadata_repo;
+    use crate::service::test_utils;
+    use uuid::Uuid;
 
-//     use crate::local_metadata_repo;
-//     use crate::model::state::temp_config;
-//     use lockbook_crypto::clock_service::Timestamp;
-//     use lockbook_models::file_metadata::FileType::{Document, Folder};
-//     use lockbook_models::local_changes::{LocalChange, Moved, Renamed};
+    #[test]
+    fn get() {
+        let config = &temp_config();
 
-//     static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(0);
+        let id = Uuid::new_v4();
+        let result = metadata_repo::get(config, RepoSource::Local, id);
 
-//     macro_rules! assert_total_local_changes (
-//         ($db:expr, $total:literal) => {
-//             assert_eq!(
-//                 local_changes_repo::get_all_local_changes($db)
-//                     .unwrap()
-//                     .len(),
-//                 $total
-//             );
-//         }
-//     );
+        assert!(result.is_err());
+    }
 
-//     #[test]
-//     fn set_and_unset_fields() {
-//         let cfg = &temp_config();
+    #[test]
+    fn maybe_get() {
+        let config = &temp_config();
 
-//         assert_total_local_changes!(cfg, 0);
+        let id = Uuid::new_v4();
+        let result = metadata_repo::maybe_get(config, RepoSource::Local, id).unwrap();
 
-//         let id = Uuid::new_v4();
-//         local_metadata_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
-//         local_metadata_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
-//         local_metadata_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: None,
-//                 moved: None,
-//                 new: true,
-//                 content_edited: None,
-//                 deleted: false,
-//             })
-//         );
-//         assert_total_local_changes!(cfg, 1);
+        assert_eq!(result, None);
+    }
 
-//         local_metadata_repo::track_rename(cfg, id, "old_file", "unused_name", EARLY_CLOCK).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: Some(Renamed::from("old_file")),
-//                 moved: None,
-//                 new: true,
-//                 content_edited: None,
-//                 deleted: false,
-//             })
-//         );
-//         assert_total_local_changes!(cfg, 1);
+    #[test]
+    fn insert_get() {
+        let config = &temp_config();
+        let test_account = test_utils::generate_account();
 
-//         let id2 = Uuid::new_v4();
-//         local_metadata_repo::track_move(cfg, id, id2, Uuid::new_v4(), EARLY_CLOCK).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: Some(Renamed::from("old_file")),
-//                 moved: Some(Moved::from(id2)),
-//                 new: true,
-//                 content_edited: None,
-//                 deleted: false,
-//             })
-//         );
+        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        let result = metadata_repo::get(config, RepoSource::Local, test_metadata.id).unwrap();
 
-//         assert_total_local_changes!(cfg, 1);
+        assert_eq!(result, test_metadata);
+    }
 
-//         local_metadata_repo::untrack_edit(cfg, id).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: Some(Renamed::from("old_file")),
-//                 moved: Some(Moved::from(id2)),
-//                 new: true,
-//                 content_edited: None,
-//                 deleted: false,
-//             })
-//         );
+    #[test]
+    fn insert_get_different_source() {
+        let config = &temp_config();
+        let test_account = test_utils::generate_account();
 
-//         local_metadata_repo::untrack_rename(cfg, id).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: None,
-//                 moved: Some(Moved::from(id2)),
-//                 new: true,
-//                 content_edited: None,
-//                 deleted: false,
-//             })
-//         );
+        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        let result = metadata_repo::maybe_get(config, RepoSource::Base, test_metadata.id).unwrap();
 
-//         local_metadata_repo::untrack_move(cfg, id).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: None,
-//                 moved: None,
-//                 new: true,
-//                 content_edited: None,
-//                 deleted: false,
-//             })
-//         );
+        assert_eq!(result, None);
+    }
 
-//         local_metadata_repo::untrack_new_file(cfg, id).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             None
-//         );
-//         assert_total_local_changes!(cfg, 0);
+    #[test]
+    fn insert_get_overwrite_different_source() {
+        let config = &temp_config();
+        let test_account = test_utils::generate_account();
 
-//         // Deleting a file should unset it's other fields
-//         local_metadata_repo::track_rename(cfg, id, "old", "new", EARLY_CLOCK).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: Some(Renamed::from("old")),
-//                 moved: None,
-//                 new: false,
-//                 content_edited: None,
-//                 deleted: false,
-//             })
-//         );
-//         assert_total_local_changes!(cfg, 1);
+        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        let (test_metadata_2, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Base, &test_metadata_2).unwrap();
+        let result = metadata_repo::get(config, RepoSource::Local, test_metadata.id).unwrap();
 
-//         local_metadata_repo::track_delete(cfg, id, Document, EARLY_CLOCK).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: None,
-//                 moved: None,
-//                 new: false,
-//                 content_edited: None,
-//                 deleted: true,
-//             })
-//         );
-//         assert_total_local_changes!(cfg, 1);
-//     }
+        assert_eq!(result, test_metadata);
+    }
 
-//     #[test]
-//     fn new_document_deleted() {
-//         let cfg = &temp_config();
+    #[test]
+    fn insert_get_all() {
+        let config = &temp_config();
+        let test_account = test_utils::generate_account();
 
-//         let id = Uuid::new_v4();
-//         local_metadata_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
+        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        let (test_metadata_2, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata_2).unwrap();
+        let (test_metadata_3, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata_3).unwrap();
+        let (test_metadata_4, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata_4).unwrap();
+        let (test_metadata_5, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata_5).unwrap();
+        let result = metadata_repo::get_all(config, RepoSource::Local).unwrap();
 
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: None,
-//                 moved: None,
-//                 new: true,
-//                 content_edited: None,
-//                 deleted: false,
-//             })
-//         );
-//         local_metadata_repo::track_delete(cfg, id, Document, EARLY_CLOCK).unwrap();
+        let mut expectation = vec![
+            test_metadata,
+            test_metadata_2,
+            test_metadata_3,
+            test_metadata_4,
+            test_metadata_5,
+        ];
+        expectation.sort_by(|a, b| a.id.cmp(&b.id));
+        assert_eq!(result, expectation);
+    }
 
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             None
-//         );
-//     }
+    #[test]
+    fn insert_get_all_different_source() {
+        let config = &temp_config();
+        let test_account = test_utils::generate_account();
 
-//     #[test]
-//     fn new_folder_deleted() {
-//         let cfg = &temp_config();
+        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        let result = metadata_repo::get_all(config, RepoSource::Base).unwrap();
 
-//         let id = Uuid::new_v4();
-//         local_metadata_repo::track_new_file(cfg, id, EARLY_CLOCK).unwrap();
+        assert_eq!(result, Vec::new());
+    }
 
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: None,
-//                 moved: None,
-//                 new: true,
-//                 content_edited: None,
-//                 deleted: false,
-//             })
-//         );
-//         local_metadata_repo::track_delete(cfg, id, Folder, EARLY_CLOCK).unwrap();
+    #[test]
+    fn insert_delete() {
+        let config = &temp_config();
+        let test_account = test_utils::generate_account();
 
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, id).unwrap(),
-//             Some(LocalChange {
-//                 timestamp: 0,
-//                 id,
-//                 renamed: None,
-//                 moved: None,
-//                 new: true,
-//                 content_edited: None,
-//                 deleted: true,
-//             })
-//         );
-//     }
+        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        metadata_repo::delete(config, RepoSource::Local, test_metadata.id).unwrap();
+        let result = metadata_repo::maybe_get(config, RepoSource::Local, test_metadata.id).unwrap();
 
-//     #[test]
-//     fn track_changes_on_multiple_files() {
-//         let cfg = &temp_config();
+        assert_eq!(result, None);
+    }
 
-//         let id1 = Uuid::new_v4();
-//         local_metadata_repo::track_new_file(cfg, id1, EARLY_CLOCK).unwrap();
-//         assert_total_local_changes!(cfg, 1);
+    #[test]
+    fn insert_delete_all() {
+        let config = &temp_config();
+        let test_account = test_utils::generate_account();
 
-//         let id2 = Uuid::new_v4();
-//         local_metadata_repo::track_rename(cfg, id2, "old", "new", EARLY_CLOCK).unwrap();
-//         assert_total_local_changes!(cfg, 2);
+        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        metadata_repo::delete_all(config, RepoSource::Local).unwrap();
+        let result = metadata_repo::get_all(config, RepoSource::Local).unwrap();
 
-//         let id3 = Uuid::new_v4();
-//         local_metadata_repo::track_move(cfg, id3, id3, Uuid::new_v4(), EARLY_CLOCK).unwrap();
-//         assert_total_local_changes!(cfg, 3);
+        assert_eq!(result, Vec::new());
+    }
 
-//         let id4 = Uuid::new_v4();
-//         local_metadata_repo::track_delete(cfg, id4, Document, EARLY_CLOCK).unwrap();
-//         assert_total_local_changes!(cfg, 4);
+    #[test]
+    fn insert_delete_all_different_source() {
+        let config = &temp_config();
+        let test_account = test_utils::generate_account();
 
-//         local_metadata_repo::untrack_new_file(cfg, id1).unwrap();
-//         assert_total_local_changes!(cfg, 3);
+        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
+        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        metadata_repo::delete_all(config, RepoSource::Base).unwrap();
+        let result = metadata_repo::get_all(config, RepoSource::Local).unwrap();
 
-//         local_metadata_repo::untrack_rename(cfg, id2).unwrap();
-//         assert_total_local_changes!(cfg, 2);
-
-//         local_metadata_repo::untrack_move(cfg, id3).unwrap();
-//         assert_total_local_changes!(cfg, 1);
-
-//         // Untrack not supported because no one can undelete files
-//     }
-
-//     #[test]
-//     fn unknown_id() {
-//         let cfg = &temp_config();
-
-//         let the_wrong_id = Uuid::new_v4();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, the_wrong_id).unwrap(),
-//             None
-//         );
-//         local_metadata_repo::untrack_edit(cfg, the_wrong_id).unwrap();
-//         assert_eq!(
-//             local_metadata_repo::get_local_changes(cfg, the_wrong_id).unwrap(),
-//             None
-//         );
-//         assert_total_local_changes!(cfg, 0);
-//     }
-
-//     #[test]
-//     fn rename_back_to_original() {
-//         let cfg = &temp_config();
-
-//         let id = Uuid::new_v4();
-
-//         local_metadata_repo::track_rename(cfg, id, "old_file", "new_name", EARLY_CLOCK).unwrap();
-//         assert_total_local_changes!(cfg, 1);
-
-//         local_metadata_repo::track_rename(cfg, id, "garbage", "garbage2", EARLY_CLOCK).unwrap();
-//         assert_total_local_changes!(cfg, 1);
-
-//         local_metadata_repo::track_rename(cfg, id, "garbage", "old_file", EARLY_CLOCK).unwrap();
-//         assert_total_local_changes!(cfg, 0);
-//     }
-
-//     #[test]
-//     fn move_back_to_original() {
-//         let cfg = &temp_config();
-
-//         let id = Uuid::new_v4();
-//         let og = Uuid::new_v4();
-
-//         local_metadata_repo::track_move(cfg, id, og, Uuid::new_v4(), EARLY_CLOCK).unwrap();
-//         assert_total_local_changes!(cfg, 1);
-
-//         local_metadata_repo::track_move(cfg, id, Uuid::new_v4(), Uuid::new_v4(), EARLY_CLOCK)
-//             .unwrap();
-//         assert_total_local_changes!(cfg, 1);
-
-//         local_metadata_repo::track_move(cfg, id, Uuid::new_v4(), og, EARLY_CLOCK).unwrap();
-//         assert_total_local_changes!(cfg, 0);
-//     }
-// }
+        assert_eq!(result, vec![test_metadata]);
+    }
+}

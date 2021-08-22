@@ -67,9 +67,15 @@ where
 {
     let path_str = namespace_path(db, namespace);
     // note: this fails if a file is deleted between call to read_dir and subsequent calls to remove_file
-    for entry in fs::read_dir(path_str)? {
-        fs::remove_file(entry?.path())?;
+    match fs::read_dir(path_str) {
+        Ok(rd) => {
+            for entry in rd {
+                fs::remove_file(entry?.path())?;
+            }
+        }
+        Err(_) => {},
     }
+
     Ok(())
 }
 
@@ -185,6 +191,13 @@ mod unit_tests {
 
         assert_eq!(result1, None);
         assert_eq!(result2, None);
+    }
+
+    #[test]
+    fn delete_all_no_writes() {
+        let db = &temp_config();
+
+        local_storage::delete_all(db, "namespace").unwrap();
     }
 
     #[test]
