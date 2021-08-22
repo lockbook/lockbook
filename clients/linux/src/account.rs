@@ -31,7 +31,7 @@ use crate::util::{
     gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK, IMAGE_TARGET_INFO, TEXT_TARGET_INFO,
     URI_TARGET_INFO,
 };
-use crate::{closure, get_language_specs_dir, uerr, uerr_dialog};
+use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog};
 
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
 use regex::Regex;
@@ -458,19 +458,22 @@ impl Editor {
                 }
                 IMAGE_TARGET_INFO => match s.get_pixbuf() {
                     None => {
-                        m.send_err_dialog("Dragging bytes", uerr_dialog!("Unsupported format"));
+                        m.send_err_dialog("Dropping image", uerr_dialog!("Unsupported image format!"));
                         return;
                     }
                     Some(pixbuf) => match pixbuf.save_to_bufferv("jpg", &[]) {
                         Ok(bytes) => TextAreaDropPasteInfo::Image(bytes),
                         Err(err) => {
-                            m.send_err_dialog("Dragging bytes", LbError::fmt_program_err(err));
+                            m.send_err_dialog("Dropping image", LbError::fmt_program_err(err));
                             return;
                         }
                     },
                 },
                 TEXT_TARGET_INFO => return,
-                _ => panic!("impossible"),
+                _ => {
+                    m.send_err_dialog("Dropping data", progerr!("Unrecognized data format '{}'.", s.get_data_type().name()));
+                    return;
+                },
             };
 
             m.send(Msg::DropPasteInTextArea(target))

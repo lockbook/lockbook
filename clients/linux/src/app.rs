@@ -1136,7 +1136,7 @@ impl LbApp {
                 let gdk_win = self.gui.account.cntr.get_window().unwrap();
                 gdk_win.set_cursor(Cursor::from_name(&gdk_win.get_display(), "wait").as_ref());
 
-                let image_name = format!("img-{}.{}", Uuid::new_v4(), "jpeg");
+                let image_name = format!("img-{}.{}", Uuid::new_v4(), "png");
 
                 let ch = make_glib_chan!(self.gui.account as a, image_name, mark => move |is_successful: bool| {
                     if is_successful {
