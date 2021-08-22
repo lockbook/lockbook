@@ -130,13 +130,33 @@ mod unit_tests {
     use crate::repo::local_storage;
 
     #[test]
-    fn read_write() {
+    fn read() {
+        let db = &temp_config();
+
+        let result: Option<Vec<u8>> = local_storage::read(db, "namespace", "key").unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn write_read() {
         let db = &temp_config();
 
         local_storage::write(db, "namespace", "key", "value".as_bytes()).unwrap();
         let result: Vec<u8> = local_storage::read(db, "namespace", "key").unwrap().unwrap();
 
         assert_eq!(String::from_utf8_lossy(&result), "value");
+    }
+
+    #[test]
+    fn overwrite_read() {
+        let db = &temp_config();
+
+        local_storage::write(db, "namespace", "key", "value-1".as_bytes()).unwrap();
+        local_storage::write(db, "namespace", "key", "value-2".as_bytes()).unwrap();
+        let result: Vec<u8> = local_storage::read(db, "namespace", "key").unwrap().unwrap();
+
+        assert_eq!(String::from_utf8_lossy(&result), "value-2");
     }
 
     #[test]
