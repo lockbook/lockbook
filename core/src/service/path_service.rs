@@ -72,7 +72,7 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata,
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
     let mut current = utils::find_root(&files)?;
 
-    for (i, value) in paths.into_iter().enumerate() {
+    for (i, &value) in paths.iter().enumerate() {
         if value != current.decrypted_name {
             return Err(CoreError::FileNonexistent);
         }

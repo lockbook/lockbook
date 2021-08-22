@@ -7,12 +7,12 @@ use lockbook_models::crypto::*;
 use uuid::Uuid;
 
 const NAMESPACE_LOCAL: &str = "changed_local_documents";
-const NAMESPACE_REMOTE: &str = "all_remote_documents";
+const NAMESPACE_BASE: &str = "all_base_documents";
 
 fn namespace(source: RepoSource) -> &'static str {
     match source {
         RepoSource::Local => NAMESPACE_LOCAL,
-        RepoSource::Remote => NAMESPACE_REMOTE,
+        RepoSource::Base => NAMESPACE_BASE,
     }
 }
 
@@ -67,6 +67,10 @@ pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedDocum
 
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
     local_storage::delete(config, namespace(source), id.to_string().as_str())
+}
+
+pub fn delete_all(config: &Config, source: RepoSource) -> Result<(), CoreError> {
+    local_storage::delete_all(config, namespace(source))
 }
 
 #[cfg(test)]

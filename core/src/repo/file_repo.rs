@@ -10,7 +10,9 @@ use crate::utils;
 use crate::utils::slices_equal;
 use crate::CoreError;
 use lockbook_models::crypto::DecryptedDocument;
+use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
+use lockbook_models::file_metadata::FileMetadata;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
 use sha2::Digest;
@@ -19,15 +21,15 @@ use uuid::Uuid;
 
 pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>, CoreError> {
     let local = metadata_repo::get_all(config, RepoSource::Local)?;
-    let remote = metadata_repo::get_all(config, RepoSource::Remote)?;
+    let base = metadata_repo::get_all(config, RepoSource::Base)?;
 
     let new = local
         .iter()
-        .filter(|l| !remote.iter().any(|r| r.id == l.id))
+        .filter(|l| !base.iter().any(|r| r.id == l.id))
         .map(|l| FileMetadataDiff::new(l));
     let changed = local
         .iter()
-        .filter_map(|l| match remote.iter().find(|r| r.id == l.id) {
+        .filter_map(|l| match base.iter().find(|r| r.id == l.id) {
             Some(r) => Some((l, r)),
             None => None,
         })
@@ -47,7 +49,7 @@ pub fn get_all_with_document_changes(config: &Config) -> Result<Vec<Uuid>, CoreE
 }
 
 /// Adds or updates the metadata of a file on disk.
-/// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = remote metadata.
+/// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
 /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
 pub fn insert_metadata(
     config: &Config,
@@ -67,7 +69,7 @@ pub fn insert_metadata(
     // perform insertion
     metadata_repo::insert(config, source, &encrypted_metadata)?;
 
-    // remove local if local == remote
+    // remove local if local == base
     if let Some(opposite) =
         metadata_repo::maybe_get(config, source.opposite(), encrypted_metadata.id)?
     {
@@ -111,23 +113,47 @@ pub fn get_all_metadata(
     source: RepoSource,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let account = account_repo::get(config)?;
-    let encrypted_remote = metadata_repo::get_all(config, RepoSource::Remote)?;
-    let remote = file_encryption_service::decrypt_metadata(&account, &encrypted_remote)?;
+    let encrypted_base = metadata_repo::get_all(config, RepoSource::Base)?;
+    let base = file_encryption_service::decrypt_metadata(&account, &encrypted_base)?;
     match source {
         RepoSource::Local => {
             let encrypted_local = metadata_repo::get_all(config, RepoSource::Local)?;
             let local = file_encryption_service::decrypt_metadata(&account, &encrypted_local)?;
-            Ok(utils::stage(&local, &remote)
+            Ok(utils::stage(&local, &base)
                 .into_iter()
                 .map(|(f, _)| f)
                 .collect())
         }
-        RepoSource::Remote => Ok(remote),
+        RepoSource::Base => Ok(base),
     }
 }
 
+pub fn get_all_metadata_with_encrypted_changes(
+    config: &Config,
+    source: RepoSource,
+    changes: &[FileMetadata],
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+    let account = account_repo::get(config)?;
+    let base = metadata_repo::get_all(config, RepoSource::Base)?;
+    let sourced = match source {
+        RepoSource::Local => {
+            let local = metadata_repo::get_all(config, RepoSource::Local)?;
+            utils::stage_encrypted(&base, &local)
+                .into_iter()
+                .map(|(f, _)| f)
+                .collect()
+        }
+        RepoSource::Base => base,
+    };
+    let staged = utils::stage_encrypted(&sourced, &changes)
+        .into_iter()
+        .map(|(f, _)| f)
+        .collect::<Vec<FileMetadata>>();
+    file_encryption_service::decrypt_metadata(&account, &staged)
+}
+
 /// Adds or updates the content of a document on disk.
-/// Disk optimization opportunity: this function needlessly writes to disk when setting local content = remote content.
+/// Disk optimization opportunity: this function needlessly writes to disk when setting local content = base content.
 /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
 pub fn insert_document(
     config: &Config,
@@ -138,13 +164,14 @@ pub fn insert_document(
     // encrypt document and compute digest
     let digest = Sha256::digest(&document);
     let compressed_document = file_compression_service::compress(&document)?;
-    let encrypted_document = file_encryption_service::encrypt_document(document, &metadata)?;
+    let encrypted_document =
+        file_encryption_service::encrypt_document(&compressed_document, &metadata)?;
 
     // perform insertions
     document_repo::insert(config, source, metadata.id, &encrypted_document)?;
     digest_repo::insert(config, source, metadata.id, &digest)?;
 
-    // remove local if local == remote
+    // remove local if local == base
     if let Some(opposite) = digest_repo::maybe_get(config, source.opposite(), metadata.id)? {
         if slices_equal(&opposite, &digest) {
             document_repo::delete(config, RepoSource::Local, metadata.id)?;
@@ -178,7 +205,39 @@ pub fn maybe_get_document(
     }
 }
 
-/// Removes metadata, content, and digests of deleted files or files with deleted ancestors. Call this function after a set of operations rather than in-between each operation because otherwise you'll prune e.g. a file that was moved out of a folder that was deleted.
+/// Updates base metadata, content and digests to local. Then, wipes local.
+pub fn promote(config: &Config) -> Result<(), CoreError> {
+    let local_everything = metadata_repo::get_all(config, RepoSource::Local)?
+        .into_iter()
+        .map(|f| {
+            Ok((
+                f.clone(),
+                document_repo::get(config, RepoSource::Local, f.id)?,
+                digest_repo::get(config, RepoSource::Local, f.id)?,
+            ))
+        })
+        .collect::<Result<Vec<(FileMetadata, EncryptedDocument, Vec<u8>)>, CoreError>>()?;
+
+    metadata_repo::delete_all(config, RepoSource::Base)?;
+    document_repo::delete_all(config, RepoSource::Base)?;
+    digest_repo::delete_all(config, RepoSource::Base)?;
+
+    for (metadata, document, digest) in local_everything {
+        metadata_repo::insert(config, RepoSource::Base, &metadata)?;
+        document_repo::insert(config, RepoSource::Base, metadata.id, &document)?;
+        digest_repo::insert(config, RepoSource::Base, metadata.id, &digest)?;
+    }
+
+    metadata_repo::delete_all(config, RepoSource::Local)?;
+    document_repo::delete_all(config, RepoSource::Local)?;
+    digest_repo::delete_all(config, RepoSource::Local)?;
+
+    Ok(())
+}
+
+/// Removes metadata, content, and digests of deleted files or files with deleted ancestors. Call this function after a
+/// set of operations rather than in-between each operation because otherwise you'll prune e.g. a file that was moved
+/// out of a folder that was deleted.
 pub fn prune_local_deleted(config: &Config) -> Result<(), CoreError> {
     let all_metadata = get_all_metadata(config, RepoSource::Local)?;
     let deleted_metadata = utils::filter_deleted(&all_metadata)?;
@@ -193,12 +252,12 @@ pub fn prune_local_deleted(config: &Config) -> Result<(), CoreError> {
 
 fn delete_metadata(config: &Config, id: Uuid) -> Result<(), CoreError> {
     metadata_repo::delete(config, RepoSource::Local, id)?;
-    metadata_repo::delete(config, RepoSource::Remote, id)
+    metadata_repo::delete(config, RepoSource::Base, id)
 }
 
 fn delete_content(config: &Config, id: Uuid) -> Result<(), CoreError> {
     document_repo::delete(config, RepoSource::Local, id)?;
-    document_repo::delete(config, RepoSource::Remote, id)?;
+    document_repo::delete(config, RepoSource::Base, id)?;
     digest_repo::delete(config, RepoSource::Local, id)?;
-    digest_repo::delete(config, RepoSource::Remote, id)
+    digest_repo::delete(config, RepoSource::Base, id)
 }

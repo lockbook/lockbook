@@ -1,10 +1,9 @@
-use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::{account_repo, file_repo};
+use crate::repo::account_repo;
 use crate::service::sync_service::WorkCalculated;
 use crate::CoreError;
 use lockbook_models::account::Username;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -45,7 +44,7 @@ pub fn generate_client_file_metadata(
         id: meta.id,
         file_type: meta.file_type,
         parent: meta.parent,
-        name: meta.decrypted_name,
+        name: meta.decrypted_name.clone(),
         metadata_version: meta.metadata_version,
         owner: meta.owner.clone(),
         content_version: meta.content_version,

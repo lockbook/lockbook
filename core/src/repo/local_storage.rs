@@ -1,7 +1,7 @@
 use crate::core_err_unexpected;
 use crate::model::state::Config;
 use crate::CoreError;
-use std::fs::{create_dir_all, read_dir, remove_file, File, OpenOptions};
+use std::fs::{self, create_dir_all, read_dir, remove_file, File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 
@@ -59,6 +59,18 @@ where
     } else {
         Ok(())
     }
+}
+
+pub fn delete_all<N>(db: &Config, namespace: N) -> Result<(), CoreError>
+where
+    N: AsRef<[u8]>,
+{
+    let path_str = namespace_path(db, namespace);
+    // note: this fails if a file is deleted between call to read_dir and subsequent calls to remove_file
+    for entry in fs::read_dir(path_str)? {
+        fs::remove_file(entry?.path())?;
+    }
+    Ok(())
 }
 
 pub fn dump<N, V>(db: &Config, namespace: N) -> Result<Vec<V>, CoreError>

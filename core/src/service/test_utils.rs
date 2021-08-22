@@ -165,7 +165,7 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
         root_repo::maybe_get(&db2).unwrap()
     );
 
-    for source in vec![RepoSource::Local, RepoSource::Remote] {
+    for source in vec![RepoSource::Local, RepoSource::Base] {
         assert_eq!(
             metadata_repo::get_all(&db1, source).unwrap(),
             metadata_repo::get_all(&db2, source).unwrap()

@@ -1,4 +1,4 @@
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
 use uuid::Uuid;
 
 use crate::CoreError;
@@ -28,6 +28,24 @@ pub fn maybe_find(
     files: &[DecryptedFileMetadata],
     target_id: Uuid,
 ) -> Option<DecryptedFileMetadata> {
+    files.iter().find(|f| f.id == target_id).map(|f| f.clone())
+}
+
+pub fn find_mut(
+    files: &mut [DecryptedFileMetadata],
+    target_id: Uuid,
+) -> Result<&mut DecryptedFileMetadata, CoreError> {
+    maybe_find_mut(files, target_id).ok_or(CoreError::FileNonexistent)
+}
+
+pub fn maybe_find_mut(
+    files: &mut [DecryptedFileMetadata],
+    target_id: Uuid,
+) -> Option<&mut DecryptedFileMetadata> {
+    files.iter_mut().find(|f| f.id == target_id)
+}
+
+pub fn maybe_find_encrypted(files: &[FileMetadata], target_id: Uuid) -> Option<FileMetadata> {
     files.iter().find(|f| f.id == target_id).map(|f| f.clone())
 }
 
@@ -147,6 +165,26 @@ pub fn stage(
     }
     for staged in staged_changes {
         if maybe_find(files, staged.id).is_none() {
+            result.push((staged.clone(), StageSource::Staged));
+        }
+    }
+    result
+}
+
+pub fn stage_encrypted(
+    files: &[FileMetadata],
+    staged_changes: &[FileMetadata],
+) -> Vec<(FileMetadata, StageSource)> {
+    let mut result = Vec::new();
+    for file in files {
+        if let Some(ref staged) = maybe_find_encrypted(staged_changes, file.id) {
+            result.push((staged.clone(), StageSource::Staged));
+        } else {
+            result.push((file.clone(), StageSource::Base));
+        }
+    }
+    for staged in staged_changes {
+        if maybe_find_encrypted(files, staged.id).is_none() {
             result.push((staged.clone(), StageSource::Staged));
         }
     }

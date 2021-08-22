@@ -2,7 +2,7 @@ use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{file_repo, root_repo};
 use crate::service::file_service;
-use crate::{CoreError, utils};
+use crate::{utils, CoreError};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -18,17 +18,28 @@ pub enum TestRepoError {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
-    let root_id = root_repo::maybe_get(config).map_err(TestRepoError::Core)?.ok_or(TestRepoError::NoRootFolder)?;
-    let root = file_repo::maybe_get_metadata(config, RepoSource::Local, root_id).map_err(TestRepoError::Core)?.ok_or(TestRepoError::NoRootFolder)?;
-    let files = file_repo::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
+    let root_id = root_repo::maybe_get(config)
+        .map_err(TestRepoError::Core)?
+        .ok_or(TestRepoError::NoRootFolder)?;
+    let root = file_repo::maybe_get_metadata(config, RepoSource::Local, root_id)
+        .map_err(TestRepoError::Core)?
+        .ok_or(TestRepoError::NoRootFolder)?;
+    let files =
+        file_repo::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
 
-    let maybe_doc_with_children = utils::filter_documents(&files).iter().find(|d| !utils::find_children(&files, d.id).is_empty());
+    let maybe_doc_with_children = utils::filter_documents(&files)
+        .into_iter()
+        .find(|d| !utils::find_children(&files, d.id).is_empty());
     if let Some(doc) = maybe_doc_with_children {
         return Err(TestRepoError::DocumentTreatedAsFolder(doc.id));
     }
 
-    let root_with_descendants = utils::find_with_descendants(&files, root.id).map_err(TestRepoError::Core)?;
-    let maybe_non_root_descendant = files.iter().filter(|f| utils::maybe_find(&root_with_descendants, f.id).is_none()).next();
+    let root_with_descendants =
+        utils::find_with_descendants(&files, root.id).map_err(TestRepoError::Core)?;
+    let maybe_non_root_descendant = files
+        .iter()
+        .filter(|f| utils::maybe_find(&root_with_descendants, f.id).is_none())
+        .next();
     if let Some(non_root_descendant) = maybe_non_root_descendant {
         return Err(TestRepoError::FileOrphaned(non_root_descendant.id));
     }
@@ -40,15 +51,23 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
 
     let maybe_file_with_name_with_slash = files.iter().find(|f| f.decrypted_name.contains('/'));
     if let Some(file_with_name_with_slash) = maybe_file_with_name_with_slash {
-        return Err(TestRepoError::FileNameContainsSlash(file_with_name_with_slash.id));
+        return Err(TestRepoError::FileNameContainsSlash(
+            file_with_name_with_slash.id,
+        ));
     }
 
-    let maybe_self_descendant = file_service::get_invalid_cycles(&files, &[]).map_err(TestRepoError::Core)?.into_iter().next();
+    let maybe_self_descendant = file_service::get_invalid_cycles(&files, &[])
+        .map_err(TestRepoError::Core)?
+        .into_iter()
+        .next();
     if let Some(self_descendant) = maybe_self_descendant {
         return Err(TestRepoError::CycleDetected(self_descendant));
     }
 
-    let maybe_path_conflict = file_service::get_path_conflicts(&files, &[]).map_err(TestRepoError::Core)?.into_iter().next();
+    let maybe_path_conflict = file_service::get_path_conflicts(&files, &[])
+        .map_err(TestRepoError::Core)?
+        .into_iter()
+        .next();
     if let Some(path_conflict) = maybe_path_conflict {
         return Err(TestRepoError::NameConflictDetected(path_conflict.existing));
     }

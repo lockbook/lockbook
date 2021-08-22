@@ -86,7 +86,6 @@ fn encrypt_folder_access_keys(
 
 /// Converts a FileMetadata to a DecryptedFileMetadata using its decrypted parent key. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
 pub fn decrypt_metadatum(
-    account: &Account,
     parent_key: &AESKey,
     target: &FileMetadata,
 ) -> Result<DecryptedFileMetadata, CoreError> {
@@ -112,7 +111,7 @@ pub fn decrypt_metadata(
     let mut result = Vec::new();
     for target in files {
         let parent_key = decrypt_file_key(account, target.parent, files)?;
-        result.push(decrypt_metadatum(account, &parent_key, target)?);
+        result.push(decrypt_metadatum(&parent_key, target)?);
     }
     Ok(result)
 }
@@ -152,23 +151,6 @@ fn decrypt_file_name(
     parent_key: &AESKey,
 ) -> Result<String, CoreError> {
     symkey::decrypt_and_verify(parent_key, encrypted_name).map_err(core_err_unexpected)
-}
-
-fn decrypt_user_access_keys(
-    account: &Account,
-    encrypted_keys: &HashMap<String, UserAccessInfo>,
-) -> Result<Option<AESKey>, CoreError> {
-    match encrypted_keys.get(&account.username) {
-        Some(user_access_info) => {
-            let user_access_key =
-                pubkey::get_aes_key(&account.private_key, &user_access_info.encrypted_by)
-                    .map_err(core_err_unexpected)?;
-            let key = symkey::decrypt(&user_access_key, &user_access_info.access_key)
-                .map_err(core_err_unexpected)?;
-            Ok(Some(key))
-        }
-        None => Ok(None),
-    }
 }
 
 fn decrypt_folder_access_keys(

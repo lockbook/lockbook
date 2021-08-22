@@ -1,5 +1,3 @@
-use crate::model::repo::RepoSource;
-use crate::model::state::Config;
 use crate::utils::StageSource;
 use crate::{utils, CoreError};
 use lockbook_crypto::symkey;
@@ -26,7 +24,6 @@ pub fn create(file_type: FileType, parent: Uuid, name: &str, owner: &str) -> Dec
 
 pub fn create_root(username: &str) -> DecryptedFileMetadata {
     let id = Uuid::new_v4();
-    let key = symkey::generate_key();
     DecryptedFileMetadata {
         id,
         file_type: FileType::Folder,
@@ -194,12 +191,7 @@ pub fn get_path_conflicts(
     Ok(result)
 }
 
-pub fn save_document_to_disk(
-    config: &Config,
-    source: RepoSource,
-    document: &[u8],
-    location: String,
-) -> Result<(), CoreError> {
+pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), CoreError> {
     OpenOptions::new()
         .write(true)
         .create_new(true)
