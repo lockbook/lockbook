@@ -80,13 +80,13 @@ fn import_file_recursively(
             fs::read_dir(disk_path).map_err(CoreError::from)?.collect();
 
         if children.is_empty() {
-            path_service::create_at_path(config, &lockbook_path_with_new).map_err(|err| {
-                if err == CoreError::PathTaken {
-                    CoreError::ImportCollision(lockbook_path_with_new)
-                } else {
-                    err
+            match path_service::create_at_path(config, &lockbook_path_with_new) {
+                Ok(_) => {}
+                Err(CoreError::PathTaken) => {
+                    return Err(CoreError::ImportCollision(lockbook_path_with_new))
                 }
-            })?;
+                Err(err) => return Err(err),
+            }
         } else {
             for maybe_child in children {
                 let child_path = maybe_child.map_err(CoreError::from)?.path();
