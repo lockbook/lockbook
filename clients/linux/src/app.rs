@@ -27,7 +27,7 @@ use gtk::{
 use lockbook_models::file_metadata::FileType;
 use uuid::Uuid;
 
-use crate::account::AccountScreen;
+use crate::account::{AccountScreen, TextAreaDropPasteInfo};
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::background_work::BackgroundWork;
 use crate::editmode::EditMode;
@@ -43,6 +43,7 @@ use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 
+use gdk::{Cursor, WindowExt};
 use glib::uri_unescape_string;
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
@@ -128,8 +129,12 @@ impl LbApp {
                 Msg::ShowDialogPreferences => lb.show_dialog_preferences(),
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
-                Msg::ShowDialogImportFile(parent, uris) => lb.show_dialog_import_file(parent, uris),
+                Msg::ShowDialogImportFile(parent, uris, finish_ch) => {
+                    lb.show_dialog_import_file(parent, uris, finish_ch)
+                }
                 Msg::ShowDialogExportFile => lb.show_dialog_export_file(),
+
+                Msg::DropPasteInTextArea(info) => lb.paste_in_text_area(info),
 
                 Msg::ToggleAutoSave(auto_save) => lb.toggle_auto_save(auto_save),
                 Msg::ToggleAutoSync(auto_sync) => lb.toggle_auto_sync(auto_sync),
@@ -558,7 +563,7 @@ impl LbApp {
         let (meta, content) = self.core.open(id)?;
         self.state.borrow_mut().open_file_dirty = false;
         self.edit(&EditMode::PlainText {
-            path: self.core.full_path_for(&meta),
+            path: self.core.full_path_for(&meta.id)?,
             meta,
             content,
         })
@@ -567,7 +572,7 @@ impl LbApp {
     fn open_folder(&self, f: &ClientFileMetadata) -> LbResult<()> {
         let children = self.core.children(f)?;
         self.edit(&EditMode::Folder {
-            path: self.core.full_path_for(f),
+            path: self.core.full_path_for(&f.id)?,
             meta: f.clone(),
             n_children: children.len(),
         })
@@ -649,7 +654,7 @@ impl LbApp {
             let uuid = Uuid::parse_str(&id).unwrap();
 
             let meta = self.core.file_by_id(uuid)?;
-            let path = self.core.full_path_for(&meta);
+            let path = self.core.full_path_for(&meta.id)?;
 
             let n_children = if meta.file_type == FileType::Folder {
                 let children = self.core.get_children_recursively(meta.id).ok().unwrap();
@@ -768,8 +773,10 @@ impl LbApp {
 
                     match lb.core.file_by_id(id) {
                         Ok(f) => {
-                            acctscr.set_search_field_text(&lb.core.full_path_for(&f));
-                            lb.messenger.send(Msg::RefreshSyncStatus);
+                            if let Ok(path) = lb.core.full_path_for(&f.id) {
+                                acctscr.set_search_field_text(&path);
+                                lb.messenger.send(Msg::RefreshSyncStatus);
+                            }
                         }
                         Err(err) => lb.messenger.send_err_dialog("getting renamed file", err)
                     }
@@ -855,7 +862,10 @@ impl LbApp {
             }
         }
 
-        let txt = opened_file.map_or("".to_string(), |f| self.core.full_path_for(f));
+        let txt = match opened_file {
+            None => "".to_string(),
+            Some(f) => self.core.full_path_for(&f.id)?,
+        };
         self.gui.account.deselect_search_field();
         self.gui.account.set_search_field_text(&txt);
         Ok(())
@@ -931,7 +941,12 @@ impl LbApp {
         Ok(())
     }
 
-    fn show_dialog_import_file(&self, parent: Uuid, uris: Vec<String>) -> LbResult<()> {
+    fn show_dialog_import_file(
+        &self,
+        parent: Uuid,
+        uris: Vec<String>,
+        finish_ch: Option<glib::Sender<Vec<String>>>,
+    ) -> LbResult<()> {
         let (d, disk_lbl, lb_lbl, prog_lbl, pbar) = self.gui.new_import_export_dialog(true);
 
         const FILE_SCHEME: &str = "file://";
@@ -978,14 +993,39 @@ impl LbApp {
         });
 
         spawn!(self.core as c, self.messenger as m => move || {
-            for path in paths {
-                if let Err(err) = c.import_file(parent, &path, Some(Box::new(import_progress.clone()))) {
+            for path in &paths {
+                if let Err(err) = c.import_file(parent, path, Some(Box::new(import_progress.clone()))) {
                     m.send_err_dialog("Import files", err);
                     break;
                 };
             }
 
             ch.send(None).unwrap();
+
+            if let Some(finish_ch) = finish_ch {
+                let mut new_dests = Vec::new();
+                let parent_path = match c.full_path_for(&parent) {
+                    Ok(path) => path,
+                    Err(err) => {
+                        m.send_err_dialog("getting parent path", err);
+                        return;
+                    }
+                };
+
+                for path in paths {
+                    let name = match PathBuf::from(path).file_name() {
+                        None => {
+                            m.send_err_dialog("getting disk file name", uerr_dialog!("Unable to get disk file's name"));
+                            return;
+                        }
+                        Some(os_name) => os_name.to_string_lossy().into_owned(),
+                    };
+
+                    new_dests.push(format!("{}{}", parent_path, name));
+                }
+
+                finish_ch.send(new_dests).unwrap();
+            }
         });
 
         Ok(())
@@ -1076,6 +1116,79 @@ impl LbApp {
         let d = self.gui.new_dialog("My Lockbook Usage");
         d.get_content_area().add(&usage);
         d.show_all();
+        Ok(())
+    }
+
+    fn paste_in_text_area(&self, info: TextAreaDropPasteInfo) -> LbResult<()> {
+        let mark = self.gui.account.get_cursor_mark()?;
+
+        let opened_file = self
+            .state
+            .borrow()
+            .opened_file
+            .clone()
+            .ok_or_else(|| uerr_dialog!("Open a file before pasting!"))?;
+
+        match info {
+            TextAreaDropPasteInfo::Image(bytes) => {
+                let parent_path = self.core.full_path_for(&opened_file.parent)?;
+
+                let gdk_win = self.gui.account.cntr.get_window().unwrap();
+                gdk_win.set_cursor(Cursor::from_name(&gdk_win.get_display(), "wait").as_ref());
+
+                let image_name = format!("img-{}.{}", Uuid::new_v4(), "png");
+
+                let ch = make_glib_chan!(self.gui.account as a, image_name, mark => move |is_successful: bool| {
+                    if is_successful {
+                        let link = format!("[](lb://{}{})\n", parent_path, image_name);
+                        a.insert_text_at_mark(&mark, &link);
+                    }
+
+                    gdk_win.set_cursor(None);
+
+                    glib::Continue(true)
+                });
+
+                spawn!(self.core as c, self.messenger as m => move || {
+                    let is_successful = match c.create_file(&image_name, opened_file.parent, FileType::Document) {
+                        Ok(metadata) => {
+                            let is_successful = match c.write(metadata.id, bytes.as_slice()) {
+                                Ok(_) => true,
+                                Err(err) => {
+                                    m.send_err_dialog("writing image", err);
+                                    false
+                                }
+                            };
+                            m.send(Msg::RefreshTree);
+                            is_successful
+                        }
+                        Err(err) => {
+                            m.send_err_dialog("creating image", err);
+                            false
+                        }
+                    };
+
+                    ch.send(is_successful).unwrap();
+                });
+            }
+            TextAreaDropPasteInfo::Uris(uris) => {
+                let finish_ch = make_glib_chan!(self.gui.account as a, mark => move |dests: Vec<String>| {
+
+                    for dest in dests {
+                        a.insert_text_at_mark(&mark, &format!("[](lb://{})\n", dest));
+                    }
+
+                    glib::Continue(true)
+                });
+
+                self.messenger.send(Msg::ShowDialogImportFile(
+                    opened_file.parent,
+                    uris,
+                    Some(finish_ch),
+                ));
+            }
+        }
+
         Ok(())
     }
 
