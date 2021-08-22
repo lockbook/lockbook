@@ -49,7 +49,6 @@ use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use std::path::PathBuf;
 
-#[macro_export]
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
         let (s, r) = glib::MainContext::channel::<$param_type>(glib::PRIORITY_DEFAULT);
@@ -58,7 +57,6 @@ macro_rules! make_glib_chan {
     }};
 }
 
-#[macro_export]
 macro_rules! spawn {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => $fn:expr) => {
         std::thread::spawn(closure!($( $( $vars ).+ $( as $aliases )* ),+ => $fn));

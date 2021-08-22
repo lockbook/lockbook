@@ -18,8 +18,8 @@ use gtk::{
     TextWindowType, WrapMode as GtkWrapMode,
 };
 use sourceview::prelude::*;
+use sourceview::View as GtkSourceView;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
-use sourceview::{View as GtkSourceView, View};
 
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
@@ -450,7 +450,7 @@ impl Editor {
 
     fn on_drag_data_received(
         m: &Messenger,
-    ) -> impl Fn(&View, &DragContext, i32, i32, &SelectionData, u32, u32) {
+    ) -> impl Fn(&GtkSourceView, &DragContext, i32, i32, &SelectionData, u32, u32) {
         closure!(m => move |_, _, _, _, s, info, _| {
             let target = match info {
                 URI_TARGET_INFO => {
@@ -477,7 +477,7 @@ impl Editor {
         })
     }
 
-    fn on_paste_clipboard(m: &Messenger) -> impl Fn(&View) {
+    fn on_paste_clipboard(m: &Messenger) -> impl Fn(&GtkSourceView) {
         closure!(m => move |w| {
             let clipboard = Clipboard::get(&gdk::SELECTION_CLIPBOARD);
 
@@ -502,7 +502,7 @@ impl Editor {
         })
     }
 
-    fn on_button_press(m: &Messenger) -> impl Fn(&View, &gdk::EventButton) -> Inhibit {
+    fn on_button_press(m: &Messenger) -> impl Fn(&GtkSourceView, &gdk::EventButton) -> Inhibit {
         closure!(m => move |w, evt| {
             if evt.get_button() == LEFT_CLICK && evt.get_state() == ModifierType::CONTROL_MASK {
                 let (absol_x, absol_y) = evt.get_position();
