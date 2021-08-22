@@ -21,3 +21,28 @@ pub fn get(config: &Config) -> Result<u64, CoreError> {
         Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(core_err_unexpected)?),
     }
 }
+
+#[cfg(test)]
+mod unit_tests {
+    use crate::model::state::temp_config;
+    use crate::repo::last_updated_repo;
+
+    #[test]
+    fn get() {
+        let config = &temp_config();
+
+        let result = last_updated_repo::get(config).unwrap();
+
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn set_maybe_get() {
+        let config = &temp_config();
+
+        last_updated_repo::set(config, 42069).unwrap();
+        let result = last_updated_repo::get(config).unwrap();
+
+        assert_eq!(result, 42069);
+    }
+}
