@@ -6,7 +6,6 @@ import android.text.TextWatcher
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.viewModelScope
 import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -94,11 +93,9 @@ class TextEditorViewModel(application: Application, private val id: String) :
     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
     fun saveText(content: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val writeToDocumentResult = CoreModel.writeToDocument(config, id, content)
-            if (writeToDocumentResult is Err) {
-                _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
-            }
+        val writeToDocumentResult = CoreModel.writeToDocument(config, id, content)
+        if (writeToDocumentResult is Err) {
+            _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
         }
     }
 }
