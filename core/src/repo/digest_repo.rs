@@ -1,7 +1,7 @@
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::local_storage;
-use crate::{core_err_unexpected, CoreError};
+use crate::CoreError;
 use uuid::Uuid;
 
 const NAMESPACE_LOCAL: &str = "changed_local_document_digests";
