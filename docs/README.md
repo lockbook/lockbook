@@ -57,7 +57,7 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 | Sync                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Export file to host   |   ✅     |    ✅     |     ✅      |     📆       |      📆        |    📆     |
 | Import file from host |   ✅     |    ✅     |     📆      |     📆       |      📆        |    📆     |
-| Sharing               |   📆     |    📆     |     ✅      |     📆       |      📆        |    📆     |
+| Sharing               |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 
 ### Document Types
 
