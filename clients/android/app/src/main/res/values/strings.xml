@@ -62,6 +62,7 @@
 
     <string name="menu_search">Search</string>
     <string name="menu_sort">Sort</string>
+    <string name="menu_layout">Layout</string>
     <string name="menu_text_editor_view_md">View Markdown</string>
     <string name="menu_text_editor_search">Search</string>
     <string name="menu_text_editor_done">Save</string>
