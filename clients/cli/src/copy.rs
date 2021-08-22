@@ -40,7 +40,7 @@ pub fn copy(disk_path: PathBuf, lb_path: &str, edit: bool) -> CliResult<()> {
         CoreError::UiError(err) => match err {
             ImportFileError::NoAccount => err!(NoAccount),
             ImportFileError::ParentDoesNotExist => err!(FileNotFound(file_metadata.name.clone())),
-            ImportFileError::FileAlreadyExists => err!(FileCollision(lb_path.to_string())),
+            ImportFileError::FileAlreadyExists(path) => err!(FileCollision(path)),
             ImportFileError::DocumentTreatedAsFolder => {
                 err!(DocTreatedAsFolder(file_metadata.name.clone()))
             }
