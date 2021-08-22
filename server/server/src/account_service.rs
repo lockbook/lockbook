@@ -50,7 +50,7 @@ pub async fn new_account(
     })?;
     let new_user_access_key_result = file_index_repo::create_user_access_key(
         &mut transaction,
-        &request.username,
+        &request.public_key,
         request.folder_id,
         &request.user_access_key,
     )

@@ -574,8 +574,33 @@
       ]
     }
   },
-  "e0a2a6cb52d191a7276f8cdefd54f43958ff16e7db06b8cea0df7487598a791c": {
-    "query": "\nWITH RECURSIVE file_ancestors AS (\n        SELECT * FROM files AS new_file_parent\n        WHERE new_file_parent.id = $2\n            UNION DISTINCT\n        SELECT ancestors.* FROM files AS ancestors\n        JOIN file_ancestors ON file_ancestors.parent = ancestors.id\n    ),\n    insert_cte AS (\n        INSERT INTO files (\n            id,\n            parent,\n            parent_access_key,\n            is_folder,\n            name_encrypted,\n            name_hmac,\n            owner,\n            deleted,\n            metadata_version,\n            content_version,\n            document_size\n        )\n        SELECT\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            $6,\n            (\n                SELECT name\n                FROM accounts\n                WHERE public_key = $7\n            ),\n            FALSE,\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            $8\n        WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)\n        RETURNING NULL\n    )\nSELECT\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS \"metadata_version!\",\n    EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS \"ancestor_deleted!\";\n        ",
+  "e443b4758b8d5ff620d449a0c0f8ceb797fb0ad6cf084390ea3dad269965c1a8": {
+    "query": "\nDELETE FROM user_access_keys where sharee = $1\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "ee181bf167dc57995d471a2f17c0af1fef964cbb69b9d4f716ed4945cea20310": {
+    "query": "\nWITH i1 AS (\n    INSERT INTO account_tiers (bytes_cap) VALUES (1000000) RETURNING id\n)\nINSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, (SELECT id FROM i1))\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "f824558897a326bd928de4509d02b6d65193b16737005d1e49aea6d58aa2597a": {
+    "query": "\nWITH RECURSIVE file_ancestors AS (\n        SELECT * FROM files AS new_file_parent\n        WHERE new_file_parent.id = $2\n            UNION DISTINCT\n        SELECT ancestors.* FROM files AS ancestors\n        JOIN file_ancestors ON file_ancestors.parent = ancestors.id\n    ),\n    insert_cte AS (\n        INSERT INTO files (\n            id,\n            parent,\n            parent_access_key,\n            is_folder,\n            name_encrypted,\n            name_hmac,\n            owner,\n            deleted,\n            metadata_version,\n            content_version,\n            document_size\n        )\n        SELECT\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            $6,\n            $7,\n            FALSE,\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            $8\n        WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)\n        RETURNING NULL\n    )\nSELECT\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS \"metadata_version!\",\n    EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS \"ancestor_deleted!\";\n        ",
     "describe": {
       "columns": [
         {
@@ -605,31 +630,6 @@
         null,
         null
       ]
-    }
-  },
-  "e443b4758b8d5ff620d449a0c0f8ceb797fb0ad6cf084390ea3dad269965c1a8": {
-    "query": "\nDELETE FROM user_access_keys where sharee = $1\n        ",
-    "describe": {
-      "columns": [],
-      "parameters": {
-        "Left": [
-          "Text"
-        ]
-      },
-      "nullable": []
-    }
-  },
-  "ee181bf167dc57995d471a2f17c0af1fef964cbb69b9d4f716ed4945cea20310": {
-    "query": "\nWITH i1 AS (\n    INSERT INTO account_tiers (bytes_cap) VALUES (1000000) RETURNING id\n)\nINSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, (SELECT id FROM i1))\n        ",
-    "describe": {
-      "columns": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text"
-        ]
-      },
-      "nullable": []
     }
   }
 }

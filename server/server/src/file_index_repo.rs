@@ -286,11 +286,7 @@ WITH RECURSIVE file_ancestors AS (
             $4,
             $5,
             $6,
-            (
-                SELECT name
-                FROM accounts
-                WHERE public_key = $7
-            ),
+            $7,
             FALSE,
             CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
             CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
@@ -723,7 +719,7 @@ pub enum CreateUserAccessKeyError {
 
 pub async fn create_user_access_key(
     transaction: &mut Transaction<'_, Postgres>,
-    username: &str,
+    public_key: &PublicKey,
     folder_id: Uuid,
     user_access_key: &EncryptedUserAccessKey,
 ) -> Result<(), CreateUserAccessKeyError> {
@@ -735,7 +731,8 @@ INSERT INTO user_access_keys (file_id, sharee, encrypted_key) VALUES ($1, $2, $3
             .to_simple()
             .encode_lower(&mut Uuid::encode_buffer())
             .to_owned(),
-        &username,
+        &serde_json::to_string(&public_key)
+            .map_err(CreateUserAccessKeyError::Serialization)?,
         &serde_json::to_string(&user_access_key)
             .map_err(CreateUserAccessKeyError::Serialization)?,
     )

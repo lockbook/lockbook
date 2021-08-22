@@ -74,5 +74,5 @@ CREATE TABLE IF NOT EXISTS user_access_keys
     encrypted_key TEXT NOT NULL,
     CONSTRAINT uk_user_access_keys UNIQUE (file_id, sharee) DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT fk_user_access_keys_file_id_files_id FOREIGN KEY (file_id) REFERENCES files (id) DEFERRABLE INITIALLY DEFERRED,
-    CONSTRAINT fk_user_access_keys_sharee_id_accounts_name FOREIGN KEY (sharee) REFERENCES accounts (public_key) DEFERRABLE INITIALLY DEFERRED
+    CONSTRAINT fk_user_access_keys_sharee_id_accounts_public_key FOREIGN KEY (sharee) REFERENCES accounts (public_key) DEFERRABLE INITIALLY DEFERRED
 );
