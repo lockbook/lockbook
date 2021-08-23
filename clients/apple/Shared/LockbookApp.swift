@@ -1,30 +1,29 @@
 import SwiftUI
 import SwiftLockbookCore
 
-@main
-struct  LockbookApp: App {
-    @StateObject var core = GlobalState(documentsDirectory: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location)
+@main struct LockbookApp: App {
+
     
     var body: some Scene {
+
         let windowGroup = WindowGroup {
             AppView()
                 .buttonStyle(PlainButtonStyle())
                 .ignoresSafeArea()
-                .environmentObject(core)
+                .realDI()
         }.commands {
             CommandMenu("Lockbook") {
-                Button("Sync", action: { core.syncing = true }).keyboardShortcut("S", modifiers: .command)
+                Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
             }
             SidebarCommands()
         }
         
+        windowGroup
+        
         #if os(macOS)
-        windowGroup
         Settings {
-            SettingsView(core: core)
+            SettingsView().realDI()
         }
-        #else
-        windowGroup
         #endif
     }
 }

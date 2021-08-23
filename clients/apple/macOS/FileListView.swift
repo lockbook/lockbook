@@ -5,7 +5,8 @@ struct FileListView: View {
     
     @State var selectedItem: ClientFileMetadata? = nil
     
-    @EnvironmentObject var core: GlobalState
+    @EnvironmentObject var files: FileService
+    
     let currentFolder: ClientFileMetadata
     let account: Account
     
@@ -23,9 +24,9 @@ struct FileListView: View {
         }
         if let item = selectedItem {
             if (item.name.hasSuffix(".draw")) {
-                ImageLoader(model: core.openImage, meta: item, deleteChannel: core.deleteChannel)
+                ImageLoader(meta: item)
             } else {
-                EditorLoader(content: core.openDocument, meta: item, deleteChannel: core.deleteChannel)
+                EditorLoader(meta: item)
             }
         }
     }

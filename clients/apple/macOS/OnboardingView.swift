@@ -1,8 +1,7 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    @EnvironmentObject var core: GlobalState
-    @ObservedObject var onboardingState: OnboardingState
+    @EnvironmentObject var onboardingState: OnboardingState
     
     var body: some View {
         VStack(spacing: 50) {
@@ -23,9 +22,9 @@ struct OnboardingView: View {
                     .font(.system(.largeTitle, design: .monospaced))
                     .padding()
                 HStack (alignment: VerticalAlignment.top) {
-                    CreateAccountView(createAccountState: onboardingState)
+                    CreateAccountView()
                     Divider().frame(height: 200)
-                    ImportAccountView(onboardingState: onboardingState)
+                    ImportAccountView()
                 }
                 Spacer()
             }

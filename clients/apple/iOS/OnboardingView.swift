@@ -2,8 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     
-    @EnvironmentObject var core: GlobalState
-    @ObservedObject var onboardingState: OnboardingState
+    @EnvironmentObject var onboardingState: OnboardingState
     
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
@@ -58,21 +57,18 @@ struct OnboardingView: View {
 
 struct OnboardingView_Previews: PreviewProvider {
     static var previews: some View {
-        /// You can point this to a real directory with:
-        // OnboardingView(core: Core(documenstDirectory: "<somedir>"))
+        
         OnboardingView(onboardingState: OnboardingState(core: GlobalState()))
-            .environmentObject(GlobalState())
+            .mockDI()
     }
 }
 
 struct Syncing_Previews: PreviewProvider {
-    static var onboardingState = OnboardingState(core: GlobalState())
     
     static var previews: some View {
-        /// You can point this to a real directory with:
-        // OnboardingView(core: Core(documenstDirectory: "<somedir>"))
-        OnboardingView(onboardingState: onboardingState)
-            .environmentObject(GlobalState())
+        
+        OnboardingView()
+            .mockDI()
             .onAppear {
                 onboardingState.initialSyncing = true
             }

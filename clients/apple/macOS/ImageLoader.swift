@@ -3,10 +3,9 @@ import SwiftLockbookCore
 import Combine
 
 struct ImageLoader: View {
-    @ObservedObject var model: ImageModel
+    @EnvironmentObject var model:  ImageModel
     let meta: ClientFileMetadata
     @State var image: NSImage?
-    let deleteChannel: PassthroughSubject<ClientFileMetadata, Never>
     @State var deleted: ClientFileMetadata?
 
     var body: some View {
@@ -22,11 +21,6 @@ struct ImageLoader: View {
                 }
             } else {
                 Text("\(meta.name) file has been deleted")
-            }
-        }
-        .onReceive(deleteChannel) { deletedMeta in
-            if (deletedMeta.id == meta.id) {
-                deleted = deletedMeta
             }
         }
     }

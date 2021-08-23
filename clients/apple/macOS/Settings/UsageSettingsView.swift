@@ -4,8 +4,7 @@ import SwiftLockbookCore
 
 struct UsageSettingsView: View {
     
-    @ObservedObject var core: GlobalState
-    @ObservedObject var settingsState: SettingsState
+    @EnvironmentObject var settingsState: SettingsService
     
     var body: some View {
         VStack (spacing: 20){

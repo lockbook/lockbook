@@ -3,9 +3,8 @@ import SwiftLockbookCore
 
 struct BottomBar: View {
     
-    @EnvironmentObject var core: GlobalState
-    
-    @State var offline: Bool = false
+    @EnvironmentObject var sync: SyncService
+    @EnvironmentObject var status: StatusService
     
     #if os(iOS)
     var onCreating: () -> Void = {}
@@ -47,7 +46,7 @@ struct BottomBar: View {
     }
     #else
     var syncButton: AnyView {
-        if core.syncing || offline {
+        if sync.syncing || sync.offline {
             
             return AnyView(
                 Text("")
@@ -57,8 +56,8 @@ struct BottomBar: View {
             
         } else {
             return AnyView(Button(action: {
-                core.syncing = true
-                core.work = 0
+                sync.sync()
+                status.work = 0
             }) {
                 Text("Sync now")
                     .font(.callout)
@@ -69,27 +68,27 @@ struct BottomBar: View {
     #endif
     
     var localChangeText: String {
-        if core.work == 0 { // not shown in this situation
+        if status.work == 0 { // not shown in this situation
             return ""
-        } else if core.work == 1 {
+        } else if status.work == 1 {
             return "1 unsynced change"
         } else {
-            return "\(core.work) unsynced changes"
+            return "\(status.work) unsynced changes"
         }
     }
     
     var statusText: AnyView {
-        if core.syncing {
+        if sync.syncing {
             return AnyView(Text("Syncing...")
                             .foregroundColor(.secondary))
         } else {
-            if offline {
+            if sync.offline {
                 return AnyView(Text("Offline")
                                 .foregroundColor(.secondary)
                 )
             } else {
                 return AnyView(
-                    Text(core.work == 0 ? "Last update: \(core.lastSynced)" : localChangeText)
+                    Text(status.work == 0 ? "Last update: \(status.lastSynced)" : localChangeText)
                         .font(.callout)
                         .foregroundColor(.secondary)
                         .bold()

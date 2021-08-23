@@ -7,7 +7,9 @@ import SwiftLockbookCore
 import UniformTypeIdentifiers
 
 struct OutlineBranch: View {
-    @EnvironmentObject var core: GlobalState
+    @EnvironmentObject var files: FileService
+    @EnvironmentObject var status: StatusService
+    @EnvironmentObject var errors: UnexpectedErrorService
     
     var file: ClientFileMetadata
     @Binding var selectedItem: ClientFileMetadata?
@@ -18,7 +20,7 @@ struct OutlineBranch: View {
     @Binding var renaming: ClientFileMetadata?
 
     var children: [ClientFileMetadata] {
-        core.files.filter {
+        files.files.filter {
             $0.parent == file.id && $0.id != file.id
         }
     }
@@ -40,13 +42,13 @@ struct OutlineBranch: View {
                             level: level,
                             onCommit: { s in
                                 renaming = nil
-                                let r = core.api.renameFile(id: isRenaming.id, name: s)
+                                let r = DI.core.renameFile(id: isRenaming.id, name: s)
                                 if case .failure(let err) = r {
-                                    core.handleError(err)
+                                    errors.handleError(err)
                                 } else {
                                     withAnimation {
-                                        core.updateFiles()
-                                        core.checkForLocalWork()
+                                        files.refresh()
+                                        status.checkForLocalWork()
                                     }
                                 }
                             },
@@ -59,7 +61,7 @@ struct OutlineBranch: View {
                             nameField: file.name
                         ).onDisappear {
                             withAnimation {
-                                self.core.updateFiles()
+                                self.files.refresh()
                             }
                         }
                     } else {
@@ -126,13 +128,13 @@ struct OutlineBranch: View {
                 }
             })
             .onDrop(of: [UTType.text], delegate: DragDropper(file: file, current: $dragging, open: $open, moveFile: { drag in
-                if case .failure(let err) = core.api.moveFile(id: drag.id, newParent: self.file.id) {
-                    core.handleError(err)
+                if case .failure(let err) = DI.core.moveFile(id: drag.id, newParent: self.file.id) {
+                    errors.handleError(err)
                 } else {
                     withAnimation {
-                        core.updateFiles()
+                        files.refresh()
                     }
-                    core.checkForLocalWork()
+                    status.checkForLocalWork()
                 }
             }))
         }
@@ -140,29 +142,29 @@ struct OutlineBranch: View {
     
     func handleDelete(meta: ClientFileMetadata) -> () -> Void {
         return {
-            switch core.api.deleteFile(id: meta.id) {
+            switch DI.core.deleteFile(id: meta.id) {
             case .success(_):
-                core.deleteChannel.send(meta)
-                core.updateFiles()
-                core.checkForLocalWork()
+//                core.deleteChannel.send(meta) TODO
+                files.refresh()
+                status.checkForLocalWork()
             case .failure(let err):
-                core.handleError(err)
+                errors.handleError(err)
             }
         }
     }
     
     func handleCreate(meta: ClientFileMetadata, type: FileType) -> (String) -> Void {
         return { creatingName in
-            switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
+            switch DI.core.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
             case .success(let newMeta):
                 doneCreating()
-                core.updateFiles()
-                core.checkForLocalWork()
+                files.refresh()
+                status.checkForLocalWork()
                 if (newMeta.fileType == .Document) {
                     selectedItem = newMeta
                 }
             case .failure(let err):
-                core.handleError(err)
+                errors.handleError(err)
             }
         }
     }
@@ -209,7 +211,7 @@ struct DragDropper: DropDelegate {
 
 struct OutlineSection: View {
     
-    @EnvironmentObject var core: GlobalState
+    @EnvironmentObject var files: FileService
     
     var root: ClientFileMetadata
     @Binding var selectedItem: ClientFileMetadata?
@@ -217,7 +219,7 @@ struct OutlineSection: View {
     @State var renaming: ClientFileMetadata?
 
     var children: [ClientFileMetadata] {
-        core.files.filter {
+        files.files.filter {
             $0.parent == root.id && $0.id != root.id
         }
     }

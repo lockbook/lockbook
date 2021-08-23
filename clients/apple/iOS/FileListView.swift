@@ -47,7 +47,7 @@ struct FileListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(
-                        destination: SettingsView(settingsState: SettingsState(core: core), account: account).equatable()) {
+                        destination: SettingsView(settingsState: SettingsService(core: core), account: account).equatable()) {
                         Image(systemName: "gearshape.fill")
                             .foregroundColor(.blue)
                     }

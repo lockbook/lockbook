@@ -2,8 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct ImportAccountView: View {
-    @EnvironmentObject var core: GlobalState
-    @ObservedObject var onboardingState: OnboardingState
+    @EnvironmentObject var onboardingState: OnboardingState
     
     var body: some View {
         VStack(spacing: 40) {

@@ -23,10 +23,9 @@ struct EditorView: View {
 
 struct EditorLoader: View {
     
-    @ObservedObject var content: Content
+    @EnvironmentObject var content: Content
     let meta: ClientFileMetadata
     @State var editorContent: String = ""
-    let deleteChannel: PassthroughSubject<ClientFileMetadata, Never>
     @State var deleted: ClientFileMetadata?
     
     var body: some View {
@@ -54,11 +53,6 @@ struct EditorLoader: View {
             }
         }
         .navigationTitle(meta.name)
-        .onReceive(deleteChannel) { deletedMeta in
-            if (deletedMeta.id == meta.id) {
-                deleted = deletedMeta
-            }
-        }
     }
 }
 
@@ -157,7 +151,8 @@ extension NSTextField {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorLoader(content: GlobalState().openDocument, meta: FakeApi.fileMetas[0], deleteChannel: PassthroughSubject<ClientFileMetadata, Never>())
+            EditorLoader(meta: FakeApi.fileMetas[0])
+                .mockDI()
         }
         .preferredColorScheme(.dark)
     }
