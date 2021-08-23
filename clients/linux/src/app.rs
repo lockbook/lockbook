@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gio::prelude::*;
 use gtk::prelude::*;
@@ -19,9 +18,9 @@ use gtk::{
     ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
     ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode,
     SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
-    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
-    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
-    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
+    TreeModelSort as GtkTreeModelSort, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
+    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WidgetExt as GtkWidgetExt, 
+    WindowPosition as GtkWindowPosition,
 };
 
 use lockbook_models::file_metadata::FileType;
@@ -803,7 +802,7 @@ impl LbApp {
     }
 
     fn search_field_focus(&self) -> LbResult<()> {
-        let search = SearchComponents::new(&self.core);
+        let search = SearchComponents::new();
 
         let comp = GtkEntryCompletion::new();
         comp.set_model(Some(&search.sort_model));
@@ -826,7 +825,7 @@ impl LbApp {
     fn search_field_update(&self) -> LbResult<()> {
         if let Some(search) = self.state.borrow().search.as_ref() {
             let input = self.gui.account.get_search_field_text();
-            search.update_for(&input);
+            search.update_for(&self.core, &input)?;
         }
         Ok(())
     }
@@ -1157,73 +1156,35 @@ impl LbState {
 }
 
 struct SearchComponents {
-    possibs: Vec<String>,
     list_store: GtkListStore,
     sort_model: GtkTreeModelSort,
-    matcher: SkimMatcherV2,
 }
 
 impl SearchComponents {
-    fn new(core: &LbCore) -> Self {
+    fn new() -> Self {
         let list_store = GtkListStore::new(&[glib::Type::I64, glib::Type::String]);
         let sort_model = GtkTreeModelSort::new(&list_store);
         sort_model.set_sort_column_id(GtkSortColumn::Index(0), GtkSortType::Descending);
-        sort_model.set_sort_func(GtkSortColumn::Index(0), Self::compare_possibs);
+        // Matches should already be sorted at insertion time
+        sort_model.set_sort_func(GtkSortColumn::Index(0), |_, _, _| Ordering::Greater);
 
         Self {
-            possibs: core.list_paths().unwrap_or_default(),
             list_store,
             sort_model,
-            matcher: SkimMatcherV2::default(),
         }
-    }
+    } 
 
-    fn compare_possibs(model: &GtkTreeModel, it1: &GtkTreeIter, it2: &GtkTreeIter) -> Ordering {
-        let score1 = tree_iter_value!(model, it1, 0, i64);
-        let score2 = tree_iter_value!(model, it2, 0, i64);
-
-        match score1.cmp(&score2) {
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Less => Ordering::Less,
-            Ordering::Equal => {
-                let text1 = tree_iter_value!(model, it1, 1, String);
-                let text2 = model
-                    .get_value(it2, 1)
-                    .get::<String>()
-                    .unwrap_or_default()
-                    .unwrap_or_default();
-                if text2.is_empty() {
-                    return Ordering::Less;
-                }
-
-                let chars1: Vec<char> = text1.chars().collect();
-                let chars2: Vec<char> = text2.chars().collect();
-
-                let n_chars1 = chars1.len();
-                let n_chars2 = chars2.len();
-
-                for i in 0..std::cmp::min(n_chars1, n_chars2) {
-                    let ord = chars1[i].cmp(&chars2[i]);
-                    if ord != Ordering::Equal {
-                        return ord.reverse();
-                    }
-                }
-
-                n_chars1.cmp(&n_chars2)
-            }
-        }
-    }
-
-    fn update_for(&self, pattern: &str) {
+    fn update_for(&self, core: &LbCore, pattern: &str) -> LbResult<()>  {
         let list = &self.list_store;
         list.clear();
-
-        for p in &self.possibs {
-            if let Some(score) = self.matcher.fuzzy_match(p, pattern) {
-                let values: [&dyn ToValue; 2] = [&score, &p];
-                list.set(&list.append(), &[0, 1], &values);
-            }
+        
+        let results = core.file_path_search(&pattern)?;
+        for result in results {
+            let values: [&dyn ToValue; 2] = [&result.score, &result.name];
+            list.set(&list.append(), &[0, 1], &values);
         }
+
+        Ok(())
     }
 }
 

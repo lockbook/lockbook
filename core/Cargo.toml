@@ -30,8 +30,10 @@ chrono = "0.4.15"
 diffy = "0.2.0"
 fern = { version = "0.6.0", features = ["colored"]}
 flate2 = "1.0"
+fuzzy-matcher = "*"
 image = "0.23.13" 
 jni = { version = "0.13.1", default-features = false }
+lazy_static = "1.4.0"
 log = "0.4.8"
 rand = "0.7"
 raqote = { version = "0.8.0", default-features = false }

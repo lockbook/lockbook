@@ -12,11 +12,12 @@ use lockbook_core::{
     calculate_work, create_account, create_file, delete_file, export_account, export_file,
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
     get_file_by_path, get_last_synced, get_root, get_usage, import_account, import_file,
-    list_paths, migrate_db, move_file, read_document, rename_file, sync_all, write_document,
+    list_paths, migrate_db, move_file, read_document, rename_file, search_paths, sync_all, write_document,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_search_result::FileSearchResult;
 
 use crate::error::{LbErrTarget, LbError, LbResult};
 use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
@@ -204,13 +205,7 @@ impl LbCore {
             NoAccount => uerr_dialog!("No account found."),
             FileDoesNotExist => uerr_dialog!("File with id '{}' does not exist.", id),
         ))
-    }
-
-    pub fn list_paths(&self) -> LbResult<Vec<String>> {
-        list_paths(&self.config, None).map_err(map_core_err!(ListPathsError,
-            Stub => panic!("impossible"),
-        ))
-    }
+    } 
 
     pub fn rename(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
         rename_file(&self.config, *id, new_name).map_err(map_core_err!(RenameFileError,
@@ -369,6 +364,19 @@ impl LbCore {
         }
 
         path
+    }
+
+    pub fn file_path_search(&self, string: &str) -> LbResult<Vec<FileSearchResult>> {
+        let paths = search_paths(&self.config, string).map_err(map_core_err!(SearchPathsError,
+            Stub => panic!("impossible"),
+        ))?;
+        let acct_lock = lock!(self.account, read)?;
+        let acct = account!(acct_lock)?;
+        let root = &acct.username;
+        Ok(paths.into_iter().map(|mut result| {
+            result.name = result.name.replacen(root, "", 1);
+            result
+        }).collect())
     }
 
     pub fn open(&self, id: &Uuid) -> LbResult<(ClientFileMetadata, String)> {
