@@ -24,7 +24,7 @@ struct AppView: View {
                         case .some(let root):
                             AnyView(BookView(currentFolder: root, account: account))
                                 .onAppear {
-                                    sync.syncing = true
+                                    sync.sync()
                                 }
                         case .none:
                             Label("Please sync!", systemImage: "arrow.right.arrow.left.circle.fill")

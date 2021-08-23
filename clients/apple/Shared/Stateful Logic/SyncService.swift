@@ -30,7 +30,7 @@ class SyncService: ObservableObject {
     }
 
     @objc func syncTimerTick() {
-        syncing = true
+        sync()
     }
     
     func documentChangeHappened() {
