@@ -4,7 +4,6 @@ import SwiftUI
 class SettingsService: ObservableObject {
     
     let core: LockbookApi
-    let errors: UnexpectedErrorService
     
     @Published var usages: PrerequisiteInformation?
 
@@ -32,9 +31,8 @@ class SettingsService: ObservableObject {
         }
     }
     
-    init(_ core: LockbookApi, _ errors: UnexpectedErrorService) {
+    init(_ core: LockbookApi) {
         self.core = core
-        self.errors = errors
     }
     
     func copyAccountString() {
@@ -48,7 +46,7 @@ class SettingsService: ObservableObject {
             #endif
             copied = true
         case .failure(let err):
-            errors.handleError(err)
+            DI.errors.handleError(err)
         }
     }
     
@@ -64,10 +62,10 @@ class SettingsService: ObservableObject {
                         }
                     case .failure(let err):
                         // TODO handle an explicit offline mode here
-                        self.errors.handleError(err)
+                        DI.errors.handleError(err)
                     }
                 case .failure(let err):
-                    self.errors.handleError(err)
+                    DI.errors.handleError(err)
                 }
             }
         }
@@ -87,7 +85,7 @@ class SettingsService: ObservableObject {
                 }
             }
         case .failure(let err):
-            errors.handleError(err)
+            DI.errors.handleError(err)
         }
         return AnyView(Text("Failed to generate QR Code"))
     }

@@ -6,9 +6,9 @@ class DrawingModel: ObservableObject {
     @Published var originalDrawing: PKDrawing? = .none
     @Published var meta: ClientFileMetadata? = .none
     var errors: String? = .none
+    // TODO take this in via DI instead
     let write: (UUID, Drawing) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
     let read: (UUID) -> FfiResult<Drawing, ReadDocumentError>
-    var writeListener: () -> Void = {}
     
     init(write: @escaping (UUID, Drawing) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<Drawing, ReadDocumentError>) {
         self.write = write
@@ -19,7 +19,7 @@ class DrawingModel: ObservableObject {
         originalDrawing = updatedDrawing
         DispatchQueue.global(qos: .userInitiated).async {
             print(self.write(meta.id, Drawing(from: updatedDrawing))) // TODO handle
-            self.writeListener()
+            DI.sync.documentChangeHappened()
         }
     }
     

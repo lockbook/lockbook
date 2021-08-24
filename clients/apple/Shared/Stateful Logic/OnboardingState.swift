@@ -4,9 +4,6 @@ import SwiftUI
 class OnboardingState: ObservableObject {
     
     let core: LockbookApi
-    let accounts: AccountService
-    let files: FileService
-    let errors: UnexpectedErrorService
     
     @Published var working: Bool = false
     
@@ -18,11 +15,8 @@ class OnboardingState: ObservableObject {
     
     @Published var initialSyncing: Bool = false
     
-    init(_ core: LockbookApi, _ accounts: AccountService, _ files: FileService, _ errors: UnexpectedErrorService) {
+    init(_ core: LockbookApi) {
         self.core = core
-        self.accounts = accounts
-        self.files = files
-        self.errors = errors
     }
     
     func attemptCreate() {
@@ -56,7 +50,7 @@ class OnboardingState: ObservableObject {
                         break;
                     case .Unexpected:
                         self.createAccountError = "Unexpected Error!"
-                        self.errors.handleError(err)
+                        DI.errors.handleError(err)
                     }
                     break
                 }
@@ -81,7 +75,7 @@ class OnboardingState: ObservableObject {
                         case .success:
                             self.getAccountAndFinalize()
                         case .failure(let err):
-                            self.errors.handleError(err)
+                            DI.errors.handleError(err)
                         }
                     }
                 case .failure(let error):
@@ -102,7 +96,7 @@ class OnboardingState: ObservableObject {
                             self.importAccountError = "That username does not match the public key stored on this server!"
                         }
                     case .Unexpected:
-                        self.errors.handleError(error)
+                        DI.errors.handleError(error)
                     }
                 }
             }
@@ -110,7 +104,7 @@ class OnboardingState: ObservableObject {
     }
     
     func getAccountAndFinalize() {
-        let _ = self.accounts.getAccount()
-        self.files.refresh()
+        let _ = DI.accounts.getAccount()
+        DI.files.refresh()
     }
 }

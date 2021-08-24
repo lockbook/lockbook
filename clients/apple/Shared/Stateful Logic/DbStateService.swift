@@ -3,21 +3,17 @@ import SwiftLockbookCore
 
 class DbStateService: ObservableObject {
     private let core: LockbookApi
-    private let account: AccountService
-    private let unexpectedErrors: UnexpectedErrorService
     
     @Published var dbState: DbState?
     
-    init(_ core: LockbookApi, _ account: AccountService, _ unexpectedErrors: UnexpectedErrorService) {
+    init(_ core: LockbookApi) {
         self.core = core
-        self.account = account
-        self.unexpectedErrors = unexpectedErrors
         
         switch core.getState() {
         case .success(let dbState):
             self.dbState = dbState
         case .failure(let error):
-            unexpectedErrors.handleError(error)
+            DI.errors.handleError(error)
         }
     }
     
@@ -31,12 +27,12 @@ class DbStateService: ObservableObject {
             switch core.getState() {
             case .success(let state):
                 self.dbState = state
-                let _ = self.account.getAccount()
+                let _ = DI.accounts.getAccount()
             case .failure(let error2):
-                unexpectedErrors.handleError(error2)
+                DI.errors.handleError(error2)
             }
         case .failure(let error):
-            unexpectedErrors.handleError(error)
+            DI.errors.handleError(error)
         }
     }
 

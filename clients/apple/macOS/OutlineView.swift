@@ -42,15 +42,7 @@ struct OutlineBranch: View {
                             level: level,
                             onCommit: { s in
                                 renaming = nil
-                                let r = DI.core.renameFile(id: isRenaming.id, name: s)
-                                if case .failure(let err) = r {
-                                    errors.handleError(err)
-                                } else {
-                                    withAnimation {
-                                        files.refresh()
-                                        status.checkForLocalWork()
-                                    }
-                                }
+                                files.renameFile(id: isRenaming.id, name: s)
                             },
                             onCancel: {
                                 withAnimation {
@@ -128,14 +120,7 @@ struct OutlineBranch: View {
                 }
             })
             .onDrop(of: [UTType.text], delegate: DragDropper(file: file, current: $dragging, open: $open, moveFile: { drag in
-                if case .failure(let err) = DI.core.moveFile(id: drag.id, newParent: self.file.id) {
-                    errors.handleError(err)
-                } else {
-                    withAnimation {
-                        files.refresh()
-                    }
-                    status.checkForLocalWork()
-                }
+                files.moveFile(id: drag.id, newParent: self.file.id)
             }))
         }
     }

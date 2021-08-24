@@ -85,15 +85,7 @@ struct FileListView: View {
                         row: { dest in
                             Button(action: {
                                 moving = nil
-                                if case .failure(let err) = DI.core.moveFile(id: meta.id, newParent: dest.id) {
-                                    // Delaying this because the sheet has to go away before an alert can show up!
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
-                                        errors.handleError(err)
-                                    }
-                                } else {
-                                    fileService.refresh()
-                                    status.checkForLocalWork()
-                                }
+                                fileService.moveFile(id: meta.id, newParent: dest.id)
                             }, label: {
                                 Label(dest.name, systemImage: "folder")
                             })
@@ -112,12 +104,7 @@ struct FileListView: View {
                     type: meta.fileType,
                     name: $creatingName,
                     onCommit: {
-                        if case .failure(let err) = DI.core.renameFile(id: meta.id, name: creatingName) {
-                            errors.handleError(err)
-                        } else {
-                            fileService.refresh()
-                            status.checkForLocalWork()
-                        }
+                        fileService.renameFile(id: meta.id, name: creatingName)
                     },
                     onCancel: {
                         renaming = nil

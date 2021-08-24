@@ -64,6 +64,12 @@ struct AppView: View {
                 return updateAlert
             case let update as FfiError<GetUsageError> where update == .init(.ClientUpdateRequired):
                 return updateAlert
+            case let error as ErrorWithTitle:
+                return Alert(
+                    title: Text(error.title),
+                    message: Text(error.message),
+                    dismissButton: .default(Text("Dismiss"))
+                )
             default:
                 return Alert(
                     title: Text("Core Error!"),
@@ -78,7 +84,7 @@ struct AppView: View {
     
     let updateAlert: Alert = Alert(
         title: Text("Update Required!"),
-        message: Text("It seems like you're using an out-date client. Please update to perform sync operations."),
+        message: Text("It seems like you're using an out-date client. Please update to continue."),
         dismissButton: .default(Text("Dismiss"))
     )
 }

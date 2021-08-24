@@ -3,13 +3,11 @@ import SwiftLockbookCore
 
 class AccountService: ObservableObject {
     let core: LockbookApi
-    let errors: UnexpectedErrorService
     
     @Published var account: Account? = nil
     
-    init(_ core: LockbookApi, _ error: UnexpectedErrorService) {
+    init(_ core: LockbookApi) {
         self.core = core
-        self.errors = error
         
         switch core.getAccount() {
         case .success(let account):
@@ -22,7 +20,7 @@ class AccountService: ObservableObject {
                     account = nil
                 }
             case .Unexpected(_):
-                errors.handleError(error)
+                DI.errors.handleError(error)
             }
         }
     }
@@ -40,7 +38,7 @@ class AccountService: ObservableObject {
                         self.account = nil
                     }
                 case .Unexpected(_):
-                    errors.handleError(error)
+                    DI.errors.handleError(error)
                 }
             }
         }

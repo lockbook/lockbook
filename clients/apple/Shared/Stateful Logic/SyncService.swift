@@ -3,23 +3,14 @@ import SwiftLockbookCore
 
 class SyncService: ObservableObject {
     let core: LockbookApi
-    let files: FileService
-    let status: StatusService
-    let errors: UnexpectedErrorService
     
     @Published var syncing: Bool = false
     @Published var offline: Bool = false
     
     private var syncTimer: Timer? = nil
     
-    init(_ core: LockbookApi, _ files: FileService, _ status: StatusService, _ errors: UnexpectedErrorService) {
+    init(_ core: LockbookApi) {
         self.core = core
-        self.files = files
-        self.status = status
-        self.errors = errors
-        
-        self.files.openDrawing.writeListener = documentChangeHappened
-        self.files.openDocument.writeListener = documentChangeHappened
         
         startOrRestartSyncTimer()
     }
@@ -35,13 +26,13 @@ class SyncService: ObservableObject {
     
     func documentChangeHappened() {
         startOrRestartSyncTimer()
-        status.checkForLocalWork()
+        DI.status.checkForLocalWork()
     }
     
     func postSyncSteps() {
-        files.refresh()
-        status.setLastSynced()
-        status.checkForLocalWork()
+        DI.files.refresh()
+        DI.status.setLastSynced()
+        DI.status.checkForLocalWork()
     }
     
     func sync() {
@@ -72,7 +63,7 @@ class SyncService: ObservableObject {
                             print("Upgrade required but not shown to user, ignoring (TODO)") // TODO
                         }
                     default:
-                        self.errors.handleError(error)
+                        DI.errors.handleError(error)
                     }
                 }
             }

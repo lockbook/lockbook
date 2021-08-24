@@ -3,18 +3,14 @@ import SwiftLockbookCore
 
 class StatusService: ObservableObject {
     let core: LockbookApi
-    let account: AccountService
-    let errors: UnexpectedErrorService
     
     @Published var work: Int = 0
     @Published var lastSynced: String = ""
     
     private var lastSyncedTimer: Timer? = nil
     
-    init(_ core: LockbookApi, _ account: AccountService, _ errors: UnexpectedErrorService) {
+    init(_ core: LockbookApi) {
         self.core = core
-        self.account = account
-        self.errors = errors
         
         startLastSyncedTimer()
     }
@@ -31,7 +27,7 @@ class StatusService: ObservableObject {
                 case .success(let local):
                     self.work = local.count
                 case .failure(let err):
-                    self.errors.handleError(err)
+                    DI.errors.handleError(err)
                 }
             }
         }
@@ -40,7 +36,7 @@ class StatusService: ObservableObject {
     
     @objc func setLastSynced() {
         DispatchQueue.global(qos: .userInteractive).async {
-            if self.account.getAccount() == nil {
+            if DI.accounts.getAccount() == nil {
                 print("No account yet, but tried to update last synced, ignoring")
                 return
             }
@@ -52,7 +48,7 @@ class StatusService: ObservableObject {
                 case .success(let lastSynced):
                     self.lastSynced = lastSynced
                 case .failure(let error):
-                    self.errors.handleError(error)
+                    DI.errors.handleError(error)
                 }
             }
         }
