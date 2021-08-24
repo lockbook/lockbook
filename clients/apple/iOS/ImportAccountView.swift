@@ -2,8 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct ImportAccountView: View {
-    @EnvironmentObject var core: GlobalState
-    @ObservedObject var onboardingState: OnboardingState
+    @EnvironmentObject var onboardingState: OnboardingState
     
     @State var isScanning: Bool = false
     
@@ -55,20 +54,19 @@ struct ImportAccountView: View {
 struct ImportView_Previews: PreviewProvider {
     static var previews: some View {
         HStack {
-            ImportAccountView(onboardingState: OnboardingState(core: GlobalState()))
-                .environmentObject(GlobalState())
+            ImportAccountView()
+                .mockDI()
         }
     }
 }
 
 struct ImportViewWithError_Previews: PreviewProvider {
-    static var onboardingState = OnboardingState(core: GlobalState())
     static var previews: some View {
         HStack {
-            ImportAccountView(onboardingState:onboardingState)
-                .environmentObject(GlobalState())
+            ImportAccountView()
+                .mockDI()
                 .onAppear {
-                    onboardingState.importAccountError = "Import error text!"
+                    Mock.onboarding.importAccountError = "Import error text!"
                 }
         }
     }

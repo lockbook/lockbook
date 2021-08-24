@@ -82,7 +82,7 @@ class SettingsService: ObservableObject {
                 let transform = CGAffineTransform(scaleX: 3, y: 3)
                 if let output = filter.outputImage?.transformed(by: transform) {
                     if let cgCode = CIContext().createCGImage(output, from: output.extent) {
-                        return AnyView(Image(cgCode, scale: 1.0, label: Text("")))
+                        return AnyView(Image(cgCode, scale: 1.0, label: Text(""))) // TODO make bigger probably 
                     }
                 }
             }

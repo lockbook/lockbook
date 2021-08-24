@@ -10,11 +10,13 @@ enum ClientFileTypes {
 
 struct NewFileSheet: View {
     
+    @EnvironmentObject var files: FileService
+    @EnvironmentObject var status: StatusService
+    @EnvironmentObject var errorService: UnexpectedErrorService
+    
     @Environment(\.presentationMode) var presentationMode
 
     let parent: ClientFileMetadata
-    
-    @EnvironmentObject var core: GlobalState
     
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
@@ -93,10 +95,10 @@ struct NewFileSheet: View {
     }
     
     func onCommit() {
-        switch core.api.createFile(name: name, dirId: parent.id, isFolder: selected == .Folder) {
+        switch DI.core.createFile(name: name, dirId: parent.id, isFolder: selected == .Folder) {
         case .success(let newMeta):
-            core.updateFiles()
-            core.checkForLocalWork()
+            files.refresh()
+            status.checkForLocalWork()
             onSuccess(newMeta)
         case .failure(let err):
             switch err.kind {
@@ -109,11 +111,11 @@ struct NewFileSheet: View {
                 case .FileNameNotAvailable:
                     errors = "A file with that name exists in this folder already"
                 default:
-                    core.handleError(err)
+                    errorService.handleError(err)
                 }
                 break;
             case .Unexpected:
-                core.handleError(err)
+                errorService.handleError(err)
             }
         }
     }

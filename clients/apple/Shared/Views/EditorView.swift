@@ -24,6 +24,7 @@ struct EditorView: View {
 struct EditorLoader: View {
     
     @EnvironmentObject var content: Content
+    
     let meta: ClientFileMetadata
     @State var editorContent: String = ""
     @State var deleted: ClientFileMetadata?

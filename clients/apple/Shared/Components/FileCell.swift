@@ -70,16 +70,17 @@ struct SyntheticFileCell: View {
 struct FileCell_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            FileCell(meta: GlobalState().files[0])
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
+            FileCell(meta: Mock.files.files[0])
+            SyntheticFileCell(parent: Mock.files.files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
             
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
+            SyntheticFileCell(parent: Mock.files.files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
             
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
+            SyntheticFileCell(parent: Mock.files.files[0], type: .Document, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
             
-            SyntheticFileCell(parent: GlobalState().files[0], type: .Folder, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
+            SyntheticFileCell(parent: Mock.files.files[0], type: .Folder, name: .constant(""), onCommit: {}, onCancel: {}, renaming: false)
             
         }
+        .mockDI()
         .previewLayout(.fixed(width: 300, height: 50))
     }
 }

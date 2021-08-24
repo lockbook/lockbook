@@ -3,7 +3,12 @@ import SwiftLockbookCore
 import PencilKit
 
 struct FileListView: View {
-    @EnvironmentObject var core: GlobalState
+    
+    @EnvironmentObject var fileService: FileService
+    @EnvironmentObject var sync: SyncService
+    @EnvironmentObject var status: StatusService
+    @EnvironmentObject var errors: UnexpectedErrorService
+    
     @State var creatingFile: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
@@ -11,11 +16,10 @@ struct FileListView: View {
     let account: Account
     @Binding var moving: ClientFileMetadata?
     @State var renaming: ClientFileMetadata?
-    static var toolbar = ToolbarModel()
     @State private var selection: ClientFileMetadata?
     
     var files: [ClientFileMetadata] {
-        core.files.filter {
+        fileService.files.filter {
             $0.parent == currentFolder.id && $0.id != currentFolder.id
         }
     }
@@ -47,30 +51,30 @@ struct FileListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(
-                        destination: SettingsView(settingsState: SettingsService(core: core), account: account).equatable()) {
+                        destination: SettingsView(account: account).equatable()) {
                         Image(systemName: "gearshape.fill")
                             .foregroundColor(.blue)
                     }
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-                core.syncing = true
+                sync.sync()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                core.syncing = true
+                sync.sync()
             }
             .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, onSuccess: fileSuccessfullyCreated)})
             .navigationBarTitle(currentFolder.name)
             HStack {
-                BottomBar(core: core, onCreating: { creatingFile = true })
+                BottomBar(onCreating: { creatingFile = true })
             }
             .padding(.horizontal, 10)
         }
     }
     
     func renderMoveDialog(meta: ClientFileMetadata) -> some View {
-        let root = core.files.first(where: { $0.parent == $0.id })!
-        let wc = WithChild(root, core.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
+        let root = fileService.files.first(where: { $0.parent == $0.id })!
+        let wc = WithChild(root, fileService.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
         
         return
             ScrollView {
@@ -81,14 +85,14 @@ struct FileListView: View {
                         row: { dest in
                             Button(action: {
                                 moving = nil
-                                if case .failure(let err) = core.api.moveFile(id: meta.id, newParent: dest.id) {
+                                if case .failure(let err) = DI.core.moveFile(id: meta.id, newParent: dest.id) {
                                     // Delaying this because the sheet has to go away before an alert can show up!
                                     DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
-                                        core.handleError(err)
+                                        errors.handleError(err)
                                     }
                                 } else {
-                                    core.updateFiles()
-                                    core.checkForLocalWork()
+                                    fileService.refresh()
+                                    status.checkForLocalWork()
                                 }
                             }, label: {
                                 Label(dest.name, systemImage: "folder")
@@ -108,11 +112,11 @@ struct FileListView: View {
                     type: meta.fileType,
                     name: $creatingName,
                     onCommit: {
-                        if case .failure(let err) = core.api.renameFile(id: meta.id, name: creatingName) {
-                            core.handleError(err)
+                        if case .failure(let err) = DI.core.renameFile(id: meta.id, name: creatingName) {
+                            errors.handleError(err)
                         } else {
-                            core.updateFiles()
-                            core.checkForLocalWork()
+                            fileService.refresh()
+                            status.checkForLocalWork()
                         }
                     },
                     onCancel: {
@@ -132,12 +136,12 @@ struct FileListView: View {
                 )
             } else {
                 if meta.name.hasSuffix(".draw") {
-                    let dl = DrawingLoader(model: core.openDrawing, toolbar: FileListView.toolbar, meta: meta, deleteChannel: core.deleteChannel)
+                    let dl = DrawingLoader(meta: meta)
                     return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline), tag: meta, selection: $selection) {
                         FileCell(meta: meta)
                     })
                 } else {
-                    let el = EditorLoader(content: core.openDocument, meta: meta, deleteChannel: core.deleteChannel)
+                    let el = EditorLoader(meta: meta)
                     return AnyView (NavigationLink(destination: el, tag: meta, selection: $selection) {
                         FileCell(meta: meta)
                     })
@@ -147,14 +151,14 @@ struct FileListView: View {
     }
     
     func handleDelete(meta: ClientFileMetadata) {
-        switch core.api.deleteFile(id: meta.id) {
+        switch DI.core.deleteFile(id: meta.id) {
         case .success(_):
-            core.deleteChannel.send(meta)
-            core.updateFiles()
-            core.checkForLocalWork()
+//            core.deleteChannel.send(meta)
+            fileService.refresh()
+            status.checkForLocalWork()
             selection = .none
         case .failure(let err):
-            core.handleError(err)
+            errors.handleError(err)
         }
     }
     
@@ -167,11 +171,10 @@ struct FileListView: View {
 }
 
 struct FileListView_Previews: PreviewProvider {
-    static let core = GlobalState()
-    
     static var previews: some View {
         NavigationView {
-            FileListView(currentFolder: core.root!, account: core.account!, moving: .constant(.none))
+            FileListView(currentFolder: Mock.files.root!, account: Mock.accounts.account!, moving: .constant(.none))
+                .mockDI()
         }
     }
 }

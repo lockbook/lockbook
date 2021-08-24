@@ -79,17 +79,17 @@ struct DrawingView: UIViewRepresentable {
 }
 
 struct Drawing_Previews: PreviewProvider {
-    static let core = GlobalState()
     static let toolbar = ToolbarModel()
     static let dm = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
     static let dc = PassthroughSubject<ClientFileMetadata, Never>()
 
     static var previews: some View {
-        DrawingLoader(model: dm, toolbar: toolbar, meta: core.files[0], deleteChannel: dc)
+        DrawingLoader(meta: Mock.files.files[0])
             .onAppear {
                 dm.originalDrawing = PKDrawing()
                 toolbar.selectedColor = .Red
             }
+            .mockDI()
     }
 }
 

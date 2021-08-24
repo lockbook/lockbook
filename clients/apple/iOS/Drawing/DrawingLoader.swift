@@ -6,10 +6,10 @@ import Combine
 
 struct DrawingLoader: View {
     
-    @ObservedObject var model: DrawingModel
-    @ObservedObject var toolbar: ToolbarModel
+    @EnvironmentObject var model: DrawingModel
+    @EnvironmentObject var toolbar: ToolbarModel
+    
     let meta: ClientFileMetadata
-    let deleteChannel: PassthroughSubject<ClientFileMetadata, Never>
     @State var deleted: ClientFileMetadata?
     
     var body: some View {
@@ -37,11 +37,6 @@ struct DrawingLoader: View {
                 }
             } else {
                 Text("\(meta.name) file has been deleted")
-            }
-        }
-        .onReceive(deleteChannel) { deletedMeta in
-            if (deletedMeta.id == meta.id) {
-                deleted = deletedMeta
             }
         }
     }
