@@ -1,7 +1,7 @@
 #[derive(Clone, Copy)]
 pub enum RepoSource {
-    Local,
-    Base,
+    Local, // files with local edits applied
+    Base, // files at latest known state when client and server matched
 }
 
 impl RepoSource {
