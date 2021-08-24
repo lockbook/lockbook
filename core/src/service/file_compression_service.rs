@@ -24,9 +24,9 @@ mod unit_tests {
 
     #[test]
     fn compress_decompress() {
-        file_compression_service::decompress(
+        assert_eq!(file_compression_service::decompress(
             &file_compression_service::compress(b"hello").unwrap(),
         )
-        .unwrap();
+        .unwrap(), b"hello");
     }
 }

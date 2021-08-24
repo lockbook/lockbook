@@ -42,7 +42,7 @@ pub fn encrypt_metadata(
             .iter()
             .find(|m| m.id == target.parent)
             .ok_or(CoreError::Unexpected(String::from(
-                "encrypt_metadata: missing parent metadata",
+                "parent metadata missing during call to file_encrpytion_service::encrypt_metadata",
             )))?
             .decrypted_access_key;
         result.push(encrypt_metadatum(account, &parent_key, target)?);
@@ -117,7 +117,7 @@ pub fn decrypt_metadata(
 }
 
 /// Decrypts the file key given a target and its ancestors. All ancestors of target, as well as target itself, must be included in target_with_ancestors.
-pub fn decrypt_file_key(
+fn decrypt_file_key(
     account: &Account,
     target_id: Uuid,
     target_with_ancestors: &[FileMetadata],
@@ -126,7 +126,7 @@ pub fn decrypt_file_key(
         .iter()
         .find(|m| m.id == target_id)
         .ok_or(CoreError::Unexpected(String::from(
-            "client metadata missing",
+            "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
         )))?;
     match target.user_access_keys.get(&account.username) {
         Some(user_access) => {
@@ -172,4 +172,50 @@ pub fn decrypt_document(
     metadata: &DecryptedFileMetadata,
 ) -> Result<DecryptedDocument, CoreError> {
     symkey::decrypt(&metadata.decrypted_access_key, document).map_err(core_err_unexpected)
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use lockbook_crypto::symkey;
+    use lockbook_models::file_metadata::FileType;
+    use uuid::Uuid;
+
+    use crate::{service::{file_encryption_service, file_service, test_utils}, utils};
+
+    #[test]
+    fn encrypt_decrypt_metadatum() {
+        let account = test_utils::generate_account();
+        let key = symkey::generate_key();
+        let file = file_service::create(FileType::Folder, Uuid::new_v4(), "folder", "owner");
+
+        let encrypted_file = file_encryption_service::encrypt_metadatum(&account, &key, &file).unwrap();
+        let decrypted_file = file_encryption_service::decrypt_metadatum(&key, &encrypted_file).unwrap();
+
+        assert_eq!(file, decrypted_file);
+    }
+
+    #[test]
+    fn encrypt_decrypt_metadata() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document = file_service::create(FileType::Folder, folder.id, "document", &account.username);
+        let files = [root.clone(), folder.clone(), document.clone()];
+
+        let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files).unwrap();
+        let decrypted_files = file_encryption_service::decrypt_metadata(&account, &encrypted_files).unwrap();
+
+        assert_eq!(
+            utils::find(&files, root.id).unwrap(),
+            utils::find(&decrypted_files, root.id).unwrap(),
+        );
+        assert_eq!(
+            utils::find(&files, folder.id).unwrap(),
+            utils::find(&decrypted_files, folder.id).unwrap(),
+        );
+        assert_eq!(
+            utils::find(&files, document.id).unwrap(),
+            utils::find(&decrypted_files, document.id).unwrap(),
+        );
+    }
 }
