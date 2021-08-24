@@ -92,23 +92,23 @@ mod unit_tests {
     #[test]
     fn insert_get() {
         let config = &temp_config();
-        let test_account = test_utils::generate_account();
+        let account = test_utils::generate_account();
 
-        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
-        let result = metadata_repo::get(config, RepoSource::Local, test_metadata.id).unwrap();
+        let (metadata, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata).unwrap();
+        let result = metadata_repo::get(config, RepoSource::Local, metadata.id).unwrap();
 
-        assert_eq!(result, test_metadata);
+        assert_eq!(result, metadata);
     }
 
     #[test]
     fn insert_get_different_source() {
         let config = &temp_config();
-        let test_account = test_utils::generate_account();
+        let account = test_utils::generate_account();
 
-        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
-        let result = metadata_repo::maybe_get(config, RepoSource::Base, test_metadata.id).unwrap();
+        let (metadata, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata).unwrap();
+        let result = metadata_repo::maybe_get(config, RepoSource::Base, metadata.id).unwrap();
 
         assert_eq!(result, None);
     }
@@ -116,40 +116,40 @@ mod unit_tests {
     #[test]
     fn insert_get_overwrite_different_source() {
         let config = &temp_config();
-        let test_account = test_utils::generate_account();
+        let account = test_utils::generate_account();
 
-        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
-        let (test_metadata_2, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Base, &test_metadata_2).unwrap();
-        let result = metadata_repo::get(config, RepoSource::Local, test_metadata.id).unwrap();
+        let (metadata, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata).unwrap();
+        let (metadata_2, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Base, &metadata_2).unwrap();
+        let result = metadata_repo::get(config, RepoSource::Local, metadata.id).unwrap();
 
-        assert_eq!(result, test_metadata);
+        assert_eq!(result, metadata);
     }
 
     #[test]
     fn insert_get_all() {
         let config = &temp_config();
-        let test_account = test_utils::generate_account();
+        let account = test_utils::generate_account();
 
-        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
-        let (test_metadata_2, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata_2).unwrap();
-        let (test_metadata_3, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata_3).unwrap();
-        let (test_metadata_4, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata_4).unwrap();
-        let (test_metadata_5, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata_5).unwrap();
+        let (metadata, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata).unwrap();
+        let (metadata_2, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata_2).unwrap();
+        let (metadata_3, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata_3).unwrap();
+        let (metadata_4, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata_4).unwrap();
+        let (metadata_5, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata_5).unwrap();
         let result = metadata_repo::get_all(config, RepoSource::Local).unwrap();
 
         let mut expectation = vec![
-            test_metadata,
-            test_metadata_2,
-            test_metadata_3,
-            test_metadata_4,
-            test_metadata_5,
+            metadata,
+            metadata_2,
+            metadata_3,
+            metadata_4,
+            metadata_5,
         ];
         expectation.sort_by(|a, b| a.id.cmp(&b.id));
         assert_eq!(result, expectation);
@@ -158,10 +158,10 @@ mod unit_tests {
     #[test]
     fn insert_get_all_different_source() {
         let config = &temp_config();
-        let test_account = test_utils::generate_account();
+        let account = test_utils::generate_account();
 
-        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        let (metadata, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata).unwrap();
         let result = metadata_repo::get_all(config, RepoSource::Base).unwrap();
 
         assert_eq!(result, Vec::new());
@@ -170,12 +170,12 @@ mod unit_tests {
     #[test]
     fn insert_delete() {
         let config = &temp_config();
-        let test_account = test_utils::generate_account();
+        let account = test_utils::generate_account();
 
-        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
-        metadata_repo::delete(config, RepoSource::Local, test_metadata.id).unwrap();
-        let result = metadata_repo::maybe_get(config, RepoSource::Local, test_metadata.id).unwrap();
+        let (metadata, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata).unwrap();
+        metadata_repo::delete(config, RepoSource::Local, metadata.id).unwrap();
+        let result = metadata_repo::maybe_get(config, RepoSource::Local, metadata.id).unwrap();
 
         assert_eq!(result, None);
     }
@@ -183,10 +183,10 @@ mod unit_tests {
     #[test]
     fn insert_delete_all() {
         let config = &temp_config();
-        let test_account = test_utils::generate_account();
+        let account = test_utils::generate_account();
 
-        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        let (metadata, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata).unwrap();
         metadata_repo::delete_all(config, RepoSource::Local).unwrap();
         let result = metadata_repo::get_all(config, RepoSource::Local).unwrap();
 
@@ -196,13 +196,13 @@ mod unit_tests {
     #[test]
     fn insert_delete_all_different_source() {
         let config = &temp_config();
-        let test_account = test_utils::generate_account();
+        let account = test_utils::generate_account();
 
-        let (test_metadata, _) = test_utils::generate_root_metadata(&test_account);
-        metadata_repo::insert(config, RepoSource::Local, &test_metadata).unwrap();
+        let (metadata, _) = test_utils::generate_root_metadata(&account);
+        metadata_repo::insert(config, RepoSource::Local, &metadata).unwrap();
         metadata_repo::delete_all(config, RepoSource::Base).unwrap();
         let result = metadata_repo::get_all(config, RepoSource::Local).unwrap();
 
-        assert_eq!(result, vec![test_metadata]);
+        assert_eq!(result, vec![metadata]);
     }
 }

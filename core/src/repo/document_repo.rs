@@ -86,7 +86,6 @@ mod unit_tests {
     #[test]
     fn get() {
         let config = &temp_config();
-        let key = &symkey::generate_key();
 
         let id = Uuid::new_v4();
         let result = document_repo::get(config, RepoSource::Local, id);
@@ -97,7 +96,6 @@ mod unit_tests {
     #[test]
     fn maybe_get() {
         let config = &temp_config();
-        let key = &symkey::generate_key();
 
         let id = Uuid::new_v4();
         let result = document_repo::maybe_get(config, RepoSource::Local, id).unwrap();

@@ -40,52 +40,44 @@ pub fn get_api_url(config: &Config) -> Result<ApiUrl, CoreError> {
 mod unit_tests {
     use crate::model::state::temp_config;
     use crate::repo::account_repo;
-    use lockbook_crypto::pubkey;
-    use lockbook_models::account::Account;
+    use crate::service::test_utils;
 
     #[test]
     fn get() {
         let config = &temp_config();
 
-        let res = account_repo::get(config);
+        let result = account_repo::get(config);
 
-        assert!(res.is_err());
+        assert!(result.is_err());
     }
 
     #[test]
     fn maybe_get() {
         let config = &temp_config();
 
-        let res = account_repo::maybe_get(config).unwrap();
+        let result = account_repo::maybe_get(config).unwrap();
 
-        assert_eq!(res, None);
+        assert_eq!(result, None);
     }
 
     #[test]
     fn insert_get() {
         let config = &temp_config();
-        let test_account = Account {
-            username: "parth".to_string(),
-            api_url: "ftp://uranus.net".to_string(),
-            private_key: pubkey::generate_key(),
-        };
+        let account = test_utils::generate_account();
 
-        account_repo::insert(config, &test_account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let db_account = account_repo::get(config).unwrap();
-        assert_eq!(test_account, db_account);
+        assert_eq!(account, db_account);
     }
 
     #[test]
     fn insert_get_api_url() {
         let config = &temp_config();
-        let test_account = Account {
-            username: "parth".to_string(),
-            api_url: "ftp://uranus.net".to_string(),
-            private_key: pubkey::generate_key(),
-        };
+        let mut account = test_utils::generate_account();
+        account.api_url = String::from("ftp://uranus.net");
 
-        account_repo::insert(config, &test_account).unwrap();
+        account_repo::insert(config, &account).unwrap();
 
         let db_api_url = account_repo::get_api_url(config).unwrap();
         assert_eq!("ftp://uranus.net", db_api_url);
