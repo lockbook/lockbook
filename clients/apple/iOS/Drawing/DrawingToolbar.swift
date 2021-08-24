@@ -137,56 +137,16 @@ struct DrawingToolbar: View {
 
 }
 
-class ToolbarModel: NSObject, ObservableObject, UIPencilInteractionDelegate {
-    static let initialColor: ColorAlias = .Red
-    static let initialWidth: Float = 1
-    
-    var selectedColor: ColorAlias = initialColor
-
-    @Published var currentTool: PKTool = PKInkingTool(.pen, color: .fromColorAlias(from: initialColor), width: CGFloat(initialWidth))
-    @Published var isRulerShowing: Bool = false
-    @Published var width: Float = initialWidth {      // Setting this to true kicks off a sync
-        didSet {
-            backToDrawing()
-        }
-    }
-
-    var lassoSelected: Bool {
-        type(of: currentTool) == PKLassoTool.self
-    }
-
-    var eraserSelected: Bool {
-        type(of: currentTool) == PKEraserTool.self
-    }
-
-    func backToDrawing() {
-        currentTool = PKInkingTool(.pen, color: .fromColorAlias(from: selectedColor), width: CGFloat(width))
-    }
-
-    func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
-        if eraserSelected {
-            backToDrawing()
-        } else {
-            currentTool = PKEraserTool(.vector)
-        }
-    }
-}
-
 
 struct Toolbar_Preview: PreviewProvider {
-    static let core = GlobalState()
-    static let toolbar = ToolbarModel()
-    static let dm = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
-    static let dc = PassthroughSubject<ClientFileMetadata, Never>()
 
     static var previews: some View {
         NavigationView {
             HStack {
             }
-            DrawingLoader(model: dm, toolbar: toolbar, meta: core.files[0], deleteChannel: dc)
+            DrawingLoader(meta: Mock.files.files[0])
                     .onAppear {
-                        dm.originalDrawing = PKDrawing()
-                        toolbar.selectedColor = .Red
+                        Mock.openDrawing.originalDrawing = PKDrawing()
                     }
         }
     }

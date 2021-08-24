@@ -5,28 +5,28 @@ struct FileListView: View {
     
     @State var selectedItem: ClientFileMetadata? = nil
     
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var files: FileService
+    
     let currentFolder: ClientFileMetadata
     let account: Account
     
-    init(core: GlobalState, currentFolder: ClientFileMetadata, account: Account) {
-        self.core = core
+    init(currentFolder: ClientFileMetadata, account: Account) {
         self.account = account
         self.currentFolder = currentFolder
     }
     
     var body: some View {
         VStack {
-            OutlineSection(core: core, root: currentFolder, selectedItem: $selectedItem)
+            OutlineSection(root: currentFolder, selectedItem: $selectedItem)
             VStack (spacing: 3) {
-                BottomBar(core: core)
+                BottomBar()
             }
         }
         if let item = selectedItem {
             if (item.name.hasSuffix(".draw")) {
-                ImageLoader(model: core.openImage, meta: item, deleteChannel: core.deleteChannel)
+                ImageLoader(meta: item)
             } else {
-                EditorLoader(content: core.openDocument, meta: item, deleteChannel: core.deleteChannel)
+                EditorLoader(meta: item)
             }
         }
     }

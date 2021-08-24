@@ -1,31 +1,30 @@
 import SwiftUI
 import SwiftLockbookCore
 
-@main
-struct  LockbookApp: App {
-    @StateObject var core = GlobalState(documentsDirectory: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location)
+@main struct LockbookApp: App {
 
+    
     var body: some Scene {
+
         let windowGroup = WindowGroup {
-            AppView(core: core)
-                    .buttonStyle(PlainButtonStyle())
-                    .ignoresSafeArea()
+            AppView()
+                .realDI()
+                .buttonStyle(PlainButtonStyle())
+                .ignoresSafeArea()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }.commands {
             CommandMenu("Lockbook") {
-                Button("Sync", action: { core.syncing = true }).keyboardShortcut("S", modifiers: .command)
-                Button("New File", action: {}).keyboardShortcut("N", modifiers: .command)
+                Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
             }
             SidebarCommands()
         }
-
+        
+        windowGroup
+        
         #if os(macOS)
-        windowGroup
-//                .windowStyle(HiddenTitleBarWindowStyle())
         Settings {
-            SettingsView(core: core)
+            SettingsView().realDI()
         }
-        #else
-        windowGroup
         #endif
     }
 }
@@ -36,7 +35,7 @@ extension View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         #endif
     }
-
+    
     /// Allows free use of .autocapitalization without having to if else it on macOS
     #if os(macOS)
     func autocapitalization(_ bunk: String?) -> some View {
