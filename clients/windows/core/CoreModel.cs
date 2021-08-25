@@ -1,4 +1,6 @@
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
 
@@ -92,6 +94,57 @@ namespace Core {
         public ulong serverUnknownNameCount;
         [JsonProperty("most_recent_update_from_server")]
         public ulong mostRecentUpdateFromServer;
+    }
+
+    public class Drawing {
+        public float scale;
+        [JsonProperty("translation_x")]
+        public float translationX;
+        [JsonProperty("translation_y")]
+        public float translationY;
+        public List<Stroke> strokes;
+        public Dictionary<ColorAlias, ColorRGB> theme;
+    }
+
+    public class Stroke {
+        [JsonProperty("points_x")]
+        public List<float> pointsX;
+        [JsonProperty("points_y")]
+        public List<float> pointsY;
+        [JsonProperty("points_girth")]
+        public List<float> pointsGirth;
+        public ColorAlias color;
+        public float alpha;
+    }
+
+    [JsonConverter(typeof(StringEnumConverter))]
+    public enum ColorAlias {
+        Black,
+        Red,
+        Green,
+        Yellow,
+        Blue,
+        Magenta,
+        Cyan,
+        White,
+    }
+
+    public class ColorRGB {
+        public byte r;
+        public byte g;
+        public byte b;
+
+
+        public override bool Equals(object obj) {
+            if(obj is ColorRGB other) {
+                return r == other.r && g == other.g && b == other.b;
+            }
+            return false;
+        }
+
+        public override int GetHashCode() {
+            return r << 16 | g << 8 | b;
+        }
     }
 
     namespace GetDbState {
