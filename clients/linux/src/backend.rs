@@ -31,20 +31,20 @@ macro_rules! match_core_err {
     (
         $err:expr,
         $enum:ident,
-        $( $variants:ident => $matches:expr ),+,
+        $( $variants:ident $( ( $val:ident ) )? => $matches:expr ),+,
         @Unexpected($msg:ident) => $unexp:expr,
     ) => {
         match $err {
-            $( lockbook_core::Error::UiError(lockbook_core::$enum::$variants) => $matches, )+
+            $( lockbook_core::Error::UiError(lockbook_core::$enum::$variants $( ( $val ) )? ) => $matches, )+
             lockbook_core::Error::Unexpected($msg) => $unexp,
         }
     };
 }
 
 macro_rules! map_core_err {
-    ($enum:ident, $( $variants:ident => $matches:expr ,)+) => {
+    ($enum:ident, $( $variants:ident $( ( $val:ident ) )?  => $matches:expr ,)+) => {
         |err| match_core_err!(err, $enum,
-            $( $variants  => $matches ),+,
+            $( $variants $( ($val) )? => $matches ),+,
             @Unexpected(msg) => progerr!("{}", msg),
         )
     };
@@ -244,7 +244,7 @@ impl LbCore {
         import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
         import_file(&self.config, parent, PathBuf::from(source), false, import_progress).map_err(map_core_err!(ImportFileError,
-            FileAlreadyExists => uerr_dialog!("File collision detected during import."),
+            FileAlreadyExists(path) => uerr_dialog!("File already exists at {}.", path),
             DocumentTreatedAsFolder => uerr_dialog!("Invalid import destination, document treated as folder."),
             ParentDoesNotExist => uerr_dialog!("Invalid import destination, parent not found."),
             NoAccount => uerr_dialog!("No account."),
