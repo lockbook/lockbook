@@ -21,7 +21,7 @@ macro_rules! uerr_dialog {
 
 #[macro_export]
 macro_rules! progerr {
-    ($base:literal $(, $args:tt )*) => {
+    ($base:literal $(, $args:expr)*) => {
         LbError::new_program_err(format!($base $(, $args )*))
     };
 }
