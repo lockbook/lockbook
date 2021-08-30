@@ -25,10 +25,11 @@ use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_models::file_metadata::FileType;
 
 use crate::backend::LbCore;
-use crate::closure;
-use crate::error::LbResult;
+use crate::error::{LbError, LbResult};
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::util::gui::RIGHT_CLICK;
+use crate::util::{LOCKBOOK_FILES_TARGET_INFO, URI_TARGET_INFO};
+use crate::{closure, progerr};
 use glib::timeout_add_local;
 use std::cell::RefCell;
 
@@ -103,7 +104,7 @@ impl FileTree {
         tree.drag_source_set_icon_name("application-x-generic");
 
         tree.connect_drag_data_received(Self::on_drag_data_received(m, c));
-        tree.connect_drag_data_get(Self::on_drag_data_get());
+        tree.connect_drag_data_get(Self::on_drag_data_get(m));
         tree.connect_drag_motion(Self::on_drag_motion(
             &drag_hover_last_occurred,
             &drag_ends_last_occurred,
@@ -166,13 +167,15 @@ impl FileTree {
         })
     }
 
-    fn on_drag_data_get() -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
-        |_, _, s, info, _| match info {
+    fn on_drag_data_get(
+        m: &Messenger,
+    ) -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
+        closure!(m => move |_, _, s, info, _| match info {
             LOCKBOOK_FILES_TARGET_INFO => {
                 s.set(&s.get_target(), 8, &[]);
             }
-            _ => panic!("unrecognized target info that should not exist"),
-        }
+            _ => m.send_err_dialog("Dragging data", progerr!("Unrecognized data format '{}'.", s.get_data_type().name())),
+        })
     }
 
     fn on_drag_data_received(
@@ -220,9 +223,9 @@ impl FileTree {
                     }
                     URI_TARGET_INFO => {
                         let uris: Vec<String> = s.get_uris().iter().map(|uri| uri.to_string()).collect();
-                        m.send(Msg::ShowDialogImportFile(parent_id, uris))
+                        m.send(Msg::ShowDialogImportFile(parent_id, uris, None))
                     }
-                    _ => panic!("unrecognized target info that should not exist")
+                    _ => m.send_err_dialog("Dropping data", progerr!("Unrecognized data format '{}'.", s.get_data_type().name())),
                 }
 
                 d.drop_finish(true, time);
@@ -718,6 +721,3 @@ impl FileTreePopup {
 }
 
 const DELETE_KEY: u16 = 119;
-
-const LOCKBOOK_FILES_TARGET_INFO: u32 = 0;
-const URI_TARGET_INFO: u32 = 1;

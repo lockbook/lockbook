@@ -11,8 +11,9 @@ use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{
     calculate_work, create_account, create_file, delete_file, export_account, export_file,
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
-    get_file_by_path, get_last_synced, get_root, get_usage, import_account, import_file,
-    list_paths, migrate_db, move_file, read_document, rename_file, sync_all, write_document,
+    get_file_by_path, get_last_synced, get_path_by_id, get_root, get_usage, import_account,
+    import_file, list_paths, migrate_db, move_file, read_document, rename_file, sync_all,
+    write_document,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
@@ -150,8 +151,10 @@ impl LbCore {
     }
 
     pub fn save(&self, id: Uuid, content: String) -> LbResult<()> {
-        let bytes = content.as_bytes();
+        self.write(id, content.as_bytes())
+    }
 
+    pub fn write(&self, id: Uuid, bytes: &[u8]) -> LbResult<()> {
         write_document(&self.config, id, bytes).map_err(map_core_err!(WriteToDocumentError,
             NoAccount => uerr_dialog!("No account found."),
             FileDoesNotExist => uerr_dialog!("The file with id '{}' does not exist.", id),
@@ -347,28 +350,10 @@ impl LbCore {
         Ok(path)
     }
 
-    pub fn full_path_for(&self, f: &ClientFileMetadata) -> String {
-        let root_id = match self.root() {
-            Ok(root) => {
-                if f.id == root.id {
-                    return "/".to_string();
-                }
-                root.id
-            }
-            Err(_) => Default::default(),
-        };
-
-        let mut path = "".to_string();
-        let mut ff = f.clone();
-        while ff.id != root_id {
-            path.insert_str(0, &format!("/{}", ff.name));
-            ff = match self.file_by_id(ff.parent) {
-                Ok(f) => f,
-                Err(_) => break,
-            }
-        }
-
-        path
+    pub fn full_path_for(&self, id: &Uuid) -> LbResult<String> {
+        get_path_by_id(&self.config, *id).map_err(map_core_err!(GetPathError,
+            Stub => panic!("impossible"),
+        ))
     }
 
     pub fn open(&self, id: &Uuid) -> LbResult<(ClientFileMetadata, String)> {
