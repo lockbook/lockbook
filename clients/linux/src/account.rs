@@ -2,19 +2,20 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk::ModifierType;
+use gdk::{DragAction, DragContext, ModifierType};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use glib::SignalHandlerId;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
-    Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn,
-    Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
+    Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Clipboard,
+    DestDefaults, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
     Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
-    ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, Separator as GtkSeparator,
-    Spinner as GtkSpinner, Stack as GtkStack, TextWindowType, WrapMode as GtkWrapMode,
+    ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, SelectionData,
+    Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, TargetList, TextMark,
+    TextWindowType, WrapMode as GtkWrapMode,
 };
 use sourceview::prelude::*;
 use sourceview::View as GtkSourceView;
@@ -22,12 +23,15 @@ use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
 
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
-use crate::error::LbResult;
+use crate::error::{LbErrTarget, LbError, LbResult};
 use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
-use crate::util::{gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK};
-use crate::{closure, get_language_specs_dir};
+use crate::util::{
+    gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK, IMAGE_TARGET_INFO, TEXT_TARGET_INFO,
+    URI_TARGET_INFO,
+};
+use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog};
 
 use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
 use regex::Regex;
@@ -99,6 +103,39 @@ impl AccountScreen {
                 self.editor.show("empty");
             }
         }
+    }
+
+    pub fn get_cursor_mark(&self) -> LbResult<TextMark> {
+        let svb = self
+            .editor
+            .textarea
+            .get_buffer()
+            .unwrap()
+            .downcast::<GtkSourceViewBuffer>()
+            .unwrap();
+
+        svb.create_mark(
+            // Since get_insert gives me the textmark of the cursor, and it is subject to change, I make my own textmark so multiple pastes won't collide
+            None,
+            &svb.get_iter_at_mark(
+                &svb.get_insert()
+                    .ok_or_else(|| uerr_dialog!("No cursor found in textview!"))?,
+            ),
+            true,
+        )
+        .ok_or_else(|| uerr_dialog!("Cannot create textmark!"))
+    }
+
+    pub fn insert_text_at_mark(&self, mark: &TextMark, txt: &str) {
+        let svb = self
+            .editor
+            .textarea
+            .get_buffer()
+            .unwrap()
+            .downcast::<GtkSourceViewBuffer>()
+            .unwrap();
+
+        svb.insert(&mut svb.get_iter_at_mark(mark), txt)
     }
 
     pub fn text_content(&self) -> String {
@@ -334,6 +371,11 @@ impl StatusPanel {
     }
 }
 
+pub enum TextAreaDropPasteInfo {
+    Image(Vec<u8>),
+    Uris(Vec<String>),
+}
+
 struct Editor {
     info: GtkBox,
     textarea: GtkSourceView,
@@ -361,11 +403,110 @@ impl Editor {
         textarea.set_left_margin(4);
         textarea.set_tab_width(4);
 
+        let target_list = TargetList::new(&[]);
+
+        textarea.drag_dest_set(DestDefaults::ALL, &[], DragAction::COPY);
+
+        target_list.add_uri_targets(URI_TARGET_INFO);
+        target_list.add_text_targets(TEXT_TARGET_INFO);
+        target_list.add_image_targets(IMAGE_TARGET_INFO, true);
+
+        textarea.drag_dest_set_target_list(Some(&target_list));
+
+        textarea.connect_drag_data_received(Self::on_drag_data_received(m));
+        textarea.connect_paste_clipboard(Self::on_paste_clipboard(m));
+        textarea.connect_button_press_event(Self::on_button_press(m));
+
         let textview = textarea.upcast_ref::<gtk::TextView>();
+
         let gspell_view = gspell::TextView::get_from_gtk_text_view(textview).unwrap();
         gspell_view.basic_setup();
 
-        textarea.connect_button_press_event(closure!(m => move |w, evt| {
+        let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
+        scroll.add(&textarea);
+
+        let cntr = GtkStack::new();
+        cntr.add_named(&empty, "empty");
+        cntr.add_named(&info, "folderinfo");
+        cntr.add_named(&scroll, "scroll");
+
+        let highlighter = LanguageManager::get_default().unwrap_or_default();
+        let lang_paths = highlighter.get_search_path();
+
+        let mut str_paths: Vec<&str> = lang_paths.iter().map(|path| path.as_str()).collect();
+        let lang_specs = get_language_specs_dir();
+        str_paths.push(lang_specs.as_str());
+        highlighter.set_search_path(str_paths.as_slice());
+
+        Self {
+            info,
+            textarea,
+            highlighter,
+            change_sig_id: RefCell::new(None),
+            cntr,
+            messenger: m.clone(),
+        }
+    }
+
+    fn on_drag_data_received(
+        m: &Messenger,
+    ) -> impl Fn(&GtkSourceView, &DragContext, i32, i32, &SelectionData, u32, u32) {
+        closure!(m => move |_, _, _, _, s, info, _| {
+            let target = match info {
+                URI_TARGET_INFO => {
+                    TextAreaDropPasteInfo::Uris(s.get_uris().iter().map(|uri| uri.to_string()).collect())
+                }
+                IMAGE_TARGET_INFO => match s.get_pixbuf() {
+                    None => {
+                        m.send_err_dialog("Dropping image", uerr_dialog!("Unsupported image format!"));
+                        return;
+                    }
+                    Some(pixbuf) => match pixbuf.save_to_bufferv("jpg", &[]) {
+                        Ok(bytes) => TextAreaDropPasteInfo::Image(bytes),
+                        Err(err) => {
+                            m.send_err_dialog("Dropping image", LbError::fmt_program_err(err));
+                            return;
+                        }
+                    },
+                },
+                TEXT_TARGET_INFO => return,
+                _ => {
+                    m.send_err_dialog("Dropping data", progerr!("Unrecognized data format '{}'.", s.get_data_type().name()));
+                    return;
+                },
+            };
+
+            m.send(Msg::DropPasteInTextArea(target))
+        })
+    }
+
+    fn on_paste_clipboard(m: &Messenger) -> impl Fn(&GtkSourceView) {
+        closure!(m => move |w| {
+            let clipboard = Clipboard::get(&gdk::SELECTION_CLIPBOARD);
+
+            if let Some(pixbuf) = clipboard.wait_for_image() {
+                match pixbuf.save_to_bufferv("jpeg", &[]) {
+                    Ok(bytes) => {
+                        m.send(Msg::DropPasteInTextArea(TextAreaDropPasteInfo::Image(bytes)))
+                    },
+                    Err(err) => {
+                        m.send_err_dialog("Pasting image", LbError::fmt_program_err(err));
+                    }
+                }
+            } else {
+                let uris = clipboard.wait_for_uris();
+                if !uris.is_empty() {
+                    w.stop_signal_emission("paste-clipboard");
+
+                    m.send(Msg::DropPasteInTextArea(TextAreaDropPasteInfo::Uris(uris.iter().map(|uri| uri.to_string()).collect())))
+                }
+            }
+
+        })
+    }
+
+    fn on_button_press(m: &Messenger) -> impl Fn(&GtkSourceView, &gdk::EventButton) -> Inhibit {
+        closure!(m => move |w, evt| {
             if evt.get_button() == LEFT_CLICK && evt.get_state() == ModifierType::CONTROL_MASK {
                 let (absol_x, absol_y) = evt.get_position();
                 let (x, y) = w.window_to_buffer_coords(TextWindowType::Text, absol_x as i32, absol_y as i32);
@@ -407,32 +548,7 @@ impl Editor {
             }
 
             Inhibit(false)
-        }));
-
-        let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
-        scroll.add(&textarea);
-
-        let cntr = GtkStack::new();
-        cntr.add_named(&empty, "empty");
-        cntr.add_named(&info, "folderinfo");
-        cntr.add_named(&scroll, "scroll");
-
-        let highlighter = LanguageManager::get_default().unwrap_or_default();
-        let lang_paths = highlighter.get_search_path();
-
-        let mut str_paths: Vec<&str> = lang_paths.iter().map(|path| path.as_str()).collect();
-        let lang_specs = get_language_specs_dir();
-        str_paths.push(lang_specs.as_str());
-        highlighter.set_search_path(str_paths.as_slice());
-
-        Self {
-            info,
-            textarea,
-            highlighter,
-            change_sig_id: RefCell::new(None),
-            cntr,
-            messenger: m.clone(),
-        }
+        })
     }
 
     fn set_file(&self, name: &str, content: &str) {
