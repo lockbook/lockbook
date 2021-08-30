@@ -5,14 +5,15 @@ import Combine
 struct EditorView: View {
     @Environment(\.colorScheme) var colorScheme
     let meta: ClientFileMetadata
-    @State var text: String
+    let text: String
     
     let changeCallback: (String) -> Void
     
     var body: some View {
-        GeometryReader { geo in
+        print("after \(text)")
+        return GeometryReader { geo in
             NotepadView(
-                text: $text,
+                text: text,
                 frame: geo.frame(in: .local),
                 theme: LockbookTheme,
                 onTextChange: changeCallback
@@ -38,6 +39,7 @@ struct EditorLoader: View {
                     #if os(macOS)
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
                     #else
+                    let _ = print("before \(c)")
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
                         .padding(.horizontal, 20)
                     #endif

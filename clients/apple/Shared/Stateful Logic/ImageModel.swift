@@ -4,6 +4,7 @@ import SwiftLockbookCore
 class ImageModel: ObservableObject {
     @Published var image: Image? = .none
     @Published var meta: ClientFileMetadata? = .none
+    @Published var deleted: Bool = false
     let read: (UUID) -> FfiResult<Data, ExportDrawingError>
 
     init(read: @escaping (UUID) -> FfiResult<Data, ExportDrawingError>) {
@@ -13,6 +14,7 @@ class ImageModel: ObservableObject {
     func loadDrawing(meta: ClientFileMetadata) {
         self.meta = meta
         self.image = .none
+        self.deleted = false
         DispatchQueue.main.async {
             switch self.read(meta.id) {
             case .success(let data):

@@ -5,13 +5,14 @@ import Combine
 
 #if os(iOS)
 struct NotepadView: UIViewRepresentable {
-    @Binding var text: String
+    let text: String
     var frame: CGRect
     let theme: Theme
     let onTextChange: (String) -> Void
     let engine = MarkdownEngine()
 
     func makeUIView(context: Context) -> UITextView {
+        print("making")
         let np = Notepad(frame: frame, theme: theme)
         np.smartQuotesType = .no
         np.smartDashesType = .no

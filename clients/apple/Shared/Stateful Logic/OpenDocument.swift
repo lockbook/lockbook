@@ -5,6 +5,7 @@ import Combine
 class Content: ObservableObject {
     @Published var text: String?
     @Published var meta: ClientFileMetadata?
+    @Published var deleted: Bool = false
     var cancellables = Set<AnyCancellable>()
     @Published var status: Status = .Inactive
     let write: (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
@@ -42,7 +43,7 @@ class Content: ObservableObject {
     }
     
     func openDocument(meta: ClientFileMetadata) {
-        print("open document called")
+        self.deleted = false
         DispatchQueue.main.async {
             switch self.read(meta.id) {
             case .success(let txt):
@@ -55,17 +56,14 @@ class Content: ObservableObject {
     }
     
     func closeDocument() {
-        print("Close document")
         meta = .none
         text = .none
     }
     
     func reloadDocumentIfNeeded(meta: ClientFileMetadata) {
-        print("reload document called")
         switch self.read(meta.id) {
         case .success(let txt):
             if self.text != txt { /// Close the document
-                print("reload")
                 self.closeDocument()
                 self.meta = meta
                 self.text = txt

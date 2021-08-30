@@ -5,6 +5,7 @@ import PencilKit
 class DrawingModel: ObservableObject {
     @Published var originalDrawing: PKDrawing? = .none
     @Published var meta: ClientFileMetadata? = .none
+    @Published var deleted: Bool = false
     var errors: String? = .none
     // TODO take this in via DI instead
     let write: (UUID, Drawing) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
@@ -29,6 +30,7 @@ class DrawingModel: ObservableObject {
             case .success(let drawing):
                 self.meta = meta
                 self.originalDrawing = PKDrawing(from: drawing)
+                self.deleted = false
             case .failure(let drawingError):
                 print(drawingError)
                 self.errors = drawingError.message
