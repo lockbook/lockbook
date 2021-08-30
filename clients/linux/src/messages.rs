@@ -1,5 +1,6 @@
 use uuid::Uuid;
 
+use crate::account::TextAreaDropPasteInfo;
 use crate::error::LbError;
 use crate::filetree::FileTreeCol;
 use lockbook_models::file_metadata::FileType;
@@ -39,8 +40,10 @@ pub enum Msg {
     ShowDialogPreferences,
     ShowDialogUsage,
     ShowDialogAbout,
-    ShowDialogImportFile(Uuid, Vec<String>),
+    ShowDialogImportFile(Uuid, Vec<String>, Option<glib::Sender<Vec<String>>>),
     ShowDialogExportFile,
+
+    DropPasteInTextArea(TextAreaDropPasteInfo),
 
     ToggleAutoSave(bool),
     ToggleAutoSync(bool),
