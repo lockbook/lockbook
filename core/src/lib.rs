@@ -75,6 +75,7 @@ pub enum CoreError {
     PathNonexistent,
     PathStartsWithNonRoot,
     PathTaken,
+    ImportCollision(String),
     RootModificationInvalid,
     RootNonexistent,
     ServerUnreachable,
@@ -765,7 +766,7 @@ pub fn export_drawing_to_disk(
 pub enum ImportFileError {
     NoAccount,
     ParentDoesNotExist,
-    FileAlreadyExists,
+    FileAlreadyExists(String),
     DocumentTreatedAsFolder,
     DiskPathInvalid,
 }
@@ -783,7 +784,7 @@ pub fn import_file(
             CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
             CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
             CoreError::DiskPathInvalid => UiError(ImportFileError::DiskPathInvalid),
-            CoreError::PathTaken => UiError(ImportFileError::FileAlreadyExists),
+            CoreError::ImportCollision(path) => UiError(ImportFileError::FileAlreadyExists(path)),
             _ => unexpected!("{:#?}", e),
         }
     })
