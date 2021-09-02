@@ -10,13 +10,14 @@ struct DrawingLoader: View {
     @EnvironmentObject var toolbar: ToolbarModel
     
     let meta: ClientFileMetadata
-    @State var deleted: ClientFileMetadata?
     
     var body: some View {
         Group {
-            if (deleted != meta) {
-                switch model.loadDrawing {
-                case .some(let drawing):
+            switch model.loadDrawing {
+            case .some(let drawing):
+                if model.deleted {
+                    Text("\(meta.name) file has been deleted")
+                } else {
                     DrawingView(drawingToLoad: drawing, toolPicker: toolbar, onChange: { (ud: PKDrawing) in model.drawingModelChanged(meta: meta, updatedDrawing: ud) })
                         .navigationTitle(meta.name)
                         .toolbar {
@@ -26,17 +27,12 @@ struct DrawingLoader: View {
                                 Spacer()
                             }
                         }
-                        .onDisappear {
-                            model.closeDrawing()
-                        }
-                case .none:
-                    ProgressView()
-                        .onAppear {
-                            model.loadDrawing(meta: meta)
-                        }
                 }
-            } else {
-                Text("\(meta.name) file has been deleted")
+            case .none:
+                ProgressView()
+                    .onAppear {
+                        model.loadDrawing(meta: meta)
+                    }
             }
         }
     }

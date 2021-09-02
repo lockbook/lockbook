@@ -11,6 +11,7 @@ class ImageModel: ObservableObject {
         self.read = read
     }
 
+    // TODO generalize for all images
     func loadDrawing(meta: ClientFileMetadata) {
         self.meta = meta
         self.image = .none

@@ -20,7 +20,6 @@ struct EditorView: View, Equatable {
     let changeCallback: (String) -> Void
     
     var body: some View {
-        print("after \(text)")
         return GeometryReader { geo in
             NotepadView(
                 text: text,
@@ -50,7 +49,6 @@ struct EditorLoader: View {
                     #if os(macOS)
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
                     #else
-                    let _ = print("before \(c)")
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
                         .padding(.horizontal, 20)
                     #endif

@@ -15,16 +15,17 @@ class DrawingModel: ObservableObject {
     }
     
     func drawingModelChanged(meta: ClientFileMetadata, updatedDrawing: PKDrawing) {
-//        saveDrawing = updatedDrawing
-        DispatchQueue.global(qos: .userInitiated).async {
-            switch self.core.writeDrawing(id: meta.id, content: Drawing(from: updatedDrawing)) {
-            case .success(_):
-                print("drawing saved successfully")
-            case .failure(let error):
-                DI.errors.handleError(error)
+        if !deleted {
+            DispatchQueue.global(qos: .userInitiated).async {
+                switch self.core.writeDrawing(id: meta.id, content: Drawing(from: updatedDrawing)) {
+                case .success(_):
+                    print("drawing saved successfully")
+                case .failure(let error):
+                    DI.errors.handleError(error)
+                }
+                
+                DI.sync.documentChangeHappened()
             }
-
-            DI.sync.documentChangeHappened()
         }
     }
     

@@ -16,7 +16,7 @@ struct AppView: View {
                 switch state {
                 
                 case .ReadyToUse, .Empty:
-                    switch accounts.getAccount() {
+                    switch accounts.account {
                     case .none:
                         AnyView(OnboardingView())
                     case .some(let account):

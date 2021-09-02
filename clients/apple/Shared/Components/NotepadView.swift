@@ -34,7 +34,10 @@ struct NotepadView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
-        uiView.text = text
+        if let np = uiView as? Notepad {
+            np.text = text
+            np.styleNow()
+        }
     }
 }
 #else
@@ -66,14 +69,15 @@ struct NotepadView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        if let np = nsView.documentView as? Notepad {
+            np.string = text
+        }
+        
+        // This bit is what wraps our text
         if (nsView.frame != frame) {
             nsView.frame = frame
             if let np = nsView.documentView as? Notepad {
                 np.frame = frame.insetBy(dx: 10, dy: 0)
-                // Scroll to cursor
-//                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
-//                    np.scrollRangeToVisible(np.selectedRange())
-//                }
             }
         }
     }

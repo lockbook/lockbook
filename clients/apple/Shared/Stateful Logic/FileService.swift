@@ -10,7 +10,7 @@ class FileService: ObservableObject {
     init(_ core: LockbookApi) {
         self.core = core
 
-        refresh()
+        if DI.accounts.account != nil { refresh() }
     }
     
     // TODO in the future we should pop one of these bad boys up during this operation
@@ -52,6 +52,12 @@ class FileService: ObservableObject {
                 case .success(_):
                     if DI.openDocument.meta?.id == id {
                         DI.openDocument.deleted = true
+                    }
+                    if DI.openDrawing.meta?.id == id {
+                        DI.openDrawing.deleted = true
+                    }
+                    if DI.openImage.meta?.id == id {
+                        DI.openImage.deleted = true
                     }
                     self.refresh()
                     DI.status.checkForLocalWork()
@@ -109,15 +115,30 @@ class FileService: ObservableObject {
                 case .success(let files):
                     self.files = files
                     self.files.forEach { self.notifyDocumentChanged($0) }
-                    if let id = DI.openDocument.meta?.id {
-                        if !files.contains(where: {$0.id == id}) {
-                            // The open document is no longer in our files
-                            DI.openDocument.deleted = true
-                        }
-                    }
+                    self.closeOpenFileIfDeleted()
                 case .failure(let error):
                     DI.errors.handleError(error)
                 }
+            }
+        }
+    }
+    
+    private func closeOpenFileIfDeleted() {
+        if let id = DI.openDocument.meta?.id {
+            if !files.contains(where: {$0.id == id}) {
+                DI.openDocument.deleted = true
+            }
+        }
+        
+        if let id = DI.openImage.meta?.id {
+            if !files.contains(where: {$0.id == id}) {
+                DI.openImage.deleted = true
+            }
+        }
+        
+        if let id = DI.openDrawing.meta?.id {
+            if !files.contains(where: {$0.id == id}) {
+                DI.openDrawing.deleted = true
             }
         }
     }
@@ -129,6 +150,11 @@ class FileService: ObservableObject {
         if let openDocumentMeta = DI.openDocument.meta, meta.id == openDocumentMeta.id, meta.contentVersion != openDocumentMeta.contentVersion {
             DispatchQueue.main.async {
                 DI.openDocument.reloadDocumentIfNeeded(meta: openDocumentMeta)
+            }
+        }
+        if let openImage = DI.openImage.meta, meta.id == openImage.id, meta.contentVersion != openImage.contentVersion {
+            DispatchQueue.main.async {
+                DI.openImage.loadDrawing(meta: openImage)
             }
         }
     }

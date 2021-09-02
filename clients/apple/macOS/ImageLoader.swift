@@ -5,11 +5,10 @@ import Combine
 struct ImageLoader: View {
     @EnvironmentObject var model:  ImageModel
     let meta: ClientFileMetadata
-    @State var deleted: ClientFileMetadata?
 
     var body: some View {
         Group {
-            if (deleted != meta) {
+            if (!model.deleted) {
                 if let img = model.image, model.meta?.id == meta.id {
                     img
                 } else {
