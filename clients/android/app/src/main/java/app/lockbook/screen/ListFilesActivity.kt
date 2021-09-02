@@ -61,7 +61,7 @@ class ListFilesActivity : AppCompatActivity() {
         this.menu = menu
         setSelectedMenuOptions()
 
-        val selectedFiles = getListFilesFragment()?.listFilesViewModel?.selectedFiles
+        val selectedFiles = getListFilesFragment()?.model?.selectedFiles
         if (selectedFiles != null && selectedFiles.isNotEmpty()) {
             openFileMenu(selectedFiles)
         }
@@ -145,7 +145,7 @@ class ListFilesActivity : AppCompatActivity() {
     fun switchMenu(expandOrNot: Boolean) {
         val fragment = getListFilesFragment() ?: return
         if (expandOrNot) {
-            openFileMenu(fragment.listFilesViewModel.selectedFiles)
+            openFileMenu(fragment.model.selectedFiles)
         } else {
             closeFileMenu()
         }

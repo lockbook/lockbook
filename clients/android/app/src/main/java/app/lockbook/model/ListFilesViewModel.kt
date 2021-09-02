@@ -80,18 +80,6 @@ class ListFilesViewModel(application: Application, isThisAnImport: Boolean) :
     val collapseExpandFAB: LiveData<Boolean>
         get() = _collapseExpandFAB
 
-    val showCreateFileDialog: LiveData<CreateFileInfo>
-        get() = _showCreateFileDialog
-
-    val showMoveFileDialog: LiveData<MoveFileInfo>
-        get() = _showMoveFileDialog
-
-    val showFileInfoDialog: LiveData<ClientFileMetadata>
-        get() = _showFileInfoDialog
-
-    val showRenameFileDialog: LiveData<RenameFileInfo>
-        get() = _showRenameFileDialog
-
     val uncheckAllFiles: LiveData<Unit>
         get() = _uncheckAllFiles
 
@@ -111,18 +99,6 @@ class ListFilesViewModel(application: Application, isThisAnImport: Boolean) :
         get() = _notifyError
 
     lateinit var fileModel: FileModel
-
-    val shareModel = ShareModel(
-        _shareDocument,
-        _showHideProgressOverlay,
-        _notifyError,
-    )
-    val syncModel = SyncModel(
-        _showSyncSnackBar,
-        _updateSyncSnackBar,
-        _notifyWithSnackbar,
-        _notifyError,
-    )
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -162,12 +138,6 @@ class ListFilesViewModel(application: Application, isThisAnImport: Boolean) :
             true
         }
         else -> false
-    }
-
-    fun onOpenedActivityEnd() {
-        viewModelScope.launch(Dispatchers.IO) {
-            syncModel.syncBasedOnPreferences(getContext())
-        }
     }
 
     fun onSwipeToRefresh() {

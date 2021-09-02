@@ -10,12 +10,8 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 
 class SyncModel(
-    private val _showSyncSnackBar: SingleMutableLiveData<Unit>,
-    private val _updateSyncSnackBar: SingleMutableLiveData<Pair<Int, Int>>,
-    private val _notifyWithSnackbar: SingleMutableLiveData<String>,
-    private val _notifyError: SingleMutableLiveData<LbError>
+    private val _notifyUpdateFilesUI: SingleMutableLiveData<UpdateFilesUI>
 ) {
-
     var syncStatus: SyncStatus = SyncStatus.IsNotSyncing
 
     fun trySync(context: Context) {
@@ -38,7 +34,7 @@ class SyncModel(
         val newStatus = SyncStatus.IsSyncing(total, progress)
 
         syncStatus = newStatus
-        _updateSyncSnackBar.postValue(Pair(newStatus.total, newStatus.progress))
+        _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateSyncSnackBar(newStatus.total, newStatus.progress))
     }
 
     private fun sync(resources: Resources) {
@@ -47,17 +43,21 @@ class SyncModel(
 
         when (val workCalculatedResult = CoreModel.calculateWork(config)) {
             is Ok -> if (workCalculatedResult.value.localFiles.size + workCalculatedResult.value.serverFiles.size + workCalculatedResult.value.serverUnknownNameCount == 0) {
-                return _notifyWithSnackbar.postValue(upToDateMsg)
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(upToDateMsg))
+                return
             }
-            is Err -> return _notifyError.postValue(workCalculatedResult.error.toLbError(resources))
+            is Err -> {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(workCalculatedResult.error.toLbError(resources)))
+                return
+            }
         }
 
         syncStatus = SyncStatus.IsSyncing(0, 1)
-        _showSyncSnackBar.postValue(Unit)
+        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowSyncSnackBar)
 
         when (val syncResult = CoreModel.sync(config, this)) {
-            is Ok -> _notifyWithSnackbar.postValue(upToDateMsg)
-            is Err -> _notifyError.postValue(syncResult.error.toLbError(resources))
+            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(upToDateMsg))
+            is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(syncResult.error.toLbError(resources)))
         }
     }
 }

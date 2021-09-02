@@ -1,11 +1,14 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -14,88 +17,54 @@ import kotlinx.coroutines.*
 
 class TextEditorViewModel(application: Application, private val id: String) :
     AndroidViewModel(application), TextWatcher {
-    private var history = mutableListOf<String>()
-    private var historyIndex = 0
-    var ignoreChange = false
-    private val _canUndo = MutableLiveData<Boolean>()
-    private val _canRedo = MutableLiveData<Boolean>()
+
+    private val handler = Handler(Looper.myLooper()!!)
+    private var lastEdit = 0L
+
+    private val _content = MutableLiveData<String>()
     private val _notifyError = MutableLiveData<LbError>()
-
-    val canUndo: LiveData<Boolean>
-        get() = _canUndo
-
-    val canRedo: LiveData<Boolean>
-        get() = _canRedo
 
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
+    val content: MutableLiveData<String>
+        get() = _content
+
     init {
-        val contents = readDocument(id)
-        if (contents != null) {
-            history.add(history.lastIndex + 1, contents)
+        setUpTextView()
+
+    }
+
+    private fun setUpTextView() {
+        viewModelScope.launch(Dispatchers.IO) {
+            when (val documentResult = CoreModel.readDocument(config, id)) {
+                is Ok -> _content.postValue(documentResult.value)
+                is Err -> _notifyError.postValue(documentResult.error.toLbError(getRes()))
+            }
         }
     }
 
-    fun readDocument(id: String): String? {
-        when (val documentResult = CoreModel.readDocument(config, id)) {
-            is Ok -> {
-                return documentResult.value
-            }
-            is Err -> _notifyError.postValue(documentResult.error.toLbError(getRes()))
-        }.exhaustive
+    fun waitAndSaveContents(content: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            lastEdit = System.currentTimeMillis()
+            val currentEdit = lastEdit
 
-        return null
-    }
-
-    override fun afterTextChanged(s: Editable?) {
-        if (!ignoreChange) {
-            if (history.size - 1 > historyIndex) {
-                history.subList(historyIndex, history.size).clear()
-            }
-
-            if (history.size >= 10) {
-                history.removeAt(history.lastIndex)
-            } else {
-                historyIndex++
-            }
-
-            history.add(history.lastIndex + 1, s.toString())
-        } else {
-            ignoreChange = false
+            handler.postDelayed({
+                if(currentEdit == lastEdit) {
+                    val writeToDocumentResult = CoreModel.writeToDocument(config, id, content)
+                    if (writeToDocumentResult is Err) {
+                        _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
+                    }
+                }
+            }, 5000)
         }
-        canUndo()
-        canRedo()
-    }
-
-    fun undo(): String {
-        historyIndex--
-        canUndo()
-        return history[historyIndex]
-    }
-
-    fun redo(): String {
-        historyIndex++
-        canRedo()
-        return history[historyIndex]
-    }
-
-    private fun canUndo() {
-        _canUndo.value = historyIndex != 0
-    }
-
-    private fun canRedo() {
-        _canRedo.value = historyIndex != history.lastIndex
     }
 
     override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 
     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
-    fun saveText(content: String) {
-        val writeToDocumentResult = CoreModel.writeToDocument(config, id, content)
-        if (writeToDocumentResult is Err) {
-            _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
-        }
+    override fun afterTextChanged(s: Editable?) {
+        waitAndSaveContents(s?.toString() ?: "")
     }
 }

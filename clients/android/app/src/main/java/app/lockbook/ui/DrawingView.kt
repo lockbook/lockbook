@@ -9,7 +9,7 @@ import android.view.*
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.R
 import app.lockbook.model.AlertModel
-import app.lockbook.screen.DrawingActivity
+import app.lockbook.screen.MainScreenActivity
 import app.lockbook.util.*
 import java.lang.ref.WeakReference
 import java.util.*
@@ -56,7 +56,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private val alertModel by lazy {
-        AlertModel(WeakReference(context as DrawingActivity))
+        AlertModel(WeakReference(context as MainScreenActivity))
     }
 
     companion object {
@@ -193,7 +193,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             val strokeColor = getColor(stroke.color, stroke.alpha)
 
             if (strokeColor == null) {
-                alertModel.notifyBasicError((context as DrawingActivity)::finish)
+                alertModel.notifyBasicError()
                 return
             }
 
@@ -237,7 +237,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val strokeColor = colorAliasInARGB[ColorAlias.White]
 
         if (strokeColor == null) {
-            alertModel.notifyBasicError((context as DrawingActivity)::finish)
+            alertModel.notifyBasicError()
             return
         }
 
@@ -422,7 +422,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val strokeColor = getColor(strokeColor, alpha)
 
         if (strokeColor == null) {
-            alertModel.notifyBasicError((context as DrawingActivity)::finish)
+            alertModel.notifyBasicError()
             return
         }
 

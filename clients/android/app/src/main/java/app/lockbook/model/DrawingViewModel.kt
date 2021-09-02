@@ -1,11 +1,9 @@
 package app.lockbook.model
 
 import android.app.Application
-import android.view.View
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.viewModelScope
+import android.os.Handler
+import android.os.Looper
+import androidx.lifecycle.*
 import app.lockbook.App.Companion.config
 import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
@@ -20,67 +18,42 @@ class DrawingViewModel(
     application: Application,
     private val id: String
 ) : AndroidViewModel(application) {
-    var backupDrawing: Drawing? = null
+    private val handler = Handler(Looper.myLooper()!!)
 
-    private var selectedTool: Tool = Tool.Pen(ColorAlias.White)
+    var persistentDrawing: Drawing? = null
+    var selectedTool: Tool = Tool.Pen(ColorAlias.White)
 
-    private val _setToolsVisibility = MutableLiveData<Int>()
-    private val _selectNewTool = MutableLiveData<Pair<Tool?, Tool>>()
-    private val _selectedNewPenSize = MutableLiveData<Int>()
-    private val _drawableReady = SingleMutableLiveData<Unit>()
-    private val _notifyError = MutableLiveData<LbError>()
+    private val _drawingReady = SingleMutableLiveData<Drawing>()
+    private val _notifyError = SingleMutableLiveData<LbError>()
 
-    val setToolsVisibility: LiveData<Int>
-        get() = _setToolsVisibility
-
-    val selectNewTool: LiveData<Pair<Tool?, Tool>>
-        get() = _selectNewTool
-
-    val selectedNewPenSize: LiveData<Int>
-        get() = _selectedNewPenSize
+    val drawingReady: LiveData<Drawing>
+        get() = _drawingReady
 
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
-    val drawableReady: LiveData<Unit>
-        get() = _drawableReady
-
-    init {
-        _selectNewTool.postValue(Pair(null, selectedTool))
-        _selectedNewPenSize.postValue(7)
-    }
-
-    fun handleTouchEvent(toolsVisibility: Int) {
-        if (toolsVisibility == View.VISIBLE) {
-            _setToolsVisibility.postValue(View.GONE)
-        } else {
-            _setToolsVisibility.postValue(View.VISIBLE)
-        }
-    }
-
     fun getDrawing(id: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val contents = readDocument(id)
-            if (contents != null && contents.isEmpty()) {
-                backupDrawing = Drawing()
-            } else if (contents != null) {
-                backupDrawing = Klaxon().parse<Drawing>(contents)
+            val contents = when (val documentResult = CoreModel.readDocument(config, id)) {
+                is Ok -> {
+                    documentResult.value
+                }
+                is Err -> {
+                    _notifyError.postValue(documentResult.error)
+                    return@launch
+                }
             }
 
-            _drawableReady.postValue(Unit)
+            val drawing = when {
+                persistentDrawing is Drawing -> persistentDrawing!!
+                contents.isNotEmpty() -> Klaxon().parse<Drawing>(contents)!!
+                else -> Drawing()
+            }
+
+            _drawingReady.postValue(drawing)
         }
     }
 
-    private fun readDocument(id: String): String? {
-        when (val documentResult = CoreModel.readDocument(config, id)) {
-            is Ok -> {
-                return documentResult.value
-            }
-            is Err -> _notifyError.postValue(documentResult.error.toLbError(getRes()))
-        }.exhaustive
-
-        return null
-    }
 
     fun saveDrawing(drawing: Drawing) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -90,14 +63,5 @@ class DrawingViewModel(
                 _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
             }
         }
-    }
-
-    fun handleNewToolSelected(newTool: Tool) {
-        _selectNewTool.postValue(Pair(selectedTool, newTool))
-        selectedTool = newTool
-    }
-
-    fun handleNewPenSizeSelected(newPenSize: Int) {
-        _selectedNewPenSize.postValue(newPenSize)
     }
 }

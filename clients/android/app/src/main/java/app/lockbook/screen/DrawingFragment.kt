@@ -7,30 +7,28 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.GestureDetector
-import android.view.MotionEvent
-import android.view.View
+import android.view.*
 import android.widget.SeekBar
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSeekBar
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
-import app.lockbook.databinding.ActivityDrawingBinding
+import app.lockbook.databinding.FragmentDrawingBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.DrawingViewModel
-import app.lockbook.modelfactory.DrawingViewModelFactory
-import app.lockbook.screen.TextEditorActivity.Companion.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
-import app.lockbook.ui.DrawingView.Tool
-import app.lockbook.util.*
+import app.lockbook.model.StateViewModel
+import app.lockbook.ui.DrawingView
+import app.lockbook.util.ColorAlias
+import app.lockbook.util.exhaustive
 import java.lang.ref.WeakReference
 import java.util.*
 
-class DrawingActivity : AppCompatActivity() {
+class DrawingFragment: Fragment() {
 
-    private var _binding: ActivityDrawingBinding? = null
-    // This property is only valid between onCreateView and
-    // onDestroyView.
+    private var _binding: FragmentDrawingBinding? = null
     private val binding get() = _binding!!
+
     private val whiteButton get() = binding.drawingToolbar.drawingColorWhite
     private val blackButton get() = binding.drawingToolbar.drawingColorBlack
     private val blueButton get() = binding.drawingToolbar.drawingColorBlue
@@ -47,72 +45,38 @@ class DrawingActivity : AppCompatActivity() {
     private val toolbar get() = binding.drawingToolbar.drawingToolsMenu
 
     private val drawingView get() = binding.drawingView
-    private lateinit var drawingViewModel: DrawingViewModel
+    private val model: DrawingViewModel by viewModels()
+    private val state: StateViewModel by viewModels()
+
     private var isFirstLaunch = true
 
     private var autoSaveTimer = Timer()
     private val handler = Handler(requireNotNull(Looper.myLooper()))
-    private lateinit var id: String
     private lateinit var gestureDetector: GestureDetector
 
     private val alertModel by lazy {
-        AlertModel(WeakReference(this))
+        AlertModel(WeakReference(requireActivity()))
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        _binding = ActivityDrawingBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentDrawingBinding.inflate(inflater, container, false)
 
-        val maybeId = intent.getStringExtra("id")
-
-        if (maybeId == null) {
-            alertModel.notifyBasicError(::finish)
-            return
-        }
-
-        id = maybeId
-
-        drawingViewModel =
-            ViewModelProvider(
-                this,
-                DrawingViewModelFactory(application, id)
-            ).get(DrawingViewModel::class.java)
-
-        drawingViewModel.notifyError.observe(
-            this
-        ) { error ->
-            alertModel.notifyError(error, ::finish)
-        }
-
-        drawingViewModel.drawableReady.observe(
-            this
+        model.drawingReady.observe(
+            viewLifecycleOwner
         ) {
             initializeDrawing()
-        }
-
-        drawingViewModel.setToolsVisibility.observe(
-            this
-        ) { newVisibility ->
-            changeToolsVisibility(newVisibility)
-        }
-
-        drawingViewModel.selectNewTool.observe(
-            this
-        ) { tools ->
-            selectNewTool(tools.first, tools.second)
-        }
-
-        drawingViewModel.selectedNewPenSize.observe(
-            this
-        ) { penSize ->
-            selectedNewPenSize(penSize)
         }
 
         startDrawing()
         startBackgroundSave()
         setUpToolbarListeners()
         setUpToolbarDefaults()
+
+        return binding.root
     }
 
     override fun onPause() {
@@ -130,14 +94,14 @@ class DrawingActivity : AppCompatActivity() {
         autoSaveTimer.cancel()
         autoSaveTimer.purge()
         if (!isFirstLaunch) {
-            drawingViewModel.backupDrawing = drawingView.drawing
-            drawingViewModel.saveDrawing(drawingView.drawing.clone())
+            model.persistentDrawing = drawingView.drawing
+            model.saveDrawing(drawingView.drawing.clone())
         }
     }
 
-    private fun selectNewTool(oldTool: Tool?, newTool: Tool) {
-        when (oldTool) {
-            is Tool.Pen -> {
+    private fun selectNewTool(newTool: DrawingView.Tool) {
+        when (val oldTool = model.selectedTool) {
+            is DrawingView.Tool.Pen -> {
                 val previousButton = when (oldTool.colorAlias) {
                     ColorAlias.White -> whiteButton
                     ColorAlias.Blue -> blueButton
@@ -151,15 +115,14 @@ class DrawingActivity : AppCompatActivity() {
 
                 previousButton.strokeWidth = 0
             }
-            is Tool.Eraser -> {
+            is DrawingView.Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_outline)
                 drawingView.isErasing = false
             }
-            null -> {}
         }
 
         when (newTool) {
-            is Tool.Pen -> {
+            is DrawingView.Tool.Pen -> {
                 val newButton = when (newTool.colorAlias) {
                     ColorAlias.White -> whiteButton
                     ColorAlias.Blue -> blueButton
@@ -174,21 +137,13 @@ class DrawingActivity : AppCompatActivity() {
                 newButton.strokeWidth = 4
                 drawingView.strokeColor = newTool.colorAlias
             }
-            is Tool.Eraser -> {
+            is DrawingView.Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_filled)
                 drawingView.isErasing = true
             }
         }.exhaustive
-    }
 
-    private fun selectedNewPenSize(
-        newPenSize: Int
-    ) {
-        if (penSizeChooser.progress + 1 != newPenSize) {
-            penSizeChooser.progress = newPenSize
-        }
-
-        drawingView.setPenSize(newPenSize)
+        model.selectedTool = newTool
     }
 
     private fun setUpToolbarDefaults() {
@@ -198,7 +153,13 @@ class DrawingActivity : AppCompatActivity() {
         }
     }
 
-    private fun changeToolsVisibility(newVisibility: Int) {
+    private fun changeToolsVisibility(currentVisibility: Int) {
+        val newVisibility = if (currentVisibility == View.VISIBLE) {
+            View.GONE
+        } else {
+            View.VISIBLE
+        }
+
         val onAnimationEnd = object : Animator.AnimatorListener {
             override fun onAnimationStart(animation: Animator?) {
                 if (newVisibility == View.VISIBLE) {
@@ -221,7 +182,7 @@ class DrawingActivity : AppCompatActivity() {
     private fun initializeDrawing() {
         binding.drawingProgressBar.visibility = View.GONE
 
-        val drawing = drawingViewModel.backupDrawing
+        val drawing = model.persistentDrawing
 
         if (drawing == null) {
             alertModel.notifyBasicError()
@@ -265,8 +226,8 @@ class DrawingActivity : AppCompatActivity() {
     private fun startDrawing() {
         binding.drawingProgressBar.visibility = View.VISIBLE
 
-        if (drawingViewModel.backupDrawing == null) {
-            drawingViewModel.getDrawing(id)
+        if (model.persistentDrawing == null) {
+            model.getDrawing(state.openedFile!!.id)
         } else {
             initializeDrawing()
         }
@@ -275,46 +236,52 @@ class DrawingActivity : AppCompatActivity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun setUpToolbarListeners() {
         whiteButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.White))
+            selectNewTool(DrawingView.Tool.Pen(ColorAlias.White))
         }
 
         blackButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Black))
+            selectNewTool(DrawingView.Tool.Pen(ColorAlias.Black))
         }
 
         blueButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Blue))
+            selectNewTool(DrawingView.Tool.Pen(ColorAlias.Blue))
         }
 
         greenButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Green))
+            selectNewTool(DrawingView.Tool.Pen(ColorAlias.Green))
         }
 
         yellowButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Yellow))
+            selectNewTool(DrawingView.Tool.Pen(ColorAlias.Yellow))
         }
 
         magentaButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Magenta))
+            selectNewTool(DrawingView.Tool.Pen(ColorAlias.Magenta))
         }
 
         redButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Red))
+            selectNewTool(DrawingView.Tool.Pen(ColorAlias.Red))
         }
 
         cyanButton.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(Tool.Pen(ColorAlias.Cyan))
+            selectNewTool(DrawingView.Tool.Pen(ColorAlias.Cyan))
         }
 
         eraser.setOnClickListener {
-            drawingViewModel.handleNewToolSelected(Tool.Eraser)
+            selectNewTool(DrawingView.Tool.Eraser)
         }
 
         penSizeChooser.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val adjustedProgress = progress + 1
                 penSizeIndicator.text = adjustedProgress.toString()
-                drawingViewModel.handleNewPenSizeSelected(adjustedProgress)
+
+//                DONT KNOW THE POINT OF THIS
+//                if (penSizeChooser.progress + 1 != adjustedProgress) {
+//                    penSizeChooser.progress = adjustedProgress
+//                }
+
+                drawingView.setPenSize(adjustedProgress)
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -323,14 +290,14 @@ class DrawingActivity : AppCompatActivity() {
         })
 
         gestureDetector = GestureDetector(
-            applicationContext,
+            requireContext(),
             object : GestureDetector.OnGestureListener {
                 override fun onDown(e: MotionEvent?): Boolean = true
 
                 override fun onShowPress(e: MotionEvent?) {}
 
                 override fun onSingleTapUp(e: MotionEvent?): Boolean {
-                    drawingViewModel.handleTouchEvent(toolbar.visibility)
+                    changeToolsVisibility(toolbar.visibility)
                     return true
                 }
 
@@ -367,7 +334,7 @@ class DrawingActivity : AppCompatActivity() {
                 override fun run() {
                     handler.post {
                         if (!isFirstLaunch) {
-                            drawingViewModel.saveDrawing(
+                            model.saveDrawing(
                                 drawingView.drawing.clone()
                             )
                         }
@@ -375,7 +342,7 @@ class DrawingActivity : AppCompatActivity() {
                 }
             },
             1000,
-            TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+            TextEditorActivity.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
         )
     }
 }

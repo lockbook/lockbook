@@ -7,9 +7,11 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.activityViewModels
 import app.lockbook.databinding.DialogRenameFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
+import app.lockbook.model.StateViewModel
 import app.lockbook.util.Config
 import app.lockbook.util.LbErrorKind
 import com.github.michaelbull.result.Err
@@ -31,8 +33,8 @@ class RenameFileDialogFragment : DialogFragment() {
 
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
-    lateinit var name: String
-    lateinit var id: String
+
+    private val model: StateViewModel by activityViewModels()
     lateinit var config: Config
 
     private val alertModel by lazy {
@@ -43,17 +45,8 @@ class RenameFileDialogFragment : DialogFragment() {
 
         const val RENAME_FILE_DIALOG_TAG = "RenameFileDialogFragment"
 
-        private const val ID_KEY = "ID_KEY"
-        private const val NAME_KEY = "NAME_KEY"
-
-        fun newInstance(id: String, name: String): RenameFileDialogFragment {
-            val args = Bundle()
-            args.putString(ID_KEY, id)
-            args.putString(NAME_KEY, name)
-
-            val fragment = RenameFileDialogFragment()
-            fragment.arguments = args
-            return fragment
+        fun newInstance(): RenameFileDialogFragment {
+            return RenameFileDialogFragment()
         }
     }
 
@@ -72,16 +65,6 @@ class RenameFileDialogFragment : DialogFragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val bundle = arguments
-        val nullableId = bundle?.getString(ID_KEY)
-        val nullableName = bundle?.getString(NAME_KEY)
-        if (nullableId != null && nullableName != null) {
-            id = nullableId
-            name = nullableName
-        } else {
-            alertModel.notifyBasicError(::dismiss)
-        }
-
         config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
         dialog?.setCanceledOnTouchOutside(false) ?: alertModel.notifyBasicError()
 
@@ -101,7 +84,7 @@ class RenameFileDialogFragment : DialogFragment() {
             true
         }
 
-        binding.renameFile.setText(name)
+        binding.renameFile.setText(model.openedFile!!.name)
     }
 
     private fun handleRenameRequest(newName: String) {
@@ -113,7 +96,7 @@ class RenameFileDialogFragment : DialogFragment() {
     }
 
     private suspend fun renameFile(newName: String) {
-        when (val renameFileResult = CoreModel.renameFile(config, id, newName)) {
+        when (val renameFileResult = CoreModel.renameFile(config, model.openedFile!!.id, newName)) {
             is Ok -> {
                 withContext(Dispatchers.Main) {
                     dismiss()
