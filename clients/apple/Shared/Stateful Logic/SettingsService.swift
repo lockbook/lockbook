@@ -62,6 +62,19 @@ class SettingsService: ObservableObject {
                         }
                     case .failure(let err):
                         // TODO handle an explicit offline mode here
+                        switch err.kind {
+                        case .UiError(let uiError):
+                            switch uiError {
+                            case .ClientUpdateRequired:
+                                DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
+                            case .CouldNotReachServer:
+                                DI.errors.errorWithTitle("Offline", "Could not reach server to calculate usage")
+                            default:
+                                DI.errors.handleError(err)
+                            }
+                        default:
+                            DI.errors.handleError(err)
+                        }
                         DI.errors.handleError(err)
                     }
                 case .failure(let err):

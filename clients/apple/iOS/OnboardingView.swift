@@ -2,7 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     
-    @EnvironmentObject var onboardingState: OnboardingState
+    @EnvironmentObject var onboardingState: OnboardingService
     
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical

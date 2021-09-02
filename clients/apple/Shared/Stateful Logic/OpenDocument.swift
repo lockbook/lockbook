@@ -2,23 +2,23 @@ import SwiftUI
 import SwiftLockbookCore
 import Combine
 
-class Content: ObservableObject {
+class OpenDocument: ObservableObject {
+    let core: LockbookApi
+    
     @Published var loadText: String?
+    @Published var reloadText: Bool = false
     @Published var saveText: String?
 
     @Published var meta: ClientFileMetadata?
     @Published var deleted: Bool = false
     var cancellables = Set<AnyCancellable>()
     @Published var status: Status = .Inactive
-    let write: (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
-    let read: (UUID) -> FfiResult<String, ReadDocumentError>
-    
-    init(write: @escaping (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<String, ReadDocumentError>) {
-        self.read = read
-        self.write = write
+
+    init(_ core: LockbookApi) {
+        self.core = core
         
         $saveText
-            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
+            .debounce(for: .seconds(1), scheduler: DispatchQueue.global(qos: .userInitiated))
             .sink(receiveValue: {
                 if let c = $0, let m = self.meta {
                     self.writeDocument(meta: m, content: c)
@@ -33,21 +33,24 @@ class Content: ObservableObject {
     }
     
     func writeDocument(meta: ClientFileMetadata, content: String) {
-        switch write(meta.id, content) {
-        case .success(_):
-            DI.sync.documentChangeHappened()
-            withAnimation {
-                status = .WriteSuccess
+        let operation = self.core.updateFile(id: meta.id, content: content)
+        DispatchQueue.main.async {
+            switch operation {
+            case .success(_):
+                DI.sync.documentChangeHappened()
+                withAnimation {
+                    self.status = .WriteSuccess
+                }
+            case .failure(let err):
+                print(err)
             }
-        case .failure(let err):
-            print(err)
         }
     }
     
     func openDocument(meta: ClientFileMetadata) {
         self.deleted = false
         DispatchQueue.main.async {
-            switch self.read(meta.id) {
+            switch self.core.getFile(id: meta.id) {
             case .success(let txt):
                 self.meta = meta
                 self.loadText = txt
@@ -65,12 +68,12 @@ class Content: ObservableObject {
     }
     
     func reloadDocumentIfNeeded(meta: ClientFileMetadata) {
-        switch self.read(meta.id) {
+        switch self.core.getFile(id: meta.id) {
         case .success(let txt):
             if self.saveText != txt {
-                self.closeDocument()
                 self.meta = meta
                 self.loadText = txt
+                self.reloadText = true
                 self.saveText = txt
             }
         case .failure(let err):

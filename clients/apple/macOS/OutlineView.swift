@@ -127,14 +127,7 @@ struct OutlineBranch: View {
     
     func handleDelete(meta: ClientFileMetadata) -> () -> Void {
         return {
-            switch DI.core.deleteFile(id: meta.id) {
-            case .success(_):
-//                core.deleteChannel.send(meta) TODO
-                files.refresh()
-                status.checkForLocalWork()
-            case .failure(let err):
-                errors.handleError(err)
-            }
+            files.deleteFile(id: meta.id)
         }
     }
     

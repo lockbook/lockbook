@@ -34,7 +34,9 @@ struct NotepadView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
-        if let np = uiView as? Notepad {
+        if let np = uiView as? Notepad, DI.openDocument.reloadText {
+            print("reload happened")
+            DI.openDocument.reloadText = false
             np.text = text
             np.styleNow()
         }
@@ -69,8 +71,10 @@ struct NotepadView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        if let np = nsView.documentView as? Notepad {
+        if let np = nsView.documentView as? Notepad, DI.openDocument.reloadText {
+            DI.openDocument.reloadText = false
             np.string = text
+            np.styleNow()
         }
         
         // This bit is what wraps our text

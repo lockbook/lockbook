@@ -6,6 +6,7 @@ class DrawingModel: ObservableObject {
     let core: LockbookApi
     
     @Published var loadDrawing: PKDrawing? = .none
+    @Published var reloadDrawing: Bool = false
     @Published var meta: ClientFileMetadata? = .none
     @Published var deleted: Bool = false
     var errors: String? = .none
@@ -53,9 +54,9 @@ class DrawingModel: ObservableObject {
         case .some(_):
             switch self.core.readDrawing(id: meta.id) {
             case .success(let coreDrawing):
-                self.closeDrawing()
                 self.meta = meta
                 self.loadDrawing = PKDrawing(from: coreDrawing)
+                self.reloadDrawing = true
             case .failure(let err):
                 print(err)
             }

@@ -43,7 +43,9 @@ struct DrawingView: UIViewRepresentable {
     func updateUIView(_ view: PKCanvasView, context: Context) {
         view.tool = toolPicker.currentTool
         view.isRulerActive = toolPicker.isRulerShowing
-        view.drawing = drawingToLoad
+        if DI.openDrawing.reloadDrawing {
+            view.drawing = drawingToLoad
+        }
     }
 
     class Coordinator: NSObject, PKCanvasViewDelegate {

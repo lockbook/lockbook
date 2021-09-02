@@ -1,7 +1,7 @@
 import SwiftLockbookCore
 import SwiftUI
 
-class OnboardingState: ObservableObject {
+class OnboardingService: ObservableObject {
     
     let core: LockbookApi
     

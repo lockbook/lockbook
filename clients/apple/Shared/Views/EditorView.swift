@@ -33,7 +33,7 @@ struct EditorView: View, Equatable {
 
 struct EditorLoader: View {
     
-    @EnvironmentObject var content: Content
+    @EnvironmentObject var content: OpenDocument
     
     let meta: ClientFileMetadata
     @State var editorContent: String = ""
