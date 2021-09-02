@@ -2,10 +2,20 @@ import SwiftUI
 import SwiftLockbookCore
 import Combine
 
-struct EditorView: View {
+struct EditorView: View, Equatable {
+    static func == (lhs: EditorView, rhs: EditorView) -> Bool {
+        lhs.text == rhs.text
+    }
+    
     @Environment(\.colorScheme) var colorScheme
     let meta: ClientFileMetadata
     let text: String
+    
+    init(meta: ClientFileMetadata, text: String, changeCallback: @escaping (String) -> Void) {
+        self.meta = meta
+        self.text = text
+        self.changeCallback = changeCallback
+    }
     
     let changeCallback: (String) -> Void
     
@@ -28,14 +38,15 @@ struct EditorLoader: View {
     
     let meta: ClientFileMetadata
     @State var editorContent: String = ""
-    @State var deleted: ClientFileMetadata?
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            switch content.text {
+            switch content.loadText {
             /// We are forcing this view to hit the default case when it is in a transitionary stage!
             case .some(let c) where content.meta?.id == meta.id:
-                if (deleted != meta) {
+                if (content.deleted) {
+                    Text("\(meta.name) file has been deleted")
+                } else {
                     #if os(macOS)
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
                     #else
@@ -45,8 +56,6 @@ struct EditorLoader: View {
                     #endif
                     ActivityIndicator(status: $content.status)
                         .opacity(content.status == .WriteSuccess ? 1 : 0)
-                } else {
-                    Text("\(meta.name) file has been deleted")
                 }
             default:
                 ProgressView()

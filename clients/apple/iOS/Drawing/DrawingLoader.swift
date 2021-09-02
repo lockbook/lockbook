@@ -15,9 +15,9 @@ struct DrawingLoader: View {
     var body: some View {
         Group {
             if (deleted != meta) {
-                switch model.originalDrawing {
+                switch model.loadDrawing {
                 case .some(let drawing):
-                    DrawingView(drawing: drawing, toolPicker: toolbar, onChange: { (ud: PKDrawing) in model.drawingModelChanged(meta: meta, updatedDrawing: ud) })
+                    DrawingView(drawingToLoad: drawing, toolPicker: toolbar, onChange: { (ud: PKDrawing) in model.drawingModelChanged(meta: meta, updatedDrawing: ud) })
                         .navigationTitle(meta.name)
                         .toolbar {
                             ToolbarItemGroup(placement: .bottomBar) {

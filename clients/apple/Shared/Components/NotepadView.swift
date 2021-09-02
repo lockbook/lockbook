@@ -10,9 +10,15 @@ struct NotepadView: UIViewRepresentable {
     let theme: Theme
     let onTextChange: (String) -> Void
     let engine = MarkdownEngine()
+    
+    init(text: String, frame: CGRect, theme: Theme, onTextChange: @escaping (String) -> Void) {
+        self.text = text
+        self.frame = frame
+        self.theme = theme
+        self.onTextChange = onTextChange
+    }
 
     func makeUIView(context: Context) -> UITextView {
-        print("making")
         let np = Notepad(frame: frame, theme: theme)
         np.smartQuotesType = .no
         np.smartDashesType = .no
@@ -28,12 +34,12 @@ struct NotepadView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
-
+        uiView.text = text
     }
 }
 #else
 struct NotepadView: NSViewRepresentable {
-    @Binding var text: String
+    let text: String
     var frame: CGRect
     let theme: Theme
     let onTextChange: (String) -> Void
@@ -65,9 +71,9 @@ struct NotepadView: NSViewRepresentable {
             if let np = nsView.documentView as? Notepad {
                 np.frame = frame.insetBy(dx: 10, dy: 0)
                 // Scroll to cursor
-                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
-                    np.scrollRangeToVisible(np.selectedRange())
-                }
+//                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
+//                    np.scrollRangeToVisible(np.selectedRange())
+//                }
             }
         }
     }

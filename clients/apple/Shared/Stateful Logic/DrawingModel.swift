@@ -3,33 +3,37 @@ import SwiftLockbookCore
 import PencilKit
 
 class DrawingModel: ObservableObject {
-    @Published var originalDrawing: PKDrawing? = .none
+    let core: LockbookApi
+    
+    @Published var loadDrawing: PKDrawing? = .none
     @Published var meta: ClientFileMetadata? = .none
     @Published var deleted: Bool = false
     var errors: String? = .none
-    // TODO take this in via DI instead
-    let write: (UUID, Drawing) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
-    let read: (UUID) -> FfiResult<Drawing, ReadDocumentError>
     
-    init(write: @escaping (UUID, Drawing) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<Drawing, ReadDocumentError>) {
-        self.write = write
-        self.read = read
+    init(_ core: LockbookApi) {
+        self.core = core
     }
     
     func drawingModelChanged(meta: ClientFileMetadata, updatedDrawing: PKDrawing) {
-        originalDrawing = updatedDrawing
+//        saveDrawing = updatedDrawing
         DispatchQueue.global(qos: .userInitiated).async {
-            print(self.write(meta.id, Drawing(from: updatedDrawing))) // TODO handle
+            switch self.core.writeDrawing(id: meta.id, content: Drawing(from: updatedDrawing)) {
+            case .success(_):
+                print("drawing saved successfully")
+            case .failure(let error):
+                DI.errors.handleError(error)
+            }
+
             DI.sync.documentChangeHappened()
         }
     }
     
     func loadDrawing(meta: ClientFileMetadata) {
         DispatchQueue.main.async {
-            switch self.read(meta.id) {
+            switch self.core.readDrawing(id: meta.id) {
             case .success(let drawing):
                 self.meta = meta
-                self.originalDrawing = PKDrawing(from: drawing)
+                self.loadDrawing = PKDrawing(from: drawing)
                 self.deleted = false
             case .failure(let drawingError):
                 print(drawingError)
@@ -40,20 +44,17 @@ class DrawingModel: ObservableObject {
     
     func closeDrawing() {
         self.meta = .none
-        self.originalDrawing = .none
+        self.loadDrawing = .none
     }
     
     func reloadDocumentIfNeeded(meta: ClientFileMetadata) {
-        switch self.originalDrawing {
-        case .some(let currentDrawing):
-            switch self.read(meta.id) {
+        switch self.loadDrawing {
+        case .some(_):
+            switch self.core.readDrawing(id: meta.id) {
             case .success(let coreDrawing):
-                if Drawing(from: currentDrawing) != coreDrawing { /// Close the document
-                    print("reload")
-                    self.closeDrawing()
-                    self.meta = meta
-                    self.originalDrawing = PKDrawing(from: coreDrawing)
-                }
+                self.closeDrawing()
+                self.meta = meta
+                self.loadDrawing = PKDrawing(from: coreDrawing)
             case .failure(let err):
                 print(err)
             }

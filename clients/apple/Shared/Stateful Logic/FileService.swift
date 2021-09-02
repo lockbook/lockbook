@@ -43,6 +43,25 @@ class FileService: ObservableObject {
         }
     }
     
+    func deleteFile(id: UUID) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let operation = self.core.deleteFile(id: id)
+            
+            DispatchQueue.main.async {
+                switch operation {
+                case .success(_):
+                    if DI.openDocument.meta?.id == id {
+                        DI.openDocument.deleted = true
+                    }
+                    self.refresh()
+                    DI.status.checkForLocalWork()
+                case .failure(let error):
+                    DI.errors.handleError(error)
+                }
+            }
+        }
+    }
+    
     func renameFile(id: UUID, name: String) {
         DispatchQueue.global(qos: .userInteractive).async {
             let operation = self.core.renameFile(id: id, name: name)
@@ -90,6 +109,12 @@ class FileService: ObservableObject {
                 case .success(let files):
                     self.files = files
                     self.files.forEach { self.notifyDocumentChanged($0) }
+                    if let id = DI.openDocument.meta?.id {
+                        if !files.contains(where: {$0.id == id}) {
+                            // The open document is no longer in our files
+                            DI.openDocument.deleted = true
+                        }
+                    }
                 case .failure(let error):
                     DI.errors.handleError(error)
                 }

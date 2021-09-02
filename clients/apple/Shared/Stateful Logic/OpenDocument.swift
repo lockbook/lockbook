@@ -3,7 +3,9 @@ import SwiftLockbookCore
 import Combine
 
 class Content: ObservableObject {
-    @Published var text: String?
+    @Published var loadText: String?
+    @Published var saveText: String?
+
     @Published var meta: ClientFileMetadata?
     @Published var deleted: Bool = false
     var cancellables = Set<AnyCancellable>()
@@ -15,7 +17,7 @@ class Content: ObservableObject {
         self.read = read
         self.write = write
         
-        $text
+        $saveText
             .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
             .sink(receiveValue: {
                 if let c = $0, let m = self.meta {
@@ -26,7 +28,7 @@ class Content: ObservableObject {
     }
     
     func updateText(text: String) {
-        self.text = text
+        self.saveText = text
         status = .Inactive
     }
     
@@ -48,7 +50,8 @@ class Content: ObservableObject {
             switch self.read(meta.id) {
             case .success(let txt):
                 self.meta = meta
-                self.text = txt
+                self.loadText = txt
+                self.saveText = txt
             case .failure(let err):
                 print(err)
             }
@@ -57,16 +60,18 @@ class Content: ObservableObject {
     
     func closeDocument() {
         meta = .none
-        text = .none
+        loadText = .none
+        saveText = .none
     }
     
     func reloadDocumentIfNeeded(meta: ClientFileMetadata) {
         switch self.read(meta.id) {
         case .success(let txt):
-            if self.text != txt { /// Close the document
+            if self.saveText != txt {
                 self.closeDocument()
                 self.meta = meta
-                self.text = txt
+                self.loadText = txt
+                self.saveText = txt
             }
         case .failure(let err):
             print(err)

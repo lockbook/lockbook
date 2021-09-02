@@ -146,7 +146,7 @@ struct Toolbar_Preview: PreviewProvider {
             }
             DrawingLoader(meta: Mock.files.files[0])
                     .onAppear {
-                        Mock.openDrawing.originalDrawing = PKDrawing()
+                        Mock.openDrawing.loadDrawing = PKDrawing()
                     }
         }
     }

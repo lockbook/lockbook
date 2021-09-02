@@ -138,15 +138,8 @@ struct FileListView: View {
     }
     
     func handleDelete(meta: ClientFileMetadata) {
-        switch DI.core.deleteFile(id: meta.id) {
-        case .success(_):
-//            core.deleteChannel.send(meta)
-            fileService.refresh()
-            status.checkForLocalWork()
-            selection = .none
-        case .failure(let err):
-            errors.handleError(err)
-        }
+        self.fileService.deleteFile(id: meta.id)
+        selection = .none
     }
     
     func fileSuccessfullyCreated(new: ClientFileMetadata) {
