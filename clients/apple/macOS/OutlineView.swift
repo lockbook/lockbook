@@ -7,7 +7,9 @@ import SwiftLockbookCore
 import UniformTypeIdentifiers
 
 struct OutlineBranch: View {
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var files: FileService
+    @EnvironmentObject var status: StatusService
+    @EnvironmentObject var errors: UnexpectedErrorService
     
     var file: ClientFileMetadata
     @Binding var selectedItem: ClientFileMetadata?
@@ -18,7 +20,7 @@ struct OutlineBranch: View {
     @Binding var renaming: ClientFileMetadata?
 
     var children: [ClientFileMetadata] {
-        core.files.filter {
+        files.files.filter {
             $0.parent == file.id && $0.id != file.id
         }
     }
@@ -40,15 +42,7 @@ struct OutlineBranch: View {
                             level: level,
                             onCommit: { s in
                                 renaming = nil
-                                let r = core.api.renameFile(id: isRenaming.id, name: s)
-                                if case .failure(let err) = r {
-                                    core.handleError(err)
-                                } else {
-                                    withAnimation {
-                                        core.updateFiles()
-                                        core.checkForLocalWork()
-                                    }
-                                }
+                                files.renameFile(id: isRenaming.id, name: s)
                             },
                             onCancel: {
                                 withAnimation {
@@ -59,17 +53,17 @@ struct OutlineBranch: View {
                             nameField: file.name
                         ).onDisappear {
                             withAnimation {
-                                self.core.updateFiles()
+                                self.files.refresh()
                             }
                         }
                     } else {
                         if file == selectedItem {
-                            OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
+                            OutlineRow(file: file, level: level, open: $open, dragging: $dragging)
                                 .background(Color.accentColor)
                                 .foregroundColor(Color.white)
                                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                         } else {
-                            OutlineRow(core: core, file: file, level: level, open: $open, dragging: $dragging)
+                            OutlineRow(file: file, level: level, open: $open, dragging: $dragging)
                                 .onTapGesture {
                                     if file.fileType == .Folder {
                                         withAnimation {
@@ -85,7 +79,7 @@ struct OutlineBranch: View {
                 }
                 if isLeaf == false && (open == true || level == -1) {
                     ForEach(children) { child in
-                        OutlineBranch(core: core, file: child, selectedItem: self.$selectedItem, level: self.level + 1, dragging: self.$dragging, renaming: self.$renaming)
+                        OutlineBranch(file: child, selectedItem: self.$selectedItem, level: self.level + 1, dragging: self.$dragging, renaming: self.$renaming)
                     }
                 }
                 creating.map { c in
@@ -126,43 +120,29 @@ struct OutlineBranch: View {
                 }
             })
             .onDrop(of: [UTType.text], delegate: DragDropper(file: file, current: $dragging, open: $open, moveFile: { drag in
-                if case .failure(let err) = core.api.moveFile(id: drag.id, newParent: self.file.id) {
-                    core.handleError(err)
-                } else {
-                    withAnimation {
-                        core.updateFiles()
-                    }
-                    core.checkForLocalWork()
-                }
+                files.moveFile(id: drag.id, newParent: self.file.id)
             }))
         }
     }
     
     func handleDelete(meta: ClientFileMetadata) -> () -> Void {
         return {
-            switch core.api.deleteFile(id: meta.id) {
-            case .success(_):
-                core.deleteChannel.send(meta)
-                core.updateFiles()
-                core.checkForLocalWork()
-            case .failure(let err):
-                core.handleError(err)
-            }
+            files.deleteFile(id: meta.id)
         }
     }
     
     func handleCreate(meta: ClientFileMetadata, type: FileType) -> (String) -> Void {
         return { creatingName in
-            switch core.api.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
+            switch DI.core.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
             case .success(let newMeta):
                 doneCreating()
-                core.updateFiles()
-                core.checkForLocalWork()
+                files.refresh()
+                status.checkForLocalWork()
                 if (newMeta.fileType == .Document) {
                     selectedItem = newMeta
                 }
             case .failure(let err):
-                core.handleError(err)
+                errors.handleError(err)
             }
         }
     }
@@ -209,7 +189,7 @@ struct DragDropper: DropDelegate {
 
 struct OutlineSection: View {
     
-    @ObservedObject var core: GlobalState
+    @EnvironmentObject var files: FileService
     
     var root: ClientFileMetadata
     @Binding var selectedItem: ClientFileMetadata?
@@ -217,7 +197,7 @@ struct OutlineSection: View {
     @State var renaming: ClientFileMetadata?
 
     var children: [ClientFileMetadata] {
-        core.files.filter {
+        files.files.filter {
             $0.parent == root.id && $0.id != root.id
         }
     }
@@ -230,7 +210,7 @@ struct OutlineSection: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 // The padding in the section header is there to adjust for the inset hack.
-                OutlineBranch(core: core, file: root, selectedItem: self.$selectedItem, level: -1, dragging: self.$dragging, renaming: self.$renaming)
+                OutlineBranch(file: root, selectedItem: self.$selectedItem, level: -1, dragging: self.$dragging, renaming: self.$renaming)
                 Spacer()
             }
             .listStyle(SidebarListStyle())

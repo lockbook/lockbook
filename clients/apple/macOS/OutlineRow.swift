@@ -3,14 +3,16 @@ import SwiftLockbookCore
 
 /// This view handles displaying the contents of each row for its object. Clicking its arrow image also toggles a node's open state./
 struct OutlineRow: View {
-    @ObservedObject var core: GlobalState
+    
+    @EnvironmentObject var files: FileService
+    
     var file: ClientFileMetadata
     var level: CGFloat
     @Binding var open: Bool
     @Binding var dragging: ClientFileMetadata?
 
     var children: [ClientFileMetadata] {
-        core.files.filter {
+        files.files.filter {
             $0.parent == file.id && $0.id != file.id
         }
     }

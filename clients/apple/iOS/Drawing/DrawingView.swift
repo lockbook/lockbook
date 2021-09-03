@@ -5,7 +5,7 @@ import Combine
 
 struct DrawingView: UIViewRepresentable {
     @Environment(\.colorScheme) var colorScheme
-    @State var drawing: PKDrawing = PKDrawing()
+    let drawingToLoad: PKDrawing
     @State var zoom: CGFloat = 1
     @ObservedObject var toolPicker: ToolbarModel
     let pencilInteraction = UIPencilInteraction()
@@ -14,7 +14,8 @@ struct DrawingView: UIViewRepresentable {
     let onChange: (PKDrawing) -> Void
 
     func makeUIView(context: Context) -> PKCanvasView {
-        view.drawing = drawing
+        view.drawing = drawingToLoad
+        view.drawingPolicy = .anyInput
         view.tool = toolPicker.currentTool
 
         view.isOpaque = false
@@ -30,7 +31,7 @@ struct DrawingView: UIViewRepresentable {
         view.addInteraction(pencilInteraction)
 
         let imageView = UIImageView(image: UIImage(named: "grid")?.resizableImage(withCapInsets: UIEdgeInsets.init(top: 0, left: 0, bottom: 0, right: 0), resizingMode: .tile))
-        imageView.alpha = 0.3
+        imageView.alpha = 0.45
         imageView.frame = CGRect(x: 0, y: 0, width: view.contentSize.width, height: view.contentSize.height)
         let contentView = view.subviews[0]
         contentView.addSubview(imageView)
@@ -42,15 +43,18 @@ struct DrawingView: UIViewRepresentable {
     func updateUIView(_ view: PKCanvasView, context: Context) {
         view.tool = toolPicker.currentTool
         view.isRulerActive = toolPicker.isRulerShowing
+        if DI.openDrawing.reloadDrawing {
+            view.drawing = drawingToLoad
+        }
     }
 
     class Coordinator: NSObject, PKCanvasViewDelegate {
-        @Binding var drawing: PKDrawing
+        var drawing: PKDrawing
         @Binding var scaleFactor: CGFloat
         let onChange: (PKDrawing) -> ()
 
-        init(drawing: Binding<PKDrawing>, scaleFactor: Binding<CGFloat>, onChange: @escaping (PKDrawing) -> Void) {
-            _drawing = drawing
+        init(drawing: PKDrawing, scaleFactor: Binding<CGFloat>, onChange: @escaping (PKDrawing) -> Void) {
+            self.drawing = drawing
             _scaleFactor = scaleFactor
             self.onChange = onChange
         }
@@ -73,23 +77,22 @@ struct DrawingView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(drawing: $drawing, scaleFactor: $zoom, onChange: onChange)
+        Coordinator(drawing: drawingToLoad, scaleFactor: $zoom, onChange: onChange)
     }
 
 }
 
 struct Drawing_Previews: PreviewProvider {
-    static let core = GlobalState()
     static let toolbar = ToolbarModel()
-    static let dm = DrawingModel(write: { _, _ in .failure(.init(unexpected: "LAZY"))}, read: { _ in .failure(.init(unexpected: "LAZY"))})
     static let dc = PassthroughSubject<ClientFileMetadata, Never>()
 
     static var previews: some View {
-        DrawingLoader(model: dm, toolbar: toolbar, meta: core.files[0], deleteChannel: dc)
+        DrawingLoader(meta: Mock.files.files[0])
             .onAppear {
-                dm.originalDrawing = PKDrawing()
+                DI.openDrawing.loadDrawing = PKDrawing()
                 toolbar.selectedColor = .Red
             }
+            .mockDI()
     }
 }
 

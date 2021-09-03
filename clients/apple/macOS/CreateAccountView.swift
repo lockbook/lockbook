@@ -1,8 +1,7 @@
 import SwiftUI
 
 struct CreateAccountView: View {
-    @ObservedObject var core: GlobalState
-    @ObservedObject var createAccountState: OnboardingState
+    @EnvironmentObject var onboardingState: OnboardingService
     
     var body: some View {
         VStack(spacing:40) {
@@ -13,14 +12,14 @@ struct CreateAccountView: View {
                 Spacer()
             }
             HStack {
-                TextField("Choose a username", text: $createAccountState.username)
+                TextField("Choose a username", text: $onboardingState.username)
                     .disableAutocorrection(true)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                Button("Create", action: createAccountState.attemptCreate).buttonStyle(BorderedButtonStyle())
-                    .disabled(createAccountState.working)
+                Button("Create", action: onboardingState.attemptCreate).buttonStyle(BorderedButtonStyle())
+                    .disabled(onboardingState.working)
             }
             
-            Text(createAccountState.createAccountError)
+            Text(onboardingState.createAccountError)
                 .foregroundColor(.red)
                 .bold()
             

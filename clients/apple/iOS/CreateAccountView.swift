@@ -1,8 +1,7 @@
 import SwiftUI
 
 struct CreateAccountView: View {
-    @ObservedObject var core: GlobalState
-    @ObservedObject var onboardingState: OnboardingState
+    @EnvironmentObject var onboardingState: OnboardingService
     
     var body: some View {
         VStack(spacing:40) {
@@ -27,22 +26,22 @@ struct CreateAccountView: View {
 
 struct WithoutNavigationView: PreviewProvider {
     
-    static var onboardingState = OnboardingState(core: GlobalState())
     static var previews: some View {
         VStack {
-            CreateAccountView(core: GlobalState(), onboardingState: OnboardingState(core: GlobalState()))
+            CreateAccountView()
+                .mockDI()
         }
     }
 }
 
 struct WithoutNavigationViewWithError: PreviewProvider {
     
-    static var onboardingState = OnboardingState(core: GlobalState())
     static var previews: some View {
         VStack {
-            CreateAccountView(core: GlobalState(), onboardingState: onboardingState)
+            CreateAccountView()
+                .mockDI()
                 .onAppear {
-                    onboardingState.createAccountError = "An error occurred"
+                    Mock.onboarding.createAccountError = "An error occurred"
                 }
         }
     }
