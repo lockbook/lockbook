@@ -2,17 +2,27 @@ import SwiftUI
 import SwiftLockbookCore
 import Combine
 
-struct EditorView: View {
+struct EditorView: View, Equatable {
+    static func == (lhs: EditorView, rhs: EditorView) -> Bool {
+        lhs.text == rhs.text
+    }
+    
     @Environment(\.colorScheme) var colorScheme
     let meta: ClientFileMetadata
-    @State var text: String
+    let text: String
+    
+    init(meta: ClientFileMetadata, text: String, changeCallback: @escaping (String) -> Void) {
+        self.meta = meta
+        self.text = text
+        self.changeCallback = changeCallback
+    }
     
     let changeCallback: (String) -> Void
     
     var body: some View {
-        GeometryReader { geo in
+        return GeometryReader { geo in
             NotepadView(
-                text: $text,
+                text: text,
                 frame: geo.frame(in: .local),
                 theme: LockbookTheme,
                 onTextChange: changeCallback
@@ -23,18 +33,19 @@ struct EditorView: View {
 
 struct EditorLoader: View {
     
-    @ObservedObject var content: Content
+    @EnvironmentObject var content: OpenDocument
+    
     let meta: ClientFileMetadata
     @State var editorContent: String = ""
-    let deleteChannel: PassthroughSubject<ClientFileMetadata, Never>
-    @State var deleted: ClientFileMetadata?
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            switch content.text {
+            switch content.loadText {
             /// We are forcing this view to hit the default case when it is in a transitionary stage!
             case .some(let c) where content.meta?.id == meta.id:
-                if (deleted != meta) {
+                if (content.deleted) {
+                    Text("\(meta.name) file has been deleted")
+                } else {
                     #if os(macOS)
                     EditorView(meta: meta, text: c, changeCallback: content.updateText)
                     #else
@@ -43,8 +54,6 @@ struct EditorLoader: View {
                     #endif
                     ActivityIndicator(status: $content.status)
                         .opacity(content.status == .WriteSuccess ? 1 : 0)
-                } else {
-                    Text("\(meta.name) file has been deleted")
                 }
             default:
                 ProgressView()
@@ -54,94 +63,7 @@ struct EditorLoader: View {
             }
         }
         .navigationTitle(meta.name)
-        .onReceive(deleteChannel) { deletedMeta in
-            if (deletedMeta.id == meta.id) {
-                deleted = deletedMeta
-            }
-        }
     }
-}
-
-class Content: ObservableObject {
-    @Published var text: String?
-    @Published var meta: ClientFileMetadata?
-    var cancellables = Set<AnyCancellable>()
-    @Published var status: Status = .Inactive
-    let write: (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>
-    let read: (UUID) -> FfiResult<String, ReadDocumentError>
-    var writeListener: () -> Void = {}
-    
-    init(write: @escaping (UUID, String) -> FfiResult<SwiftLockbookCore.Empty, WriteToDocumentError>, read: @escaping (UUID) -> FfiResult<String, ReadDocumentError>) {
-        self.read = read
-        self.write = write
-        
-        $text
-            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
-            .sink(receiveValue: {
-                if let c = $0, let m = self.meta {
-                    self.writeDocument(meta: m, content: c)
-                }
-            })
-            .store(in: &cancellables)
-    }
-    
-    func updateText(text: String) {
-        self.text = text
-        status = .Inactive
-    }
-    
-    func writeDocument(meta: ClientFileMetadata, content: String) {
-        switch write(meta.id, content) {
-        case .success(_):
-            writeListener()
-            withAnimation {
-                status = .WriteSuccess
-            }
-        case .failure(let err):
-            print(err)
-        }
-    }
-    
-    func openDocument(meta: ClientFileMetadata) {
-        print("open document called")
-        DispatchQueue.main.async {
-            switch self.read(meta.id) {
-            case .success(let txt):
-                self.meta = meta
-                self.text = txt
-            case .failure(let err):
-                print(err)
-            }
-        }
-    }
-    
-    func closeDocument() {
-        print("Close document")
-        meta = .none
-        text = .none
-    }
-    
-    func reloadDocumentIfNeeded(meta: ClientFileMetadata) {
-        print("reload document called")
-        switch self.read(meta.id) {
-        case .success(let txt):
-            if self.text != txt { /// Close the document
-                print("reload")
-                self.closeDocument()
-                self.meta = meta
-                self.text = txt
-            }
-        case .failure(let err):
-            print(err)
-        }
-        
-    }
-}
-
-enum Status {
-    case WriteSuccess
-    case WriteFailure
-    case Inactive
 }
 
 #if os(macOS)
@@ -157,7 +79,8 @@ extension NSTextField {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EditorLoader(content: GlobalState().openDocument, meta: FakeApi.fileMetas[0], deleteChannel: PassthroughSubject<ClientFileMetadata, Never>())
+            EditorLoader(meta: FakeApi.fileMetas[0])
+                .mockDI()
         }
         .preferredColorScheme(.dark)
     }
