@@ -3,9 +3,9 @@ import SwiftLockbookCore
 
 struct AccountSettingsView: View {
     
-    @ObservedObject var core: GlobalState
-    @ObservedObject var settingsState: SettingsState
     let account: Account
+    
+    @EnvironmentObject var settings: SettingsService
     
     // MARK: QR Code things
     @State var codeRevealed: Bool = false
@@ -37,8 +37,8 @@ struct AccountSettingsView: View {
                 Text("Account Secret:")
                     .frame(maxWidth: 175, alignment: .trailing)
                 VStack {
-                    Button(action: settingsState.copyAccountString, label: {
-                        Text(settingsState.copyToClipboardText)
+                    Button(action: settings.copyAccountString, label: {
+                        Text(settings.copyToClipboardText)
                     }).frame(maxWidth: .infinity, alignment: .leading)
                     
                     Button(action: {codeRevealed.toggle()}, label: {
@@ -49,7 +49,7 @@ struct AccountSettingsView: View {
             }
             
             if codeRevealed {
-                settingsState.accountCode()
+                settings.accountCode()
             }
         }.padding(20)
     }

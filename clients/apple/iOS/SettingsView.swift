@@ -3,8 +3,8 @@ import SwiftLockbookCore
 
 struct SettingsView: View, Equatable {
     
-    @ObservedObject var core: GlobalState
-    @ObservedObject var settingsState: SettingsState
+    @EnvironmentObject var settingsState: SettingsService
+    
     let account: Account
     
     var body: some View {
@@ -85,12 +85,11 @@ struct SettingsView: View, Equatable {
 }
 
 struct SettingsViewPreview: PreviewProvider {
-    
-    static let core = GlobalState()
-    
+        
     static var previews: some View {
         NavigationView {
-            SettingsView(core: GlobalState(), settingsState: SettingsState(core: GlobalState()), account: .fake(username: "test"))
+            SettingsView(account: Mock.accounts.account!)
+                .mockDI()
         }
     }
 }
