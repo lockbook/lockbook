@@ -12,6 +12,15 @@ public class AnyFfiError: Error, Equatable {
     }
 }
 
+public class ErrorWithTitle: AnyFfiError {
+    public let title: String
+    
+    public init(title: String, message: String) {
+        self.title = title
+        super.init(message: message)
+    }
+}
+
 public class FfiError<U: UiError>: AnyFfiError, Decodable {
     public let kind: Kind
     
