@@ -3,9 +3,8 @@ import SwiftLockbookCore
 
 struct BottomBar: View {
     
-    @ObservedObject var core: GlobalState
-    
-    @State var offline: Bool = false
+    @EnvironmentObject var sync: SyncService
+    @EnvironmentObject var status: StatusService
     
     #if os(iOS)
     var onCreating: () -> Void = {}
@@ -26,16 +25,16 @@ struct BottomBar: View {
     
     #if os(iOS)
     var syncButton: AnyView {
-        if core.syncing {
+        if sync.syncing {
             return AnyView(ProgressView())
         } else {
-            if offline {
+            if sync.offline {
                 return AnyView(Image(systemName: "xmark.icloud.fill")
                                 .foregroundColor(Color.gray))
             } else {
                 return AnyView(Button(action: {
-                    core.syncing = true
-                    core.work = 0
+                    sync.sync()
+                    status.work = 0
                 }) {
                     Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                         .imageScale(.large)
@@ -47,7 +46,7 @@ struct BottomBar: View {
     }
     #else
     var syncButton: AnyView {
-        if core.syncing || offline {
+        if sync.syncing || sync.offline {
             
             return AnyView(
                 Text("")
@@ -57,8 +56,8 @@ struct BottomBar: View {
             
         } else {
             return AnyView(Button(action: {
-                core.syncing = true
-                core.work = 0
+                sync.sync()
+                status.work = 0
             }) {
                 Text("Sync now")
                     .font(.callout)
@@ -69,27 +68,27 @@ struct BottomBar: View {
     #endif
     
     var localChangeText: String {
-        if core.work == 0 { // not shown in this situation
+        if status.work == 0 { // not shown in this situation
             return ""
-        } else if core.work == 1 {
+        } else if status.work == 1 {
             return "1 unsynced change"
         } else {
-            return "\(core.work) unsynced changes"
+            return "\(status.work) unsynced changes"
         }
     }
     
     var statusText: AnyView {
-        if core.syncing {
+        if sync.syncing {
             return AnyView(Text("Syncing...")
                             .foregroundColor(.secondary))
         } else {
-            if offline {
+            if sync.offline {
                 return AnyView(Text("Offline")
                                 .foregroundColor(.secondary)
                 )
             } else {
                 return AnyView(
-                    Text(core.work == 0 ? "Last update: \(core.lastSynced)" : localChangeText)
+                    Text(status.work == 0 ? "Last update: \(status.lastSynced)" : localChangeText)
                         .font(.callout)
                         .foregroundColor(.secondary)
                         .bold()
@@ -117,19 +116,18 @@ struct BottomBar: View {
 
 #if os(iOS)
 struct SyncingPreview: PreviewProvider {
-    
-    static let core = GlobalState()
-    
     static var previews: some View {
         NavigationView {
             HStack {
             }.toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar(core: core)
+                    BottomBar()
                 }
             }
-        }.onAppear {
-            core.syncing = true
+        }
+        .mockDI()
+        .onAppear {
+            Mock.sync.sync()
         }
         
         
@@ -137,19 +135,19 @@ struct SyncingPreview: PreviewProvider {
 }
 
 struct NonSyncingPreview: PreviewProvider {
-    
-    static let core = GlobalState()
-    
+        
     static var previews: some View {
         NavigationView {
             HStack {
             }.toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar(core: core)
+                    BottomBar()
                 }
             }
-        }.onAppear {
-            core.syncing = false
+        }
+        .mockDI()
+        .onAppear {
+            Mock.sync.sync()
         }
         
         
@@ -157,17 +155,19 @@ struct NonSyncingPreview: PreviewProvider {
 }
 
 struct OfflinePreview: PreviewProvider {
-    
-    static let core = GlobalState()
-    
+        
     static var previews: some View {
         NavigationView {
             HStack {
             }.toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar(core: core, offline: true)
+                    BottomBar()
                 }
             }
+        }
+        .mockDI()
+        .onAppear {
+            Mock.sync.offline = true
         }
         
         
@@ -175,20 +175,19 @@ struct OfflinePreview: PreviewProvider {
 }
 
 struct WorkItemsPreview: PreviewProvider {
-    
-    static let core = GlobalState()
-    
+        
     static var previews: some View {
         NavigationView {
             HStack {
             }.toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
-                    BottomBar(core: core)
+                    BottomBar()
                         .onAppear {
-                            core.work = 5
+                            Mock.status.work = 5
                         }
                 }
             }
+            .mockDI()
         }
         
         

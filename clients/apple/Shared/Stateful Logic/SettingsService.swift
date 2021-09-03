@@ -1,19 +1,12 @@
 import SwiftLockbookCore
 import SwiftUI
 
-struct PrerequisiteInformation {
-    let serverUsages: UsageMetrics
-    let uncompressedUsage: UsageItemMetric
-    var compressionRatio: String {
-        let ratio = Double(uncompressedUsage.exact) / Double(serverUsages.serverUsage.exact)
-        return "\( round(ratio*10) / 10.0 )x"
-    }
-}
-
-class SettingsState: ObservableObject {
-    @ObservedObject var core: GlobalState
+class SettingsService: ObservableObject {
+    
+    let core: LockbookApi
     
     @Published var usages: PrerequisiteInformation?
+
     var usageProgress: Double {
         switch usages {
         case .some(let usage):
@@ -38,12 +31,12 @@ class SettingsState: ObservableObject {
         }
     }
     
-    init(core: GlobalState) {
+    init(_ core: LockbookApi) {
         self.core = core
     }
     
     func copyAccountString() {
-        switch core.api.exportAccount() {
+        switch core.exportAccount() {
         case .success(let accountString):
             #if os(iOS)
             UIPasteboard.general.string = accountString
@@ -53,33 +46,46 @@ class SettingsState: ObservableObject {
             #endif
             copied = true
         case .failure(let err):
-            core.handleError(err)
+            DI.errors.handleError(err)
         }
     }
     
-    // This is the actual right way to do async stuff
     func calculateUsage() {
         if self.usages == nil {
             DispatchQueue.global(qos: .userInteractive).async {
-                switch self.core.api.getUsage() {
+                switch self.core.getUsage() {
                 case .success(let usages):
-                    switch self.core.api.getUncompressedUsage() {
+                    switch self.core.getUncompressedUsage() {
                     case .success(let uncompressedUsage):
                         DispatchQueue.main.async {
                             self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: uncompressedUsage)
                         }
                     case .failure(let err):
-                        self.core.handleError(err)
+                        // TODO handle an explicit offline mode here
+                        switch err.kind {
+                        case .UiError(let uiError):
+                            switch uiError {
+                            case .ClientUpdateRequired:
+                                DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
+                            case .CouldNotReachServer:
+                                DI.errors.errorWithTitle("Offline", "Could not reach server to calculate usage")
+                            default:
+                                DI.errors.handleError(err)
+                            }
+                        default:
+                            DI.errors.handleError(err)
+                        }
+                        DI.errors.handleError(err)
                     }
                 case .failure(let err):
-                    self.core.handleError(err)
+                    DI.errors.handleError(err)
                 }
             }
         }
     }
     
     func accountCode() -> AnyView {
-        switch core.api.exportAccount() {
+        switch core.exportAccount() {
         case .success(let accountString):
             let data = accountString.data(using: String.Encoding.ascii)
             if let filter = CIFilter(name: "CIQRCodeGenerator") {
@@ -87,17 +93,22 @@ class SettingsState: ObservableObject {
                 let transform = CGAffineTransform(scaleX: 3, y: 3)
                 if let output = filter.outputImage?.transformed(by: transform) {
                     if let cgCode = CIContext().createCGImage(output, from: output.extent) {
-                        return AnyView(Image(cgCode, scale: 1.0, label: Text("")))
+                        return AnyView(Image(cgCode, scale: 1.0, label: Text(""))) // TODO make bigger probably 
                     }
                 }
             }
         case .failure(let err):
-            core.handleError(err)
+            DI.errors.handleError(err)
         }
         return AnyView(Text("Failed to generate QR Code"))
     }
-    
-    func purgeAndLogout() {
-        DispatchQueue.global(qos: .userInteractive).async { self.core.purge() }
+}
+
+struct PrerequisiteInformation {
+    let serverUsages: UsageMetrics
+    let uncompressedUsage: UsageItemMetric
+    var compressionRatio: String {
+        let ratio = Double(uncompressedUsage.exact) / Double(serverUsages.serverUsage.exact)
+        return "\( round(ratio*10) / 10.0 )x"
     }
 }

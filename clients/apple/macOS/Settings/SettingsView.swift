@@ -2,10 +2,11 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct SettingsView: View {
-    @ObservedObject var core: GlobalState
+    
+    @EnvironmentObject var accounts: AccountService
     
     var body: some View {
-        switch core.account {
+        switch accounts.getAccount() {
         case .none:
             VStack(spacing: 20) {
                 Text("You need an account for settings!")
@@ -13,11 +14,11 @@ struct SettingsView: View {
             }.padding(100)
         case .some(let account):
             TabView {
-                AccountSettingsView(core: core, settingsState: SettingsState(core:core), account: account)
+                AccountSettingsView(account: account)
                     .tabItem {
                         Label("Account", systemImage: "person")
                     }
-                UsageSettingsView(core: core, settingsState: SettingsState(core:core))
+                UsageSettingsView()
                     .tabItem {
                         Label("Usage", systemImage: "externaldrive")
                     }
