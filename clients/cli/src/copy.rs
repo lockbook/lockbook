@@ -60,8 +60,8 @@ fn get_or_create_file(lb_path: &str) -> CliResult<ClientFileMetadata> {
     };
 
     // It does not exist, create it
-    if lb_path.ends_with("/") {
-        create_file_at_path(&get_config(), &lb_path).map_err(|err| match err {
+    if lb_path.ends_with('/') {
+        create_file_at_path(&get_config(), lb_path).map_err(|err| match err {
             CoreError::UiError(err) => match err {
                 CreateFileAtPathError::FileAlreadyExists => {
                     err!(FileAlreadyExists(lb_path.to_string()))
