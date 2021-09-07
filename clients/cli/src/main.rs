@@ -34,12 +34,9 @@ enum Lockbook {
 
     /// Copy a file from your file system into your Lockbook
     Copy {
-        /// Overwrite the file if it exists already
-        #[structopt(long)]
-        edit: bool,
-
         /// Filesystem location, a folder or individual file
-        file: PathBuf,
+        #[structopt(required = true)]
+        files: Vec<PathBuf>,
 
         /// Lockbook location, for files this can be the parent, or the intended file name within
         /// the parent. For folders, this specifies the parent.
@@ -158,11 +155,7 @@ fn main() {
     }
 
     if let Err(err) = match args {
-        Lockbook::Copy {
-            file,
-            destination,
-            edit,
-        } => copy::copy(file, &destination, edit),
+        Lockbook::Copy { files, destination } => copy::copy(&files, &destination),
         Lockbook::Edit { path } => edit::edit(path.trim()),
         Lockbook::ExportPrivateKey => export_private_key::export_private_key(),
         Lockbook::ImportPrivateKey => import_private_key::import_private_key(),
