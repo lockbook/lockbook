@@ -44,6 +44,7 @@ struct DrawingView: UIViewRepresentable {
         view.tool = toolPicker.currentTool
         view.isRulerActive = toolPicker.isRulerShowing
         if DI.openDrawing.reloadDrawing {
+            DI.openDrawing.reloadDrawing = false
             view.drawing = drawingToLoad
         }
     }
