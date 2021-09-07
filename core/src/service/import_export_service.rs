@@ -22,7 +22,7 @@ pub fn import_file(
     parent: Uuid,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    if file_metadata_repo::get(&config, parent)?.is_document() {
+    if file_metadata_repo::get(config, parent)?.is_document() {
         return Err(CoreError::FileNotFolder);
     }
 
