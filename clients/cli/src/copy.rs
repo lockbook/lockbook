@@ -18,7 +18,7 @@ pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
 
     let import_progress = |info: ImportExportFileInfo| {
         println!(
-            "{} imported to {}",
+            "importing: {} to {}",
             info.disk_path.display(),
             info.lockbook_path
         );
