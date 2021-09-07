@@ -34,12 +34,11 @@ enum Lockbook {
 
     /// Copy a file from your file system into your Lockbook
     Copy {
-        /// Filesystem location, a folder or individual file
+        /// At-least one filesystem location
         #[structopt(required = true)]
-        files: Vec<PathBuf>,
+        disk_files: Vec<PathBuf>,
 
-        /// Lockbook location, for files this can be the parent, or the intended file name within
-        /// the parent. For folders, this specifies the parent.
+        /// A folder within your Lockbook, will be created if it does not exist
         destination: String,
     },
 
@@ -155,7 +154,7 @@ fn main() {
     }
 
     if let Err(err) = match args {
-        Lockbook::Copy { files, destination } => copy::copy(&files, &destination),
+        Lockbook::Copy { disk_files: files, destination } => copy::copy(&files, &destination),
         Lockbook::Edit { path } => edit::edit(path.trim()),
         Lockbook::ExportPrivateKey => export_private_key::export_private_key(),
         Lockbook::ImportPrivateKey => import_private_key::import_private_key(),

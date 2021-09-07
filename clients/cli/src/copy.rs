@@ -11,7 +11,7 @@ use crate::{err, err_unexpected};
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 
-pub fn copy(disk_path: &[PathBuf], lb_path: &str) -> CliResult<()> {
+pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
     get_account_or_exit();
 
     let file_metadata = get_or_create_file(lb_path)?;
@@ -24,7 +24,7 @@ pub fn copy(disk_path: &[PathBuf], lb_path: &str) -> CliResult<()> {
         );
     };
 
-    for path in disk_path {
+    for path in disk_paths {
         import_file(
             &get_config(),
             path.to_path_buf(),
