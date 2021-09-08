@@ -40,7 +40,7 @@ mod import_export_file_tests {
             assert!(info.disk_path.exists());
         };
 
-        import_file(&config, root.id, doc_path, false, Some(Box::new(f.clone()))).unwrap();
+        import_file(&config, doc_path, root.id, Some(Box::new(f.clone()))).unwrap();
 
         get_file_by_path(&config, &format!("/{}/{}", root.name, name)).unwrap();
 
@@ -55,14 +55,7 @@ mod import_export_file_tests {
 
         std::fs::write(&child_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
-        import_file(
-            &config,
-            root.id,
-            parent_path,
-            false,
-            Some(Box::new(f.clone())),
-        )
-        .unwrap();
+        import_file(&config, parent_path, root.id, Some(Box::new(f.clone()))).unwrap();
 
         get_file_by_path(
             &config,

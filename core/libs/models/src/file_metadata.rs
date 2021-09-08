@@ -36,3 +36,13 @@ pub struct FileMetadata {
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
 }
+
+impl FileMetadata {
+    pub fn is_folder(&self) -> bool {
+        self.file_type == FileType::Folder
+    }
+
+    pub fn is_document(&self) -> bool {
+        self.file_type == FileType::Document
+    }
+}
