@@ -46,10 +46,11 @@ class SyncService: ObservableObject {
             let result = self.core.syncAll()
             
             DispatchQueue.main.async {
-                
+                self.syncing = false
+
                 switch result {
                 case .success(_):
-                    self.syncing = false
+                    self.offline = false
                     self.postSyncSteps()
                 case .failure(let error):
                     switch error.kind {

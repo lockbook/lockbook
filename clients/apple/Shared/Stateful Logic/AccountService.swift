@@ -26,7 +26,6 @@ class AccountService: ObservableObject {
     }
     
     func getAccount() -> Account? {
-        print("get account")
         if account == nil {
             switch core.getAccount() {
             case .success(let account):
