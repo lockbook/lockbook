@@ -103,38 +103,41 @@ pub fn maybe_find_root(files: &[DecryptedFileMetadata]) -> Option<DecryptedFileM
     files.iter().find(|f| f.id == f.parent).map(|f| f.clone())
 }
 
-/// Returns the files which are not deleted and have no deleted ancestors.
-pub fn filter_not_deleted(
-    files: &[DecryptedFileMetadata],
-) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    let mut result = Vec::new();
-    result.push(find_root(files)?);
-    let mut i = 0;
-    while i < result.len() {
-        let target = result.get(i).ok_or(CoreError::Unexpected(String::from(
-            "filter_deleted: missing target",
-        )))?;
-        let children = find_children(files, target.id);
-        for child in children {
-            if !child.deleted {
-                result.push(child);
-            }
-        }
-        i += 1;
-    }
-    Ok(result)
+/// Returns the files which are not deleted and have no deleted ancestors. Files with parents not present in the argument are considered deleted.
+pub fn filter_not_deleted(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMetadata> {
+    let deleted = filter_deleted(&files);
+    files
+        .iter()
+        .filter(|f| !deleted.iter().any(|nd| nd.id == f.id))
+        .map(|f| f.clone())
+        .collect()
 }
 
-/// Returns the files which are deleted or have deleted ancestors.
-pub fn filter_deleted(
-    files: &[DecryptedFileMetadata],
-) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    let not_deleted = filter_not_deleted(&files)?;
-    Ok(files
-        .iter()
-        .filter(|f| !not_deleted.iter().any(|nd| nd.id == f.id))
-        .map(|f| f.clone())
-        .collect())
+/// Returns the files which are deleted or have deleted ancestors. Files with parents not present in the argument are considered deleted.
+pub fn filter_deleted(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMetadata> {
+    let mut result = Vec::new();
+    for file in files {
+        let mut ancestor = file.clone();
+        loop {
+            if ancestor.deleted {
+                result.push(file.clone());
+                break;
+            }
+            match maybe_find(files, file.parent) {
+                Some(parent) => {
+                    if ancestor.id == parent.id {
+                        break;
+                    }
+                    ancestor = parent;
+                }
+                None => {
+                    result.push(file.clone());
+                    break;
+                }
+            }
+        }
+    }
+    result
 }
 
 /// Returns the files which are documents.

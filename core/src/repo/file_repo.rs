@@ -38,13 +38,16 @@ pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>
 }
 
 pub fn get_all_with_document_changes(config: &Config) -> Result<Vec<Uuid>, CoreError> {
-    Ok(get_all_metadata(config, RepoSource::Local)?
+    let all = get_all_metadata(config, RepoSource::Local)?;
+    let not_deleted = utils::filter_not_deleted(&all);
+    let not_deleted_with_document_changes = not_deleted
         .into_iter()
         .map(|f| document_repo::maybe_get(config, RepoSource::Local, f.id).map(|r| r.map(|_| f.id)))
         .collect::<Result<Vec<Option<Uuid>>, CoreError>>()?
         .into_iter()
         .filter_map(|id| id)
-        .collect())
+        .collect();
+    Ok(not_deleted_with_document_changes)
 }
 
 /// Adds or updates the metadata of a file on disk.
@@ -84,13 +87,6 @@ pub fn insert_metadata(
         }
     }
 
-    // delete documents from disk if their metadata is set to deleted
-    if metadata.deleted {
-        if let Some(_) = maybe_get_document(config, source, metadata.id)? {
-            delete_document(config, metadata.id)?;
-        }
-    }
-
     Ok(())
 }
 
@@ -126,9 +122,7 @@ pub fn get_all_metadata(
                 .collect::<Vec<FileMetadata>>();
             file_encryption_service::decrypt_metadata(&account, &staged)
         }
-        RepoSource::Base => {
-            file_encryption_service::decrypt_metadata(&account, &base)
-        },
+        RepoSource::Base => file_encryption_service::decrypt_metadata(&account, &base),
     }
 }
 
@@ -201,12 +195,10 @@ pub fn maybe_get_document(
 ) -> Result<Option<DecryptedDocument>, CoreError> {
     let maybe_metadata = maybe_get_metadata(config, source, id)?;
     let maybe_encrypted = match source {
-        RepoSource::Local => {
-            match document_repo::maybe_get(config, RepoSource::Local, id)? {
-                Some(metadata) => Some(metadata),
-                None => document_repo::maybe_get(config, RepoSource::Base, id)?,
-            }
-        }
+        RepoSource::Local => match document_repo::maybe_get(config, RepoSource::Local, id)? {
+            Some(metadata) => Some(metadata),
+            None => document_repo::maybe_get(config, RepoSource::Base, id)?,
+        },
         RepoSource::Base => document_repo::maybe_get(config, RepoSource::Base, id)?,
     };
     let maybe_compressed = match (maybe_metadata, maybe_encrypted) {
@@ -221,27 +213,40 @@ pub fn maybe_get_document(
     }
 }
 
-/// Updates base metadata, content and digests to local. Then, wipes local.
+/// Updates base files to match local files.
 pub fn promote(config: &Config) -> Result<(), CoreError> {
-    let local_everything = metadata_repo::get_all(config, RepoSource::Local)?
+    let base_metadata = metadata_repo::get_all(config, RepoSource::Base)?;
+    let local_metadata = metadata_repo::get_all(config, RepoSource::Local)?;
+    let staged_metadata = utils::stage_encrypted(&base_metadata, &local_metadata);
+    let staged_everything = staged_metadata
         .into_iter()
-        .map(|f| {
+        .map(|(f, _)| {
             Ok((
                 f.clone(),
-                document_repo::get(config, RepoSource::Local, f.id)?,
-                digest_repo::get(config, RepoSource::Local, f.id)?,
+                match document_repo::maybe_get(config, RepoSource::Local, f.id)? {
+                    Some(document) => Some(document),
+                    None => document_repo::maybe_get(config, RepoSource::Base, f.id)?,
+                },
+                match digest_repo::maybe_get(config, RepoSource::Local, f.id)? {
+                    Some(digest) => Some(digest),
+                    None => digest_repo::maybe_get(config, RepoSource::Base, f.id)?,
+                },
             ))
         })
-        .collect::<Result<Vec<(FileMetadata, EncryptedDocument, Vec<u8>)>, CoreError>>()?;
+        .collect::<Result<Vec<(FileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>, CoreError>>()?;
 
     metadata_repo::delete_all(config, RepoSource::Base)?;
     document_repo::delete_all(config, RepoSource::Base)?;
     digest_repo::delete_all(config, RepoSource::Base)?;
 
-    for (metadata, document, digest) in local_everything {
+    for (metadata, maybe_document, maybe_digest) in staged_everything {
         metadata_repo::insert(config, RepoSource::Base, &metadata)?;
-        document_repo::insert(config, RepoSource::Base, metadata.id, &document)?;
-        digest_repo::insert(config, RepoSource::Base, metadata.id, &digest)?;
+        if let Some(document) = maybe_document {
+            document_repo::insert(config, RepoSource::Base, metadata.id, &document)?;
+        }
+        if let Some(digest) = maybe_digest {
+            digest_repo::insert(config, RepoSource::Base, metadata.id, &digest)?;
+        }
     }
 
     metadata_repo::delete_all(config, RepoSource::Local)?;
@@ -249,13 +254,38 @@ pub fn promote(config: &Config) -> Result<(), CoreError> {
     digest_repo::delete_all(config, RepoSource::Local)
 }
 
-/// Removes metadata, content, and digests of deleted files or files with deleted ancestors. Call this function after a
-/// set of operations rather than in-between each operation because otherwise you'll prune e.g. a file that was moved
-/// out of a folder that was deleted.
-pub fn prune_local_deleted(config: &Config) -> Result<(), CoreError> {
-    let all_metadata = get_all_metadata(config, RepoSource::Local)?;
-    let deleted_metadata = utils::filter_deleted(&all_metadata)?;
-    for file in deleted_metadata {
+/// Removes deleted files from disks only if they are deleted on local and base. Includes files with deleted ancestors.
+/// Call this function after a set of operations rather than in-between each operation because otherwise you'll prune
+/// e.g. a file that was moved out of a folder that was deleted.
+pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
+    let all_base_metadata = get_all_metadata(config, RepoSource::Base)?;
+    let deleted_base_metadata = utils::filter_deleted(&all_base_metadata);
+
+    // If a file is deleted or has a deleted ancestor, we say that it is deleted. Whether a file is deleted is specific
+    // to the source (base or local). We cannot prune (delete from disk) a file in one source and not in the other in
+    // order to preserve the semantics of having a file present on one, the other, or both (unmodified/new/modified).
+    // For a file to be pruned, it must be deleted on both sources but also have no non-deleted descendants on either
+    // source - otherwise, the metadata for those descendants can no longer be decrypted. For an example of a situation
+    // where this is important, see the test prune_deleted_document_moved_from_deleted_folder_local_only.
+
+    // todo: actually implement it that way ^
+
+    let all = get_all_metadata(config, RepoSource::Local)?;
+    let deleted_directly_both = all
+        .into_iter()
+        .map(|mut file| {
+            file.deleted &= if let Some(true) = utils::maybe_find(&deleted_base_metadata, file.id).map(|f| f.deleted) {
+                true
+            } else {
+                false
+            };
+            file
+        })
+        .collect::<Vec<DecryptedFileMetadata>>();
+    let deleted_both = utils::filter_deleted(&deleted_directly_both);
+
+    for file in deleted_both {
+        println!("deleting metadata. id = {}", file.id);
         delete_metadata(config, file.id)?;
         if file.file_type == FileType::Document {
             delete_document(config, file.id)?;
@@ -286,7 +316,7 @@ mod unit_tests {
     use crate::repo::{account_repo, file_repo};
     use crate::service::{file_service, test_utils};
 
-    macro_rules! assert_local_metadata_changes_count (
+    macro_rules! assert_metadata_changes_count (
         ($db:expr, $total:literal) => {
             assert_eq!(
                 file_repo::get_all_metadata_changes($db)
@@ -297,13 +327,40 @@ mod unit_tests {
         }
     );
 
-    macro_rules! assert_local_document_changes_count (
+    macro_rules! assert_document_changes_count (
         ($db:expr, $total:literal) => {
             assert_eq!(
                 file_repo::get_all_with_document_changes($db)
                     .unwrap()
                     .len(),
                 $total
+            );
+        }
+    );
+
+    macro_rules! assert_metadata_nonexistent (
+        ($db:expr, $source:expr, $id:expr) => {
+            assert_eq!(
+                file_repo::maybe_get_metadata($db, $source, $id).unwrap(),
+                None,
+            );
+        }
+    );
+
+    macro_rules! assert_metadata_eq (
+        ($db:expr, $source:expr, $id:expr, $metadata:expr) => {
+            assert_eq!(
+                file_repo::maybe_get_metadata($db, $source, $id).unwrap(),
+                Some($metadata.clone()),
+            );
+        }
+    );
+
+    macro_rules! assert_document_eq (
+        ($db:expr, $source:expr, $id:expr, $document:literal) => {
+            assert_eq!(
+                file_repo::maybe_get_document($db, $source, $id).unwrap(),
+                Some($document.to_vec()),
             );
         }
     );
@@ -365,7 +422,7 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
 
         root.decrypted_name += " 2";
-        
+
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
         let result = file_repo::get_metadata(config, RepoSource::Local, root.id).unwrap();
 
@@ -391,7 +448,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
 
         account_repo::insert(config, &account).unwrap();
-        let result = file_repo::maybe_get_metadata(config, RepoSource::Local, Uuid::new_v4()).unwrap();
+        let result =
+            file_repo::maybe_get_metadata(config, RepoSource::Local, Uuid::new_v4()).unwrap();
 
         assert!(result.is_none());
     }
@@ -401,12 +459,14 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let document = file_service::create(FileType::Document, root.id, "document", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content").unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
+            .unwrap();
     }
 
     #[test]
@@ -414,12 +474,14 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let document = file_service::create(FileType::Document, root.id, "document", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content").unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
+            .unwrap();
         let result = file_repo::get_document(config, RepoSource::Local, document.id).unwrap();
 
         assert_eq!(result, b"document content");
@@ -441,12 +503,14 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let document = file_service::create(FileType::Document, root.id, "document", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"document content").unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
         let result = file_repo::get_document(config, RepoSource::Local, document.id).unwrap();
 
         assert_eq!(result, b"document content");
@@ -457,13 +521,16 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let document = file_service::create(FileType::Document, root.id, "document", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"document content").unwrap();
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2").unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2")
+            .unwrap();
         let result = file_repo::get_document(config, RepoSource::Local, document.id).unwrap();
 
         assert_eq!(result, b"document content 2");
@@ -474,12 +541,14 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let document = file_service::create(FileType::Document, root.id, "document", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"document content").unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
         let result = file_repo::maybe_get_document(config, RepoSource::Local, document.id).unwrap();
 
         assert_eq!(result, Some(b"document content".to_vec()));
@@ -491,7 +560,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
 
         account_repo::insert(config, &account).unwrap();
-        let result = file_repo::maybe_get_document(config, RepoSource::Local, Uuid::new_v4()).unwrap();
+        let result =
+            file_repo::maybe_get_document(config, RepoSource::Local, Uuid::new_v4()).unwrap();
 
         assert!(result.is_none());
     }
@@ -500,11 +570,11 @@ mod unit_tests {
     fn no_changes() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        
+
         account_repo::insert(config, &account).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
     }
 
     #[test]
@@ -512,13 +582,15 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        assert_local_metadata_changes_count!(config, 1);
-        assert_local_document_changes_count!(config, 0);
-        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0].old_parent_and_name.is_none());
+        assert_metadata_changes_count!(config, 1);
+        assert_document_changes_count!(config, 0);
+        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
+            .old_parent_and_name
+            .is_none());
     }
 
     #[test]
@@ -526,15 +598,17 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        assert_local_metadata_changes_count!(config, 1);
-        assert_local_document_changes_count!(config, 0);
-        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0].old_parent_and_name.is_none());
+        assert_metadata_changes_count!(config, 1);
+        assert_document_changes_count!(config, 0);
+        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
+            .old_parent_and_name
+            .is_none());
     }
 
     #[test]
@@ -542,13 +616,13 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
     }
 
     #[test]
@@ -556,13 +630,13 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
     }
 
     #[test]
@@ -571,8 +645,9 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
         let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document = file_service::create(FileType::Document, root.id, "document", &account.username);
-        
+        let mut document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
@@ -581,21 +656,23 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &folder).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
 
         document.parent = folder.id;
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 1);
-        assert_local_document_changes_count!(config, 0);
-        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0].old_parent_and_name.is_some());
+        assert_metadata_changes_count!(config, 1);
+        assert_document_changes_count!(config, 0);
+        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
+            .old_parent_and_name
+            .is_some());
 
         document.parent = root.id;
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
     }
 
     #[test]
@@ -604,8 +681,9 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
         let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document = file_service::create(FileType::Document, root.id, "document", &account.username);
-        
+        let mut document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
@@ -614,21 +692,23 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &folder).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
 
         document.decrypted_name = String::from("document 2");
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 1);
-        assert_local_document_changes_count!(config, 0);
-        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0].old_parent_and_name.is_some());
+        assert_metadata_changes_count!(config, 1);
+        assert_document_changes_count!(config, 0);
+        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
+            .old_parent_and_name
+            .is_some());
 
         document.decrypted_name = String::from("document");
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
     }
 
     #[test]
@@ -637,8 +717,9 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
         let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document = file_service::create(FileType::Document, root.id, "document", &account.username);
-        
+        let mut document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
@@ -647,15 +728,17 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &folder).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
 
         document.deleted = true;
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 1);
-        assert_local_document_changes_count!(config, 0);
-        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0].old_parent_and_name.is_some());
+        assert_metadata_changes_count!(config, 1);
+        assert_document_changes_count!(config, 0);
+        assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
+            .old_parent_and_name
+            .is_some());
     }
 
     #[test]
@@ -663,9 +746,11 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let mut root = file_service::create_root(&account.username);
-        let mut folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document = file_service::create(FileType::Document, root.id, "document", &account.username);
-        
+        let mut folder =
+            file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let mut document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
@@ -674,20 +759,21 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &folder).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
 
         root.decrypted_name = String::from("root 2");
         folder.deleted = true;
         document.parent = folder.id;
-        let document2 = file_service::create(FileType::Document, root.id, "document 2", &account.username);
+        let document2 =
+            file_service::create(FileType::Document, root.id, "document 2", &account.username);
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &folder).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &document2).unwrap();
 
-        assert_local_metadata_changes_count!(config, 4);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 4);
+        assert_document_changes_count!(config, 0);
     }
 
     #[test]
@@ -695,22 +781,25 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let document = file_service::create(FileType::Document, root.id, "document", &account.username);
-        
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
 
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content").unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
+            .unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 1);
-        assert_eq!(file_repo::get_all_with_document_changes(config).unwrap()[0], document.id);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 1);
+        assert_eq!(
+            file_repo::get_all_with_document_changes(config).unwrap()[0],
+            document.id
+        );
     }
 
     #[test]
@@ -718,24 +807,29 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let document = file_service::create(FileType::Document, root.id, "document", &account.username);
-        
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
 
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content").unwrap();
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content").unwrap();
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content").unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
+            .unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
+            .unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
+            .unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 1);
-        assert_eq!(file_repo::get_all_with_document_changes(config).unwrap()[0], document.id);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 1);
+        assert_eq!(
+            file_repo::get_all_with_document_changes(config).unwrap()[0],
+            document.id
+        );
     }
 
     #[test]
@@ -743,58 +837,345 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let document = file_service::create(FileType::Document, root.id, "document", &account.username);
-        
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"document content").unwrap();
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content").unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
 
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2").unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2")
+            .unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 1);
-        assert_eq!(file_repo::get_all_with_document_changes(config).unwrap()[0], document.id);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 1);
+        assert_eq!(
+            file_repo::get_all_with_document_changes(config).unwrap()[0],
+            document.id
+        );
 
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content").unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
+            .unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
     }
 
     #[test]
-    fn document_edit_promote() {
+    fn document_edit_manual_promote() {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let document = file_service::create(FileType::Document, root.id, "document", &account.username);
-        
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2")
+            .unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 1);
+        assert_eq!(
+            file_repo::get_all_with_document_changes(config).unwrap()[0],
+            document.id
+        );
+
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content 2")
+            .unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+    }
+
+    #[test]
+    fn promote() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let mut root = file_service::create_root(&account.username);
+        let mut folder =
+            file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let mut document =
+            file_service::create(FileType::Document, folder.id, "document", &account.username);
+        let document2 = file_service::create(
+            FileType::Document,
+            folder.id,
+            "document 2",
+            &account.username,
+        );
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document2).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document2, b"document 2 content")
+            .unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+
+        root.decrypted_name = String::from("root 2");
+        folder.deleted = true;
+        document.parent = root.id;
+        let document3 =
+            file_service::create(FileType::Document, root.id, "document 3", &account.username);
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Local, &folder).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"document content").unwrap();
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content").unwrap();
+        file_repo::insert_metadata(config, RepoSource::Local, &document3).unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2")
+            .unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document3, b"document 3 content")
+            .unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        assert_metadata_changes_count!(config, 4);
+        assert_document_changes_count!(config, 2);
 
-        file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2").unwrap();
+        file_repo::promote(config).unwrap();
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 1);
-        assert_eq!(file_repo::get_all_with_document_changes(config).unwrap()[0], document.id);
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_eq!(config, RepoSource::Base, root.id, root);
+        assert_metadata_eq!(config, RepoSource::Base, folder.id, folder);
+        assert_metadata_eq!(config, RepoSource::Base, document.id, document);
+        assert_metadata_eq!(config, RepoSource::Base, document2.id, document2);
+        assert_metadata_eq!(config, RepoSource::Base, document3.id, document3);
+        assert_document_eq!(config, RepoSource::Base, document.id, b"document content 2");
+        assert_document_eq!(config, RepoSource::Base, document2.id, b"document 2 content");
+        assert_document_eq!(config, RepoSource::Base, document3.id, b"document 3 content");
+    }
 
-        file_repo::insert_document(config, RepoSource::Base, &document, b"document content 2").unwrap();
+    #[test]
+    fn prune_deleted() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let mut document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
 
-        assert_local_metadata_changes_count!(config, 0);
-        assert_local_document_changes_count!(config, 0);
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+
+        document.deleted = true;
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
+        file_repo::prune_deleted(config).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_nonexistent!(config, RepoSource::Base, document.id);
+        assert_metadata_nonexistent!(config, RepoSource::Local, document.id);
+    }
+
+    #[test]
+    fn prune_deleted_document_edit() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let mut document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+
+        document.deleted = true;
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2")
+            .unwrap();
+        file_repo::prune_deleted(config).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_nonexistent!(config, RepoSource::Base, document.id);
+        assert_metadata_nonexistent!(config, RepoSource::Local, document.id);
+    }
+
+    #[test]
+    fn prune_deleted_document_in_deleted_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let mut folder =
+            file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, folder.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+
+        folder.deleted = true;
+        file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Local, &folder).unwrap();
+        file_repo::prune_deleted(config).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_nonexistent!(config, RepoSource::Base, folder.id);
+        assert_metadata_nonexistent!(config, RepoSource::Local, folder.id);
+        assert_metadata_nonexistent!(config, RepoSource::Base, document.id);
+        assert_metadata_nonexistent!(config, RepoSource::Local, document.id);
+    }
+
+    #[test]
+    fn prune_deleted_document_moved_from_deleted_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let mut folder =
+            file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let mut document =
+            file_service::create(FileType::Document, folder.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+
+        folder.deleted = true;
+        document.parent = root.id;
+        file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Local, &folder).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
+        file_repo::prune_deleted(config).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_nonexistent!(config, RepoSource::Base, folder.id);
+        assert_metadata_nonexistent!(config, RepoSource::Local, folder.id);
+        assert_metadata_eq!(config, RepoSource::Base, document.id, document);
+        assert_metadata_eq!(config, RepoSource::Local, document.id, document);
+    }
+
+    #[test]
+    fn prune_deleted_base_only() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let mut document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+
+        let mut document_local = document.clone();
+        document_local.decrypted_name = String::from("renamed document");
+        file_repo::insert_metadata(config, RepoSource::Local, &document_local).unwrap();
+        document.deleted = true;
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::prune_deleted(config).unwrap();
+
+        assert_metadata_changes_count!(config, 1);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_eq!(config, RepoSource::Base, document.id, document);
+        assert_metadata_eq!(config, RepoSource::Local, document.id, document_local);
+    }
+
+    #[test]
+    fn prune_deleted_local_only() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+
+        let mut document_deleted = document.clone();
+        document_deleted.deleted = true;
+        file_repo::insert_metadata(config, RepoSource::Local, &document_deleted).unwrap();
+        file_repo::prune_deleted(config).unwrap();
+
+        assert_metadata_changes_count!(config, 1);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_eq!(config, RepoSource::Base, document.id, document);
+        assert_metadata_eq!(config, RepoSource::Local, document.id, document_deleted);
+    }
+
+    #[test]
+    fn prune_deleted_document_moved_from_deleted_folder_local_only() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder =
+            file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, folder.id, "document", &account.username);
+
+        println!("root id: {}", root.id);
+        println!("folder id: {}", folder.id);
+        println!("document id: {}", document.id);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+
+        let mut folder_deleted = folder.clone();
+        folder_deleted.deleted = true;
+        let mut document_moved = document.clone();
+        document_moved.parent = root.id;
+        file_repo::insert_metadata(config, RepoSource::Base, &folder_deleted).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Local, &folder_deleted).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Local, &document_moved).unwrap();
+        file_repo::prune_deleted(config).unwrap();
+
+        println!("base metadata dump: {:?}", crate::repo::metadata_repo::get_all(config, RepoSource::Base).unwrap());
+        println!("local metadata dump: {:?}", crate::repo::metadata_repo::get_all(config, RepoSource::Local).unwrap());
+
+        assert_metadata_changes_count!(config, 1);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_nonexistent!(config, RepoSource::Base, folder.id);
+        assert_metadata_nonexistent!(config, RepoSource::Local, folder.id);
+        assert_metadata_eq!(config, RepoSource::Base, document.id, document);
+        assert_metadata_eq!(config, RepoSource::Local, document.id, document_moved);
+
+        // todo: more helpers (total metadata/document+digest count)
     }
 }
