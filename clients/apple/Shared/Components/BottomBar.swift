@@ -28,25 +28,20 @@ struct BottomBar: View {
         if sync.syncing {
             return AnyView(ProgressView())
         } else {
-            if sync.offline {
-                return AnyView(Image(systemName: "xmark.icloud.fill")
-                                .foregroundColor(Color.gray))
-            } else {
-                return AnyView(Button(action: {
-                    sync.sync()
-                    status.work = 0
-                }) {
-                    Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                        .imageScale(.large)
-                        .foregroundColor(.blue)
-                        .frame(width: 40, height: 40, alignment: .center)
-                })
-            }
+            return AnyView(Button(action: {
+                sync.sync()
+                status.work = 0
+            }) {
+                Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                    .imageScale(.large)
+                    .foregroundColor(.blue)
+                    .frame(width: 40, height: 40, alignment: .center)
+            })
         }
     }
     #else
     var syncButton: AnyView {
-        if sync.syncing || sync.offline {
+        if sync.syncing {
             
             return AnyView(
                 Text("")
@@ -55,11 +50,12 @@ struct BottomBar: View {
             )
             
         } else {
+            
             return AnyView(Button(action: {
                 sync.sync()
                 status.work = 0
             }) {
-                Text("Sync now")
+                Text(sync.offline ? "Try again" : "Sync now")
                     .font(.callout)
                     .foregroundColor(Color.init(red: 0.3, green: 0.45, blue: 0.79))
             })
