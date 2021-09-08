@@ -73,7 +73,7 @@ class OnboardingService: ObservableObject {
                     DispatchQueue.global(qos: .userInteractive).async {
                         switch self.core.syncAll() {
                         case .success:
-                            self.getAccountAndFinalize()
+                            DispatchQueue.main.async { self.getAccountAndFinalize() }
                         case .failure(let err):
                             DI.errors.handleError(err)
                         }
