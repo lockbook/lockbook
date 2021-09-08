@@ -766,25 +766,22 @@ pub fn export_drawing_to_disk(
 pub enum ImportFileError {
     NoAccount,
     ParentDoesNotExist,
-    FileAlreadyExists(String),
     DocumentTreatedAsFolder,
     DiskPathInvalid,
 }
 
 pub fn import_file(
     config: &Config,
+    disk_path: PathBuf,
     parent: Uuid,
-    source: PathBuf,
-    edit: bool,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ImportFileError>> {
-    import_export_service::import_file(config, parent, source, edit, import_progress).map_err(|e| {
+    import_export_service::import_file(config, disk_path, parent, import_progress).map_err(|e| {
         match e {
             CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
             CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
             CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
             CoreError::DiskPathInvalid => UiError(ImportFileError::DiskPathInvalid),
-            CoreError::ImportCollision(path) => UiError(ImportFileError::FileAlreadyExists(path)),
             _ => unexpected!("{:#?}", e),
         }
     })
