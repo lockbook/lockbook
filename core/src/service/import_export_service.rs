@@ -18,16 +18,18 @@ pub struct ImportExportFileInfo {
 
 pub fn import_file(
     config: &Config,
+    disk_path: PathBuf,
     parent: Uuid,
-    source: PathBuf,
-    edit: bool,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
+    if file_metadata_repo::get(config, parent)?.is_document() {
+        return Err(CoreError::FileNotFolder);
+    }
+
     import_file_recursively(
         config,
-        &source,
+        &disk_path,
         &path_service::get_path_by_id(config, parent)?,
-        edit,
         &import_progress,
     )
 }
@@ -36,10 +38,13 @@ fn import_file_recursively(
     config: &Config,
     disk_path: &Path,
     lockbook_path: &str,
-    edit: bool,
     import_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    let is_file = disk_path.is_file();
+    if !disk_path.exists() {
+        return Err(CoreError::DiskPathInvalid);
+    }
+
+    let is_document = disk_path.is_file();
     let lockbook_path_with_new = format!(
         "{}{}{}",
         lockbook_path,
@@ -47,7 +52,7 @@ fn import_file_recursively(
             .file_name()
             .and_then(|name| name.to_str())
             .ok_or(CoreError::DiskPathInvalid)?,
-        if is_file { "" } else { "/" }
+        if is_document { "" } else { "/" }
     );
 
     if let Some(ref func) = import_progress {
@@ -57,21 +62,14 @@ fn import_file_recursively(
         })
     }
 
-    if disk_path.is_file() {
+    if is_document {
         let content = fs::read(&disk_path).map_err(CoreError::from)?;
         let file_metadata = match path_service::create_at_path(config, &lockbook_path_with_new) {
             Ok(file_metadata) => file_metadata,
-            Err(err) => {
-                if CoreError::PathTaken == err {
-                    if edit {
-                        path_service::get_by_path(config, &lockbook_path_with_new)?
-                    } else {
-                        return Err(CoreError::ImportCollision(lockbook_path_with_new));
-                    }
-                } else {
-                    return Err(err);
-                }
+            Err(CoreError::PathTaken) => {
+                path_service::get_by_path(config, &lockbook_path_with_new)?
             }
+            Err(err) => return Err(err),
         };
 
         file_service::write_document(config, file_metadata.id, content.as_slice())?;
@@ -80,12 +78,10 @@ fn import_file_recursively(
             fs::read_dir(disk_path).map_err(CoreError::from)?.collect();
 
         if children.is_empty() {
-            path_service::create_at_path(config, &lockbook_path_with_new).map_err(
-                |err| match err {
-                    CoreError::PathTaken => CoreError::ImportCollision(lockbook_path_with_new),
-                    _ => err,
-                },
-            )?;
+            match path_service::create_at_path(config, &lockbook_path_with_new) {
+                Ok(_) | Err(CoreError::PathTaken) => {}
+                Err(err) => return Err(err),
+            }
         } else {
             for maybe_child in children {
                 let child_path = maybe_child.map_err(CoreError::from)?.path();
@@ -94,7 +90,6 @@ fn import_file_recursively(
                     config,
                     &child_path,
                     &lockbook_path_with_new,
-                    edit,
                     import_progress,
                 )?;
             }
