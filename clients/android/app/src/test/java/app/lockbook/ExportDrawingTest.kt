@@ -74,7 +74,7 @@ class ExportDrawingTest {
             FileType.Document
         ).unwrap()
 
-        CoreModel.writeToDocument(config, document.id, "").unwrap()
+        CoreModel.writeToDocument(config, document.id, "dfasdfasdfasdfadsfadsfasd").unwrap()
 
         CoreModel.exportDrawing(config, document.id, SupportedImageFormats.Jpeg)
             .unwrapErrorType<ExportDrawingError.InvalidDrawing>()
