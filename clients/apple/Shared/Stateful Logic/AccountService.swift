@@ -25,7 +25,7 @@ class AccountService: ObservableObject {
         }
     }
     
-    func getAccount() -> Account? {
+    func getAccount() {
         if account == nil {
             switch core.getAccount() {
             case .success(let account):
@@ -35,6 +35,7 @@ class AccountService: ObservableObject {
                 case .UiError(let getAccountError):
                     switch getAccountError {
                     case .NoAccount:
+                        print("account get unsuccessful")
                         self.account = nil
                     }
                 case .Unexpected(_):
@@ -42,7 +43,5 @@ class AccountService: ObservableObject {
                 }
             }
         }
-        
-        return account
     }
 }

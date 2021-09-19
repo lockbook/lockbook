@@ -5,6 +5,7 @@ struct FileListView: View {
     
     @State var selectedItem: ClientFileMetadata? = nil
     
+    @EnvironmentObject var coreService: CoreService
     @EnvironmentObject var files: FileService
     
     let currentFolder: ClientFileMetadata
@@ -23,11 +24,8 @@ struct FileListView: View {
             }
         }
         if let item = selectedItem {
-            if (item.name.hasSuffix(".draw")) {
-                ImageLoader(meta: item)
-            } else {
-                EditorLoader(meta: item)
-            }
+            let _ = print(item.name)
+            DocumentView(meta: item)
         }
     }
 }

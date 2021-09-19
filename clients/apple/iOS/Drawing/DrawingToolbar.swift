@@ -134,21 +134,4 @@ struct DrawingToolbar: View {
             )
         }
     }
-
-}
-
-
-struct Toolbar_Preview: PreviewProvider {
-
-    static var previews: some View {
-        NavigationView {
-            HStack {
-            }
-            DrawingLoader(meta: Mock.files.files[0])
-                    .onAppear {
-                        Mock.openDrawing.loadDrawing = PKDrawing()
-                    }
-        }
-    }
-
 }
