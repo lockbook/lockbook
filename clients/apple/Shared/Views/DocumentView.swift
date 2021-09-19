@@ -3,7 +3,7 @@ import SwiftLockbookCore
 import PencilKit
 
 struct DocumentView: View {
-    
+        
     let meta: ClientFileMetadata
     
     @EnvironmentObject var model: DocumentLoader
