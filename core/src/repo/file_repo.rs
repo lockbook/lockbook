@@ -330,7 +330,7 @@ mod unit_tests {
 
     use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
-    use crate::repo::{account_repo, document_repo, file_repo};
+    use crate::repo::{account_repo, file_repo};
     use crate::service::{file_service, test_utils};
 
     macro_rules! assert_metadata_changes_count (

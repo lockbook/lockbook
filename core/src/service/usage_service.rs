@@ -23,7 +23,7 @@ pub struct UsageMetrics {
     pub data_cap: UsageItemMetric,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, PartialEq, Debug)]
 pub struct UsageItemMetric {
     pub exact: u64,
     pub readable: String,
@@ -91,21 +91,100 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreEr
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::service::usage_service::bytes_to_human;
+    use lockbook_models::file_metadata::FileType;
 
-    const BYTES_SMALL: u64 = 1000;
-    const BYTES_MEDIUM: u64 = 1000000;
-    const BYTES_LARGE: u64 = 1000000000;
+    use crate::{model::{repo::RepoSource, state::temp_config}, repo::{account_repo, file_repo}, service::{file_service, test_utils, usage_service::{self, UsageItemMetric}}};
 
     #[test]
-    fn usage_human_string_sanity_check() {
-        let bytes_small_total = BYTES_SMALL * 2;
-        assert_eq!(bytes_to_human(bytes_small_total), "2 KB".to_string());
+    fn bytes_to_human_kb() {
+        assert_eq!(usage_service::bytes_to_human(2000), "2 KB".to_string());
+    }
 
-        let bytes_medium_total = BYTES_MEDIUM * 2;
-        assert_eq!(bytes_to_human(bytes_medium_total), "2 MB".to_string());
+    #[test]
+    fn bytes_to_human_mb() {
+        assert_eq!(usage_service::bytes_to_human(2000000), "2 MB".to_string());
+    }
 
-        let bytes_large_total = BYTES_LARGE * 2;
-        assert_eq!(bytes_to_human(bytes_large_total), "2 GB".to_string());
+    #[test]
+    fn bytes_to_human_gb() {
+        assert_eq!(usage_service::bytes_to_human(2000000000), "2 GB".to_string());
+    }
+
+    #[test]
+    fn get_uncompressed_usage_no_documents() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+
+        account_repo::insert(config, &account).unwrap();
+
+        assert_eq!(usage_service::get_uncompressed_usage(config).unwrap(), UsageItemMetric{
+            exact: 0,
+            readable: "0 B".to_string()
+        });
+    }
+
+    #[test]
+    fn get_uncompressed_usage_empty_document() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"")
+            .unwrap();
+
+        assert_eq!(usage_service::get_uncompressed_usage(config).unwrap(), UsageItemMetric{
+            exact: 0,
+            readable: "0 B".to_string()
+        });
+    }
+
+    #[test]
+    fn get_uncompressed_usage_one_document() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"0123456789")
+            .unwrap();
+
+        assert_eq!(usage_service::get_uncompressed_usage(config).unwrap(), UsageItemMetric{
+            exact: 10,
+            readable: "10 B".to_string()
+        });
+    }
+
+    #[test]
+    fn get_uncompressed_usage_multiple_documents() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+        let document2 =
+            file_service::create(FileType::Document, root.id, "document 2", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadata(config, RepoSource::Base, &document2).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"01234")
+            .unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document2, b"56789")
+            .unwrap();
+
+        assert_eq!(usage_service::get_uncompressed_usage(config).unwrap(), UsageItemMetric{
+            exact: 10,
+            readable: "10 B".to_string()
+        });
     }
 }
