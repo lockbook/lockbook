@@ -303,7 +303,6 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
 
     // remove files from disk
     for file in deleted_both_without_deleted_descendants_ids {
-        println!("deleting metadata. id = {}", file.id);
         delete_metadata(config, file.id)?;
         if file.file_type == FileType::Document {
             delete_document(config, file.id)?;
@@ -331,7 +330,7 @@ mod unit_tests {
 
     use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
-    use crate::repo::{account_repo, file_repo};
+    use crate::repo::{account_repo, document_repo, file_repo};
     use crate::service::{file_service, test_utils};
 
     macro_rules! assert_metadata_changes_count (
@@ -383,6 +382,30 @@ mod unit_tests {
         }
     );
 
+    macro_rules! assert_metadata_count (
+        ($db:expr, $source:expr, $total:literal) => {
+            assert_eq!(
+                file_repo::get_all_metadata($db, $source)
+                    .unwrap()
+                    .len(),
+                $total
+            );
+        }
+    );
+
+    macro_rules! assert_document_count (
+        ($db:expr, $source:expr, $total:literal) => {
+            assert_eq!(
+                file_repo::get_all_metadata($db, $source)
+                    .unwrap()
+                    .iter()
+                    .filter(|&f| file_repo::maybe_get_document($db, $source, f.id).unwrap().is_some())
+                    .count(),
+                $total
+            );
+        }
+    );
+
     #[test]
     fn insert_metadata() {
         let config = &temp_config();
@@ -391,6 +414,11 @@ mod unit_tests {
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -404,6 +432,10 @@ mod unit_tests {
         let result = file_repo::get_metadata(config, RepoSource::Local, root.id).unwrap();
 
         assert_eq!(result, root);
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -415,6 +447,10 @@ mod unit_tests {
         let result = file_repo::get_metadata(config, RepoSource::Local, Uuid::new_v4());
 
         assert!(result.is_err());
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 0);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -428,6 +464,10 @@ mod unit_tests {
         let result = file_repo::get_metadata(config, RepoSource::Local, root.id).unwrap();
 
         assert_eq!(result, root);
+        assert_metadata_count!(config, RepoSource::Base, 1);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -445,6 +485,10 @@ mod unit_tests {
         let result = file_repo::get_metadata(config, RepoSource::Local, root.id).unwrap();
 
         assert_eq!(result, root);
+        assert_metadata_count!(config, RepoSource::Base, 1);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -458,6 +502,10 @@ mod unit_tests {
         let result = file_repo::maybe_get_metadata(config, RepoSource::Local, root.id).unwrap();
 
         assert_eq!(result, Some(root));
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -470,6 +518,10 @@ mod unit_tests {
             file_repo::maybe_get_metadata(config, RepoSource::Local, Uuid::new_v4()).unwrap();
 
         assert!(result.is_none());
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 0);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -485,6 +537,11 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
         file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
             .unwrap();
+
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -503,6 +560,10 @@ mod unit_tests {
         let result = file_repo::get_document(config, RepoSource::Local, document.id).unwrap();
 
         assert_eq!(result, b"document content");
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -514,6 +575,10 @@ mod unit_tests {
         let result = file_repo::get_document(config, RepoSource::Local, Uuid::new_v4());
 
         assert!(result.is_err());
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 0);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -532,6 +597,10 @@ mod unit_tests {
         let result = file_repo::get_document(config, RepoSource::Local, document.id).unwrap();
 
         assert_eq!(result, b"document content");
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -552,6 +621,10 @@ mod unit_tests {
         let result = file_repo::get_document(config, RepoSource::Local, document.id).unwrap();
 
         assert_eq!(result, b"document content 2");
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -570,6 +643,10 @@ mod unit_tests {
         let result = file_repo::maybe_get_document(config, RepoSource::Local, document.id).unwrap();
 
         assert_eq!(result, Some(b"document content".to_vec()));
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -582,6 +659,10 @@ mod unit_tests {
             file_repo::maybe_get_document(config, RepoSource::Local, Uuid::new_v4()).unwrap();
 
         assert!(result.is_none());
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 0);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -593,6 +674,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 0);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -609,6 +694,10 @@ mod unit_tests {
         assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
             .old_parent_and_name
             .is_none());
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -627,6 +716,10 @@ mod unit_tests {
         assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
             .old_parent_and_name
             .is_none());
+        assert_metadata_count!(config, RepoSource::Base, 0);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -641,6 +734,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 1);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -655,6 +752,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 1);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -676,6 +777,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
 
         document.parent = folder.id;
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
@@ -685,12 +790,20 @@ mod unit_tests {
         assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
             .old_parent_and_name
             .is_some());
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
 
         document.parent = root.id;
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -712,6 +825,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
 
         document.decrypted_name = String::from("document 2");
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
@@ -721,12 +838,20 @@ mod unit_tests {
         assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
             .old_parent_and_name
             .is_some());
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
 
         document.decrypted_name = String::from("document");
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -748,6 +873,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
 
         document.deleted = true;
         file_repo::insert_metadata(config, RepoSource::Local, &document).unwrap();
@@ -757,6 +886,10 @@ mod unit_tests {
         assert!(file_repo::get_all_metadata_changes(config).unwrap()[0]
             .old_parent_and_name
             .is_some());
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -779,6 +912,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
 
         root.decrypted_name = String::from("root 2");
         folder.deleted = true;
@@ -792,6 +929,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 4);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 4);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -808,6 +949,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
 
         file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
             .unwrap();
@@ -818,6 +963,10 @@ mod unit_tests {
             file_repo::get_all_with_document_changes(config).unwrap()[0],
             document.id
         );
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -834,6 +983,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
 
         file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
             .unwrap();
@@ -848,6 +1001,10 @@ mod unit_tests {
             file_repo::get_all_with_document_changes(config).unwrap()[0],
             document.id
         );
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -866,6 +1023,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2")
             .unwrap();
@@ -876,12 +1037,20 @@ mod unit_tests {
             file_repo::get_all_with_document_changes(config).unwrap()[0],
             document.id
         );
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
             .unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -900,6 +1069,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2")
             .unwrap();
@@ -910,12 +1083,20 @@ mod unit_tests {
             file_repo::get_all_with_document_changes(config).unwrap()[0],
             document.id
         );
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         file_repo::insert_document(config, RepoSource::Base, &document, b"document content 2")
             .unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -946,6 +1127,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 4);
+        assert_metadata_count!(config, RepoSource::Local, 4);
+        assert_document_count!(config, RepoSource::Base, 2);
+        assert_document_count!(config, RepoSource::Local, 2);
 
         root.decrypted_name = String::from("root 2");
         folder.deleted = true;
@@ -963,6 +1148,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 4);
         assert_document_changes_count!(config, 2);
+        assert_metadata_count!(config, RepoSource::Base, 4);
+        assert_metadata_count!(config, RepoSource::Local, 5);
+        assert_document_count!(config, RepoSource::Base, 2);
+        assert_document_count!(config, RepoSource::Local, 3);
 
         file_repo::promote(config).unwrap();
 
@@ -986,6 +1175,10 @@ mod unit_tests {
             document3.id,
             b"document 3 content"
         );
+        assert_metadata_count!(config, RepoSource::Base, 5);
+        assert_metadata_count!(config, RepoSource::Local, 5);
+        assert_document_count!(config, RepoSource::Base, 3);
+        assert_document_count!(config, RepoSource::Local, 3);
     }
 
     #[test]
@@ -1002,6 +1195,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
 
         document.deleted = true;
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
@@ -1012,6 +1209,10 @@ mod unit_tests {
         assert_document_changes_count!(config, 0);
         assert_metadata_nonexistent!(config, RepoSource::Base, document.id);
         assert_metadata_nonexistent!(config, RepoSource::Local, document.id);
+        assert_metadata_count!(config, RepoSource::Base, 1);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -1030,6 +1231,10 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         document.deleted = true;
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
@@ -1042,6 +1247,10 @@ mod unit_tests {
         assert_document_changes_count!(config, 0);
         assert_metadata_nonexistent!(config, RepoSource::Base, document.id);
         assert_metadata_nonexistent!(config, RepoSource::Local, document.id);
+        assert_metadata_count!(config, RepoSource::Base, 1);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -1058,9 +1267,15 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         folder.deleted = true;
         file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
@@ -1073,6 +1288,10 @@ mod unit_tests {
         assert_metadata_nonexistent!(config, RepoSource::Local, folder.id);
         assert_metadata_nonexistent!(config, RepoSource::Base, document.id);
         assert_metadata_nonexistent!(config, RepoSource::Local, document.id);
+        assert_metadata_count!(config, RepoSource::Base, 1);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -1089,9 +1308,15 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         folder.deleted = true;
         document.parent = root.id;
@@ -1107,6 +1332,10 @@ mod unit_tests {
         assert_metadata_nonexistent!(config, RepoSource::Local, folder.id);
         assert_metadata_eq!(config, RepoSource::Base, document.id, document);
         assert_metadata_eq!(config, RepoSource::Local, document.id, document);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -1120,9 +1349,15 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         let mut document_local = document.clone();
         document_local.decrypted_name = String::from("renamed document");
@@ -1135,6 +1370,10 @@ mod unit_tests {
         assert_document_changes_count!(config, 0);
         assert_metadata_eq!(config, RepoSource::Base, document.id, document);
         assert_metadata_eq!(config, RepoSource::Local, document.id, document_local);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -1148,9 +1387,15 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         let mut document_deleted = document.clone();
         document_deleted.deleted = true;
@@ -1161,6 +1406,10 @@ mod unit_tests {
         assert_document_changes_count!(config, 0);
         assert_metadata_eq!(config, RepoSource::Base, document.id, document);
         assert_metadata_eq!(config, RepoSource::Local, document.id, document_deleted);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]
@@ -1176,9 +1425,15 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &folder).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
 
         let mut folder_deleted = folder.clone();
         folder_deleted.deleted = true;
@@ -1193,7 +1448,9 @@ mod unit_tests {
         assert_document_changes_count!(config, 0);
         assert_metadata_eq!(config, RepoSource::Base, document.id, document);
         assert_metadata_eq!(config, RepoSource::Local, document.id, document_moved);
-
-        // todo: more helpers (total metadata/document+digest count)
+        assert_metadata_count!(config, RepoSource::Base, 3);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 }
