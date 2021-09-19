@@ -104,7 +104,7 @@ class OnboardingService: ObservableObject {
     }
     
     func getAccountAndFinalize() {
-        let _ = DI.accounts.getAccount()
+        DI.accounts.getAccount()
         DI.files.refresh()
     }
 }
