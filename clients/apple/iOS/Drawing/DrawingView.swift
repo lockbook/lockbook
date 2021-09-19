@@ -5,16 +5,15 @@ import Combine
 
 struct DrawingView: UIViewRepresentable {
     @Environment(\.colorScheme) var colorScheme
-    let drawingToLoad: PKDrawing
     @State var zoom: CGFloat = 1
-    @ObservedObject var toolPicker: ToolbarModel
+    @StateObject var model: DocumentLoader
+    @StateObject var toolPicker: ToolbarModel
     let pencilInteraction = UIPencilInteraction()
     let view = PKCanvasView()
 
-    let onChange: (PKDrawing) -> Void
-
     func makeUIView(context: Context) -> PKCanvasView {
-        view.drawing = drawingToLoad
+        // If this is null we should crash on the spot and avoid writing garbage to the file
+        view.drawing = model.drawing!
         view.drawingPolicy = .anyInput
         view.tool = toolPicker.currentTool
 
@@ -43,26 +42,23 @@ struct DrawingView: UIViewRepresentable {
     func updateUIView(_ view: PKCanvasView, context: Context) {
         view.tool = toolPicker.currentTool
         view.isRulerActive = toolPicker.isRulerShowing
-        if DI.openDrawing.reloadDrawing {
-            DI.openDrawing.reloadDrawing = false
-            view.drawing = drawingToLoad
+        if model.reloadContent {
+            model.reloadContent = false
+            view.drawing = model.drawing!
         }
     }
 
     class Coordinator: NSObject, PKCanvasViewDelegate {
-        var drawing: PKDrawing
+        let model: DocumentLoader
         @Binding var scaleFactor: CGFloat
-        let onChange: (PKDrawing) -> ()
 
-        init(drawing: PKDrawing, scaleFactor: Binding<CGFloat>, onChange: @escaping (PKDrawing) -> Void) {
-            self.drawing = drawing
+        init(model: DocumentLoader, scaleFactor: Binding<CGFloat>) {
             _scaleFactor = scaleFactor
-            self.onChange = onChange
+            self.model = model
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            drawing = canvasView.drawing
-            onChange(drawing)
+            model.drawing = canvasView.drawing
         }
 
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -78,23 +74,9 @@ struct DrawingView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(drawing: drawingToLoad, scaleFactor: $zoom, onChange: onChange)
+        Coordinator(model: model, scaleFactor: $zoom)
     }
 
-}
-
-struct Drawing_Previews: PreviewProvider {
-    static let toolbar = ToolbarModel()
-    static let dc = PassthroughSubject<ClientFileMetadata, Never>()
-
-    static var previews: some View {
-        DrawingLoader(meta: Mock.files.files[0])
-            .onAppear {
-                DI.openDrawing.loadDrawing = PKDrawing()
-                toolbar.selectedColor = .Red
-            }
-            .mockDI()
-    }
 }
 
 extension CGSize {

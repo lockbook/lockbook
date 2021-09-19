@@ -6,7 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject var accounts: AccountService
     
     var body: some View {
-        switch accounts.getAccount() {
+        switch accounts.account {
         case .none:
             VStack(spacing: 20) {
                 Text("You need an account for settings!")
