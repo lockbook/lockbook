@@ -60,13 +60,8 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
     }
     
-    public func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError> {
-        getFile(id: id).map(transform: { input in
-            if input.isEmpty {
-                return Drawing()
-            }
-            return (try? deserialize(data: input.data(using: .utf8)!).get())! // TODO
-        })
+    public func readDrawing(id: UUID) -> FfiResult<Drawing, GetDrawingError> {
+        fromPrimitiveResult(result: get_drawing(documentsDirectory, id.uuidString))
     }
     
     public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {

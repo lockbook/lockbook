@@ -5,49 +5,41 @@ import Combine
 
 #if os(iOS)
 struct NotepadView: UIViewRepresentable {
-    let text: String
+    @StateObject var model: DocumentLoader
     var frame: CGRect
     let theme: Theme
-    let onTextChange: (String) -> Void
     let engine = MarkdownEngine()
     
-    init(text: String, frame: CGRect, theme: Theme, onTextChange: @escaping (String) -> Void) {
-        self.text = text
-        self.frame = frame
-        self.theme = theme
-        self.onTextChange = onTextChange
-    }
-
     func makeUIView(context: Context) -> UITextView {
         let np = Notepad(frame: frame, theme: theme)
         np.smartQuotesType = .no
         np.smartDashesType = .no
         np.smartInsertDeleteType = .no
-        np.onTextChange = onTextChange
+        np.onTextChange = { model.textDocument = $0 }
         np.storage.markdowner = { engine.render($0) }
         np.storage.applyMarkdown = { m in applyMarkdown(markdown: m) }
         np.storage.applyBody = { applyBody() }
-        np.text = text
+        // If this is null we should crash on the spot and avoid writing garbage to the file
+        np.text = model.textDocument!
         np.styleNow()
 
         return np
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
-        if let np = uiView as? Notepad, DI.openDocument.reloadText {
+        if let np = uiView as? Notepad, model.reloadContent {
             print("reload happened")
-            DI.openDocument.reloadText = false
-            np.text = text
+            model.reloadContent = false
+            np.text = model.textDocument!
             np.styleNow()
         }
     }
 }
 #else
 struct NotepadView: NSViewRepresentable {
-    let text: String
+    @StateObject var model: DocumentLoader
     var frame: CGRect
     let theme: Theme
-    let onTextChange: (String) -> Void
     let engine = MarkdownEngine()
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -56,7 +48,7 @@ struct NotepadView: NSViewRepresentable {
         np.allowsUndo = true
         np.isAutomaticQuoteSubstitutionEnabled = false
         np.isAutomaticDashSubstitutionEnabled = false
-        np.onTextChange = onTextChange
+        np.onTextChange = { model.textDocument = $0 }
         np.storage.markdowner = { engine.render($0) }
         np.storage.applyMarkdown = { m in applyMarkdown(markdown: m) }
         np.storage.applyBody = { applyBody() }
@@ -64,16 +56,16 @@ struct NotepadView: NSViewRepresentable {
         np.insertionPointColor = theme.tintColor
         np.layoutManager?.replaceTextStorage(np.storage)
         scrollView.documentView = np
-        np.string = text
+        np.string = model.textDocument!
         np.styleNow()
 
         return scrollView
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        if let np = nsView.documentView as? Notepad, DI.openDocument.reloadText {
-            DI.openDocument.reloadText = false
-            np.string = text
+        if let np = nsView.documentView as? Notepad, model.reloadContent {
+            model.reloadContent = false
+            np.string = model.textDocument!
             np.styleNow()
         }
         

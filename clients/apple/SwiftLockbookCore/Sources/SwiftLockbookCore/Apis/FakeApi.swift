@@ -67,7 +67,7 @@ Vestibulum ante ipsum primis in vel.
 """)
     }
     
-    public func readDrawing(id: UUID) -> FfiResult<Drawing, ReadDocumentError> {
+    public func readDrawing(id: UUID) -> FfiResult<Drawing, GetDrawingError> {
         .failure(.init(unexpected: "LAZY"))
     }
     public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {

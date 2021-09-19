@@ -36,7 +36,7 @@ class StatusService: ObservableObject {
     
     @objc func setLastSynced() {
         DispatchQueue.global(qos: .userInteractive).async {
-            if DI.accounts.getAccount() == nil {
+            if DI.accounts.account == nil {
                 print("No account yet, but tried to update last synced, ignoring")
                 return
             }

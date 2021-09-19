@@ -4,6 +4,7 @@ import PencilKit
 
 struct FileListView: View {
     
+    @EnvironmentObject var coreService: CoreService
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var sync: SyncService
     @EnvironmentObject var status: StatusService
@@ -122,17 +123,10 @@ struct FileListView: View {
                     }.isDetailLink(false)
                 )
             } else {
-                if meta.name.hasSuffix(".draw") {
-                    let dl = DrawingLoader(meta: meta)
-                    return AnyView (NavigationLink(destination: dl.navigationBarTitle(meta.name, displayMode: .inline), tag: meta, selection: $selection) {
-                        FileCell(meta: meta)
-                    })
-                } else {
-                    let el = EditorLoader(meta: meta)
-                    return AnyView (NavigationLink(destination: el, tag: meta, selection: $selection) {
-                        FileCell(meta: meta)
-                    })
-                }
+                let el = DocumentView(meta: meta)
+                return AnyView (NavigationLink(destination: el, tag: meta, selection: $selection) {
+                    FileCell(meta: meta)
+                })
             }
         }
     }

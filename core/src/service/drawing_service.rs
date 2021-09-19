@@ -59,6 +59,10 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
     let drawing_bytes = file_service::read_document(config, id)?;
     let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
 
+    if drawing_string.is_empty() {
+        return Ok(Drawing::default());
+    }
+
     match serde_json::from_str::<Drawing>(drawing_string.as_str()) {
         Ok(d) => Ok(d),
         Err(e) => match e.classify() {
