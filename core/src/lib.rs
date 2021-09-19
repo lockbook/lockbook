@@ -720,13 +720,18 @@ pub enum GetDrawingError {
 }
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    drawing_service::get_drawing(&config, id).map_err(|e| match e {
+    get_drawing_helper(&config, id).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
         CoreError::FileNotDocument => UiError(GetDrawingError::FolderTreatedAsDrawing),
         CoreError::AccountNonexistent => UiError(GetDrawingError::NoAccount),
         CoreError::FileNonexistent => UiError(GetDrawingError::FileDoesNotExist),
         _ => unexpected!("{:#?}", e),
     })
+}
+
+fn get_drawing_helper(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
+    let drawing_bytes = file_repo::get_document(config, RepoSource::Local, id)?;
+    drawing_service::parse_drawing(&drawing_bytes)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -742,13 +747,19 @@ pub fn save_drawing(
     id: Uuid,
     drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
-    drawing_service::save_drawing(&config, id, drawing_bytes).map_err(|e| match e {
+    save_drawing_helper(&config, id, drawing_bytes).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
         CoreError::AccountNonexistent => UiError(SaveDrawingError::NoAccount),
         CoreError::FileNonexistent => UiError(SaveDrawingError::FileDoesNotExist),
         CoreError::FileNotDocument => UiError(SaveDrawingError::FolderTreatedAsDrawing),
         _ => unexpected!("{:#?}", e),
     })
+}
+
+pub fn save_drawing_helper(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), CoreError> {
+    drawing_service::parse_drawing(drawing_bytes)?; // validate drawing
+    let metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
+    file_repo::insert_document(config, RepoSource::Local, &metadata, drawing_bytes)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -765,13 +776,23 @@ pub fn export_drawing(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    drawing_service::export_drawing(&config, id, format, render_theme).map_err(|e| match e {
+    export_drawing_helper(&config, id, format, render_theme).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(ExportDrawingError::InvalidDrawing),
         CoreError::AccountNonexistent => UiError(ExportDrawingError::NoAccount),
         CoreError::FileNonexistent => UiError(ExportDrawingError::FileDoesNotExist),
         CoreError::FileNotDocument => UiError(ExportDrawingError::FolderTreatedAsDrawing),
         _ => unexpected!("{:#?}", e),
     })
+}
+
+fn export_drawing_helper(
+    config: &Config,
+    id: Uuid,
+    format: SupportedImageFormats,
+    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+) -> Result<Vec<u8>, CoreError> {
+    let drawing_bytes = file_repo::get_document(config, RepoSource::Local, id)?;
+    drawing_service::export_drawing(&drawing_bytes, format, render_theme)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -791,7 +812,7 @@ pub fn export_drawing_to_disk(
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     location: String,
 ) -> Result<(), Error<ExportDrawingToDiskError>> {
-    drawing_service::export_drawing_to_disk(&config, id, format, render_theme, location).map_err(
+    export_drawing_to_disk_helper(&config, id, format, render_theme, location).map_err(
         |e| match e {
             CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
             CoreError::AccountNonexistent => UiError(ExportDrawingToDiskError::NoAccount),
@@ -802,6 +823,18 @@ pub fn export_drawing_to_disk(
             _ => unexpected!("{:#?}", e),
         },
     )
+}
+
+fn export_drawing_to_disk_helper(
+    config: &Config,
+    id: Uuid,
+    format: SupportedImageFormats,
+    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+    location: String,
+) -> Result<(), CoreError> {
+    let drawing_bytes = file_repo::get_document(config, RepoSource::Local, id)?;
+    let exported_drawing_bytes = drawing_service::export_drawing(&drawing_bytes, format, render_theme)?;
+    file_service::save_document_to_disk(&exported_drawing_bytes, location)
 }
 
 // This basically generates a function called `get_all_error_variants`,
