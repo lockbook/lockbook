@@ -86,7 +86,7 @@ class ExportDrawingToDiskTest {
             FileType.Document
         ).unwrap()
 
-        CoreModel.writeToDocument(config, document.id, "").unwrap()
+        CoreModel.writeToDocument(config, document.id, "an invalid drawing").unwrap()
 
         CoreModel.exportDrawingToDisk(
             config,
