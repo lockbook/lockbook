@@ -496,6 +496,6 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
     let account = &account_repo::get(config)?;
     pull(config, account, &f)?;
     push(config, account, &f)?;
-    file_repo::prune_local_deleted(config)?;
+    file_repo::prune_deleted(config)?;
     Ok(())
 }

@@ -1,3 +1,4 @@
+use crate::CoreError;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::account_repo;
@@ -7,7 +8,6 @@ use crate::repo::metadata_repo;
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::utils;
-use crate::CoreError;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
@@ -16,6 +16,7 @@ use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
 use sha2::Digest;
 use sha2::Sha256;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>, CoreError> {
@@ -254,13 +255,9 @@ pub fn promote(config: &Config) -> Result<(), CoreError> {
     digest_repo::delete_all(config, RepoSource::Local)
 }
 
-/// Removes deleted files from disks only if they are deleted on local and base. Includes files with deleted ancestors.
-/// Call this function after a set of operations rather than in-between each operation because otherwise you'll prune
-/// e.g. a file that was moved out of a folder that was deleted.
+/// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between
+/// each operation because otherwise you'll prune e.g. a file that was moved out of a folder that was deleted.
 pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
-    let all_base_metadata = get_all_metadata(config, RepoSource::Base)?;
-    let deleted_base_metadata = utils::filter_deleted(&all_base_metadata);
-
     // If a file is deleted or has a deleted ancestor, we say that it is deleted. Whether a file is deleted is specific
     // to the source (base or local). We cannot prune (delete from disk) a file in one source and not in the other in
     // order to preserve the semantics of having a file present on one, the other, or both (unmodified/new/modified).
@@ -268,23 +265,44 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
     // source - otherwise, the metadata for those descendants can no longer be decrypted. For an example of a situation
     // where this is important, see the test prune_deleted_document_moved_from_deleted_folder_local_only.
 
-    // todo: actually implement it that way ^
-
-    let all = get_all_metadata(config, RepoSource::Local)?;
-    let deleted_directly_both = all
+    // find files deleted on base and local
+    let all_base_metadata = get_all_metadata(config, RepoSource::Base)?;
+    let deleted_base_metadata = utils::filter_deleted(&all_base_metadata);
+    let all_local_metadata = get_all_metadata(config, RepoSource::Local)?;
+    let deleted_local_metadata = utils::filter_deleted(&all_local_metadata);
+    let deleted_both_metadata = deleted_base_metadata
         .into_iter()
-        .map(|mut file| {
-            file.deleted &= if let Some(true) = utils::maybe_find(&deleted_base_metadata, file.id).map(|f| f.deleted) {
-                true
-            } else {
-                false
-            };
-            file
-        })
+        .filter(|f| utils::maybe_find(&deleted_local_metadata, f.id).is_some())
         .collect::<Vec<DecryptedFileMetadata>>();
-    let deleted_both = utils::filter_deleted(&deleted_directly_both);
 
-    for file in deleted_both {
+    // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
+    let all_ids = all_base_metadata
+        .iter()
+        .chain(all_local_metadata.iter())
+        .map(|f| f.id)
+        .collect::<HashSet<Uuid>>();
+    let not_deleted_either_ids = all_ids
+        .into_iter()
+        .filter(|&id| utils::maybe_find(&deleted_both_metadata, id).is_none())
+        .collect::<HashSet<Uuid>>();
+    let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
+        .iter()
+        .flat_map(|&id| utils::find_ancestors(&all_base_metadata, id))
+        .map(|f| f.id)
+        .collect::<HashSet<Uuid>>();
+    let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
+        .iter()
+        .flat_map(|&id| utils::find_ancestors(&all_local_metadata, id))
+        .map(|f| f.id)
+        .collect::<HashSet<Uuid>>();
+    let deleted_both_without_deleted_descendants_ids =
+        deleted_both_metadata.into_iter().filter(|f| {
+            !ancestors_of_not_deleted_base_ids.contains(&f.id)
+                && !ancestors_of_not_deleted_local_ids.contains(&f.id)
+        });
+
+    // remove files from disk
+    for file in deleted_both_without_deleted_descendants_ids {
         println!("deleting metadata. id = {}", file.id);
         delete_metadata(config, file.id)?;
         if file.file_type == FileType::Document {
@@ -956,8 +974,18 @@ mod unit_tests {
         assert_metadata_eq!(config, RepoSource::Base, document2.id, document2);
         assert_metadata_eq!(config, RepoSource::Base, document3.id, document3);
         assert_document_eq!(config, RepoSource::Base, document.id, b"document content 2");
-        assert_document_eq!(config, RepoSource::Base, document2.id, b"document 2 content");
-        assert_document_eq!(config, RepoSource::Base, document3.id, b"document 3 content");
+        assert_document_eq!(
+            config,
+            RepoSource::Base,
+            document2.id,
+            b"document 2 content"
+        );
+        assert_document_eq!(
+            config,
+            RepoSource::Base,
+            document3.id,
+            b"document 3 content"
+        );
     }
 
     #[test]
@@ -1140,14 +1168,9 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
-        let folder =
-            file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
         let document =
             file_service::create(FileType::Document, folder.id, "document", &account.username);
-
-        println!("root id: {}", root.id);
-        println!("folder id: {}", folder.id);
-        println!("document id: {}", document.id);
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
@@ -1166,13 +1189,8 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &document_moved).unwrap();
         file_repo::prune_deleted(config).unwrap();
 
-        println!("base metadata dump: {:?}", crate::repo::metadata_repo::get_all(config, RepoSource::Base).unwrap());
-        println!("local metadata dump: {:?}", crate::repo::metadata_repo::get_all(config, RepoSource::Local).unwrap());
-
         assert_metadata_changes_count!(config, 1);
         assert_document_changes_count!(config, 0);
-        assert_metadata_nonexistent!(config, RepoSource::Base, folder.id);
-        assert_metadata_nonexistent!(config, RepoSource::Local, folder.id);
         assert_metadata_eq!(config, RepoSource::Base, document.id, document);
         assert_metadata_eq!(config, RepoSource::Local, document.id, document_moved);
 

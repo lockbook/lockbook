@@ -124,7 +124,7 @@ fn decrypt_file_key(
 ) -> Result<AESKey, CoreError> {
     let target = target_with_ancestors
         .iter()
-        .find(|m| m.id == target_id)
+        .find(|&m| m.id == target_id)
         .ok_or(CoreError::Unexpected(String::from(
             "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
         )))?;
@@ -180,7 +180,10 @@ mod unit_tests {
     use lockbook_models::file_metadata::FileType;
     use uuid::Uuid;
 
-    use crate::{service::{file_encryption_service, file_service, test_utils}, utils};
+    use crate::{
+        service::{file_encryption_service, file_service, test_utils},
+        utils,
+    };
 
     #[test]
     fn encrypt_decrypt_metadatum() {
@@ -188,8 +191,10 @@ mod unit_tests {
         let key = symkey::generate_key();
         let file = file_service::create(FileType::Folder, Uuid::new_v4(), "folder", "owner");
 
-        let encrypted_file = file_encryption_service::encrypt_metadatum(&account, &key, &file).unwrap();
-        let decrypted_file = file_encryption_service::decrypt_metadatum(&key, &encrypted_file).unwrap();
+        let encrypted_file =
+            file_encryption_service::encrypt_metadatum(&account, &key, &file).unwrap();
+        let decrypted_file =
+            file_encryption_service::decrypt_metadatum(&key, &encrypted_file).unwrap();
 
         assert_eq!(file, decrypted_file);
     }
@@ -199,11 +204,13 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = file_service::create_root(&account.username);
         let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = file_service::create(FileType::Folder, folder.id, "document", &account.username);
+        let document =
+            file_service::create(FileType::Folder, folder.id, "document", &account.username);
         let files = [root.clone(), folder.clone(), document.clone()];
 
         let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files).unwrap();
-        let decrypted_files = file_encryption_service::decrypt_metadata(&account, &encrypted_files).unwrap();
+        let decrypted_files =
+            file_encryption_service::decrypt_metadata(&account, &encrypted_files).unwrap();
 
         assert_eq!(
             utils::find(&files, root.id).unwrap(),

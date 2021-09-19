@@ -151,8 +151,8 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     );
 
     assert_eq!(
-        db_version_repo::get(&db1).unwrap(),
-        db_version_repo::get(&db2).unwrap()
+        db_version_repo::maybe_get(&db1).unwrap(),
+        db_version_repo::maybe_get(&db2).unwrap()
     );
 
     assert_eq!(

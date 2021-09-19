@@ -64,6 +64,29 @@ pub fn maybe_find_parent(
     maybe_find(files, file.parent)
 }
 
+pub fn find_ancestors(
+    files: &[DecryptedFileMetadata],
+    target_id: Uuid,
+) -> Vec<DecryptedFileMetadata> {
+    let mut result = Vec::new();
+    let mut current_target_id = target_id;
+    loop {
+        match maybe_find(files, current_target_id) {
+            Some(target) => {
+                result.push(target.clone());
+                if target.id == target.parent {
+                    break;
+                }
+                current_target_id = target.parent;
+            }
+            None => {
+                break;
+            }
+        }
+    }
+    result
+}
+
 pub fn find_children(
     files: &[DecryptedFileMetadata],
     target_id: Uuid,
@@ -100,7 +123,7 @@ pub fn find_root(files: &[DecryptedFileMetadata]) -> Result<DecryptedFileMetadat
 }
 
 pub fn maybe_find_root(files: &[DecryptedFileMetadata]) -> Option<DecryptedFileMetadata> {
-    files.iter().find(|f| f.id == f.parent).map(|f| f.clone())
+    files.iter().find(|&f| f.id == f.parent).map(|f| f.clone())
 }
 
 /// Returns the files which are not deleted and have no deleted ancestors. Files with parents not present in the argument are considered deleted.

@@ -144,13 +144,7 @@ mod unit_tests {
         metadata_repo::insert(config, RepoSource::Local, &metadata_5).unwrap();
         let result = metadata_repo::get_all(config, RepoSource::Local).unwrap();
 
-        let mut expectation = vec![
-            metadata,
-            metadata_2,
-            metadata_3,
-            metadata_4,
-            metadata_5,
-        ];
+        let mut expectation = vec![metadata, metadata_2, metadata_3, metadata_4, metadata_5];
         expectation.sort_by(|a, b| a.id.cmp(&b.id));
         assert_eq!(result, expectation);
     }

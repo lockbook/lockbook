@@ -349,7 +349,7 @@ pub fn get_children(
 
 fn get_children_helper(config: &Config, id: Uuid) -> Result<Vec<ClientFileMetadata>, CoreError> {
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files)?;
+    let files = utils::filter_not_deleted(&files);
     let children = utils::find_children(&files, id);
     children
         .iter()
@@ -379,7 +379,7 @@ pub fn get_and_get_children_recursively_helper(
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, CoreError> {
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files)?;
+    let files = utils::filter_not_deleted(&files);
     let file_and_descendants = utils::find_with_descendants(&files, id)?;
 
     // convert from decryptedfilemetadata to filemetadata because that's what this function needs to return for some reason
@@ -455,7 +455,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
 
 fn delete_file_helper(config: &Config, id: Uuid) -> Result<(), CoreError> {
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files)?;
+    let files = utils::filter_not_deleted(&files);
     let file = file_service::apply_delete(&files, id)?;
     file_repo::insert_metadata(config, RepoSource::Local, &file)
 }
@@ -565,7 +565,7 @@ pub fn rename_file(
 
 fn rename_file_helper(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files)?;
+    let files = utils::filter_not_deleted(&files);
     let file = file_service::apply_rename(&files, id, new_name)?;
     file_repo::insert_metadata(config, RepoSource::Local, &file)
 }
@@ -596,7 +596,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
 
 fn move_file_helper(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files)?;
+    let files = utils::filter_not_deleted(&files);
     let file = file_service::apply_move(&files, id, new_parent)?;
     file_repo::insert_metadata(config, RepoSource::Local, &file)
 }
