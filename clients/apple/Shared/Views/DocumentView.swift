@@ -22,7 +22,7 @@ struct DocumentView: View {
                 switch type {
                 case .Image:
                     if let img = model.image {
-                        ScrollView {
+                        ScrollView([.horizontal, .vertical]) {
                             img
                         }
                     }
