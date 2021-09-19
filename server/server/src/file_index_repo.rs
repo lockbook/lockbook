@@ -703,10 +703,6 @@ INSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, (SELECT id
     .await
     {
         Ok(_) => Ok(()),
-        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("pk_accounts") => Err(NewAccountError::UsernameTaken),
-            _ => Err(NewAccountError::Postgres(sqlx::Error::Database(db_err))),
-        },
         Err(db_err) => Err(NewAccountError::Postgres(db_err)),
     }
 }

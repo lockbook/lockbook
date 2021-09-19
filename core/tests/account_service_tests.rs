@@ -4,14 +4,14 @@ mod integration_test;
 mod account_tests {
     use lockbook_core::repo::account_repo;
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
-    use lockbook_core::service::{account_service, sync_service};
+    use lockbook_core::service::account_service;
     use lockbook_core::{
         create_account, export_account, import_account, CoreError, Error, ImportError,
     };
     use lockbook_models::account::Account;
 
     #[test]
-    fn create_account_successfully() {
+    fn create_account_success() {
         let db = test_config();
         let generated_account = generate_account();
         account_service::create_account(
@@ -23,7 +23,7 @@ mod account_tests {
     }
 
     #[test]
-    fn username_taken_test() {
+    fn create_account_username_taken() {
         let db1 = test_config();
         let db2 = test_config();
         let generated_account = generate_account();
@@ -50,12 +50,12 @@ mod account_tests {
     }
 
     #[test]
-    fn invalid_username_test() {
+    fn create_account_invalid_username() {
         let db = test_config();
 
         let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
-        for uname in &invalid_unames {
+        for &uname in &invalid_unames {
             let err = account_service::create_account(&db, uname, &generate_account().api_url)
                 .unwrap_err();
 
@@ -69,41 +69,7 @@ mod account_tests {
     }
 
     #[test]
-    fn import_sync() {
-        let db1 = test_config();
-        let generated_account = generate_account();
-        let account = account_service::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
-
-        let account_string = account_service::export_account(&db1).unwrap();
-        let home_folders1 = remote_metadata_repo::get_root(&db1).unwrap().unwrap();
-
-        let db2 = test_config();
-        assert!(account_service::export_account(&db2).is_err());
-        account_service::import_account(&db2, &account_string).unwrap();
-        assert_eq!(account_repo::get(&db2).unwrap(), account);
-        assert_eq!(remote_metadata_repo::get_last_updated(&db2).unwrap(), 0);
-
-        let work = sync_service::calculate_work(&db2).unwrap();
-        assert_ne!(work.most_recent_update_from_server, 0);
-        assert_eq!(work.work_units.len(), 1);
-        assert!(remote_metadata_repo::get_root(&db2).unwrap().is_none());
-        sync_service::sync(&db2, None).unwrap();
-        assert!(remote_metadata_repo::get_root(&db2).unwrap().is_some());
-        let home_folders2 = remote_metadata_repo::get_root(&db2).unwrap().unwrap();
-        assert_eq!(home_folders1, home_folders2);
-        assert_eq!(
-            remote_metadata_repo::get_all(&db1).unwrap(),
-            remote_metadata_repo::get_all(&db2).unwrap()
-        );
-    }
-
-    #[test]
-    fn test_new_account_when_one_exists() {
+    fn create_account_account_exists() {
         let db = test_config();
         let generated_account = generate_account();
 
@@ -128,7 +94,7 @@ mod account_tests {
     }
 
     #[test]
-    fn test_import_account_when_one_exists() {
+    fn import_account_account_exists() {
         let cfg1 = test_config();
         let generated_account = generate_account();
 
@@ -157,7 +123,7 @@ mod account_tests {
     }
 
     #[test]
-    fn test_account_string_corrupted() {
+    fn import_account_corrupted() {
         let cfg1 = test_config();
 
         match import_account(&cfg1, "clearly a bad account string") {
@@ -175,7 +141,7 @@ mod account_tests {
     }
 
     #[test]
-    fn test_importing_nonexistent_account() {
+    fn import_account_nonexistent() {
         let cfg1 = test_config();
         let generated_account = generate_account();
 
@@ -198,8 +164,6 @@ mod account_tests {
 
         let account_string = export_account(&cfg2).unwrap();
 
-        println!("Your thing\n{}", &account_string);
-
         let cfg3 = test_config();
 
         match import_account(&cfg3, &account_string) {
@@ -217,7 +181,7 @@ mod account_tests {
     }
 
     #[test]
-    fn test_account_public_key_mismatch_import() {
+    fn import_account_public_key_mismatch() {
         let bad_account_string = {
             let db1 = test_config();
             let db2 = test_config();
