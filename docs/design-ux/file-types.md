@@ -10,45 +10,15 @@ These are the set of file types (for now) that we will author UI elements for.
 
 # Second party support
 
-For arbitrary file types we have a few options.
+For arbitrary files within clients we'll a configurable process with a temporary file, and watch that file for changes.
 
-## [FUSE](https://en.wikipedia.org/wiki/Filesystem_in_Userspace)
+We'll choose some defaults on a per-platform and binary-availability basis. We can explore using tools like `open`,
+and `xdg-open` that push the program selection responsibility to the operating system. But these processes generally
+give us less control over controlling how the resulting program runs. Further investigation here is required.
 
-Use FUSE to create a mountpoint which represents lockbook's file structure.
+# Lockbook Drive
 
-Pros:
+Later, we'll create Lockbook Drive, a program that mounts a FUSE drive that contains lockbook file contents.
 
-+ Transparent to other applications
-+ Multi-platform support
-
-Cons:
-
-+ Requires FUSE kernel drivers (sudo and maybe restart to install).
-+ Possibly would benefit from an isolated application
-+ A bit of a hassle on macOS & Windows where a package manager is not necessarily used.
-
-We could do this in a self standing way. Or we could try to integrate this into our existing applications. If we
-integrate it in, double-clicking unsupported files within our app can launch their on-disk location.
-
-## Explicit file sync
-
-Replicate a particular file to a temporary location. Monitor it for changes. Could use a dialog to make the current
-status of the file as obvious as possible.
-
-Pros:
-
-+ Transparent
-+ Multi-platform
-+ No strange deps
-+ More straightforward user experiences (right-click a folder -> sync to computer, double-clicking a pdf)
-
-Cons:
-
-+ Requires duplicating file contents between lockbook-dir & on disk location. This is fine for 1-off temp files created
-  to edit a libre-office document. Could be more problematic if people use lockbook to backup their home folder.
-
-## 1 Way export
-
-If you double-click on a file that we don't support, that file is moved to your downloads and is opened. Can attempt to
-mark the file as read-only. This is *somewhat* the experience people are used to that backup finalized projects to
-google drive. But Google Drive offers a FUSE mount as well. 
+We'll likely want to be able to control which files get synced to what device before taking on this feature set to allow
+people to make sure they're not saving the same files twice on their machine.
