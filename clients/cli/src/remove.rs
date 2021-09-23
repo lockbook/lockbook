@@ -9,12 +9,12 @@ use lockbook_core::{
 use lockbook_models::file_metadata::FileType;
 
 use crate::error::CliResult;
-use crate::utils::{exit_success, get_account_or_exit, get_config};
+use crate::utils::{account, config};
 use crate::{err, err_unexpected};
 
 pub fn remove(path: &str, force: bool) -> CliResult<()> {
-    get_account_or_exit();
-    let config = get_config();
+    account()?;
+    let config = config()?;
 
     let meta = get_file_by_path(&config, path).map_err(|err| match err {
         UiError(GetFileByPathError::NoFileAtThatPath) => err!(FileNotFound(path.to_string())),
@@ -30,7 +30,7 @@ pub fn remove(path: &str, force: bool) -> CliResult<()> {
                 UiError(GetAndGetChildrenError::FileDoesNotExist) => {
                     err!(FileNotFound(path.to_string()))
                 }
-                UnexpectedError(msg) => err_unexpected!("{}", msg).exit(),
+                UnexpectedError(msg) => err_unexpected!("{}", msg),
             })?;
 
         print!(
@@ -49,7 +49,8 @@ pub fn remove(path: &str, force: bool) -> CliResult<()> {
         answer.retain(|c| c != '\n' && c != '\r');
 
         if answer != "y" && answer != "Y" {
-            exit_success("Aborted.")
+            println!("Aborted.");
+            return Ok(())
         }
     }
 

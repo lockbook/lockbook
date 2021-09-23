@@ -1,7 +1,7 @@
 use lockbook_core::{import_account, Error as CoreError, ImportError};
 
 use crate::error::CliResult;
-use crate::utils::get_config;
+use crate::utils::config;
 use crate::{err, err_extra, err_unexpected};
 
 pub fn import_private_key() -> CliResult<()> {
@@ -21,7 +21,7 @@ pub fn import_private_key() -> CliResult<()> {
 
         println!("Importing...");
 
-        import_account(&get_config(), &account_string).map_err(|err| match err {
+        import_account(&config()?, &account_string).map_err(|err| match err {
             CoreError::UiError(err) => match err {
                 ImportError::AccountStringCorrupted => err!(AccountStringCorrupted),
                 ImportError::AccountExistsAlready => err!(AccountAlreadyExists),
@@ -30,7 +30,7 @@ pub fn import_private_key() -> CliResult<()> {
                 ImportError::CouldNotReachServer => err!(NetworkIssue),
                 ImportError::ClientUpdateRequired => err!(UpdateRequired),
             },
-            CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
+            CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
         })?;
 
         println!("Account imported successfully.");

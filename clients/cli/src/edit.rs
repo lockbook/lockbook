@@ -8,22 +8,22 @@ use lockbook_core::{
 
 use crate::error::CliResult;
 use crate::utils::{
-    edit_file_with_editor, get_account_or_exit, get_config, get_directory_location,
+    edit_file_with_editor, account, config, get_directory_location,
     save_temp_file_contents, set_up_auto_save, stop_auto_save,
 };
 use crate::{err, err_unexpected};
 
 pub fn edit(file_name: &str) -> CliResult<()> {
-    get_account_or_exit();
+    account()?;
 
-    let file_metadata = get_file_by_path(&get_config(), file_name).map_err(|err| match err {
+    let file_metadata = get_file_by_path(&config()?, file_name).map_err(|err| match err {
         CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
             err!(FileNotFound(file_name.to_string()))
         }
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
-    let file_content = read_document(&get_config(), file_metadata.id).map_err(|err| match err {
+    let file_content = read_document(&config()?, file_metadata.id).map_err(|err| match err {
         CoreError::UiError(ReadDocumentError::TreatedFolderAsDocument) => {
             err!(FolderTreatedAsDoc(file_name.to_string()))
         }

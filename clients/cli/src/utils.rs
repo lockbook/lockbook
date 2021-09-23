@@ -1,8 +1,5 @@
 use lockbook_core::model::state::Config;
-use lockbook_core::{
-    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
-    GetAccountError, GetStateError, MigrationError,
-};
+use lockbook_core::{get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db, GetAccountError, GetStateError, MigrationError, Error};
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 use std::{env, fs};
 
@@ -25,25 +22,25 @@ macro_rules! path_string {
     };
 }
 
-pub fn init_logger_or_print() {
-    if let Err(err) = init_logger(get_config().path()) {
-        eprintln!("Logger failed to initialize! {:#?}", err)
-    }
+pub fn init_logger_or_print() -> CliResult<()> {
+    init_logger(config()?.path()).map_err(|err| match err {
+        Error::UiError(()) => err_unexpected!("impossible"),
+        Error::Unexpected(msg) => err_unexpected!("{}", msg)
+    })
 }
 
-pub fn get_account_or_exit() -> Account {
-    match get_account(&get_config()) {
-        Ok(account) => account,
+pub fn account() -> CliResult<Account> {
+    match get_account(&config()?) {
+        Ok(account) => Ok(account),
         Err(err) => match err {
-            CoreError::UiError(GetAccountError::NoAccount) => err!(NoAccount),
-            CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+            CoreError::UiError(GetAccountError::NoAccount) => Err(err!(NoAccount)),
+            CoreError::Unexpected(msg) => Err(err_unexpected!("{}", msg)),
         }
-        .exit(),
     }
 }
 
 pub fn check_and_perform_migrations() -> CliResult<()> {
-    let state = get_db_state(&get_config()).map_err(|err| match err {
+    let state = get_db_state(&config()?).map_err(|err| match err {
         CoreError::UiError(GetStateError::Stub) => err_unexpected!("impossible"),
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
@@ -55,7 +52,7 @@ pub fn check_and_perform_migrations() -> CliResult<()> {
             if atty::is(atty::Stream::Stdout) {
                 println!("Local state requires migration! Performing migration now...");
             }
-            migrate_db(&get_config()).map_err(|err| match err {
+            migrate_db(&config()?).map_err(|err| match err {
                 CoreError::UiError(MigrationError::StateRequiresCleaning) => {
                     err!(UninstallRequired)
                 }
@@ -75,28 +72,23 @@ pub fn check_and_perform_migrations() -> CliResult<()> {
     Ok(())
 }
 
-pub fn get_config() -> Config {
+pub fn config() -> CliResult<Config> {
     let path = match (
         env::var("LOCKBOOK_CLI_LOCATION"),
         env::var("HOME"),
         env::var("HOMEPATH"),
     ) {
-        (Ok(s), _, _) => s,
-        (Err(_), Ok(s), _) => format!("{}/.lockbook", s),
-        (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
-        _ => err!(NoCliLocation).exit(),
+        (Ok(s), _, _) => Ok(s),
+        (Err(_), Ok(s), _) => Ok(format!("{}/.lockbook", s)),
+        (Err(_), Err(_), Ok(s)) => Ok(format!("{}/.lockbook", s)),
+        _ => Err(err!(NoCliLocation)),
     };
 
-    Config {
-        writeable_path: path,
-    }
-}
-
-pub fn exit_success(msg: &str) -> ! {
-    if !msg.is_empty() {
-        println!("{}", msg);
-    }
-    std::process::exit(0)
+    Ok(
+        Config {
+            writeable_path: path?,
+        }
+    )
 }
 
 // In ascending order of superiority
@@ -201,7 +193,7 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
 
 pub fn print_last_successful_sync() -> CliResult<()> {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = get_last_synced_human_string(&get_config())
+        let last_updated = get_last_synced_human_string(&config()?)
             .map_err(|err| err_unexpected!("attempting to retrieve usage: {:#?}", err))?;
 
         println!("Last successful sync: {}", last_updated);
@@ -237,7 +229,7 @@ pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
 pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
     watcher
         .unwatch(file_location)
-        .unwrap_or_else(|err| err_unexpected!("file watcher failed to unwatch: {:#?}", err).exit());
+        .unwrap_or_else(|err| eprintln!("file watcher failed to unwatch: {:#?}", err))
 }
 
 pub fn save_temp_file_contents(id: Uuid, location: &str) -> CliResult<()> {
@@ -251,7 +243,7 @@ pub fn save_temp_file_contents(id: Uuid, location: &str) -> CliResult<()> {
         })?
         .into_bytes();
 
-    write_document(&get_config(), id, &secret).map_err(|err| match err {
+    write_document(&config()?, id, &secret).map_err(|err| match err {
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
         CoreError::UiError(WriteToDocumentError::NoAccount) => {
             err_unexpected!("No account! Run 'new-account' or 'import-private-key' to get started!")

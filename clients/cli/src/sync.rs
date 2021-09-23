@@ -2,12 +2,14 @@ use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{sync_all, Error, SyncAllError};
 
 use crate::error::CliResult;
-use crate::utils::get_config;
+use crate::utils::{config, account};
 use crate::{err, err_unexpected};
 use lockbook_core::model::client_conversion::ClientWorkUnit;
 
 pub fn sync() -> CliResult<()> {
-    let config = get_config();
+    account()?;
+
+    let config = config()?;
     let closure = |sync_progress: SyncProgress| {
         match sync_progress.current_work_unit {
             ClientWorkUnit::ServerUnknownName(_) => println!("Pulling: New File"),
