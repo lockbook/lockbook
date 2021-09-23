@@ -50,7 +50,7 @@ pub fn remove(path: &str, force: bool) -> CliResult<()> {
 
         if answer != "y" && answer != "Y" {
             println!("Aborted.");
-            return Ok(())
+            return Ok(());
         }
     }
 

@@ -418,11 +418,11 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
             FileType::Document => file_service::delete_document(config, id),
             FileType::Folder => file_service::delete_folder(config, id),
         }
-            .map_err(|e| match e {
-                CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
-                CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
-                _ => unexpected!("{:#?}", e),
-            }),
+        .map_err(|e| match e {
+            CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
+            CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
+            _ => unexpected!("{:#?}", e),
+        }),
         Err(_) => Err(UiError(FileDeleteError::FileDoesNotExist)),
     }
 }

@@ -6,8 +6,8 @@ use std::path::Path;
 
 use crate::error::CliResult;
 use crate::utils::{
-    edit_file_with_editor, account, config, get_directory_location,
-    save_temp_file_contents, set_up_auto_save, stop_auto_save,
+    account, config, edit_file_with_editor, get_directory_location, save_temp_file_contents,
+    set_up_auto_save, stop_auto_save,
 };
 use crate::{err, err_unexpected};
 

@@ -1,7 +1,7 @@
 use lockbook_core::{get_file_by_path, Error as CoreError, GetFileByPathError, MoveFileError};
 
 use crate::error::CliResult;
-use crate::utils::{config, account};
+use crate::utils::{account, config};
 use crate::{err, err_extra, err_unexpected};
 
 pub fn move_file(path1: &str, path2: &str) -> CliResult<()> {

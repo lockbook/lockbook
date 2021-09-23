@@ -2,7 +2,7 @@ use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{sync_all, Error, SyncAllError};
 
 use crate::error::CliResult;
-use crate::utils::{config, account};
+use crate::utils::{account, config};
 use crate::{err, err_unexpected};
 use lockbook_core::model::client_conversion::ClientWorkUnit;
 
