@@ -8,10 +8,9 @@ use lockbook_models::api::{
 use lockbook_models::file_metadata::FileType;
 
 pub async fn new_account(
-    context: &mut RequestContext<'_, NewAccountRequest>,
+    context: RequestContext<'_, NewAccountRequest>,
 ) -> Result<NewAccountResponse, Result<NewAccountError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    let (request, server_state) = (&context.request, context.server_state);
     if !username_is_valid(&request.username) {
         return Err(Ok(NewAccountError::InvalidUsername));
     }
@@ -51,7 +50,7 @@ pub async fn new_account(
     })?;
     let new_user_access_key_result = file_index_repo::create_user_access_key(
         &mut transaction,
-        &request.username,
+        &request.public_key,
         request.folder_id,
         &request.user_access_key,
     )
@@ -67,15 +66,18 @@ pub async fn new_account(
         Ok(()) => Ok(NewAccountResponse {
             folder_metadata_version: new_version,
         }),
+        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
+            Some("uk_name") => Err(Ok(NewAccountError::UsernameTaken)),
+            _ => Err(Err(format!("Cannot commit transaction due to constraint violation: {:?}", db_err))),
+        },
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn get_public_key(
-    context: &mut RequestContext<'_, GetPublicKeyRequest>,
+    context: RequestContext<'_, GetPublicKeyRequest>,
 ) -> Result<GetPublicKeyResponse, Result<GetPublicKeyError, String>> {
-    let request = &context.request;
-    let server_state = &mut context.server_state;
+    let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -95,9 +97,9 @@ pub async fn get_public_key(
 }
 
 pub async fn get_usage(
-    context: &mut RequestContext<'_, GetUsageRequest>,
+    context: RequestContext<'_, GetUsageRequest>,
 ) -> Result<GetUsageResponse, Result<GetUsageError, String>> {
-    let server_state = &mut context.server_state;
+    let (_, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {

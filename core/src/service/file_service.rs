@@ -1,288 +1,203 @@
-use sha2::{Digest, Sha256};
-use uuid::Uuid;
-
-use crate::model::state::Config;
-use crate::repo::document_repo;
-use crate::repo::file_metadata_repo;
-use crate::repo::{account_repo, local_changes_repo};
-use crate::service::file_compression_service;
-use crate::service::file_encryption_service;
-use crate::CoreError;
-use lockbook_crypto::clock_service;
-use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::file_metadata::{FileMetadata, FileType};
+use crate::utils::StageSource;
+use crate::{utils, CoreError};
+use lockbook_crypto::symkey;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
+use uuid::Uuid;
 
-pub fn create(
-    config: &Config,
-    name: &str,
-    parent: Uuid,
-    file_type: FileType,
-) -> Result<FileMetadata, CoreError> {
+pub fn create(file_type: FileType, parent: Uuid, name: &str, owner: &str) -> DecryptedFileMetadata {
+    DecryptedFileMetadata {
+        id: Uuid::new_v4(),
+        file_type,
+        parent,
+        decrypted_name: String::from(name),
+        owner: String::from(owner),
+        metadata_version: 0,
+        content_version: 0,
+        deleted: false,
+        decrypted_access_key: symkey::generate_key(),
+    }
+}
+
+pub fn create_root(username: &str) -> DecryptedFileMetadata {
+    let id = Uuid::new_v4();
+    DecryptedFileMetadata {
+        id,
+        file_type: FileType::Folder,
+        parent: id,
+        decrypted_name: String::from(username),
+        owner: String::from(username),
+        metadata_version: 0,
+        content_version: 0,
+        deleted: false,
+        decrypted_access_key: symkey::generate_key(),
+    }
+}
+
+/// Validates a rename operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
+pub fn apply_rename(
+    files: &[DecryptedFileMetadata],
+    target_id: Uuid,
+    new_name: &str,
+) -> Result<DecryptedFileMetadata, CoreError> {
+    let mut file = utils::find(files, target_id)?;
+    validate_not_root(&file)?;
+    validate_file_name(new_name)?;
+
+    file.decrypted_name = String::from(new_name);
+    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
+        return Err(CoreError::PathTaken);
+    }
+
+    Ok(file)
+}
+
+/// Validates a move operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
+pub fn apply_move(
+    files: &[DecryptedFileMetadata],
+    target_id: Uuid,
+    new_parent: Uuid,
+) -> Result<DecryptedFileMetadata, CoreError> {
+    let mut file = utils::find(files, target_id)?;
+    let parent = utils::find_parent(files, target_id)?;
+    validate_not_root(&file)?;
+    validate_is_folder(&parent)?;
+
+    file.parent = new_parent;
+    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
+        return Err(CoreError::PathTaken);
+    }
+    if !get_invalid_cycles(files, &[file.clone()])?.is_empty() {
+        return Err(CoreError::FolderMovedIntoSelf);
+    }
+
+    Ok(file)
+}
+
+/// Validates a delete operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
+pub fn apply_delete(
+    files: &[DecryptedFileMetadata],
+    target_id: Uuid,
+) -> Result<DecryptedFileMetadata, CoreError> {
+    let mut file = utils::find(files, target_id)?;
+    validate_not_root(&file)?;
+
+    file.deleted = true;
+
+    Ok(file)
+}
+
+fn validate_not_root(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
+    if file.id != file.parent {
+        Ok(())
+    } else {
+        Err(CoreError::RootModificationInvalid)
+    }
+}
+
+fn validate_is_folder(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
+    if file.file_type == FileType::Folder {
+        Ok(())
+    } else {
+        Err(CoreError::FileNotFolder)
+    }
+}
+
+fn validate_file_name(name: &str) -> Result<(), CoreError> {
     if name.is_empty() {
         return Err(CoreError::FileNameEmpty);
     }
     if name.contains('/') {
         return Err(CoreError::FileNameContainsSlash);
     }
-
-    let _account = account_repo::get_account(config)?;
-
-    let parent =
-        file_metadata_repo::maybe_get(config, parent)?.ok_or(CoreError::FileParentNonexistent)?;
-
-    // Make sure parent is in fact a folder
-    if parent.file_type == Document {
-        return Err(CoreError::FileNotFolder);
-    }
-
-    // Check that this file name is available
-    for child in file_metadata_repo::get_children_non_recursively(config, parent.id)? {
-        if file_encryption_service::get_name(config, &child)? == name {
-            return Err(CoreError::PathTaken);
-        }
-    }
-
-    let new_metadata =
-        file_encryption_service::create_file_metadata(config, name, file_type, parent.id)?;
-
-    file_metadata_repo::insert(config, &new_metadata)?;
-    local_changes_repo::track_new_file(config, new_metadata.id, clock_service::get_time)?;
-
-    if file_type == Document {
-        write_document(config, new_metadata.id, &[])?;
-    }
-    Ok(new_metadata)
-}
-
-pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
-    let _account = account_repo::get_account(config)?;
-
-    let file_metadata =
-        file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
-
-    if file_metadata.file_type == Folder {
-        return Err(CoreError::FileNotDocument);
-    }
-
-    let compressed_content = file_compression_service::compress(content)?;
-    let new_file =
-        file_encryption_service::write_to_document(config, &compressed_content, &file_metadata)?;
-    file_metadata_repo::insert(config, &file_metadata)?;
-
-    if let Some(old_encrypted) = document_repo::maybe_get(config, id)? {
-        let decrypted =
-            file_encryption_service::read_document(config, &old_encrypted, &file_metadata)?;
-        let decompressed = file_compression_service::decompress(&decrypted)?;
-        let permanent_access_info = file_encryption_service::get_key_for_user(config, id)?;
-
-        local_changes_repo::track_edit(
-            config,
-            file_metadata.id,
-            &old_encrypted,
-            &permanent_access_info,
-            Sha256::digest(&decompressed).to_vec(),
-            Sha256::digest(content).to_vec(),
-            clock_service::get_time,
-        )?;
-    };
-
-    document_repo::insert(config, file_metadata.id, &new_file)?;
-
     Ok(())
 }
 
-pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
-    if new_name.is_empty() {
-        return Err(CoreError::FileNameEmpty);
-    }
-    if new_name.contains('/') {
-        return Err(CoreError::FileNameContainsSlash);
-    }
+pub fn get_invalid_cycles(
+    files: &[DecryptedFileMetadata],
+    staged_changes: &[DecryptedFileMetadata],
+) -> Result<Vec<Uuid>, CoreError> {
+    let files_with_sources = utils::stage(files, staged_changes);
+    let files = &files_with_sources
+        .iter()
+        .map(|(f, _)| f.clone())
+        .collect::<Vec<DecryptedFileMetadata>>();
+    let mut result = Vec::new();
 
-    match file_metadata_repo::maybe_get(config, id)? {
-        None => Err(CoreError::FileNonexistent),
-        Some(mut file) => {
-            if file.id == file.parent {
-                return Err(CoreError::RootModificationInvalid);
+    'file_loop: for file in files {
+        let mut ancestor = utils::find_parent(files, file.id)?;
+
+        if ancestor.id == file.id {
+            continue; // root cycle is valid
+        }
+
+        while ancestor.id != file.id {
+            ancestor = utils::find_parent(files, ancestor.id)?;
+            if ancestor.id == file.id {
+                result.push(file.id); // non-root cycle is invalid
             }
+            continue 'file_loop;
+        }
+    }
 
-            let siblings = file_metadata_repo::get_children_non_recursively(config, file.parent)?;
+    Ok(result)
+}
 
-            // Check that this file name is available
-            for child in siblings {
-                if file_encryption_service::get_name(config, &child)? == new_name {
-                    return Err(CoreError::PathTaken);
+pub struct PathConflict {
+    pub existing: Uuid,
+    pub staged: Uuid,
+}
+
+pub fn get_path_conflicts(
+    files: &[DecryptedFileMetadata],
+    staged_changes: &[DecryptedFileMetadata],
+) -> Result<Vec<PathConflict>, CoreError> {
+    let files_with_sources = utils::stage(files, staged_changes);
+    let files = &files_with_sources
+        .iter()
+        .map(|(f, _)| f.clone())
+        .collect::<Vec<DecryptedFileMetadata>>();
+    let mut result = Vec::new();
+
+    for file in files {
+        let children = utils::find_children(files, file.id);
+        let mut child_ids_by_name: HashMap<String, Uuid> = HashMap::new();
+        for child in children {
+            if let Some(conflicting_child_id) = child_ids_by_name.get(&child.decrypted_name) {
+                let (_, child_source) = files_with_sources
+                    .iter()
+                    .find(|(f, _)| f.id == child.id)
+                    .ok_or(CoreError::Unexpected(String::from(
+                    "get_path_conflicts: could not find child by id",
+                )))?;
+                match child_source {
+                    StageSource::Base => result.push(PathConflict {
+                        existing: child.id,
+                        staged: conflicting_child_id.to_owned(),
+                    }),
+                    StageSource::Staged => result.push(PathConflict {
+                        existing: conflicting_child_id.to_owned(),
+                        staged: child.id,
+                    }),
                 }
             }
-
-            let old_file_name = file_encryption_service::get_name(config, &file)?;
-
-            local_changes_repo::track_rename(
-                config,
-                file.id,
-                &old_file_name,
-                new_name,
-                clock_service::get_time,
-            )?;
-
-            file.name = file_encryption_service::create_name(config, &file, new_name)?;
-            file_metadata_repo::insert(config, &file)?;
-
-            Ok(())
-        }
-    }
-}
-
-pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
-    let _account = account_repo::get_account(config)?;
-
-    let mut file = file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
-    if file.id == file.parent {
-        return Err(CoreError::RootModificationInvalid);
-    }
-
-    let parent_metadata = file_metadata_repo::maybe_get(config, new_parent)?
-        .ok_or(CoreError::FileParentNonexistent)?;
-    if parent_metadata.file_type == Document {
-        return Err(CoreError::FileNotFolder);
-    }
-
-    let siblings = file_metadata_repo::get_children_non_recursively(config, parent_metadata.id)?;
-    let new_name = file_encryption_service::rekey_secret_filename(config, &file, &parent_metadata)?;
-
-    // Check that this file name is available
-    for child in siblings {
-        if child.name == new_name {
-            return Err(CoreError::PathTaken);
+            child_ids_by_name.insert(child.decrypted_name, child.id);
         }
     }
 
-    // Checking if a folder is being moved into itself or its children
-    if file.file_type == FileType::Folder {
-        let children = file_metadata_repo::get_and_get_children_recursively(config, id)?;
-        for child in children {
-            if child.id == new_parent {
-                return Err(CoreError::FolderMovedIntoSelf);
-            }
-        }
-    }
-
-    let access_key = file_encryption_service::decrypt_key_for_file(config, file.id)?;
-    let new_access_info =
-        file_encryption_service::re_encrypt_key_for_file(config, access_key, parent_metadata.id)?;
-
-    local_changes_repo::track_move(
-        config,
-        file.id,
-        file.parent,
-        parent_metadata.id,
-        clock_service::get_time,
-    )?;
-
-    file.parent = parent_metadata.id;
-    file.folder_access_keys = new_access_info;
-    file.name = new_name;
-
-    file_metadata_repo::insert(config, &file)?;
-    Ok(())
+    Ok(result)
 }
 
-pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
-    let _account = account_repo::get_account(config)?;
-
-    let file_metadata =
-        file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
-
-    if file_metadata.file_type == Folder {
-        return Err(CoreError::FileNotDocument);
-    }
-
-    let document = document_repo::get(config, id)?;
-    let compressed_content =
-        file_encryption_service::read_document(config, &document, &file_metadata)?;
-    let content = file_compression_service::decompress(&compressed_content)?;
-
-    Ok(content)
-}
-
-pub fn save_document_to_disk(config: &Config, id: Uuid, location: String) -> Result<(), CoreError> {
-    let document_content = read_document(config, id)?;
-    let mut file = OpenOptions::new()
+pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), CoreError> {
+    OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(Path::new(&location))
+        .map_err(CoreError::from)?
+        .write_all(document)
         .map_err(CoreError::from)?;
-
-    file.write_all(document_content.as_slice())
-        .map_err(CoreError::from)
-}
-
-pub fn delete_document(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    let mut file_metadata =
-        file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
-
-    if file_metadata.file_type == Folder {
-        return Err(CoreError::FileNotDocument);
-    }
-
-    let new = if let Some(change) = local_changes_repo::get_local_changes(config, id)? {
-        change.new
-    } else {
-        false
-    };
-
-    if !new {
-        file_metadata.deleted = true;
-        file_metadata_repo::insert(config, &file_metadata)?;
-    } else {
-        file_metadata_repo::non_recursive_delete(config, id)?;
-    }
-
-    document_repo::delete(config, id)?;
-    local_changes_repo::track_delete(config, id, file_metadata.file_type, clock_service::get_time)?;
-
-    Ok(())
-}
-
-pub fn delete_folder(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    let file_metadata =
-        file_metadata_repo::maybe_get(config, id)?.ok_or(CoreError::FileNonexistent)?;
-
-    if file_metadata.id == file_metadata.parent {
-        return Err(CoreError::RootModificationInvalid);
-    }
-    if file_metadata.file_type == Document {
-        return Err(CoreError::FileNotFolder);
-    }
-
-    local_changes_repo::track_delete(config, id, file_metadata.file_type, clock_service::get_time)?;
-
-    let files_to_delete = file_metadata_repo::get_and_get_children_recursively(config, id)?;
-
-    for mut file in files_to_delete {
-        if file.file_type == Document {
-            document_repo::delete(config, file.id)?;
-        }
-
-        let moved = if let Some(change) = local_changes_repo::get_local_changes(config, file.id)? {
-            change.moved.is_some()
-        } else {
-            false
-        };
-
-        if file.id != id && !moved {
-            file_metadata_repo::non_recursive_delete(config, file.id)?;
-
-            local_changes_repo::delete(config, file.id)?;
-        } else {
-            file.deleted = true;
-            file_metadata_repo::insert(config, &file)?;
-        }
-    }
-
     Ok(())
 }
