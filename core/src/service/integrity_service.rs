@@ -1,11 +1,18 @@
+use std::path::Path;
+
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{file_repo, root_repo};
-use crate::service::file_service;
+use crate::service::{drawing_service, file_service, path_service};
 use crate::{utils, CoreError};
+use lockbook_models::file_metadata::FileType;
 use uuid::Uuid;
 
-#[derive(Debug)]
+const UTF8_SUFFIXES: [&str; 12] = [
+    "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
+];
+
+#[derive(Debug, Clone)]
 pub enum TestRepoError {
     NoRootFolder,
     DocumentTreatedAsFolder(Uuid),
@@ -17,7 +24,14 @@ pub enum TestRepoError {
     Core(CoreError),
 }
 
-pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
+#[derive(Debug, Clone)]
+pub enum Warning {
+    EmptyFile(Uuid),
+    InvalidUTF8(Uuid),
+    UnreadableDrawing(Uuid),
+}
+
+pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoError> {
     let root_id = root_repo::maybe_get(config)
         .map_err(TestRepoError::Core)?
         .ok_or(TestRepoError::NoRootFolder)?;
@@ -73,16 +87,18 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
     }
 
     let mut warnings = Vec::new();
-    for file in all.clone() {
-        if file.file_type == Document {
-            let file_content = file_service::read_document(config, file.id).map_err(Core)?;
+    for file in files {
+        if file.file_type == FileType::Document {
+            let file_content = file_repo::get_document(config, RepoSource::Local, file.id)
+                .map_err(TestRepoError::Core)?;
 
             if file_content.len() as u64 == 0 {
                 warnings.push(Warning::EmptyFile(file.id));
                 continue;
             }
 
-            let file_path = get_path_by_id(config, file.id).map_err(Core)?;
+            let file_path =
+                path_service::get_path_by_id(config, file.id).map_err(TestRepoError::Core)?;
             let extension = Path::new(&file_path)
                 .extension()
                 .and_then(|ext| ext.to_str())
@@ -93,7 +109,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<(), TestRepoError> {
                 continue;
             }
 
-            if extension == "draw" && get_drawing(config, file.id).is_err() {
+            if extension == "draw" && drawing_service::parse_drawing(&file_repo::get_document(config, RepoSource::Local, file.id).map_err(TestRepoError::Core)?).is_err() {
                 warnings.push(Warning::UnreadableDrawing(file.id));
             }
         }

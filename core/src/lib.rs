@@ -15,7 +15,7 @@ use crate::repo::file_repo;
 use crate::repo::{account_repo, last_updated_repo};
 use crate::service::db_state_service::State;
 use crate::service::drawing_service::SupportedImageFormats;
-use crate::service::import_export_service::ImportExportFileInfo;
+use crate::service::import_export_service::{self, ImportExportFileInfo};
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
@@ -767,7 +767,11 @@ pub fn save_drawing(
     })
 }
 
-pub fn save_drawing_helper(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), CoreError> {
+pub fn save_drawing_helper(
+    config: &Config,
+    id: Uuid,
+    drawing_bytes: &[u8],
+) -> Result<(), CoreError> {
     drawing_service::parse_drawing(drawing_bytes)?; // validate drawing
     let metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
     file_repo::insert_document(config, RepoSource::Local, &metadata, drawing_bytes)
@@ -844,8 +848,60 @@ fn export_drawing_to_disk_helper(
     location: String,
 ) -> Result<(), CoreError> {
     let drawing_bytes = file_repo::get_document(config, RepoSource::Local, id)?;
-    let exported_drawing_bytes = drawing_service::export_drawing(&drawing_bytes, format, render_theme)?;
+    let exported_drawing_bytes =
+        drawing_service::export_drawing(&drawing_bytes, format, render_theme)?;
     file_service::save_document_to_disk(&exported_drawing_bytes, location)
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ImportFileError {
+    NoAccount,
+    ParentDoesNotExist,
+    DocumentTreatedAsFolder,
+    DiskPathInvalid,
+}
+
+pub fn import_file(
+    config: &Config,
+    disk_path: PathBuf,
+    parent: Uuid,
+    import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+) -> Result<(), Error<ImportFileError>> {
+    import_export_service::import_file(config, disk_path, parent, import_progress).map_err(|e| {
+        match e {
+            CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
+            CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
+            CoreError::DiskPathInvalid => UiError(ImportFileError::DiskPathInvalid),
+            _ => unexpected!("{:#?}", e),
+        }
+    })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ExportFileError {
+    NoAccount,
+    ParentDoesNotExist,
+    DiskPathTaken,
+    DiskPathInvalid,
+}
+
+pub fn export_file(
+    config: &Config,
+    id: Uuid,
+    destination: PathBuf,
+    edit: bool,
+    export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+) -> Result<(), Error<ExportFileError>> {
+    import_export_service::export_file(config, id, destination, edit, export_progress).map_err(
+        |e| match e {
+            CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
+            CoreError::DiskPathInvalid => UiError(ExportFileError::DiskPathInvalid),
+            CoreError::DiskPathTaken => UiError(ExportFileError::DiskPathTaken),
+            _ => unexpected!("{:#?}", e),
+        },
+    )
 }
 
 // This basically generates a function called `get_all_error_variants`,

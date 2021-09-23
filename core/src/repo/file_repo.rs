@@ -1,4 +1,3 @@
-use crate::CoreError;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::account_repo;
@@ -8,6 +7,7 @@ use crate::repo::metadata_repo;
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::utils;
+use crate::CoreError;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
