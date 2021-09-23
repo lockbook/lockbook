@@ -1,5 +1,3 @@
-use crate::model::state::Config;
-use crate::service::file_service;
 use crate::{core_err_unexpected, CoreError};
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::farbfeld::FarbfeldEncoder;
@@ -14,11 +12,10 @@ use raqote::{
 };
 use serde::Deserialize;
 use serde_json::error::Category;
+use std::array::IntoIter;
 use std::collections::HashMap;
-use std::fs::OpenOptions;
-use std::io::{BufWriter, Write};
-use std::path::Path;
-use uuid::Uuid;
+use std::io::BufWriter;
+use std::iter::FromIterator;
 
 #[derive(Deserialize)]
 pub enum SupportedImageFormats {
@@ -30,40 +27,8 @@ pub enum SupportedImageFormats {
     Bmp,
 }
 
-macro_rules! hashmap {
-    ($( $key: expr => $val: expr ),*) => {{
-         let mut map = ::std::collections::HashMap::new();
-         $( map.insert($key, $val); )*
-         map
-    }}
-}
-
-pub fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), CoreError> {
-    let drawing_string = String::from(String::from_utf8_lossy(drawing_bytes));
-
-    // validate drawing
-    match serde_json::from_str::<Drawing>(drawing_string.as_str()) {
-        Ok(_) => {}
-        Err(e) => match e.classify() {
-            Category::Io => return Err(CoreError::Unexpected(String::from("json io"))),
-            Category::Syntax | Category::Data | Category::Eof => {
-                return Err(CoreError::DrawingInvalid);
-            }
-        },
-    };
-
-    file_service::write_document(config, id, drawing_bytes)
-}
-
-pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
-    let drawing_bytes = file_service::read_document(config, id)?;
-    let drawing_string = String::from(String::from_utf8_lossy(&drawing_bytes));
-
-    if drawing_string.is_empty() {
-        return Ok(Drawing::default());
-    }
-
-    match serde_json::from_str::<Drawing>(drawing_string.as_str()) {
+pub fn parse_drawing(drawing_bytes: &[u8]) -> Result<Drawing, CoreError> {
+    match serde_json::from_slice::<Drawing>(drawing_bytes) {
         Ok(d) => Ok(d),
         Err(e) => match e.classify() {
             Category::Io => Err(CoreError::Unexpected(String::from("json io"))),
@@ -73,26 +38,25 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
 }
 
 pub fn export_drawing(
-    config: &Config,
-    id: Uuid,
+    drawing_bytes: &[u8],
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, CoreError> {
-    let drawing = get_drawing(config, id)?;
+    let drawing = parse_drawing(&drawing_bytes)?;
 
     let theme = match render_theme {
         Some(theme) => theme,
         None => match drawing.theme {
-            None => hashmap![
-                ColorAlias::White => ColorRGB{r: 0xFF, g: 0xFF, b: 0xFF},
-                ColorAlias::Black => ColorRGB{r: 0x00, g: 0x00, b: 0x00},
-                ColorAlias::Red => ColorRGB{r: 0xFF, g: 0x00, b: 0x00},
-                ColorAlias::Green => ColorRGB{r: 0x00, g: 0xFF, b: 0x00},
-                ColorAlias::Yellow => ColorRGB{r: 0xFF, g: 0xFF, b: 0x00},
-                ColorAlias::Blue => ColorRGB{r: 0x00, g: 0x00, b: 0xFF},
-                ColorAlias::Magenta => ColorRGB{r: 0xFF, g: 0x00, b: 0xFF},
-                ColorAlias::Cyan => ColorRGB{r: 0x00, g: 0xFF, b: 0xFF}
-            ],
+            None => HashMap::<_, _>::from_iter(IntoIter::new([
+                (ColorAlias::White, ColorRGB{r: 0xFF, g: 0xFF, b: 0xFF}),
+                (ColorAlias::Black, ColorRGB{r: 0x00, g: 0x00, b: 0x00}),
+                (ColorAlias::Red, ColorRGB{r: 0xFF, g: 0x00, b: 0x00}),
+                (ColorAlias::Green, ColorRGB{r: 0x00, g: 0xFF, b: 0x00}),
+                (ColorAlias::Yellow, ColorRGB{r: 0xFF, g: 0xFF, b: 0x00}),
+                (ColorAlias::Blue, ColorRGB{r: 0x00, g: 0x00, b: 0xFF}),
+                (ColorAlias::Magenta, ColorRGB{r: 0xFF, g: 0x00, b: 0xFF}),
+                (ColorAlias::Cyan, ColorRGB{r: 0x00, g: 0xFF, b: 0xFF})
+            ])),
             Some(theme) => theme,
         },
     };
@@ -238,25 +202,6 @@ pub fn export_drawing(
     Ok(buffer)
 }
 
-pub fn export_drawing_to_disk(
-    config: &Config,
-    id: Uuid,
-    format: SupportedImageFormats,
-    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    location: String,
-) -> Result<(), CoreError> {
-    let drawing_bytes = export_drawing(config, id, format, render_theme)?;
-
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(Path::new(&location))
-        .map_err(CoreError::from)?;
-
-    file.write_all(drawing_bytes.as_slice())
-        .map_err(CoreError::from)
-}
-
 fn u32_byte_to_u8_bytes(u32_byte: u32) -> (u8, u8, u8, u8) {
     let mut byte_1 = (u32_byte >> 16) & 0xffu32;
     let mut byte_2 = (u32_byte >> 8) & 0xffu32;
@@ -312,18 +257,38 @@ fn get_drawing_bounds(strokes: &[Stroke]) -> (u32, u32) {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::state::temp_config;
-    use crate::repo::{account_repo, file_metadata_repo};
     use crate::service::drawing_service::SupportedImageFormats;
-    use crate::service::{drawing_service, file_encryption_service, file_service};
-    use lockbook_crypto::pubkey;
-    use lockbook_models::account::Account;
+    use crate::service::drawing_service;
     use lockbook_models::drawing::{ColorAlias, Drawing, Stroke};
-    use lockbook_models::file_metadata::FileType::{Document, Folder};
 
     #[test]
-    fn test_drawing_bounds() {
-        let empty_drawing = Drawing {
+    fn parse_drawing_invalid() {
+        assert!(drawing_service::parse_drawing(b"not a valid drawing").is_err());
+    }
+
+    #[test]
+    fn parse_drawing_valid() {
+        let drawing = Drawing {
+            scale: 0.0,
+            translation_x: 0.0,
+            translation_y: 0.0,
+            strokes: vec![Stroke {
+                points_x: vec![10f32, 50f32, 60f32],
+                points_y: vec![10f32, 50f32, 1000f32],
+                points_girth: vec![5f32, 7f32],
+                color: ColorAlias::Black,
+                alpha: 0.0,
+            }],
+            theme: None,
+        };
+        let drawing_bytes = serde_json::to_vec(&drawing).unwrap();
+        
+        assert!(drawing_service::parse_drawing(&drawing_bytes).is_ok());
+    }
+
+    #[test]
+    fn get_drawing_bounds_empty() {
+        let drawing = Drawing {
             scale: 0.0,
             translation_x: 0.0,
             translation_y: 0.0,
@@ -332,11 +297,14 @@ mod unit_tests {
         };
 
         assert_eq!(
-            drawing_service::get_drawing_bounds(empty_drawing.strokes.as_slice()),
+            drawing_service::get_drawing_bounds(drawing.strokes.as_slice()),
             (20, 20)
         );
+    }
 
-        let small_drawing = Drawing {
+    #[test]
+    fn get_drawing_bounds_small() {
+        let drawing = Drawing {
             scale: 0.0,
             translation_x: 0.0,
             translation_y: 0.0,
@@ -351,11 +319,14 @@ mod unit_tests {
         };
 
         assert_eq!(
-            drawing_service::get_drawing_bounds(small_drawing.strokes.as_slice()),
+            drawing_service::get_drawing_bounds(drawing.strokes.as_slice()),
             (121, 121)
         );
+    }
 
-        let large_drawing = Drawing {
+    #[test]
+    fn get_drawing_bounds_large() {
+        let drawing = Drawing {
             scale: 0.0,
             translation_x: 0.0,
             translation_y: 0.0,
@@ -370,29 +341,13 @@ mod unit_tests {
         };
 
         assert_eq!(
-            drawing_service::get_drawing_bounds(large_drawing.strokes.as_slice()),
+            drawing_service::get_drawing_bounds(drawing.strokes.as_slice()),
             (2021, 2021)
         );
     }
 
     #[test]
-    fn test_create_png_sanity_check() {
-        let config = &temp_config();
-
-        let keys = pubkey::generate_key();
-        let account = Account {
-            username: String::from("username"),
-            api_url: "ftp://uranus.net".to_string(),
-            private_key: keys,
-        };
-
-        account_repo::insert_account(config, &account).unwrap();
-        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
-
-        let folder = file_service::create(config, "folder", root.id, Folder).unwrap();
-        let document = file_service::create(config, "doc", folder.id, Document).unwrap();
-
+    fn export_drawing_valid() {
         let drawing = Drawing {
             scale: 0.0,
             translation_x: 0.0,
@@ -407,35 +362,12 @@ mod unit_tests {
             theme: None,
         };
 
-        file_service::write_document(
-            config,
-            document.id,
-            serde_json::to_string(&drawing).unwrap().as_bytes(),
-        )
-        .unwrap();
-
-        drawing_service::export_drawing(config, document.id, SupportedImageFormats::Png, None)
-            .unwrap();
+        let result = drawing_service::export_drawing(&serde_json::to_vec(&drawing).unwrap(), SupportedImageFormats::Png, None);
+        assert!(result.is_ok());
     }
 
     #[test]
-    fn test_create_png_unequal_points_data_sanity_check() {
-        let config = &temp_config();
-
-        let keys = pubkey::generate_key();
-        let account = Account {
-            username: String::from("username"),
-            api_url: "ftp://uranus.net".to_string(),
-            private_key: keys,
-        };
-
-        account_repo::insert_account(config, &account).unwrap();
-        let root = file_encryption_service::create_metadata_for_root_folder(&account).unwrap();
-        file_metadata_repo::insert(config, &root).unwrap();
-
-        let folder = file_service::create(config, "folder", root.id, Folder).unwrap();
-        let document = file_service::create(config, "doc", folder.id, Document).unwrap();
-
+    fn export_drawing_invalid() {
         let drawing = Drawing {
             scale: 0.0,
             translation_x: 0.0,
@@ -450,14 +382,7 @@ mod unit_tests {
             theme: None,
         };
 
-        file_service::write_document(
-            config,
-            document.id,
-            serde_json::to_string(&drawing).unwrap().as_bytes(),
-        )
-        .unwrap();
-
-        drawing_service::export_drawing(config, document.id, SupportedImageFormats::Png, None)
-            .unwrap_err();
+        let result = drawing_service::export_drawing(&serde_json::to_vec(&drawing).unwrap(), SupportedImageFormats::Png, None);
+        assert!(result.is_err());
     }
 }

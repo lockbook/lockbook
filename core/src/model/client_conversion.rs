@@ -1,9 +1,9 @@
 use crate::model::state::Config;
-use crate::service::file_encryption_service::get_name;
+use crate::repo::account_repo;
 use crate::service::sync_service::WorkCalculated;
 use crate::CoreError;
 use lockbook_models::account::Username;
-use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -38,24 +38,18 @@ pub enum ClientWorkUnit {
 
 pub fn generate_client_file_metadata(
     config: &Config,
-    meta: &FileMetadata,
+    meta: &DecryptedFileMetadata,
 ) -> Result<ClientFileMetadata, CoreError> {
-    let name = get_name(config, meta)?;
-
     Ok(ClientFileMetadata {
         id: meta.id,
         file_type: meta.file_type,
         parent: meta.parent,
-        name,
+        name: meta.decrypted_name.clone(),
         metadata_version: meta.metadata_version,
         owner: meta.owner.clone(),
         content_version: meta.content_version,
         deleted: meta.deleted,
-        users_with_access: meta
-            .user_access_keys
-            .iter()
-            .map(|(username, _access_info)| username.clone())
-            .collect(),
+        users_with_access: vec![account_repo::get(config)?.username.clone()], // todo: fix
     })
 }
 
@@ -69,7 +63,7 @@ pub fn generate_client_work_unit(
         WorkUnit::LocalChange { .. } => ClientWorkUnit::Local(maybe_file_metadata?),
         WorkUnit::ServerChange { metadata } => match maybe_file_metadata {
             Ok(file_metadata) => ClientWorkUnit::Server(file_metadata),
-            Err(_) => ClientWorkUnit::ServerUnknownName(metadata.id),
+            Err(_) => ClientWorkUnit::ServerUnknownName(metadata.id), // todo: this can be triggered by unexpected errors; what's this supposed to mean, anyway?
         },
     })
 }
