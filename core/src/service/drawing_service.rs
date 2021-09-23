@@ -48,14 +48,70 @@ pub fn export_drawing(
         Some(theme) => theme,
         None => match drawing.theme {
             None => HashMap::<_, _>::from_iter(IntoIter::new([
-                (ColorAlias::White, ColorRGB{r: 0xFF, g: 0xFF, b: 0xFF}),
-                (ColorAlias::Black, ColorRGB{r: 0x00, g: 0x00, b: 0x00}),
-                (ColorAlias::Red, ColorRGB{r: 0xFF, g: 0x00, b: 0x00}),
-                (ColorAlias::Green, ColorRGB{r: 0x00, g: 0xFF, b: 0x00}),
-                (ColorAlias::Yellow, ColorRGB{r: 0xFF, g: 0xFF, b: 0x00}),
-                (ColorAlias::Blue, ColorRGB{r: 0x00, g: 0x00, b: 0xFF}),
-                (ColorAlias::Magenta, ColorRGB{r: 0xFF, g: 0x00, b: 0xFF}),
-                (ColorAlias::Cyan, ColorRGB{r: 0x00, g: 0xFF, b: 0xFF})
+                (
+                    ColorAlias::White,
+                    ColorRGB {
+                        r: 0xFF,
+                        g: 0xFF,
+                        b: 0xFF,
+                    },
+                ),
+                (
+                    ColorAlias::Black,
+                    ColorRGB {
+                        r: 0x00,
+                        g: 0x00,
+                        b: 0x00,
+                    },
+                ),
+                (
+                    ColorAlias::Red,
+                    ColorRGB {
+                        r: 0xFF,
+                        g: 0x00,
+                        b: 0x00,
+                    },
+                ),
+                (
+                    ColorAlias::Green,
+                    ColorRGB {
+                        r: 0x00,
+                        g: 0xFF,
+                        b: 0x00,
+                    },
+                ),
+                (
+                    ColorAlias::Yellow,
+                    ColorRGB {
+                        r: 0xFF,
+                        g: 0xFF,
+                        b: 0x00,
+                    },
+                ),
+                (
+                    ColorAlias::Blue,
+                    ColorRGB {
+                        r: 0x00,
+                        g: 0x00,
+                        b: 0xFF,
+                    },
+                ),
+                (
+                    ColorAlias::Magenta,
+                    ColorRGB {
+                        r: 0xFF,
+                        g: 0x00,
+                        b: 0xFF,
+                    },
+                ),
+                (
+                    ColorAlias::Cyan,
+                    ColorRGB {
+                        r: 0x00,
+                        g: 0xFF,
+                        b: 0xFF,
+                    },
+                ),
             ])),
             Some(theme) => theme,
         },
@@ -257,8 +313,8 @@ fn get_drawing_bounds(strokes: &[Stroke]) -> (u32, u32) {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::service::drawing_service::SupportedImageFormats;
     use crate::service::drawing_service;
+    use crate::service::drawing_service::SupportedImageFormats;
     use lockbook_models::drawing::{ColorAlias, Drawing, Stroke};
 
     #[test]
@@ -282,7 +338,7 @@ mod unit_tests {
             theme: None,
         };
         let drawing_bytes = serde_json::to_vec(&drawing).unwrap();
-        
+
         assert!(drawing_service::parse_drawing(&drawing_bytes).is_ok());
     }
 
@@ -362,7 +418,11 @@ mod unit_tests {
             theme: None,
         };
 
-        let result = drawing_service::export_drawing(&serde_json::to_vec(&drawing).unwrap(), SupportedImageFormats::Png, None);
+        let result = drawing_service::export_drawing(
+            &serde_json::to_vec(&drawing).unwrap(),
+            SupportedImageFormats::Png,
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -382,7 +442,11 @@ mod unit_tests {
             theme: None,
         };
 
-        let result = drawing_service::export_drawing(&serde_json::to_vec(&drawing).unwrap(), SupportedImageFormats::Png, None);
+        let result = drawing_service::export_drawing(
+            &serde_json::to_vec(&drawing).unwrap(),
+            SupportedImageFormats::Png,
+            None,
+        );
         assert!(result.is_err());
     }
 }

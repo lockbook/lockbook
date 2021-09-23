@@ -153,21 +153,19 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
 
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
     let mut current_id = id;
-    let mut current_metadata = file_metadata_repo::get(config, current_id)?;
+    let mut current_metadata = file_repo::get_metadata(config, RepoSource::Local, current_id)?;
     let mut path = String::from("");
 
     let is_folder = current_metadata.file_type == Folder;
 
     while current_metadata.parent != current_id {
-        let name = file_encryption_service::get_name(config, &current_metadata)?;
-        path = format!("{}/{}", name, path);
+        path = format!("{}/{}", current_metadata.decrypted_name, path);
         current_id = current_metadata.parent;
-        current_metadata = file_metadata_repo::get(config, current_id)?
+        current_metadata = file_repo::get_metadata(config, RepoSource::Local, current_id)?;
     }
 
     {
-        let name = file_encryption_service::get_name(config, &current_metadata)?;
-        path = format!("{}/{}", name, path);
+        path = format!("{}/{}", current_metadata.decrypted_name, path);
     }
     // Remove the last forward slash if not a folder.
     if !is_folder {

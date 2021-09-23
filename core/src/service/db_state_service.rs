@@ -56,8 +56,8 @@ pub fn perform_migration(config: &Config) -> Result<(), CoreError> {
 mod unit_tests {
     use crate::model::state::temp_config;
     use crate::repo::{account_repo, db_version_repo};
-    use crate::service::{db_state_service, test_utils};
     use crate::service::db_state_service::State;
+    use crate::service::{db_state_service, test_utils};
 
     #[test]
     fn get_state_empty() {
@@ -74,7 +74,10 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         db_version_repo::set(config, db_state_service::get_code_version()).unwrap();
 
-        assert_eq!(db_state_service::get_state(config).unwrap(), State::ReadyToUse);
+        assert_eq!(
+            db_state_service::get_state(config).unwrap(),
+            State::ReadyToUse
+        );
     }
 
     #[test]
@@ -85,7 +88,10 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         db_version_repo::set(config, "-1.0.0").unwrap();
 
-        assert_eq!(db_state_service::get_state(config).unwrap(), State::StateRequiresClearing);
+        assert_eq!(
+            db_state_service::get_state(config).unwrap(),
+            State::StateRequiresClearing
+        );
     }
 
     #[test]

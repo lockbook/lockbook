@@ -93,7 +93,14 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreEr
 mod unit_tests {
     use lockbook_models::file_metadata::FileType;
 
-    use crate::{model::{repo::RepoSource, state::temp_config}, repo::{account_repo, file_repo}, service::{file_service, test_utils, usage_service::{self, UsageItemMetric}}};
+    use crate::{
+        model::{repo::RepoSource, state::temp_config},
+        repo::{account_repo, file_repo},
+        service::{
+            file_service, test_utils,
+            usage_service::{self, UsageItemMetric},
+        },
+    };
 
     #[test]
     fn bytes_to_human_kb() {
@@ -107,7 +114,10 @@ mod unit_tests {
 
     #[test]
     fn bytes_to_human_gb() {
-        assert_eq!(usage_service::bytes_to_human(2000000000), "2 GB".to_string());
+        assert_eq!(
+            usage_service::bytes_to_human(2000000000),
+            "2 GB".to_string()
+        );
     }
 
     #[test]
@@ -117,10 +127,13 @@ mod unit_tests {
 
         account_repo::insert(config, &account).unwrap();
 
-        assert_eq!(usage_service::get_uncompressed_usage(config).unwrap(), UsageItemMetric{
-            exact: 0,
-            readable: "0 B".to_string()
-        });
+        assert_eq!(
+            usage_service::get_uncompressed_usage(config).unwrap(),
+            UsageItemMetric {
+                exact: 0,
+                readable: "0 B".to_string()
+            }
+        );
     }
 
     #[test]
@@ -134,13 +147,15 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"")
-            .unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"").unwrap();
 
-        assert_eq!(usage_service::get_uncompressed_usage(config).unwrap(), UsageItemMetric{
-            exact: 0,
-            readable: "0 B".to_string()
-        });
+        assert_eq!(
+            usage_service::get_uncompressed_usage(config).unwrap(),
+            UsageItemMetric {
+                exact: 0,
+                readable: "0 B".to_string()
+            }
+        );
     }
 
     #[test]
@@ -154,13 +169,15 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"0123456789")
-            .unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"0123456789").unwrap();
 
-        assert_eq!(usage_service::get_uncompressed_usage(config).unwrap(), UsageItemMetric{
-            exact: 10,
-            readable: "10 B".to_string()
-        });
+        assert_eq!(
+            usage_service::get_uncompressed_usage(config).unwrap(),
+            UsageItemMetric {
+                exact: 10,
+                readable: "10 B".to_string()
+            }
+        );
     }
 
     #[test]
@@ -177,14 +194,15 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
         file_repo::insert_metadata(config, RepoSource::Base, &document2).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"01234")
-            .unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document2, b"56789")
-            .unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"01234").unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document2, b"56789").unwrap();
 
-        assert_eq!(usage_service::get_uncompressed_usage(config).unwrap(), UsageItemMetric{
-            exact: 10,
-            readable: "10 B".to_string()
-        });
+        assert_eq!(
+            usage_service::get_uncompressed_usage(config).unwrap(),
+            UsageItemMetric {
+                exact: 10,
+                readable: "10 B".to_string()
+            }
+        );
     }
 }
