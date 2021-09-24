@@ -11,13 +11,13 @@ use lockbook_core::{
 };
 
 use crate::error::CliResult;
-use crate::utils::{get_account_or_exit, get_config};
+use crate::utils::{account, config};
 use crate::{err, err_unexpected, path_string};
 
 pub fn backup() -> CliResult<()> {
-    get_account_or_exit();
+    account()?;
 
-    let config = get_config();
+    let config = config()?;
 
     let leaf_nodes = list_paths(&config, Some(LeafNodesOnly)).map_err(|err| match err {
         CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible"),
