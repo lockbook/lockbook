@@ -1,11 +1,11 @@
 use crate::error::CliResult;
-use crate::utils::{get_config, get_image_format};
+use crate::utils::{config, get_image_format};
 use crate::{err, err_unexpected};
 use lockbook_core::{get_file_by_path, Error as CoreError, ExportDrawingError, GetFileByPathError};
 use std::io::{stdout, Write};
 
 pub fn export_drawing(lb_path: &str, format: &str) -> CliResult<()> {
-    let file_metadata = get_file_by_path(&get_config(), lb_path).map_err(|err| match err {
+    let file_metadata = get_file_by_path(&config()?, lb_path).map_err(|err| match err {
         CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
             err!(FileNotFound(lb_path.to_string()))
         }
@@ -15,7 +15,7 @@ pub fn export_drawing(lb_path: &str, format: &str) -> CliResult<()> {
     let lockbook_format = get_image_format(format);
 
     let drawing_bytes =
-        lockbook_core::export_drawing(&get_config(), file_metadata.id, lockbook_format, None)
+        lockbook_core::export_drawing(&config()?, file_metadata.id, lockbook_format, None)
             .map_err(|err| match err {
                 CoreError::UiError(ui_err) => match ui_err {
                     ExportDrawingError::FolderTreatedAsDrawing => {

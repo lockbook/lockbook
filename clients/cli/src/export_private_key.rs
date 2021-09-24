@@ -1,11 +1,11 @@
 use lockbook_core::{export_account, AccountExportError, Error as CoreError};
 
 use crate::error::CliResult;
-use crate::utils::get_config;
+use crate::utils::config;
 use crate::{err, err_unexpected};
 
 pub fn export_private_key() -> CliResult<()> {
-    let account_string = export_account(&get_config()).map_err(|err| match err {
+    let account_string = export_account(&config()?).map_err(|err| match err {
         CoreError::UiError(AccountExportError::NoAccount) => err!(NoAccount),
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;

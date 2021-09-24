@@ -1,12 +1,12 @@
 use crate::error::CliResult;
-use crate::utils::{get_account_or_exit, get_config};
+use crate::utils::{account, config};
 use crate::{err, err_unexpected};
 use lockbook_core::{Error as CoreError, GetUsageError};
 
 pub fn calculate_usage(exact: bool) -> CliResult<()> {
-    get_account_or_exit();
+    account()?;
 
-    let usage = lockbook_core::get_usage(&get_config()).map_err(|err| match err {
+    let usage = lockbook_core::get_usage(&config()?).map_err(|err| match err {
         CoreError::UiError(GetUsageError::CouldNotReachServer) => err!(NetworkIssue),
         CoreError::UiError(GetUsageError::ClientUpdateRequired) => err!(UpdateRequired),
         CoreError::UiError(GetUsageError::NoAccount) | CoreError::Unexpected(_) => {
@@ -15,7 +15,7 @@ pub fn calculate_usage(exact: bool) -> CliResult<()> {
     })?;
 
     let uncompressed_usage =
-        lockbook_core::get_uncompressed_usage(&get_config()).map_err(|err| match err {
+        lockbook_core::get_uncompressed_usage(&config()?).map_err(|err| match err {
             CoreError::UiError(GetUsageError::CouldNotReachServer) => err!(NetworkIssue),
             CoreError::UiError(GetUsageError::ClientUpdateRequired) => err!(UpdateRequired),
             CoreError::UiError(GetUsageError::NoAccount) | CoreError::Unexpected(_) => {

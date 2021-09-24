@@ -1,19 +1,19 @@
 use crate::error::CliResult;
-use crate::utils::{get_account_or_exit, get_config};
+use crate::utils::{account, config};
 use crate::{err, err_unexpected};
 use lockbook_core::{get_file_by_path, read_document, Error as CoreError, GetFileByPathError};
 use std::io;
 use std::io::Write;
 
 pub fn print(file_name: &str) -> CliResult<()> {
-    get_account_or_exit();
-    let cfg = get_config();
+    account()?;
+    let cfg = config()?;
 
     let file_metadata = get_file_by_path(&cfg, file_name).map_err(|err| match err {
         CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
             err!(FileNotFound(file_name.to_string()))
         }
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg).exit(),
+        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
     let content =

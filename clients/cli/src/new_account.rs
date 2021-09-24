@@ -4,7 +4,7 @@ use std::{env, io};
 use lockbook_core::{create_account, CreateAccountError, Error as CoreError};
 
 use crate::error::CliResult;
-use crate::utils::get_config;
+use crate::utils::config;
 use crate::{err, err_unexpected};
 
 pub fn new_account() -> CliResult<()> {
@@ -22,7 +22,7 @@ pub fn new_account() -> CliResult<()> {
 
     println!("Generating keys and checking for username availability...");
 
-    create_account(&get_config(), &username, &api_location).map_err(|err| match err {
+    create_account(&config()?, &username, &api_location).map_err(|err| match err {
         CoreError::UiError(err) => match err {
             CreateAccountError::UsernameTaken => err!(UsernameTaken(username)),
             CreateAccountError::InvalidUsername => err!(UsernameInvalid(username)),

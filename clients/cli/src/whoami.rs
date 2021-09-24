@@ -1,7 +1,7 @@
 use crate::error::CliResult;
-use crate::utils::get_account_or_exit;
+use crate::utils::account;
 
 pub fn whoami() -> CliResult<()> {
-    println!("{}", get_account_or_exit().username);
+    println!("{}", account()?.username);
     Ok(())
 }

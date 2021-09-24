@@ -6,14 +6,14 @@ use std::path::Path;
 
 use crate::error::CliResult;
 use crate::utils::{
-    edit_file_with_editor, exit_success, get_account_or_exit, get_config, get_directory_location,
-    save_temp_file_contents, set_up_auto_save, stop_auto_save,
+    account, config, edit_file_with_editor, get_directory_location, save_temp_file_contents,
+    set_up_auto_save, stop_auto_save,
 };
 use crate::{err, err_unexpected};
 
 pub fn new(file_name: &str) -> CliResult<()> {
-    get_account_or_exit();
-    let cfg = get_config();
+    account()?;
+    let cfg = config()?;
 
     let file_metadata = create_file_at_path(&cfg, file_name).map_err(|err| match err {
         CoreError::UiError(err) => match err {
@@ -41,7 +41,8 @@ pub fn new(file_name: &str) -> CliResult<()> {
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
 
     if file_metadata.file_type == Folder {
-        exit_success("Folder created.");
+        println!("Folder created.");
+        return Ok(());
     }
 
     let watcher = set_up_auto_save(file_metadata.id, file_location.clone());

@@ -1,5 +1,5 @@
 use crate::error::CliResult;
-use crate::utils::{get_account_or_exit, get_config};
+use crate::utils::{account, config};
 use crate::{err, err_unexpected};
 use lockbook_core::get_path_by_id;
 use lockbook_core::model::state::Config;
@@ -7,9 +7,9 @@ use lockbook_core::service::integrity_service::{test_repo_integrity, TestRepoErr
 use uuid::Uuid;
 
 pub fn validate() -> CliResult<()> {
-    get_account_or_exit();
+    account()?;
 
-    let config = get_config();
+    let config = config()?;
 
     let err = match test_repo_integrity(&config) {
         Ok(warnings) => {

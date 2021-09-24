@@ -6,13 +6,13 @@ use lockbook_core::{
 };
 
 use crate::error::CliResult;
-use crate::utils::{get_account_or_exit, get_config};
+use crate::utils::{account, config};
 use crate::{err, err_unexpected};
 use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 
 pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
-    get_account_or_exit();
+    account()?;
 
     let file_metadata = get_or_create_file(lb_path)?;
 
@@ -26,7 +26,7 @@ pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
 
     for path in disk_paths {
         import_file(
-            &get_config(),
+            &config()?,
             path.to_path_buf(),
             file_metadata.id,
             Some(Box::new(import_progress)),
@@ -51,7 +51,7 @@ pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
 
 fn get_or_create_file(lb_path: &str) -> CliResult<ClientFileMetadata> {
     // Try to get a file
-    match get_file_by_path(&get_config(), lb_path) {
+    match get_file_by_path(&config()?, lb_path) {
         Ok(file) => return Ok(file),
         Err(err) => match err {
             Error::UiError(GetFileByPathError::NoFileAtThatPath) => {} // Continue
@@ -61,7 +61,7 @@ fn get_or_create_file(lb_path: &str) -> CliResult<ClientFileMetadata> {
 
     // It does not exist, create it
     if lb_path.ends_with('/') {
-        create_file_at_path(&get_config(), lb_path).map_err(|err| match err {
+        create_file_at_path(&config()?, lb_path).map_err(|err| match err {
             CoreError::UiError(err) => match err {
                 CreateFileAtPathError::FileAlreadyExists => {
                     err!(FileAlreadyExists(lb_path.to_string()))
