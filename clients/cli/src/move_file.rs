@@ -1,11 +1,12 @@
 use lockbook_core::{get_file_by_path, Error as CoreError, GetFileByPathError, MoveFileError};
 
 use crate::error::CliResult;
-use crate::utils::get_config;
+use crate::utils::{account, config};
 use crate::{err, err_extra, err_unexpected};
 
 pub fn move_file(path1: &str, path2: &str) -> CliResult<()> {
-    let cfg = get_config();
+    account()?;
+    let cfg = config()?;
 
     let file_metadata = get_file_by_path(&cfg, path1).map_err(|err| match err {
         CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
