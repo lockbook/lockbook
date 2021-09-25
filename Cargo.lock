@@ -2070,6 +2070,7 @@ dependencies = [
  "strum_macros 0.19.4",
  "tempfile",
  "uuid",
+ "variant_count",
 ]
 
 [[package]]
@@ -4079,6 +4080,16 @@ checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 dependencies = [
  "getrandom 0.2.3",
  "serde",
+]
+
+[[package]]
+name = "variant_count"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aae2faf80ac463422992abf4de234731279c058aaf33171ca70277c98406b124"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]
