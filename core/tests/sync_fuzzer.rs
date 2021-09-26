@@ -3,7 +3,8 @@ mod integration_test;
 #[cfg(test)]
 mod sync_fuzzer {
     use crate::sync_fuzzer::Actions::{
-        MoveFile, NewFolder, NewMarkdownDocument, SyncAndCheck, UpdateRandomDocument,
+        AttemptFolderMove, MoveDocument, NewFolder, NewMarkdownDocument, SyncAndCheck,
+        UpdateDocument,
     };
     use indicatif::{ProgressBar, ProgressStyle};
     use lockbook_core::model::client_conversion::ClientFileMetadata;
@@ -12,18 +13,25 @@ mod sync_fuzzer {
     use lockbook_core::service::integrity_service::test_repo_integrity;
     use lockbook_core::service::sync_service::sync;
     use lockbook_core::service::test_utils::{assert_dbs_eq, random_username, test_config, url};
-    use lockbook_core::{calculate_work, create_file, list_metadatas, move_file, write_document};
+    use lockbook_core::Error::UiError;
+    use lockbook_core::{
+        calculate_work, create_file, list_metadatas, move_file, write_document, MoveFileError,
+    };
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use rand::distributions::{Alphanumeric, Distribution, Standard};
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
+    use std::cmp::Ordering;
     use variant_count::VariantCount;
 
+    /// Starting parameters that matter
     static SEED: u64 = 0;
-    static CLIENTS: u8 = 5;
-    static ACTION_COUNT: u64 = 10000;
-    static SHOW_PROGRESS: bool = true;
-    static MAX_FILE_SIZE: usize = 12341;
+    static CLIENTS: u8 = 2;
+    static ACTION_COUNT: u64 = 100;
+    static MAX_FILE_SIZE: usize = 1024;
+
+    ///
+    static SHOW_PROGRESS: bool = false;
 
     /// If you add a variant here, make sure you add the corresponding entry for random selection
     /// See `impl Distribution<Actions> for Standard`
@@ -32,11 +40,15 @@ mod sync_fuzzer {
         SyncAndCheck,
         NewFolder,
         NewMarkdownDocument,
-        UpdateRandomDocument,
-        MoveFile,
+        UpdateDocument,
+        // RenameDocument,
+        MoveDocument,
+        AttemptFolderMove,
     }
 
     #[test]
+    #[ignore]
+    /// Run with: cargo test --release stress_test_sync -- --nocapture --ignored
     fn stress_test_sync() {
         println!("seed: {}", SEED);
         println!("clients: {}", CLIENTS);
@@ -45,12 +57,14 @@ mod sync_fuzzer {
         let clients = create_clients();
 
         let pb = setup_progress_bar();
-        for _ in 0..ACTION_COUNT {
+        for event_id in 0..ACTION_COUNT {
             let action = rng.gen::<Actions>();
             if SHOW_PROGRESS {
-                pb.set_message(format!("{:?}", action));
+                pb.set_message(format!("{}: {:?}", event_id, action));
                 pb.inc(1)
-            };
+            } else {
+                println!("{}: {:?}", event_id, action)
+            }
             action.execute(&clients, &mut rng);
         }
     }
@@ -87,22 +101,35 @@ mod sync_fuzzer {
                     let name = Self::random_filename(rng) + ".md"; // TODO pick a random extension (or no extension)
                     create_file(&client, &name, parent.id, Document).unwrap();
                 }
-                Actions::UpdateRandomDocument => {
+                UpdateDocument => {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_document(&client, rng) {
                         let new_content = Self::random_utf8(rng);
                         write_document(&client, file.id, &new_content.as_bytes()).unwrap();
                     }
                 }
-                MoveFile => {
+                MoveDocument => {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_document(&client, rng) {
                         let new_parent = Self::pick_random_parent(&client, rng);
-                        if file.id == file.parent
-                            && file.parent != new_parent.id
-                            && file.id != new_parent.id
-                        {
+                        if file.parent != new_parent.id && file.id != new_parent.id {
                             move_file(&client, file.id, new_parent.id).unwrap();
+                        }
+                    }
+                }
+                AttemptFolderMove => {
+                    let client = Self::random_client(clients, rng);
+                    if let Some(file) = Self::pick_random_file(&client, rng) {
+                        let new_parent = Self::pick_random_parent(&client, rng);
+                        if file.parent != new_parent.id && file.id != new_parent.id {
+                            let move_file_result = move_file(&client, file.id, new_parent.id);
+                            match move_file_result {
+                                Ok(()) | Err(UiError(MoveFileError::FolderMovedIntoItself)) => {}
+                                _ => panic!(
+                                    "Unexpected error while moving file: {:#?}",
+                                    move_file_result
+                                ),
+                            }
                         }
                     }
                 }
@@ -127,10 +154,35 @@ mod sync_fuzzer {
                 .collect()
         }
 
+        fn pick_random_file(config: &Config, rng: &mut StdRng) -> Option<ClientFileMetadata> {
+            let mut possible_files = list_metadatas(&config).unwrap();
+            possible_files.retain(|meta| meta.parent != meta.id);
+            possible_files.sort_by(Self::deterministic_sort());
+
+            if !possible_files.is_empty() {
+                let parent_index = rng.gen_range(0, possible_files.len());
+                Some(possible_files[parent_index].clone())
+            } else {
+                None
+            }
+        }
+
+        fn deterministic_sort() -> fn(&ClientFileMetadata, &ClientFileMetadata) -> Ordering {
+            |lhs, rhs| {
+                if lhs.parent == lhs.id {
+                    Ordering::Less
+                } else if rhs.id == rhs.parent {
+                    Ordering::Greater
+                } else {
+                    lhs.name.cmp(&rhs.name)
+                }
+            }
+        }
+
         fn pick_random_parent(config: &Config, rng: &mut StdRng) -> ClientFileMetadata {
             let mut possible_parents = list_metadatas(&config).unwrap();
             possible_parents.retain(|meta| meta.file_type == Folder);
-            possible_parents.sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
+            possible_parents.sort_by(Self::deterministic_sort());
 
             let parent_index = rng.gen_range(0, possible_parents.len());
             possible_parents[parent_index].clone()
@@ -139,7 +191,7 @@ mod sync_fuzzer {
         fn pick_random_document(config: &Config, rng: &mut StdRng) -> Option<ClientFileMetadata> {
             let mut possible_documents = list_metadatas(&config).unwrap();
             possible_documents.retain(|meta| meta.file_type == Document);
-            possible_documents.sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
+            possible_documents.sort_by(Self::deterministic_sort());
 
             if !possible_documents.is_empty() {
                 let document_index = rng.gen_range(0, possible_documents.len());
@@ -173,8 +225,9 @@ mod sync_fuzzer {
                 0 => SyncAndCheck,
                 1 => NewFolder,
                 2 => NewMarkdownDocument,
-                3 => UpdateRandomDocument,
-                4 => MoveFile,
+                3 => UpdateDocument,
+                4 => MoveDocument,
+                5 => AttemptFolderMove,
                 _ => panic!("An enum was added to Actions, but does not have a corresponding random selection")
             }
         }
