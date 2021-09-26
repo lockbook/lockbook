@@ -2,14 +2,17 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_fuzzer {
-    use crate::sync_fuzzer::Actions::{NewFolder, NewMarkdownFile, SyncAndCheck};
+    use crate::sync_fuzzer::Actions::{
+        MoveFile, NewFolder, NewMarkdownDocument, SyncAndCheck, UpdateRandomDocument,
+    };
     use indicatif::{ProgressBar, ProgressStyle};
     use lockbook_core::model::client_conversion::ClientFileMetadata;
     use lockbook_core::model::state::Config;
     use lockbook_core::service::account_service::{create_account, export_account, import_account};
+    use lockbook_core::service::integrity_service::test_repo_integrity;
     use lockbook_core::service::sync_service::sync;
     use lockbook_core::service::test_utils::{assert_dbs_eq, random_username, test_config, url};
-    use lockbook_core::{calculate_work, create_file, list_metadatas};
+    use lockbook_core::{calculate_work, create_file, list_metadatas, move_file, write_document};
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use rand::distributions::{Alphanumeric, Distribution, Standard};
     use rand::rngs::StdRng;
@@ -18,17 +21,19 @@ mod sync_fuzzer {
 
     static SEED: u64 = 0;
     static CLIENTS: u8 = 5;
-    static ACTION_COUNT: u64 = 1000;
+    static ACTION_COUNT: u64 = 10000;
     static SHOW_PROGRESS: bool = true;
-    static MAX_FILE_SIZE: u128 = 1024;
+    static MAX_FILE_SIZE: usize = 12341;
 
     /// If you add a variant here, make sure you add the corresponding entry for random selection
     /// See `impl Distribution<Actions> for Standard`
     #[derive(VariantCount, Debug)]
     enum Actions {
-        NewFolder(u8),
-        NewMarkdownFile { client_id: u8, file_size: u128 },
         SyncAndCheck,
+        NewFolder,
+        NewMarkdownDocument,
+        UpdateRandomDocument,
+        MoveFile,
     }
 
     #[test]
@@ -53,21 +58,6 @@ mod sync_fuzzer {
     impl Actions {
         fn execute(&self, clients: &[Config], rng: &mut StdRng) {
             match &self {
-                NewFolder(id) => {
-                    let client = &clients[(*id as usize)];
-                    let parent = Self::pick_random_parent(&client, rng);
-                    let name = Self::random_filename(rng);
-                    create_file(&client, &name, parent.id, Folder).unwrap();
-                }
-                NewMarkdownFile {
-                    client_id,
-                    file_size,
-                } => {
-                    let client = &clients[(*client_id as usize)];
-                    let parent = Self::pick_random_parent(&client, rng);
-                    let name = Self::random_filename(rng);
-                    let file = create_file(client, &name, parent.id, Document).unwrap();
-                }
                 SyncAndCheck => {
                     for _ in 0..2 {
                         for client in clients {
@@ -79,12 +69,48 @@ mod sync_fuzzer {
                         for col in clients {
                             assert_dbs_eq(row, col);
                         }
+                        test_repo_integrity(row).unwrap();
                         assert!(calculate_work(row).unwrap().local_files.is_empty());
                         assert!(calculate_work(row).unwrap().server_files.is_empty());
                         assert_eq!(calculate_work(row).unwrap().server_unknown_name_count, 0);
                     }
                 }
+                NewFolder => {
+                    let client = Self::random_client(clients, rng);
+                    let parent = Self::pick_random_parent(&client, rng);
+                    let name = Self::random_filename(rng);
+                    create_file(&client, &name, parent.id, Folder).unwrap();
+                }
+                NewMarkdownDocument => {
+                    let client = Self::random_client(clients, rng);
+                    let parent = Self::pick_random_parent(&client, rng);
+                    let name = Self::random_filename(rng) + ".md"; // TODO pick a random extension (or no extension)
+                    create_file(&client, &name, parent.id, Document).unwrap();
+                }
+                Actions::UpdateRandomDocument => {
+                    let client = Self::random_client(clients, rng);
+                    if let Some(file) = Self::pick_random_document(&client, rng) {
+                        let new_content = Self::random_utf8(rng);
+                        write_document(&client, file.id, &new_content.as_bytes()).unwrap();
+                    }
+                }
+                MoveFile => {
+                    let client = Self::random_client(clients, rng);
+                    if let Some(file) = Self::pick_random_document(&client, rng) {
+                        let new_parent = Self::pick_random_parent(&client, rng);
+                        if file.id == file.parent
+                            && file.parent != new_parent.id
+                            && file.id != new_parent.id
+                        {
+                            move_file(&client, file.id, new_parent.id).unwrap();
+                        }
+                    }
+                }
             }
+        }
+
+        fn random_client(clients: &[Config], rng: &mut StdRng) -> Config {
+            clients[rng.gen_range(0, CLIENTS) as usize].clone()
         }
 
         fn random_filename(rng: &mut StdRng) -> String {
@@ -94,20 +120,33 @@ mod sync_fuzzer {
                 .collect()
         }
 
-        fn random_utf8(rng: &mut StdRng, size) -> String {
-            rand::thread_rng()
-                .gen_iter::<char>()
-                .take(len)
-                .collect();
+        fn random_utf8(rng: &mut StdRng) -> String {
+            rng.sample_iter(&Alphanumeric)
+                .take(MAX_FILE_SIZE)
+                .map(char::from)
+                .collect()
         }
 
         fn pick_random_parent(config: &Config, rng: &mut StdRng) -> ClientFileMetadata {
             let mut possible_parents = list_metadatas(&config).unwrap();
-            possible_parents.sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
             possible_parents.retain(|meta| meta.file_type == Folder);
+            possible_parents.sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
 
             let parent_index = rng.gen_range(0, possible_parents.len());
             possible_parents[parent_index].clone()
+        }
+
+        fn pick_random_document(config: &Config, rng: &mut StdRng) -> Option<ClientFileMetadata> {
+            let mut possible_documents = list_metadatas(&config).unwrap();
+            possible_documents.retain(|meta| meta.file_type == Document);
+            possible_documents.sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
+
+            if !possible_documents.is_empty() {
+                let document_index = rng.gen_range(0, possible_documents.len());
+                Some(possible_documents[document_index].clone())
+            } else {
+                None
+            }
         }
     }
 
@@ -130,13 +169,12 @@ mod sync_fuzzer {
 
     impl Distribution<Actions> for Standard {
         fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Actions {
-            let client_id = rng.gen_range(0, CLIENTS);
-            let file_size = rng.gen_range(0, MAX_FILE_SIZE);
-
             match rng.gen_range(0, Actions::VARIANT_COUNT) {
-                0 => NewFolder(client_id),
-                1 => NewMarkdownFile { client_id, file_size },
-                2 => SyncAndCheck,
+                0 => SyncAndCheck,
+                1 => NewFolder,
+                2 => NewMarkdownDocument,
+                3 => UpdateRandomDocument,
+                4 => MoveFile,
                 _ => panic!("An enum was added to Actions, but does not have a corresponding random selection")
             }
         }
