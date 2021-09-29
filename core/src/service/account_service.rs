@@ -2,7 +2,7 @@ use crate::client::ApiError;
 use crate::core_err_unexpected;
 use crate::model::state::Config;
 use crate::repo::account_repo;
-use crate::service::{file_encryption_service, file_service};
+use crate::service::{file_encryption_service, file_service, sync_service};
 use crate::CoreError;
 use crate::{client, utils};
 use lockbook_crypto::pubkey;
@@ -33,8 +33,9 @@ pub fn create_account(
     };
 
     info!("Generating Root Folder");
-    let file_metadata = file_service::create_root(&account.username);
-    let encrypted_metadata = file_encryption_service::encrypt_metadata(&account, &[file_metadata])?;
+    let root_metadata = file_service::create_root(&account.username);
+    let encrypted_metadata =
+        file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?;
     let encrypted_metadatum = utils::single_or(
         encrypted_metadata,
         CoreError::Unexpected(String::from(
@@ -73,6 +74,9 @@ pub fn create_account(
 
     info!("Saving account locally");
     account_repo::insert(config, &account)?;
+
+    info!("Performing initial sync");
+    sync_service::sync(config, None)?;
 
     Ok(account)
 }
@@ -132,6 +136,9 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
 
     info!("Account String seems valid, saving now");
     account_repo::insert(config, &account)?;
+
+    info!("Performing initial sync");
+    sync_service::sync(config, None)?;
 
     info!("Account imported successfully");
     Ok(account)
