@@ -689,6 +689,7 @@ pub enum NewAccountError {
     Postgres(sqlx::Error),
     Serialization(serde_json::Error),
     UsernameTaken,
+    PublicKeyTaken,
 }
 
 pub async fn new_account(
@@ -710,6 +711,10 @@ INSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, (SELECT id
     .await
     {
         Ok(_) => Ok(()),
+        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
+            Some("accounts_pkey") => Err(NewAccountError::PublicKeyTaken),
+            _ => Err(NewAccountError::Postgres(sqlx::Error::Database(db_err))),
+        },
         Err(db_err) => Err(NewAccountError::Postgres(db_err)),
     }
 }

@@ -226,6 +226,7 @@ pub struct NewAccountResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum NewAccountError {
     UsernameTaken,
+    PublicKeyTaken,
     InvalidPublicKey,
     InvalidUserAccessKey,
     InvalidUsername,
