@@ -109,7 +109,13 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
                 continue;
             }
 
-            if extension == "draw" && drawing_service::parse_drawing(&file_repo::get_document(config, RepoSource::Local, file.id).map_err(TestRepoError::Core)?).is_err() {
+            if extension == "draw"
+                && drawing_service::parse_drawing(
+                    &file_repo::get_document(config, RepoSource::Local, file.id)
+                        .map_err(TestRepoError::Core)?,
+                )
+                .is_err()
+            {
                 warnings.push(Warning::UnreadableDrawing(file.id));
             }
         }

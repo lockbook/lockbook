@@ -54,13 +54,34 @@ pub async fn upsert_file_metadata(
     public_key: &PublicKey,
     upsert: &FileMetadataDiff,
 ) -> Result<u64, UpsertFileMetadataError> {
+    let old_parent_param = upsert
+        .old_parent_and_name
+        .clone()
+        .map(|(parent, _)| {
+            parent
+                .to_simple()
+                .encode_lower(&mut Uuid::encode_buffer())
+                .to_owned()
+        })
+        .unwrap_or_default();
+    let old_name_param = match &upsert
+        .old_parent_and_name
+        .clone()
+        .map(|(_, name)| name.hmac)
+    {
+        Some(name_hmac) => {
+            serde_json::to_string(name_hmac).map_err(UpsertFileMetadataError::Serialize)?
+        }
+        None => String::from(""),
+    };
+
     sqlx::query!(
         r#"
 WITH
     preconditions AS (
-        SELECT EXISTS(SELECT * FROM files WHERE id = $1 AND parent = $9) AS met
+        SELECT $9 = '' OR EXISTS(SELECT * FROM files WHERE id = $1 AND parent = $9) AS met
             UNION ALL
-        SELECT EXISTS(SELECT * FROM files WHERE id = $1 AND name_hmac = $10) AS met
+        SELECT $10 = '' OR EXISTS(SELECT * FROM files WHERE id = $1 AND name_hmac = $10) AS met
     ),
     insert AS (
         INSERT INTO files (
@@ -138,22 +159,8 @@ FROM preconditions;
             .map_err(UpsertFileMetadataError::Serialize)?,
         &serde_json::to_string(public_key).map_err(UpsertFileMetadataError::Serialize)?,
         &upsert.new_deleted,
-        &upsert
-            .old_parent_and_name
-            .clone()
-            .map(|(parent, _)| parent
-                .to_simple()
-                .encode_lower(&mut Uuid::encode_buffer())
-                .to_owned())
-            .unwrap_or_default(),
-        &serde_json::to_string(
-            &upsert
-                .old_parent_and_name
-                .clone()
-                .map(|(_, name)| name.hmac)
-                .unwrap_or_default()
-        )
-        .map_err(UpsertFileMetadataError::Serialize)?,
+        &old_parent_param,
+        &old_name_param,
     )
     .fetch_one(transaction)
     .await
@@ -727,8 +734,7 @@ INSERT INTO user_access_keys (file_id, sharee, encrypted_key) VALUES ($1, $2, $3
             .to_simple()
             .encode_lower(&mut Uuid::encode_buffer())
             .to_owned(),
-        &serde_json::to_string(&public_key)
-            .map_err(CreateUserAccessKeyError::Serialization)?,
+        &serde_json::to_string(&public_key).map_err(CreateUserAccessKeyError::Serialization)?,
         &serde_json::to_string(&user_access_key)
             .map_err(CreateUserAccessKeyError::Serialization)?,
     )
