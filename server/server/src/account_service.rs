@@ -27,6 +27,7 @@ pub async fn new_account(
             .await;
     new_account_result.map_err(|e| match e {
         file_index_repo::NewAccountError::UsernameTaken => Ok(NewAccountError::UsernameTaken),
+        file_index_repo::NewAccountError::PublicKeyTaken => Ok(NewAccountError::PublicKeyTaken),
         _ => Err(format!("Cannot create account in Postgres: {:?}", e)),
     })?;
 
