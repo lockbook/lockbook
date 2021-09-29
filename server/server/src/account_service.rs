@@ -68,7 +68,10 @@ pub async fn new_account(
         }),
         Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
             Some("uk_name") => Err(Ok(NewAccountError::UsernameTaken)),
-            _ => Err(Err(format!("Cannot commit transaction due to constraint violation: {:?}", db_err))),
+            _ => Err(Err(format!(
+                "Cannot commit transaction due to constraint violation: {:?}",
+                db_err
+            ))),
         },
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
