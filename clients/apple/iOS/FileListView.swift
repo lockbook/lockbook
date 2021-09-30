@@ -138,7 +138,7 @@ struct FileListView: View {
     
     func fileSuccessfullyCreated(new: ClientFileMetadata) {
         creatingFile = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1000)) {
             selection = new
         }
     }
