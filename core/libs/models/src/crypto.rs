@@ -3,6 +3,10 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use base64;
+use base64_serde::base64_serde_type;
+
+base64_serde_type!(Base64, base64::STANDARD);
 
 pub type AESKey = [u8; 32];
 pub type DecryptedDocument = Vec<u8>;
@@ -12,9 +16,9 @@ pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AESEncrypted<T: DeserializeOwned> {
-    #[serde(with = "serde_bytes")]
+    #[serde(with = "Base64")]
     pub value: Vec<u8>,
-    #[serde(with = "serde_bytes")]
+    #[serde(with = "Base64")]
     pub nonce: Vec<u8>,
     #[serde(skip_serializing, default = "PhantomData::default")]
     pub _t: PhantomData<T>,
@@ -40,7 +44,7 @@ pub struct Timestamped<T> {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ECSigned<T> {
     pub timestamped_value: Timestamped<T>,
-    #[serde(with = "serde_bytes")]
+    #[serde(with = "Base64")]
     pub signature: Vec<u8>,
     pub public_key: PublicKey,
 }

@@ -10,6 +10,7 @@ use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
 use std::array::IntoIter;
 use std::collections::HashMap;
 use uuid::Uuid;
+use base64;
 
 // TODO:
 // * check ownership
@@ -57,12 +58,7 @@ pub async fn upsert_file_metadata(
     let old_parent_param = upsert
         .old_parent_and_name
         .clone()
-        .map(|(parent, _)| {
-            parent
-                .to_simple()
-                .encode_lower(&mut Uuid::encode_buffer())
-                .to_owned()
-        })
+        .map(|(parent, _)| format!("{}", parent))
         .unwrap_or_default();
     let old_name_param = match &upsert
         .old_parent_and_name
@@ -70,7 +66,7 @@ pub async fn upsert_file_metadata(
         .map(|(_, name)| name.hmac)
     {
         Some(name_hmac) => {
-            serde_json::to_string(name_hmac).map_err(UpsertFileMetadataError::Serialize)?
+            base64::encode(name_hmac)
         }
         None => String::from(""),
     };
@@ -140,23 +136,14 @@ SELECT
     CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS "version!"
 FROM preconditions;
         "#,
-        &upsert
-            .id
-            .to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
-        &upsert
-            .new_parent
-            .to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
+        &format!("{}", upsert.id),
+        &format!("{}", upsert.new_parent),
         &serde_json::to_string(&upsert.new_folder_access_keys)
             .map_err(UpsertFileMetadataError::Serialize)?,
         &(upsert.file_type == FileType::Folder),
         &serde_json::to_string(&upsert.new_name.encrypted_value)
             .map_err(UpsertFileMetadataError::Serialize)?,
-        &serde_json::to_string(&upsert.new_name.hmac)
-            .map_err(UpsertFileMetadataError::Serialize)?,
+        &base64::encode(upsert.new_name.hmac),
         &serde_json::to_string(public_key).map_err(UpsertFileMetadataError::Serialize)?,
         &upsert.new_deleted,
         &old_parent_param,
@@ -216,9 +203,7 @@ RETURNING
     new.metadata_version AS new_metadata_version,
     old.is_folder AS is_folder;
         "#,
-        &id.to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
+        &format!("{}", id),
         &(old_metadata_version as i64),
         &(document_size_bytes as i64)
     )
@@ -305,17 +290,12 @@ SELECT
     CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS "metadata_version!",
     EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS "ancestor_deleted!";
         "#,
-        &id.to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
-        &parent
-            .to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
+        &format!("{}", id),
+        &format!("{}", parent),
         &serde_json::to_string(&access_key).map_err(CreateFileError::Serialize)?,
         &(file_type == FileType::Folder),
         &serde_json::to_string(&name.encrypted_value).map_err(CreateFileError::Serialize)?,
-        &serde_json::to_string(&name.hmac).map_err(CreateFileError::Serialize)?,
+        &base64::encode(name.hmac),
         &serde_json::to_string(public_key).map_err(CreateFileError::Serialize)?,
         (maybe_document_bytes.map(|bytes_u64| bytes_u64 as i64))
     )
@@ -407,9 +387,7 @@ RETURNING
     new.metadata_version AS new_metadata_version,
     old.is_folder AS is_folder;
         "#,
-        &id.to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned()
+        &format!("{}", id)
     )
     .fetch_all(transaction)
     .await
@@ -423,10 +401,7 @@ RETURNING
                 if row.parent_id == row.id {
                     Err(DeleteFileError::IllegalRootChange)
                 } else if row.id
-                    == *id
-                        .to_simple()
-                        .encode_lower(&mut Uuid::encode_buffer())
-                        .to_owned()
+                    == format!("{}", id)
                     && row.old_deleted
                 {
                     Err(DeleteFileError::Deleted)
@@ -477,6 +452,7 @@ pub enum GetFilesError {
     Serialize(serde_json::Error),
     Deserialize(serde_json::Error),
     UuidDeserialize(uuid::Error),
+    HmacDeserialize(DeserializeHmacError),
 }
 
 pub async fn get_files(
@@ -508,7 +484,7 @@ WHERE
         parent: Uuid::parse_str(&row.parent).map_err(GetFilesError::UuidDeserialize)?,
         name: SecretFileName{
             encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetFilesError::Deserialize)?,
-            hmac: serde_json::from_str(&row.name_hmac).map_err(GetFilesError::Deserialize)?,
+            hmac: deserialize_hmac(&row.name_hmac).map_err(GetFilesError::HmacDeserialize)?,
         },
         owner: row.owner.clone(),
         metadata_version: row.metadata_version as u64,
@@ -547,6 +523,7 @@ pub enum GetUpdatesError {
     Serialize(serde_json::Error),
     Deserialize(serde_json::Error),
     UuidDeserialize(uuid::Error),
+    HmacDeserialize(DeserializeHmacError),
 }
 
 pub async fn get_updates(
@@ -581,7 +558,7 @@ WHERE
         parent: Uuid::parse_str(&row.parent).map_err(GetUpdatesError::UuidDeserialize)?,
         name: SecretFileName{
             encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetUpdatesError::Deserialize)?,
-            hmac: serde_json::from_str(&row.name_hmac).map_err(GetUpdatesError::Deserialize)?,
+            hmac: deserialize_hmac(&row.name_hmac).map_err(GetUpdatesError::HmacDeserialize)?,
         },
         owner: row.owner.clone(),
         metadata_version: row.metadata_version as u64,
@@ -619,6 +596,7 @@ pub enum GetRootError {
     Serialize(serde_json::Error),
     Deserialize(serde_json::Error),
     UuidDeserialize(uuid::Error),
+    HmacDeserialize(DeserializeHmacError),
 }
 
 pub async fn get_root(
@@ -656,7 +634,7 @@ WHERE
         name: SecretFileName {
             encrypted_value: serde_json::from_str(&row.name_encrypted)
                 .map_err(GetRootError::Deserialize)?,
-            hmac: serde_json::from_str(&row.name_hmac).map_err(GetRootError::Deserialize)?,
+                hmac: deserialize_hmac(&row.name_hmac).map_err(GetRootError::HmacDeserialize)?,
         },
         owner: row.owner.clone(),
         metadata_version: row.metadata_version as u64,
@@ -735,10 +713,7 @@ pub async fn create_user_access_key(
         r#"
 INSERT INTO user_access_keys (file_id, sharee, encrypted_key) VALUES ($1, $2, $3);
         "#,
-        &folder_id
-            .to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
+        &format!("{}", folder_id),
         &serde_json::to_string(&public_key).map_err(CreateUserAccessKeyError::Serialization)?,
         &serde_json::to_string(&user_access_key)
             .map_err(CreateUserAccessKeyError::Serialization)?,
@@ -901,4 +876,21 @@ pub async fn get_file_usages(
         })
     })
     .collect()
+}
+
+#[derive(Debug)]
+pub enum DeserializeHmacError {
+    Base64Decode(base64::DecodeError),
+    WrongLength(usize),
+}
+
+fn deserialize_hmac(s: &str) -> Result<[u8; 32], DeserializeHmacError> {
+    let v = base64::decode(s).map_err(DeserializeHmacError::Base64Decode)?;
+    if v.len() != 32 {
+        Err(DeserializeHmacError::WrongLength(v.len()))
+    } else {
+        let mut result = [0; 32];
+        result.clone_from_slice(&v);
+        Ok(result)
+    }
 }
