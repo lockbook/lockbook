@@ -297,6 +297,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "base64-serde"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e964e3e0a930303c7c0bdb28ebf691dd98d9eee4b8b68019d2c995710b58a18"
+dependencies = [
+ "base64 0.13.0",
+ "serde",
+]
+
+[[package]]
 name = "basic-human-duration"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2076,7 +2086,6 @@ dependencies = [
  "raqote",
  "reqwest",
  "serde",
- "serde_bytes",
  "serde_json",
  "sha2 0.8.2",
  "strum 0.19.5",
@@ -2129,12 +2138,13 @@ dependencies = [
 name = "lockbook-models"
 version = "0.1.0"
 dependencies = [
+ "base64 0.13.0",
+ "base64-serde",
  "bincode",
  "libsecp256k1",
  "rand 0.7.3",
  "reqwest",
  "serde",
- "serde_bytes",
  "uuid",
 ]
 
@@ -2143,6 +2153,7 @@ name = "lockbook-server"
 version = "0.1.1"
 dependencies = [
  "atomic-counter",
+ "base64 0.13.0",
  "chrono",
  "fern",
  "futures",
@@ -3226,15 +3237,6 @@ dependencies = [
  "serde",
  "thiserror",
  "xml-rs",
-]
-
-[[package]]
-name = "serde_bytes"
-version = "0.11.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16ae07dd2f88a366f15bd0632ba725227018c69a1c8550a927324f8eb8368bb9"
-dependencies = [
- "serde",
 ]
 
 [[package]]

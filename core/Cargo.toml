@@ -38,7 +38,6 @@ raqote = { version = "0.8.0", default-features = false }
 reqwest = { version = "0.11.1", default-features = false, features = ["blocking", "json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
-serde_bytes = "0.11.5"
 sha2 = "0.8.0"
 strum = "0.19.5"
 strum_macros = "0.19.4"
