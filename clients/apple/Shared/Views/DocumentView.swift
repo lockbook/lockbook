@@ -18,6 +18,8 @@ struct DocumentView: View {
                     model.startLoading(meta)
                 }
                 .navigationTitle(meta.name)
+        } else if model.deleted {
+            Text("\(meta.name) was deleted.")
         } else {
             if let type = model.type {
                 switch type {
