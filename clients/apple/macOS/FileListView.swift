@@ -18,7 +18,7 @@ struct FileListView: View {
     
     var body: some View {
         VStack {
-            OutlineSection(root: currentFolder, selectedItem: $selectedItem)
+            OutlineSection(root: currentFolder)
             VStack (spacing: 3) {
                 BottomBar()
             }
