@@ -81,20 +81,22 @@ struct OutlineBranch: View {
                         OutlineBranch(outlineState: outlineState, file: child, level: self.level + 1)
                     }
                 }
-                state.creating.map { c in
+                
+                if let creating = outlineState.creating, creating.parent.id == file.id {
                     SyntheticOutlineRow(
-                        fileType: c,
+                        fileType: creating.child_type,
                         level: self.level + 1,
-                        onCommit: handleCreate(meta: file, type: c),
+                        onCommit: handleCreate(meta: file, type: creating.child_type),
                         onCancel: {
                             withAnimation {
-                                state.creating = nil
+                                outlineState.creating = nil
                             }
                         },
                         pendingImage: Image(systemName: "plus")
                     )
                     .id(1)
                     .onAppear {
+                        
                         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) {
                             withAnimation {
                                 scrollView.scrollTo(1, anchor: .center)
@@ -104,7 +106,7 @@ struct OutlineBranch: View {
                 }
             }
             .contextMenu(menuItems: {
-                OutlineContextMenu(outlineState: outlineState, branchState: state, meta: file)
+                OutlineContextMenu.getContextView(meta: file, outlineState: outlineState, branchState: state)
             })
             .onDrop(of: [UTType.text], delegate: DragDropper(file: file, current: $outlineState.dragging, open: $state.open, moveFile: { drag in
                 files.moveFile(id: drag.id, newParent: self.file.id)
@@ -136,7 +138,7 @@ struct OutlineBranch: View {
     
     func doneCreating() {
         withAnimation {
-            state.creating = .none
+            outlineState.creating = .none
         }
     }
 }
