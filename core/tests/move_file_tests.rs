@@ -2,13 +2,13 @@ mod integration_test;
 
 #[cfg(test)]
 mod move_document_tests {
-    use lockbook_core::assert_matches;
-    use lockbook_core::client;
     use lockbook_core::client::ApiError;
     use lockbook_core::service::test_utils::{
-        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+        generate_account, generate_file_metadata, generate_root_metadata,
     };
+    use lockbook_core::{assert_matches, client};
     use lockbook_models::api::*;
+    use lockbook_models::file_metadata::FileMetadataDiff;
     use lockbook_models::file_metadata::FileType;
 
     #[test]
@@ -18,35 +18,28 @@ mod move_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create document
-        let (mut doc, doc_key) =
+        // create document and folder
+        let (mut doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.metadata_version = client::request(
-            &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
-        )
-        .unwrap()
-        .new_metadata_and_content_version;
-
-        // create folder to move document to
-        let (mut folder, folder_key) =
+        let (folder, _folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        folder.metadata_version = client::request(
+        client::request(
             &account,
-            CreateDocumentRequest::new(
-                &folder,
-                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
+            },
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // move document
         doc.parent = folder.id;
-        client::request(&account, MoveDocumentRequest::new(&doc)).unwrap();
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -56,28 +49,25 @@ mod move_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create folder to move document to
-        let (folder, folder_key) =
+        // create document and folder
+        let (folder, _folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        client::request(
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &folder, &root_key, FileType::Document);
+        let result = client::request(
             &account,
-            CreateDocumentRequest::new(
-                &folder,
-                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
-            ),
-        )
-        .unwrap();
-
-        // move document that wasn't created
-        let (mut doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.parent = folder.id;
-        let result = client::request(&account, MoveDocumentRequest::new(&doc));
-
-        // move document that wasn't created
+            FileMetadataUpsertsRequest {
+                // create document as if moving an existing document
+                updates: vec![
+                    FileMetadataDiff::new_diff(root.id, &doc.name, &doc),
+                    FileMetadataDiff::new(&folder),
+                ],
+            },
+        );
         assert_matches!(
             result,
-            Err(ApiError::<MoveDocumentError>::Endpoint(
-                MoveDocumentError::DocumentNotFound
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
             ))
         );
     }
@@ -89,27 +79,21 @@ mod move_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create document
-        let (mut doc, doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.metadata_version = client::request(
+        // create document and folder, but don't send folder to server
+        let (folder, _folder_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &folder, &root_key, FileType::Document);
+        let result = client::request(
             &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
-        )
-        .unwrap()
-        .new_metadata_and_content_version;
-
-        // move document to folder that was never created
-        let (folder, _) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        doc.parent = folder.id;
-        let result = client::request(&account, MoveDocumentRequest::new(&doc));
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
+        );
         assert_matches!(
             result,
-            Err(ApiError::<MoveDocumentError>::Endpoint(
-                MoveDocumentError::ParentNotFound
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
             ))
         );
     }
@@ -121,42 +105,29 @@ mod move_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create document
-        let (mut doc, doc_key) =
+        // create deleted document and folder
+        let (mut doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        client::request(
-            &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
-        )
-        .unwrap();
-
-        // create folder to move document to
-        let (folder, folder_key) =
+        doc.deleted = true;
+        let (folder, _folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         client::request(
             &account,
-            CreateDocumentRequest::new(
-                &folder,
-                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
+            },
         )
         .unwrap();
 
-        // delete document
-        client::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
-
-        // move deleted document
+        // move document
         doc.parent = folder.id;
-        let result = client::request(&account, MoveDocumentRequest::new(&doc));
-        assert_matches!(
-            result,
-            Err(ApiError::<MoveDocumentError>::Endpoint(
-                MoveDocumentError::DocumentDeleted
-            ))
-        );
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -166,39 +137,32 @@ mod move_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create document
-        let (mut doc, doc_key) =
+        // create document and folder
+        let (mut doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.metadata_version = client::request(
-            &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
-        )
-        .unwrap()
-        .new_metadata_and_content_version;
-
-        // create folder to move document to
-        let (folder, folder_key) =
+        let (folder, _folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         client::request(
             &account,
-            CreateDocumentRequest::new(
-                &folder,
-                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
+            },
         )
         .unwrap();
 
         // move document
         doc.parent = folder.id;
-        doc.metadata_version -= 1;
-        let result = client::request(&account, MoveDocumentRequest::new(&doc));
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                // use incorrect previous parent
+                updates: vec![FileMetadataDiff::new_diff(folder.id, &doc.name, &doc)],
+            },
+        );
         assert_matches!(
             result,
-            Err(ApiError::<MoveDocumentError>::Endpoint(
-                MoveDocumentError::EditConflict
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
             ))
         );
     }
@@ -210,53 +174,34 @@ mod move_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create document
-        let (mut doc, doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.metadata_version = client::request(
-            &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
-        )
-        .unwrap()
-        .new_metadata_and_content_version;
-
-        // create folder to move document to
-        let (mut folder, folder_key) =
+        // create documents and folder
+        let (folder, _folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        folder.metadata_version = client::request(
-            &account,
-            CreateDocumentRequest::new(
-                &folder,
-                aes_encrypt(&folder_key, &String::from("doc content").into_bytes()),
-            ),
-        )
-        .unwrap()
-        .new_metadata_and_content_version;
-
-        // create document
-        let (mut doc2, _) =
-            generate_file_metadata(&account, &folder, &folder_key, FileType::Document);
+        let (mut doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc2, _doc_key2) =
+            generate_file_metadata(&account, &folder, &root_key, FileType::Document);
         doc2.name = doc.name.clone();
-        doc2.metadata_version = client::request(
+        client::request(
             &account,
-            CreateDocumentRequest::new(
-                &doc2,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2), FileMetadataDiff::new(&folder)],
+            },
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // move document
         doc.parent = folder.id;
-        let result = client::request(&account, MoveDocumentRequest::new(&doc));
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
+        );
         assert_matches!(
             result,
-            Err(ApiError::<MoveDocumentError>::Endpoint(
-                MoveDocumentError::DocumentPathTaken
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
             ))
         );
     }
@@ -266,24 +211,31 @@ mod move_document_tests {
         // new account
         let account = generate_account();
         let (mut root, root_key) = generate_root_metadata(&account);
-        root.metadata_version = client::request(&account, NewAccountRequest::new(&account, &root))
-            .unwrap()
-            .folder_metadata_version;
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create folder that will be moved into itself
-        let (mut folder, _folder_key) =
+        // create folder
+        let (folder, _folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        folder.metadata_version = client::request(&account, CreateFolderRequest::new(&folder))
-            .unwrap()
-            .new_metadata_version;
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&folder)],
+            },
+        )
+        .unwrap();
 
-        // move root into its child
+        // move root
         root.parent = folder.id;
-        let result = client::request(&account, MoveFolderRequest::new(&root));
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
+            },
+        );
         assert_matches!(
             result,
-            Err(ApiError::<MoveFolderError>::Endpoint(
-                MoveFolderError::CannotMoveRoot
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
             ))
         );
     }
@@ -295,20 +247,29 @@ mod move_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create folder that will be moved into itself
+        // create folder
         let (mut folder, _folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        folder.metadata_version = client::request(&account, CreateFolderRequest::new(&folder))
-            .unwrap()
-            .new_metadata_version;
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&folder)],
+            },
+        )
+        .unwrap();
 
-        // move folder into itself
+        // move folder into self
         folder.parent = folder.id;
-        let result = client::request(&account, MoveFolderRequest::new(&folder));
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
+            },
+        );
         assert_matches!(
             result,
-            Err(ApiError::<MoveFolderError>::Endpoint(
-                MoveFolderError::CannotMoveIntoDescendant
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
             ))
         );
     }
@@ -320,34 +281,68 @@ mod move_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create folder that will be moved
-        let (mut folder, folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        folder.metadata_version = client::request(&account, CreateFolderRequest::new(&folder))
-            .unwrap()
-            .new_metadata_version;
-
-        // create folder to move parent to
-        let (mut folder2, folder_key2) =
-            generate_file_metadata(&account, &folder, &folder_key, FileType::Folder);
-        folder2.metadata_version = client::request(&account, CreateFolderRequest::new(&folder2))
-            .unwrap()
-            .new_metadata_version;
-
-        // create folder to move parent to
-        let (mut folder3, _folder_key3) =
-            generate_file_metadata(&account, &folder2, &folder_key2, FileType::Folder);
-        folder3.metadata_version = client::request(&account, CreateFolderRequest::new(&folder3))
-            .unwrap()
-            .new_metadata_version;
+        // create folders
+        let (mut folder, _folder_key) =
+        generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (folder2, _folder_key2) =
+            generate_file_metadata(&account, &folder, &root_key, FileType::Folder);
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&folder), FileMetadataDiff::new(&folder2)],
+            },
+        )
+        .unwrap();
 
         // move folder into itself
-        folder.parent = folder3.id;
-        let result = client::request(&account, MoveFolderRequest::new(&folder));
+        folder.parent = folder2.id;
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
+            },
+        );
         assert_matches!(
             result,
-            Err(ApiError::<MoveFolderError>::Endpoint(
-                MoveFolderError::CannotMoveIntoDescendant
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
+            ))
+        );
+    }
+
+    // todo: make pass by adding server-side check for cycles
+    #[test]
+    fn move_document_into_document() {
+        // new account
+        let account = generate_account();
+        let (root, root_key) = generate_root_metadata(&account);
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+
+        // create documents
+        let (mut doc, _doc_key) =
+        generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (doc2, _doc_key2) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)],
+            },
+        )
+        .unwrap();
+
+        // move folder into itself
+        doc.parent = doc2.id;
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
+        );
+        assert_matches!(
+            result,
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
             ))
         );
     }
