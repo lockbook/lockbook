@@ -17,6 +17,17 @@ pub async fn upsert_file_metadata(
     };
 
     for upsert in &request.updates {
+        if let Some((old_parent, _)) = upsert.old_parent_and_name {
+            // prevent all updates to root
+            if upsert.id == old_parent {
+                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)) // todo: better error
+            }
+            // prevent turning existing folder into root
+            if upsert.id == upsert.new_parent {
+                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)) // todo: better error
+            }
+        }
+
         let index_result =
             file_index_repo::upsert_file_metadata(&mut transaction, &context.public_key, &upsert)
                 .await;

@@ -79,7 +79,13 @@ WITH
             -- both args empty and file does not exist...
             ($9 = '' AND $10 = '' AND NOT EXISTS(SELECT * FROM files WHERE id = $1)) OR
             -- ...or neither arg empty and matching file exists
-            ($9 != '' AND $10 != '' AND EXISTS(SELECT * FROM files WHERE id = $1 AND parent = $9 AND name_hmac = $10)) AS met
+            ($9 != '' AND $10 != '' AND EXISTS(SELECT * FROM files WHERE id = $1 AND is_folder = $4 AND parent = $9 AND name_hmac = $10)) AS met
+            UNION ALL
+        -- new parent must be a folder if it exists already
+        SELECT NOT EXISTS(SELECT * FROM files WHERE id = $2 AND NOT is_folder) AS met
+            UNION ALL
+        -- cannot have children if document
+        SELECT $4 OR NOT EXISTS(SELECT * FROM files WHERE parent = $1) AS met
     ),
     insert AS (
         INSERT INTO files (
