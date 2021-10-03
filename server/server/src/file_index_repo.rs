@@ -75,9 +75,11 @@ pub async fn upsert_file_metadata(
         r#"
 WITH
     preconditions AS (
-        SELECT $9 = '' OR EXISTS(SELECT * FROM files WHERE id = $1 AND parent = $9) AS met
-            UNION ALL
-        SELECT $10 = '' OR EXISTS(SELECT * FROM files WHERE id = $1 AND name_hmac = $10) AS met
+        SELECT
+            -- both args empty and file does not exist...
+            ($9 = '' AND $10 = '' AND NOT EXISTS(SELECT * FROM files WHERE id = $1)) OR
+            -- ...or neither arg empty and matching file exists
+            ($9 != '' AND $10 != '' AND EXISTS(SELECT * FROM files WHERE id = $1 AND parent = $9 AND name_hmac = $10)) AS met
     ),
     insert AS (
         INSERT INTO files (

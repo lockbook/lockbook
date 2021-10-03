@@ -59,12 +59,11 @@ CREATE TABLE IF NOT EXISTS files
     document_size     BIGINT,
     CONSTRAINT fk_files_parent_files_id FOREIGN KEY (parent) REFERENCES files (id) DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT fk_files_owner_accounts_public_key FOREIGN KEY (owner) REFERENCES accounts (public_key) DEFERRABLE INITIALLY DEFERRED,
-    CONSTRAINT documents_must_have_size CHECK (
-        is_folder OR document_size IS NOT NULL
-    )
+    -- the CASE WHEN ... THEN TRUE ELSE NULL END adds a nullable 3rd dervied column to what's essentially a unique constraint
+    -- because null != null, values where the CASE expression are true are effectively ignored by the constraint
+    CONSTRAINT uk_files_name_parent EXCLUDE (parent WITH =, name_hmac WITH =, (CASE WHEN (NOT deleted AND id != parent) THEN TRUE ELSE NULL END) WITH =) DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT documents_must_have_size CHECK (is_folder OR document_size IS NOT NULL)
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS uk_files_name_parent ON files (parent, name_hmac) WHERE (NOT deleted AND id != parent);
 
 CREATE TABLE IF NOT EXISTS user_access_keys
 (

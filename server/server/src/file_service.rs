@@ -46,6 +46,14 @@ pub async fn upsert_file_metadata(
 
     match transaction.commit().await {
         Ok(()) => Ok(()),
+        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
+            Some("uk_files_name_parent") => Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)),
+            Some("fk_files_parent_files_id") => Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)),
+            _ => Err(Err(format!(
+                "Cannot commit transaction due to constraint violation: {:?}",
+                db_err
+            ))),
+        },
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
