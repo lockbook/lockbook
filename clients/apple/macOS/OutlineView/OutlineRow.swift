@@ -88,7 +88,7 @@ struct SyntheticOutlineRow: View {
                 } else {
                     onCancel()
                 }
-            })
+            }).onExitCommand(perform: onCancel)
 
             Spacer()
         }
