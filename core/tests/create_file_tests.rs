@@ -6,7 +6,7 @@ mod create_document_tests {
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
     use lockbook_core::service::test_utils::{
-        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+        generate_account, generate_file_metadata, generate_root_metadata,
     };
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileMetadataDiff;
@@ -21,7 +21,8 @@ mod create_document_tests {
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
 
         client::request(
             &account,
@@ -40,7 +41,8 @@ mod create_document_tests {
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
         client::request(
             &account,
             FileMetadataUpsertsRequest {
@@ -72,7 +74,8 @@ mod create_document_tests {
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
         client::request(
             &account,
             FileMetadataUpsertsRequest {
