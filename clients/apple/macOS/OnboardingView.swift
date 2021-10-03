@@ -18,9 +18,7 @@ struct OnboardingView: View {
                 Spacer()
             } else {
                 Spacer()
-                Text("Lockbook")
-                    .font(.system(.largeTitle, design: .monospaced))
-                    .padding()
+                LogoView()
                 HStack (alignment: VerticalAlignment.top) {
                     CreateAccountView()
                     Divider().frame(height: 200)

@@ -28,22 +28,20 @@ struct OnboardingView: View {
             if small {
                 NavigationView {
                     VStack(spacing: 40) {
-                        Text("Lockbook").font(.system(.largeTitle, design: .monospaced))
+                        LogoView()
                         NavigationLink(destination: CreateAccountView()) {
-                            Label("Create", systemImage: "person.crop.circle.badge.plus")
+                            Label("Create account", systemImage: "person.crop.circle")
                         }
                         NavigationLink(destination: ImportAccountView()) {
-                            Label("Import", systemImage: "rectangle.stack.person.crop")
+                            Label("Import account", systemImage: "square.and.arrow.down")
                         }
                     }
+                    .navigationBarHidden(true)
+                    .navigationBarTitle(Text("Welcome"))
                 }
-                .navigationBarTitle("")
-                .navigationBarHidden(true)
-            } else {
+                            } else {
                 VStack(spacing: 50) {
-                    Text("Lockbook")
-                        .font(.system(.largeTitle, design: .monospaced))
-                        .padding()
+                    LogoView()
                     HStack {
                         CreateAccountView()
                         Divider().frame(height: 300)
@@ -70,7 +68,7 @@ struct Syncing_Previews: PreviewProvider {
         OnboardingView()
             .mockDI()
             .onAppear {
-                Mock.onboarding.initialSyncing = true
+                Mock.onboarding.initialSyncing = false
             }
     }
 }

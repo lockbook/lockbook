@@ -17,6 +17,9 @@ struct DocumentView: View {
                 .onAppear {
                     model.startLoading(meta)
                 }
+                .navigationTitle(meta.name)
+        } else if model.deleted {
+            Text("\(meta.name) was deleted.")
         } else {
             if let type = model.type {
                 switch type {
@@ -24,7 +27,7 @@ struct DocumentView: View {
                     if let img = model.image {
                         ScrollView([.horizontal, .vertical]) {
                             img
-                        }
+                        }.navigationTitle(meta.name)
                     }
                 #if os(iOS)
                 case .Drawing:
@@ -32,7 +35,7 @@ struct DocumentView: View {
                         model: model,
                         toolPicker: toolbar
                     )
-                    .navigationTitle(Text(meta.name))
+                    .navigationTitle(meta.name)
                     .toolbar {
                         ToolbarItemGroup(placement: .bottomBar) {
                             Spacer()
@@ -49,7 +52,8 @@ struct DocumentView: View {
                             frame: geo.frame(in: .local),
                             theme: LockbookTheme
                         )
-                    } // TODO there needs to be a 20 horiz padding here on iOS
+                    }.navigationTitle(meta.name)
+                    // TODO there needs to be a 20 horiz padding here on iOS
                 case .Unknown:
                     Text("\(meta.name) cannot be opened on this device.")
                 }
