@@ -6,9 +6,8 @@ struct CreateAccountView: View {
     var body: some View {
         VStack(spacing:40) {
             HStack {
-                Text("Create a new account")
-                    .font(.title)
-                    .bold()
+                Text("Create account")
+                    .font(.title2)
                 Spacer()
             }
             HStack {
