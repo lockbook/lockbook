@@ -7,9 +7,8 @@ struct ImportAccountView: View {
     var body: some View {
         VStack(spacing: 40) {
             HStack {
-                Text("Import an existing account")
-                    .font(.title)
-                    .bold()
+                Text("Import account")
+                    .font(.title2)
                 Spacer()
             }
             HStack {
