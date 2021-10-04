@@ -2,13 +2,11 @@ mod integration_test;
 
 #[cfg(test)]
 mod get_document_tests {
-    use std::marker::PhantomData;
-
     use lockbook_core::assert_matches;
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
     use lockbook_core::service::test_utils::{
-        aes_decrypt, aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+        generate_account, generate_file_metadata, generate_root_metadata,
     };
     use lockbook_models::api::*;
     use lockbook_models::crypto::AESEncrypted;
@@ -55,7 +53,11 @@ mod get_document_tests {
             ChangeDocumentContentRequest {
                 id: doc.id,
                 old_metadata_version: metadata_version,
-                new_content: AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() },
+                new_content: AESEncrypted {
+                    value: vec![69],
+                    nonce: vec![69],
+                    _t: Default::default(),
+                },
             },
         )
         .unwrap();
@@ -84,7 +86,14 @@ mod get_document_tests {
             },
         )
         .unwrap();
-        assert_eq!(result.content, Some(AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() }));
+        assert_eq!(
+            result.content,
+            Some(AESEncrypted {
+                value: vec!(69),
+                nonce: vec!(69),
+                _t: Default::default()
+            })
+        );
     }
 
     #[test]
