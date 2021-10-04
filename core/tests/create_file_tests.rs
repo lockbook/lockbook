@@ -24,7 +24,6 @@ mod create_document_tests {
         // create document
         let (doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-
         client::request(
             &account,
             FileMetadataUpsertsRequest {
