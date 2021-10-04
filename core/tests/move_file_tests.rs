@@ -310,7 +310,6 @@ mod move_document_tests {
         );
     }
 
-    // todo: make pass by adding server-side check for cycles
     #[test]
     fn move_document_into_document() {
         // new account
