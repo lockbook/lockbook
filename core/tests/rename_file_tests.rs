@@ -2,6 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod rename_document_tests {
+    use lockbook_core::assert_get_updates_required;
     use lockbook_core::assert_matches;
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
@@ -59,12 +60,7 @@ mod rename_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -125,12 +121,7 @@ mod rename_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -162,12 +153,7 @@ mod rename_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -184,11 +170,6 @@ mod rename_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 }

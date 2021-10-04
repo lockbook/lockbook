@@ -6,7 +6,7 @@ mod move_document_tests {
     use lockbook_core::service::test_utils::{
         generate_account, generate_file_metadata, generate_root_metadata,
     };
-    use lockbook_core::{assert_matches, client};
+    use lockbook_core::{assert_get_updates_required, assert_matches, client};
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileMetadataDiff;
     use lockbook_models::file_metadata::FileType;
@@ -64,12 +64,7 @@ mod move_document_tests {
                 ],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -90,12 +85,7 @@ mod move_document_tests {
                 updates: vec![FileMetadataDiff::new(&doc)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -159,12 +149,7 @@ mod move_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(folder.id, &doc.name, &doc)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -202,12 +187,7 @@ mod move_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -236,12 +216,7 @@ mod move_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -270,12 +245,7 @@ mod move_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -309,12 +279,7 @@ mod move_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -345,11 +310,6 @@ mod move_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 }
