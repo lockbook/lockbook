@@ -1,5 +1,6 @@
 use crate::file_content_client;
 use crate::file_index_repo;
+use crate::file_index_repo::CheckCyclesError;
 use crate::file_index_repo::UpsertFileMetadataError;
 use crate::RequestContext;
 use lockbook_models::api::*;
@@ -20,11 +21,11 @@ pub async fn upsert_file_metadata(
         if let Some((old_parent, _)) = upsert.old_parent_and_name {
             // prevent all updates to root
             if upsert.id == old_parent {
-                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)) // todo: better error
+                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)); // todo: better error
             }
             // prevent turning existing folder into root
             if upsert.id == upsert.new_parent {
-                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)) // todo: better error
+                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)); // todo: better error
             }
         }
 
@@ -50,8 +51,19 @@ pub async fn upsert_file_metadata(
                 return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
             }
             Err(e) => {
-                return Err(Err(format!("Cannot begin transaction: {:?}", e)));
+                return Err(Err(format!("Cannot upsert metadata: {:?}", e)));
             }
+        }
+    }
+
+    let cycles_result = file_index_repo::check_cycles(&mut transaction, &context.public_key).await;
+    match cycles_result {
+        Ok(()) => {},
+        Err(CheckCyclesError::CyclesDetected) => {
+            return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
+        }
+        Err(e) => {
+            return Err(Err(format!("Cannot check cycles: {:?}", e)));
         }
     }
 
@@ -59,7 +71,9 @@ pub async fn upsert_file_metadata(
         Ok(()) => Ok(()),
         Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
             Some("uk_files_name_parent") => Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)),
-            Some("fk_files_parent_files_id") => Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)),
+            Some("fk_files_parent_files_id") => {
+                Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
+            }
             _ => Err(Err(format!(
                 "Cannot commit transaction due to constraint violation: {:?}",
                 db_err
