@@ -6,9 +6,10 @@ mod delete_document_tests {
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
     use lockbook_core::service::test_utils::{
-        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+        generate_account, generate_file_metadata, generate_root_metadata,
     };
     use lockbook_models::api::*;
+    use lockbook_models::file_metadata::FileMetadataDiff;
     use lockbook_models::file_metadata::FileType;
 
     #[test]
@@ -19,18 +20,25 @@ mod delete_document_tests {
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
         client::request(
             &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
         )
         .unwrap();
 
         // delete document
-        client::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
+        doc.deleted = true;
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -40,13 +48,20 @@ mod delete_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // delete document that wasn't created
-        let (doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let result = client::request(&account, DeleteDocumentRequest { id: doc.id });
+        // create document
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                // create document as if deleting an existing document
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
+        );
         assert_matches!(
             result,
-            Err(ApiError::<DeleteDocumentError>::Endpoint(
-                DeleteDocumentError::DocumentNotFound
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
             ))
         );
     }
@@ -59,27 +74,34 @@ mod delete_document_tests {
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
         client::request(
             &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
         )
         .unwrap();
 
         // delete document
-        client::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
+        doc.deleted = true;
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
+        )
+        .unwrap();
 
         // delete document again
-        let result = client::request(&account, DeleteDocumentRequest { id: doc.id });
-        assert_matches!(
-            result,
-            Err(ApiError::<DeleteDocumentError>::Endpoint(
-                DeleteDocumentError::DocumentDeleted
-            ))
-        );
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -87,16 +109,21 @@ mod delete_document_tests {
         // new account
         let account = generate_account();
         let (mut root, _root_key) = generate_root_metadata(&account);
-        root.metadata_version = client::request(&account, NewAccountRequest::new(&account, &root))
-            .unwrap()
-            .folder_metadata_version;
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // delete root
-        let result = client::request(&account, DeleteFolderRequest { id: root.id });
+        root.deleted = true;
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                // create document as if deleting an existing document
+                updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
+            },
+        );
         assert_matches!(
             result,
-            Err(ApiError::<DeleteFolderError>::Endpoint(
-                DeleteFolderError::CannotDeleteRoot
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
             ))
         );
     }
