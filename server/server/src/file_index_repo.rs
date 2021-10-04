@@ -1,4 +1,5 @@
 use crate::config::IndexDbConfig;
+use base64;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::{
@@ -10,7 +11,6 @@ use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
 use std::array::IntoIter;
 use std::collections::HashMap;
 use uuid::Uuid;
-use base64;
 
 // TODO:
 // * check ownership
@@ -65,9 +65,7 @@ pub async fn upsert_file_metadata(
         .clone()
         .map(|(_, name)| name.hmac)
     {
-        Some(name_hmac) => {
-            base64::encode(name_hmac)
-        }
+        Some(name_hmac) => base64::encode(name_hmac),
         None => String::from(""),
     };
 
@@ -167,6 +165,46 @@ FROM preconditions;
         }
     })
     .map_err(UpsertFileMetadataError::Postgres)?
+}
+
+#[derive(Debug)]
+pub enum CheckCyclesError {
+    Postgres(sqlx::Error),
+    Serialize(serde_json::Error),
+    CyclesDetected,
+}
+
+pub async fn check_cycles(
+    transaction: &mut Transaction<'_, Postgres>,
+    public_key: &PublicKey,
+) -> Result<(), CheckCyclesError> {
+    sqlx::query!(
+        r#"
+        WITH RECURSIVE not_sure AS (
+            SELECT
+                0 AS i,
+                id AS id,
+                parent AS parent,
+                (SELECT parent_files.parent FROM files AS parent_files WHERE parent_files.id = files.parent) AS grandparent
+            FROM files
+            WHERE owner = $1
+                UNION ALL
+            SELECT
+                i+1 AS i,
+                id AS id,
+                (SELECT parent_files.parent FROM files AS parent_files WHERE parent_files.id = not_sure.parent) AS parent,
+                (SELECT grandparent_files.parent FROM files AS grandparent_files WHERE grandparent_files.id = (SELECT parent_files.parent FROM files AS parent_files WHERE id = (SELECT files.parent FROM files WHERE id = not_sure.parent))) AS grandparent
+            FROM not_sure
+            WHERE parent != grandparent
+        )
+        SELECT COUNT(*) != 0 AS "has_cycles!" FROM not_sure WHERE id = parent AND i != 0;
+        "#,
+        &serde_json::to_string(public_key).map_err(CheckCyclesError::Serialize)?,
+    )
+    .fetch_one(transaction)
+    .await
+    .map(|row| if row.has_cycles { Err(CheckCyclesError::CyclesDetected) } else { Ok(()) })
+    .map_err(CheckCyclesError::Postgres)?
 }
 
 #[derive(Debug)]
@@ -408,10 +446,7 @@ RETURNING
             .map(|row| {
                 if row.parent_id == row.id {
                     Err(DeleteFileError::IllegalRootChange)
-                } else if row.id
-                    == format!("{}", id)
-                    && row.old_deleted
-                {
+                } else if row.id == format!("{}", id) && row.old_deleted {
                     Err(DeleteFileError::Deleted)
                 } else {
                     Ok(FileDeleteResponse {
@@ -642,7 +677,7 @@ WHERE
         name: SecretFileName {
             encrypted_value: serde_json::from_str(&row.name_encrypted)
                 .map_err(GetRootError::Deserialize)?,
-                hmac: deserialize_hmac(&row.name_hmac).map_err(GetRootError::HmacDeserialize)?,
+            hmac: deserialize_hmac(&row.name_hmac).map_err(GetRootError::HmacDeserialize)?,
         },
         owner: row.owner.clone(),
         metadata_version: row.metadata_version as u64,
