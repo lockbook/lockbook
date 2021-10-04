@@ -185,7 +185,11 @@ mod move_document_tests {
         client::request(
             &account,
             FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2), FileMetadataDiff::new(&folder)],
+                updates: vec![
+                    FileMetadataDiff::new(&doc),
+                    FileMetadataDiff::new(&doc2),
+                    FileMetadataDiff::new(&folder),
+                ],
             },
         )
         .unwrap();
@@ -283,13 +287,16 @@ mod move_document_tests {
 
         // create folders
         let (mut folder, _folder_key) =
-        generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         let (folder2, _folder_key2) =
             generate_file_metadata(&account, &folder, &root_key, FileType::Folder);
         client::request(
             &account,
             FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&folder), FileMetadataDiff::new(&folder2)],
+                updates: vec![
+                    FileMetadataDiff::new(&folder),
+                    FileMetadataDiff::new(&folder2),
+                ],
             },
         )
         .unwrap();
@@ -319,7 +326,7 @@ mod move_document_tests {
 
         // create documents
         let (mut doc, _doc_key) =
-        generate_file_metadata(&account, &root, &root_key, FileType::Document);
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
         let (doc2, _doc_key2) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         client::request(
