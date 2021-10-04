@@ -2,36 +2,36 @@ import SwiftUI
 
 struct BeforeYouStart: View {
     
-    @State var show = false
+    // Let's do this by keeping a global variable that defaults to false that represents whether an account was created
+    // this session. When an account is successfully created it's toggled to true. And we'll pop this bad boy up in a sheet
+    // If they toggle on backup we'll pop open settings
+    // If they say they'll do this later, we'll dismiss the sheet. 
     
     var body: some View {
-        VStack (spacing: 30){
-            LogoView()
+        VStack (spacing: 40){
+            HStack {
+                Text("Before you begin...")
+                    .font(.title)
+                    .bold()
+                    .foregroundColor(.red)
+                Spacer()
+            }
             Text("Lockbook [encrypts](https://en.wikipedia.org/wiki/End-to-end_encryption) your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.")
                 .font(.title2)
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(10)) {
-                        withAnimation {
-                            show = true
-                        }
-                    }
+            VStack(spacing: 20) {
+                Button("Backup to another device") {
+                    print("hi")
                 }
-            if show {
-                VStack(spacing: 15) {
-                    Button("Backup to another device") {
-                        print("hi")
-                    }
-                    Button("I'll do this later") {
-                        print("sad")
-                    }.foregroundColor(.red)
-                    
-                }
+                Button("I'll do this later") {
+                    print("sad")
+                }.foregroundColor(.red)
+                
             }
         }
     }
 }
 
-struct BeforeYouStartError: PreviewProvider {
+struct BeforeYouStartPreview: PreviewProvider {
     
     static var previews: some View {
         VStack {
