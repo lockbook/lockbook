@@ -10,7 +10,7 @@ mod change_document_content_tests {
     fn create_account() {
         // new account
         let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
+        let (root, _root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
     }
 }

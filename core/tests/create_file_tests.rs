@@ -2,6 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod create_document_tests {
+    use lockbook_core::assert_get_updates_required;
     use lockbook_core::assert_matches;
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
@@ -58,12 +59,7 @@ mod create_document_tests {
                 updates: vec![FileMetadataDiff::new(&doc)],
             },
         );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -94,12 +90,7 @@ mod create_document_tests {
             },
         );
 
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -120,11 +111,6 @@ mod create_document_tests {
             },
         );
 
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::GetUpdatesRequired
-            ))
-        );
+        assert_get_updates_required!(result);
     }
 }

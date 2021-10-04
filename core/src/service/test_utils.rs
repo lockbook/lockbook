@@ -30,6 +30,18 @@ macro_rules! assert_matches (
 );
 
 #[macro_export]
+macro_rules! assert_get_updates_required {
+    ($actual:expr) => {
+        assert_matches!(
+            $actual,
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::GetUpdatesRequired
+            ))
+        );
+    };
+}
+
+#[macro_export]
 macro_rules! path {
     ($account:expr, $path:expr) => {{
         &format!("{}/{}", $account.username, $path)
