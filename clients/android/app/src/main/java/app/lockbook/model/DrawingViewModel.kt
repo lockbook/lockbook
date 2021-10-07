@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.*
 import app.lockbook.App.Companion.config
+import app.lockbook.getRes
 import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
@@ -39,7 +40,7 @@ class DrawingViewModel(
                     documentResult.value
                 }
                 is Err -> {
-                    _notifyError.postValue(documentResult.error.toLbError(getApplication<Application>().resources))
+                    _notifyError.postValue(documentResult.error.toLbError(getRes()))
                     return@launch
                 }
             }
@@ -60,7 +61,7 @@ class DrawingViewModel(
             val writeToDocumentResult = CoreModel.writeToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
             if (writeToDocumentResult is Err) {
-                _notifyError.postValue(writeToDocumentResult.error.toLbError(getApplication<Application>().resources))
+                _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
             }
         }
     }

@@ -18,5 +18,8 @@
         android:layout_weight="1"
         android:layout_height="match_parent" />
 
+    <include
+        android:id="@+id/progress_overlay"
+        layout="@layout/progress_overlay" />
 
 </androidx.slidingpanelayout.widget.SlidingPaneLayout>

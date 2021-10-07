@@ -3,6 +3,7 @@ package app.lockbook.model
 import android.app.Application
 import androidx.lifecycle.*
 import app.lockbook.App.Companion.config
+import app.lockbook.getRes
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.DataSource
 import com.afollestad.recyclical.datasource.dataSourceOf

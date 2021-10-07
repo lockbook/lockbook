@@ -130,7 +130,7 @@ class FilesFragment: Fragment() {
                     }
                     is UpdateFilesUI.ShareDocuments -> finalizeShare(uiUpdates.files)
                     is UpdateFilesUI.ShowHideProgressOverlay -> {
-                        val progressOverlay = (activity as ListFilesActivity).binding.progressOverlay.root
+                        val progressOverlay = (activity as MainScreenActivity).binding.progressOverlay.root
 
                         if (progressOverlay.visibility == View.GONE) {
                             Animate.animateVisibility(progressOverlay, View.VISIBLE, 102, 500)

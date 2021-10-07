@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.getContext
+import app.lockbook.getRes
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.ClientFileMetadata
