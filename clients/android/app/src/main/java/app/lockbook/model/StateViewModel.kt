@@ -5,8 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,32 +23,31 @@ import java.io.File
 
 class StateViewModel: ViewModel() {
     val openedFile: ClientFileMetadata? = null
-    val transientScreen: TransientScreen? = null
+    var transientScreen: TransientScreen? = null
 
-    private val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen>()
-    private val _launchDialogScreen = SingleMutableLiveData<TransientScreen>()
+    val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen>()
+    private val _launchTransientScreen = SingleMutableLiveData<TransientScreen>()
     private val _updateMainScreenUI = SingleMutableLiveData<UpdateMainScreenUI>()
 
     val launchDetailsScreen: LiveData<DetailsScreen>
         get() = _launchDetailsScreen
 
     val launchTransientScreen: LiveData<TransientScreen>
-        get() = _launchDialogScreen
+        get() = _launchTransientScreen
 
     val updateMainScreenUI: LiveData<UpdateMainScreenUI>
         get() = _updateMainScreenUI
 
-    private val shareModel = ShareModel(_updateMainScreenUI)
-
-    fun shareFiles(files: List<ClientFileMetadata>, cacheDir: File) {
-        viewModelScope.launch(Dispatchers.IO) {
-            shareModel.shareDocuments(files, cacheDir)
-        }
+    fun launchTransientScreen(screen: TransientScreen) {
+        transientScreen = screen
+        _launchTransientScreen.postValue(transientScreen)
     }
 
-    fun sync(
-
-    )
+//    private fun shareFiles(files: List<ClientFileMetadata>, cacheDir: File) {
+//        viewModelScope.launch(Dispatchers.IO) {
+//            shareModel.shareDocuments(files, cacheDir)
+//        }
+//    }
 }
 
 enum class DetailsScreen {
@@ -63,79 +61,44 @@ sealed class TransientScreen {
     data class Rename(val file: ClientFileMetadata): TransientScreen()
     data class Create(val info: CreateFileInfo): TransientScreen()
     data class Info(val file: ClientFileMetadata): TransientScreen()
-    data class Share(val files: List<File>): TransientScreen()
 
-    private fun show(fragment: Fragment) {
+    fun show(activity: FragmentActivity) {
         when(this) {
-            is Share -> {
-                showShare(fragment)
-            }
             is Create -> {
-                CreateFileDialogFragment().show(fragment.parentFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
+                CreateFileDialogFragment().show(activity.supportFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
             }
             is Info -> {
-                FileInfoDialogFragment().show(fragment.parentFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
+                FileInfoDialogFragment().show(activity.supportFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
             }
             is Move -> {
-                MoveFileDialogFragment().show(fragment.parentFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
+                MoveFileDialogFragment().show(activity.supportFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
             }
             is Rename -> {
-                RenameFileDialogFragment().show(fragment.parentFragmentManager, RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG)
+                RenameFileDialogFragment().show(activity.supportFragmentManager, RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG)
             }
         }
-    }
-
-    private fun Share.showShare(fragment: Fragment) {
-        val onShare =
-            fragment.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-
-            }
-
-        val uris = java.util.ArrayList<Uri>()
-
-        for (file in files) {
-            uris.add(
-                FileProvider.getUriForFile(
-                    fragment.requireContext(),
-                    "app.lockbook.fileprovider",
-                    file
-                )
-            )
-        }
-
-        val intent = Intent(Intent.ACTION_SEND_MULTIPLE)
-        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-
-        val clipData = ClipData.newRawUri(null, Uri.EMPTY)
-        uris.forEach { uri ->
-            clipData.addItem(ClipData.Item(uri))
-        }
-
-        intent.clipData = clipData
-        intent.type = "*/*"
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-
-        onShare.launch(
-            Intent.createChooser(
-                intent,
-                "Send multiple files."
-            )
-        )
     }
 }
 
 sealed class UpdateMainScreenUI {
-    data class ShareDocuments(val files: ArrayList<File>): UpdateMainScreenUI()
-    data class ShowHideProgressOverlay(val hide: Boolean): UpdateMainScreenUI()
     data class NotifyError(val error: LbError): UpdateMainScreenUI()
 }
 
 data class CreateFileInfo(
     val parentId: String,
-    val fileType: FileType,
-    val isDrawing: Boolean
+    val extendedFileType: ExtendedFileType
 )
+
+sealed class ExtendedFileType{
+    object Text: ExtendedFileType()
+    object Drawing: ExtendedFileType()
+    object Folder: ExtendedFileType()
+
+    fun toFileType(): FileType = when(this) {
+        Drawing, Text -> FileType.Document
+        Folder -> FileType.Folder
+    }
+}
 
 data class MoveFileInfo(
     val ids: Array<String>,

@@ -342,7 +342,7 @@ class DrawingFragment: Fragment() {
                 }
             },
             1000,
-            TextEditorActivity.TEXT_EDITOR_BACKGROUND_SAVE_PERIOD
+            100000
         )
     }
 }

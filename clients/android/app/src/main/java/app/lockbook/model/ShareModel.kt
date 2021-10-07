@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Resources
 import android.text.format.DateUtils
 import app.lockbook.App.Companion.config
+import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -13,7 +14,7 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 class ShareModel(
-    private val _updateMainScreenUI: SingleMutableLiveData<UpdateMainScreenUI>
+    private val _notifyUpdateFilesUI: SingleMutableLiveData<UpdateFilesUI>
 ) {
     var isLoadingOverlayVisible = false
 
@@ -37,9 +38,11 @@ class ShareModel(
         }
     }
 
-    fun shareDocuments(selectedFiles: List<ClientFileMetadata>, cacheDir: File): Result<Unit, CoreError> {
+    fun shareDocuments(selectedFiles: List<ClientFileMetadata>, appDataDir: File): Result<Unit, CoreError> {
+        val cacheDir = getMainShareFolder(appDataDir)
+
         isLoadingOverlayVisible = true
-        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
 
         clearShareStorage(cacheDir)
 
@@ -71,7 +74,7 @@ class ShareModel(
                     is Ok -> filesToShare.add(image)
                     is Err -> {
                         isLoadingOverlayVisible = false
-                        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+                        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
                         return exportDrawingToDiskResult
                     }
                 }
@@ -85,14 +88,14 @@ class ShareModel(
                     is Ok -> filesToShare.add(doc)
                     is Err -> {
                         isLoadingOverlayVisible = false
-                        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+                        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
                         return saveDocumentToDiskResult
                     }
                 }
             }
         }
 
-        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShareDocuments(filesToShare))
+        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShareDocuments(filesToShare))
         return Ok(Unit)
     }
 

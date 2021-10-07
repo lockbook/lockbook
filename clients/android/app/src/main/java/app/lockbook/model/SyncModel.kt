@@ -5,6 +5,7 @@ import android.content.res.Resources
 import androidx.preference.PreferenceManager
 import app.lockbook.App.Companion.config
 import app.lockbook.R
+import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok

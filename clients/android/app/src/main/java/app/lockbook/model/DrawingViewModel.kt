@@ -39,7 +39,7 @@ class DrawingViewModel(
                     documentResult.value
                 }
                 is Err -> {
-                    _notifyError.postValue(documentResult.error)
+                    _notifyError.postValue(documentResult.error.toLbError(getApplication<Application>().resources))
                     return@launch
                 }
             }
@@ -60,7 +60,7 @@ class DrawingViewModel(
             val writeToDocumentResult = CoreModel.writeToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
             if (writeToDocumentResult is Err) {
-                _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
+                _notifyError.postValue(writeToDocumentResult.error.toLbError(getApplication<Application>().resources))
             }
         }
     }

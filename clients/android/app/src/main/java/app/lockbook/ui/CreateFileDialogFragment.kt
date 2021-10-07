@@ -68,8 +68,8 @@ class CreateFileDialogFragment : DialogFragment() {
 
         info = (activityModel.transientScreen as TransientScreen.Create).info
 
-        when(info.fileType) {
-            FileType.Folder -> {
+        when(info.extendedFileType) {
+            ExtendedFileType.Folder -> {
                 createFileExtension.visibility = View.GONE
                 createFileTextPart.visibility = View.GONE
                 createFileText.visibility = View.VISIBLE
@@ -93,7 +93,7 @@ class CreateFileDialogFragment : DialogFragment() {
                 createFileTitle.setText(R.string.create_file_title_folder)
                 createFileText.setHint(R.string.create_file_hint_folder)
             }
-            FileType.Document -> {
+            ExtendedFileType.Text, ExtendedFileType.Drawing -> {
                 createFileTextPart.setOnEditorActionListener { _, actionId, _ ->
                     if (actionId == EditorInfo.IME_ACTION_NEXT) {
                         createFileExtension.requestFocus()
@@ -121,7 +121,7 @@ class CreateFileDialogFragment : DialogFragment() {
                     handleCreateFileRequest(createFileTextPart.text.toString() + createFileExtension.text.toString())
                 }
 
-                if (info.isDrawing) {
+                if (info.extendedFileType == ExtendedFileType.Drawing) {
                     createFileTitle.setText(R.string.create_file_title_drawing)
                     createFileTextPart.setHint(R.string.create_file_hint_drawing)
                     createFileExtension.setHint(R.string.create_file_hint_drawing_extension)
@@ -147,7 +147,7 @@ class CreateFileDialogFragment : DialogFragment() {
     private suspend fun createFile(name: String) {
         when (
             val createFileResult =
-                CoreModel.createFile(config, info.parentId, name, info.fileType)
+                CoreModel.createFile(config, info.parentId, name, info.extendedFileType.toFileType())
         ) {
             is Ok -> {
                 withContext(Dispatchers.Main) {

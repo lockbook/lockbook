@@ -1,18 +1,42 @@
 package app.lockbook.screen
 
+import android.content.ClipData
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import app.lockbook.model.DetailsScreen
-import app.lockbook.model.TransientScreen
-import app.lockbook.model.StateViewModel
+import androidx.core.content.FileProvider
+import androidx.core.os.bundleOf
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentTransaction
+import androidx.fragment.app.commit
+import androidx.fragment.app.replace
+import app.lockbook.R
+import app.lockbook.databinding.ActivityMainScreenBinding
+import app.lockbook.databinding.ActivityNewAccountBinding
+import app.lockbook.databinding.SplashScreenBinding
+import app.lockbook.model.*
+import java.io.File
+import java.lang.ref.WeakReference
 
 class MainScreenActivity: AppCompatActivity() {
+    private var _binding: ActivityMainScreenBinding? = null
+
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+
+    private val alertModel by lazy {
+        AlertModel(WeakReference(this))
+    }
 
     private val model: StateViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        _binding = ActivityMainScreenBinding.inflate(layoutInflater)
 
         model.launchDetailsScreen.observe(
             this,
@@ -24,26 +48,34 @@ class MainScreenActivity: AppCompatActivity() {
         model.launchTransientScreen.observe(
             this,
             { screen ->
-                launchDialogScreen(screen)
+                screen.show(this)
+            }
+        )
+
+        model.updateMainScreenUI.observe(
+            this,
+            { update ->
+                when(update) {
+                    is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)
+                }
             }
         )
     }
 
-    private fun launchDialogScreen(screen: TransientScreen) {
-        when(screen) {
-            is TransientScreen.Move -> TODO()
-            is TransientScreen.Rename -> TODO()
-            is TransientScreen.Create -> TODO()
-            is TransientScreen.Info -> TODO()
-            is TransientScreen.Share -> TODO()
-        }
-    }
-
     private fun launchDetailsScreen(screen: DetailsScreen) {
-        when(screen) {
-            DetailsScreen.Blank -> {}
-            DetailsScreen.TextEditor -> {}
-            DetailsScreen.Drawing -> TODO()
+        supportFragmentManager.commit {
+            setReorderingAllowed(true)
+            when(screen) {
+                DetailsScreen.Blank -> replace<Fragment>(R.id.detail_container)
+                DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
+                DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
+            }
+
+            if(binding.slidingPaneLayout.isOpen) {
+                setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
+            }
         }
+
+        binding.slidingPaneLayout.open()
     }
 }
