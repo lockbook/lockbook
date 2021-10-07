@@ -9,6 +9,7 @@ struct FileListView: View {
     @EnvironmentObject var sync: SyncService
     @EnvironmentObject var status: StatusService
     @EnvironmentObject var errors: UnexpectedErrorService
+    @EnvironmentObject var onboarding: OnboardingService
     
     @State var creatingFile: Bool = false
     @State var creating: FileType?
@@ -52,10 +53,10 @@ struct FileListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(
-                        destination: SettingsView(account: account).equatable()) {
-                        Image(systemName: "gearshape.fill")
-                            .foregroundColor(.blue)
-                    }
+                        destination: SettingsView(account: account).equatable(), isActive: $onboarding.theyChoseToBackup) {
+                            Image(systemName: "gearshape.fill")
+                                .foregroundColor(.blue)
+                        }
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
@@ -64,37 +65,37 @@ struct FileListView: View {
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 sync.sync()
             }
-            .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, onSuccess: fileSuccessfullyCreated)})
             .navigationBarTitle(currentFolder.name)
             HStack {
                 BottomBar(onCreating: { creatingFile = true })
             }
             .padding(.horizontal, 10)
+            .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: { BeforeYouStart() })
         }
+        .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, onSuccess: fileSuccessfullyCreated)})
     }
     
     func renderMoveDialog(meta: ClientFileMetadata) -> some View {
         let root = fileService.files.first(where: { $0.parent == $0.id })!
         let wc = WithChild(root, fileService.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
         
-        return
-            ScrollView {
-                VStack {
-                    Text("Moving \(meta.name)").font(.headline)
-                    NestedList(
-                        node: wc,
-                        row: { dest in
-                            Button(action: {
-                                moving = nil
-                                fileService.moveFile(id: meta.id, newParent: dest.id)
-                            }, label: {
-                                Label(dest.name, systemImage: "folder")
-                            })
-                        }
-                    )
-                    Spacer()
-                }.padding()
-            }
+        return ScrollView {
+            VStack {
+                Text("Moving \(meta.name)").font(.headline)
+                NestedList(
+                    node: wc,
+                    row: { dest in
+                        Button(action: {
+                            moving = nil
+                            fileService.moveFile(id: meta.id, newParent: dest.id)
+                        }, label: {
+                            Label(dest.name, systemImage: "folder")
+                        })
+                    }
+                )
+                Spacer()
+            }.padding()
+        }
     }
     
     func renderCell(meta: ClientFileMetadata) -> AnyView {
@@ -119,8 +120,8 @@ struct FileListView: View {
                 return AnyView (
                     NavigationLink(
                         destination: FileListView(currentFolder: meta, account: account, moving: $moving), tag: meta, selection: $selection) {
-                        FileCell(meta: meta)
-                    }.isDetailLink(false)
+                            FileCell(meta: meta)
+                        }.isDetailLink(false)
                 )
             } else {
                 let el = DocumentView(meta: meta)

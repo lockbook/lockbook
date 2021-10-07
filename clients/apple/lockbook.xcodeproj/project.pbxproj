@@ -286,7 +286,6 @@
 				87AA99F2269610D8009E5591 /* NewFileSheet.swift */,
 				873559BD26C31210008B3C36 /* SettingsView.swift */,
 				B273394C26C8A4B400303EAE /* Assets.xcassets */,
-				87F78F7927094A040001E159 /* BeforeYouStart.swift */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -310,6 +309,7 @@
 		EADE1A5725352E5D00710996 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				87F78F7927094A040001E159 /* BeforeYouStart.swift */,
 				EAEDCD0A2516FC1C00EBE313 /* BookView.swift */,
 				EA831A542534E3C80048CE26 /* AppView.swift */,
 				B2B7E2EA25C669C400B9EFAD /* NotificationButton.swift */,

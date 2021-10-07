@@ -5,6 +5,9 @@ class OnboardingService: ObservableObject {
     
     let core: LockbookApi
     
+    @Published var anAccountWasCreatedThisSession = false
+    
+    @Published var theyChoseToBackup = false
     @Published var working: Bool = false
     
     @Published var username: String = ""
@@ -30,6 +33,7 @@ class OnboardingService: ObservableObject {
                 
                 switch operation {
                 case .success:
+                    self.anAccountWasCreatedThisSession = true
                     self.getAccountAndFinalize()
                     break
                 case .failure(let err):
