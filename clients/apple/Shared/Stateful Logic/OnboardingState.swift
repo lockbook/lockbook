@@ -33,7 +33,7 @@ class OnboardingService: ObservableObject {
                 
                 switch operation {
                 case .success:
-                    self.anAccountWasCreatedThisSession = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) { self.anAccountWasCreatedThisSession = true }
                     self.getAccountAndFinalize()
                     break
                 case .failure(let err):

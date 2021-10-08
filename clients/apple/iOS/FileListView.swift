@@ -71,8 +71,9 @@ struct FileListView: View {
             }
             .padding(.horizontal, 10)
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: { BeforeYouStart() })
+            .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, onSuccess: fileSuccessfullyCreated)})
         }
-        .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, onSuccess: fileSuccessfullyCreated)})
+
     }
     
     func renderMoveDialog(meta: ClientFileMetadata) -> some View {
