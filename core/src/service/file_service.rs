@@ -156,12 +156,21 @@ pub fn get_invalid_cycles(
         .map(|(f, _)| f.clone())
         .collect::<Vec<DecryptedFileMetadata>>();
     let mut result = Vec::new();
+    let mut found_root = false;
 
     'file_loop: for file in files {
         let mut ancestor = utils::find_parent(files, file.id)?;
 
         if ancestor.id == file.id {
-            continue; // root cycle is valid
+            if !found_root {
+                // root cycle is valid once
+                found_root = true;
+                continue;
+            } else {
+                // multiple roots is invalid (it's impossible to tell which is invalid so we pick arbitrarily)
+                result.push(file.id);
+                continue;
+            }
         }
 
         while ancestor.id != file.id {
@@ -230,4 +239,209 @@ pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), Co
         .write_all(document)
         .map_err(CoreError::from)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use lockbook_models::file_metadata::FileType;
+
+    use crate::{
+        service::{file_service, test_utils},
+        CoreError,
+    };
+
+    #[test]
+    fn apply_rename() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let document_id = document.id;
+        file_service::apply_rename(&[root, folder, document], document_id, "document2").unwrap();
+    }
+
+    #[test]
+    fn apply_rename_not_found() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let result = file_service::apply_rename(&[root, folder], document.id, "document2");
+        assert_eq!(result, Err(CoreError::FileNonexistent));
+    }
+
+    #[test]
+    fn apply_rename_root() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let root_id = root.id;
+        let result = file_service::apply_rename(&[root, folder, document], root_id, "root2");
+        assert_eq!(result, Err(CoreError::RootModificationInvalid));
+    }
+
+    #[test]
+    fn apply_rename_invalid_name() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let document_id = document.id;
+        let result =
+            file_service::apply_rename(&[root, folder, document], document_id, "invalid/name");
+        assert_eq!(result, Err(CoreError::FileNameContainsSlash));
+    }
+
+    #[test]
+    fn apply_rename_path_conflict() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document1 =
+            file_service::create(FileType::Document, root.id, "document1", &account.username);
+        let document2 =
+            file_service::create(FileType::Document, root.id, "document2", &account.username);
+
+        let document1_id = document1.id;
+        let result = file_service::apply_rename(
+            &[root, folder, document1, document2],
+            document1_id,
+            "document2",
+        );
+        assert_eq!(result, Err(CoreError::PathTaken));
+    }
+
+    #[test]
+    fn apply_move() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let folder_id = folder.id;
+        let document_id = document.id;
+        file_service::apply_move(&[root, folder, document], document_id, folder_id).unwrap();
+    }
+
+    #[test]
+    fn apply_move_not_found() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let folder_id = folder.id;
+        let document_id = document.id;
+        let result = file_service::apply_move(&[root, folder], document_id, folder_id);
+        assert_eq!(result, Err(CoreError::FileNonexistent));
+    }
+
+    #[test]
+    fn apply_move_parent_not_found() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let folder_id = folder.id;
+        let document_id = document.id;
+        let result = file_service::apply_move(&[root, document], document_id, folder_id);
+        assert_eq!(result, Err(CoreError::FileParentNonexistent));
+    }
+
+    #[test]
+    fn apply_move_root() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let folder_id = folder.id;
+        let root_id = root.id;
+        let result = file_service::apply_move(&[root, folder, document], root_id, folder_id);
+        assert_eq!(result, Err(CoreError::RootModificationInvalid));
+    }
+
+    #[test]
+    fn apply_move_path_conflict() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document1 =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+        let document2 =
+            file_service::create(FileType::Document, folder.id, "document", &account.username);
+
+        let folder_id = folder.id;
+        let document1_id = document1.id;
+        let result = file_service::apply_move(
+            &[root, folder, document1, document2],
+            document1_id,
+            folder_id,
+        );
+        assert_eq!(result, Err(CoreError::PathTaken));
+    }
+
+    #[test]
+    fn apply_move_2cycle() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder1 = file_service::create(FileType::Folder, root.id, "folder1", &account.username);
+        let folder2 =
+            file_service::create(FileType::Folder, folder1.id, "folder2", &account.username);
+
+        let folder1_id = folder1.id;
+        let folder2_id = folder2.id;
+        let result = file_service::apply_move(&[root, folder1, folder2], folder1_id, folder2_id);
+        assert_eq!(result, Err(CoreError::FolderMovedIntoSelf));
+    }
+
+    #[test]
+    fn apply_move_1cycle() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder1", &account.username);
+
+        let folder1_id = folder.id;
+        let result = file_service::apply_move(&[root, folder], folder1_id, folder1_id);
+        assert_eq!(result, Err(CoreError::FolderMovedIntoSelf));
+    }
+
+    #[test]
+    fn apply_delete() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let document_id = document.id;
+        file_service::apply_delete(&[root, folder, document], document_id).unwrap();
+    }
+
+    #[test]
+    fn apply_delete_root() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        let root_id = root.id;
+        let result = file_service::apply_delete(&[root, folder, document], root_id);
+        assert_eq!(result, Err(CoreError::RootModificationInvalid));
+    }
 }
