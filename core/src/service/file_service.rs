@@ -1,7 +1,7 @@
 use crate::utils::StageSource;
 use crate::{utils, CoreError};
 use lockbook_crypto::symkey;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -114,6 +114,36 @@ fn validate_file_name(name: &str) -> Result<(), CoreError> {
         return Err(CoreError::FileNameContainsSlash);
     }
     Ok(())
+}
+
+pub fn get_invalid_cycles_encrypted(
+    files: &[FileMetadata],
+    staged_changes: &[FileMetadata],
+) -> Result<Vec<Uuid>, CoreError> {
+    let files_with_sources = utils::stage_encrypted(files, staged_changes);
+    let files = &files_with_sources
+        .iter()
+        .map(|(f, _)| f.clone())
+        .collect::<Vec<FileMetadata>>();
+    let mut result = Vec::new();
+
+    'file_loop: for file in files {
+        let mut ancestor = utils::find_parent_encrypted(files, file.id)?;
+
+        if ancestor.id == file.id {
+            continue; // root cycle is valid
+        }
+
+        while ancestor.id != file.id {
+            ancestor = utils::find_parent_encrypted(files, ancestor.id)?;
+            if ancestor.id == file.id {
+                result.push(file.id); // non-root cycle is invalid
+            }
+            continue 'file_loop;
+        }
+    }
+
+    Ok(result)
 }
 
 pub fn get_invalid_cycles(
