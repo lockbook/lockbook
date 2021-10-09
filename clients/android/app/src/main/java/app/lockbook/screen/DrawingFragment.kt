@@ -11,16 +11,17 @@ import android.view.*
 import android.widget.SeekBar
 import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.FragmentDrawingBinding
-import app.lockbook.model.AlertModel
-import app.lockbook.model.DrawingViewModel
-import app.lockbook.model.StateViewModel
+import app.lockbook.model.*
 import app.lockbook.ui.DrawingView
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.exhaustive
+import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -44,9 +45,17 @@ class DrawingFragment: Fragment() {
 
     private val toolbar get() = binding.drawingToolbar.drawingToolsMenu
 
+    private val activityModel: StateViewModel by activityViewModels()
     private val drawingView get() = binding.drawingView
-    private val model: DrawingViewModel by viewModels()
-    private val state: StateViewModel by viewModels()
+    private val model: DrawingViewModel by viewModels(factoryProducer = {
+        object : ViewModelProvider.Factory {
+            override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(DrawingViewModel::class.java))
+                    return DrawingViewModel(requireActivity().application, (activityModel.detailsScreen as DetailsScreen.Drawing).fileMetadata.id) as T
+                throw IllegalArgumentException("Unknown ViewModel class")
+            }
+        }
+    })
 
     private var isFirstLaunch = true
 
@@ -86,6 +95,7 @@ class DrawingFragment: Fragment() {
 
     override fun onResume() {
         super.onResume()
+        Timber.e("RESUME")
         drawingView.startThread()
     }
 
@@ -227,7 +237,7 @@ class DrawingFragment: Fragment() {
         binding.drawingProgressBar.visibility = View.VISIBLE
 
         if (model.persistentDrawing == null) {
-            model.getDrawing(state.openedFile!!.id)
+            model.getDrawing((activityModel.detailsScreen as DetailsScreen.Drawing).fileMetadata.id)
         } else {
             initializeDrawing()
         }

@@ -1,25 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.slidingpanelayout.widget.SlidingPaneLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/sliding_pane_layout"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="horizontal">
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/files_fragment"
-        android:layout_width="280dp"
-        android:layout_height="match_parent"
-        android:layout_gravity="start"
-        android:name="app.lockbook.screen.FilesFragment" />
+    <androidx.slidingpanelayout.widget.SlidingPaneLayout
+        android:id="@+id/sliding_pane_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/detail_container"
-        android:layout_width="300dp"
-        android:layout_weight="1"
-        android:layout_height="match_parent" />
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/files_fragment"
+            tools:layout="@layout/fragment_files"
+            android:layout_width="350dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="start" />
+
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/detail_container"
+            android:layout_width="230dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1" />
+
+    </androidx.slidingpanelayout.widget.SlidingPaneLayout>
 
     <include
         android:id="@+id/progress_overlay"
         layout="@layout/progress_overlay" />
 
-</androidx.slidingpanelayout.widget.SlidingPaneLayout>
+</LinearLayout>

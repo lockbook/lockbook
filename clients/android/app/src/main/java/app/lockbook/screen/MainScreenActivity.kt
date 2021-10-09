@@ -9,10 +9,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.os.bundleOf
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentTransaction
-import androidx.fragment.app.commit
-import androidx.fragment.app.replace
+import androidx.fragment.app.*
 import app.lockbook.R
 import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.databinding.ActivityNewAccountBinding
@@ -36,7 +33,14 @@ class MainScreenActivity: AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main_screen)
+
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
+
+        supportFragmentManager.commit {
+            setReorderingAllowed(true)
+            add<FilesFragment>(R.id.files_fragment)
+        }
 
         model.launchDetailsScreen.observe(
             this,
@@ -67,8 +71,8 @@ class MainScreenActivity: AppCompatActivity() {
             setReorderingAllowed(true)
             when(screen) {
                 DetailsScreen.Blank -> replace<Fragment>(R.id.detail_container)
-                DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
-                DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
+                is DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
+                is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
             }
 
             if(binding.slidingPaneLayout.isOpen) {
@@ -77,5 +81,13 @@ class MainScreenActivity: AppCompatActivity() {
         }
 
         binding.slidingPaneLayout.open()
+    }
+
+    override fun onBackPressed() {
+        val fragment = (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment)
+
+        if(fragment.onBackPressed()) {
+            super.onBackPressed()
+        }
     }
 }

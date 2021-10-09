@@ -1,3 +1,4 @@
+
 package app.lockbook.model
 
 import android.view.LayoutInflater

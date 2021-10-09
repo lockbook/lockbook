@@ -12,6 +12,7 @@ import app.lockbook.databinding.DialogRenameFileBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.model.StateViewModel
+import app.lockbook.model.TransientScreen
 import app.lockbook.util.Config
 import app.lockbook.util.LbErrorKind
 import com.github.michaelbull.result.Err
@@ -84,7 +85,7 @@ class RenameFileDialogFragment : DialogFragment() {
             true
         }
 
-        binding.renameFile.setText(model.openedFile!!.name)
+        binding.renameFile.setText((model.transientScreen as TransientScreen.Rename).file.name)
     }
 
     private fun handleRenameRequest(newName: String) {
@@ -96,7 +97,7 @@ class RenameFileDialogFragment : DialogFragment() {
     }
 
     private suspend fun renameFile(newName: String) {
-        when (val renameFileResult = CoreModel.renameFile(config, model.openedFile!!.id, newName)) {
+        when (val renameFileResult = CoreModel.renameFile(config, (model.transientScreen as TransientScreen.Rename).file.id, newName)) {
             is Ok -> {
                 withContext(Dispatchers.Main) {
                     dismiss()

@@ -15,9 +15,10 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
+import timber.log.Timber
 
 class TextEditorViewModel(application: Application, private val id: String) :
-    AndroidViewModel(application), TextWatcher {
+    AndroidViewModel(application) {
 
     private val handler = Handler(Looper.myLooper()!!)
     private var lastEdit = 0L
@@ -33,7 +34,6 @@ class TextEditorViewModel(application: Application, private val id: String) :
 
     init {
         setUpTextView()
-
     }
 
     private fun setUpTextView() {
@@ -59,13 +59,5 @@ class TextEditorViewModel(application: Application, private val id: String) :
                 }
             }, 5000)
         }
-    }
-
-    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-
-    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-
-    override fun afterTextChanged(s: Editable?) {
-        waitAndSaveContents(s?.toString() ?: "")
     }
 }

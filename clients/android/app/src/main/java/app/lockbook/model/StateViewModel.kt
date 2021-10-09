@@ -19,10 +19,11 @@ import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import java.io.File
 
 class StateViewModel: ViewModel() {
-    val openedFile: ClientFileMetadata? = null
+    var detailsScreen: DetailsScreen = DetailsScreen.Blank
     var transientScreen: TransientScreen? = null
 
     val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen>()
@@ -43,17 +44,16 @@ class StateViewModel: ViewModel() {
         _launchTransientScreen.postValue(transientScreen)
     }
 
-//    private fun shareFiles(files: List<ClientFileMetadata>, cacheDir: File) {
-//        viewModelScope.launch(Dispatchers.IO) {
-//            shareModel.shareDocuments(files, cacheDir)
-//        }
-//    }
+    fun launchDetailsScreen(screen: DetailsScreen) {
+        detailsScreen = screen
+        _launchDetailsScreen.postValue(detailsScreen)
+    }
 }
 
-enum class DetailsScreen {
-    Blank,
-    TextEditor,
-    Drawing,
+sealed class DetailsScreen {
+    object Blank: DetailsScreen()
+    data class TextEditor(val fileMetadata: ClientFileMetadata): DetailsScreen()
+    data class Drawing(val fileMetadata: ClientFileMetadata): DetailsScreen()
 }
 
 sealed class TransientScreen {

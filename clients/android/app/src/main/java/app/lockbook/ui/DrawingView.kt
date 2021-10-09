@@ -11,6 +11,7 @@ import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.screen.MainScreenActivity
 import app.lockbook.util.*
+import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 import kotlin.math.pow
@@ -627,17 +628,28 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     fun startThread() {
+        Timber.e("STARTED!?")
+
         if (holder.surface.isValid && thread == null) {
             thread = Thread(this)
             isThreadAvailable = true
-            thread?.start()
+            thread!!.start()
+
+            Timber.e("HERE")
+        } else {
+            Timber.e("HERE2")
         }
     }
 
     fun stopThread() {
+        Timber.e("ENDED!?")
+
         if (thread == null) {
+            Timber.e("CLOSE ONE!?")
+
             return
         }
+
         isThreadAvailable = false
         while (thread?.isAlive == true) {
             try {
@@ -654,6 +666,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             if (holder == null) {
                 return
             }
+
+            Timber.e("RUNNING?!")
 
             var canvas: Canvas? = null
             try {

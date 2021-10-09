@@ -24,10 +24,10 @@ class DrawingViewModel(
     var persistentDrawing: Drawing? = null
     var selectedTool: Tool = Tool.Pen(ColorAlias.White)
 
-    private val _drawingReady = SingleMutableLiveData<Drawing>()
+    private val _drawingReady = SingleMutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
 
-    val drawingReady: LiveData<Drawing>
+    val drawingReady: LiveData<Unit>
         get() = _drawingReady
 
     val notifyError: LiveData<LbError>
@@ -45,13 +45,14 @@ class DrawingViewModel(
                 }
             }
 
-            val drawing = when {
-                persistentDrawing is Drawing -> persistentDrawing!!
-                contents.isNotEmpty() -> Klaxon().parse<Drawing>(contents)!!
-                else -> Drawing()
+            when {
+                persistentDrawing is Drawing -> {}
+                contents.isNotEmpty() -> persistentDrawing = Klaxon().parse<Drawing>(contents)!!
+                else -> persistentDrawing = Drawing()
             }
 
-            _drawingReady.postValue(drawing)
+
+            _drawingReady.postValue(Unit)
         }
     }
 
