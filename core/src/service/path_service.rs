@@ -188,12 +188,12 @@ fn split_path(path: &str) -> Vec<&str> {
 mod unit_tests {
     use lockbook_models::file_metadata::FileType;
 
-    use crate::CoreError;
     use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
     use crate::repo::{account_repo, file_repo};
     use crate::service::path_service::Filter;
     use crate::service::{file_service, path_service, test_utils};
+    use crate::CoreError;
 
     #[test]
     fn create_at_path_document() {
@@ -204,8 +204,8 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        let doc =
-            path_service::create_at_path(config, &format!("{}/document", &account.username)).unwrap();
+        let doc = path_service::create_at_path(config, &format!("{}/document", &account.username))
+            .unwrap();
 
         assert_eq!(doc.file_type, FileType::Document);
     }
@@ -220,7 +220,8 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
         let folder =
-            path_service::create_at_path(config, &format!("{}/folder/", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/folder/", &account.username))
+                .unwrap();
 
         assert_eq!(folder.file_type, FileType::Folder);
     }
@@ -233,11 +234,13 @@ mod unit_tests {
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
-        
+
         let folder =
-            path_service::create_at_path(config, &format!("{}/folder/", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/folder/", &account.username))
+                .unwrap();
         let document =
-            path_service::create_at_path(config, &format!("{}/folder/document", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
 
         assert_eq!(folder.file_type, FileType::Folder);
         assert_eq!(document.file_type, FileType::Document);
@@ -253,8 +256,10 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
         let document =
-            path_service::create_at_path(config, &format!("{}/folder/document", &account.username)).unwrap();
-        let folder = path_service::get_by_path(config, &format!("{}/folder", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
+        let folder =
+            path_service::get_by_path(config, &format!("{}/folder", &account.username)).unwrap();
 
         assert_eq!(folder.file_type, FileType::Folder);
         assert_eq!(document.file_type, FileType::Document);
@@ -269,10 +274,16 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        let document =
-            path_service::create_at_path(config, &format!("{}/folder/folder/document", &account.username)).unwrap();
-        let folder1 = path_service::get_by_path(config, &format!("{}/folder", &account.username)).unwrap();
-        let folder2 = path_service::get_by_path(config, &format!("{}/folder/folder", &account.username)).unwrap();
+        let document = path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        let folder1 =
+            path_service::get_by_path(config, &format!("{}/folder", &account.username)).unwrap();
+        let folder2 =
+            path_service::get_by_path(config, &format!("{}/folder/folder", &account.username))
+                .unwrap();
 
         assert_eq!(folder1.file_type, FileType::Folder);
         assert_eq!(folder2.file_type, FileType::Folder);
@@ -303,8 +314,10 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        let result =
-            path_service::create_at_path(config, &format!("{}/folder/document", "not-account-username"));
+        let result = path_service::create_at_path(
+            config,
+            &format!("{}/folder/document", "not-account-username"),
+        );
 
         assert_eq!(result, Err(CoreError::PathStartsWithNonRoot));
     }
@@ -318,7 +331,8 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        path_service::create_at_path(config, &format!("{}/folder/document", &account.username)).unwrap();
+        path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+            .unwrap();
         let result =
             path_service::create_at_path(config, &format!("{}/folder/document", &account.username));
 
@@ -335,8 +349,10 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
         path_service::create_at_path(config, &format!("{}/not-folder", &account.username)).unwrap();
-        let result =
-            path_service::create_at_path(config, &format!("{}/not-folder/document", &account.username));
+        let result = path_service::create_at_path(
+            config,
+            &format!("{}/not-folder/document", &account.username),
+        );
 
         assert_eq!(result, Err(CoreError::FileNotFolder));
     }
@@ -351,8 +367,10 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
         let created_document =
-            path_service::create_at_path(config, &format!("{}/document", &account.username)).unwrap();
-        let document = path_service::get_by_path(config, &format!("{}/document", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/document", &account.username))
+                .unwrap();
+        let document =
+            path_service::get_by_path(config, &format!("{}/document", &account.username)).unwrap();
 
         assert_eq!(created_document, document);
     }
@@ -367,8 +385,10 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
         let created_folder =
-            path_service::create_at_path(config, &format!("{}/folder/", &account.username)).unwrap();
-        let folder = path_service::get_by_path(config, &format!("{}/folder", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/folder/", &account.username))
+                .unwrap();
+        let folder =
+            path_service::get_by_path(config, &format!("{}/folder", &account.username)).unwrap();
 
         assert_eq!(created_folder, folder);
     }
@@ -383,8 +403,11 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
         let created_document =
-            path_service::create_at_path(config, &format!("{}/folder/document", &account.username)).unwrap();
-        let document = path_service::get_by_path(config, &format!("{}/folder/document", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
+        let document =
+            path_service::get_by_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
 
         assert_eq!(created_document, document);
     }
@@ -399,7 +422,8 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
         let document =
-            path_service::create_at_path(config, &format!("{}/document", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/document", &account.username))
+                .unwrap();
         let document_path = path_service::get_path_by_id(config, document.id).unwrap();
 
         assert_eq!(&document_path, &format!("{}/document", &account.username));
@@ -415,7 +439,8 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
         let folder =
-            path_service::create_at_path(config, &format!("{}/folder/", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/folder/", &account.username))
+                .unwrap();
         let folder_path = path_service::get_path_by_id(config, folder.id).unwrap();
 
         assert_eq!(&folder_path, &format!("{}/folder/", &account.username));
@@ -431,10 +456,14 @@ mod unit_tests {
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
         let document =
-            path_service::create_at_path(config, &format!("{}/folder/document", &account.username)).unwrap();
+            path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
         let document_path = path_service::get_path_by_id(config, document.id).unwrap();
 
-        assert_eq!(&document_path, &format!("{}/folder/document", &account.username));
+        assert_eq!(
+            &document_path,
+            &format!("{}/folder/document", &account.username)
+        );
     }
 
     #[test]
@@ -446,15 +475,33 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        path_service::create_at_path(config, &format!("{}/folder/folder/document", &account.username)).unwrap();
-        path_service::create_at_path(config, &format!("{}/folder/folder/folder/", &account.username)).unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/folder/", &account.username),
+        )
+        .unwrap();
 
         let all_paths = path_service::get_all_paths(config, None).unwrap();
-        assert!(all_paths.iter().any(|p| p == &format!("{}/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/document", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/document", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));
         assert_eq!(all_paths.len(), 5);
     }
 
@@ -467,11 +514,21 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        path_service::create_at_path(config, &format!("{}/folder/folder/document", &account.username)).unwrap();
-        path_service::create_at_path(config, &format!("{}/folder/folder/folder/", &account.username)).unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/folder/", &account.username),
+        )
+        .unwrap();
 
         let all_paths = path_service::get_all_paths(config, Some(Filter::DocumentsOnly)).unwrap();
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/document", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/document", &account.username)));
         assert_eq!(all_paths.len(), 1);
     }
 
@@ -484,14 +541,30 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        path_service::create_at_path(config, &format!("{}/folder/folder/document", &account.username)).unwrap();
-        path_service::create_at_path(config, &format!("{}/folder/folder/folder/", &account.username)).unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/folder/", &account.username),
+        )
+        .unwrap();
 
         let all_paths = path_service::get_all_paths(config, Some(Filter::FoldersOnly)).unwrap();
-        assert!(all_paths.iter().any(|p| p == &format!("{}/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));
         assert_eq!(all_paths.len(), 4);
     }
 
@@ -504,12 +577,24 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
 
-        path_service::create_at_path(config, &format!("{}/folder/folder/document", &account.username)).unwrap();
-        path_service::create_at_path(config, &format!("{}/folder/folder/folder/", &account.username)).unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/folder/", &account.username),
+        )
+        .unwrap();
 
         let all_paths = path_service::get_all_paths(config, Some(Filter::LeafNodesOnly)).unwrap();
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/document", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/document", &account.username)));
         assert_eq!(all_paths.len(), 2);
     }
 }
