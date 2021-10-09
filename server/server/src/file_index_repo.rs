@@ -297,41 +297,41 @@ pub async fn create_file(
     match sqlx::query!(
         r#"
 WITH RECURSIVE file_ancestors AS (
-        SELECT * FROM files AS new_file_parent
-        WHERE new_file_parent.id = $2
-            UNION DISTINCT
-        SELECT ancestors.* FROM files AS ancestors
-        JOIN file_ancestors ON file_ancestors.parent = ancestors.id
-    ),
-    insert_cte AS (
-        INSERT INTO files (
-            id,
-            parent,
-            parent_access_key,
-            is_folder,
-            name_encrypted,
-            name_hmac,
-            owner,
-            deleted,
-            metadata_version,
-            content_version,
-            document_size
-        )
-        SELECT
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            $7,
-            FALSE,
-            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
-            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
-            $8
-        WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)
-        RETURNING NULL
+    SELECT * FROM files AS new_file_parent
+    WHERE new_file_parent.id = $2
+        UNION DISTINCT
+    SELECT ancestors.* FROM files AS ancestors
+    JOIN file_ancestors ON file_ancestors.parent = ancestors.id
+),
+insert_cte AS (
+    INSERT INTO files (
+        id,
+        parent,
+        parent_access_key,
+        is_folder,
+        name_encrypted,
+        name_hmac,
+        owner,
+        deleted,
+        metadata_version,
+        content_version,
+        document_size
     )
+    SELECT
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        FALSE,
+        CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
+        CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
+        $8
+    WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)
+    RETURNING NULL
+)
 SELECT
     CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS "metadata_version!",
     EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS "ancestor_deleted!";
@@ -898,9 +898,22 @@ pub async fn get_file_usages(
 ) -> Result<Vec<FileUsage>, GetFileUsageError> {
     sqlx::query!(
         r#"
+    WITH RECURSIVE file_ancestors AS (
+        SELECT id, id AS ancestor FROM files
+            UNION DISTINCT
+        SELECT file_ancestors.id, files.parent AS ancestor FROM files
+        JOIN file_ancestors ON files.id = file_ancestors.ancestor
+    ),
+    files_with_deleted_ancestors AS (
+        SELECT id FROM files WHERE EXISTS(
+            SELECT * FROM file_ancestors
+            JOIN files AS ancestor_files ON file_ancestors.ancestor = ancestor_files.id
+            WHERE files.id = file_ancestors.id AND ancestor_files.deleted
+        )
+    )
     SELECT
         files.id,
-        files.document_size AS "document_size!"
+        CASE WHEN EXISTS(SELECT * FROM files_with_deleted_ancestors WHERE files_with_deleted_ancestors.id = files.id) THEN 0 ELSE files.document_size END AS "document_size!"
     FROM files
     WHERE
         files.owner = $1 AND

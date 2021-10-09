@@ -218,6 +218,39 @@
       "nullable": []
     }
   },
+  "3d22ca688800d30311bf15d2bb6a00db805eb034f8c9918f7f3f326995fce337": {
+    "query": "\nWITH RECURSIVE file_ancestors AS (\n    SELECT * FROM files AS new_file_parent\n    WHERE new_file_parent.id = $2\n        UNION DISTINCT\n    SELECT ancestors.* FROM files AS ancestors\n    JOIN file_ancestors ON file_ancestors.parent = ancestors.id\n),\ninsert_cte AS (\n    INSERT INTO files (\n        id,\n        parent,\n        parent_access_key,\n        is_folder,\n        name_encrypted,\n        name_hmac,\n        owner,\n        deleted,\n        metadata_version,\n        content_version,\n        document_size\n    )\n    SELECT\n        $1,\n        $2,\n        $3,\n        $4,\n        $5,\n        $6,\n        $7,\n        FALSE,\n        CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n        CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n        $8\n    WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)\n    RETURNING NULL\n)\nSELECT\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS \"metadata_version!\",\n    EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS \"ancestor_deleted!\";\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "metadata_version!",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "ancestor_deleted!",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text",
+          "Bool",
+          "Text",
+          "Text",
+          "Text",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        null,
+        null
+      ]
+    }
+  },
   "4e3ce343e3749b4e3fb425e90d52386949348d2d54002643721e24b135f3e863": {
     "query": "\n        WITH RECURSIVE not_sure AS (\n            SELECT\n                0 AS i,\n                id AS id,\n                parent AS parent,\n                (SELECT parent_files.parent FROM files AS parent_files WHERE parent_files.id = files.parent) AS grandparent\n            FROM files\n            WHERE owner = $1\n                UNION ALL\n            SELECT\n                i+1 AS i,\n                id AS id,\n                (SELECT parent_files.parent FROM files AS parent_files WHERE parent_files.id = not_sure.parent) AS parent,\n                (SELECT grandparent_files.parent FROM files AS grandparent_files WHERE grandparent_files.id = (SELECT parent_files.parent FROM files AS parent_files WHERE id = (SELECT files.parent FROM files WHERE id = not_sure.parent))) AS grandparent\n            FROM not_sure\n            WHERE parent != grandparent\n        )\n        SELECT COUNT(*) != 0 AS \"has_cycles!\" FROM not_sure WHERE id = parent AND i != 0;\n        ",
     "describe": {
@@ -248,32 +281,6 @@
         ]
       },
       "nullable": []
-    }
-  },
-  "50400e82be5272424a04bdb337a9a0423967bdc71fa213ef303c0627af615ba6": {
-    "query": "\n    SELECT\n        files.id,\n        files.document_size AS \"document_size!\"\n    FROM files\n    WHERE\n        files.owner = $1 AND\n        NOT files.is_folder;\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "document_size!",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text"
-        ]
-      },
-      "nullable": [
-        false,
-        true
-      ]
     }
   },
   "65d57d7f9e7f5c969fdbb3285a37bb21a27bea539b58f4e1cebc9912bef23a11": {
@@ -544,6 +551,32 @@
       ]
     }
   },
+  "88a3b8b4f839d31f47c47d46cd4617f48973a7abe8a116fdb9dbade43df8bf22": {
+    "query": "\n    WITH RECURSIVE file_ancestors AS (\n        SELECT id, id AS ancestor FROM files\n            UNION DISTINCT\n        SELECT file_ancestors.id, files.parent AS ancestor FROM files\n        JOIN file_ancestors ON files.id = file_ancestors.ancestor\n    ),\n    files_with_deleted_ancestors AS (\n        SELECT id FROM files WHERE EXISTS(\n            SELECT * FROM file_ancestors\n            JOIN files AS ancestor_files ON file_ancestors.ancestor = ancestor_files.id\n            WHERE files.id = file_ancestors.id AND ancestor_files.deleted\n        )\n    )\n    SELECT\n        files.id,\n        CASE WHEN EXISTS(SELECT * FROM files_with_deleted_ancestors WHERE files_with_deleted_ancestors.id = files.id) THEN 0 ELSE files.document_size END AS \"document_size!\"\n    FROM files\n    WHERE\n        files.owner = $1 AND\n        NOT files.is_folder;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "document_size!",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        null
+      ]
+    }
+  },
   "b9d28fb984c7871adfe5eeb0dd2c5bedb4ca3a45d448e3b6b68da796adc10b23": {
     "query": "\nDELETE FROM files\nWHERE owner = $1\nRETURNING\n    id AS id,\n    deleted AS old_deleted,\n    parent AS parent_id,\n    content_version AS old_content_version,\n    metadata_version AS new_metadata_version,\n    is_folder AS is_folder;\n        ",
     "describe": {
@@ -617,39 +650,6 @@
         ]
       },
       "nullable": []
-    }
-  },
-  "f824558897a326bd928de4509d02b6d65193b16737005d1e49aea6d58aa2597a": {
-    "query": "\nWITH RECURSIVE file_ancestors AS (\n        SELECT * FROM files AS new_file_parent\n        WHERE new_file_parent.id = $2\n            UNION DISTINCT\n        SELECT ancestors.* FROM files AS ancestors\n        JOIN file_ancestors ON file_ancestors.parent = ancestors.id\n    ),\n    insert_cte AS (\n        INSERT INTO files (\n            id,\n            parent,\n            parent_access_key,\n            is_folder,\n            name_encrypted,\n            name_hmac,\n            owner,\n            deleted,\n            metadata_version,\n            content_version,\n            document_size\n        )\n        SELECT\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            $6,\n            $7,\n            FALSE,\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            $8\n        WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)\n        RETURNING NULL\n    )\nSELECT\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS \"metadata_version!\",\n    EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS \"ancestor_deleted!\";\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "metadata_version!",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "ancestor_deleted!",
-          "type_info": "Bool"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "Text",
-          "Bool",
-          "Text",
-          "Text",
-          "Text",
-          "Int8"
-        ]
-      },
-      "nullable": [
-        null,
-        null
-      ]
     }
   }
 }

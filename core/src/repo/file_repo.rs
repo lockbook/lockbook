@@ -222,8 +222,23 @@ pub fn maybe_get_document(
     }
 }
 
-/// Updates base files to match local files.
-pub fn promote(config: &Config) -> Result<(), CoreError> {
+/// Updates base metadata to match local metadata.
+pub fn promote_metadata(config: &Config) -> Result<(), CoreError> {
+    let base_metadata = metadata_repo::get_all(config, RepoSource::Base)?;
+    let local_metadata = metadata_repo::get_all(config, RepoSource::Local)?;
+    let staged_metadata = utils::stage_encrypted(&base_metadata, &local_metadata);
+
+    metadata_repo::delete_all(config, RepoSource::Base)?;
+
+    for (metadata, _) in staged_metadata {
+        metadata_repo::insert(config, RepoSource::Base, &metadata)?;
+    }
+
+    metadata_repo::delete_all(config, RepoSource::Local)
+}
+
+/// Updates base documents to match local documents.
+pub fn promote_documents(config: &Config) -> Result<(), CoreError> {
     let base_metadata = metadata_repo::get_all(config, RepoSource::Base)?;
     let local_metadata = metadata_repo::get_all(config, RepoSource::Local)?;
     let staged_metadata = utils::stage_encrypted(&base_metadata, &local_metadata);
@@ -244,12 +259,10 @@ pub fn promote(config: &Config) -> Result<(), CoreError> {
         })
         .collect::<Result<Vec<(FileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>, CoreError>>()?;
 
-    metadata_repo::delete_all(config, RepoSource::Base)?;
     document_repo::delete_all(config, RepoSource::Base)?;
     digest_repo::delete_all(config, RepoSource::Base)?;
 
     for (metadata, maybe_document, maybe_digest) in staged_everything {
-        metadata_repo::insert(config, RepoSource::Base, &metadata)?;
         if let Some(document) = maybe_document {
             document_repo::insert(config, RepoSource::Base, metadata.id, &document)?;
         }
@@ -258,7 +271,6 @@ pub fn promote(config: &Config) -> Result<(), CoreError> {
         }
     }
 
-    metadata_repo::delete_all(config, RepoSource::Local)?;
     document_repo::delete_all(config, RepoSource::Local)?;
     digest_repo::delete_all(config, RepoSource::Local)
 }
@@ -1161,7 +1173,8 @@ mod unit_tests {
         assert_document_count!(config, RepoSource::Base, 2);
         assert_document_count!(config, RepoSource::Local, 3);
 
-        file_repo::promote(config).unwrap();
+        file_repo::promote_metadata(config).unwrap();
+        file_repo::promote_documents(config).unwrap();
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 0);

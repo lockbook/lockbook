@@ -80,6 +80,37 @@ pub async fn upsert_file_metadata(
             ))),
         },
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
+    }?;
+
+    let mut transaction = match server_state.index_db_client.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
+        }
+    };
+
+    let files = file_index_repo::get_files(&mut transaction, &context.public_key).await.map_err(|e| Err(format!("Cannot get files: {:?}", e)))?;
+    for upsert in &request.updates {
+        if upsert.new_deleted {
+            let content_version = files.iter().filter(|&f| f.id == upsert.id).next().map_or(0, |f| f.content_version);
+            let delete_result = file_content_client::delete(
+                &server_state.files_db_client,
+                upsert.id,
+                content_version,
+            )
+            .await;
+            if delete_result.is_err() {
+                return Err(Err(format!(
+                    "Cannot delete file in S3: {:?}",
+                    delete_result
+                )));
+            };
+        }
+    }
+
+    match transaction.commit().await {
+        Ok(()) => Ok(()),
+        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
