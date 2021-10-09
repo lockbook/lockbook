@@ -1,7 +1,8 @@
 use crate::client::ApiError;
 use crate::core_err_unexpected;
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::account_repo;
+use crate::repo::{account_repo, file_repo, root_repo};
 use crate::service::{file_encryption_service, file_service, sync_service};
 use crate::CoreError;
 use crate::{client, utils};
@@ -74,6 +75,8 @@ pub fn create_account(
 
     info!("Saving account locally");
     account_repo::insert(config, &account)?;
+    file_repo::insert_metadata(config, RepoSource::Base, &root_metadata)?;
+    root_repo::set(config, root_metadata.id)?;
 
     info!("Performing initial sync");
     sync_service::sync(config, None)?;

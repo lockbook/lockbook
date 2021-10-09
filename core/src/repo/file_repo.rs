@@ -194,22 +194,30 @@ pub fn maybe_get_document(
     source: RepoSource,
     id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
-    let maybe_metadata = maybe_get_metadata(config, source, id)?;
-    let maybe_encrypted = match source {
-        RepoSource::Local => match document_repo::maybe_get(config, RepoSource::Local, id)? {
-            Some(metadata) => Some(metadata),
-            None => document_repo::maybe_get(config, RepoSource::Base, id)?,
-        },
-        RepoSource::Base => document_repo::maybe_get(config, RepoSource::Base, id)?,
-    };
-    let maybe_compressed = match (maybe_metadata, maybe_encrypted) {
-        (Some(metadata), Some(encrypted)) => Some(file_encryption_service::decrypt_document(
-            &encrypted, &metadata,
-        )?),
-        _ => None,
-    };
-    match maybe_compressed {
-        Some(compressed) => Ok(Some(file_compression_service::decompress(&compressed)?)),
+    match maybe_get_metadata(config, source, id)? {
+        Some(metadata) => {
+            if metadata.file_type != FileType::Document {
+                return Err(CoreError::FileNotDocument);
+            }
+            let maybe_encrypted_document = match source {
+                RepoSource::Local => match document_repo::maybe_get(config, RepoSource::Local, id)?
+                {
+                    Some(metadata) => Some(metadata),
+                    None => document_repo::maybe_get(config, RepoSource::Base, id)?,
+                },
+                RepoSource::Base => document_repo::maybe_get(config, RepoSource::Base, id)?,
+            };
+            match maybe_encrypted_document {
+                Some(encrypted_document) => {
+                    let compressed_document =
+                        file_encryption_service::decrypt_document(&encrypted_document, &metadata)?;
+                    Ok(Some(file_compression_service::decompress(
+                        &compressed_document,
+                    )?))
+                }
+                None => Ok(Some(vec![])),
+            }
+        }
         None => Ok(None),
     }
 }
@@ -330,7 +338,7 @@ mod unit_tests {
 
     use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
-    use crate::repo::{account_repo, file_repo};
+    use crate::repo::{account_repo, document_repo, file_repo};
     use crate::service::{file_service, test_utils};
 
     macro_rules! assert_metadata_changes_count (
@@ -399,7 +407,7 @@ mod unit_tests {
                 file_repo::get_all_metadata($db, $source)
                     .unwrap()
                     .iter()
-                    .filter(|&f| file_repo::maybe_get_document($db, $source, f.id).unwrap().is_some())
+                    .filter(|&f| document_repo::maybe_get($db, $source, f.id).unwrap().is_some() || document_repo::maybe_get($db, RepoSource::Base, f.id).unwrap().is_some())
                     .count(),
                 $total
             );

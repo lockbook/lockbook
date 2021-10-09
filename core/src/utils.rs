@@ -64,6 +64,21 @@ pub fn maybe_find_parent(
     maybe_find(files, file.parent)
 }
 
+pub fn find_parent_encrypted(
+    files: &[FileMetadata],
+    target_id: Uuid,
+) -> Result<FileMetadata, CoreError> {
+    maybe_find_parent_encrypted(files, target_id).ok_or(CoreError::FileParentNonexistent)
+}
+
+pub fn maybe_find_parent_encrypted(
+    files: &[FileMetadata],
+    target_id: Uuid,
+) -> Option<FileMetadata> {
+    let file = maybe_find_encrypted(files, target_id)?;
+    maybe_find_encrypted(files, file.parent)
+}
+
 pub fn find_ancestors(
     files: &[DecryptedFileMetadata],
     target_id: Uuid,
@@ -111,7 +126,9 @@ pub fn find_with_descendants(
         )))?;
         let children = find_children(files, target.id);
         for child in children {
-            result.push(child);
+            if child.id != target_id {
+                result.push(child);
+            }
         }
         i += 1;
     }

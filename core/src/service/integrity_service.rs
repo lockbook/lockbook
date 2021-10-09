@@ -2,10 +2,10 @@ use std::path::Path;
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::{file_repo, root_repo};
+use crate::repo::{file_repo, metadata_repo, root_repo};
 use crate::service::{drawing_service, file_service, path_service};
 use crate::{utils, CoreError};
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 use uuid::Uuid;
 
 const UTF8_SUFFIXES: [&str; 12] = [
@@ -32,30 +32,39 @@ pub enum Warning {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoError> {
-    let root_id = root_repo::maybe_get(config)
+    root_repo::maybe_get(config)
         .map_err(TestRepoError::Core)?
         .ok_or(TestRepoError::NoRootFolder)?;
-    let root = file_repo::maybe_get_metadata(config, RepoSource::Local, root_id)
+
+    let files_encrypted = utils::stage_encrypted(
+        &metadata_repo::get_all(config, RepoSource::Base).map_err(TestRepoError::Core)?,
+        &metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?,
+    )
+    .into_iter()
+    .map(|(f, _)| f)
+    .collect::<Vec<FileMetadata>>();
+
+    for file_encrypted in &files_encrypted {
+        if utils::maybe_find_encrypted(&files_encrypted, file_encrypted.parent).is_none() {
+            return Err(TestRepoError::FileOrphaned(file_encrypted.id));
+        }
+    }
+
+    let maybe_self_descendant = file_service::get_invalid_cycles_encrypted(&files_encrypted, &[])
         .map_err(TestRepoError::Core)?
-        .ok_or(TestRepoError::NoRootFolder)?;
+        .into_iter()
+        .next();
+    if let Some(self_descendant) = maybe_self_descendant {
+        return Err(TestRepoError::CycleDetected(self_descendant));
+    }
+
     let files =
         file_repo::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
-
     let maybe_doc_with_children = utils::filter_documents(&files)
         .into_iter()
         .find(|d| !utils::find_children(&files, d.id).is_empty());
     if let Some(doc) = maybe_doc_with_children {
         return Err(TestRepoError::DocumentTreatedAsFolder(doc.id));
-    }
-
-    let root_with_descendants =
-        utils::find_with_descendants(&files, root.id).map_err(TestRepoError::Core)?;
-    let maybe_non_root_descendant = files
-        .iter()
-        .filter(|f| utils::maybe_find(&root_with_descendants, f.id).is_none())
-        .next();
-    if let Some(non_root_descendant) = maybe_non_root_descendant {
-        return Err(TestRepoError::FileOrphaned(non_root_descendant.id));
     }
 
     let maybe_file_with_empty_name = files.iter().find(|f| f.decrypted_name.is_empty());
@@ -68,14 +77,6 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         return Err(TestRepoError::FileNameContainsSlash(
             file_with_name_with_slash.id,
         ));
-    }
-
-    let maybe_self_descendant = file_service::get_invalid_cycles(&files, &[])
-        .map_err(TestRepoError::Core)?
-        .into_iter()
-        .next();
-    if let Some(self_descendant) = maybe_self_descendant {
-        return Err(TestRepoError::CycleDetected(self_descendant));
     }
 
     let maybe_path_conflict = file_service::get_path_conflicts(&files, &[])
