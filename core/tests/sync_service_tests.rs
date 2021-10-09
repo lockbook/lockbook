@@ -7,8 +7,7 @@ mod sync_tests {
     use lockbook_core::repo::{file_repo, metadata_repo, root_repo};
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::service::{
-        account_service, file_encryption_service, file_service, integrity_service, path_service,
-        sync_service,
+        account_service, file_service, integrity_service, path_service, sync_service,
     };
     use lockbook_models::file_metadata::FileType::Folder;
     use lockbook_models::work_unit::WorkUnit;
