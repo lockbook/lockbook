@@ -402,7 +402,7 @@ fn get_resolved_document(
 fn pull(
     config: &Config,
     account: &Account,
-    f: &Option<Box<dyn Fn(SyncProgress)>>,
+    _f: &Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
     let last_sync = last_updated_repo::get(config)?;
     let remote_metadata_changes = client::request(
@@ -512,7 +512,7 @@ fn pull(
 fn push_metadata(
     config: &Config,
     account: &Account,
-    f: &Option<Box<dyn Fn(SyncProgress)>>,
+    _f: &Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
     // update remote to local (metadata)
     client::request(
@@ -533,13 +533,15 @@ fn push_metadata(
 fn push_documents(
     config: &Config,
     account: &Account,
-    f: &Option<Box<dyn Fn(SyncProgress)>>,
+    _f: &Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
     for id in file_repo::get_all_with_document_changes(config)? {
         let local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
         let local_content = file_repo::get_document(config, RepoSource::Local, id)?;
-        let encrypted_content =
-            file_encryption_service::encrypt_document(&file_compression_service::compress(&local_content)?, &local_metadata)?;
+        let encrypted_content = file_encryption_service::encrypt_document(
+            &file_compression_service::compress(&local_content)?,
+            &local_metadata,
+        )?;
 
         // update remote to local (document)
         client::request(
