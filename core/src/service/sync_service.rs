@@ -17,6 +17,8 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileTy
 use lockbook_models::work_unit::WorkUnit;
 use serde::Serialize;
 
+use super::file_compression_service;
+
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
     pub work_units: Vec<WorkUnit>,
@@ -358,15 +360,17 @@ fn get_resolved_document(
         &account,
         GetDocumentRequest {
             id: remote_metadatum.id,
-            content_version: remote_metadatum.content_version,
+            content_version: remote_metadatum.content_version, // todo: is this content_version is incorrect?
         },
     )?
     .content;
     let remote_document = match maybe_remote_document_encrypted {
-        Some(remote_document_encrypted) => file_encryption_service::decrypt_document(
-            &remote_document_encrypted,
-            &remote_metadatum,
-        )?,
+        Some(remote_document_encrypted) => {
+            file_compression_service::decompress(&file_encryption_service::decrypt_document(
+                &remote_document_encrypted,
+                &remote_metadatum,
+            )?)?
+        }
         None => Vec::new(),
     };
     let maybe_base_document =
@@ -464,8 +468,8 @@ fn pull(
                     copied_local_metadata,
                     copied_local_document,
                 } => {
-                    local_metadata_updates.push(copied_local_metadata.clone()); // new local file from merge
-                    local_document_updates.push((copied_local_metadata, copied_local_document));
+                    local_metadata_updates.push(copied_local_metadata.clone()); // new local metadata from merge
+                    local_document_updates.push((copied_local_metadata, copied_local_document)); // new local document from merge
                     base_document_updates.push((remote_metadata, remote_document));
                     // update base to remote
                 }
@@ -504,8 +508,29 @@ fn pull(
     Ok(())
 }
 
+/// Updates remote and base metadata to local.
+fn push_metadata(
+    config: &Config,
+    account: &Account,
+    f: &Option<Box<dyn Fn(SyncProgress)>>,
+) -> Result<(), CoreError> {
+    // update remote to local (metadata)
+    client::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: file_repo::get_all_metadata_changes(config)?,
+        },
+    )
+    .map_err(CoreError::from)?;
+
+    // update base to local
+    file_repo::promote_metadata(config)?;
+
+    Ok(())
+}
+
 /// Updates remote and base files to local.
-fn push(
+fn push_documents(
     config: &Config,
     account: &Account,
     f: &Option<Box<dyn Fn(SyncProgress)>>,
@@ -514,7 +539,7 @@ fn push(
         let local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
         let local_content = file_repo::get_document(config, RepoSource::Local, id)?;
         let encrypted_content =
-            file_encryption_service::encrypt_document(&local_content, &local_metadata)?;
+            file_encryption_service::encrypt_document(&file_compression_service::compress(&local_content)?, &local_metadata)?;
 
         // update remote to local (document)
         client::request(
@@ -528,17 +553,8 @@ fn push(
         .map_err(CoreError::from)?;
     }
 
-    // update remote to local (metadata)
-    client::request(
-        &account,
-        FileMetadataUpsertsRequest {
-            updates: file_repo::get_all_metadata_changes(config)?,
-        },
-    )
-    .map_err(CoreError::from)?;
-
     // update base to local
-    file_repo::promote(config)?;
+    file_repo::promote_documents(config)?;
 
     Ok(())
 }
@@ -546,7 +562,9 @@ fn push(
 pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
     let account = &account_repo::get(config)?;
     pull(config, account, &f)?;
-    push(config, account, &f)?;
+    push_metadata(config, account, &f)?;
+    pull(config, account, &f)?;
+    push_documents(config, account, &f)?;
     file_repo::prune_deleted(config)?;
     Ok(())
 }
