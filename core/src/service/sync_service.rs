@@ -70,6 +70,7 @@ fn calculate_work_from_updates(
             None => {
                 if !metadata.deleted {
                     // no work for files we don't have that have been deleted
+                    // println!("calculate_work remote new file: {:?}", metadata);
                     work_units.push(WorkUnit::ServerChange {
                         metadata: utils::find(&all_metadata, metadata.id)?,
                     })
@@ -77,6 +78,7 @@ fn calculate_work_from_updates(
             }
             Some(local_metadata) => {
                 if metadata.metadata_version != local_metadata.metadata_version {
+                    // println!("calculate_work remote updated file: {:?}\n(local version = {:?})", metadata, local_metadata);
                     work_units.push(WorkUnit::ServerChange {
                         metadata: utils::find(&all_metadata, metadata.id)?,
                     })
@@ -91,9 +93,14 @@ fn calculate_work_from_updates(
             .cmp(&f2.get_metadata().metadata_version)
     });
 
-    let changes = file_repo::get_all_metadata_changes(config)?;
-    for change_description in changes {
-        let metadata = file_repo::get_metadata(config, RepoSource::Local, change_description.id)?;
+    for file_diff in file_repo::get_all_metadata_changes(config)? {
+        // println!("calculate_work local metadata change: {:?}", file_diff);
+        let metadata = file_repo::get_metadata(config, RepoSource::Local, file_diff.id)?;
+        work_units.push(WorkUnit::LocalChange { metadata });
+    }
+    for doc_id in file_repo::get_all_with_document_changes(config)? {
+        // println!("calculate_work local document change: {:?}", doc_id);
+        let metadata = file_repo::get_metadata(config, RepoSource::Local, doc_id)?;
         work_units.push(WorkUnit::LocalChange { metadata });
     }
     debug!("Work Calculated: {:#?}", work_units);
@@ -120,7 +127,7 @@ fn maybe_merge<T>(
             (None, None, None) => {
                 // improper call of this function
                 return Err(CoreError::Unexpected(String::from(
-                    "3-way metadata merge with none of the 3",
+                    "3-way maybe merge with none of the 3",
                 )));
             }
             (None, None, Some(remote)) => {
@@ -225,7 +232,10 @@ fn merge_maybe_documents(
     maybe_local_document: Option<DecryptedDocument>,
     remote_document: DecryptedDocument,
 ) -> Result<ResolvedDocument, CoreError> {
-    Ok(
+    println!("\nget_resolved_document base:\n{:?}", maybe_base_document);
+    println!("\nget_resolved_document local:\n{:?}", maybe_local_document);
+    println!("\nget_resolved_document remote:\n{:?}", remote_document);
+    let result = Ok(
         match maybe_merge(
             maybe_base_document,
             maybe_local_document,
@@ -330,9 +340,14 @@ fn merge_maybe_documents(
                 }
             }
         },
-    )
+    );
+
+    println!("\nget_resolved_document merged:\n{:?}", result);
+
+    result
 }
 
+#[derive(Debug)]
 enum ResolvedDocument {
     Merged {
         remote_metadata: DecryptedFileMetadata,
@@ -355,7 +370,7 @@ fn get_resolved_document(
     account: &Account,
     remote_metadatum: &DecryptedFileMetadata,
     merged_metadatum: &DecryptedFileMetadata,
-) -> Result<ResolvedDocument, CoreError> {
+) -> Result<Option<ResolvedDocument>, CoreError> {
     let maybe_remote_document_encrypted = client::request(
         &account,
         GetDocumentRequest {
@@ -364,38 +379,48 @@ fn get_resolved_document(
         },
     )?
     .content;
-    let remote_document = match maybe_remote_document_encrypted {
+    let maybe_remote_document = match maybe_remote_document_encrypted {
         Some(remote_document_encrypted) => {
-            file_compression_service::decompress(&file_encryption_service::decrypt_document(
+            Some(file_compression_service::decompress(&file_encryption_service::decrypt_document(
                 &remote_document_encrypted,
                 &remote_metadatum,
-            )?)?
+            )?)?)
         }
-        None => Vec::new(),
+        None => None,
     };
-    let maybe_base_document =
-        file_repo::maybe_get_document(config, RepoSource::Base, remote_metadatum.id)?;
-    let maybe_local_document =
-        file_repo::maybe_get_document(config, RepoSource::Local, remote_metadatum.id)?;
 
-    // update remote repo to version from server
-    file_repo::insert_document(
-        config,
-        RepoSource::Base,
-        &remote_metadatum,
-        &remote_document,
-    )?;
+    println!("\npulled document:\n{:?}", maybe_remote_document);
+    println!("\nmetadata of pulled document:\n{:?}", remote_metadatum);
 
-    // merge document content for documents with updated content
-    let merged_document = merge_maybe_documents(
-        merged_metadatum,
-        remote_metadatum,
-        maybe_base_document,
-        maybe_local_document,
-        remote_document,
-    )?;
+    let maybe_document_state = file_repo::maybe_get_document_state(config, remote_metadatum.id)?;
+    let (maybe_base_document, maybe_local_document) = match maybe_document_state {
+        Some(document_state) => (document_state.clone().base(), Some(document_state.local())),
+        None => (None, None),
+    };
 
-    Ok(merged_document)
+    match maybe_remote_document {
+        Some(remote_document) => {
+            // update remote repo to version from server
+            file_repo::insert_document(
+                config,
+                RepoSource::Base,
+                &remote_metadatum,
+                &remote_document,
+            )?;
+        
+            // merge document content for documents with updated content
+            let merged_document = merge_maybe_documents(
+                merged_metadatum,
+                remote_metadatum,
+                maybe_base_document,
+                maybe_local_document,
+                remote_document,
+            )?;
+
+            Ok(Some(merged_document))
+        },
+        None => Ok(None),
+    }
 }
 
 /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
@@ -452,27 +477,28 @@ fn pull(
             };
         if content_updated {
             match get_resolved_document(config, account, &remote_metadatum, &merged_metadatum)? {
-                ResolvedDocument::Merged {
+                Some(ResolvedDocument::Merged {
                     remote_metadata,
                     remote_document,
                     merged_metadata,
                     merged_document,
-                } => {
+                }) => {
                     local_document_updates.push((merged_metadata, merged_document)); // update local to merged
                     base_document_updates.push((remote_metadata, remote_document));
                     // update base to remote
                 }
-                ResolvedDocument::Copied {
+                Some(ResolvedDocument::Copied {
                     remote_metadata,
                     remote_document,
                     copied_local_metadata,
                     copied_local_document,
-                } => {
+                }) => {
                     local_metadata_updates.push(copied_local_metadata.clone()); // new local metadata from merge
                     local_document_updates.push((copied_local_metadata, copied_local_document)); // new local document from merge
                     base_document_updates.push((remote_metadata, remote_document));
                     // update base to remote
                 }
+                None => {}
             }
         }
     }
@@ -490,17 +516,20 @@ fn pull(
     }
 
     // update local
-    for metadata_update in local_metadata_updates {
-        file_repo::insert_metadata(config, RepoSource::Local, &metadata_update)?;
-    }
+    // println!("\npull local_metadata_updates:\n{:?}", local_metadata_updates);
+    println!(
+        "\npull local_document_updates:\n{:?}",
+        local_document_updates
+    );
+    file_repo::insert_metadata(config, RepoSource::Local, &local_metadata_updates)?;
     for (metadata, document_update) in local_document_updates {
         file_repo::insert_document(config, RepoSource::Local, &metadata, &document_update)?;
     }
 
     // update base
-    for metadata_update in base_metadata_updates {
-        file_repo::insert_metadata(config, RepoSource::Base, &metadata_update)?;
-    }
+    // println!("\npull base_metadata_updates:\n{:?}", base_metadata_updates);
+    println!("\npull base_document_updates:\n{:?}", base_document_updates);
+    file_repo::insert_metadata(config, RepoSource::Base, &base_metadata_updates)?;
     for (metadata, document_update) in base_document_updates {
         file_repo::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
     }
@@ -514,6 +543,7 @@ fn push_metadata(
     account: &Account,
     _f: &Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
+    // println!("\npush_metadata all_metadata_changes:\n{:?}", file_repo::get_all_metadata_changes(config)?);
     // update remote to local (metadata)
     client::request(
         &account,
@@ -525,6 +555,7 @@ fn push_metadata(
 
     // update base to local
     file_repo::promote_metadata(config)?;
+    // println!("push_metadata end");
 
     Ok(())
 }
@@ -538,6 +569,7 @@ fn push_documents(
     for id in file_repo::get_all_with_document_changes(config)? {
         let local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
         let local_content = file_repo::get_document(config, RepoSource::Local, id)?;
+        println!("\npushed document:\n{:?}", local_content);
         let encrypted_content = file_encryption_service::encrypt_document(
             &file_compression_service::compress(&local_content)?,
             &local_metadata,
@@ -562,11 +594,19 @@ fn push_documents(
 }
 
 pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
+    println!("sync start");
     let account = &account_repo::get(config)?;
+    println!("  sync pull");
     pull(config, account, &f)?;
+    println!("  sync push_metadata");
     push_metadata(config, account, &f)?;
+    println!("  sync pull");
     pull(config, account, &f)?;
+    println!("  sync push_documents");
     push_documents(config, account, &f)?;
+    println!("  sync pull");
+    pull(config, account, &f)?;
     file_repo::prune_deleted(config)?;
+    println!("sync end");
     Ok(())
 }

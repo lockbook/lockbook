@@ -58,7 +58,7 @@ mod integrity_tests {
         let doc = create_file_at_path(&cfg, path!(account, "document1.md")).unwrap();
         let mut doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
         doc.decrypted_name = String::from("na/me.md");
-        file_repo::insert_metadata(&cfg, RepoSource::Local, &doc).unwrap();
+        file_repo::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
 
         assert_matches!(
             integrity_service::test_repo_integrity(&cfg),
@@ -73,7 +73,7 @@ mod integrity_tests {
         let doc = create_file_at_path(&cfg, path!(account, "document1.md")).unwrap();
         let mut doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
         doc.decrypted_name = String::from("");
-        file_repo::insert_metadata(&cfg, RepoSource::Local, &doc).unwrap();
+        file_repo::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
 
         assert_matches!(
             integrity_service::test_repo_integrity(&cfg),
@@ -134,7 +134,7 @@ mod integrity_tests {
         create_file_at_path(&cfg, path!(account, "document2.md")).unwrap();
         let mut doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
         doc.decrypted_name = String::from("document2.md");
-        file_repo::insert_metadata(&cfg, RepoSource::Local, &doc).unwrap();
+        file_repo::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
 
         assert_matches!(
             integrity_service::test_repo_integrity(&cfg),

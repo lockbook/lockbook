@@ -145,8 +145,8 @@ mod unit_tests {
             file_service::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
         file_repo::insert_document(config, RepoSource::Base, &document, b"").unwrap();
 
         assert_eq!(
@@ -167,8 +167,8 @@ mod unit_tests {
             file_service::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
         file_repo::insert_document(config, RepoSource::Base, &document, b"0123456789").unwrap();
 
         assert_eq!(
@@ -191,9 +191,9 @@ mod unit_tests {
             file_service::create(FileType::Document, root.id, "document 2", &account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Base, &root).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Base, &document2).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &document2).unwrap();
         file_repo::insert_document(config, RepoSource::Base, &document, b"01234").unwrap();
         file_repo::insert_document(config, RepoSource::Base, &document2, b"56789").unwrap();
 

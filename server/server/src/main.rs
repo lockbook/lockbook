@@ -180,7 +180,7 @@ async fn route(
     }
 }
 
-fn get_build_info() -> Result<GetBuildInfoResponse, Result<GetBuildInfoError, String>> {
+fn _get_build_info() -> Result<GetBuildInfoResponse, Result<GetBuildInfoError, String>> {
     Ok(GetBuildInfoResponse {
         build_version: env!("CARGO_PKG_VERSION"),
         git_commit_hash: build_info::COMMIT_HASH,
