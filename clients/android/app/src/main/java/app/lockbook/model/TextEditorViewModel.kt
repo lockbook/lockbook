@@ -52,12 +52,16 @@ class TextEditorViewModel(application: Application, private val id: String) :
 
             handler.postDelayed({
                 if(currentEdit == lastEdit) {
-                    val writeToDocumentResult = CoreModel.writeToDocument(config, id, content)
-                    if (writeToDocumentResult is Err) {
-                        _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
-                    }
+                    saveContents(content)
                 }
             }, 5000)
+        }
+    }
+
+    fun saveContents(content: String) {
+        val writeToDocumentResult = CoreModel.writeToDocument(config, id, content)
+        if (writeToDocumentResult is Err) {
+            _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
         }
     }
 }

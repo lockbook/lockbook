@@ -37,15 +37,9 @@ class FileInfoDialogFragment : DialogFragment() {
             false
         )
 
-        return binding.root
-    }
+        setUpInfo()
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        val bundle = arguments
-        if (bundle != null) {
-            setUpInfo(bundle)
-        }
+        return binding.root
     }
 
     override fun onStart() {
@@ -56,7 +50,7 @@ class FileInfoDialogFragment : DialogFragment() {
         )
     }
 
-    private fun setUpInfo(bundle: Bundle) {
+    private fun setUpInfo() {
         val file = (activityModel.transientScreen as TransientScreen.Info).file
         val dateMetadataVersion = Date(Timestamp(file.metadataVersion).time)
 

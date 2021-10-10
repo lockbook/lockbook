@@ -1,17 +1,14 @@
 package app.lockbook.model
 
 import android.app.Application
-import android.content.res.Resources
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import app.lockbook.*
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.ClientFileMetadata
-import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
 import com.afollestad.recyclical.datasource.*
 import com.github.michaelbull.result.Err
@@ -21,7 +18,7 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
 
-class FilesViewModel(application: Application) : AndroidViewModel(application) {
+class FilesListViewModel(application: Application, isThisAnImport: Boolean) : AndroidViewModel(application) {
 
     private val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
 
@@ -29,12 +26,19 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
         get() = _notifyUpdateFilesUI
 
     lateinit var fileModel: FileModel
+
     val selectableFiles = emptySelectableDataSourceTyped<ClientFileMetadata>()
+    var breadcrumbItems = listOf<BreadCrumbItem>()
+
     val syncModel = SyncModel(_notifyUpdateFilesUI)
-    val shareModel = ShareModel(_notifyUpdateFilesUI)
 
     init {
-        startUpInRoot()
+        viewModelScope.launch(Dispatchers.IO) {
+            if (isThisAnImport) {
+                syncModel.trySync(getContext())
+            }
+            startUpInRoot()
+        }
     }
 
     private fun startUpInRoot() {
@@ -42,7 +46,8 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
             is Ok -> {
                 fileModel = createAtRootResult.value
                 refreshFiles()
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(fileModel.fileDir.map { BreadCrumbItem(it.name) }))
+                breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
             }
             is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createAtRootResult.error))
         }
@@ -63,13 +68,14 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch(Dispatchers.Main) {
                 selectableFiles.set(fileModel.children)
             }
-            postUIUpdate(UpdateFilesUI.UpdateBreadcrumbBar(fileModel.fileDir.map { BreadCrumbItem(it.name) }))
+
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
         }
     }
 
     fun intoParentFolder() {
         viewModelScope.launch(Dispatchers.IO) {
-            Timber.e("HERE AT MY NEW LABO")
             val intoParentResult = fileModel.intoParent()
             if (intoParentResult is Err) {
                 postUIUpdate(UpdateFilesUI.NotifyError((intoParentResult.error.toLbError(getRes()))))
@@ -80,7 +86,27 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
                 selectableFiles.set(fileModel.children)
             }
 
-            postUIUpdate(UpdateFilesUI.UpdateBreadcrumbBar(fileModel.fileDir.map { BreadCrumbItem(it.name) }))
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+        }
+    }
+
+    fun intoAncestralFolder(position: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val intoAncestorResult = fileModel.refreshChildrenAtAncestor(position)
+            if (intoAncestorResult is Err) {
+                postUIUpdate(UpdateFilesUI.NotifyError((intoAncestorResult.error.toLbError(getRes()))))
+                return@launch
+            }
+
+            viewModelScope.launch(Dispatchers.Main) {
+                selectableFiles.set(fileModel.children)
+            }
+
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+//            _notifyUpdateFilesUI.postValue(UpdateFilesUI.ToggleMenuBar)
         }
     }
 
@@ -92,6 +118,12 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun reloadFiles() {
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshFiles()
+        }
+    }
+
     private fun refreshFiles() {
         val refreshChildrenResult = fileModel.refreshChildren()
         if (refreshChildrenResult is Err) {
@@ -100,14 +132,11 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch(Dispatchers.Main) {
+            selectableFiles.deselectAll()
             selectableFiles.set(fileModel.children)
         }
-    }
 
-    fun shareSelectedFiles(appDataDir: File) {
-        viewModelScope.launch(Dispatchers.IO) {
-            shareModel.shareDocuments(selectableFiles.getSelectedItems(), appDataDir)
-        }
+        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ToggleMenuBar)
     }
 
     fun deleteSelectedFiles() {
@@ -119,6 +148,8 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
             }
+
+            refreshFiles()
         }
     }
 
@@ -126,6 +157,6 @@ class FilesViewModel(application: Application) : AndroidViewModel(application) {
         fileModel.setSortStyle(newSortStyle)
         selectableFiles.set(fileModel.children)
 
-        PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource()))
+        PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
     }
 }

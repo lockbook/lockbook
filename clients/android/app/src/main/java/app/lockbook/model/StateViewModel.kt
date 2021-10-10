@@ -1,14 +1,18 @@
 package app.lockbook.model
 
+import android.app.Application
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lockbook.getRes
+import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.CreateFileDialogFragment
 import app.lockbook.ui.FileInfoDialogFragment
 import app.lockbook.ui.MoveFileDialogFragment
@@ -17,12 +21,14 @@ import app.lockbook.util.ClientFileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
+import com.github.michaelbull.result.Err
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
+import java.util.ArrayList
 
-class StateViewModel: ViewModel() {
+class StateViewModel(application: Application): AndroidViewModel(application) {
     var detailsScreen: DetailsScreen = DetailsScreen.Blank
     var transientScreen: TransientScreen? = null
 
@@ -39,6 +45,8 @@ class StateViewModel: ViewModel() {
     val updateMainScreenUI: LiveData<UpdateMainScreenUI>
         get() = _updateMainScreenUI
 
+    val shareModel = ShareModel(_updateMainScreenUI)
+
     fun launchTransientScreen(screen: TransientScreen) {
         transientScreen = screen
         _launchTransientScreen.postValue(transientScreen)
@@ -47,6 +55,16 @@ class StateViewModel: ViewModel() {
     fun launchDetailsScreen(screen: DetailsScreen) {
         detailsScreen = screen
         _launchDetailsScreen.postValue(detailsScreen)
+    }
+
+    fun shareSelectedFiles(selectedFiles: List<ClientFileMetadata>, appDataDir: File) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val shareResult = shareModel.shareDocuments(selectedFiles, appDataDir)
+            if(shareResult is Err) {
+                _updateMainScreenUI.postValue(UpdateMainScreenUI.NotifyError(shareResult.error.toLbError(getRes())))
+                return@launch
+            }
+        }
     }
 }
 
@@ -61,26 +79,12 @@ sealed class TransientScreen {
     data class Rename(val file: ClientFileMetadata): TransientScreen()
     data class Create(val info: CreateFileInfo): TransientScreen()
     data class Info(val file: ClientFileMetadata): TransientScreen()
-
-    fun show(activity: FragmentActivity) {
-        when(this) {
-            is Create -> {
-                CreateFileDialogFragment().show(activity.supportFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
-            }
-            is Info -> {
-                FileInfoDialogFragment().show(activity.supportFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
-            }
-            is Move -> {
-                MoveFileDialogFragment().show(activity.supportFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
-            }
-            is Rename -> {
-                RenameFileDialogFragment().show(activity.supportFragmentManager, RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG)
-            }
-        }
-    }
+    data class Share(val files: List<File>): TransientScreen()
 }
 
 sealed class UpdateMainScreenUI {
+    data class ShowHideProgressOverlay(val show: Boolean) : UpdateMainScreenUI()
+    data class ShareDocuments(val files: ArrayList<File>) : UpdateMainScreenUI()
     data class NotifyError(val error: LbError): UpdateMainScreenUI()
 }
 

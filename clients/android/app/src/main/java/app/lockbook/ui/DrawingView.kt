@@ -24,8 +24,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
     private var thread: Thread? = null
-    private var isThreadAvailable = false
-    private var isDrawingAvailable = false
+    var isThreadAvailable = false
+    var isDrawingAvailable = false
 
     private var erasePoints =
         Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
@@ -628,25 +628,15 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     fun startThread() {
-        Timber.e("STARTED!?")
-
         if (holder.surface.isValid && thread == null) {
             thread = Thread(this)
             isThreadAvailable = true
             thread!!.start()
-
-            Timber.e("HERE")
-        } else {
-            Timber.e("HERE2")
         }
     }
 
     fun stopThread() {
-        Timber.e("ENDED!?")
-
         if (thread == null) {
-            Timber.e("CLOSE ONE!?")
-
             return
         }
 
@@ -666,9 +656,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             if (holder == null) {
                 return
             }
-
-            Timber.e("RUNNING?!")
-
             var canvas: Canvas? = null
             try {
                 canvas = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {

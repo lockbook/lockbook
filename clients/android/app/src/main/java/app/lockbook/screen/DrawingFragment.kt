@@ -95,8 +95,9 @@ class DrawingFragment: Fragment() {
 
     override fun onResume() {
         super.onResume()
-        Timber.e("RESUME")
-        drawingView.startThread()
+        if(drawingView.isThreadAvailable && drawingView.isDrawingAvailable) {
+            drawingView.startThread()
+        }
     }
 
     override fun onDestroy() {

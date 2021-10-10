@@ -55,6 +55,7 @@ class MoveFileDialogFragment : DialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         binding.moveFileList.setup {
+            withDataSource(model.files)
             withItem<ClientFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
                 onBind(::HorizontalViewHolder) { _, item ->
                     name.text = item.name
@@ -93,13 +94,6 @@ class MoveFileDialogFragment : DialogFragment() {
 
         model.ids = (activityModel.transientScreen as TransientScreen.Move).ids
 
-        model.files.observe(
-            viewLifecycleOwner
-        ) { files ->
-            binding.moveFileList.setup {
-                withDataSource(files)
-            }
-        }
 
         model.closeDialog.observe(
             viewLifecycleOwner

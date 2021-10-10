@@ -82,7 +82,7 @@ class FileModel(
         }
     }
 
-    fun refreshChildrenAtPastParent(position: Int): Result<Unit, GetChildrenError> {
+    fun refreshChildrenAtAncestor(position: Int): Result<Unit, GetChildrenError> {
         val firstChildPosition = position + 1
         for (index in firstChildPosition until fileDir.size) {
             fileDir.removeAt(firstChildPosition)

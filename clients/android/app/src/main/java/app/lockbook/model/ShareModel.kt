@@ -9,12 +9,13 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import timber.log.Timber
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
 
 class ShareModel(
-    private val _notifyUpdateFilesUI: SingleMutableLiveData<UpdateFilesUI>
+    private val _updateMainScreenUI: SingleMutableLiveData<UpdateMainScreenUI>
 ) {
     var isLoadingOverlayVisible = false
 
@@ -42,12 +43,15 @@ class ShareModel(
         val cacheDir = getMainShareFolder(appDataDir)
 
         isLoadingOverlayVisible = true
-        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
 
         clearShareStorage(cacheDir)
 
         val documents = mutableListOf<ClientFileMetadata>()
-        retrieveSelectedDocuments(selectedFiles, documents)
+        val selectedDocumentsResult = retrieveSelectedDocuments(selectedFiles, documents)
+        if(selectedDocumentsResult is Err) {
+            return selectedDocumentsResult
+        }
 
         val filesToShare = ArrayList<File>()
         val shareFolder = createRandomShareFolderInstance(cacheDir)
@@ -74,7 +78,7 @@ class ShareModel(
                     is Ok -> filesToShare.add(image)
                     is Err -> {
                         isLoadingOverlayVisible = false
-                        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+                        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
                         return exportDrawingToDiskResult
                     }
                 }
@@ -88,14 +92,14 @@ class ShareModel(
                     is Ok -> filesToShare.add(doc)
                     is Err -> {
                         isLoadingOverlayVisible = false
-                        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+                        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
                         return saveDocumentToDiskResult
                     }
                 }
             }
         }
 
-        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShareDocuments(filesToShare))
+        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShareDocuments(filesToShare))
         return Ok(Unit)
     }
 
@@ -103,16 +107,23 @@ class ShareModel(
         selectedFiles: List<ClientFileMetadata>,
         documents: MutableList<ClientFileMetadata>
     ): Result<Unit, CoreError> {
-        selectedFiles.forEach { file ->
+        for(file in selectedFiles) {
             when (file.fileType) {
-                FileType.Document -> documents.add(file)
+                FileType.Document -> {
+                    documents.add(file)
+                }
                 FileType.Folder ->
-                    return when (
+                    when (
                         val getChildrenResult =
                             CoreModel.getChildren(config, file.id)
                     ) {
-                        is Ok -> retrieveSelectedDocuments(getChildrenResult.value, documents)
-                        is Err -> getChildrenResult
+                        is Ok -> {
+                            val retrieveDocumentsResult = retrieveSelectedDocuments(getChildrenResult.value, documents)
+                            if(retrieveDocumentsResult is Err) {
+                                return retrieveDocumentsResult
+                            }
+                        }
+                        is Err -> return getChildrenResult
                     }
             }
         }

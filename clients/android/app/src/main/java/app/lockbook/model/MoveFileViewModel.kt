@@ -7,22 +7,23 @@ import app.lockbook.getRes
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.DataSource
 import com.afollestad.recyclical.datasource.dataSourceOf
+import com.afollestad.recyclical.datasource.dataSourceTypedOf
+import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
+import timber.log.Timber
 
 class MoveFileViewModel(application: Application) :
     AndroidViewModel(application) {
     private lateinit var currentParent: ClientFileMetadata
     lateinit var ids: Array<String>
 
-    private val _files = MutableLiveData<DataSource<Any>>()
+    var files = emptyDataSourceTyped<ClientFileMetadata>()
+
     private val _closeDialog = MutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
-
-    val files: LiveData<DataSource<Any>>
-        get() = _files
 
     val closeDialog: LiveData<Unit>
         get() = _closeDialog
@@ -61,6 +62,8 @@ class MoveFileViewModel(application: Application) :
                     }
                 }
             }
+
+            _closeDialog.postValue(Unit)
         }
     }
 
@@ -79,7 +82,10 @@ class MoveFileViewModel(application: Application) :
 
                     )
                 )
-                _files.postValue(dataSourceOf(tempFiles))
+
+                viewModelScope.launch(Dispatchers.Main) {
+                    files.set(tempFiles)
+                }
             }
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.Unexpected -> {

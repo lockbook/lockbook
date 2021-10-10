@@ -13,14 +13,15 @@
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/files_fragment"
+            android:name="app.lockbook.screen.FilesListFragment"
             tools:layout="@layout/fragment_files"
-            android:layout_width="350dp"
+            android:layout_width="400dp"
             android:layout_height="match_parent"
             android:layout_gravity="start" />
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/detail_container"
-            android:layout_width="230dp"
+            android:layout_width="800dp"
             android:layout_height="match_parent"
             android:layout_weight="1" />
 

@@ -67,6 +67,7 @@ dependencies {
     implementation "androidx.fragment:fragment-ktx:$fragment_version"
     implementation "androidx.slidingpanelayout:slidingpanelayout:$sliding_pane_layout_version"
 //    implementation "com.github.bmelnychuk:AndroidTreeView:$tree_view_version"
+    implementation "com.github.bmelnychuk:atv:1.2.9"
     implementation "com.afollestad:recyclical:$recyclical_version"
 
     // Support Libraries
