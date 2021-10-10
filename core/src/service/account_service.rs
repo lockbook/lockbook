@@ -2,8 +2,8 @@ use crate::client::ApiError;
 use crate::core_err_unexpected;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::{account_repo, file_repo, root_repo};
-use crate::service::{file_encryption_service, file_service, sync_service};
+use crate::repo::{account_repo, file_repo, last_updated_repo, root_repo};
+use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
 use crate::{client, utils};
 use lockbook_crypto::pubkey;
@@ -34,7 +34,7 @@ pub fn create_account(
     };
 
     info!("Generating Root Folder");
-    let root_metadata = file_service::create_root(&account.username);
+    let mut root_metadata = file_service::create_root(&account.username);
     let encrypted_metadata =
         file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?;
     let encrypted_metadatum = utils::single_or(
@@ -45,7 +45,7 @@ pub fn create_account(
     )?;
 
     info!("Sending username & public key to server");
-    match client::request(
+    root_metadata.metadata_version = match client::request(
         &account,
         NewAccountRequest::new(&account, &encrypted_metadatum),
     ) {
@@ -66,6 +66,7 @@ pub fn create_account(
             return Err(core_err_unexpected(e));
         }
     };
+    root_metadata.content_version = root_metadata.metadata_version;
     info!("Account creation success!");
 
     debug!(
@@ -75,11 +76,9 @@ pub fn create_account(
 
     info!("Saving account locally");
     account_repo::insert(config, &account)?;
-    file_repo::insert_metadata(config, RepoSource::Base, &root_metadata)?;
+    file_repo::insert_metadatum(config, RepoSource::Base, &root_metadata)?;
     root_repo::set(config, root_metadata.id)?;
-
-    info!("Performing initial sync");
-    sync_service::sync(config, None)?;
+    last_updated_repo::set(config, root_metadata.metadata_version)?;
 
     Ok(account)
 }
@@ -139,9 +138,6 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
 
     info!("Account String seems valid, saving now");
     account_repo::insert(config, &account)?;
-
-    info!("Performing initial sync");
-    sync_service::sync(config, None)?;
 
     info!("Account imported successfully");
     Ok(account)

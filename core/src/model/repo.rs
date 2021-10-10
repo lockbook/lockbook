@@ -13,7 +13,7 @@ impl RepoSource {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum RepoState<T> {
     New(T),
     Modified { local: T, base: T },

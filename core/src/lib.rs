@@ -305,7 +305,7 @@ pub fn create_file(
         _ => unexpected!("{:#?}", e),
     })?;
     let metadata = file_service::create(file_type, parent, name, &account.username);
-    file_repo::insert_metadata(&config, RepoSource::Local, &metadata).map_err(|e| match e {
+    file_repo::insert_metadatum(&config, RepoSource::Local, &metadata).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
         CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
         CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
@@ -459,7 +459,7 @@ fn delete_file_helper(config: &Config, id: Uuid) -> Result<(), CoreError> {
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
     let files = utils::filter_not_deleted(&files);
     let file = file_service::apply_delete(&files, id)?;
-    file_repo::insert_metadata(config, RepoSource::Local, &file)
+    file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -578,7 +578,7 @@ fn rename_file_helper(config: &Config, id: Uuid, new_name: &str) -> Result<(), C
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
     let files = utils::filter_not_deleted(&files);
     let file = file_service::apply_rename(&files, id, new_name)?;
-    file_repo::insert_metadata(config, RepoSource::Local, &file)
+    file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -609,7 +609,7 @@ fn move_file_helper(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), C
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
     let files = utils::filter_not_deleted(&files);
     let file = file_service::apply_move(&files, id, new_parent)?;
-    file_repo::insert_metadata(config, RepoSource::Local, &file)
+    file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
 #[derive(Debug, Serialize, EnumIter)]

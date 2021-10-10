@@ -1,7 +1,7 @@
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
 use uuid::Uuid;
 
-use crate::CoreError;
+use crate::{model::repo::RepoState, CoreError};
 
 // https://stackoverflow.com/a/58175659/4638697
 pub fn slices_equal<T: PartialEq>(a: &[T], b: &[T]) -> bool {
@@ -45,8 +45,30 @@ pub fn maybe_find_mut(
     files.iter_mut().find(|f| f.id == target_id)
 }
 
+pub fn find_encrypted(files: &[FileMetadata], target_id: Uuid) -> Result<FileMetadata, CoreError> {
+    maybe_find_encrypted(files, target_id).ok_or(CoreError::FileNonexistent)
+}
+
 pub fn maybe_find_encrypted(files: &[FileMetadata], target_id: Uuid) -> Option<FileMetadata> {
     files.iter().find(|f| f.id == target_id).map(|f| f.clone())
+}
+
+pub fn find_state(
+    files: &[RepoState<DecryptedFileMetadata>],
+    target_id: Uuid,
+) -> Result<RepoState<DecryptedFileMetadata>, CoreError> {
+    maybe_find_state(files, target_id).ok_or(CoreError::FileNonexistent)
+}
+
+pub fn maybe_find_state(
+    files: &[RepoState<DecryptedFileMetadata>],
+    target_id: Uuid,
+) -> Option<RepoState<DecryptedFileMetadata>> {
+    files.iter().find(|f| match f {
+        RepoState::New(l) => l.id,
+        RepoState::Modified { local: l, base: _ } => l.id,
+        RepoState::Unmodified(b) => b.id,
+    } == target_id).map(|f| f.clone())
 }
 
 pub fn find_parent(

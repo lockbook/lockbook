@@ -63,7 +63,7 @@ pub fn create_at_path(
         };
 
         current = file_service::create(file_type, current.id, next_name, &account.username);
-        file_repo::insert_metadata(config, RepoSource::Local, &current)?;
+        file_repo::insert_metadatum(config, RepoSource::Local, &current)?;
     }
 
     Ok(current)
@@ -202,7 +202,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let doc = path_service::create_at_path(config, &format!("{}/document", &account.username))
             .unwrap();
@@ -217,7 +217,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let folder =
             path_service::create_at_path(config, &format!("{}/folder/", &account.username))
@@ -233,7 +233,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let folder =
             path_service::create_at_path(config, &format!("{}/folder/", &account.username))
@@ -253,7 +253,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let document =
             path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
@@ -272,7 +272,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let document = path_service::create_at_path(
             config,
@@ -297,7 +297,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let result =
             path_service::create_at_path(config, &format!("{}//document", &account.username));
@@ -312,7 +312,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let result = path_service::create_at_path(
             config,
@@ -329,7 +329,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
             .unwrap();
@@ -346,7 +346,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         path_service::create_at_path(config, &format!("{}/not-folder", &account.username)).unwrap();
         let result = path_service::create_at_path(
@@ -364,7 +364,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let created_document =
             path_service::create_at_path(config, &format!("{}/document", &account.username))
@@ -382,7 +382,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let created_folder =
             path_service::create_at_path(config, &format!("{}/folder/", &account.username))
@@ -400,7 +400,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let created_document =
             path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
@@ -419,7 +419,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let document =
             path_service::create_at_path(config, &format!("{}/document", &account.username))
@@ -436,7 +436,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let folder =
             path_service::create_at_path(config, &format!("{}/folder/", &account.username))
@@ -453,7 +453,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         let document =
             path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
@@ -473,7 +473,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         path_service::create_at_path(
             config,
@@ -512,7 +512,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         path_service::create_at_path(
             config,
@@ -539,7 +539,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         path_service::create_at_path(
             config,
@@ -575,7 +575,7 @@ mod unit_tests {
         let root = file_service::create_root(&account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadata(config, RepoSource::Local, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
 
         path_service::create_at_path(
             config,

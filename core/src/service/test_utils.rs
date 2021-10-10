@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 
-use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::{digest_repo, document_repo, last_updated_repo, metadata_repo, root_repo};
+use crate::repo::{file_repo, root_repo};
 
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
@@ -168,29 +167,17 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     );
 
     assert_eq!(
-        last_updated_repo::get(&db1).unwrap(),
-        last_updated_repo::get(&db2).unwrap()
-    );
-
-    assert_eq!(
         root_repo::maybe_get(&db1).unwrap(),
         root_repo::maybe_get(&db2).unwrap()
     );
-
-    for source in vec![RepoSource::Local, RepoSource::Base] {
-        assert_eq!(
-            metadata_repo::get_all(&db1, source).unwrap(),
-            metadata_repo::get_all(&db2, source).unwrap()
-        );
-
-        assert_eq!(
-            document_repo::get_all(&db1, source).unwrap(),
-            document_repo::get_all(&db2, source).unwrap()
-        );
-
-        assert_eq!(
-            digest_repo::get_all(&db1, source).unwrap(),
-            digest_repo::get_all(&db2, source).unwrap()
-        );
-    }
+    
+    assert_eq!(
+        file_repo::get_all_metadata_state(&db1).unwrap(),
+        file_repo::get_all_metadata_state(&db2).unwrap()
+    );
+    
+    assert_eq!(
+        file_repo::get_all_document_state(&db1).unwrap(),
+        file_repo::get_all_document_state(&db2).unwrap()
+    );
 }

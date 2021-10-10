@@ -603,7 +603,7 @@ WHERE
             encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetUpdatesError::Deserialize)?,
             hmac: deserialize_hmac(&row.name_hmac).map_err(GetUpdatesError::HmacDeserialize)?,
         },
-        owner: row.owner.clone(),
+        owner: row.username.clone(),
         metadata_version: row.metadata_version as u64,
         content_version: row.content_version as u64,
         deleted: row.deleted,
