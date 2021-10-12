@@ -14,8 +14,9 @@
 		870DC09F26BDE6F4002E9A92 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870DC09E26BDE6F4002E9A92 /* SettingsView.swift */; };
 		870DC0A226BF378F002E9A92 /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870DC0A126BF378F002E9A92 /* AccountSettingsView.swift */; };
 		870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 870DC0A326BF37C0002E9A92 /* UsageSettingsView.swift */; };
-		87206EB525C61B2A00870A42 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C118E525C5E1E700D28A04 /* CreateAccountView.swift */; };
-		87206EBD25C61DF300870A42 /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87206EBC25C61DF300870A42 /* CreateAccountView.swift */; };
+		8715F92827161CC60051689E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8715F92727161CC60051689E /* OnboardingView.swift */; };
+		8715F92927161CC60051689E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8715F92727161CC60051689E /* OnboardingView.swift */; };
+		8715F92C271641CF0051689E /* Scanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8715F92B271641CF0051689E /* Scanner.swift */; };
 		872175F026F2850600A77C59 /* DocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 872175EF26F2850600A77C59 /* DocumentView.swift */; };
 		872175F126F2850600A77C59 /* DocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 872175EF26F2850600A77C59 /* DocumentView.swift */; };
 		872175F326F2858400A77C59 /* DocumentLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 872175F226F2858400A77C59 /* DocumentLoader.swift */; };
@@ -48,10 +49,6 @@
 		87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AA99F2269610D8009E5591 /* NewFileSheet.swift */; };
 		87BD383826C020B00030D2B1 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD383726C020B00030D2B1 /* SettingsService.swift */; };
 		87BD383926C020B00030D2B1 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD383726C020B00030D2B1 /* SettingsService.swift */; };
-		87C118E225C5E1BA00D28A04 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C118E125C5E1BA00D28A04 /* OnboardingView.swift */; };
-		87C118EA25C5E20200D28A04 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C118E925C5E20200D28A04 /* ImportAccountView.swift */; };
-		87E198DA25C5E139003E7420 /* ImportAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */; };
-		87E198DB25C5E139003E7420 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB4B5062516924F0071D1CD /* OnboardingView.swift */; };
 		87F78F6F270785E00001E159 /* OutlineSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F6E270785E00001E159 /* OutlineSection.swift */; };
 		87F78F7127078F470001E159 /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F7027078F470001E159 /* BranchState.swift */; };
 		87F78F73270794930001E159 /* OutlineState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F72270794930001E159 /* OutlineState.swift */; };
@@ -101,7 +98,8 @@
 		870DC09E26BDE6F4002E9A92 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		870DC0A126BF378F002E9A92 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		870DC0A326BF37C0002E9A92 /* UsageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageSettingsView.swift; sourceTree = "<group>"; };
-		87206EBC25C61DF300870A42 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
+		8715F92727161CC60051689E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		8715F92B271641CF0051689E /* Scanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scanner.swift; sourceTree = "<group>"; };
 		872175EF26F2850600A77C59 /* DocumentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentView.swift; sourceTree = "<group>"; };
 		872175F226F2858400A77C59 /* DocumentLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentLoader.swift; sourceTree = "<group>"; };
 		873559BD26C31210008B3C36 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -121,9 +119,6 @@
 		877FB55F26D2C7D60008AB3F /* StatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusService.swift; sourceTree = "<group>"; };
 		87AA99F2269610D8009E5591 /* NewFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFileSheet.swift; sourceTree = "<group>"; };
 		87BD383726C020B00030D2B1 /* SettingsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsService.swift; sourceTree = "<group>"; };
-		87C118E125C5E1BA00D28A04 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
-		87C118E525C5E1E700D28A04 /* CreateAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountView.swift; sourceTree = "<group>"; };
-		87C118E925C5E20200D28A04 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		87F78F6E270785E00001E159 /* OutlineSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSection.swift; sourceTree = "<group>"; };
 		87F78F7027078F470001E159 /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
 		87F78F72270794930001E159 /* OutlineState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineState.swift; sourceTree = "<group>"; };
@@ -147,11 +142,9 @@
 		EA5C7D7A2516606100F7F358 /* macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = macOS.entitlements; sourceTree = "<group>"; };
 		EA831A542534E3C80048CE26 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		EA9079C22569960A00E04F5D /* FileCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCell.swift; sourceTree = "<group>"; };
-		EAB4B5062516924F0071D1CD /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		EAD401CC25E311320083A236 /* NotepadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotepadView.swift; sourceTree = "<group>"; };
 		EAD401DB25E32CD50083A236 /* Notepad */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Notepad; path = "/Users/raayanpillai/Library/Developer/Xcode/DerivedData/Lockbook-asqnugeyohispqhixjzcyqkvmhjn/SourcePackages/checkouts/Notepad"; sourceTree = "<absolute>"; };
 		EADA116125336BA1005F69DB /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Development.xcconfig; sourceTree = "<group>"; };
-		EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportAccountView.swift; sourceTree = "<group>"; };
 		EAEDCD0A2516FC1C00EBE313 /* BookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookView.swift; sourceTree = "<group>"; };
 		EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigHelper.swift; sourceTree = "<group>"; };
 		EAF96D12252E8F3000AA1A14 /* Production.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Production.xcconfig; sourceTree = "<group>"; };
@@ -277,15 +270,13 @@
 			isa = PBXGroup;
 			children = (
 				8783B0EB25F6CD8700084006 /* Drawing */,
-				87C118E525C5E1E700D28A04 /* CreateAccountView.swift */,
-				EAB4B5062516924F0071D1CD /* OnboardingView.swift */,
-				EAEDCCF92516ACA400EBE313 /* ImportAccountView.swift */,
 				EA380B242561FAEF0021C4FA /* FileListView.swift */,
 				EA4559BD25169F7D003AD80A /* CodeScannerView.swift */,
 				EA5C7D722516606000F7F358 /* Info.plist */,
 				87AA99F2269610D8009E5591 /* NewFileSheet.swift */,
 				873559BD26C31210008B3C36 /* SettingsView.swift */,
 				B273394C26C8A4B400303EAE /* Assets.xcassets */,
+				8715F92B271641CF0051689E /* Scanner.swift */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -298,9 +289,6 @@
 				8741E8F925ACBCF9005B7B01 /* FileListView.swift */,
 				EA5C7D792516606100F7F358 /* Info.plist */,
 				EA5C7D7A2516606100F7F358 /* macOS.entitlements */,
-				87C118E125C5E1BA00D28A04 /* OnboardingView.swift */,
-				87C118E925C5E20200D28A04 /* ImportAccountView.swift */,
-				87206EBC25C61DF300870A42 /* CreateAccountView.swift */,
 				B273394E26C8B3EF00303EAE /* Media.xcassets */,
 			);
 			path = macOS;
@@ -320,6 +308,7 @@
 				EA5979A026040DB1007B9357 /* NestedList.swift */,
 				872175EF26F2850600A77C59 /* DocumentView.swift */,
 				87F78F762709352C0001E159 /* LogoView.swift */,
+				8715F92727161CC60051689E /* OnboardingView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -448,17 +437,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				87206EB525C61B2A00870A42 /* CreateAccountView.swift in Sources */,
 				87F78F772709352C0001E159 /* LogoView.swift in Sources */,
 				EA831A552534E3C80048CE26 /* AppView.swift in Sources */,
 				EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */,
-				87E198DA25C5E139003E7420 /* ImportAccountView.swift in Sources */,
 				87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */,
 				877FB54A26D1788D0008AB3F /* CoreService.swift in Sources */,
 				877FB55926D18EC80008AB3F /* FileService.swift in Sources */,
 				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
 				B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				87BD383826C020B00030D2B1 /* SettingsService.swift in Sources */,
+				8715F92827161CC60051689E /* OnboardingView.swift in Sources */,
 				877FB56026D2C7D60008AB3F /* StatusService.swift in Sources */,
 				EA5979A126040DB1007B9357 /* NestedList.swift in Sources */,
 				EAD401CD25E311320083A236 /* NotepadView.swift in Sources */,
@@ -473,8 +461,8 @@
 				EA30B54D25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
 				873559BE26C31210008B3C36 /* SettingsView.swift in Sources */,
 				874A88F826D5453C00F010C8 /* ToolbarModel.swift in Sources */,
-				87E198DB25C5E139003E7420 /* OnboardingView.swift in Sources */,
 				EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */,
+				8715F92C271641CF0051689E /* Scanner.swift in Sources */,
 				874A88F526D3E91900F010C8 /* DI.swift in Sources */,
 				EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				877FB55326D1854E0008AB3F /* SyncService.swift in Sources */,
@@ -494,7 +482,6 @@
 			files = (
 				877FB55E26D1B8A10008AB3F /* LBDrawingPKDrawingConversions.swift in Sources */,
 				87BD383926C020B00030D2B1 /* SettingsService.swift in Sources */,
-				87206EBD25C61DF300870A42 /* CreateAccountView.swift in Sources */,
 				B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				EA5979A226040DB1007B9357 /* NestedList.swift in Sources */,
 				877FB55126D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
@@ -505,6 +492,7 @@
 				872175F126F2850600A77C59 /* DocumentView.swift in Sources */,
 				EA5C9F4D25E4C4D500DA7C6D /* NotepadView.swift in Sources */,
 				877FB54E26D17DE80008AB3F /* DbStateService.swift in Sources */,
+				8715F92927161CC60051689E /* OnboardingView.swift in Sources */,
 				B2B7E2EC25C669C400B9EFAD /* NotificationButton.swift in Sources */,
 				EA30B54E25298B0800D2FE22 /* UsageIndicator.swift in Sources */,
 				87F78F73270794930001E159 /* OutlineState.swift in Sources */,
@@ -519,7 +507,6 @@
 				87F78F7B27094A040001E159 /* BeforeYouStart.swift in Sources */,
 				EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */,
 				8741E8FA25ACBCF9005B7B01 /* FileListView.swift in Sources */,
-				87C118E225C5E1BA00D28A04 /* OnboardingView.swift in Sources */,
 				870DC0A226BF378F002E9A92 /* AccountSettingsView.swift in Sources */,
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
 				87F78F7127078F470001E159 /* BranchState.swift in Sources */,
@@ -530,7 +517,6 @@
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				877FB55A26D18EC80008AB3F /* FileService.swift in Sources */,
 				EA349F0725BC7C360016241E /* OutlineRow.swift in Sources */,
-				87C118EA25C5E20200D28A04 /* ImportAccountView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
