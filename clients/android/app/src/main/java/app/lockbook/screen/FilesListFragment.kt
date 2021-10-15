@@ -211,11 +211,13 @@ class FilesListFragment : Fragment(), FilesFragment {
                     when(val detailsScreen = activityModel.detailsScreen) {
                         is DetailsScreen.Drawing -> {
                             if(model.selectableFiles.getSelectedItems().contains(detailsScreen.fileMetadata)) {
+                                Timber.e("Drawing: ${detailsScreen.fileMetadata.name}")
                                 activityModel.launchDetailsScreen(DetailsScreen.Blank)
                             }
                         }
                         is DetailsScreen.TextEditor -> {
                             if(model.selectableFiles.getSelectedItems().contains(detailsScreen.fileMetadata)) {
+                                Timber.e("TextEditor: ${detailsScreen.fileMetadata.name}")
                                 activityModel.launchDetailsScreen(DetailsScreen.Blank)
                             }
                         }
@@ -439,7 +441,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
-    fun onBackPressed(): Boolean = when {
+    override fun onBackPressed(): Boolean = when {
             model.selectableFiles.hasSelection() -> {
                 model.selectableFiles.deselectAll()
                 toggleMenuBar()

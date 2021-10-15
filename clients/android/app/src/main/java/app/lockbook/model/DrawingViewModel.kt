@@ -22,7 +22,7 @@ class DrawingViewModel(
     private val handler = Handler(Looper.myLooper()!!)
 
     var persistentDrawing: Drawing? = null
-    var selectedTool: Tool = Tool.Pen(ColorAlias.White)
+    var selectedTool: Tool = Tool.Pen(ColorAlias.Black)
 
     private val _drawingReady = SingleMutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
@@ -46,7 +46,8 @@ class DrawingViewModel(
             }
 
             when {
-                persistentDrawing is Drawing -> {}
+                persistentDrawing is Drawing -> {
+                }
                 contents.isNotEmpty() -> persistentDrawing = Klaxon().parse<Drawing>(contents)!!
                 else -> persistentDrawing = Drawing()
             }
@@ -58,12 +59,11 @@ class DrawingViewModel(
 
 
     fun saveDrawing(drawing: Drawing) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val writeToDocumentResult = CoreModel.writeToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
+        val writeToDocumentResult =
+            CoreModel.writeToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
 
-            if (writeToDocumentResult is Err) {
-                _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
-            }
+        if (writeToDocumentResult is Err) {
+            _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
         }
     }
 }

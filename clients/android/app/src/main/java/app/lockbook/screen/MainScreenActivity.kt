@@ -1,9 +1,12 @@
 package app.lockbook.screen
 
 import android.content.ClipData
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.util.AttributeSet
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,7 +30,7 @@ import java.io.File
 import java.lang.ref.WeakReference
 import java.util.ArrayList
 
-class MainScreenActivity: AppCompatActivity() {
+class MainScreenActivity : AppCompatActivity() {
     private var _binding: ActivityMainScreenBinding? = null
 
     // This property is only valid between onCreateView and
@@ -40,24 +43,24 @@ class MainScreenActivity: AppCompatActivity() {
 
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-            val filesFragment = supportFragmentManager.findFragmentById(R.id.files_fragment)
+            val filesFragment =
+                supportFragmentManager.findFragmentById(R.id.files_fragment) as? FilesFragment ?: return
 
-            if(filesFragment is FilesFragment) {
-                when(f) {
-                    is MoveFileDialogFragment,
-                    is RenameFileDialogFragment -> filesFragment.refreshFiles()
-                    is CreateFileDialogFragment -> {
-                        filesFragment.onNewFileCreated(f.newFile)
-                    }
-                    is FileInfoDialogFragment -> filesFragment.unselectFiles()
+            when (f) {
+                is MoveFileDialogFragment,
+                is RenameFileDialogFragment -> filesFragment.refreshFiles()
+                is CreateFileDialogFragment -> {
+                    filesFragment.onNewFileCreated(f.newFile)
                 }
+                is FileInfoDialogFragment -> filesFragment.unselectFiles()
             }
         }
     }
 
     val onShare =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            val filesFragment = (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment)
+            val filesFragment =
+                (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment)
 
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(false))
             model.shareModel.isLoadingOverlayVisible = false
@@ -69,21 +72,19 @@ class MainScreenActivity: AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main_screen)
-
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
             false
         )
 
-        onBackPressedDispatcher.addCallback(this,
-            TwoPaneOnBackPressedCallback(binding.slidingPaneLayout))
-
-        if(model.shareModel.isLoadingOverlayVisible) {
+        if (model.shareModel.isLoadingOverlayVisible) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.shareModel.isLoadingOverlayVisible))
         }
+
+        binding.slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
         model.launchDetailsScreen.observe(
             this,
@@ -95,18 +96,30 @@ class MainScreenActivity: AppCompatActivity() {
         model.launchTransientScreen.observe(
             this,
             { screen ->
-                when(screen) {
+                when (screen) {
                     is TransientScreen.Create -> {
-                        CreateFileDialogFragment().show(supportFragmentManager, CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG)
+                        CreateFileDialogFragment().show(
+                            supportFragmentManager,
+                            CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG
+                        )
                     }
                     is TransientScreen.Info -> {
-                        FileInfoDialogFragment().show(supportFragmentManager, FileInfoDialogFragment.FILE_INFO_DIALOG_TAG)
+                        FileInfoDialogFragment().show(
+                            supportFragmentManager,
+                            FileInfoDialogFragment.FILE_INFO_DIALOG_TAG
+                        )
                     }
                     is TransientScreen.Move -> {
-                        MoveFileDialogFragment().show(supportFragmentManager, MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG)
+                        MoveFileDialogFragment().show(
+                            supportFragmentManager,
+                            MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG
+                        )
                     }
                     is TransientScreen.Rename -> {
-                        RenameFileDialogFragment().show(supportFragmentManager, RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG)
+                        RenameFileDialogFragment().show(
+                            supportFragmentManager,
+                            RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG
+                        )
                     }
                     is TransientScreen.Share -> {
                         finalizeShare(screen.files)
@@ -128,13 +141,10 @@ class MainScreenActivity: AppCompatActivity() {
             is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)
             is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
             is UpdateMainScreenUI.ShowHideProgressOverlay -> {
-                val progressOverlay =
-                    binding.progressOverlay.root
-
                 if (update.show) {
-                    Animate.animateVisibility(progressOverlay, View.VISIBLE, 100, 500)
+                    Animate.animateVisibility(binding.progressOverlay.root, View.VISIBLE, 102, 500)
                 } else {
-                    Animate.animateVisibility(progressOverlay, View.GONE, 0, 500)
+                    Animate.animateVisibility(binding.progressOverlay.root, View.GONE, 0, 500)
                 }
             }
         }.exhaustive
@@ -182,32 +192,28 @@ class MainScreenActivity: AppCompatActivity() {
     private fun launchDetailsScreen(screen: DetailsScreen) {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
-            when(screen) {
+
+            when (screen) {
                 DetailsScreen.Blank -> replace<Fragment>(R.id.detail_container)
                 is DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
                 is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
             }
 
-            if(binding.slidingPaneLayout.isOpen) {
+            if (binding.slidingPaneLayout.isOpen) {
                 setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
             }
         }
 
-        binding.slidingPaneLayout.open()
+        binding.slidingPaneLayout.openPane()
     }
 
     override fun onBackPressed() {
-        val exit = when(val fragment = supportFragmentManager.findFragmentById(R.id.files_fragment)) {
-            is FilesListFragment -> {
-                fragment.onBackPressed()
+        if(binding.slidingPaneLayout.isOpen) {
+            binding.slidingPaneLayout.closePane()
+        } else {
+            if((supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).onBackPressed()) {
+                super.onBackPressed()
             }
-            else -> {
-                true
-            }
-        }
-
-        if(exit) {
-            super.onBackPressed()
         }
     }
 
@@ -215,32 +221,5 @@ class MainScreenActivity: AppCompatActivity() {
         return intent.extras?.getBoolean(IS_THIS_AN_IMPORT, false) ?: false
     }
 }
-
-
-class TwoPaneOnBackPressedCallback(
-    private val slidingPaneLayout: SlidingPaneLayout
-) : OnBackPressedCallback(
-    slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen
-), SlidingPaneLayout.PanelSlideListener {
-
-    init {
-        slidingPaneLayout.addPanelSlideListener(this)
-    }
-
-    override fun handleOnBackPressed() {
-        slidingPaneLayout.closePane()
-    }
-
-    override fun onPanelSlide(panel: View, slideOffset: Float) { }
-
-    override fun onPanelOpened(panel: View) {
-        isEnabled = true
-    }
-
-    override fun onPanelClosed(panel: View) {
-        isEnabled = false
-    }
-}
-
 
 const val IS_THIS_AN_IMPORT = "is_this_an_import"

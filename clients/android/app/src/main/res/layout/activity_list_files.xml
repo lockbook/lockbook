@@ -27,8 +27,4 @@
             tools:layout="@layout/fragment_list_files" />
 
     </LinearLayout>
-
-    <include
-        android:id="@+id/progress_overlay"
-        layout="@layout/progress_overlay" />
 </androidx.constraintlayout.widget.ConstraintLayout>

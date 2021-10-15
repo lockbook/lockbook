@@ -66,6 +66,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         const val PRESSURE_SAMPLES_AVERAGED = 5
         const val SPEN_ACTION_DOWN = 211
+        const val SPEN_ACTION_UP = 212
     }
 
     private val scaleGestureDetector =
@@ -386,7 +387,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         if (action == SPEN_ACTION_DOWN) { // stay erasing if the button isn't held but it is the same stroke && vice versa
             isErasing = true
-        } else if (isErasing && action == MotionEvent.ACTION_DOWN) {
+        } else if (action == SPEN_ACTION_UP) {
             isErasing = false
         }
 

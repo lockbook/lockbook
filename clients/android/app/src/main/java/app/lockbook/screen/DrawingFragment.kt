@@ -15,12 +15,15 @@ import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import app.lockbook.R
 import app.lockbook.databinding.FragmentDrawingBinding
 import app.lockbook.model.*
 import app.lockbook.ui.DrawingView
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.exhaustive
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
@@ -162,6 +165,8 @@ class DrawingFragment: Fragment() {
         colorButtons.forEach { button ->
             button.setStrokeColorResource(R.color.blue)
         }
+
+        selectNewTool(model.selectedTool)
     }
 
     private fun changeToolsVisibility(currentVisibility: Int) {
@@ -345,15 +350,17 @@ class DrawingFragment: Fragment() {
                 override fun run() {
                     handler.post {
                         if (!isFirstLaunch) {
-                            model.saveDrawing(
-                                drawingView.drawing.clone()
-                            )
+                            model.viewModelScope.launch(Dispatchers.IO) {
+                                model.saveDrawing(
+                                    drawingView.drawing.clone()
+                                )
+                            }
                         }
                     }
                 }
             },
             1000,
-            100000
+            5000
         )
     }
 }

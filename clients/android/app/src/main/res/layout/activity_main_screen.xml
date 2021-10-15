@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -9,12 +9,14 @@
     <androidx.slidingpanelayout.widget.SlidingPaneLayout
         android:id="@+id/sliding_pane_layout"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/files_fragment"
             android:name="app.lockbook.screen.FilesListFragment"
-            tools:layout="@layout/fragment_files"
             android:layout_width="400dp"
             android:layout_height="match_parent"
             android:layout_gravity="start" />
@@ -31,4 +33,4 @@
         android:id="@+id/progress_overlay"
         layout="@layout/progress_overlay" />
 
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

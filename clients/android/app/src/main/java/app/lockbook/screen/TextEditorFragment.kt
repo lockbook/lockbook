@@ -1,8 +1,6 @@
 package app.lockbook.screen
 
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
 import android.view.*
 import androidx.core.content.res.ResourcesCompat
@@ -18,6 +16,7 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.DetailsScreen
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TextEditorViewModel
+import app.lockbook.util.EditTextModel
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
@@ -25,7 +24,7 @@ import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.concurrent.Executors
 
-class TextEditorFragment: Fragment(), TextWatcher {
+class TextEditorFragment: Fragment() {
     private var _binding: FragmentTextEditorBinding? = null
     private val binding get() = _binding!!
 
@@ -41,6 +40,11 @@ class TextEditorFragment: Fragment(), TextWatcher {
             }
         }
     })
+
+    private val undoRedo by lazy {
+        EditTextModel(binding.textEditorTextField, model, ::isUndoEnabled, ::isRedoEnabled)
+    }
+
     private val activityModel: StateViewModel by activityViewModels()
 
     private val alertModel by lazy {
@@ -60,12 +64,19 @@ class TextEditorFragment: Fragment(), TextWatcher {
         textEditorToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_text_editor_view_md -> viewMarkdown()
-//                R.id.menu_text_editor_redo -> undoRedo.redo()
-//                R.id.menu_text_editor_undo -> undoRedo.undo()
+                R.id.menu_text_editor_redo -> {
+                    undoRedo.redo()
+                }
+                R.id.menu_text_editor_undo -> {
+                    undoRedo.undo()
+                }
             }
 
             true
         }
+
+        isUndoEnabled(false)
+        isRedoEnabled(false)
 
         model.content.observe(
             viewLifecycleOwner,
@@ -98,7 +109,7 @@ class TextEditorFragment: Fragment(), TextWatcher {
                 }
 
                 textField.setText(content)
-                textField.addTextChangedListener(this)
+                undoRedo.addTextChangeListener()
             }
         )
 
@@ -192,20 +203,17 @@ class TextEditorFragment: Fragment(), TextWatcher {
         }
     }
 
-    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+    private fun isUndoEnabled(canUndo: Boolean) {
+        textEditorToolbar.menu!!.findItem(R.id.menu_text_editor_undo)!!.isEnabled = canUndo
     }
 
-    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-
-    override fun afterTextChanged(s: Editable?) {
-        val newText = s?.toString() ?: ""
-        model.waitAndSaveContents(newText)
+    private fun isRedoEnabled(canRedo: Boolean) {
+        textEditorToolbar.menu!!.findItem(R.id.menu_text_editor_redo)!!.isEnabled = canRedo
     }
 
     override fun onDestroy() {
         super.onDestroy()
         model.saveContents(textField.text.toString())
-
     }
 }
 
