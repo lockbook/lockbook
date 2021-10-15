@@ -14,32 +14,33 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentTextEditorBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.DetailsScreen
+import app.lockbook.model.EditTextModel
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TextEditorViewModel
-import app.lockbook.util.EditTextModel
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
-import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.concurrent.Executors
 
-class TextEditorFragment: Fragment() {
+class TextEditorFragment : Fragment() {
     private var _binding: FragmentTextEditorBinding? = null
     private val binding get() = _binding!!
 
     private val textEditorToolbar get() = binding.textEditorToolbar
     private val textField get() = binding.textEditorTextField
 
-    private val model: TextEditorViewModel by viewModels(factoryProducer = {
-        object : ViewModelProvider.Factory {
-            override fun <T : ViewModel?> create(modelClass: Class<T>): T {
-                if (modelClass.isAssignableFrom(TextEditorViewModel::class.java))
-                    return TextEditorViewModel(requireActivity().application, (activityModel.detailsScreen as DetailsScreen.TextEditor).fileMetadata.id) as T
-                throw IllegalArgumentException("Unknown ViewModel class")
+    private val model: TextEditorViewModel by viewModels(
+        factoryProducer = {
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(TextEditorViewModel::class.java))
+                        return TextEditorViewModel(requireActivity().application, (activityModel.detailsScreen as DetailsScreen.TextEditor).fileMetadata.id) as T
+                    throw IllegalArgumentException("Unknown ViewModel class")
+                }
             }
         }
-    })
+    )
 
     private val undoRedo by lazy {
         EditTextModel(binding.textEditorTextField, model, ::isUndoEnabled, ::isRedoEnabled)
@@ -75,8 +76,7 @@ class TextEditorFragment: Fragment() {
             true
         }
 
-        isUndoEnabled(false)
-        isRedoEnabled(false)
+        undoRedo.updateUndoRedoButtons()
 
         model.content.observe(
             viewLifecycleOwner,

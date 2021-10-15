@@ -1,21 +1,21 @@
-package app.lockbook.util
+package app.lockbook.model
 
 import android.text.Editable
 import android.text.TextWatcher
-import android.text.style.UnderlineSpan
 import android.widget.EditText
-import app.lockbook.model.TextEditorViewModel
-import timber.log.Timber
-import java.util.*
 
-class EditTextModel(private val editText: EditText, private val editorViewModel: TextEditorViewModel, private val toggleUndoButton: (Boolean) -> Unit, private val toggleRedoButton: (Boolean) -> Unit) {
-    private val editHistory: EditHistory
+class EditTextModel(
+    private val editText: EditText,
+    private val editorViewModel: TextEditorViewModel,
+    private val toggleUndoButton: (Boolean) -> Unit,
+    private val toggleRedoButton: (Boolean) -> Unit
+) {
+    private val editHistory get() = editorViewModel.editHistory
     private val changeListener: EditTextChangeListener
 
     private var isUndoRedo = false
 
     init {
-        editHistory = EditHistory()
         changeListener = EditTextChangeListener()
     }
 
@@ -27,21 +27,17 @@ class EditTextModel(private val editText: EditText, private val editorViewModel:
     }
 
     fun undo() {
-        Timber.e("UNDOING")
-        val edit = editHistory.previous ?: return
+        val change = editHistory.previous ?: return
         val text = editText.editableText
-        val start = edit.start
-        val end = start + if (edit.after != null) edit.after.length else 0
+
+        val start = change.start
+        val end = start + if (change.after != null) change.after.length else 0
 
         isUndoRedo = true
-        text.replace(start, end, edit.before)
+        text.replace(start, end, change.before)
         isUndoRedo = false
 
-        for (span in text.getSpans(0, text.length, UnderlineSpan::class.java)) {
-            text.removeSpan(span)
-        }
-
-        editText.setSelection(if (edit.before == null) start else start + edit.before.length)
+        editText.setSelection(if (change.before == null) start else start + change.before.length)
 
         updateUndoRedoButtons()
     }
@@ -55,10 +51,6 @@ class EditTextModel(private val editText: EditText, private val editorViewModel:
         text.replace(start, end, edit.after)
         isUndoRedo = false
 
-        for (span in text.getSpans(0, text.length, UnderlineSpan::class.java)) {
-            text.removeSpan(span)
-        }
-
         editText.setSelection(if (edit.before == null) start else start + edit.before.length)
 
         updateUndoRedoButtons()
@@ -69,10 +61,9 @@ class EditTextModel(private val editText: EditText, private val editorViewModel:
         toggleRedoButton(this.canRedo)
     }
 
-    private inner class EditHistory {
+    class EditHistory {
         var position = 0
-        private var maxHistorySize = 10
-        val history = LinkedList<EditItem>()
+        val history = mutableListOf<EditItem>()
 
         fun add(item: EditItem) {
             while (history.size > position) {
@@ -81,18 +72,15 @@ class EditTextModel(private val editText: EditText, private val editorViewModel:
             history.add(item)
             position++
 
-            if (maxHistorySize >= 0) {
-                while (history.size > maxHistorySize) {
-                    history.removeFirst()
-                    position--
-                }
+            while (history.size > MAX_HISTORY_SIZE) {
+                history.removeFirst()
+                position--
+            }
 
-                if (position < 0) {
-                    position = 0
-                }
+            if (position < 0) {
+                position = 0
             }
         }
-
 
         val previous: EditItem?
             get() {
@@ -112,9 +100,13 @@ class EditTextModel(private val editText: EditText, private val editorViewModel:
                 position++
                 return history[position]
             }
+
+        companion object {
+            const val MAX_HISTORY_SIZE: Int = 10
+        }
     }
 
-    private inner class EditItem(
+    inner class EditItem(
         val start: Int,
         val before: CharSequence?,
         val after: CharSequence?

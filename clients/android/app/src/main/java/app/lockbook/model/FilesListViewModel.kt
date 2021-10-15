@@ -15,8 +15,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import timber.log.Timber
-import java.io.File
 
 class FilesListViewModel(application: Application, isThisAnImport: Boolean) : AndroidViewModel(application) {
 
@@ -141,9 +139,9 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
 
     fun deleteSelectedFiles() {
         viewModelScope.launch(Dispatchers.IO) {
-            for(fileMetadata in selectableFiles.getSelectedItems()) {
+            for (fileMetadata in selectableFiles.getSelectedItems()) {
                 val deleteFileResult = CoreModel.deleteFile(App.config, fileMetadata.id)
-                if(deleteFileResult is Err) {
+                if (deleteFileResult is Err) {
                     _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(deleteFileResult.error.toLbError(getRes())))
                     return@launch
                 }

@@ -5,14 +5,10 @@ import androidx.lifecycle.*
 import app.lockbook.App.Companion.config
 import app.lockbook.getRes
 import app.lockbook.util.*
-import com.afollestad.recyclical.datasource.DataSource
-import com.afollestad.recyclical.datasource.dataSourceOf
-import com.afollestad.recyclical.datasource.dataSourceTypedOf
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
-import timber.log.Timber
 
 class MoveFileViewModel(application: Application) :
     AndroidViewModel(application) {
@@ -104,7 +100,7 @@ class MoveFileViewModel(application: Application) :
 
     fun onItemClick(item: ClientFileMetadata) {
         viewModelScope.launch(Dispatchers.IO) {
-            when(item.id) {
+            when (item.id) {
                 "PARENT" -> {
                     setParentAsParent()
                     refreshOverFolder()

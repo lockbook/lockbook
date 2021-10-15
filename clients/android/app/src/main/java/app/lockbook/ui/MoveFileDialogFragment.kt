@@ -8,15 +8,12 @@ import android.view.WindowManager
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.ViewModelProvider
-import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
 import app.lockbook.util.ClientFileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.HorizontalViewHolder
-import com.afollestad.recyclical.datasource.DataSource
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import java.lang.ref.WeakReference
@@ -93,7 +90,6 @@ class MoveFileDialogFragment : DialogFragment() {
         dialog?.setCanceledOnTouchOutside(false) ?: alertModel.notifyBasicError()
 
         model.ids = (activityModel.transientScreen as TransientScreen.Move).ids
-
 
         model.closeDialog.observe(
             viewLifecycleOwner

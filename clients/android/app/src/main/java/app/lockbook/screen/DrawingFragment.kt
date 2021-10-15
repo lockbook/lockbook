@@ -24,11 +24,10 @@ import app.lockbook.util.ColorAlias
 import app.lockbook.util.exhaustive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 
-class DrawingFragment: Fragment() {
+class DrawingFragment : Fragment() {
 
     private var _binding: FragmentDrawingBinding? = null
     private val binding get() = _binding!!
@@ -50,15 +49,17 @@ class DrawingFragment: Fragment() {
 
     private val activityModel: StateViewModel by activityViewModels()
     private val drawingView get() = binding.drawingView
-    private val model: DrawingViewModel by viewModels(factoryProducer = {
-        object : ViewModelProvider.Factory {
-            override fun <T : ViewModel?> create(modelClass: Class<T>): T {
-                if (modelClass.isAssignableFrom(DrawingViewModel::class.java))
-                    return DrawingViewModel(requireActivity().application, (activityModel.detailsScreen as DetailsScreen.Drawing).fileMetadata.id) as T
-                throw IllegalArgumentException("Unknown ViewModel class")
+    private val model: DrawingViewModel by viewModels(
+        factoryProducer = {
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(DrawingViewModel::class.java))
+                        return DrawingViewModel(requireActivity().application, (activityModel.detailsScreen as DetailsScreen.Drawing).fileMetadata.id) as T
+                    throw IllegalArgumentException("Unknown ViewModel class")
+                }
             }
         }
-    })
+    )
 
     private var isFirstLaunch = true
 
@@ -98,7 +99,7 @@ class DrawingFragment: Fragment() {
 
     override fun onResume() {
         super.onResume()
-        if(drawingView.isThreadAvailable && drawingView.isDrawingAvailable) {
+        if (drawingView.isThreadAvailable && drawingView.isDrawingAvailable) {
             drawingView.startThread()
         }
     }
@@ -167,6 +168,7 @@ class DrawingFragment: Fragment() {
         }
 
         selectNewTool(model.selectedTool)
+        penSizeIndicator.text = drawingView.penSizeMultiplier.toString()
     }
 
     private fun changeToolsVisibility(currentVisibility: Int) {
@@ -291,13 +293,7 @@ class DrawingFragment: Fragment() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val adjustedProgress = progress + 1
                 penSizeIndicator.text = adjustedProgress.toString()
-
-//                DONT KNOW THE POINT OF THIS
-//                if (penSizeChooser.progress + 1 != adjustedProgress) {
-//                    penSizeChooser.progress = adjustedProgress
-//                }
-
-                drawingView.setPenSize(adjustedProgress)
+                drawingView.penSizeMultiplier = adjustedProgress
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}

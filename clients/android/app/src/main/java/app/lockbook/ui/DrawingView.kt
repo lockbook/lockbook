@@ -11,7 +11,6 @@ import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.screen.MainScreenActivity
 import app.lockbook.util.*
-import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 import kotlin.math.pow
@@ -29,7 +28,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private var erasePoints =
         Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
-    private var penSizeMultiplier = 7
+    var penSizeMultiplier = 7
     private var strokeAlpha = 255
     var isErasing = false
     var strokeColor = ColorAlias.White
@@ -623,10 +622,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private fun distanceBetweenPoints(initialPoint: PointF, endPoint: PointF): Float =
         sqrt((initialPoint.x - endPoint.x).pow(2) + (initialPoint.y - endPoint.y).pow(2))
-
-    fun setPenSize(penSize: Int) {
-        penSizeMultiplier = penSize
-    }
 
     fun startThread() {
         if (holder.surface.isValid && thread == null) {

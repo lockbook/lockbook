@@ -69,7 +69,7 @@ class CreateFileDialogFragment : DialogFragment() {
 
         info = (activityModel.transientScreen as TransientScreen.Create).info
 
-        when(info.extendedFileType) {
+        when (info.extendedFileType) {
             ExtendedFileType.Folder -> {
                 createFileExtension.visibility = View.GONE
                 createFileTextPart.visibility = View.GONE

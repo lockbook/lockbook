@@ -1,15 +1,11 @@
 package app.lockbook.model
 
-import android.content.Context
-import android.content.res.Resources
 import android.text.format.DateUtils
 import app.lockbook.App.Companion.config
-import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import timber.log.Timber
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
@@ -49,7 +45,7 @@ class ShareModel(
 
         val documents = mutableListOf<ClientFileMetadata>()
         val selectedDocumentsResult = retrieveSelectedDocuments(selectedFiles, documents)
-        if(selectedDocumentsResult is Err) {
+        if (selectedDocumentsResult is Err) {
             return selectedDocumentsResult
         }
 
@@ -107,7 +103,7 @@ class ShareModel(
         selectedFiles: List<ClientFileMetadata>,
         documents: MutableList<ClientFileMetadata>
     ): Result<Unit, CoreError> {
-        for(file in selectedFiles) {
+        for (file in selectedFiles) {
             when (file.fileType) {
                 FileType.Document -> {
                     documents.add(file)
@@ -119,7 +115,7 @@ class ShareModel(
                     ) {
                         is Ok -> {
                             val retrieveDocumentsResult = retrieveSelectedDocuments(getChildrenResult.value, documents)
-                            if(retrieveDocumentsResult is Err) {
+                            if (retrieveDocumentsResult is Err) {
                                 return retrieveDocumentsResult
                             }
                         }

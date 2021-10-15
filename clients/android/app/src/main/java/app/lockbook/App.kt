@@ -124,4 +124,3 @@ fun AndroidViewModel.getString(
 ): String {
     return getString(this.getRes(), stringRes, *formatArgs)
 }
-

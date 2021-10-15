@@ -1,12 +1,9 @@
 package app.lockbook.screen
 
 import android.content.ClipData
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.util.AttributeSet
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,7 +22,6 @@ import app.lockbook.ui.RenameFileDialogFragment
 import app.lockbook.util.Animate
 import app.lockbook.util.FilesFragment
 import app.lockbook.util.exhaustive
-import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 import java.util.ArrayList
@@ -79,6 +75,16 @@ class MainScreenActivity : AppCompatActivity() {
             fragmentFinishedCallback,
             false
         )
+
+        val twoPaneOnBackPressedCallback = TwoPaneOnBackPressedCallback(binding.slidingPaneLayout)
+        onBackPressedDispatcher.addCallback(
+            this,
+            twoPaneOnBackPressedCallback
+        )
+
+        if (binding.slidingPaneLayout.isOpen) {
+            twoPaneOnBackPressedCallback.isEnabled = true
+        }
 
         if (model.shareModel.isLoadingOverlayVisible) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.shareModel.isLoadingOverlayVisible))
@@ -205,20 +211,43 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         binding.slidingPaneLayout.openPane()
+        binding.detailContainer.requestFocus()
     }
 
     override fun onBackPressed() {
-        if(binding.slidingPaneLayout.isOpen) {
-            binding.slidingPaneLayout.closePane()
-        } else {
-            if((supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).onBackPressed()) {
-                super.onBackPressed()
-            }
+        if (binding.slidingPaneLayout.isOpen || (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).onBackPressed()) {
+            super.onBackPressed()
         }
     }
 
     fun isThisAnImport(): Boolean {
         return intent.extras?.getBoolean(IS_THIS_AN_IMPORT, false) ?: false
+    }
+}
+
+class TwoPaneOnBackPressedCallback(
+    private val slidingPaneLayout: SlidingPaneLayout,
+) : OnBackPressedCallback(
+    slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen
+),
+    SlidingPaneLayout.PanelSlideListener {
+
+    init {
+        slidingPaneLayout.addPanelSlideListener(this)
+    }
+
+    override fun handleOnBackPressed() {
+        slidingPaneLayout.closePane()
+    }
+
+    override fun onPanelSlide(panel: View, slideOffset: Float) { }
+
+    override fun onPanelOpened(panel: View) {
+        isEnabled = true
+    }
+
+    override fun onPanelClosed(panel: View) {
+        isEnabled = false
     }
 }
 

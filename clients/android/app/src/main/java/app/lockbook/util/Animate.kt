@@ -3,7 +3,6 @@ package app.lockbook.util
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.view.View
-import timber.log.Timber
 
 object Animate {
     fun animateVisibility(view: View, toVisibility: Int, toAlpha: Int, duration: Int) {
@@ -20,7 +19,6 @@ object Animate {
             .alpha(if (show) 1f else 0f)
             .setListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
-                    Timber.e("CALLED")
                     view.visibility = toVisibility
 
                     if (!show) { // may need to file a bug report to android, without this visual glitches will occur

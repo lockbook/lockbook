@@ -23,6 +23,7 @@ class DrawingViewModel(
 
     var persistentDrawing: Drawing? = null
     var selectedTool: Tool = Tool.Pen(ColorAlias.Black)
+    var penSize = 8
 
     private val _drawingReady = SingleMutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
@@ -52,11 +53,9 @@ class DrawingViewModel(
                 else -> persistentDrawing = Drawing()
             }
 
-
             _drawingReady.postValue(Unit)
         }
     }
-
 
     fun saveDrawing(drawing: Drawing) {
         val writeToDocumentResult =
