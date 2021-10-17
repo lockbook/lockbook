@@ -31,27 +31,29 @@ class EditTextModel(
         val text = editText.editableText
 
         val start = change.start
-        val end = start + if (change.after != null) change.after.length else 0
+        val end = start + (change.after?.length ?: 0)
 
         isUndoRedo = true
         text.replace(start, end, change.before)
         isUndoRedo = false
 
-        editText.setSelection(if (change.before == null) start else start + change.before.length)
+        editText.setSelection(start + (change.before?.length ?: 0))
 
         updateUndoRedoButtons()
     }
 
     fun redo() {
-        val edit: EditItem = editHistory.next ?: return
+        val change = editHistory.next ?: return
         val text = editText.editableText
-        val start = edit.start
-        val end = start + if (edit.before != null) edit.before.length else 0
+
+        val start = change.start
+        val end = start + (change.before?.length ?: 0)
+
         isUndoRedo = true
-        text.replace(start, end, edit.after)
+        text.replace(start, end, change.after)
         isUndoRedo = false
 
-        editText.setSelection(if (edit.before == null) start else start + edit.before.length)
+        editText.setSelection(start + (change.after?.length ?: 0))
 
         updateUndoRedoButtons()
     }
@@ -69,6 +71,7 @@ class EditTextModel(
             while (history.size > position) {
                 history.removeLast()
             }
+
             history.add(item)
             position++
 
@@ -102,7 +105,7 @@ class EditTextModel(
             }
 
         companion object {
-            const val MAX_HISTORY_SIZE: Int = 10
+            const val MAX_HISTORY_SIZE: Int = 30
         }
     }
 

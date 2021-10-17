@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -32,6 +31,7 @@ class MainScreenActivity : AppCompatActivity() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     val binding get() = _binding!!
+    val slidingPaneLayout get() = binding.slidingPaneLayout
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
@@ -76,21 +76,11 @@ class MainScreenActivity : AppCompatActivity() {
             false
         )
 
-        val twoPaneOnBackPressedCallback = TwoPaneOnBackPressedCallback(binding.slidingPaneLayout)
-        onBackPressedDispatcher.addCallback(
-            this,
-            twoPaneOnBackPressedCallback
-        )
-
-        if (binding.slidingPaneLayout.isOpen) {
-            twoPaneOnBackPressedCallback.isEnabled = true
-        }
-
         if (model.shareModel.isLoadingOverlayVisible) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.shareModel.isLoadingOverlayVisible))
         }
 
-        binding.slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
+        slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
         model.launchDetailsScreen.observe(
             this,
@@ -205,49 +195,26 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
             }
 
-            if (binding.slidingPaneLayout.isOpen) {
+            if (slidingPaneLayout.isOpen) {
                 setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
             }
         }
 
-        binding.slidingPaneLayout.openPane()
+        slidingPaneLayout.openPane()
         binding.detailContainer.requestFocus()
     }
 
     override fun onBackPressed() {
-        if (binding.slidingPaneLayout.isOpen || (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).onBackPressed()) {
+
+        if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) {
+            slidingPaneLayout.closePane()
+        } else if ((supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).onBackPressed()) {
             super.onBackPressed()
         }
     }
 
     fun isThisAnImport(): Boolean {
         return intent.extras?.getBoolean(IS_THIS_AN_IMPORT, false) ?: false
-    }
-}
-
-class TwoPaneOnBackPressedCallback(
-    private val slidingPaneLayout: SlidingPaneLayout,
-) : OnBackPressedCallback(
-    slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen
-),
-    SlidingPaneLayout.PanelSlideListener {
-
-    init {
-        slidingPaneLayout.addPanelSlideListener(this)
-    }
-
-    override fun handleOnBackPressed() {
-        slidingPaneLayout.closePane()
-    }
-
-    override fun onPanelSlide(panel: View, slideOffset: Float) { }
-
-    override fun onPanelOpened(panel: View) {
-        isEnabled = true
-    }
-
-    override fun onPanelClosed(panel: View) {
-        isEnabled = false
     }
 }
 
