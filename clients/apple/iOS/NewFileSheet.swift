@@ -15,12 +15,13 @@ struct NewFileSheet: View {
     @EnvironmentObject var errorService: UnexpectedErrorService
     
     @Environment(\.presentationMode) var presentationMode
-
+    
     let parent: ClientFileMetadata
     
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
     @State var errors: String = ""
+    @State var introspected = false
     
     var onSuccess: (_: ClientFileMetadata) -> Void
     
@@ -48,7 +49,7 @@ struct NewFileSheet: View {
                 Text("Drawing").tag(ClientFileTypes.Drawing)
                 Text("Folder").tag(ClientFileTypes.Folder)
             }).pickerStyle(SegmentedPickerStyle())
-            .onChange(of: selected, perform: selectionChanged)
+                .onChange(of: selected, perform: selectionChanged)
             
             TextField("Choose a username", text: $name, onCommit: onCommit)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -67,23 +68,27 @@ struct NewFileSheet: View {
     }
     
     func handleCursor(textField: UITextField) {
-        textField.becomeFirstResponder()
-        
-        switch selected {
-        case .Document:
-            if let upperBound = textField.position(from: textField.endOfDocument, offset: -3) {
-                textField.selectedTextRange = textField.textRange(from: textField.beginningOfDocument, to: upperBound)
+        if !introspected {
+            introspected = true
+            textField.becomeFirstResponder()
+            
+            switch selected {
+            case .Document:
+                if let upperBound = textField.position(from: textField.endOfDocument, offset: -3) {
+                    textField.selectedTextRange = textField.textRange(from: textField.beginningOfDocument, to: upperBound)
+                }
+            case .Drawing:
+                if let upperBound = textField.position(from: textField.endOfDocument, offset: -5) {
+                    textField.selectedTextRange = textField.textRange(from: textField.beginningOfDocument, to: upperBound)
+                }
+            case .Folder:
+                break
             }
-        case .Drawing:
-            if let upperBound = textField.position(from: textField.endOfDocument, offset: -5) {
-                textField.selectedTextRange = textField.textRange(from: textField.beginningOfDocument, to: upperBound)
-            }
-        case .Folder:
-            break
         }
     }
     
     func selectionChanged(selection: ClientFileTypes) {
+        introspected = false
         switch selection {
         case .Document:
             name = ".md"

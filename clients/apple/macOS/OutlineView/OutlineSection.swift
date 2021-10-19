@@ -4,6 +4,7 @@ import SwiftLockbookCore
 struct OutlineSection: View {
     
     @EnvironmentObject var files: FileService
+    @EnvironmentObject var onboarding: OnboardingService
     @ObservedObject var state: OutlineState
     
     var root: ClientFileMetadata
@@ -33,6 +34,6 @@ struct OutlineSection: View {
             // A hack for list row insets not working. This hack also applies to the section header though.
         }.contextMenu {
             OutlineContextMenu.getContextView(meta: root, outlineState: state, branchState: nil)
-        }
+        }.sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: { BeforeYouStart() })
     }
 }
