@@ -3,6 +3,7 @@ use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccess
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::collections::HashMap;
+use std::fmt;
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -23,7 +24,7 @@ impl FromStr for FileType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct FileMetadata {
     pub id: Uuid,
     pub file_type: FileType,
@@ -37,7 +38,20 @@ pub struct FileMetadata {
     pub folder_access_keys: EncryptedFolderAccessKey,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+impl fmt::Debug for FileMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FileMetadata")
+            .field("id", &self.id)
+            .field("file_type", &self.file_type)
+            .field("parent", &self.parent)
+            .field("metadata_version", &self.metadata_version)
+            .field("content_version", &self.content_version)
+            .field("deleted", &self.deleted)
+            .finish()
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct DecryptedFileMetadata {
     pub id: Uuid,
     pub file_type: FileType,
@@ -50,7 +64,21 @@ pub struct DecryptedFileMetadata {
     pub decrypted_access_key: AESKey, // access key is the same whether it's decrypted for user or for folder
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+impl fmt::Debug for DecryptedFileMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DecryptedFileMetadata")
+            .field("id", &self.id)
+            .field("file_type", &self.file_type)
+            .field("parent", &self.parent)
+            .field("decrypted_name", &self.decrypted_name)
+            .field("metadata_version", &self.metadata_version)
+            .field("content_version", &self.content_version)
+            .field("deleted", &self.deleted)
+            .finish()
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct FileMetadataDiff {
     pub id: Uuid,
     pub file_type: FileType,
@@ -63,7 +91,7 @@ pub struct FileMetadataDiff {
 
 impl FileMetadataDiff {
     pub fn new(metadata: &FileMetadata) -> Self {
-        FileMetadataDiff{
+        FileMetadataDiff {
             id: metadata.id,
             file_type: metadata.file_type,
             old_parent_and_name: None,
@@ -74,8 +102,12 @@ impl FileMetadataDiff {
         }
     }
 
-    pub fn new_diff(old_parent: Uuid, old_name: &SecretFileName, new_metadata: &FileMetadata) -> Self {
-        FileMetadataDiff{
+    pub fn new_diff(
+        old_parent: Uuid,
+        old_name: &SecretFileName,
+        new_metadata: &FileMetadata,
+    ) -> Self {
+        FileMetadataDiff {
             id: new_metadata.id,
             file_type: new_metadata.file_type,
             old_parent_and_name: Some((old_parent, old_name.clone())),
@@ -84,5 +116,17 @@ impl FileMetadataDiff {
             new_deleted: new_metadata.deleted,
             new_folder_access_keys: new_metadata.folder_access_keys.clone(),
         }
+    }
+}
+
+impl fmt::Debug for FileMetadataDiff {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FileMetadataDiff")
+            .field("id", &self.id)
+            .field("file_type", &self.file_type)
+            .field("old_parent", &self.old_parent_and_name.clone().map(|(p, _)| p))
+            .field("new_parent", &self.new_parent)
+            .field("new_deleted", &self.new_deleted)
+            .finish()
     }
 }

@@ -58,7 +58,7 @@ pub async fn upsert_file_metadata(
 
     let cycles_result = file_index_repo::check_cycles(&mut transaction, &context.public_key).await;
     match cycles_result {
-        Ok(()) => {},
+        Ok(()) => {}
         Err(CheckCyclesError::CyclesDetected) => {
             return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
         }
@@ -89,10 +89,16 @@ pub async fn upsert_file_metadata(
         }
     };
 
-    let files = file_index_repo::get_files(&mut transaction, &context.public_key).await.map_err(|e| Err(format!("Cannot get files: {:?}", e)))?;
+    let files = file_index_repo::get_files(&mut transaction, &context.public_key)
+        .await
+        .map_err(|e| Err(format!("Cannot get files: {:?}", e)))?;
     for upsert in &request.updates {
         if upsert.new_deleted {
-            let content_version = files.iter().filter(|&f| f.id == upsert.id).next().map_or(0, |f| f.content_version);
+            let content_version = files
+                .iter()
+                .filter(|&f| f.id == upsert.id)
+                .next()
+                .map_or(0, |f| f.content_version);
             let delete_result = file_content_client::delete(
                 &server_state.files_db_client,
                 upsert.id,

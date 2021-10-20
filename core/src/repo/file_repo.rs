@@ -143,7 +143,10 @@ pub fn get_all_metadata(
     }
 }
 
-pub fn get_metadata_state(config: &Config, id: Uuid) -> Result<RepoState<DecryptedFileMetadata>, CoreError> {
+pub fn get_metadata_state(
+    config: &Config,
+    id: Uuid,
+) -> Result<RepoState<DecryptedFileMetadata>, CoreError> {
     maybe_get_metadata_state(config, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
@@ -271,12 +274,17 @@ pub fn maybe_get_document(
 pub fn get_all_document_state(
     config: &Config,
 ) -> Result<Vec<RepoState<DecryptedDocument>>, CoreError> {
-    let all_metadata = get_all_metadata_state(config)?.into_iter().map(|f| match f {
-        RepoState::New(local) => local,
-        RepoState::Modified { local, base: _ } => local,
-        RepoState::Unmodified(base) => base,
-    }).collect::<Vec<DecryptedFileMetadata>>();
-    let doc_ids = utils::filter_documents(&all_metadata).into_iter().map(|f| f.id);
+    let all_metadata = get_all_metadata_state(config)?
+        .into_iter()
+        .map(|f| match f {
+            RepoState::New(local) => local,
+            RepoState::Modified { local, base: _ } => local,
+            RepoState::Unmodified(base) => base,
+        })
+        .collect::<Vec<DecryptedFileMetadata>>();
+    let doc_ids = utils::filter_documents(&all_metadata)
+        .into_iter()
+        .map(|f| f.id);
     let mut result = Vec::new();
     for doc_id in doc_ids {
         if let Some(doc_state) = maybe_get_document_state(config, doc_id)? {

@@ -4,22 +4,10 @@ mod integration_test;
 mod sync_tests {
     use lockbook_core::model::repo::RepoSource;
     use lockbook_core::path;
-    use lockbook_core::repo::{file_repo, metadata_repo, root_repo};
+    use lockbook_core::repo::{file_repo, metadata_repo};
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
-    use lockbook_core::service::{
-        account_service, file_service, integrity_service, path_service, sync_service,
-    };
-    use lockbook_models::file_metadata::FileType::Folder;
+    use lockbook_core::service::{account_service, file_service, path_service, sync_service};
     use lockbook_models::work_unit::WorkUnit;
-
-    // TODO this can be moved to test_utils
-    macro_rules! assert_no_metadata_problems (
-        ($db:expr) => {
-            assert!(integrity_service::test_repo_integrity($db)
-                .is_ok()
-               );
-        }
-    );
 
     macro_rules! assert_n_work_units {
         ($db:expr, $n:literal) => {

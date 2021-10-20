@@ -170,12 +170,12 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
         root_repo::maybe_get(&db1).unwrap(),
         root_repo::maybe_get(&db2).unwrap()
     );
-    
+
     assert_eq!(
         file_repo::get_all_metadata_state(&db1).unwrap(),
         file_repo::get_all_metadata_state(&db2).unwrap()
     );
-    
+
     assert_eq!(
         file_repo::get_all_document_state(&db1).unwrap(),
         file_repo::get_all_document_state(&db2).unwrap()
