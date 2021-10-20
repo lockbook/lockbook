@@ -1,10 +1,11 @@
+use std::fmt;
+
 use crate::model::client_conversion::ClientWorkUnit;
 use crate::model::document_type::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::file_repo;
-use crate::repo::last_updated_repo;
 use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
 use crate::{client, utils};
@@ -35,26 +36,30 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
     info!("Calculating Work");
 
     let account = account_repo::get(config)?;
-    let last_sync = last_updated_repo::get(config)?;
+    let base_metadata = file_repo::get_all_metadata(config, RepoSource::Base)?;
+    let base_max_metadata_version = base_metadata
+        .iter()
+        .map(|f| f.metadata_version)
+        .max()
+        .unwrap_or(0);
 
     let server_updates = client::request(
         &account,
         GetUpdatesRequest {
-            since_metadata_version: last_sync,
+            since_metadata_version: base_max_metadata_version,
         },
     )
     .map_err(CoreError::from)?
     .file_metadata;
 
-    calculate_work_from_updates(config, &server_updates, last_sync)
+    calculate_work_from_updates(config, &server_updates, base_max_metadata_version)
 }
 
 fn calculate_work_from_updates(
     config: &Config,
     server_updates: &[FileMetadata],
-    last_sync: u64,
+    mut last_sync: u64,
 ) -> Result<WorkCalculated, CoreError> {
-    let mut most_recent_update_from_server: u64 = last_sync;
     let mut work_units: Vec<WorkUnit> = vec![];
     let all_metadata = file_repo::get_all_metadata_with_encrypted_changes(
         config,
@@ -62,15 +67,15 @@ fn calculate_work_from_updates(
         server_updates,
     )?;
     for metadata in server_updates {
-        if metadata.metadata_version > most_recent_update_from_server {
-            most_recent_update_from_server = metadata.metadata_version;
+        if metadata.metadata_version > last_sync {
+            last_sync = metadata.metadata_version;
         }
 
         match file_repo::maybe_get_metadata(config, RepoSource::Local, metadata.id)? {
             None => {
                 if !metadata.deleted {
                     // no work for files we don't have that have been deleted
-                    // println!("calculate_work remote new file: {:?}", metadata);
+                    // trace!("calculate_work remote new file: {:#?}", metadata);
                     work_units.push(WorkUnit::ServerChange {
                         metadata: utils::find(&all_metadata, metadata.id)?,
                     })
@@ -78,7 +83,7 @@ fn calculate_work_from_updates(
             }
             Some(local_metadata) => {
                 if metadata.metadata_version != local_metadata.metadata_version {
-                    // println!("calculate_work remote updated file: {:?}\n(local version = {:?})", metadata, local_metadata);
+                    // trace!("calculate_work remote updated file: {:#?}\n(local version = {:#?})", metadata, local_metadata);
                     work_units.push(WorkUnit::ServerChange {
                         metadata: utils::find(&all_metadata, metadata.id)?,
                     })
@@ -94,12 +99,12 @@ fn calculate_work_from_updates(
     });
 
     for file_diff in file_repo::get_all_metadata_changes(config)? {
-        // println!("calculate_work local metadata change: {:?}", file_diff);
+        // trace!("calculate_work local metadata change: {:#?}", file_diff);
         let metadata = file_repo::get_metadata(config, RepoSource::Local, file_diff.id)?;
         work_units.push(WorkUnit::LocalChange { metadata });
     }
     for doc_id in file_repo::get_all_with_document_changes(config)? {
-        // println!("calculate_work local document change: {:?}", doc_id);
+        // trace!("calculate_work local document change: {:#?}", doc_id);
         let metadata = file_repo::get_metadata(config, RepoSource::Local, doc_id)?;
         work_units.push(WorkUnit::LocalChange { metadata });
     }
@@ -107,17 +112,18 @@ fn calculate_work_from_updates(
 
     Ok(WorkCalculated {
         work_units,
-        most_recent_update_from_server,
+        most_recent_update_from_server: last_sync,
     })
 }
 
+#[derive(PartialEq, Debug)]
 pub enum MaybeMergeResult<T> {
     Resolved(T),
     Conflict { base: T, local: T, remote: T },
     BaselessConflict { local: T, remote: T },
 }
 
-fn maybe_merge<T>(
+fn merge_maybe<T>(
     maybe_base: Option<T>,
     maybe_local: Option<T>,
     maybe_remote: Option<T>,
@@ -185,7 +191,7 @@ fn merge_metadata(
     };
 
     let local_moved = local.parent != base.parent;
-    let remote_moved = remote.parent != remote.parent;
+    let remote_moved = remote.parent != base.parent;
     let parent = match (local_moved, remote_moved) {
         (false, false) => base.parent,
         (true, false) => local.parent,
@@ -211,7 +217,7 @@ fn merge_maybe_metadata(
     maybe_local: Option<DecryptedFileMetadata>,
     maybe_remote: Option<DecryptedFileMetadata>,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    Ok(match maybe_merge(maybe_base, maybe_local, maybe_remote)? {
+    Ok(match merge_maybe(maybe_base, maybe_local, maybe_remote)? {
         MaybeMergeResult::Resolved(merged) => merged,
         MaybeMergeResult::Conflict {
             base,
@@ -232,11 +238,26 @@ fn merge_maybe_documents(
     maybe_local_document: Option<DecryptedDocument>,
     remote_document: DecryptedDocument,
 ) -> Result<ResolvedDocument, CoreError> {
-    println!("\nget_resolved_document base:\n{:?}", maybe_base_document);
-    println!("\nget_resolved_document local:\n{:?}", maybe_local_document);
-    println!("\nget_resolved_document remote:\n{:?}", remote_document);
+    match maybe_base_document {
+        Some(ref base_document) => trace!(
+            "\nget_resolved_document base: {:#?}",
+            String::from_utf8_lossy(&base_document)
+        ),
+        None => trace!("\nget_resolved_document base: None"),
+    }
+    match maybe_local_document {
+        Some(ref local_document) => trace!(
+            "\nget_resolved_document local: {:#?}",
+            String::from_utf8_lossy(&local_document)
+        ),
+        None => trace!("\nget_resolved_document local: None"),
+    }
+    trace!(
+        "\nget_resolved_document remote: {:#?}",
+        String::from_utf8_lossy(&remote_document)
+    );
     let result = Ok(
-        match maybe_merge(
+        match merge_maybe(
             maybe_base_document,
             maybe_local_document,
             Some(remote_document.clone()),
@@ -342,12 +363,11 @@ fn merge_maybe_documents(
         },
     );
 
-    println!("\nget_resolved_document merged:\n{:?}", result);
+    trace!("\nget_resolved_document merged: {:#?}", result);
 
     result
 }
 
-#[derive(Debug)]
 enum ResolvedDocument {
     Merged {
         remote_metadata: DecryptedFileMetadata,
@@ -361,6 +381,40 @@ enum ResolvedDocument {
         copied_local_metadata: DecryptedFileMetadata,
         copied_local_document: DecryptedDocument,
     },
+}
+
+impl fmt::Debug for ResolvedDocument {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ResolvedDocument::Merged {
+                remote_metadata,
+                remote_document,
+                merged_metadata,
+                merged_document,
+            } => f
+                .debug_struct("ResolvedDocument::Merged")
+                .field("remote_metadata", remote_metadata)
+                .field("remote_document", &String::from_utf8_lossy(remote_document))
+                .field("merged_metadata", merged_metadata)
+                .field("merged_document", &String::from_utf8_lossy(merged_document))
+                .finish(),
+            ResolvedDocument::Copied {
+                remote_metadata,
+                remote_document,
+                copied_local_metadata,
+                copied_local_document,
+            } => f
+                .debug_struct("ResolvedDocument::Copied")
+                .field("remote_metadata", remote_metadata)
+                .field("remote_document", &String::from_utf8_lossy(remote_document))
+                .field("copied_local_metadata", copied_local_metadata)
+                .field(
+                    "copied_local_document",
+                    &String::from_utf8_lossy(copied_local_document),
+                )
+                .finish(),
+        }
+    }
 }
 
 /// Gets a resolved document based on merge of local, base, and remote. Some document types are 3-way merged; others
@@ -380,17 +434,23 @@ fn get_resolved_document(
     )?
     .content;
     let maybe_remote_document = match maybe_remote_document_encrypted {
-        Some(remote_document_encrypted) => {
-            Some(file_compression_service::decompress(&file_encryption_service::decrypt_document(
+        Some(remote_document_encrypted) => Some(file_compression_service::decompress(
+            &file_encryption_service::decrypt_document(
                 &remote_document_encrypted,
                 &remote_metadatum,
-            )?)?)
-        }
+            )?,
+        )?),
         None => None,
     };
 
-    println!("\npulled document:\n{:?}", maybe_remote_document);
-    println!("\nmetadata of pulled document:\n{:?}", remote_metadatum);
+    match maybe_remote_document {
+        Some(ref remote_document) => trace!(
+            "\npulled document: {:#?}",
+            String::from_utf8_lossy(&remote_document)
+        ),
+        None => trace!("\npulled document: None"),
+    };
+    trace!("\nmetadata of pulled document: {:#?}", remote_metadatum);
 
     let maybe_document_state = file_repo::maybe_get_document_state(config, remote_metadatum.id)?;
     let (maybe_base_document, maybe_local_document) = match maybe_document_state {
@@ -407,7 +467,7 @@ fn get_resolved_document(
                 &remote_metadatum,
                 &remote_document,
             )?;
-        
+
             // merge document content for documents with updated content
             let merged_document = merge_maybe_documents(
                 merged_metadatum,
@@ -418,7 +478,7 @@ fn get_resolved_document(
             )?;
 
             Ok(Some(merged_document))
-        },
+        }
         None => Ok(None),
     }
 }
@@ -429,28 +489,33 @@ fn pull(
     account: &Account,
     _f: &Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
-    let last_sync = last_updated_repo::get(config)?;
+    let base_metadata = file_repo::get_all_metadata(config, RepoSource::Base)?;
+    let base_max_metadata_version = base_metadata
+        .iter()
+        .map(|f| f.metadata_version)
+        .max()
+        .unwrap_or(0);
+
     let remote_metadata_changes = client::request(
         account,
         GetUpdatesRequest {
-            since_metadata_version: last_sync,
+            since_metadata_version: base_max_metadata_version,
         },
     )
     .map_err(CoreError::from)?
     .file_metadata;
 
     let local_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
-    let base_metadata = file_repo::get_all_metadata(config, RepoSource::Base)?;
     let remote_metadata = file_repo::get_all_metadata_with_encrypted_changes(
         config,
         RepoSource::Base,
         &remote_metadata_changes,
     )?;
 
-    let mut local_metadata_updates = Vec::new();
-    let mut local_document_updates = Vec::new();
     let mut base_metadata_updates = Vec::new();
     let mut base_document_updates = Vec::new();
+    let mut local_metadata_updates = Vec::new();
+    let mut local_document_updates = Vec::new();
 
     // iterate changes
     for encrypted_remote_metadatum in remote_metadata_changes {
@@ -460,13 +525,20 @@ fn pull(
         let maybe_local_metadatum =
             utils::maybe_find(&local_metadata, encrypted_remote_metadatum.id);
 
+        trace!("merge_maybe_metadata base: {:#?}", maybe_base_metadatum);
+        trace!("merge_maybe_metadata local: {:#?}", maybe_local_metadatum);
+        trace!(
+            "merge_maybe_metadata remote: {:#?}",
+            Some(remote_metadatum.clone())
+        );
         let merged_metadatum = merge_maybe_metadata(
             maybe_base_metadatum.clone(),
             maybe_local_metadatum,
             Some(remote_metadatum.clone()),
         )?;
-        local_metadata_updates.push(merged_metadatum.clone()); // update local to merged
+        trace!("merge_maybe_metadata result: {:#?}\n", merged_metadatum);
         base_metadata_updates.push(remote_metadatum.clone()); // update base to remote
+        local_metadata_updates.push(merged_metadatum.clone()); // update local to merged
 
         // merge document content
         let content_updated = remote_metadatum.file_type == FileType::Document
@@ -483,9 +555,9 @@ fn pull(
                     merged_metadata,
                     merged_document,
                 }) => {
-                    local_document_updates.push((merged_metadata, merged_document)); // update local to merged
-                    base_document_updates.push((remote_metadata, remote_document));
-                    // update base to remote
+                    base_document_updates.push((remote_metadata, remote_document)); // update base to remote
+                    local_document_updates.push((merged_metadata, merged_document));
+                    // update local to merged
                 }
                 Some(ResolvedDocument::Copied {
                     remote_metadata,
@@ -493,10 +565,10 @@ fn pull(
                     copied_local_metadata,
                     copied_local_document,
                 }) => {
+                    base_document_updates.push((remote_metadata, remote_document)); // update base to remote
                     local_metadata_updates.push(copied_local_metadata.clone()); // new local metadata from merge
-                    local_document_updates.push((copied_local_metadata, copied_local_document)); // new local document from merge
-                    base_document_updates.push((remote_metadata, remote_document));
-                    // update base to remote
+                    local_document_updates.push((copied_local_metadata, copied_local_document));
+                    // new local document from merge
                 }
                 None => {}
             }
@@ -515,23 +587,34 @@ fn pull(
         to_rename.decrypted_name = conflict_name;
     }
 
+    // update base
+    // trace!("\npull base_metadata_updates: {:#?}", base_metadata_updates);
+    let utf8_base_document_updates: Vec<(DecryptedFileMetadata, String)> = base_document_updates
+        .iter()
+        .map(|(f, d)| (f.clone(), String::from_utf8_lossy(d).into_owned()))
+        .collect();
+    trace!(
+        "\npull base_document_updates: {:#?}",
+        utf8_base_document_updates
+    );
+    file_repo::insert_metadata(config, RepoSource::Base, &base_metadata_updates)?;
+    for (metadata, document_update) in base_document_updates {
+        file_repo::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
+    }
+
     // update local
-    // println!("\npull local_metadata_updates:\n{:?}", local_metadata_updates);
-    println!(
-        "\npull local_document_updates:\n{:?}",
-        local_document_updates
+    // trace!("\npull local_metadata_updates: {:#?}", local_metadata_updates);
+    let utf8_local_document_updates: Vec<(DecryptedFileMetadata, String)> = local_document_updates
+        .iter()
+        .map(|(f, d)| (f.clone(), String::from_utf8_lossy(d).into_owned()))
+        .collect();
+    trace!(
+        "\npull local_document_updates: {:#?}",
+        utf8_local_document_updates
     );
     file_repo::insert_metadata(config, RepoSource::Local, &local_metadata_updates)?;
     for (metadata, document_update) in local_document_updates {
         file_repo::insert_document(config, RepoSource::Local, &metadata, &document_update)?;
-    }
-
-    // update base
-    // println!("\npull base_metadata_updates:\n{:?}", base_metadata_updates);
-    println!("\npull base_document_updates:\n{:?}", base_document_updates);
-    file_repo::insert_metadata(config, RepoSource::Base, &base_metadata_updates)?;
-    for (metadata, document_update) in base_document_updates {
-        file_repo::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
     }
 
     Ok(())
@@ -543,19 +626,25 @@ fn push_metadata(
     account: &Account,
     _f: &Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
-    // println!("\npush_metadata all_metadata_changes:\n{:?}", file_repo::get_all_metadata_changes(config)?);
+    trace!(
+        "\npush_metadata all_metadata_changes: {:#?}",
+        file_repo::get_all_metadata_changes(config)?
+    );
     // update remote to local (metadata)
-    client::request(
-        &account,
-        FileMetadataUpsertsRequest {
-            updates: file_repo::get_all_metadata_changes(config)?,
-        },
-    )
-    .map_err(CoreError::from)?;
+    let metadata_changes = file_repo::get_all_metadata_changes(config)?;
+    if metadata_changes.len() != 0 {
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: metadata_changes,
+            },
+        )
+        .map_err(CoreError::from)?;
+    }
 
     // update base to local
     file_repo::promote_metadata(config)?;
-    // println!("push_metadata end");
+    // trace!("push_metadata end");
 
     Ok(())
 }
@@ -569,7 +658,10 @@ fn push_documents(
     for id in file_repo::get_all_with_document_changes(config)? {
         let local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
         let local_content = file_repo::get_document(config, RepoSource::Local, id)?;
-        println!("\npushed document:\n{:?}", local_content);
+        trace!(
+            "\npushed document: {:#?}",
+            String::from_utf8_lossy(&local_content)
+        );
         let encrypted_content = file_encryption_service::encrypt_document(
             &file_compression_service::compress(&local_content)?,
             &local_metadata,
@@ -594,19 +686,242 @@ fn push_documents(
 }
 
 pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
-    println!("sync start");
+    trace!("sync start");
     let account = &account_repo::get(config)?;
-    println!("  sync pull");
+    trace!("  sync pull");
     pull(config, account, &f)?;
-    println!("  sync push_metadata");
+    trace!("  sync push_metadata");
     push_metadata(config, account, &f)?;
-    println!("  sync pull");
+    trace!("  sync pull");
     pull(config, account, &f)?;
-    println!("  sync push_documents");
+    trace!("  sync push_documents");
     push_documents(config, account, &f)?;
-    println!("  sync pull");
-    pull(config, account, &f)?;
     file_repo::prune_deleted(config)?;
-    println!("sync end");
+    trace!("sync end");
     Ok(())
+}
+
+#[cfg(test)]
+mod unit_test_sync_service {
+    use std::str::FromStr;
+
+    use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+    use uuid::Uuid;
+
+    use crate::service::sync_service::{self, MaybeMergeResult};
+
+    #[test]
+    fn merge_maybe_resolved_base() {
+        let base = Some(0);
+        let local = None;
+        let remote = None;
+
+        let result = sync_service::merge_maybe(base, local, remote).unwrap();
+
+        assert_eq!(
+            result,
+            MaybeMergeResult::Resolved(0)
+        );
+    }
+
+    #[test]
+    fn merge_maybe_resolved_local() {
+        let base = None;
+        let local = Some(1);
+        let remote = None;
+
+        let result = sync_service::merge_maybe(base, local, remote).unwrap();
+
+        assert_eq!(
+            result,
+            MaybeMergeResult::Resolved(1)
+        );
+    }
+
+    #[test]
+    fn merge_maybe_resolved_local_with_base() {
+        let base = Some(0);
+        let local = Some(1);
+        let remote = None;
+
+        let result = sync_service::merge_maybe(base, local, remote).unwrap();
+
+        assert_eq!(
+            result,
+            MaybeMergeResult::Resolved(1)
+        );
+    }
+
+    #[test]
+    fn merge_maybe_resolved_remote() {
+        let base = None;
+        let local = None;
+        let remote = Some(2);
+
+        let result = sync_service::merge_maybe(base, local, remote).unwrap();
+
+        assert_eq!(
+            result,
+            MaybeMergeResult::Resolved(2)
+        );
+    }
+
+    #[test]
+    fn merge_maybe_resolved_remote_with_base() {
+        let base = Some(0);
+        let local = None;
+        let remote = Some(2);
+
+        let result = sync_service::merge_maybe(base, local, remote).unwrap();
+
+        assert_eq!(
+            result,
+            MaybeMergeResult::Resolved(2)
+        );
+    }
+
+    #[test]
+    fn merge_maybe_resolved_conflict() {
+        let base = Some(0);
+        let local = Some(1);
+        let remote = Some(2);
+
+        let result = sync_service::merge_maybe(base, local, remote).unwrap();
+
+        assert_eq!(
+            result,
+            MaybeMergeResult::Conflict{base: 0, local: 1, remote: 2}
+        );
+    }
+
+    #[test]
+    fn merge_maybe_resolved_baseless_conflict() {
+        let base = None;
+        let local = Some(1);
+        let remote = Some(2);
+
+        let result = sync_service::merge_maybe(base, local, remote).unwrap();
+
+        assert_eq!(
+            result,
+            MaybeMergeResult::BaselessConflict{local: 1, remote: 2}
+        );
+    }
+
+    #[test]
+    fn merge_maybe_none() {
+        let base = None;
+        let local = None;
+        let remote = None;
+
+        sync_service::merge_maybe::<i32>(base, local, remote).unwrap_err();
+    }
+
+    #[test]
+    fn merge_metadata_local_and_remote_moved() {
+        let base = DecryptedFileMetadata {
+            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
+            file_type: FileType::Document,
+            parent: Uuid::from_str("a33b99e8-140d-4a74-b564-f72efdcb5b3a").unwrap(),
+            decrypted_name: String::from("test.txt"),
+            metadata_version: 1634693786444,
+            content_version: 1634693786444,
+            deleted: false,
+            owner: Default::default(),
+            decrypted_access_key: Default::default(),
+        };
+        let local = DecryptedFileMetadata {
+            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
+            file_type: FileType::Document,
+            parent: Uuid::from_str("c13f10f7-9360-4dd2-8b3a-0891a81c8bf8").unwrap(),
+            decrypted_name: String::from("test.txt"),
+            metadata_version: 1634693786444,
+            content_version: 1634693786444,
+            deleted: false,
+            owner: Default::default(),
+            decrypted_access_key: Default::default(),
+        };
+        let remote = DecryptedFileMetadata {
+            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
+            file_type: FileType::Document,
+            parent: Uuid::from_str("c52d8737-0a89-45aa-8411-b74e0dd71470").unwrap(),
+            decrypted_name: String::from("test.txt"),
+            metadata_version: 1634693786756,
+            content_version: 1634693786556,
+            deleted: false,
+            owner: Default::default(),
+            decrypted_access_key: Default::default(),
+        };
+
+        let result = sync_service::merge_metadata(base, local, remote);
+
+        assert_eq!(
+            result,
+            DecryptedFileMetadata {
+                id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
+                file_type: FileType::Document,
+                parent: Uuid::from_str("c52d8737-0a89-45aa-8411-b74e0dd71470").unwrap(),
+                decrypted_name: String::from("test.txt"),
+                metadata_version: 1634693786756,
+                content_version: 1634693786556,
+                deleted: false,
+                owner: Default::default(),
+                decrypted_access_key: Default::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn merge_maybe_metadata_local_and_remote_moved() {
+        let base = Some(DecryptedFileMetadata {
+            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
+            file_type: FileType::Document,
+            parent: Uuid::from_str("a33b99e8-140d-4a74-b564-f72efdcb5b3a").unwrap(),
+            decrypted_name: String::from("test.txt"),
+            metadata_version: 1634693786444,
+            content_version: 1634693786444,
+            deleted: false,
+            owner: Default::default(),
+            decrypted_access_key: Default::default(),
+        });
+        let local = Some(DecryptedFileMetadata {
+            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
+            file_type: FileType::Document,
+            parent: Uuid::from_str("c13f10f7-9360-4dd2-8b3a-0891a81c8bf8").unwrap(),
+            decrypted_name: String::from("test.txt"),
+            metadata_version: 1634693786444,
+            content_version: 1634693786444,
+            deleted: false,
+            owner: Default::default(),
+            decrypted_access_key: Default::default(),
+        });
+        let remote = Some(DecryptedFileMetadata {
+            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
+            file_type: FileType::Document,
+            parent: Uuid::from_str("c52d8737-0a89-45aa-8411-b74e0dd71470").unwrap(),
+            decrypted_name: String::from("test.txt"),
+            metadata_version: 1634693786756,
+            content_version: 1634693786556,
+            deleted: false,
+            owner: Default::default(),
+            decrypted_access_key: Default::default(),
+        });
+
+        let result = sync_service::merge_maybe_metadata(base, local, remote).unwrap();
+
+        assert_eq!(
+            result,
+            DecryptedFileMetadata {
+                id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
+                file_type: FileType::Document,
+                parent: Uuid::from_str("c52d8737-0a89-45aa-8411-b74e0dd71470").unwrap(),
+                decrypted_name: String::from("test.txt"),
+                metadata_version: 1634693786756,
+                content_version: 1634693786556,
+                deleted: false,
+                owner: Default::default(),
+                decrypted_access_key: Default::default(),
+            }
+        );
+    }
 }
