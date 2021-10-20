@@ -11,8 +11,9 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 use crate::repo::{
     account_repo, db_version_repo, document_repo, file_metadata_repo, local_storage,
 };
+use crate::{calculate_work, list_metadatas, read_document};
 use lockbook_crypto::{pubkey, symkey};
-use lockbook_models::file_metadata::FileType::Folder;
+use lockbook_models::file_metadata::FileType::{Document, Folder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -158,26 +159,30 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
         .iter()
         .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
         .collect();
-    assert_eq!(value1, value2);
+    assert_eq!(value1, value2, "file_metadatas not equal");
 
     assert_eq!(
         account_repo::get_account(db1).unwrap(),
-        account_repo::get_account(db2).unwrap()
+        account_repo::get_account(db2).unwrap(),
+        "accounts not equal"
     );
 
     assert_eq!(
         local_changes_repo::get_all_local_changes(db1).unwrap(),
-        local_changes_repo::get_all_local_changes(db2).unwrap()
+        local_changes_repo::get_all_local_changes(db2).unwrap(),
+        "local changes not equal"
     );
 
     assert_eq!(
         db_version_repo::get(db1).unwrap(),
-        db_version_repo::get(db2).unwrap()
+        db_version_repo::get(db2).unwrap(),
+        "db version not equal"
     );
 
     assert_eq!(
         file_metadata_repo::get_last_updated(db1).unwrap(),
-        file_metadata_repo::get_last_updated(db2).unwrap()
+        file_metadata_repo::get_last_updated(db2).unwrap(),
+        "last updated not equal"
     );
 
     let value1: Vec<EncryptedDocument> =
@@ -192,5 +197,25 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
             .iter()
             .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
             .collect();
-    assert_eq!(value1, value2);
+    if value1 != value2 {
+        for doc in list_metadatas(db1)
+            .unwrap()
+            .into_iter()
+            .filter(|meta| meta.file_type == Document)
+        {
+            println!("{:#?}", calculate_work(db1).unwrap());
+            println!("{:#?}", calculate_work(db2).unwrap());
+            let left = read_document(db1, doc.id).unwrap();
+            let right = read_document(db2, doc.id).unwrap();
+
+            if left == right {
+                println!("{} is equal", doc.name)
+            } else {
+                println!("{} is not equal", doc.name);
+                println!("db1: {}", String::from_utf8(left).unwrap());
+                println!("db2: {}", String::from_utf8(right).unwrap());
+            }
+        }
+    }
+    assert_eq!(value1, value2, "documents not equal");
 }
