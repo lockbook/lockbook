@@ -198,13 +198,13 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
             .map(|s| serde_json::from_slice(s.as_ref()).unwrap())
             .collect();
     if value1 != value2 {
-        for doc in list_metadatas(&db1)
+        for doc in list_metadatas(db1)
             .unwrap()
             .into_iter()
             .filter(|meta| meta.file_type == Document)
         {
-            println!("{:#?}", calculate_work(&db1).unwrap());
-            println!("{:#?}", calculate_work(&db2).unwrap());
+            println!("{:#?}", calculate_work(db1).unwrap());
+            println!("{:#?}", calculate_work(db2).unwrap());
             let left = read_document(db1, doc.id).unwrap();
             let right = read_document(db2, doc.id).unwrap();
 
