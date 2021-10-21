@@ -15,7 +15,7 @@ for SITE in $(ls "$CERTBOT_SITES_DIR" ); do
 			&& exit 1
 
 		echo "combining and updating SSL cert for $SITE"
-		# cat "$CERTBOT_CERT_DIR/fullchain.pem" "$CERTBOT_CERT_DIR/privkey.pem" > "$SSL_CERT"
+		cat "$CERTBOT_CERT_DIR/fullchain.pem" "$CERTBOT_CERT_DIR/privkey.pem" > "$SSL_CERT"
 		echo "SSL cert written to $SSL_CERT"
 	fi
 done
