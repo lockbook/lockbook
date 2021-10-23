@@ -550,11 +550,13 @@ fn pull(
     // resolve cycles
     for self_descendant in file_service::get_invalid_cycles(&local_metadata, &local_metadata_updates)?
     {
-        println!("sync self_descendant: {:?}", self_descendant);
         if let Some(RepoState::Modified{ mut local, base }) = file_repo::maybe_get_metadata_state(config, self_descendant)? {
-            println!("sync setting local parent from {:?} to {:?}", local.parent, base.parent);
-            local.parent = base.parent;
-            local_metadata_updates.push(local);
+            if let Some(existing_update) = utils::maybe_find_mut(&mut local_metadata_updates, self_descendant) {
+                existing_update.parent = base.parent;
+            } else {
+                local.parent = base.parent;
+                local_metadata_updates.push(local);
+            }
         }
     }
 
