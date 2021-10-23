@@ -109,7 +109,7 @@ WITH
             $7,
             $8,
             CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
-            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
+            0,
             0
         ON CONFLICT (id) DO UPDATE SET
             metadata_version =

@@ -184,7 +184,7 @@ pub async fn change_document_content(
     };
 
     match transaction.commit().await {
-        Ok(()) => Ok(ChangeDocumentContentResponse {}),
+        Ok(()) => Ok(ChangeDocumentContentResponse { new_content_version: new_version }),
         Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
     }
 }

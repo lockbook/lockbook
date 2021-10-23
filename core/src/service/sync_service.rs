@@ -527,25 +527,22 @@ fn pull(
         let maybe_local_metadatum =
             utils::maybe_find(&local_metadata, encrypted_remote_metadatum.id);
 
-        println!("merge_maybe_metadata base: {:#?}", maybe_base_metadatum);
-        println!("merge_maybe_metadata local: {:#?}", maybe_local_metadatum);
-        println!(
-            "merge_maybe_metadata remote: {:#?}",
-            Some(remote_metadatum.clone())
-        );
         let merged_metadatum = merge_maybe_metadata(
             maybe_base_metadatum.clone(),
-            maybe_local_metadatum,
+            maybe_local_metadatum.clone(),
             Some(remote_metadatum.clone()),
         )?;
-        println!("merge_maybe_metadata result: {:#?}\n", merged_metadatum);
         base_metadata_updates.push(remote_metadatum.clone()); // update base to remote
         local_metadata_updates.push(merged_metadatum.clone()); // update local to merged
 
         // merge document content
         let content_updated = remote_metadatum.file_type == FileType::Document
-            && if let Some(base) = maybe_base_metadatum {
-                remote_metadatum.content_version != base.content_version
+            && if let Some(local) = maybe_local_metadatum {
+                println!("remote_metadatum.content_version, local.content_version: {}, {}", remote_metadatum.content_version, local.content_version);
+                remote_metadatum.content_version > local.content_version
+            } else if let Some(base) = maybe_base_metadatum {
+                println!("remote_metadatum.content_version, base.content_version: {}, {}", remote_metadatum.content_version, base.content_version);
+                remote_metadatum.content_version > base.content_version
             } else {
                 true
             };
@@ -658,7 +655,7 @@ fn push_documents(
     _f: &Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
     for id in file_repo::get_all_with_document_changes(config)? {
-        let local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
+        let mut local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
         let local_content = file_repo::get_document(config, RepoSource::Local, id)?;
         println!(
             "\npushed document: {:#?}",
@@ -670,7 +667,7 @@ fn push_documents(
         )?;
 
         // update remote to local (document)
-        client::request(
+        local_metadata.content_version = client::request(
             &account,
             ChangeDocumentContentRequest {
                 id: id,
@@ -678,7 +675,13 @@ fn push_documents(
                 new_content: encrypted_content,
             },
         )
-        .map_err(CoreError::from)?;
+        .map_err(CoreError::from)?.new_content_version;
+
+        // save content version change
+        let mut base_metadata = file_repo::get_metadata(config, RepoSource::Base, id)?;
+        base_metadata.content_version = local_metadata.content_version;
+        file_repo::insert_metadatum(config, RepoSource::Local, &local_metadata)?;
+        file_repo::insert_metadatum(config, RepoSource::Base, &base_metadata)?;
     }
 
     // update base to local

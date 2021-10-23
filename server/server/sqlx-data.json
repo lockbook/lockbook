@@ -169,41 +169,6 @@
       ]
     }
   },
-  "2886fd326838d37db515048a297117c69d752ec4476d64a120838f40c9d78842": {
-    "query": "\nWITH\n    preconditions AS (\n        SELECT\n            -- both args empty and file does not exist...\n            ($9 = '' AND $10 = '' AND NOT EXISTS(SELECT * FROM files WHERE id = $1)) OR\n            -- ...or neither arg empty and matching file exists\n            ($9 != '' AND $10 != '' AND EXISTS(SELECT * FROM files WHERE id = $1 AND is_folder = $4 AND parent = $9 AND name_hmac = $10)) AS met\n            UNION ALL\n        -- new parent must be a folder if it exists already\n        SELECT NOT EXISTS(SELECT * FROM files WHERE id = $2 AND NOT is_folder) AS met\n            UNION ALL\n        -- cannot have children if document\n        SELECT $4 OR NOT EXISTS(SELECT * FROM files WHERE parent = $1) AS met\n    ),\n    insert AS (\n        INSERT INTO files (\n            id,\n            parent,\n            parent_access_key,\n            is_folder,\n            name_encrypted,\n            name_hmac,\n            owner,\n            deleted,\n            metadata_version,\n            content_version,\n            document_size\n        )\n        SELECT\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            $6,\n            $7,\n            $8,\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            0\n        ON CONFLICT (id) DO UPDATE SET\n            metadata_version =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n                ELSE files.metadata_version END),\n            parent =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $2\n                ELSE files.parent END),\n            parent_access_key =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $3\n                ELSE files.parent_access_key END),\n            name_encrypted =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $5\n                ELSE files.name_encrypted END),\n            name_hmac =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $6\n                ELSE files.name_hmac END),\n            deleted =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $8\n                ELSE files.deleted END)\n    )\nSELECT\n    BOOL_AND(met) AS \"preconditions_met!\",\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS \"version!\"\nFROM preconditions;\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "preconditions_met!",
-          "type_info": "Bool"
-        },
-        {
-          "ordinal": 1,
-          "name": "version!",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "Text",
-          "Bool",
-          "Text",
-          "Text",
-          "Text",
-          "Bool",
-          "Text",
-          "Text"
-        ]
-      },
-      "nullable": [
-        null,
-        null
-      ]
-    }
-  },
   "28b05a758fa44ead5f15283ea15974546be35f0c38240b8a23c8fc054bdf0202": {
     "query": "\nINSERT INTO user_access_keys (file_id, sharee, encrypted_key) VALUES ($1, $2, $3);\n        ",
     "describe": {
@@ -624,6 +589,41 @@
         false,
         false,
         false
+      ]
+    }
+  },
+  "e15d91586e5e4d37b4e35f9ca39160b2f1abb11362d9f2d592bf1553e844089d": {
+    "query": "\nWITH\n    preconditions AS (\n        SELECT\n            -- both args empty and file does not exist...\n            ($9 = '' AND $10 = '' AND NOT EXISTS(SELECT * FROM files WHERE id = $1)) OR\n            -- ...or neither arg empty and matching file exists\n            ($9 != '' AND $10 != '' AND EXISTS(SELECT * FROM files WHERE id = $1 AND is_folder = $4 AND parent = $9 AND name_hmac = $10)) AS met\n            UNION ALL\n        -- new parent must be a folder if it exists already\n        SELECT NOT EXISTS(SELECT * FROM files WHERE id = $2 AND NOT is_folder) AS met\n            UNION ALL\n        -- cannot have children if document\n        SELECT $4 OR NOT EXISTS(SELECT * FROM files WHERE parent = $1) AS met\n    ),\n    insert AS (\n        INSERT INTO files (\n            id,\n            parent,\n            parent_access_key,\n            is_folder,\n            name_encrypted,\n            name_hmac,\n            owner,\n            deleted,\n            metadata_version,\n            content_version,\n            document_size\n        )\n        SELECT\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            $6,\n            $7,\n            $8,\n            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),\n            0,\n            0\n        ON CONFLICT (id) DO UPDATE SET\n            metadata_version =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n                ELSE files.metadata_version END),\n            parent =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $2\n                ELSE files.parent END),\n            parent_access_key =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $3\n                ELSE files.parent_access_key END),\n            name_encrypted =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $5\n                ELSE files.name_encrypted END),\n            name_hmac =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $6\n                ELSE files.name_hmac END),\n            deleted =\n                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)\n                THEN $8\n                ELSE files.deleted END)\n    )\nSELECT\n    BOOL_AND(met) AS \"preconditions_met!\",\n    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS \"version!\"\nFROM preconditions;\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "preconditions_met!",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 1,
+          "name": "version!",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text",
+          "Bool",
+          "Text",
+          "Text",
+          "Text",
+          "Bool",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        null,
+        null
       ]
     }
   },
