@@ -1392,31 +1392,31 @@ mod sync_tests {
         .unwrap();
 
         assert!(
-            !metadata_repo::maybe_get(&db1, RepoSource::Local, file1_delete.id)
+            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            metadata_repo::maybe_get(&db1, RepoSource::Local, file2_delete.id)
+            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !metadata_repo::maybe_get(&db1, RepoSource::Local, file3_delete.id)
+            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            metadata_repo::maybe_get(&db1, RepoSource::Local, file4_delete.id)
+            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file4_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            metadata_repo::maybe_get(&db1, RepoSource::Local, new_folder.id)
+            file_repo::maybe_get_metadata(&db1, RepoSource::Local, new_folder.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1427,29 +1427,29 @@ mod sync_tests {
         make_and_sync_new_client!(db2, db1);
 
         assert!(
-            !metadata_repo::maybe_get(&db2, RepoSource::Local, file1_delete.id)
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            metadata_repo::maybe_get(&db2, RepoSource::Local, file2_delete.id)
+            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            !metadata_repo::maybe_get(&db2, RepoSource::Local, file3_delete.id)
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            metadata_repo::maybe_get(&db2, RepoSource::Local, file4_delete.id)
+            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file4_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            metadata_repo::maybe_get(&db2, RepoSource::Local, new_folder.id)
+            file_repo::maybe_get_metadata(&db2, RepoSource::Local, new_folder.id)
                 .unwrap()
                 .is_none()
         );
