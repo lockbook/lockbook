@@ -292,6 +292,7 @@ pub enum CreateFileError {
     FileNameNotAvailable,
     FileNameEmpty,
     FileNameContainsSlash,
+    FileOwnParent,
 }
 
 pub fn create_file(
@@ -304,7 +305,18 @@ pub fn create_file(
         CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
         _ => unexpected!("{:#?}", e),
     })?;
-    let metadata = file_service::create(file_type, parent, name, &account.username);
+    file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent).map_err(|e| match e {
+        CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
+        _ => unexpected!("{:#?}", e),
+    })?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local).map_err(|e| match e {
+        _ => unexpected!("{:#?}", e),
+    })?;
+    let metadata = file_service::apply_create(&all_metadata, file_type, parent, name, &account.username).map_err(|e| match e {
+        CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
+        CoreError::FolderMovedIntoSelf => UiError(CreateFileError::FileOwnParent),
+        _ => unexpected!("{:#?}", e),
+    })?;
     file_repo::insert_metadatum(&config, RepoSource::Local, &metadata).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
         CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),

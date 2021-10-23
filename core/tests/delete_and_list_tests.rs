@@ -91,7 +91,7 @@ mod delete_and_list_tests {
     #[test]
     fn try_to_delete_root() {
         let db = test_config();
-        let account = make_account!(db);
+        let _account = make_account!(db);
 
         assert_matches!(
             delete_file(&db, get_root(&db).unwrap().id),
