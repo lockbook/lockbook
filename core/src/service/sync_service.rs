@@ -427,7 +427,10 @@ fn get_resolved_document(
     remote_metadatum: &DecryptedFileMetadata,
     merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<Option<ResolvedDocument>, CoreError> {
-    println!("get document {}-{}", remote_metadatum.id, remote_metadatum.content_version);
+    println!(
+        "get document {}-{}",
+        remote_metadatum.id, remote_metadatum.content_version
+    );
     let maybe_remote_document_encrypted = client::request(
         &account,
         GetDocumentRequest {
@@ -461,7 +464,7 @@ fn get_resolved_document(
             RepoState::New(local) => (None, Some(local)),
             RepoState::Modified { local, base } => (Some(base), Some(local)),
             RepoState::Unmodified(base) => (Some(base), None),
-        }
+        },
         None => (None, None),
     };
 
@@ -535,10 +538,16 @@ fn pull(
         // merge document content
         let content_updated = remote_metadatum.file_type == FileType::Document
             && if let Some(local) = maybe_local_metadatum {
-                println!("remote_metadatum.content_version, local.content_version: {}, {}", remote_metadatum.content_version, local.content_version);
+                println!(
+                    "remote_metadatum.content_version, local.content_version: {}, {}",
+                    remote_metadatum.content_version, local.content_version
+                );
                 remote_metadatum.content_version > local.content_version
             } else if let Some(base) = maybe_base_metadatum {
-                println!("remote_metadatum.content_version, base.content_version: {}, {}", remote_metadatum.content_version, base.content_version);
+                println!(
+                    "remote_metadatum.content_version, base.content_version: {}, {}",
+                    remote_metadatum.content_version, base.content_version
+                );
                 remote_metadatum.content_version > base.content_version
             } else {
                 true
@@ -565,7 +574,9 @@ fn pull(
                     local_metadata_updates.push(remote_metadata.clone()); // reset conflicted local
                     local_document_updates.push((remote_metadata.clone(), remote_document)); // reset conflicted local
                     local_metadata_updates.push(copied_local_metadata.clone()); // new local metadata from merge
-                    local_document_updates.push((copied_local_metadata.clone(), copied_local_document)); // new local document from merge
+                    local_document_updates
+                        .push((copied_local_metadata.clone(), copied_local_document));
+                    // new local document from merge
                 }
                 None => {}
             }
@@ -674,7 +685,8 @@ fn push_documents(
                 new_content: encrypted_content,
             },
         )
-        .map_err(CoreError::from)?.new_content_version;
+        .map_err(CoreError::from)?
+        .new_content_version;
 
         // save content version change
         let mut base_metadata = file_repo::get_metadata(config, RepoSource::Base, id)?;

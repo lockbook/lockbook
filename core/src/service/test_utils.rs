@@ -9,7 +9,7 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 
 use crate::repo::{account_repo, db_version_repo};
 use lockbook_crypto::{pubkey, symkey};
-use lockbook_models::file_metadata::FileType::{Document, Folder};
+use lockbook_models::file_metadata::FileType::Folder;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
