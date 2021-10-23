@@ -11,8 +11,9 @@ mod delete_and_list_tests {
 
     use lockbook_core::{
         assert_matches, create_file, create_file_at_path, delete_file, get_root, list_paths,
-        make_account, path, read_document, save_document_to_disk, write_document, CreateFileError,
-        FileDeleteError, ReadDocumentError, SaveDocumentToDiskError, WriteToDocumentError,
+        make_account, move_file, path, read_document, rename_file, save_document_to_disk,
+        write_document, CreateFileError, FileDeleteError, MoveFileError, ReadDocumentError,
+        RenameFileError, SaveDocumentToDiskError, WriteToDocumentError,
     };
 
     #[test]
@@ -124,6 +125,94 @@ mod delete_and_list_tests {
         assert_matches!(
             save_document_to_disk(&db, doc.id, "/dev/null".to_string()),
             Err(UiError(SaveDocumentToDiskError::FileDoesNotExist))
+        );
+    }
+
+    #[test]
+    fn test_create_parent_delete_parent_rename_doc() {
+        let db = test_config();
+        let account = make_account!(db);
+        let doc = create_file_at_path(&db, path!(account, "folder/test.md")).unwrap();
+        write_document(&db, doc.id, "content".as_bytes()).unwrap();
+        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
+        delete_file(&db, doc.parent).unwrap();
+        assert_matches!(
+            rename_file(&db, doc.id, "test2.md"),
+            Err(UiError(RenameFileError::FileDoesNotExist))
+        );
+    }
+
+    #[test]
+    fn test_create_parent_delete_parent_rename_parent() {
+        let db = test_config();
+        let account = make_account!(db);
+        let doc = create_file_at_path(&db, path!(account, "folder/test.md")).unwrap();
+        write_document(&db, doc.id, "content".as_bytes()).unwrap();
+        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
+        delete_file(&db, doc.parent).unwrap();
+        assert_matches!(
+            rename_file(&db, doc.parent, "folder2"),
+            Err(UiError(RenameFileError::FileDoesNotExist))
+        );
+    }
+
+    #[test]
+    fn test_folder_move_delete_source_parent() {
+        let db = test_config();
+        let account = make_account!(db);
+        let doc = create_file_at_path(&db, path!(account, "folder1/test.md")).unwrap();
+        let folder2 = create_file_at_path(&db, path!(account, "folder2")).unwrap();
+        write_document(&db, doc.id, "content".as_bytes()).unwrap();
+        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
+        delete_file(&db, doc.parent).unwrap();
+        assert_matches!(
+            move_file(&db, doc.id, folder2.id),
+            Err(UiError(MoveFileError::FileDoesNotExist))
+        );
+    }
+
+    #[test]
+    fn test_folder_move_delete_source_doc() {
+        let db = test_config();
+        let account = make_account!(db);
+        let doc = create_file_at_path(&db, path!(account, "folder1/test.md")).unwrap();
+        let folder2 = create_file_at_path(&db, path!(account, "folder2")).unwrap();
+        write_document(&db, doc.id, "content".as_bytes()).unwrap();
+        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
+        delete_file(&db, doc.parent).unwrap();
+        assert_matches!(
+            move_file(&db, doc.parent, folder2.id),
+            Err(UiError(MoveFileError::FileDoesNotExist))
+        );
+    }
+
+    #[test]
+    fn test_folder_move_delete_destination_parent() {
+        let db = test_config();
+        let account = make_account!(db);
+        let doc = create_file_at_path(&db, path!(account, "folder1/test.md")).unwrap();
+        let folder2 = create_file_at_path(&db, path!(account, "folder2")).unwrap();
+        write_document(&db, doc.id, "content".as_bytes()).unwrap();
+        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
+        delete_file(&db, folder2.id).unwrap();
+        assert_matches!(
+            move_file(&db, doc.id, folder2.id),
+            Err(UiError(MoveFileError::TargetParentDoesNotExist))
+        );
+    }
+
+    #[test]
+    fn test_folder_move_delete_destination_doc() {
+        let db = test_config();
+        let account = make_account!(db);
+        let doc = create_file_at_path(&db, path!(account, "folder1/test.md")).unwrap();
+        let folder2 = create_file_at_path(&db, path!(account, "folder2")).unwrap();
+        write_document(&db, doc.id, "content".as_bytes()).unwrap();
+        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
+        delete_file(&db, folder2.id).unwrap();
+        assert_matches!(
+            move_file(&db, doc.parent, folder2.id),
+            Err(UiError(MoveFileError::TargetParentDoesNotExist))
         );
     }
 }
