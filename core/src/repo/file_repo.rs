@@ -88,9 +88,11 @@ pub fn insert_metadata(
             && metadatum.file_type == FileType::Document
             && file_repo::maybe_get_metadata(config, RepoSource::Local, metadatum.id)?.is_none()
         {
+            metadata_repo::insert(config, source, &encrypted_metadata)?;
             file_repo::insert_document(config, RepoSource::Local, &metadatum, &[])?;
+        } else {
+            metadata_repo::insert(config, source, &encrypted_metadata)?;
         }
-        metadata_repo::insert(config, source, &encrypted_metadata)?;
 
         // remove local if local == base
         if let Some(opposite) =
@@ -113,6 +115,23 @@ pub fn insert_metadata(
     Ok(())
 }
 
+pub fn get_not_deleted_metadata(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+) -> Result<DecryptedFileMetadata, CoreError> {
+    maybe_get_not_deleted_metadata(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
+}
+
+pub fn maybe_get_not_deleted_metadata(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+) -> Result<Option<DecryptedFileMetadata>, CoreError> {
+    let all_not_deleted_metadata = get_all_not_deleted_metadata(config, source)?;
+    Ok(utils::maybe_find(&all_not_deleted_metadata, id))
+}
+
 pub fn get_metadata(
     config: &Config,
     source: RepoSource,
@@ -128,6 +147,13 @@ pub fn maybe_get_metadata(
 ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
     let all_metadata = get_all_metadata(config, source)?;
     Ok(utils::maybe_find(&all_metadata, id))
+}
+
+pub fn get_all_not_deleted_metadata(
+    config: &Config,
+    source: RepoSource,
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+    Ok(utils::filter_not_deleted(&get_all_metadata(config, source)?))
 }
 
 pub fn get_all_metadata(
@@ -237,6 +263,9 @@ pub fn insert_document(
     metadata: &DecryptedFileMetadata,
     document: &[u8],
 ) -> Result<(), CoreError> {
+    // check that document exists
+    get_metadata(config, RepoSource::Local, metadata.id)?;
+
     // encrypt document and compute digest
     let digest = Sha256::digest(&document);
     let compressed_document = file_compression_service::compress(&document)?;
@@ -256,6 +285,28 @@ pub fn insert_document(
     }
 
     Ok(())
+}
+
+pub fn get_not_deleted_document(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+) -> Result<DecryptedDocument, CoreError> {
+    maybe_get_not_deleted_document(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
+}
+
+pub fn maybe_get_not_deleted_document(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+) -> Result<Option<DecryptedDocument>, CoreError> {
+    if maybe_get_not_deleted_metadata(config, source, id)?.is_none() {
+        return Ok(None);
+    }
+    match maybe_get_document_state(config, id)? {
+        Some(r) => Ok(r.source(source)),
+        None => Ok(None),
+    }
 }
 
 pub fn get_document(
@@ -1390,10 +1441,10 @@ mod unit_tests {
         assert_document_count!(config, RepoSource::Local, 1);
 
         document.deleted = true;
-        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_metadatum(config, RepoSource::Local, &document).unwrap();
         file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2")
             .unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &document).unwrap();
         file_repo::prune_deleted(config).unwrap();
 
         assert_metadata_changes_count!(config, 0);

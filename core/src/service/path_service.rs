@@ -20,7 +20,7 @@ pub fn create_at_path(
 
     let is_folder = path_and_name.ends_with('/');
 
-    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let mut current = utils::find_root(&files)?;
     let root_id = current.id;
     let account = account_repo::get(config)?;
@@ -73,7 +73,7 @@ pub fn create_at_path(
 pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
     let paths = split_path(path);
 
-    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let mut current = utils::find_root(&files)?;
 
     for (i, &value) in paths.iter().enumerate() {
@@ -120,7 +120,7 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, CoreError> {
 }
 
 pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
-    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
 
     let mut filtered_files = files.clone();
 
@@ -144,7 +144,7 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
             } else {
                 current_path = format!("{}/{}", current.decrypted_name, current_path);
             }
-            current = file_repo::get_metadata(config, RepoSource::Local, current.parent)?;
+            current = file_repo::get_not_deleted_metadata(config, RepoSource::Local, current.parent)?;
         }
 
         current_path = format!("{}/{}", current.decrypted_name, current_path);
@@ -156,7 +156,7 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
 
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
     let mut current_id = id;
-    let mut current_metadata = file_repo::get_metadata(config, RepoSource::Local, current_id)?;
+    let mut current_metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
     let mut path = String::from("");
 
     let is_folder = current_metadata.file_type == Folder;
@@ -164,7 +164,7 @@ pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
     while current_metadata.parent != current_id {
         path = format!("{}/{}", current_metadata.decrypted_name, path);
         current_id = current_metadata.parent;
-        current_metadata = file_repo::get_metadata(config, RepoSource::Local, current_id)?;
+        current_metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
     }
 
     {

@@ -269,7 +269,7 @@ pub fn write_document(
     id: Uuid,
     content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
-    let metadata = file_repo::get_metadata(config, RepoSource::Local, id).map_err(|e| match e {
+    let metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, id).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
         CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
         _ => unexpected!("{:#?}", e),
@@ -323,7 +323,7 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
-    let files = file_repo::get_all_metadata(config, RepoSource::Local).map_err(|e| match e {
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local).map_err(|e| match e {
         _ => unexpected!("{:#?}", e),
     })?;
     match utils::maybe_find_root(&files) {
@@ -350,7 +350,7 @@ pub fn get_children(
 }
 
 fn get_children_helper(config: &Config, id: Uuid) -> Result<Vec<ClientFileMetadata>, CoreError> {
-    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = utils::filter_not_deleted(&files);
     let children = utils::find_children(&files, id);
     children
@@ -380,7 +380,7 @@ pub fn get_and_get_children_recursively_helper(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, CoreError> {
-    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = utils::filter_not_deleted(&files);
     let file_and_descendants = utils::find_with_descendants(&files, id)?;
 
@@ -410,7 +410,7 @@ pub fn get_file_by_id(
     config: &Config,
     id: Uuid,
 ) -> Result<ClientFileMetadata, Error<GetFileByIdError>> {
-    file_repo::get_metadata(&config, RepoSource::Local, id)
+    file_repo::get_not_deleted_metadata(&config, RepoSource::Local, id)
         .map_err(|e| match e {
             CoreError::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
             _ => unexpected!("{:#?}", e),
@@ -456,8 +456,7 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
 }
 
 fn delete_file_helper(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files);
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let file = file_service::apply_delete(&files, id)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
@@ -473,7 +472,7 @@ pub fn read_document(
     config: &Config,
     id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    file_repo::get_document(&config, RepoSource::Local, id).map_err(|e| match e {
+    file_repo::get_not_deleted_document(&config, RepoSource::Local, id).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
         CoreError::AccountNonexistent => UiError(ReadDocumentError::NoAccount),
         CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
@@ -495,7 +494,7 @@ pub fn save_document_to_disk(
     id: Uuid,
     location: String,
 ) -> Result<(), Error<SaveDocumentToDiskError>> {
-    let document = file_repo::get_document(config, RepoSource::Local, id).map_err(|e| match e {
+    let document = file_repo::get_not_deleted_document(config, RepoSource::Local, id).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
         CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
         CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
@@ -537,7 +536,7 @@ pub enum ListMetadatasError {
 pub fn list_metadatas(
     config: &Config,
 ) -> Result<Vec<ClientFileMetadata>, Error<ListMetadatasError>> {
-    let metas = file_repo::get_all_metadata(&config, RepoSource::Local)
+    let metas = file_repo::get_all_not_deleted_metadata(&config, RepoSource::Local)
         .map_err(|e| unexpected!("{:#?}", e))?;
     let mut client_metas = vec![];
 
@@ -575,7 +574,7 @@ pub fn rename_file(
 }
 
 fn rename_file_helper(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
-    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = utils::filter_not_deleted(&files);
     let file = file_service::apply_rename(&files, id, new_name)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
@@ -606,7 +605,7 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
 }
 
 fn move_file_helper(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
-    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = utils::filter_not_deleted(&files);
     let file = file_service::apply_move(&files, id, new_parent)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
@@ -741,7 +740,7 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
 }
 
 fn get_drawing_helper(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
-    let drawing_bytes = file_repo::get_document(config, RepoSource::Local, id)?;
+    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
     drawing_service::parse_drawing(&drawing_bytes)
 }
 
@@ -773,7 +772,7 @@ pub fn save_drawing_helper(
     drawing_bytes: &[u8],
 ) -> Result<(), CoreError> {
     drawing_service::parse_drawing(drawing_bytes)?; // validate drawing
-    let metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
+    let metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?;
     file_repo::insert_document(config, RepoSource::Local, &metadata, drawing_bytes)
 }
 
@@ -806,7 +805,7 @@ fn export_drawing_helper(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, CoreError> {
-    let drawing_bytes = file_repo::get_document(config, RepoSource::Local, id)?;
+    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
     drawing_service::export_drawing(&drawing_bytes, format, render_theme)
 }
 
@@ -847,7 +846,7 @@ fn export_drawing_to_disk_helper(
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     location: String,
 ) -> Result<(), CoreError> {
-    let drawing_bytes = file_repo::get_document(config, RepoSource::Local, id)?;
+    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
     let exported_drawing_bytes =
         drawing_service::export_drawing(&drawing_bytes, format, render_theme)?;
     file_service::save_document_to_disk(&exported_drawing_bytes, location)

@@ -5,7 +5,7 @@ pub enum RepoSource {
 }
 
 impl RepoSource {
-    pub fn opposite(self: Self) -> RepoSource {
+    pub fn opposite(self) -> RepoSource {
         match self {
             RepoSource::Local => RepoSource::Base,
             RepoSource::Base => RepoSource::Local,
