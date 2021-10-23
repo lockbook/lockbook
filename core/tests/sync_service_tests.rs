@@ -946,17 +946,16 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        assert_dirty_ids!(db1, 0);
+        assert_dirty_ids!(db1, 1);
 
         assert!(metadata_repo::maybe_get(&db1, RepoSource::Local, file.id)
-            .unwrap()
-            .is_none());
+            .unwrap().unwrap().deleted);
         assert!(
             file_repo::maybe_get_document(&db1, RepoSource::Local, file.id)
                 .unwrap()
-                .is_none()
+                .is_some()
         );
-        assert!(file_repo::get_document(&db1, RepoSource::Local, file.id).is_err());
+        assert!(file_repo::get_document(&db1, RepoSource::Local, file.id).is_ok());
     }
 
     #[test]
