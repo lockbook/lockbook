@@ -552,11 +552,11 @@ fn pull(
     {
         if let Some(RepoState::Modified{ mut local, base }) = file_repo::maybe_get_metadata_state(config, self_descendant)? {
             if let Some(existing_update) = utils::maybe_find_mut(&mut local_metadata_updates, self_descendant) {
-                existing_update.parent = base.parent;
-            } else {
-                local.parent = base.parent;
-                local_metadata_updates.push(local);
+                // existing_update.parent = base.parent;
+                // todo: this is gonna be a bitch
             }
+            local.parent = base.parent;
+            file_repo::insert_metadatum(config, RepoSource::Local, &local)?;
         }
     }
 

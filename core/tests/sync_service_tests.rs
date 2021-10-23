@@ -1666,4 +1666,21 @@ mod sync_tests {
         sync!(&db1);
         sync!(&db2);
     }
+
+    #[test]
+    fn cycle_in_a_sync_with_a_rename() {
+        let db1 = test_config();
+        let account = make_account!(db1);
+        let a = path_service::create_at_path(&db1, path!(account, "a/")).unwrap();
+        let b = path_service::create_at_path(&db1, path!(account, "b/")).unwrap();
+        sync!(&db1);
+        make_and_sync_new_client!(db2, db1);
+
+        move_file(&db1, b.id, a.id).unwrap();
+        rename_file(&db1, a.id, "new_name").unwrap();
+        sync!(&db1);
+
+        move_file(&db2, a.id, b.id).unwrap();
+        sync!(&db2);
+    }
 }
