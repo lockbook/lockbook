@@ -22,8 +22,7 @@ mod delete_and_list_tests {
 
         assert_eq!(
             list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
-            1
+            0
         );
-        w
     }
 }
