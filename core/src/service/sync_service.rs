@@ -42,6 +42,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
         .map(|f| f.metadata_version)
         .max()
         .unwrap_or(0);
+    println!("max base version: {}", base_max_metadata_version);
 
     let server_updates = client::request(
         &account,
@@ -696,6 +697,7 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
     pull(config, account, &f)?;
     trace!("  sync push_documents");
     push_documents(config, account, &f)?;
+    pull(config, account, &f)?;
     file_repo::prune_deleted(config)?;
     trace!("sync end");
     Ok(())
@@ -718,10 +720,7 @@ mod unit_test_sync_service {
 
         let result = sync_service::merge_maybe(base, local, remote).unwrap();
 
-        assert_eq!(
-            result,
-            MaybeMergeResult::Resolved(0)
-        );
+        assert_eq!(result, MaybeMergeResult::Resolved(0));
     }
 
     #[test]
@@ -732,10 +731,7 @@ mod unit_test_sync_service {
 
         let result = sync_service::merge_maybe(base, local, remote).unwrap();
 
-        assert_eq!(
-            result,
-            MaybeMergeResult::Resolved(1)
-        );
+        assert_eq!(result, MaybeMergeResult::Resolved(1));
     }
 
     #[test]
@@ -746,10 +742,7 @@ mod unit_test_sync_service {
 
         let result = sync_service::merge_maybe(base, local, remote).unwrap();
 
-        assert_eq!(
-            result,
-            MaybeMergeResult::Resolved(1)
-        );
+        assert_eq!(result, MaybeMergeResult::Resolved(1));
     }
 
     #[test]
@@ -760,10 +753,7 @@ mod unit_test_sync_service {
 
         let result = sync_service::merge_maybe(base, local, remote).unwrap();
 
-        assert_eq!(
-            result,
-            MaybeMergeResult::Resolved(2)
-        );
+        assert_eq!(result, MaybeMergeResult::Resolved(2));
     }
 
     #[test]
@@ -774,10 +764,7 @@ mod unit_test_sync_service {
 
         let result = sync_service::merge_maybe(base, local, remote).unwrap();
 
-        assert_eq!(
-            result,
-            MaybeMergeResult::Resolved(2)
-        );
+        assert_eq!(result, MaybeMergeResult::Resolved(2));
     }
 
     #[test]
@@ -790,7 +777,11 @@ mod unit_test_sync_service {
 
         assert_eq!(
             result,
-            MaybeMergeResult::Conflict{base: 0, local: 1, remote: 2}
+            MaybeMergeResult::Conflict {
+                base: 0,
+                local: 1,
+                remote: 2
+            }
         );
     }
 
@@ -804,7 +795,10 @@ mod unit_test_sync_service {
 
         assert_eq!(
             result,
-            MaybeMergeResult::BaselessConflict{local: 1, remote: 2}
+            MaybeMergeResult::BaselessConflict {
+                local: 1,
+                remote: 2
+            }
         );
     }
 

@@ -1,10 +1,10 @@
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::model::state::Config;
-use crate::repo::account_repo;
 use crate::repo::digest_repo;
 use crate::repo::document_repo;
 use crate::repo::metadata_repo;
+use crate::repo::{account_repo, file_repo};
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::utils;
@@ -81,9 +81,15 @@ pub fn insert_metadata(
     let all_metadata_encrypted =
         file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
 
-    for metadata in metadata {
-        let encrypted_metadata = utils::find_encrypted(&all_metadata_encrypted, metadata.id)?;
+    for metadatum in metadata {
+        let encrypted_metadata = utils::find_encrypted(&all_metadata_encrypted, metadatum.id)?;
         // perform insertion
+        if source == RepoSource::Local
+            && metadatum.file_type == FileType::Document
+            && file_repo::maybe_get_metadata(config, RepoSource::Local, metadatum.id)?.is_none()
+        {
+            file_repo::insert_document(config, RepoSource::Local, &metadatum, &[])?;
+        }
         metadata_repo::insert(config, source, &encrypted_metadata)?;
 
         // remove local if local == base
@@ -91,16 +97,16 @@ pub fn insert_metadata(
             metadata_repo::maybe_get(config, source.opposite(), encrypted_metadata.id)?
         {
             if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
-                && opposite.parent == metadata.parent
-                && opposite.deleted == metadata.deleted
+                && opposite.parent == metadatum.parent
+                && opposite.deleted == metadatum.deleted
             {
-                metadata_repo::delete(config, RepoSource::Local, metadata.id)?;
+                metadata_repo::delete(config, RepoSource::Local, metadatum.id)?;
             }
         }
 
         // update root
-        if metadata.parent == metadata.id {
-            root_repo::set(config, metadata.id)?;
+        if metadatum.parent == metadatum.id {
+            root_repo::set(config, metadatum.id)?;
         }
     }
 
@@ -1031,6 +1037,11 @@ mod unit_tests {
         assert_metadata_count!(config, RepoSource::Local, 3);
         assert_document_count!(config, RepoSource::Base, 0);
         assert_document_count!(config, RepoSource::Local, 0);
+
+        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_repo::prune_deleted(config).unwrap();
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -1069,11 +1080,11 @@ mod unit_tests {
         file_repo::insert_metadatum(config, RepoSource::Local, &document2).unwrap();
 
         assert_metadata_changes_count!(config, 4);
-        assert_document_changes_count!(config, 0);
+        assert_document_changes_count!(config, 1);
         assert_metadata_count!(config, RepoSource::Base, 3);
         assert_metadata_count!(config, RepoSource::Local, 4);
         assert_document_count!(config, RepoSource::Base, 0);
-        assert_document_count!(config, RepoSource::Local, 0);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]

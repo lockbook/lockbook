@@ -77,7 +77,8 @@ pub fn apply_move(
     Ok(file)
 }
 
-/// Validates a delete operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
+/// Validates a delete operation for a file in the context of all files and returns a version of the
+/// file with the operation applied. This is a pure function.
 pub fn apply_delete(
     files: &[DecryptedFileMetadata],
     target_id: Uuid,

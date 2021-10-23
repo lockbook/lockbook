@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum RepoSource {
     Local, // files with local edits applied
     Base,  // files at latest known state when client and server matched
