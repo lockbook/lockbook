@@ -47,6 +47,20 @@ macro_rules! path {
     }};
 }
 
+#[macro_export]
+macro_rules! make_account {
+    ($db:expr) => {{
+        let generated_account = generate_account();
+        let account = account_service::create_account(
+            &$db,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+        account
+    }};
+}
+
 pub fn test_config() -> Config {
     Config {
         writeable_path: format!("/tmp/{}", Uuid::new_v4().to_string()),

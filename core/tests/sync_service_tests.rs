@@ -7,7 +7,7 @@ mod sync_tests {
     use lockbook_core::repo::{file_repo, metadata_repo};
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::service::{account_service, file_service, path_service, sync_service};
-    use lockbook_core::{path, rename_file};
+    use lockbook_core::{make_account, path, rename_file};
     use lockbook_models::work_unit::WorkUnit;
 
     macro_rules! assert_dirty_ids {
@@ -23,19 +23,6 @@ mod sync_tests {
                 $n
             );
         };
-    }
-
-    macro_rules! make_account {
-        ($db:expr) => {{
-            let generated_account = generate_account();
-            let account = account_service::create_account(
-                &$db,
-                &generated_account.username,
-                &generated_account.api_url,
-            )
-            .unwrap();
-            account
-        }};
     }
 
     macro_rules! make_new_client {
@@ -593,7 +580,9 @@ mod sync_tests {
         sync!(&db2);
 
         let all_metadata = file_repo::get_all_metadata(&db2, RepoSource::Base).unwrap();
-        assert!(all_metadata.into_iter().any(|m| m.decrypted_name.contains("CONTENT-CONFLICT")));
+        assert!(all_metadata
+            .into_iter()
+            .any(|m| m.decrypted_name.contains("CONTENT-CONFLICT")));
 
         sync!(&db1);
 
@@ -948,8 +937,12 @@ mod sync_tests {
         .unwrap();
         assert_dirty_ids!(db1, 1);
 
-        assert!(metadata_repo::maybe_get(&db1, RepoSource::Local, file.id)
-            .unwrap().unwrap().deleted);
+        assert!(
+            metadata_repo::maybe_get(&db1, RepoSource::Local, file.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
         assert!(
             file_repo::maybe_get_document(&db1, RepoSource::Local, file.id)
                 .unwrap()
