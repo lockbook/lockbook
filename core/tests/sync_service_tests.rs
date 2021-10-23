@@ -58,7 +58,6 @@ mod sync_tests {
         let db = test_config();
         let account = make_account!(db);
 
-        println!("{}", line!());
         path_service::create_at_path(&db, path!(account, "test.md")).unwrap();
         assert_dirty_ids!(db, 1);
     }
@@ -105,16 +104,13 @@ mod sync_tests {
         let account = make_account!(db);
 
         assert_dirty_ids!(db, 0);
-        println!("1st calculate work");
 
         let file =
             path_service::create_at_path(&db, &format!("{}/a/b/c/test", account.username)).unwrap();
 
         sync!(&db);
-        println!("1st sync done");
 
         make_and_sync_new_client!(db2, db);
-        println!("2nd sync done, db2");
 
         file_repo::insert_document(
             &db,
@@ -125,7 +121,6 @@ mod sync_tests {
         .unwrap();
 
         assert_dirty_ids!(db, 1);
-        println!("2nd calculate work, db1, 1 dirty file");
 
         match sync_service::calculate_work(&db)
             .unwrap()
@@ -141,16 +136,12 @@ mod sync_tests {
                 panic!("This should have been a local change with no server changes!")
             }
         };
-        println!("3rd calculate work, db1, 1 dirty file");
 
         sync!(&db);
-        println!("3rd sync done, db1, dirty file pushed");
 
         assert_dirty_ids!(db, 0);
-        println!("4th calculate work, db1, dirty file pushed");
 
         assert_dirty_ids!(db2, 1);
-        println!("5th calculate work, db2, dirty file needs to be pulled");
 
         let edited_file = file_repo::get_metadata(&db, RepoSource::Local, file.id).unwrap();
 
@@ -166,13 +157,10 @@ mod sync_tests {
                 panic!("This should have been a ServerChange with no LocalChange!")
             }
         };
-        println!("6th calculate work, db2, dirty file needs to be pulled");
 
         sync!(&db2);
-        println!("4th sync done, db2, dirty file pulled");
 
         assert_dirty_ids!(db2, 0);
-        println!("7th calculate work ");
 
         assert_eq!(
             file_repo::get_document(&db2, RepoSource::Local, edited_file.id).unwrap(),
