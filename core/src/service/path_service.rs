@@ -22,6 +22,7 @@ pub fn create_at_path(
 
     let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
     let mut current = utils::find_root(&files)?;
+    let root_id = current.id;
     let account = account_repo::get(config)?;
 
     if current.decrypted_name != path_components[0] {
@@ -42,7 +43,7 @@ pub fn create_at_path(
         for child in children {
             if child.decrypted_name == next_name {
                 // If we're at the end and we find this child, that means this path already exists
-                if index == path_components.len() - 2 {
+                if child.id != root_id && index == path_components.len() - 2 {
                     return Err(CoreError::PathTaken);
                 }
 
