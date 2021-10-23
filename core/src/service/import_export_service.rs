@@ -23,7 +23,9 @@ pub fn import_file(
     parent: Uuid,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    if file_repo::get_metadata(config, RepoSource::Local, parent)?.file_type != FileType::Folder {
+    if file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type
+        != FileType::Folder
+    {
         return Err(CoreError::FileNotFolder);
     }
 
@@ -113,7 +115,7 @@ pub fn export_file(
 
     let file_metadata = client_conversion::generate_client_file_metadata(
         config,
-        &file_repo::get_metadata(config, RepoSource::Local, id)?,
+        &file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?,
     )?;
     export_file_recursively(config, &file_metadata, &destination, edit, &export_progress)
 }
@@ -136,7 +138,7 @@ fn export_file_recursively(
 
     match parent_file_metadata.file_type {
         FileType::Folder => {
-            let all = file_repo::get_all_metadata(config, RepoSource::Local)?;
+            let all = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
             let children = utils::find_children(&all, parent_file_metadata.id);
             fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
@@ -168,8 +170,12 @@ fn export_file_recursively(
             .map_err(CoreError::from)?;
 
             file.write_all(
-                file_repo::get_document(config, RepoSource::Local, parent_file_metadata.id)?
-                    .as_slice(),
+                file_repo::get_not_deleted_document(
+                    config,
+                    RepoSource::Local,
+                    parent_file_metadata.id,
+                )?
+                .as_slice(),
             )
             .map_err(CoreError::from)?;
         }

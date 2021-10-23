@@ -165,6 +165,10 @@ pub fn maybe_find_root(files: &[DecryptedFileMetadata]) -> Option<DecryptedFileM
     files.iter().find(|&f| f.id == f.parent).map(|f| f.clone())
 }
 
+pub fn is_deleted(files: &[DecryptedFileMetadata], target_id: Uuid) -> bool {
+    filter_deleted(files).into_iter().any(|f| f.id == target_id)
+}
+
 /// Returns the files which are not deleted and have no deleted ancestors. Files with parents not present in the argument are considered deleted.
 pub fn filter_not_deleted(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMetadata> {
     let deleted = filter_deleted(&files);
