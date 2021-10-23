@@ -592,17 +592,9 @@ mod sync_tests {
 
         sync!(&db2);
 
-        let works = sync_service::calculate_work(&db2).unwrap();
-        assert_eq!(works.work_units.len(), 1);
+        let all_metadata = file_repo::get_all_metadata(&db2, RepoSource::Base).unwrap();
+        assert!(all_metadata.into_iter().any(|m| m.decrypted_name.contains("CONTENT-CONFLICT")));
 
-        match works.work_units.get(0).unwrap() {
-            WorkUnit::LocalChange { metadata } => {
-                assert!(metadata.decrypted_name.contains("CONTENT-CONFLICT"))
-            }
-            WorkUnit::ServerChange { .. } => panic!("This should not be the work type"),
-        }
-
-        sync!(&db2);
         sync!(&db1);
 
         assert_dbs_eq(&db1, &db2);

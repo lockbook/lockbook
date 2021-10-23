@@ -311,7 +311,7 @@ fn merge_maybe_documents(
                         ResolvedDocument::Copied {
                             remote_metadata: remote_metadata.clone(),
                             remote_document,
-                            copied_local_metadata: merged_metadata.clone(),
+                            copied_local_metadata: copied_local_metadata,
                             copied_local_document: local_document,
                         }
                     }
@@ -355,7 +355,7 @@ fn merge_maybe_documents(
                         ResolvedDocument::Copied {
                             remote_metadata: remote_metadata.clone(),
                             remote_document,
-                            copied_local_metadata: merged_metadata.clone(),
+                            copied_local_metadata: copied_local_metadata,
                             copied_local_document: local_document,
                         }
                     }
@@ -564,10 +564,11 @@ fn pull(
                     copied_local_metadata,
                     copied_local_document,
                 }) => {
-                    base_document_updates.push((remote_metadata, remote_document)); // update base to remote
+                    base_document_updates.push((remote_metadata.clone(), remote_document.clone())); // update base to remote
+                    local_metadata_updates.push(remote_metadata.clone()); // reset conflicted local
+                    local_document_updates.push((remote_metadata.clone(), remote_document)); // reset conflicted local
                     local_metadata_updates.push(copied_local_metadata.clone()); // new local metadata from merge
-                    local_document_updates.push((copied_local_metadata, copied_local_document));
-                    // new local document from merge
+                    local_document_updates.push((copied_local_metadata.clone(), copied_local_document)); // new local document from merge
                 }
                 None => {}
             }
@@ -658,7 +659,8 @@ fn push_documents(
         let mut local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
         let local_content = file_repo::get_document(config, RepoSource::Local, id)?;
         println!(
-            "\npushed document: {:#?}",
+            "\npushed document {:?}: {:#?}",
+            local_metadata.decrypted_name,
             String::from_utf8_lossy(&local_content)
         );
         let encrypted_content = file_encryption_service::encrypt_document(
