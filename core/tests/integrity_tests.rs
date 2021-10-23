@@ -20,6 +20,14 @@ mod integrity_tests {
     }
 
     #[test]
+    fn test_integrity_no_problems_but_more_complicated() {
+        let cfg = test_config();
+        let account = create_account(&cfg, &random_username(), &url()).unwrap();
+        create_file_at_path(&cfg, path!(account, "doc.md")).unwrap();
+        integrity_service::test_repo_integrity(&cfg).unwrap();
+    }
+
+    #[test]
     fn test_no_root() {
         let cfg = test_config();
         assert_matches!(

@@ -2064,6 +2064,7 @@ dependencies = [
  "fern",
  "flate2",
  "image",
+ "itertools 0.10.1",
  "jni",
  "libsecp256k1",
  "lockbook-crypto",

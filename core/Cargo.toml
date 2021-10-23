@@ -51,6 +51,7 @@ debug = true
 criterion = "0.3.3"
 cpuprofiler = "0.0.4"
 libsecp256k1 = "0.5.0"
+itertools = "0.10.1"
 
 [[bench]]
 name = "performator"

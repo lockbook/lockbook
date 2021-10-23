@@ -2,17 +2,24 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_tests {
+    use itertools::Itertools;
     use lockbook_core::model::repo::RepoSource;
-    use lockbook_core::path;
     use lockbook_core::repo::{file_repo, metadata_repo};
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::service::{account_service, file_service, path_service, sync_service};
+    use lockbook_core::{path, rename_file};
     use lockbook_models::work_unit::WorkUnit;
 
-    macro_rules! assert_n_work_units {
+    macro_rules! assert_dirty_ids {
         ($db:expr, $n:literal) => {
             assert_eq!(
-                sync_service::calculate_work(&$db).unwrap().work_units.len(),
+                sync_service::calculate_work(&$db)
+                    .unwrap()
+                    .work_units
+                    .into_iter()
+                    .map(|wu| wu.get_metadata().id)
+                    .unique()
+                    .count(),
                 $n
             );
         };
@@ -60,26 +67,49 @@ mod sync_tests {
     }
 
     #[test]
+    fn test_even_more_basic_sync() {
+        let db = test_config();
+        let account = make_account!(db);
+
+        println!("{}", line!());
+        path_service::create_at_path(&db, path!(account, "test.md")).unwrap();
+        assert_dirty_ids!(db, 1);
+    }
+
+    #[test]
+    fn test_basic_sync() {
+        let db = test_config();
+        let account = make_account!(db);
+
+        assert_dirty_ids!(db, 0);
+
+        path_service::create_at_path(&db, path!(account, "test.md")).unwrap();
+        assert_dirty_ids!(db, 1);
+        sync!(&db);
+        assert_dirty_ids!(db, 0);
+    }
+
+    #[test]
     fn test_create_files_and_folders_sync() {
         let db = test_config();
         let account = make_account!(db);
 
-        assert_n_work_units!(db, 0);
+        assert_dirty_ids!(db, 0);
 
         path_service::create_at_path(&db, &format!("{}/a/b/c/test", account.username)).unwrap();
-        assert_n_work_units!(db, 4);
+        assert_dirty_ids!(db, 4);
 
         sync!(&db);
 
         make_new_client!(db2, db);
-        assert_n_work_units!(db2, 5);
+        assert_dirty_ids!(db2, 5);
 
         sync!(&db2);
         assert_eq!(
             file_repo::get_all_metadata(&db, RepoSource::Local).unwrap(),
             file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap()
         );
-        assert_n_work_units!(db2, 0);
+        assert_dirty_ids!(db2, 0);
     }
 
     #[test]
@@ -87,7 +117,7 @@ mod sync_tests {
         let db = &test_config();
         let account = make_account!(db);
 
-        assert_n_work_units!(db, 0);
+        assert_dirty_ids!(db, 0);
         println!("1st calculate work");
 
         let file =
@@ -107,7 +137,7 @@ mod sync_tests {
         )
         .unwrap();
 
-        assert_n_work_units!(db, 1);
+        assert_dirty_ids!(db, 1);
         println!("2nd calculate work, db1, 1 dirty file");
 
         match sync_service::calculate_work(&db)
@@ -129,10 +159,10 @@ mod sync_tests {
         sync!(&db);
         println!("3rd sync done, db1, dirty file pushed");
 
-        assert_n_work_units!(db, 0);
+        assert_dirty_ids!(db, 0);
         println!("4th calculate work, db1, dirty file pushed");
 
-        assert_n_work_units!(db2, 1);
+        assert_dirty_ids!(db2, 1);
         println!("5th calculate work, db2, dirty file needs to be pulled");
 
         let edited_file = file_repo::get_metadata(&db, RepoSource::Local, file.id).unwrap();
@@ -154,7 +184,7 @@ mod sync_tests {
         sync!(&db2);
         println!("4th sync done, db2, dirty file pulled");
 
-        assert_n_work_units!(db2, 0);
+        assert_dirty_ids!(db2, 0);
         println!("7th calculate work ");
 
         assert_eq!(
@@ -195,14 +225,14 @@ mod sync_tests {
         )
         .unwrap();
 
-        assert_n_work_units!(db1, 2);
+        assert_dirty_ids!(db1, 2);
 
         sync!(&db1);
-        assert_n_work_units!(db1, 0);
-        assert_n_work_units!(db2, 2);
+        assert_dirty_ids!(db1, 0);
+        assert_dirty_ids!(db2, 2);
 
         sync!(&db2);
-        assert_n_work_units!(db2, 0);
+        assert_dirty_ids!(db2, 0);
 
         assert_eq!(
             file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
@@ -820,10 +850,10 @@ mod sync_tests {
 
         file_repo::insert_document(&db, RepoSource::Local, &file, "original".as_bytes()).unwrap();
         sync!(&db);
-        assert_n_work_units!(db, 0);
+        assert_dirty_ids!(db, 0);
 
         file_repo::insert_document(&db, RepoSource::Local, &file, "original".as_bytes()).unwrap();
-        assert_n_work_units!(db, 0);
+        assert_dirty_ids!(db, 0);
     }
 
     #[test]
@@ -831,12 +861,13 @@ mod sync_tests {
         let db = test_config();
         let account = make_account!(db);
 
-        path_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
+        let file =
+            path_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
 
         sync!(&db);
-        assert_n_work_units!(db, 0);
-
-        assert_n_work_units!(db, 0);
+        assert_dirty_ids!(db, 0);
+        rename_file(&db, file.id, "file.md").unwrap();
+        assert_dirty_ids!(db, 0);
     }
 
     #[test]
@@ -848,7 +879,7 @@ mod sync_tests {
             path_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
 
         sync!(&db);
-        assert_n_work_units!(db, 0);
+        assert_dirty_ids!(db, 0);
 
         file_repo::insert_metadatum(
             &db,
@@ -923,7 +954,7 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        assert_n_work_units!(db1, 0);
+        assert_dirty_ids!(db1, 0);
 
         assert!(metadata_repo::maybe_get(&db1, RepoSource::Local, file.id)
             .unwrap()
@@ -1068,7 +1099,7 @@ mod sync_tests {
         );
 
         // Only the folder should show up as the sync instruction
-        assert_n_work_units!(db2, 1);
+        assert_dirty_ids!(db2, 1);
         sync!(&db2);
 
         assert!(
@@ -1077,7 +1108,7 @@ mod sync_tests {
                 .is_none()
         );
 
-        assert_n_work_units!(db1, 4);
+        assert_dirty_ids!(db1, 4);
         sync!(&db1);
 
         assert!(
@@ -1225,7 +1256,7 @@ mod sync_tests {
         );
 
         // Only the folder should show up as the sync instruction
-        assert_n_work_units!(db2, 2);
+        assert_dirty_ids!(db2, 2);
         sync!(&db2);
 
         assert!(
@@ -1234,7 +1265,7 @@ mod sync_tests {
                 .is_none()
         );
 
-        assert_n_work_units!(db1, 4);
+        assert_dirty_ids!(db1, 4);
         sync!(&db1);
 
         assert!(
@@ -1415,7 +1446,7 @@ mod sync_tests {
         )
         .unwrap();
         sync!(&db1);
-        assert_n_work_units!(db1, 0);
+        assert_dirty_ids!(db1, 0);
     }
 
     #[test]
@@ -1488,11 +1519,11 @@ mod sync_tests {
         )
         .unwrap();
 
-        assert_n_work_units!(&db1, 1);
+        assert_dirty_ids!(&db1, 1);
 
         sync!(&db1);
 
-        assert_n_work_units!(&db1, 0);
+        assert_dirty_ids!(&db1, 0);
     }
 
     // Create two sets of folders `temp/1-100md` on two clients.
