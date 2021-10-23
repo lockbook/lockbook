@@ -1548,7 +1548,7 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db1);
 
-        for i in 1..100 {
+        for i in 1..10 {
             path_service::create_at_path(&db1, &format!("{}/tmp/{}/", account.username, i))
                 .unwrap();
         }
