@@ -120,7 +120,8 @@ pub fn get_not_deleted_metadata(
     source: RepoSource,
     id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    maybe_get_not_deleted_metadata(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
+    maybe_get_not_deleted_metadata(config, source, id)
+        .and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_not_deleted_metadata(
@@ -153,7 +154,9 @@ pub fn get_all_not_deleted_metadata(
     config: &Config,
     source: RepoSource,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    Ok(utils::filter_not_deleted(&get_all_metadata(config, source)?))
+    Ok(utils::filter_not_deleted(&get_all_metadata(
+        config, source,
+    )?))
 }
 
 pub fn get_all_metadata(
@@ -292,7 +295,8 @@ pub fn get_not_deleted_document(
     source: RepoSource,
     id: Uuid,
 ) -> Result<DecryptedDocument, CoreError> {
-    maybe_get_not_deleted_document(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
+    maybe_get_not_deleted_document(config, source, id)
+        .and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_not_deleted_document(

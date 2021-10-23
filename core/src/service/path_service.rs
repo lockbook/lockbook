@@ -144,7 +144,8 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
             } else {
                 current_path = format!("{}/{}", current.decrypted_name, current_path);
             }
-            current = file_repo::get_not_deleted_metadata(config, RepoSource::Local, current.parent)?;
+            current =
+                file_repo::get_not_deleted_metadata(config, RepoSource::Local, current.parent)?;
         }
 
         current_path = format!("{}/{}", current.decrypted_name, current_path);
@@ -156,7 +157,8 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
 
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
     let mut current_id = id;
-    let mut current_metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
+    let mut current_metadata =
+        file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
     let mut path = String::from("");
 
     let is_folder = current_metadata.file_type == Folder;
@@ -164,7 +166,8 @@ pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
     while current_metadata.parent != current_id {
         path = format!("{}/{}", current_metadata.decrypted_name, path);
         current_id = current_metadata.parent;
-        current_metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
+        current_metadata =
+            file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
     }
 
     {

@@ -23,7 +23,9 @@ pub fn import_file(
     parent: Uuid,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    if file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type != FileType::Folder {
+    if file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type
+        != FileType::Folder
+    {
         return Err(CoreError::FileNotFolder);
     }
 
@@ -168,8 +170,12 @@ fn export_file_recursively(
             .map_err(CoreError::from)?;
 
             file.write_all(
-                file_repo::get_not_deleted_document(config, RepoSource::Local, parent_file_metadata.id)?
-                    .as_slice(),
+                file_repo::get_not_deleted_document(
+                    config,
+                    RepoSource::Local,
+                    parent_file_metadata.id,
+                )?
+                .as_slice(),
             )
             .map_err(CoreError::from)?;
         }

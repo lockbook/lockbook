@@ -269,11 +269,13 @@ pub fn write_document(
     id: Uuid,
     content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
-    let metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, id).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
-        CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
-        _ => unexpected!("{:#?}", e),
-    })?;
+    let metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, id).map_err(
+        |e| match e {
+            CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
+            CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
+            _ => unexpected!("{:#?}", e),
+        },
+    )?;
     file_repo::insert_document(&config, RepoSource::Local, &metadata, content).map_err(
         |e| match e {
             CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
@@ -305,18 +307,23 @@ pub fn create_file(
         CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
         _ => unexpected!("{:#?}", e),
     })?;
-    file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-        _ => unexpected!("{:#?}", e),
-    })?;
-    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local).map_err(|e| match e {
-        _ => unexpected!("{:#?}", e),
-    })?;
-    let metadata = file_service::apply_create(&all_metadata, file_type, parent, name, &account.username).map_err(|e| match e {
-        CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
-        CoreError::FolderMovedIntoSelf => UiError(CreateFileError::FileOwnParent),
-        _ => unexpected!("{:#?}", e),
-    })?;
+    file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent).map_err(
+        |e| match e {
+            CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
+            _ => unexpected!("{:#?}", e),
+        },
+    )?;
+    let all_metadata =
+        file_repo::get_all_metadata(config, RepoSource::Local).map_err(|e| match e {
+            _ => unexpected!("{:#?}", e),
+        })?;
+    let metadata =
+        file_service::apply_create(&all_metadata, file_type, parent, name, &account.username)
+            .map_err(|e| match e {
+                CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
+                CoreError::FolderMovedIntoSelf => UiError(CreateFileError::FileOwnParent),
+                _ => unexpected!("{:#?}", e),
+            })?;
     file_repo::insert_metadatum(&config, RepoSource::Local, &metadata).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
         CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
@@ -335,9 +342,11 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
-    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local).map_err(|e| match e {
-        _ => unexpected!("{:#?}", e),
-    })?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local).map_err(
+        |e| match e {
+            _ => unexpected!("{:#?}", e),
+        },
+    )?;
     match utils::maybe_find_root(&files) {
         None => Err(UiError(GetRootError::NoRoot)),
         Some(file_metadata) => match generate_client_file_metadata(config, &file_metadata) {
@@ -506,12 +515,14 @@ pub fn save_document_to_disk(
     id: Uuid,
     location: String,
 ) -> Result<(), Error<SaveDocumentToDiskError>> {
-    let document = file_repo::get_not_deleted_document(config, RepoSource::Local, id).map_err(|e| match e {
-        CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
-        CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
-        CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
-        _ => unexpected!("{:#?}", e),
-    })?;
+    let document = file_repo::get_not_deleted_document(config, RepoSource::Local, id).map_err(
+        |e| match e {
+            CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
+            CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
+            CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
+            _ => unexpected!("{:#?}", e),
+        },
+    )?;
     file_service::save_document_to_disk(&document, location).map_err(|e| match e {
         CoreError::DiskPathInvalid => UiError(SaveDocumentToDiskError::BadPath),
         CoreError::DiskPathTaken => UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk),

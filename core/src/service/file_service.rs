@@ -43,7 +43,7 @@ pub fn apply_create(
     file_type: FileType,
     parent: Uuid,
     name: &str,
-    owner: &str
+    owner: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let file = create(file_type, parent, name, owner);
     validate_not_root(&file)?;

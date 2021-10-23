@@ -417,7 +417,7 @@ fn get_resolved_document(
         )?),
         None => None,
     };
-    
+
     let maybe_document_state = file_repo::maybe_get_document_state(config, remote_metadatum.id)?;
     let (maybe_base_document, maybe_local_document) = match maybe_document_state {
         Some(document_state) => match document_state {
