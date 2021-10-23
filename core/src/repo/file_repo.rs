@@ -104,17 +104,6 @@ pub fn insert_metadata(
             }
         }
 
-        if metadatum.deleted {
-            // remove document content if deleted
-            document_repo::delete(config, RepoSource::Base, metadatum.id)?;
-            document_repo::delete(config, RepoSource::Local, metadatum.id)?;
-
-            // remove metadata if deleted and new
-            if let Some(RepoState::New(_)) = maybe_get_metadata_state(config, metadatum.id)? {
-                metadata_repo::delete(config, RepoSource::Local, metadatum.id)?;
-            }
-        }
-
         // update root
         if metadatum.parent == metadatum.id {
             root_repo::set(config, metadatum.id)?;
