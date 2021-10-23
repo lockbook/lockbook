@@ -62,7 +62,7 @@ fn request_helper<
         client_version: String::from(get_code_version()),
     })
     .map_err(ApiError::Serialize)?;
-    trace!("request {}\n", T::ROUTE);
+    println!("request {}\n", T::ROUTE);
     let serialized_response = client
         .request(
             T::METHOD,
