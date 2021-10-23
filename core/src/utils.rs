@@ -157,6 +157,14 @@ pub fn find_with_descendants(
     Ok(result)
 }
 
+pub fn find_root_encrypted(files: &[FileMetadata]) -> Result<FileMetadata, CoreError> {
+    maybe_find_root_encrypted(files).ok_or(CoreError::RootNonexistent)
+}
+
+pub fn maybe_find_root_encrypted(files: &[FileMetadata]) -> Option<FileMetadata> {
+    files.iter().find(|&f| f.id == f.parent).map(|f| f.clone())
+}
+
 pub fn find_root(files: &[DecryptedFileMetadata]) -> Result<DecryptedFileMetadata, CoreError> {
     maybe_find_root(files).ok_or(CoreError::RootNonexistent)
 }

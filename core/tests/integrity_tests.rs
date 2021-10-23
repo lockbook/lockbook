@@ -113,6 +113,32 @@ mod integrity_tests {
     }
 
     #[test]
+    fn test_cycle_with_three_files() {
+        let cfg = test_config();
+        let account = create_account(&cfg, &random_username(), &url()).unwrap();
+
+        let _folder1 = create_file_at_path(&cfg, path!(account, "folder1/")).unwrap();
+        let _folder2 = create_file_at_path(&cfg, path!(account, "folder1/folder2/")).unwrap();
+        let folder3 = create_file_at_path(&cfg, path!(account, "folder1/folder2/folder3/")).unwrap();
+
+        let mut parent = metadata_repo::get(
+            &cfg,
+            RepoSource::Local,
+            get_file_by_path(&cfg, path!(account, "folder1"))
+                .unwrap()
+                .id,
+        )
+        .unwrap();
+        parent.parent = folder3.id;
+        metadata_repo::insert(&cfg, RepoSource::Local, &parent).unwrap();
+
+        assert_matches!(
+            integrity_service::test_repo_integrity(&cfg),
+            Err(CycleDetected(_))
+        );
+    }
+
+    #[test]
     fn test_documents_treated_as_folders() {
         let cfg = test_config();
         let account = create_account(&cfg, &random_username(), &url()).unwrap();

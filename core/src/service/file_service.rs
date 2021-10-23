@@ -143,26 +143,36 @@ pub fn get_invalid_cycles_encrypted(
     files: &[FileMetadata],
     staged_changes: &[FileMetadata],
 ) -> Result<Vec<Uuid>, CoreError> {
+    let maybe_root = utils::maybe_find_root_encrypted(&files);
     let files_with_sources = utils::stage_encrypted(files, staged_changes);
     let files = &files_with_sources
         .iter()
         .map(|(f, _)| f.clone())
         .collect::<Vec<FileMetadata>>();
     let mut result = Vec::new();
+    let mut found_root = maybe_root.is_some();
 
-    'file_loop: for file in files {
-        let mut ancestor = utils::find_parent_encrypted(files, file.id)?;
-
-        if ancestor.id == file.id {
-            continue; // root cycle is valid
+    for file in files {
+        let mut ancestor_single = utils::find_parent_encrypted(files, file.id)?;
+        let mut ancestor_double = utils::find_parent_encrypted(files, ancestor_single.id)?;
+        while ancestor_single.id != ancestor_double.id {
+            ancestor_single = utils::find_parent_encrypted(files, ancestor_single.id)?;
+            ancestor_double = utils::find_parent_encrypted(files, utils::find_parent_encrypted(files, ancestor_double.id)?.id)?;
         }
-
-        while ancestor.id != file.id {
-            ancestor = utils::find_parent_encrypted(files, ancestor.id)?;
-            if ancestor.id == file.id {
-                result.push(file.id); // non-root cycle is invalid
+        if ancestor_single.id == file.id {
+            // root in files -> non-root cycles invalid
+            // no root in files -> accept first root from staged_changes
+            if let Some(ref root) = maybe_root {
+                if file.id != root.id {
+                    result.push(file.id);
+                }
+            } else {
+                if !found_root {
+                    found_root = true;
+                } else {
+                    result.push(file.id);
+                }
             }
-            continue 'file_loop;
         }
     }
 
@@ -173,35 +183,36 @@ pub fn get_invalid_cycles(
     files: &[DecryptedFileMetadata],
     staged_changes: &[DecryptedFileMetadata],
 ) -> Result<Vec<Uuid>, CoreError> {
+    let maybe_root = utils::maybe_find_root(&files);
     let files_with_sources = utils::stage(files, staged_changes);
     let files = &files_with_sources
         .iter()
         .map(|(f, _)| f.clone())
         .collect::<Vec<DecryptedFileMetadata>>();
     let mut result = Vec::new();
-    let mut found_root = false;
-
-    'file_loop: for file in files {
-        let mut ancestor = utils::find_parent(files, file.id)?;
-
-        if ancestor.id == file.id {
-            if !found_root {
-                // root cycle is valid once
-                found_root = true;
-                continue;
-            } else {
-                // multiple roots is invalid (it's impossible to tell which is invalid so we pick arbitrarily)
-                result.push(file.id);
-                continue;
-            }
+    let mut found_root = maybe_root.is_some();
+    
+    for file in files {
+        let mut ancestor_single = utils::find_parent(files, file.id)?;
+        let mut ancestor_double = utils::find_parent(files, ancestor_single.id)?;
+        while ancestor_single.id != ancestor_double.id {
+            ancestor_single = utils::find_parent(files, ancestor_single.id)?;
+            ancestor_double = utils::find_parent(files, utils::find_parent(files, ancestor_double.id)?.id)?;
         }
-
-        while ancestor.id != file.id {
-            ancestor = utils::find_parent(files, ancestor.id)?;
-            if ancestor.id == file.id {
-                result.push(file.id); // non-root cycle is invalid
+        if ancestor_single.id == file.id {
+            // root in files -> non-root cycles invalid
+            // no root in files -> accept first root from staged_changes
+            if let Some(ref root) = maybe_root {
+                if file.id != root.id {
+                    result.push(file.id);
+                }
+            } else {
+                if !found_root {
+                    found_root = true;
+                } else {
+                    result.push(file.id);
+                }
             }
-            continue 'file_loop;
         }
     }
 
