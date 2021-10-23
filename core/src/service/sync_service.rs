@@ -3,6 +3,7 @@ use std::fmt;
 use crate::model::client_conversion::ClientWorkUnit;
 use crate::model::document_type::DocumentType;
 use crate::model::repo::RepoSource;
+use crate::model::repo::RepoState;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::file_repo;
@@ -456,20 +457,16 @@ fn get_resolved_document(
 
     let maybe_document_state = file_repo::maybe_get_document_state(config, remote_metadatum.id)?;
     let (maybe_base_document, maybe_local_document) = match maybe_document_state {
-        Some(document_state) => (document_state.clone().base(), Some(document_state.local())),
+        Some(document_state) => match document_state {
+            RepoState::New(local) => (None, Some(local)),
+            RepoState::Modified { local, base } => (Some(base), Some(local)),
+            RepoState::Unmodified(base) => (Some(base), None),
+        }
         None => (None, None),
     };
 
     match maybe_remote_document {
         Some(remote_document) => {
-            // update remote repo to version from server
-            file_repo::insert_document(
-                config,
-                RepoSource::Base,
-                &remote_metadatum,
-                &remote_document,
-            )?;
-
             // merge document content for documents with updated content
             let merged_document = merge_maybe_documents(
                 merged_metadatum,
