@@ -1219,106 +1219,125 @@ mod sync_tests {
         .unwrap();
 
         assert!(
-            metadata_repo::maybe_get(&db2, RepoSource::Local, file1_delete.parent)
+            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            metadata_repo::maybe_get(&db2, RepoSource::Local, file1_delete.id)
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            !metadata_repo::maybe_get(&db2, RepoSource::Local, file2_delete.id)
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            metadata_repo::maybe_get(&db2, RepoSource::Local, file3_delete.id)
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            !metadata_repo::maybe_get(&db2, RepoSource::Local, file1_stay.parent)
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !metadata_repo::maybe_get(&db2, RepoSource::Local, file1_stay.id)
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !metadata_repo::maybe_get(&db2, RepoSource::Local, file2_stay.id)
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !metadata_repo::maybe_get(&db2, RepoSource::Local, file3_stay.id)
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_stay.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
 
-        // Only the folder should show up as the sync instruction
+        // Only the folder + moved document should show up as the sync instructions
         assert_dirty_ids!(db2, 2);
         sync!(&db2);
 
+        // deleted files and their ancestors purged after sync
         assert!(
-            metadata_repo::maybe_get(&db2, RepoSource::Local, file1_delete.parent)
+            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
+                .unwrap()
+                .unwrap()
+                .deleted
+        );
+        assert!(
+            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .is_none()
         );
 
-        assert_dirty_ids!(db1, 4);
+        assert_dirty_ids!(db1, 2);
         sync!(&db1);
 
         assert!(
-            metadata_repo::maybe_get(&db1, RepoSource::Local, file1_delete.parent)
+            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.parent)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            metadata_repo::maybe_get(&db1, RepoSource::Local, file1_delete.id)
+            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            !metadata_repo::maybe_get(&db1, RepoSource::Local, file2_delete.id)
+            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            metadata_repo::maybe_get(&db1, RepoSource::Local, file3_delete.id)
+            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            !metadata_repo::maybe_get(&db1, RepoSource::Local, file1_stay.parent)
+            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !metadata_repo::maybe_get(&db1, RepoSource::Local, file1_stay.id)
+            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !metadata_repo::maybe_get(&db1, RepoSource::Local, file2_stay.id)
+            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file2_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !metadata_repo::maybe_get(&db1, RepoSource::Local, file3_stay.id)
+            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
