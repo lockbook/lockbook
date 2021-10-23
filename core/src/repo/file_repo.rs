@@ -86,7 +86,7 @@ pub fn insert_metadata(
         // perform insertion
         if source == RepoSource::Local
             && metadatum.file_type == FileType::Document
-            && metadata_repo::maybe_get(config, RepoSource::Local, metadatum.id)?.is_none()
+            && file_repo::maybe_get_metadata(config, RepoSource::Local, metadatum.id)?.is_none()
         {
             file_repo::insert_document(config, RepoSource::Local, &metadatum, &[])?;
         }
@@ -1037,6 +1037,11 @@ mod unit_tests {
         assert_metadata_count!(config, RepoSource::Local, 3);
         assert_document_count!(config, RepoSource::Base, 0);
         assert_document_count!(config, RepoSource::Local, 0);
+
+        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_repo::prune_deleted(config).unwrap();
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
     }
 
     #[test]
@@ -1075,11 +1080,11 @@ mod unit_tests {
         file_repo::insert_metadatum(config, RepoSource::Local, &document2).unwrap();
 
         assert_metadata_changes_count!(config, 4);
-        assert_document_changes_count!(config, 0);
+        assert_document_changes_count!(config, 1);
         assert_metadata_count!(config, RepoSource::Base, 3);
         assert_metadata_count!(config, RepoSource::Local, 4);
         assert_document_count!(config, RepoSource::Base, 0);
-        assert_document_count!(config, RepoSource::Local, 0);
+        assert_document_count!(config, RepoSource::Local, 1);
     }
 
     #[test]

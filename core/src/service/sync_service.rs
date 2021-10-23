@@ -697,6 +697,7 @@ pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(),
     pull(config, account, &f)?;
     trace!("  sync push_documents");
     push_documents(config, account, &f)?;
+    pull(config, account, &f)?;
     file_repo::prune_deleted(config)?;
     trace!("sync end");
     Ok(())
