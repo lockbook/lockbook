@@ -7,7 +7,7 @@ mod sync_tests {
     use lockbook_core::repo::{file_repo, metadata_repo};
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::service::{account_service, file_service, path_service, sync_service};
-    use lockbook_core::{make_account, path, rename_file};
+    use lockbook_core::{make_account, move_file, path, rename_file};
     use lockbook_models::work_unit::WorkUnit;
 
     macro_rules! assert_dirty_ids {
@@ -1646,5 +1646,22 @@ mod sync_tests {
             .unwrap();
 
         sync!(&db1);
+    }
+
+    #[test]
+    fn cycle_in_a_sync() {
+        let db1 = test_config();
+        let db2 = test_config();
+        let account = make_account!(db1);
+        let a = path_service::create_at_path(&db1, path!(account, "a/")).unwrap();
+        let b = path_service::create_at_path(&db1, path!(account, "b/")).unwrap();
+        sync!(&db1);
+        make_and_sync_new_client!(db2, db1);
+
+        move_file(&db1, b.id, a.id).unwrap();
+        move_file(&db2, a.id, b.id).unwrap();
+
+        sync!(&db1);
+        sync!(&db2);
     }
 }
