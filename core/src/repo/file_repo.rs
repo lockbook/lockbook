@@ -81,14 +81,14 @@ pub fn insert_metadata(
     for metadatum in metadata {
         let encrypted_metadata = utils::find_encrypted(&all_metadata_encrypted, metadatum.id)?;
         // perform insertion
-        if source == RepoSource::Local
+        let new_doc = source == RepoSource::Local
             && metadatum.file_type == FileType::Document
-            && file_repo::maybe_get_metadata(config, RepoSource::Local, metadatum.id)?.is_none()
-        {
-            metadata_repo::insert(config, source, &encrypted_metadata)?;
+            && file_repo::maybe_get_metadata(config, RepoSource::Local, metadatum.id)?.is_none();
+        
+        metadata_repo::insert(config, source, &encrypted_metadata)?;
+
+        if new_doc {
             file_repo::insert_document(config, RepoSource::Local, &metadatum, &[])?;
-        } else {
-            metadata_repo::insert(config, source, &encrypted_metadata)?;
         }
 
         // remove local if local == base
