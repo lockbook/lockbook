@@ -37,7 +37,8 @@ pub fn create_root(username: &str) -> DecryptedFileMetadata {
     }
 }
 
-/// Validates a create operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
+/// Validates a create operation for a file in the context of all files and returns a version of
+/// the file with the operation applied. This is a pure function.
 pub fn apply_create(
     files: &[DecryptedFileMetadata],
     file_type: FileType,

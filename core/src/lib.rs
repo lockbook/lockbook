@@ -294,7 +294,6 @@ pub enum CreateFileError {
     FileNameNotAvailable,
     FileNameEmpty,
     FileNameContainsSlash,
-    FileOwnParent,
 }
 
 pub fn create_file(
@@ -321,7 +320,6 @@ pub fn create_file(
         file_service::apply_create(&all_metadata, file_type, parent, name, &account.username)
             .map_err(|e| match e {
                 CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
-                CoreError::FolderMovedIntoSelf => UiError(CreateFileError::FileOwnParent),
                 _ => unexpected!("{:#?}", e),
             })?;
     file_repo::insert_metadatum(&config, RepoSource::Local, &metadata).map_err(|e| match e {
