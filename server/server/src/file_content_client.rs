@@ -125,7 +125,7 @@ pub async fn get(
         .map_err(|err| err.to_string())?
     {
         (data, 200) => {
-            if data.len() == 0 {
+            if data.is_empty() {
                 Ok(None)
             } else {
                 Ok(serde_json::from_slice(&data).map_err(Error::Deserialization)?)

@@ -49,7 +49,7 @@ pub fn generate_client_file_metadata(
         owner: meta.owner.clone(),
         content_version: meta.content_version,
         deleted: meta.deleted,
-        users_with_access: vec![account_repo::get(config)?.username.clone()], // todo: fix
+        users_with_access: vec![account_repo::get(config)?.username], // todo: fix
     })
 }
 

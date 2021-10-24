@@ -48,27 +48,15 @@ impl<T> RepoState<T> {
     }
 
     pub fn is_new(&self) -> bool {
-        if let RepoState::New(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, RepoState::New(_))
     }
 
     pub fn is_modified(&self) -> bool {
-        if let RepoState::Modified { local: _, base: _ } = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, RepoState::Modified { local: _, base: _ })
     }
 
     pub fn is_unmodified(&self) -> bool {
-        if let RepoState::Unmodified(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, RepoState::Unmodified(_))
     }
 
     pub fn from_local_and_base(local: Option<T>, base: Option<T>) -> Option<Self> {

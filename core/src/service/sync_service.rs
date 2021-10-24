@@ -401,7 +401,7 @@ fn get_resolved_document(
     merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<Option<ResolvedDocument>, CoreError> {
     let maybe_remote_document_encrypted = client::request(
-        &account,
+        account,
         GetDocumentRequest {
             id: remote_metadatum.id,
             content_version: remote_metadatum.content_version, // todo: is this content_version is incorrect?
@@ -412,7 +412,7 @@ fn get_resolved_document(
         Some(remote_document_encrypted) => Some(file_compression_service::decompress(
             &file_encryption_service::decrypt_document(
                 &remote_document_encrypted,
-                &remote_metadatum,
+                remote_metadatum,
             )?,
         )?),
         None => None,
@@ -587,9 +587,9 @@ fn push_metadata(
 ) -> Result<(), CoreError> {
     // update remote to local (metadata)
     let metadata_changes = file_repo::get_all_metadata_changes(config)?;
-    if metadata_changes.len() != 0 {
+    if !metadata_changes.is_empty() {
         client::request(
-            &account,
+            account,
             FileMetadataUpsertsRequest {
                 updates: metadata_changes,
             },
@@ -619,7 +619,7 @@ fn push_documents(
 
         // update remote to local (document)
         local_metadata.content_version = client::request(
-            &account,
+            account,
             ChangeDocumentContentRequest {
                 id: id,
                 old_metadata_version: local_metadata.metadata_version,

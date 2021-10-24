@@ -21,13 +21,13 @@ pub fn encrypt_metadatum(
         id: target.id,
         file_type: target.file_type,
         parent: target.parent,
-        name: encrypt_file_name(&target.decrypted_name, &parent_key)?,
+        name: encrypt_file_name(&target.decrypted_name, parent_key)?,
         owner: target.owner.clone(),
         metadata_version: target.metadata_version,
         content_version: target.content_version,
         deleted: target.deleted,
         user_access_keys,
-        folder_access_keys: encrypt_folder_access_keys(&target.decrypted_access_key, &parent_key)?,
+        folder_access_keys: encrypt_folder_access_keys(&target.decrypted_access_key, parent_key)?,
     })
 }
 
@@ -41,9 +41,11 @@ pub fn encrypt_metadata(
         let parent_key = files
             .iter()
             .find(|m| m.id == target.parent)
-            .ok_or(CoreError::Unexpected(String::from(
-                "parent metadata missing during call to file_encrpytion_service::encrypt_metadata",
-            )))?
+            .ok_or_else(|| {
+                CoreError::Unexpected(String::from(
+                    "parent metadata missing during call to file_encrpytion_service::encrypt_metadata",
+                ))
+            })?
             .decrypted_access_key;
         result.push(encrypt_metadatum(account, &parent_key, target)?);
     }
@@ -93,12 +95,12 @@ pub fn decrypt_metadatum(
         id: target.id,
         file_type: target.file_type,
         parent: target.parent,
-        decrypted_name: decrypt_file_name(&target.name, &parent_key)?,
+        decrypted_name: decrypt_file_name(&target.name, parent_key)?,
         owner: target.owner.clone(),
         metadata_version: target.metadata_version,
         content_version: target.content_version,
         deleted: target.deleted,
-        decrypted_access_key: decrypt_folder_access_keys(&target.folder_access_keys, &parent_key)?,
+        decrypted_access_key: decrypt_folder_access_keys(&target.folder_access_keys, parent_key)?,
     })
 }
 
@@ -125,9 +127,11 @@ fn decrypt_file_key(
     let target = target_with_ancestors
         .iter()
         .find(|&m| m.id == target_id)
-        .ok_or(CoreError::Unexpected(String::from(
-            "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
-        )))?;
+        .ok_or_else(|| {
+            CoreError::Unexpected(String::from(
+                "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
+            ))
+        })?;
     match target.user_access_keys.get(&account.username) {
         Some(user_access) => {
             let user_access_key =
@@ -138,7 +142,7 @@ fn decrypt_file_key(
             Ok(key)
         }
         None => {
-            let parent_key = decrypt_file_key(&account, target.parent, target_with_ancestors)?;
+            let parent_key = decrypt_file_key(account, target.parent, target_with_ancestors)?;
             let key = symkey::decrypt(&parent_key, &target.folder_access_keys)
                 .map_err(core_err_unexpected)?;
             Ok(key)
@@ -157,7 +161,7 @@ fn decrypt_folder_access_keys(
     encrypted_keys: &EncryptedFolderAccessKey,
     parent_key: &AESKey,
 ) -> Result<AESKey, CoreError> {
-    symkey::decrypt(&parent_key, &encrypted_keys).map_err(core_err_unexpected)
+    symkey::decrypt(parent_key, encrypted_keys).map_err(core_err_unexpected)
 }
 
 pub fn encrypt_document(

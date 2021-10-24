@@ -28,7 +28,7 @@ pub fn maybe_find(
     files: &[DecryptedFileMetadata],
     target_id: Uuid,
 ) -> Option<DecryptedFileMetadata> {
-    files.iter().find(|f| f.id == target_id).map(|f| f.clone())
+    files.iter().find(|f| f.id == target_id).cloned()
 }
 
 pub fn find_mut(
@@ -50,7 +50,7 @@ pub fn find_encrypted(files: &[FileMetadata], target_id: Uuid) -> Result<FileMet
 }
 
 pub fn maybe_find_encrypted(files: &[FileMetadata], target_id: Uuid) -> Option<FileMetadata> {
-    files.iter().find(|f| f.id == target_id).map(|f| f.clone())
+    files.iter().find(|f| f.id == target_id).cloned()
 }
 
 pub fn find_state(
@@ -68,7 +68,7 @@ pub fn maybe_find_state(
         RepoState::New(l) => l.id,
         RepoState::Modified { local: l, base: _ } => l.id,
         RepoState::Unmodified(b) => b.id,
-    } == target_id).map(|f| f.clone())
+    } == target_id).cloned()
 }
 
 pub fn find_parent(
@@ -107,19 +107,12 @@ pub fn find_ancestors(
 ) -> Vec<DecryptedFileMetadata> {
     let mut result = Vec::new();
     let mut current_target_id = target_id;
-    loop {
-        match maybe_find(files, current_target_id) {
-            Some(target) => {
-                result.push(target.clone());
-                if target.id == target.parent {
-                    break;
-                }
-                current_target_id = target.parent;
-            }
-            None => {
-                break;
-            }
+    while let Some(target) = maybe_find(files, current_target_id) {
+        result.push(target.clone());
+        if target.id == target.parent {
+            break;
         }
+        current_target_id = target.parent;
     }
     result
 }
@@ -131,7 +124,7 @@ pub fn find_children(
     files
         .iter()
         .filter(|f| f.parent == target_id)
-        .map(|f| f.clone())
+        .cloned()
         .collect()
 }
 
@@ -139,13 +132,12 @@ pub fn find_with_descendants(
     files: &[DecryptedFileMetadata],
     target_id: Uuid,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    let mut result = Vec::new();
-    result.push(find(files, target_id)?);
+    let mut result = vec![find(files, target_id)?];
     let mut i = 0;
     while i < result.len() {
-        let target = result.get(i).ok_or(CoreError::Unexpected(String::from(
-            "filter_deleted: missing target",
-        )))?;
+        let target = result
+            .get(i)
+            .ok_or_else(|| CoreError::Unexpected(String::from("filter_deleted: missing target")))?;
         let children = find_children(files, target.id);
         for child in children {
             if child.id != target_id {
@@ -162,7 +154,7 @@ pub fn find_root_encrypted(files: &[FileMetadata]) -> Result<FileMetadata, CoreE
 }
 
 pub fn maybe_find_root_encrypted(files: &[FileMetadata]) -> Option<FileMetadata> {
-    files.iter().find(|&f| f.id == f.parent).map(|f| f.clone())
+    files.iter().find(|&f| f.id == f.parent).cloned()
 }
 
 pub fn find_root(files: &[DecryptedFileMetadata]) -> Result<DecryptedFileMetadata, CoreError> {
@@ -170,7 +162,7 @@ pub fn find_root(files: &[DecryptedFileMetadata]) -> Result<DecryptedFileMetadat
 }
 
 pub fn maybe_find_root(files: &[DecryptedFileMetadata]) -> Option<DecryptedFileMetadata> {
-    files.iter().find(|&f| f.id == f.parent).map(|f| f.clone())
+    files.iter().find(|&f| f.id == f.parent).cloned()
 }
 
 pub fn is_deleted(files: &[DecryptedFileMetadata], target_id: Uuid) -> bool {
@@ -179,11 +171,11 @@ pub fn is_deleted(files: &[DecryptedFileMetadata], target_id: Uuid) -> bool {
 
 /// Returns the files which are not deleted and have no deleted ancestors. Files with parents not present in the argument are considered deleted.
 pub fn filter_not_deleted(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMetadata> {
-    let deleted = filter_deleted(&files);
+    let deleted = filter_deleted(files);
     files
         .iter()
         .filter(|f| !deleted.iter().any(|nd| nd.id == f.id))
-        .map(|f| f.clone())
+        .cloned()
         .collect()
 }
 
@@ -219,7 +211,7 @@ pub fn filter_documents(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMet
     files
         .iter()
         .filter(|f| f.file_type == FileType::Document)
-        .map(|f| f.clone())
+        .cloned()
         .collect()
 }
 

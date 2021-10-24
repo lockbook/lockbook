@@ -67,13 +67,10 @@ where
 {
     let path_str = namespace_path(db, namespace);
     // note: this fails if a file is deleted between call to read_dir and subsequent calls to remove_file
-    match fs::read_dir(path_str) {
-        Ok(rd) => {
-            for entry in rd {
-                fs::remove_file(entry?.path())?;
-            }
+    if let Ok(rd) = fs::read_dir(path_str) {
+        for entry in rd {
+            fs::remove_file(entry?.path())?;
         }
-        Err(_) => {}
     }
 
     Ok(())
@@ -103,9 +100,11 @@ where
             file_names
                 .iter()
                 .map(|file_name| {
-                    read(db, namespace, file_name)?.ok_or(CoreError::Unexpected(String::from(
-                        "file listed in directory was not found when we tried to read it",
-                    )))
+                    read(db, namespace, file_name)?.ok_or_else(|| {
+                        CoreError::Unexpected(String::from(
+                            "file listed in directory was not found when we tried to read it",
+                        ))
+                    })
                 })
                 .collect::<Result<Vec<V>, CoreError>>()
         }

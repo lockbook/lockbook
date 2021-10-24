@@ -30,7 +30,7 @@ pub async fn upsert_file_metadata(
         }
 
         let index_result =
-            file_index_repo::upsert_file_metadata(&mut transaction, &context.public_key, &upsert)
+            file_index_repo::upsert_file_metadata(&mut transaction, &context.public_key, upsert)
                 .await;
         match index_result {
             Ok(new_version) => {
@@ -96,8 +96,7 @@ pub async fn upsert_file_metadata(
         if upsert.new_deleted {
             let content_version = files
                 .iter()
-                .filter(|&f| f.id == upsert.id)
-                .next()
+                .find(|&f| f.id == upsert.id)
                 .map_or(0, |f| f.content_version);
             let delete_result = file_content_client::delete(
                 &server_state.files_db_client,

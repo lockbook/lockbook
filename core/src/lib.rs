@@ -217,7 +217,7 @@ pub enum GetAccountError {
 }
 
 pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
-    account_repo::get(&config).map_err(|e| match e {
+    account_repo::get(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetAccountError::NoAccount),
         _ => unexpected!("{:#?}", e),
     })
@@ -276,14 +276,12 @@ pub fn write_document(
             _ => unexpected!("{:#?}", e),
         },
     )?;
-    file_repo::insert_document(&config, RepoSource::Local, &metadata, content).map_err(
-        |e| match e {
-            CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
-            CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
-            CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
-            _ => unexpected!("{:#?}", e),
-        },
-    )
+    file_repo::insert_document(config, RepoSource::Local, &metadata, content).map_err(|e| match e {
+        CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
+        CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
+        CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
+        _ => unexpected!("{:#?}", e),
+    })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -312,17 +310,15 @@ pub fn create_file(
             _ => unexpected!("{:#?}", e),
         },
     )?;
-    let all_metadata =
-        file_repo::get_all_metadata(config, RepoSource::Local).map_err(|e| match e {
-            _ => unexpected!("{:#?}", e),
-        })?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)
+        .map_err(|e| unexpected!("{:#?}", e))?;
     let metadata =
         file_service::apply_create(&all_metadata, file_type, parent, name, &account.username)
             .map_err(|e| match e {
                 CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
                 _ => unexpected!("{:#?}", e),
             })?;
-    file_repo::insert_metadatum(&config, RepoSource::Local, &metadata).map_err(|e| match e {
+    file_repo::insert_metadatum(config, RepoSource::Local, &metadata).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
         CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
         CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
@@ -340,11 +336,8 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
-    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local).map_err(
-        |e| match e {
-            _ => unexpected!("{:#?}", e),
-        },
-    )?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)
+        .map_err(|e| unexpected!("{:#?}", e))?;
     match utils::maybe_find_root(&files) {
         None => Err(UiError(GetRootError::NoRoot)),
         Some(file_metadata) => match generate_client_file_metadata(config, &file_metadata) {
@@ -363,9 +356,7 @@ pub fn get_children(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<ClientFileMetadata>, Error<GetChildrenError>> {
-    get_children_helper(config, id).map_err(|e| match e {
-        _ => unexpected!("{:#?}", e),
-    })
+    get_children_helper(config, id).map_err(|e| unexpected!("{:#?}", e))
 }
 
 fn get_children_helper(config: &Config, id: Uuid) -> Result<Vec<ClientFileMetadata>, CoreError> {
@@ -408,13 +399,14 @@ pub fn get_and_get_children_recursively_helper(
     let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files)?;
     let mut result = Vec::new();
     for file in file_and_descendants {
-        let encrypted_file =
-            encrypted_files
-                .iter()
-                .find(|f| f.id == file.id)
-                .ok_or(CoreError::Unexpected(String::from(
+        let encrypted_file = encrypted_files
+            .iter()
+            .find(|f| f.id == file.id)
+            .ok_or_else(|| {
+                CoreError::Unexpected(String::from(
                     "get_and_get_children_recursively: encrypted file not found",
-                )))?;
+                ))
+            })?;
         result.push(encrypted_file.clone());
     }
     Ok(result)
@@ -429,7 +421,7 @@ pub fn get_file_by_id(
     config: &Config,
     id: Uuid,
 ) -> Result<ClientFileMetadata, Error<GetFileByIdError>> {
-    file_repo::get_not_deleted_metadata(&config, RepoSource::Local, id)
+    file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)
         .map_err(|e| match e {
             CoreError::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
             _ => unexpected!("{:#?}", e),
@@ -491,7 +483,7 @@ pub fn read_document(
     config: &Config,
     id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    file_repo::get_not_deleted_document(&config, RepoSource::Local, id).map_err(|e| match e {
+    file_repo::get_not_deleted_document(config, RepoSource::Local, id).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
         CoreError::AccountNonexistent => UiError(ReadDocumentError::NoAccount),
         CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
@@ -557,7 +549,7 @@ pub enum ListMetadatasError {
 pub fn list_metadatas(
     config: &Config,
 ) -> Result<Vec<ClientFileMetadata>, Error<ListMetadatasError>> {
-    let metas = file_repo::get_all_not_deleted_metadata(&config, RepoSource::Local)
+    let metas = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)
         .map_err(|e| unexpected!("{:#?}", e))?;
     let mut client_metas = vec![];
 
@@ -691,7 +683,7 @@ pub enum SetLastSyncedError {
 }
 
 pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), Error<SetLastSyncedError>> {
-    last_updated_repo::set(&config, last_sync).map_err(|e| unexpected!("{:#?}", e))
+    last_updated_repo::set(config, last_sync).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -700,7 +692,7 @@ pub enum GetLastSyncedError {
 }
 
 pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>> {
-    last_updated_repo::get(&config)
+    last_updated_repo::get(config)
         .map(|n| n as i64)
         .map_err(|e| unexpected!("{:#?}", e))
 }
@@ -751,7 +743,7 @@ pub enum GetDrawingError {
 }
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    get_drawing_helper(&config, id).map_err(|e| match e {
+    get_drawing_helper(config, id).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
         CoreError::FileNotDocument => UiError(GetDrawingError::FolderTreatedAsDrawing),
         CoreError::AccountNonexistent => UiError(GetDrawingError::NoAccount),
@@ -778,7 +770,7 @@ pub fn save_drawing(
     id: Uuid,
     drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
-    save_drawing_helper(&config, id, drawing_bytes).map_err(|e| match e {
+    save_drawing_helper(config, id, drawing_bytes).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
         CoreError::AccountNonexistent => UiError(SaveDrawingError::NoAccount),
         CoreError::FileNonexistent => UiError(SaveDrawingError::FileDoesNotExist),
@@ -811,7 +803,7 @@ pub fn export_drawing(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    export_drawing_helper(&config, id, format, render_theme).map_err(|e| match e {
+    export_drawing_helper(config, id, format, render_theme).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(ExportDrawingError::InvalidDrawing),
         CoreError::AccountNonexistent => UiError(ExportDrawingError::NoAccount),
         CoreError::FileNonexistent => UiError(ExportDrawingError::FileDoesNotExist),
@@ -847,17 +839,15 @@ pub fn export_drawing_to_disk(
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     location: String,
 ) -> Result<(), Error<ExportDrawingToDiskError>> {
-    export_drawing_to_disk_helper(&config, id, format, render_theme, location).map_err(
-        |e| match e {
-            CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
-            CoreError::AccountNonexistent => UiError(ExportDrawingToDiskError::NoAccount),
-            CoreError::FileNonexistent => UiError(ExportDrawingToDiskError::FileDoesNotExist),
-            CoreError::FileNotDocument => UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing),
-            CoreError::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
-            CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
-            _ => unexpected!("{:#?}", e),
-        },
-    )
+    export_drawing_to_disk_helper(config, id, format, render_theme, location).map_err(|e| match e {
+        CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
+        CoreError::AccountNonexistent => UiError(ExportDrawingToDiskError::NoAccount),
+        CoreError::FileNonexistent => UiError(ExportDrawingToDiskError::FileDoesNotExist),
+        CoreError::FileNotDocument => UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing),
+        CoreError::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
+        CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
+        _ => unexpected!("{:#?}", e),
+    })
 }
 
 fn export_drawing_to_disk_helper(

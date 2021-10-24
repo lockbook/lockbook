@@ -144,7 +144,7 @@ pub fn get_invalid_cycles_encrypted(
     files: &[FileMetadata],
     staged_changes: &[FileMetadata],
 ) -> Result<Vec<Uuid>, CoreError> {
-    let maybe_root = utils::maybe_find_root_encrypted(&files);
+    let maybe_root = utils::maybe_find_root_encrypted(files);
     let files_with_sources = utils::stage_encrypted(files, staged_changes);
     let files = &files_with_sources
         .iter()
@@ -185,7 +185,7 @@ pub fn get_invalid_cycles(
     files: &[DecryptedFileMetadata],
     staged_changes: &[DecryptedFileMetadata],
 ) -> Result<Vec<Uuid>, CoreError> {
-    let maybe_root = utils::maybe_find_root(&files);
+    let maybe_root = utils::maybe_find_root(files);
     let files_with_sources = utils::stage(files, staged_changes);
     let files = &files_with_sources
         .iter()
@@ -244,9 +244,11 @@ pub fn get_path_conflicts(
                 let (_, child_source) = files_with_sources
                     .iter()
                     .find(|(f, _)| f.id == child.id)
-                    .ok_or(CoreError::Unexpected(String::from(
-                    "get_path_conflicts: could not find child by id",
-                )))?;
+                    .ok_or_else(|| {
+                    CoreError::Unexpected(String::from(
+                        "get_path_conflicts: could not find child by id",
+                    ))
+                })?;
                 match child_source {
                     StageSource::Base => result.push(PathConflict {
                         existing: child.id,

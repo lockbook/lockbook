@@ -78,7 +78,7 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreEr
 
     let mut local_usage: u64 = 0;
     for doc in docs {
-        local_usage += file_repo::get_document(&config, RepoSource::Local, doc.id)?.len() as u64
+        local_usage += file_repo::get_document(config, RepoSource::Local, doc.id)?.len() as u64
     }
 
     let readable = bytes_to_human(local_usage);

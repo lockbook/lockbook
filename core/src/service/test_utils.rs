@@ -171,27 +171,27 @@ pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
 
 pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     assert_eq!(
-        account_repo::get(&db1).unwrap(),
-        account_repo::get(&db2).unwrap()
+        account_repo::get(db1).unwrap(),
+        account_repo::get(db2).unwrap()
     );
 
     assert_eq!(
-        db_version_repo::maybe_get(&db1).unwrap(),
-        db_version_repo::maybe_get(&db2).unwrap()
+        db_version_repo::maybe_get(db1).unwrap(),
+        db_version_repo::maybe_get(db2).unwrap()
     );
 
     assert_eq!(
-        root_repo::maybe_get(&db1).unwrap(),
-        root_repo::maybe_get(&db2).unwrap()
+        root_repo::maybe_get(db1).unwrap(),
+        root_repo::maybe_get(db2).unwrap()
     );
 
     assert_eq!(
-        file_repo::get_all_metadata_state(&db1).unwrap(),
-        file_repo::get_all_metadata_state(&db2).unwrap()
+        file_repo::get_all_metadata_state(db1).unwrap(),
+        file_repo::get_all_metadata_state(db2).unwrap()
     );
 
     assert_eq!(
-        file_repo::get_all_document_state(&db1).unwrap(),
-        file_repo::get_all_document_state(&db2).unwrap()
+        file_repo::get_all_document_state(db1).unwrap(),
+        file_repo::get_all_document_state(db2).unwrap()
     );
 }

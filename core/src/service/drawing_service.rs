@@ -42,7 +42,7 @@ pub fn export_drawing(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, CoreError> {
-    let drawing = parse_drawing(&drawing_bytes)?;
+    let drawing = parse_drawing(drawing_bytes)?;
 
     let theme = match render_theme {
         Some(theme) => theme,

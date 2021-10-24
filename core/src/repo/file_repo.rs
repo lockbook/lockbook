@@ -32,10 +32,7 @@ pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>
         .map(|l| FileMetadataDiff::new(l));
     let changed = local
         .iter()
-        .filter_map(|l| match base.iter().find(|r| r.id == l.id) {
-            Some(r) => Some((l, r)),
-            None => None,
-        })
+        .filter_map(|l| base.iter().find(|r| r.id == l.id).map(|r| (l, r)))
         .map(|(l, r)| FileMetadataDiff::new_diff(r.parent, &r.name, l));
 
     Ok(new.chain(changed).collect())
@@ -49,7 +46,7 @@ pub fn get_all_with_document_changes(config: &Config) -> Result<Vec<Uuid>, CoreE
         .map(|f| document_repo::maybe_get(config, RepoSource::Local, f.id).map(|r| r.map(|_| f.id)))
         .collect::<Result<Vec<Option<Uuid>>, CoreError>>()?
         .into_iter()
-        .filter_map(|id| id)
+        .flatten()
         .collect();
     Ok(not_deleted_with_document_changes)
 }
@@ -220,15 +217,12 @@ pub fn get_all_metadata_state(
         .iter()
         .filter(|&b| !local.iter().any(|l| l.id == b.id))
         .map(|b| RepoState::Unmodified(b.clone()));
-    let modified = base
-        .iter()
-        .filter_map(|b| match utils::maybe_find(&local, b.id) {
-            Some(l) => Some(RepoState::Modified {
-                base: b.clone(),
-                local: l,
-            }),
-            None => None,
-        });
+    let modified = base.iter().filter_map(|b| {
+        utils::maybe_find(&local, b.id).map(|l| RepoState::Modified {
+            base: b.clone(),
+            local: l,
+        })
+    });
 
     Ok(new.chain(unmodified).chain(modified).collect())
 }
@@ -250,7 +244,7 @@ pub fn get_all_metadata_with_encrypted_changes(
         }
         RepoSource::Base => base,
     };
-    let staged = utils::stage_encrypted(&sourced, &changes)
+    let staged = utils::stage_encrypted(&sourced, changes)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<FileMetadata>>();
@@ -270,10 +264,10 @@ pub fn insert_document(
     get_metadata(config, RepoSource::Local, metadata.id)?;
 
     // encrypt document and compute digest
-    let digest = Sha256::digest(&document);
-    let compressed_document = file_compression_service::compress(&document)?;
+    let digest = Sha256::digest(document);
+    let compressed_document = file_compression_service::compress(document)?;
     let encrypted_document =
-        file_encryption_service::encrypt_document(&compressed_document, &metadata)?;
+        file_encryption_service::encrypt_document(&compressed_document, metadata)?;
 
     // perform insertions
     document_repo::insert(config, source, metadata.id, &encrypted_document)?;
