@@ -28,7 +28,7 @@ mod sync_fuzzer {
     /// Starting parameters that matter
     static SEED: u64 = 0;
     static CLIENTS: u8 = 2;
-    static ACTION_COUNT: u64 = 100;
+    static ACTION_COUNT: u64 = 250;
     static MAX_FILE_SIZE: usize = 1024;
 
     ///

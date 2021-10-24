@@ -84,7 +84,7 @@ pub fn insert_metadata(
         let new_doc = source == RepoSource::Local
             && metadatum.file_type == FileType::Document
             && file_repo::maybe_get_metadata(config, RepoSource::Local, metadatum.id)?.is_none();
-        
+
         metadata_repo::insert(config, source, &encrypted_metadata)?;
 
         if new_doc {
