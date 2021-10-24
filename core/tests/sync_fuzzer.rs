@@ -3,7 +3,7 @@ mod integration_test;
 #[cfg(test)]
 mod sync_fuzzer {
     use crate::sync_fuzzer::Actions::{
-        AttemptFolderMove, MoveDocument, NewFolder, NewMarkdownDocument, SyncAndCheck,
+        AttemptFolderMove, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile, SyncAndCheck,
         UpdateDocument,
     };
     use indicatif::{ProgressBar, ProgressStyle};
@@ -15,7 +15,8 @@ mod sync_fuzzer {
     use lockbook_core::service::test_utils::{assert_dbs_eq, random_username, test_config, url};
     use lockbook_core::Error::UiError;
     use lockbook_core::{
-        calculate_work, create_file, list_metadatas, move_file, write_document, MoveFileError,
+        calculate_work, create_file, list_metadatas, move_file, rename_file, write_document,
+        MoveFileError,
     };
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use rand::distributions::{Alphanumeric, Distribution, Standard};
@@ -41,9 +42,9 @@ mod sync_fuzzer {
         NewFolder,
         NewMarkdownDocument,
         UpdateDocument,
-        // RenameDocument,
         MoveDocument,
         AttemptFolderMove,
+        RenameFile,
     }
 
     #[test]
@@ -131,6 +132,13 @@ mod sync_fuzzer {
                                 ),
                             }
                         }
+                    }
+                }
+                RenameFile => {
+                    let client = Self::random_client(clients, rng);
+                    if let Some(file) = Self::pick_random_file(&client, rng) {
+                        let new_name = Self::random_filename(rng) + ".md";
+                        rename_file(&client, file.id, &new_name).unwrap();
                     }
                 }
             }
@@ -228,6 +236,7 @@ mod sync_fuzzer {
                 3 => UpdateDocument,
                 4 => MoveDocument,
                 5 => AttemptFolderMove,
+                6 => RenameFile,
                 _ => panic!("An enum was added to Actions, but does not have a corresponding random selection")
             }
         }

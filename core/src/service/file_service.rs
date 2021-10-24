@@ -169,12 +169,10 @@ pub fn get_invalid_cycles_encrypted(
                 if file.id != root.id {
                     result.push(file.id);
                 }
+            } else if !found_root {
+                found_root = true;
             } else {
-                if !found_root {
-                    found_root = true;
-                } else {
-                    result.push(file.id);
-                }
+                result.push(file.id);
             }
         }
     }
@@ -210,12 +208,10 @@ pub fn get_invalid_cycles(
                 if file.id != root.id {
                     result.push(file.id);
                 }
+            } else if !found_root {
+                found_root = true;
             } else {
-                if !found_root {
-                    found_root = true;
-                } else {
-                    result.push(file.id);
-                }
+                result.push(file.id);
             }
         }
     }
