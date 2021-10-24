@@ -77,7 +77,7 @@ pub struct ChangeDocumentContentRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocumentContentResponse {
-    pub new_content_version: u64
+    pub new_content_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

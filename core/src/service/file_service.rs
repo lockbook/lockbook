@@ -157,7 +157,10 @@ pub fn get_invalid_cycles_encrypted(
         let mut ancestor_double = utils::find_parent_encrypted(files, ancestor_single.id)?;
         while ancestor_single.id != ancestor_double.id {
             ancestor_single = utils::find_parent_encrypted(files, ancestor_single.id)?;
-            ancestor_double = utils::find_parent_encrypted(files, utils::find_parent_encrypted(files, ancestor_double.id)?.id)?;
+            ancestor_double = utils::find_parent_encrypted(
+                files,
+                utils::find_parent_encrypted(files, ancestor_double.id)?.id,
+            )?;
         }
         if ancestor_single.id == file.id {
             // root in files -> non-root cycles invalid
@@ -191,13 +194,14 @@ pub fn get_invalid_cycles(
         .collect::<Vec<DecryptedFileMetadata>>();
     let mut result = Vec::new();
     let mut found_root = maybe_root.is_some();
-    
+
     for file in files {
         let mut ancestor_single = utils::find_parent(files, file.id)?;
         let mut ancestor_double = utils::find_parent(files, ancestor_single.id)?;
         while ancestor_single.id != ancestor_double.id {
             ancestor_single = utils::find_parent(files, ancestor_single.id)?;
-            ancestor_double = utils::find_parent(files, utils::find_parent(files, ancestor_double.id)?.id)?;
+            ancestor_double =
+                utils::find_parent(files, utils::find_parent(files, ancestor_double.id)?.id)?;
         }
         if ancestor_single.id == file.id {
             // root in files -> non-root cycles invalid

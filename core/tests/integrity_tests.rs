@@ -119,7 +119,8 @@ mod integrity_tests {
 
         let _folder1 = create_file_at_path(&cfg, path!(account, "folder1/")).unwrap();
         let _folder2 = create_file_at_path(&cfg, path!(account, "folder1/folder2/")).unwrap();
-        let folder3 = create_file_at_path(&cfg, path!(account, "folder1/folder2/folder3/")).unwrap();
+        let folder3 =
+            create_file_at_path(&cfg, path!(account, "folder1/folder2/folder3/")).unwrap();
 
         let mut parent = metadata_repo::get(
             &cfg,
