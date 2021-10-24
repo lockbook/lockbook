@@ -11,10 +11,9 @@ import app.lockbook.App.Companion.config
 import app.lockbook.getRes
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 
-class TextEditorViewModel(application: Application, private val id: String) :
+class TextEditorViewModel(application: Application, private val id: String, private val text: String) :
     AndroidViewModel(application) {
 
     private val handler = Handler(Looper.myLooper()!!)
@@ -36,12 +35,7 @@ class TextEditorViewModel(application: Application, private val id: String) :
     }
 
     private fun setUpTextView() {
-        viewModelScope.launch(Dispatchers.IO) {
-            when (val documentResult = CoreModel.readDocument(config, id)) {
-                is Ok -> _content.postValue(documentResult.value)
-                is Err -> _notifyError.postValue(documentResult.error.toLbError(getRes()))
-            }
-        }
+        _content.postValue(text)
     }
 
     fun waitAndSaveContents(content: String) {

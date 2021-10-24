@@ -5,10 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.getRes
-import app.lockbook.util.ClientFileMetadata
-import app.lockbook.util.FileType
-import app.lockbook.util.LbError
-import app.lockbook.util.SingleMutableLiveData
+import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -16,14 +13,14 @@ import java.io.File
 import java.util.ArrayList
 
 class StateViewModel(application: Application) : AndroidViewModel(application) {
-    var detailsScreen: DetailsScreen = DetailsScreen.Blank
+    var detailsScreen: DetailsScreen? = null
     var transientScreen: TransientScreen? = null
 
-    val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen>()
+    val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen?>()
     private val _launchTransientScreen = SingleMutableLiveData<TransientScreen>()
     private val _updateMainScreenUI = SingleMutableLiveData<UpdateMainScreenUI>()
 
-    val launchDetailsScreen: LiveData<DetailsScreen>
+    val launchDetailsScreen: LiveData<DetailsScreen?>
         get() = _launchDetailsScreen
 
     val launchTransientScreen: LiveData<TransientScreen>
@@ -39,7 +36,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         _launchTransientScreen.postValue(transientScreen)
     }
 
-    fun launchDetailsScreen(screen: DetailsScreen) {
+    fun launchDetailsScreen(screen: DetailsScreen?) {
         detailsScreen = screen
         _launchDetailsScreen.postValue(detailsScreen)
     }
@@ -55,10 +52,10 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     }
 }
 
-sealed class DetailsScreen {
-    object Blank : DetailsScreen()
-    data class TextEditor(val fileMetadata: ClientFileMetadata) : DetailsScreen()
-    data class Drawing(val fileMetadata: ClientFileMetadata) : DetailsScreen()
+sealed class DetailsScreen(open val fileMetadata: ClientFileMetadata) {
+    data class Loading(override val fileMetadata: ClientFileMetadata) : DetailsScreen(fileMetadata)
+    data class TextEditor(override val fileMetadata: ClientFileMetadata, val text: String) : DetailsScreen(fileMetadata)
+    data class Drawing(override val fileMetadata: ClientFileMetadata, val drawing: app.lockbook.util.Drawing) : DetailsScreen(fileMetadata)
 }
 
 sealed class TransientScreen {

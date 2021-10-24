@@ -69,17 +69,6 @@ class FileModel(
                 is Err -> Err(getRootResult.error.toLbError(res))
             }
         }
-
-        fun deleteFiles(ids: List<String>): Result<Unit, CoreError> {
-            for (id in ids) {
-                val deleteFileResult = CoreModel.deleteFile(config, id)
-                if (deleteFileResult is Err) {
-                    return deleteFileResult
-                }
-            }
-
-            return Ok(Unit)
-        }
     }
 
     fun refreshChildrenAtAncestor(position: Int): Result<Unit, GetChildrenError> {

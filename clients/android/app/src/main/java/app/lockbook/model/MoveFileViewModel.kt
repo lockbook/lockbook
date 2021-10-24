@@ -87,8 +87,8 @@ class MoveFileViewModel(application: Application) :
                 is GetChildrenError.Unexpected -> {
                     _unexpectedErrorHasOccurred.postValue(error.error)
                 }
-            }
-        }.exhaustive
+            }.exhaustive
+        }
     }
 
     private fun setParentAsParent() {

@@ -25,23 +25,9 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private var thread: Thread? = null
     var isThreadAvailable = false
     var isDrawingAvailable = false
-
-    private var erasePoints =
-        Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)) // Shouldn't these be NAN
-    var penSizeMultiplier = 7
-    private var strokeAlpha = 255
-    var isErasing = false
-    var strokeColor = ColorAlias.White
     lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int?>
 
-    // Current drawing stroke state
-    private val strokePaint = Paint()
-    private val bitmapPaint = Paint()
-    private val backgroundPaint = Paint()
-    private val lastPoint = PointF()
-    private var rollingAveragePressure = Float.NaN
-    private val strokePath = Path()
-    private val strokesBounds = mutableListOf<RectF>()
+    lateinit var strokeState: DrawingStrokeState
 
     // Scaling and Viewport state
     private val viewPort = Rect()
@@ -124,23 +110,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     init {
         holder.setKeepScreenOn(true)
         holder.addCallback(this)
-
-        setUpPaint()
-    }
-
-    private fun setUpPaint() {
-        strokePaint.isAntiAlias = true
-        strokePaint.style = Paint.Style.STROKE
-        strokePaint.strokeJoin = Paint.Join.ROUND
-        strokePaint.color = Color.WHITE
-        strokePaint.strokeCap = Paint.Cap.ROUND
-
-        bitmapPaint.strokeCap = Paint.Cap.ROUND
-        bitmapPaint.strokeJoin = Paint.Join.ROUND
-
-        backgroundPaint.style = Paint.Style.FILL
-
-        strokeColor = ColorAlias.White
     }
 
     private fun render(canvas: Canvas) {
@@ -155,28 +124,23 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             drawing.translationY
         )
 
-        backgroundPaint.color = ResourcesCompat.getColor(
+        strokeState.backgroundPaint.color = ResourcesCompat.getColor(
             resources,
             R.color.drawingUntouchableBackground,
             context.theme
         )
 
-        canvas.drawPaint(backgroundPaint)
+        canvas.drawPaint(strokeState.backgroundPaint)
 
-        backgroundPaint.color = ResourcesCompat.getColor(
+        strokeState.backgroundPaint.color = ResourcesCompat.getColor(
             resources,
             R.color.drawingTouchableBackground,
             context.theme
         )
 
-        canvas.drawRect(Rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT), backgroundPaint)
-        canvas.drawBitmap(canvasBitmap, 0f, 0f, bitmapPaint)
+        canvas.drawRect(Rect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT), strokeState.backgroundPaint)
+        canvas.drawBitmap(canvasBitmap, 0f, 0f, strokeState.bitmapPaint)
         canvas.restore()
-    }
-
-    private fun initializeCanvasesAndBitmaps() {
-        canvasBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
-        tempCanvas = Canvas(canvasBitmap)
     }
 
     private fun getColor(colorAlias: ColorAlias, alpha: Float): Int? {
@@ -198,8 +162,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 return
             }
 
-            strokesBounds.add(RectF())
-            strokePaint.color = strokeColor
+            strokeState.strokesBounds.add(RectF())
+            strokeState.strokePaint.color = strokeColor
 
             for (pointIndex in 0..(stroke.pointsX.size - 2)) {
                 val x1 = stroke.pointsX[pointIndex]
@@ -211,7 +175,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 val pointWidth1 = stroke.pointsGirth[pointIndex]
                 val pointWidth2 = stroke.pointsGirth[pointIndex + 1]
                 if (pointIndex == 0) {
-                    strokesBounds.last()
+                    strokeState.strokesBounds.last()
                         .set(x1 - pointWidth1, y1 - pointWidth1, x1 + pointWidth1, y1 + pointWidth1)
                     updateLastStrokeBounds(x2, y2, pointWidth2)
                 } else {
@@ -219,20 +183,22 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     updateLastStrokeBounds(x2, y2, pointWidth2)
                 }
 
-                strokePaint.strokeWidth = pointWidth1
-                strokePath.moveTo(
-                    x1,
-                    y1
-                )
-                strokePath.lineTo(
-                    x2,
-                    y2
-                )
-                tempCanvas.drawPath(strokePath, strokePaint)
-                strokePath.reset()
+                strokeState.apply {
+                    strokePaint.strokeWidth = pointWidth1
+                    strokePath.moveTo(
+                        x1,
+                        y1
+                    )
+                    strokePath.lineTo(
+                        x2,
+                        y2
+                    )
+                    tempCanvas.drawPath(strokePath, strokePaint)
+                    strokePath.reset()
+                }
             }
 
-            strokePath.reset()
+            strokeState.strokePath.reset()
         }
 
         val strokeColor = colorAliasInARGB[ColorAlias.White]
@@ -242,8 +208,12 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             return
         }
 
-        strokePaint.color = strokeColor
+        strokeState.strokePaint.color = strokeColor
 
+        alignViewPortWithDrawing()
+    }
+
+    private fun alignViewPortWithDrawing() {
         val currentViewPortWidth =
             tempCanvas.clipBounds.width() / drawing.scale
         val currentViewPortHeight =
@@ -255,7 +225,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun updateLastStrokeBounds(x: Float, y: Float, pointWidth: Float) {
-        val currentStrokeBounds = strokesBounds.last()
+        val currentStrokeBounds = strokeState.strokesBounds.last()
         val left = x - pointWidth
         val top = y - pointWidth
         val right = x + pointWidth
@@ -281,7 +251,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         y2: Float,
         strokeIndex: Int
     ): Boolean {
-        val currentStrokeBounds = strokesBounds[strokeIndex]
+        val currentStrokeBounds = strokeState.strokesBounds[strokeIndex]
         val eraseBounds = RectF()
 
         if (x1 > x2) {
@@ -345,12 +315,20 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         return PointF(modelX, modelY)
     }
 
-    fun initializeWithDrawing(maybeDrawing: Drawing) {
+    fun initialize(persistentDrawing: Drawing, persistentBitmap: Bitmap, persistentCanvas: Canvas, persistentStrokeState: DrawingStrokeState) {
         visibility = View.VISIBLE
-        this.drawing = maybeDrawing
+        this.drawing = persistentDrawing
+        this.tempCanvas = persistentCanvas
+        this.canvasBitmap = persistentBitmap
+        this.strokeState = persistentStrokeState
 
-        initializeCanvasesAndBitmaps()
-        restoreFromModel()
+        val emptyBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
+
+        if (persistentDrawing != Drawing() && persistentBitmap.sameAs(emptyBitmap)) {
+            restoreFromModel()
+        }
+
+        alignViewPortWithDrawing()
 
         isDrawingAvailable = true
         if (isThreadAvailable) {
@@ -384,60 +362,64 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val modelPoint = screenToModel(PointF(event.x, event.y)) ?: return
         val action = event.action
 
-        if (action == SPEN_ACTION_DOWN) { // stay erasing if the button isn't held but it is the same stroke && vice versa
-            isErasing = true
-        } else if (action == SPEN_ACTION_UP) {
-            isErasing = false
-        }
-
-        if (isErasing) {
-            if ((action == SPEN_ACTION_DOWN || action == MotionEvent.ACTION_DOWN) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
-                erasePoints.first.set(PointF(Float.NaN, Float.NaN))
-                erasePoints.second.set(PointF(Float.NaN, Float.NaN))
+        strokeState.apply {
+            if (action == SPEN_ACTION_DOWN) { // stay erasing if the button isn't held but it is the same stroke && vice versa
+                isErasing = true
+            } else if (action == SPEN_ACTION_UP) {
+                isErasing = false
             }
 
-            eraseAtPoint(modelPoint)
-        } else {
-            when (action) {
-                MotionEvent.ACTION_DOWN -> moveTo(modelPoint, event.pressure)
-                MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
+            if (isErasing) {
+                if ((action == SPEN_ACTION_DOWN || action == MotionEvent.ACTION_DOWN) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
+                    erasePoints.first.set(PointF(Float.NaN, Float.NaN))
+                    erasePoints.second.set(PointF(Float.NaN, Float.NaN))
+                }
+
+                eraseAtPoint(modelPoint)
+            } else {
+                when (action) {
+                    MotionEvent.ACTION_DOWN -> moveTo(modelPoint, event.pressure)
+                    MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
+                }
             }
         }
     }
 
     private fun getAdjustedPressure(pressure: Float): Float =
-        ((pressure * penSizeMultiplier) * 100).roundToInt() / 100f
+        ((pressure * strokeState.penSizeMultiplier) * 100).roundToInt() / 100f
 
     private fun moveTo(point: PointF, pressure: Float) {
-        lastPoint.set(point)
-        rollingAveragePressure = getAdjustedPressure(pressure)
+        strokeState.apply {
+            lastPoint.set(point)
+            rollingAveragePressure = getAdjustedPressure(pressure)
 
-        val boundsAdjustedForPressure = RectF(
-            point.x - rollingAveragePressure,
-            point.y - rollingAveragePressure,
-            point.x + rollingAveragePressure,
-            point.y + rollingAveragePressure
-        )
-        strokesBounds.add(boundsAdjustedForPressure)
+            val boundsAdjustedForPressure = RectF(
+                point.x - rollingAveragePressure,
+                point.y - rollingAveragePressure,
+                point.x + rollingAveragePressure,
+                point.y + rollingAveragePressure
+            )
+            strokesBounds.add(boundsAdjustedForPressure)
 
-        val strokeColor = getColor(strokeColor, alpha)
+            val strokeColor = getColor(strokeColor, alpha)
 
-        if (strokeColor == null) {
-            alertModel.notifyBasicError()
-            return
+            if (strokeColor == null) {
+                alertModel.notifyBasicError()
+                return
+            }
+
+            strokePaint.color = strokeColor
+
+            val stroke = Stroke(
+                mutableListOf(point.x),
+                mutableListOf(point.y),
+                mutableListOf(rollingAveragePressure),
+                this.strokeColor,
+                strokeAlpha.toFloat() / 255
+            )
+
+            drawing.strokes.add(stroke)
         }
-
-        strokePaint.color = strokeColor
-
-        val stroke = Stroke(
-            mutableListOf(point.x),
-            mutableListOf(point.y),
-            mutableListOf(rollingAveragePressure),
-            this.strokeColor,
-            strokeAlpha.toFloat() / 255
-        )
-
-        drawing.strokes.add(stroke)
     }
 
     private fun approximateRollingAveragePressure(
@@ -453,61 +435,65 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun lineTo(point: PointF, pressure: Float) {
-        if (lastPoint.equals(
-                Float.NaN,
-                Float.NaN
+        strokeState.apply {
+            if (lastPoint.equals(
+                    Float.NaN,
+                    Float.NaN
+                )
+            ) { // if you start drawing after just erasing, and the pen was never lifted, this will compensate for it
+                return moveTo(point, pressure)
+            }
+
+            val adjustedCurrentPressure = getAdjustedPressure(pressure)
+
+            rollingAveragePressure =
+                approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
+            updateLastStrokeBounds(point.x, point.y, rollingAveragePressure)
+
+            strokePaint.strokeWidth = rollingAveragePressure
+
+            strokePath.moveTo(
+                lastPoint.x,
+                lastPoint.y
             )
-        ) { // if you start drawing after just erasing, and the pen was never lifted, this will compensate for it
-            return moveTo(point, pressure)
-        }
 
-        val adjustedCurrentPressure = getAdjustedPressure(pressure)
+            strokePath.lineTo(
+                point.x,
+                point.y
+            )
 
-        rollingAveragePressure =
-            approximateRollingAveragePressure(rollingAveragePressure, adjustedCurrentPressure)
-        updateLastStrokeBounds(point.x, point.y, rollingAveragePressure)
+            tempCanvas.drawPath(strokePath, strokePaint)
 
-        strokePaint.strokeWidth = rollingAveragePressure
+            strokePath.reset()
+            lastPoint.set(point)
 
-        strokePath.moveTo(
-            lastPoint.x,
-            lastPoint.y
-        )
-
-        strokePath.lineTo(
-            point.x,
-            point.y
-        )
-
-        tempCanvas.drawPath(strokePath, strokePaint)
-
-        strokePath.reset()
-        lastPoint.set(point)
-
-        drawing.strokes.last { stroke ->
-            stroke.pointsX.add(point.x)
-            stroke.pointsY.add(point.y)
-            stroke.pointsGirth.add(rollingAveragePressure)
+            drawing.strokes.last { stroke ->
+                stroke.pointsX.add(point.x)
+                stroke.pointsY.add(point.y)
+                stroke.pointsGirth.add(rollingAveragePressure)
+            }
         }
     }
 
     private fun eraseAtPoint(point: PointF) {
-        when {
-            erasePoints.first.x.isNaN() -> {
-                erasePoints.first.set(point)
-                return
-            }
-            erasePoints.second.x.isNaN() -> {
-                erasePoints.second.set(point)
-            }
-            else -> {
-                erasePoints.first.set(erasePoints.second)
-                erasePoints.second.set(point)
+        strokeState.apply {
+            when {
+                erasePoints.first.x.isNaN() -> {
+                    erasePoints.first.set(point)
+                    return
+                }
+                erasePoints.second.x.isNaN() -> {
+                    erasePoints.second.set(point)
+                }
+                else -> {
+                    erasePoints.first.set(erasePoints.second)
+                    erasePoints.second.set(point)
+                }
             }
         }
 
-        if (!lastPoint.equals(Float.NaN, Float.NaN)) {
-            lastPoint.set(Float.NaN, Float.NaN)
+        if (!strokeState.lastPoint.equals(Float.NaN, Float.NaN)) {
+            strokeState.lastPoint.set(Float.NaN, Float.NaN)
         }
 
         val drawingClone = drawing.clone()
@@ -518,10 +504,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             var deleteStroke = false
 
             if (!doesEraserSegmentIntersectStroke(
-                    erasePoints.first.x,
-                    erasePoints.first.y,
-                    erasePoints.second.x,
-                    erasePoints.second.y,
+                    strokeState.erasePoints.first.x,
+                    strokeState.erasePoints.first.y,
+                    strokeState.erasePoints.second.x,
+                    strokeState.erasePoints.second.y,
                     strokeIndex
                 )
             ) {
@@ -549,10 +535,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                             )
 
                         val distBetweenErasePoints =
-                            distanceBetweenPoints(erasePoints.first, erasePoints.second)
+                            distanceBetweenPoints(strokeState.erasePoints.first, strokeState.erasePoints.second)
                         val distToFromRoundedPoint1 =
-                            distanceBetweenPoints(erasePoints.first, roundedPoint1) +
-                                distanceBetweenPoints(roundedPoint1, erasePoints.second)
+                            distanceBetweenPoints(strokeState.erasePoints.first, roundedPoint1) +
+                                distanceBetweenPoints(roundedPoint1, strokeState.erasePoints.second)
 
                         if (((distToFromRoundedPoint1 - roundedPressure)..(distToFromRoundedPoint1 + roundedPressure)).contains(
                                 distBetweenErasePoints
@@ -563,8 +549,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                         }
 
                         val distToFromRoundedPoint2 =
-                            distanceBetweenPoints(erasePoints.first, roundedPoint2) +
-                                distanceBetweenPoints(roundedPoint2, erasePoints.second)
+                            distanceBetweenPoints(strokeState.erasePoints.first, roundedPoint2) +
+                                distanceBetweenPoints(roundedPoint2, strokeState.erasePoints.second)
 
                         if (((distToFromRoundedPoint2 - roundedPressure)..(distToFromRoundedPoint2 + roundedPressure)).contains(
                                 distBetweenErasePoints
@@ -577,8 +563,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                         val distBetweenRoundedPoints =
                             distanceBetweenPoints(roundedPoint1, roundedPoint2)
                         val distToFromErasePoint1 =
-                            distanceBetweenPoints(roundedPoint1, erasePoints.first) +
-                                distanceBetweenPoints(erasePoints.first, roundedPoint2)
+                            distanceBetweenPoints(roundedPoint1, strokeState.erasePoints.first) +
+                                distanceBetweenPoints(strokeState.erasePoints.first, roundedPoint2)
 
                         if (((distToFromErasePoint1 - roundedPressure)..(distToFromErasePoint1 + roundedPressure)).contains(
                                 distBetweenRoundedPoints
@@ -589,8 +575,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                         }
 
                         val distToFromErasePoint2 =
-                            distanceBetweenPoints(roundedPoint1, erasePoints.second) +
-                                distanceBetweenPoints(erasePoints.second, roundedPoint2)
+                            distanceBetweenPoints(roundedPoint1, strokeState.erasePoints.second) +
+                                distanceBetweenPoints(strokeState.erasePoints.second, roundedPoint2)
 
                         if (((distToFromErasePoint2 - roundedPressure)..(distToFromErasePoint2 + roundedPressure)).contains(
                                 distBetweenRoundedPoints
@@ -611,7 +597,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         if (refreshScreen) {
             drawing = drawingClone
-            strokesBounds.clear()
+            strokeState.strokesBounds.clear()
             tempCanvas.drawColor(
                 Color.TRANSPARENT,
                 PorterDuff.Mode.CLEAR
@@ -684,3 +670,19 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         holder.surface.release()
     }
 }
+
+data class DrawingStrokeState(
+    var erasePoints: Pair<PointF, PointF> =
+        Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)),
+    var penSizeMultiplier: Int = 7,
+    var strokeAlpha: Int = 255,
+    var isErasing: Boolean = false,
+    var strokeColor: ColorAlias = ColorAlias.White,
+    val strokePaint: Paint = Paint(),
+    val bitmapPaint: Paint = Paint(),
+    val backgroundPaint: Paint = Paint(),
+    val lastPoint: PointF = PointF(),
+    var rollingAveragePressure: Float = Float.NaN,
+    val strokePath: Path = Path(),
+    val strokesBounds: MutableList<RectF> = mutableListOf(),
+)

@@ -30,7 +30,7 @@ import java.util.*
 class DrawingFragment : Fragment() {
 
     private var _binding: FragmentDrawingBinding? = null
-    private val binding get() = _binding!!
+    val binding get() = _binding!!
 
     private val whiteButton get() = binding.drawingToolbar.drawingColorWhite
     private val blackButton get() = binding.drawingToolbar.drawingColorBlack
@@ -54,7 +54,11 @@ class DrawingFragment : Fragment() {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel?> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(DrawingViewModel::class.java))
-                        return DrawingViewModel(requireActivity().application, (activityModel.detailsScreen as DetailsScreen.Drawing).fileMetadata.id) as T
+                        return DrawingViewModel(
+                            requireActivity().application,
+                            activityModel.detailsScreen!!.fileMetadata.id,
+                            (activityModel.detailsScreen as DetailsScreen.Drawing).drawing
+                        ) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
@@ -84,7 +88,7 @@ class DrawingFragment : Fragment() {
             initializeDrawing()
         }
 
-        startDrawing()
+        initializeDrawing()
         startBackgroundSave()
         setUpToolbarListeners()
         setUpToolbarDefaults()
@@ -132,7 +136,7 @@ class DrawingFragment : Fragment() {
             }
             is DrawingView.Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_outline)
-                drawingView.isErasing = false
+                drawingView.strokeState.isErasing = false
             }
         }
 
@@ -150,11 +154,11 @@ class DrawingFragment : Fragment() {
                 }.exhaustive
 
                 newButton.strokeWidth = 4
-                drawingView.strokeColor = newTool.colorAlias
+                drawingView.strokeState.strokeColor = newTool.colorAlias
             }
             is DrawingView.Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_filled)
-                drawingView.isErasing = true
+                drawingView.strokeState.isErasing = true
             }
         }.exhaustive
 
@@ -162,13 +166,22 @@ class DrawingFragment : Fragment() {
     }
 
     private fun setUpToolbarDefaults() {
-        val colorButtons = listOf(whiteButton, blackButton, blueButton, greenButton, yellowButton, magentaButton, redButton, cyanButton)
+        val colorButtons = listOf(
+            whiteButton,
+            blackButton,
+            blueButton,
+            greenButton,
+            yellowButton,
+            magentaButton,
+            redButton,
+            cyanButton
+        )
         colorButtons.forEach { button ->
             button.setStrokeColorResource(R.color.blue)
         }
 
         selectNewTool(model.selectedTool)
-        penSizeIndicator.text = drawingView.penSizeMultiplier.toString()
+        penSizeIndicator.text = drawingView.strokeState.penSizeMultiplier.toString()
     }
 
     private fun changeToolsVisibility(currentVisibility: Int) {
@@ -184,6 +197,7 @@ class DrawingFragment : Fragment() {
                     toolbar.visibility = newVisibility
                 }
             }
+
             override fun onAnimationEnd(animation: Animator?) {
                 if (newVisibility == View.GONE) {
                     toolbar.visibility = newVisibility
@@ -194,20 +208,13 @@ class DrawingFragment : Fragment() {
             override fun onAnimationRepeat(animation: Animator?) {}
         }
 
-        toolbar.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f).setListener(onAnimationEnd).start()
+        toolbar.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f)
+            .setListener(onAnimationEnd).start()
     }
 
     private fun initializeDrawing() {
-        binding.drawingProgressBar.visibility = View.GONE
-
-        val drawing = model.persistentDrawing
-
-        if (drawing == null) {
-            alertModel.notifyBasicError()
-            return
-        }
-
-        val colorAliasInARGB = EnumMap(drawing.themeToARGBColors(resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK))
+        val colorAliasInARGB =
+            EnumMap(model.persistentDrawing.themeToARGBColors(resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK))
 
         val white = colorAliasInARGB[ColorAlias.White]
         val black = colorAliasInARGB[ColorAlias.Black]
@@ -230,25 +237,15 @@ class DrawingFragment : Fragment() {
         redButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(red))
         greenButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(green))
         cyanButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(cyan))
-        magentaButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(magenta))
+        magentaButton.backgroundTintList =
+            ColorStateList(arrayOf(intArrayOf()), intArrayOf(magenta))
         blueButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(blue))
         yellowButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(yellow))
 
         toolbar.visibility = View.VISIBLE
 
         isFirstLaunch = false
-        binding.drawingLoadingView.visibility = View.GONE
-        drawingView.initializeWithDrawing(drawing)
-    }
-
-    private fun startDrawing() {
-        binding.drawingProgressBar.visibility = View.VISIBLE
-
-        if (model.persistentDrawing == null) {
-            model.getDrawing((activityModel.detailsScreen as DetailsScreen.Drawing).fileMetadata.id)
-        } else {
-            initializeDrawing()
-        }
+        drawingView.initialize(model.persistentDrawing, model.persistentBitmap, model.persistentCanvas, model.persistentStrokeState)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -293,7 +290,7 @@ class DrawingFragment : Fragment() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val adjustedProgress = progress + 1
                 penSizeIndicator.text = adjustedProgress.toString()
-                drawingView.penSizeMultiplier = adjustedProgress
+                drawingView.strokeState.penSizeMultiplier = adjustedProgress
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}

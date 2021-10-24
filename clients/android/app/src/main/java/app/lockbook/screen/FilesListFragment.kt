@@ -208,20 +208,14 @@ class FilesListFragment : Fragment(), FilesFragment {
                     }
                 }
                 R.id.menu_list_files_delete -> {
-                    when (val detailsScreen = activityModel.detailsScreen) {
-                        is DetailsScreen.Drawing -> {
-                            if (model.selectableFiles.getSelectedItems().contains(detailsScreen.fileMetadata)) {
-                                activityModel.launchDetailsScreen(DetailsScreen.Blank)
-                            }
-                        }
-                        is DetailsScreen.TextEditor -> {
-                            if (model.selectableFiles.getSelectedItems().contains(detailsScreen.fileMetadata)) {
-                                activityModel.launchDetailsScreen(DetailsScreen.Blank)
-                            }
+                    activityModel.detailsScreen?.fileMetadata.let {
+                        if (model.selectableFiles.getSelectedItems().contains(it)) {
+                            activityModel.launchDetailsScreen(null)
                         }
                     }
 
                     model.deleteSelectedFiles()
+                    alertModel.notify(getString(R.string.success_delete))
                 }
                 R.id.menu_list_files_info -> {
                     if (model.selectableFiles.getSelectionCount() == 1) {
@@ -301,13 +295,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun enterFile(item: ClientFileMetadata) {
         when (item.fileType) {
             FileType.Document -> {
-                val detailsScreen = if (item.name.endsWith(".draw")) {
-                    DetailsScreen.Drawing(item)
-                } else {
-                    DetailsScreen.TextEditor(item)
-                }
-
-                activityModel.launchDetailsScreen(detailsScreen)
+                activityModel.launchDetailsScreen(DetailsScreen.Loading(item))
             }
             FileType.Folder -> {
                 model.enterFolder(item)

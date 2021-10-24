@@ -80,6 +80,18 @@ class MainScreenActivity : AppCompatActivity() {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.shareModel.isLoadingOverlayVisible))
         }
 
+        binding.slidingPaneLayout.addPanelSlideListener(object : SlidingPaneLayout.PanelSlideListener {
+            override fun onPanelSlide(panel: View, slideOffset: Float) {}
+
+            override fun onPanelOpened(panel: View) {
+                if (model.detailsScreen is DetailsScreen.Loading) {
+                    (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailsScreenLoaderFragment).addChecker()
+                }
+            }
+
+            override fun onPanelClosed(panel: View) {}
+        })
+
         slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
         model.launchDetailsScreen.observe(
@@ -138,9 +150,9 @@ class MainScreenActivity : AppCompatActivity() {
             is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
             is UpdateMainScreenUI.ShowHideProgressOverlay -> {
                 if (update.show) {
-                    Animate.animateVisibility(binding.progressOverlay.root, View.VISIBLE, 102, 500)
+                    Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 102, 500)
                 } else {
-                    Animate.animateVisibility(binding.progressOverlay.root, View.GONE, 0, 500)
+                    Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
                 }
             }
         }.exhaustive
@@ -185,14 +197,18 @@ class MainScreenActivity : AppCompatActivity() {
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
 
-    private fun launchDetailsScreen(screen: DetailsScreen) {
+    private fun launchDetailsScreen(screen: DetailsScreen?) {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
-
             when (screen) {
-                DetailsScreen.Blank -> replace<Fragment>(R.id.detail_container)
+                is DetailsScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
                 is DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
                 is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
+                null -> {
+                    supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
+                        remove(it)
+                    }
+                }
             }
 
             if (slidingPaneLayout.isOpen) {
@@ -200,14 +216,22 @@ class MainScreenActivity : AppCompatActivity() {
             }
         }
 
-        slidingPaneLayout.openPane()
-        binding.detailContainer.requestFocus()
+        if (screen == null) {
+            slidingPaneLayout.closePane()
+        } else {
+
+            slidingPaneLayout.openPane()
+            binding.detailContainer.requestFocus()
+        }
     }
 
     override fun onBackPressed() {
-
         if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) {
-            slidingPaneLayout.closePane()
+            if (model.detailsScreen is DetailsScreen.Drawing) {
+                (supportFragmentManager.findFragmentById(R.id.detail_container) as DrawingFragment).binding.drawingView.stopThread()
+            }
+
+            launchDetailsScreen(null)
         } else if ((supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).onBackPressed()) {
             super.onBackPressed()
         }
