@@ -88,7 +88,7 @@ pub fn insert_metadata(
         metadata_repo::insert(config, source, &encrypted_metadata)?;
 
         if new_doc {
-            file_repo::insert_document(config, RepoSource::Local, &metadatum, &[])?;
+            file_repo::insert_document(config, RepoSource::Local, metadatum, &[])?;
         }
 
         // remove local if local == base
