@@ -116,6 +116,13 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
         }
     }
 
+    fun syncBasedOnPreferences() {
+        viewModelScope.launch(Dispatchers.IO) {
+            syncModel.syncBasedOnPreferences(getContext())
+            refreshFiles()
+        }
+    }
+
     fun reloadFiles() {
         viewModelScope.launch(Dispatchers.IO) {
             refreshFiles()

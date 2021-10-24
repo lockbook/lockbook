@@ -205,6 +205,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
                 is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
                 null -> {
+                    (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
                         remove(it)
                     }

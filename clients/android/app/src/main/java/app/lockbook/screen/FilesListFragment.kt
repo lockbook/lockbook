@@ -438,6 +438,10 @@ class FilesListFragment : Fragment(), FilesFragment {
         else -> true
     }
 
+    override fun syncBasedOnPreferences() {
+        model.syncBasedOnPreferences()
+    }
+
     override fun refreshFiles() {
         model.reloadFiles()
     }

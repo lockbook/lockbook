@@ -5,4 +5,5 @@ interface FilesFragment {
     fun unselectFiles()
     fun onNewFileCreated(newDocument: ClientFileMetadata?)
     fun onBackPressed(): Boolean
+    fun syncBasedOnPreferences()
 }
