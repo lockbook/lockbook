@@ -13,11 +13,11 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import kotlinx.coroutines.*
 
-class TextEditorViewModel(application: Application, private val id: String, private val text: String) :
+class TextEditorViewModel(application: Application, val id: String, private val text: String) :
     AndroidViewModel(application) {
 
     private val handler = Handler(Looper.myLooper()!!)
-    private var lastEdit = 0L
+    var lastEdit = 0L
 
     val editHistory = EditTextModel.EditHistory()
 
@@ -39,25 +39,25 @@ class TextEditorViewModel(application: Application, private val id: String, priv
     }
 
     fun waitAndSaveContents(content: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            lastEdit = System.currentTimeMillis()
-            val currentEdit = lastEdit
+        editHistory.isDirty = true
+        lastEdit = System.currentTimeMillis()
+        val currentEdit = lastEdit
 
-            handler.postDelayed(
-                {
-                    if (currentEdit == lastEdit) {
-                        saveContents(content)
+        handler.postDelayed(
+            {
+                viewModelScope.launch(Dispatchers.IO) {
+                    if (currentEdit == lastEdit && editHistory.isDirty) {
+                        val writeToDocumentResult =
+                            CoreModel.writeToDocument(config, id, content)
+                        if (writeToDocumentResult is Err) {
+                            _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
+                        } else {
+                            editHistory.isDirty = false
+                        }
                     }
-                },
-                5000
-            )
-        }
-    }
-
-    fun saveContents(content: String) {
-        val writeToDocumentResult = CoreModel.writeToDocument(config, id, content)
-        if (writeToDocumentResult is Err) {
-            _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
-        }
+                }
+            },
+            5000
+        )
     }
 }

@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.*
 import app.lockbook.App.Companion.config
 import app.lockbook.getRes
@@ -16,10 +18,12 @@ import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class DrawingViewModel(
     application: Application,
-    private val id: String,
+    val id: String,
     var persistentDrawing: Drawing,
     var persistentBitmap: Bitmap = Bitmap.createBitmap(
         DrawingView.CANVAS_WIDTH,
@@ -30,17 +34,17 @@ class DrawingViewModel(
 ) : AndroidViewModel(application) {
     var selectedTool: Tool = Tool.Pen(ColorAlias.Black)
 
-    private val _drawingReady = SingleMutableLiveData<Unit>()
-    private val _notifyError = SingleMutableLiveData<LbError>()
+    private val handler = Handler(Looper.myLooper()!!)
+    var lastEdit = 0L
 
-    val drawingReady: LiveData<Unit>
-        get() = _drawingReady
+    private val _notifyError = SingleMutableLiveData<LbError>()
 
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
     init {
         setUpPaint()
+        persistentDrawing.model = this
     }
 
     fun setUpPaint() {
@@ -60,13 +64,35 @@ class DrawingViewModel(
         }
     }
 
-    fun saveDrawing(drawing: Drawing) {
+    fun waitAndSaveContents() {
+        lastEdit = System.currentTimeMillis()
+        val currentEdit = lastEdit
 
-        val writeToDocumentResult =
-            CoreModel.writeToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
+        handler.postDelayed(
+            {
+                viewModelScope.launch(Dispatchers.IO) {
 
-        if (writeToDocumentResult is Err) {
-            _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
-        }
+                    if (currentEdit == lastEdit && persistentDrawing.isDirty) {
+                        val writeToDocumentResult =
+                            CoreModel.writeToDocument(
+                                config,
+                                id,
+                                Klaxon().toJsonString(persistentDrawing.clone()).replace(" ", "")
+                            )
+
+                        if (writeToDocumentResult is Err) {
+                            _notifyError.postValue(
+                                writeToDocumentResult.error.toLbError(
+                                    getRes()
+                                )
+                            )
+                        } else {
+                            persistentDrawing.isDirty = false
+                        }
+                    }
+                }
+            },
+            5000
+        )
     }
 }

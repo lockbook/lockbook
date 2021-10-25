@@ -15,15 +15,12 @@ import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import app.lockbook.R
 import app.lockbook.databinding.FragmentDrawingBinding
 import app.lockbook.model.*
 import app.lockbook.ui.DrawingView
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.exhaustive
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -82,14 +79,7 @@ class DrawingFragment : Fragment() {
     ): View {
         _binding = FragmentDrawingBinding.inflate(inflater, container, false)
 
-        model.drawingReady.observe(
-            viewLifecycleOwner
-        ) {
-            initializeDrawing()
-        }
-
         initializeDrawing()
-        startBackgroundSave()
         setUpToolbarListeners()
         setUpToolbarDefaults()
 
@@ -105,16 +95,6 @@ class DrawingFragment : Fragment() {
         super.onResume()
         if (drawingView.isThreadAvailable && drawingView.isDrawingAvailable) {
             drawingView.startThread()
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        autoSaveTimer.cancel()
-        autoSaveTimer.purge()
-        if (!isFirstLaunch) {
-            model.persistentDrawing = drawingView.drawing
-            model.saveDrawing(drawingView.drawing.clone())
         }
     }
 
@@ -337,23 +317,10 @@ class DrawingFragment : Fragment() {
         }
     }
 
-    private fun startBackgroundSave() { // could this crash if the threads take too long to finish and they keep saving?!
-        autoSaveTimer.schedule(
-            object : TimerTask() {
-                override fun run() {
-                    handler.post {
-                        if (!isFirstLaunch) {
-                            model.viewModelScope.launch(Dispatchers.IO) {
-                                model.saveDrawing(
-                                    drawingView.drawing.clone()
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            1000,
-            5000
-        )
+    fun saveOnExit() {
+        if (model.persistentDrawing.isDirty) {
+            model.lastEdit = System.currentTimeMillis()
+            activityModel.saveDrawingOnExit(model.id, model.persistentDrawing)
+        }
     }
 }

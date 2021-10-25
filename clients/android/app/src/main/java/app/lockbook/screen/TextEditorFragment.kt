@@ -211,9 +211,11 @@ class TextEditorFragment : Fragment() {
         textEditorToolbar.menu!!.findItem(R.id.menu_text_editor_redo)!!.isEnabled = canRedo
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        model.saveContents(textField.text.toString())
+    fun saveOnExit() {
+        if (model.editHistory.isDirty) {
+            model.lastEdit = System.currentTimeMillis()
+            activityModel.saveTextOnExit(model.id, textField.text.toString())
+        }
     }
 }
 

@@ -66,6 +66,7 @@ class EditTextModel(
     class EditHistory {
         var position = 0
         val history = mutableListOf<EditItem>()
+        var isDirty = false
 
         fun add(item: EditItem) {
             while (history.size > position) {

@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
+import app.lockbook.App
 import app.lockbook.getRes
 import app.lockbook.util.*
+import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -45,8 +47,53 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val shareResult = shareModel.shareDocuments(selectedFiles, appDataDir)
             if (shareResult is Err) {
-                _updateMainScreenUI.postValue(UpdateMainScreenUI.NotifyError(shareResult.error.toLbError(getRes())))
+                _updateMainScreenUI.postValue(
+                    UpdateMainScreenUI.NotifyError(
+                        shareResult.error.toLbError(
+                            getRes()
+                        )
+                    )
+                )
                 return@launch
+            }
+        }
+    }
+
+    // You can save on exit here since this scope will exist after the editors don't, thus long saves won't be problematic
+    fun saveDrawingOnExit(id: String, drawing: Drawing) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val writeToDocumentResult =
+                CoreModel.writeToDocument(
+                    App.config,
+                    id,
+                    Klaxon().toJsonString(drawing).replace(" ", "")
+                )
+
+            if (writeToDocumentResult is Err) {
+                _updateMainScreenUI.postValue(
+                    UpdateMainScreenUI.NotifyError(
+                        writeToDocumentResult.error.toLbError(
+                            getRes()
+                        )
+                    )
+                )
+            }
+        }
+    }
+
+    fun saveTextOnExit(id: String, text: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val writeToDocumentResult =
+                CoreModel.writeToDocument(App.config, id, text)
+
+            if (writeToDocumentResult is Err) {
+                _updateMainScreenUI.postValue(
+                    UpdateMainScreenUI.NotifyError(
+                        writeToDocumentResult.error.toLbError(
+                            getRes()
+                        )
+                    )
+                )
             }
         }
     }
@@ -54,8 +101,13 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
 
 sealed class DetailsScreen(open val fileMetadata: ClientFileMetadata) {
     data class Loading(override val fileMetadata: ClientFileMetadata) : DetailsScreen(fileMetadata)
-    data class TextEditor(override val fileMetadata: ClientFileMetadata, val text: String) : DetailsScreen(fileMetadata)
-    data class Drawing(override val fileMetadata: ClientFileMetadata, val drawing: app.lockbook.util.Drawing) : DetailsScreen(fileMetadata)
+    data class TextEditor(override val fileMetadata: ClientFileMetadata, val text: String) :
+        DetailsScreen(fileMetadata)
+
+    data class Drawing(
+        override val fileMetadata: ClientFileMetadata,
+        val drawing: app.lockbook.util.Drawing
+    ) : DetailsScreen(fileMetadata)
 }
 
 sealed class TransientScreen {

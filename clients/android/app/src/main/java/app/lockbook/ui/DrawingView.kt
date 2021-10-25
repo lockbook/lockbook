@@ -19,15 +19,18 @@ import kotlin.math.sqrt
 
 class DrawingView(context: Context, attributeSet: AttributeSet?) :
     SurfaceView(context, attributeSet), Runnable, SurfaceHolder.Callback {
+
     lateinit var drawing: Drawing
     private lateinit var canvasBitmap: Bitmap
     private lateinit var tempCanvas: Canvas
-    private var thread: Thread? = null
-    var isThreadAvailable = false
-    var isDrawingAvailable = false
-    lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int?>
 
     lateinit var strokeState: DrawingStrokeState
+
+    var thread: Thread? = null
+    var isThreadAvailable = false
+    var isDrawingAvailable = false
+
+    lateinit var colorAliasInARGB: EnumMap<ColorAlias, Int?>
 
     // Scaling and Viewport state
     private val viewPort = Rect()
@@ -95,6 +98,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
                     drawing.translationX = -left
                     drawing.translationY = -top
+
+                    drawing.isDirty = true
 
                     return true
                 }
@@ -381,6 +386,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     MotionEvent.ACTION_DOWN -> moveTo(modelPoint, event.pressure)
                     MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
                 }
+
+                drawing.isDirty = true
             }
         }
     }
@@ -497,6 +504,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         }
 
         val drawingClone = drawing.clone()
+
         var refreshScreen = false
 
         for (strokeIndex in drawingClone.strokes.size - 1 downTo 0) {
@@ -596,7 +604,9 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         }
 
         if (refreshScreen) {
-            drawing = drawingClone
+            drawing.set(drawingClone)
+            drawing.isDirty = true
+
             strokeState.strokesBounds.clear()
             tempCanvas.drawColor(
                 Color.TRANSPARENT,

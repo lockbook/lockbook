@@ -1,6 +1,6 @@
 ARG HASH
 
-FROM gradle:7.2-jdk8 AS android-build
+FROM gradle:7.2-jdk11 AS android-build
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk-linux
@@ -18,13 +18,12 @@ RUN yes | sdkmanager --licenses
 # Copy android in
 COPY clients/android clients/android
 WORKDIR clients/android
-RUN gradle assemble
-
+RUN ./gradle assemble
 
 # Check formatting
 FROM android:${HASH} AS android-fmt
-RUN gradle lintKotlin 
+RUN ./gradle lintKotlin 
 
 # Check lint
 FROM android:${HASH} AS android-lint
-RUN gradle lint
+RUN ./gradle lint

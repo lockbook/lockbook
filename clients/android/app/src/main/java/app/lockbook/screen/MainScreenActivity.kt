@@ -40,7 +40,8 @@ class MainScreenActivity : AppCompatActivity() {
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
             val filesFragment =
-                supportFragmentManager.findFragmentById(R.id.files_fragment) as? FilesFragment ?: return
+                supportFragmentManager.findFragmentById(R.id.files_fragment) as? FilesFragment
+                    ?: return
 
             when (f) {
                 is MoveFileDialogFragment,
@@ -80,17 +81,18 @@ class MainScreenActivity : AppCompatActivity() {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.shareModel.isLoadingOverlayVisible))
         }
 
-        binding.slidingPaneLayout.addPanelSlideListener(object : SlidingPaneLayout.PanelSlideListener {
-            override fun onPanelSlide(panel: View, slideOffset: Float) {}
+        binding.slidingPaneLayout.addPanelSlideListener(object :
+                SlidingPaneLayout.PanelSlideListener {
+                override fun onPanelSlide(panel: View, slideOffset: Float) {}
 
-            override fun onPanelOpened(panel: View) {
-                if (model.detailsScreen is DetailsScreen.Loading) {
-                    (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailsScreenLoaderFragment).addChecker()
+                override fun onPanelOpened(panel: View) {
+                    if (model.detailsScreen is DetailsScreen.Loading) {
+                        (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailsScreenLoaderFragment).addChecker()
+                    }
                 }
-            }
 
-            override fun onPanelClosed(panel: View) {}
-        })
+                override fun onPanelClosed(panel: View) {}
+            })
 
         slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
@@ -200,6 +202,9 @@ class MainScreenActivity : AppCompatActivity() {
     private fun launchDetailsScreen(screen: DetailsScreen?) {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
+
+            doOnDetailsExit()
+
             when (screen) {
                 is DetailsScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
                 is DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
@@ -226,12 +231,16 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    override fun onBackPressed() {
-        if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) {
-            if (model.detailsScreen is DetailsScreen.Drawing) {
-                (supportFragmentManager.findFragmentById(R.id.detail_container) as DrawingFragment).binding.drawingView.stopThread()
-            }
+    private fun doOnDetailsExit() {
+        (supportFragmentManager.findFragmentById(R.id.detail_container) as? DrawingFragment)?.let { fragment ->
+            fragment.binding.drawingView.stopThread()
+            fragment.saveOnExit()
+        }
+        (supportFragmentManager.findFragmentById(R.id.detail_container) as? TextEditorFragment)?.saveOnExit()
+    }
 
+    override fun onBackPressed() {
+        if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
             launchDetailsScreen(null)
         } else if ((supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).onBackPressed()) {
             super.onBackPressed()
