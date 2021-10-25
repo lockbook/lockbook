@@ -2,17 +2,17 @@ ARG HASH
 
 FROM core:$HASH AS core-build
 
-FROM gradle:6.7-jdk8 AS kotlin-interface-tests
+FROM gradle:7.2-jdk11 AS kotlin-interface-tests
 
-ENV ANDROID_HOME /opt/android-sdk-linux
+ENV ANDROID_HOME /opt/android-sdk
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install android things
 RUN cd /opt \
-    && wget -q https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip -O android-sdk-tools.zip \
-    && unzip -q android-sdk-tools.zip -d ${ANDROID_HOME}
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/tools/bin:${ANDROID_HOME}/platform-tools
-RUN yes | sdkmanager --licenses
+    && wget -q https://dl.google.com/android/repository/commandlinetools-linux-7583922_latest.zip -O android-cmd-line-tools.zip \
+    && unzip android-cmd-line-tools.zip -d ${ANDROID_HOME}
+
+RUN yes | /opt/android-sdk/cmdline-tools/bin/sdkmanager --licenses --sdk_root=/opt/android-sdk
 
 # Copy android in
 COPY clients/android /clients/android

@@ -13,7 +13,6 @@ RUN cd /opt \
     && wget -q https://dl.google.com/android/repository/commandlinetools-linux-7583922_latest.zip -O android-cmd-line-tools.zip \
     && unzip android-cmd-line-tools.zip -d ${ANDROID_HOME}
     
-ENV PATH ${PATH}:${ANDROID_HOME}/cmdline-tools:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools
 RUN yes | /opt/android-sdk/cmdline-tools/bin/sdkmanager --licenses --sdk_root=/opt/android-sdk
 
 # Copy android in
