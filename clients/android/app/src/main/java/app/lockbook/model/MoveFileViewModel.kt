@@ -3,25 +3,23 @@ package app.lockbook.model
 import android.app.Application
 import androidx.lifecycle.*
 import app.lockbook.App.Companion.config
+import app.lockbook.getRes
 import app.lockbook.util.*
+import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
 
 class MoveFileViewModel(application: Application) :
-    AndroidViewModel(application),
-    RegularClickInterface {
+    AndroidViewModel(application) {
     private lateinit var currentParent: ClientFileMetadata
     lateinit var ids: Array<String>
-    lateinit var names: Array<String>
 
-    private val _files = MutableLiveData<List<ClientFileMetadata>>()
+    var files = emptyDataSourceTyped<ClientFileMetadata>()
+
     private val _closeDialog = MutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
     private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
-
-    val files: LiveData<List<ClientFileMetadata>>
-        get() = _files
 
     val closeDialog: LiveData<Unit>
         get() = _closeDialog
@@ -47,46 +45,50 @@ class MoveFileViewModel(application: Application) :
         }
     }
 
-    fun moveFilesToFolder() {
+    fun moveFilesToFolder(ids: Array<String>) {
         viewModelScope.launch(Dispatchers.IO) {
-            var hasErrorOccurred = false
             for (id in ids) {
-                val moveFileResult = moveFileIfSuccessful(id)
-                if (!moveFileResult) {
-                    hasErrorOccurred = !moveFileResult
-                    break
+                when (val moveFileResult = CoreModel.moveFile(config, id, currentParent.id)) {
+                    is Ok -> {
+                    }
+                    is Err -> {
+                        _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
+                        _closeDialog.postValue(Unit)
+                        return@launch
+                    }
                 }
             }
 
-            if (!hasErrorOccurred) {
-                _closeDialog.postValue(Unit)
-            }
+            _closeDialog.postValue(Unit)
         }
-    }
-
-    private fun moveFileIfSuccessful(id: String): Boolean {
-        return when (val moveFileResult = CoreModel.moveFile(config, id, currentParent.id)) {
-            is Ok -> true
-            is Err -> {
-                _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
-                false
-            }
-        }.exhaustive
     }
 
     private fun refreshOverFolder() {
         when (val getChildrenResult = CoreModel.getChildren(config, currentParent.id)) {
             is Ok -> {
-                val tempFiles = getChildrenResult.value.filter { fileMetadata -> fileMetadata.fileType == FileType.Folder && !ids.contains(fileMetadata.id) }.toMutableList()
-                tempFiles.add(0, ClientFileMetadata(name = "..", parent = "The parent file is ${currentParent.name}"))
-                _files.postValue(tempFiles)
+                val tempFiles = getChildrenResult.value.filter { fileMetadata ->
+                    fileMetadata.fileType == FileType.Folder && !ids.contains(fileMetadata.id)
+                }.toMutableList()
+                tempFiles.add(
+                    0,
+                    ClientFileMetadata(
+                        id = "PARENT",
+                        name = "..",
+                        parent = "The parent file is ${currentParent.name}"
+
+                    )
+                )
+
+                viewModelScope.launch(Dispatchers.Main) {
+                    files.set(tempFiles)
+                }
             }
             is Err -> when (val error = getChildrenResult.error) {
                 is GetChildrenError.Unexpected -> {
                     _unexpectedErrorHasOccurred.postValue(error.error)
                 }
-            }
-        }.exhaustive
+            }.exhaustive
+        }
     }
 
     private fun setParentAsParent() {
@@ -96,14 +98,15 @@ class MoveFileViewModel(application: Application) :
         }.exhaustive
     }
 
-    override fun onItemClick(position: Int) {
+    fun onItemClick(item: ClientFileMetadata) {
         viewModelScope.launch(Dispatchers.IO) {
-            _files.value?.let { files ->
-                if (position == 0) {
+            when (item.id) {
+                "PARENT" -> {
                     setParentAsParent()
                     refreshOverFolder()
-                } else {
-                    currentParent = files[position]
+                }
+                else -> {
+                    currentParent = item
                     refreshOverFolder()
                 }
             }
