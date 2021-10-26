@@ -112,7 +112,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 )
 
                 val qrCodeView = layoutInflater.inflate(
-                    R.layout.activity_account_qr_code,
+                    R.layout.popup_window_qr_code,
                     view as ViewGroup,
                     false
                 )
