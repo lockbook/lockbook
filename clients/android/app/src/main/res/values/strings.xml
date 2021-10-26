@@ -42,6 +42,8 @@
     <string name="popup_info_file_type">File Type: %s</string>
     <string name="popup_info_metadata_version">Metadata Version: %s</string>
 
+    <string name="success_delete">Your selected file(s) have been deleted.</string>
+
     <string name="last_synced">Last synced: %s</string>
     <string name="never_synced">never</string>
     <string name="pop_up_info_never_synced">never synced</string>
@@ -168,6 +170,8 @@
     <string name="create_file_hint_document_extension">Document Ext.</string>
     <string name="create_file_hint_drawing_extension">Drawing Ext.</string>
 
+    <string name="drawing_fullscreen_description">Fullscreen</string>
+    <string name="drawing_exit_fullscreen_description">Exit Fullscreen</string>
     <string name="drawing_eraser_description">Eraser</string>
     <string name="drawing_pen_description">Pen</string>
     <string name="drawing_pen_small_description">Small</string>

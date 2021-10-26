@@ -16,7 +16,9 @@ class AlertModel(private val activity: WeakReference<Activity>, view: View? = nu
     private var view: View = view ?: activity.get()!!.findViewById(android.R.id.content)
     private var unexpectedErrorMsg = activity.get()!!.resources.getString(R.string.unexpected_error)
 
-    fun notifyBasicError(onFinish: (() -> Unit)? = null) = notify(unexpectedErrorMsg, onFinish)
+    fun notifyBasicError(onFinish: (() -> Unit)? = null) {
+        notify(unexpectedErrorMsg, onFinish)
+    }
 
     fun notify(msg: String, onFinish: (() -> Unit)? = null) {
         Handler(Looper.getMainLooper()).post {

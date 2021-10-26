@@ -8,6 +8,7 @@
         android:title="@string/menu_text_editor_view_md"
         android:visible="false"
         app:showAsAction="ifRoom" />
+
     <item
         android:id="@+id/menu_text_editor_redo"
         android:icon="@drawable/ic_baseline_arrow_forward_24"

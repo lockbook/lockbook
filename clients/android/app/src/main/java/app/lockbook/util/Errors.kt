@@ -273,6 +273,4 @@ enum class LbErrorKind {
 }
 
 fun getString(res: Resources, @StringRes stringRes: Int, vararg formatArgs: Any = emptyArray()): String = res.getString(stringRes, *formatArgs)
-
-// This will always be a valid call while the android app is running. This cannot be called during tests or you will get a nullpointerexception
 fun basicErrorString(res: Resources): String = getString(res, R.string.basic_error)

@@ -1,29 +1,26 @@
 package app.lockbook.model
 
-import android.content.Context
-import android.content.res.Resources
 import android.text.format.DateUtils
 import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
 
 class ShareModel(
-    private val _shareDocument: SingleMutableLiveData<ArrayList<File>>,
-    private val _showHideProgressOverlay: SingleMutableLiveData<Boolean>,
-    private val _notifyError: SingleMutableLiveData<LbError>
+    private val _updateMainScreenUI: SingleMutableLiveData<UpdateMainScreenUI>
 ) {
     var isLoadingOverlayVisible = false
 
     companion object {
-        private fun getMainShareFolder(context: Context): File = File(context.cacheDir, "share/")
-        fun createRandomShareFolderInstance(context: Context): File = File(getMainShareFolder(context), System.currentTimeMillis().toString())
+        private fun getMainShareFolder(cacheDir: File): File = File(cacheDir, "share/")
+        fun createRandomShareFolderInstance(cacheDir: File): File = File(getMainShareFolder(cacheDir), System.currentTimeMillis().toString())
 
-        fun clearShareStorage(context: Context) {
-            val shareFolder = getMainShareFolder(context)
+        fun clearShareStorage(cacheDir: File) {
+            val shareFolder = getMainShareFolder(cacheDir)
             val timeNow = System.currentTimeMillis()
 
             shareFolder.listFiles { file ->
@@ -38,17 +35,22 @@ class ShareModel(
         }
     }
 
-    fun shareDocuments(context: Context, selectedFiles: List<ClientFileMetadata>) {
-        isLoadingOverlayVisible = true
-        _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
+    fun shareDocuments(selectedFiles: List<ClientFileMetadata>, appDataDir: File): Result<Unit, CoreError> {
+        val cacheDir = getMainShareFolder(appDataDir)
 
-        clearShareStorage(context)
+        isLoadingOverlayVisible = true
+        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+
+        clearShareStorage(cacheDir)
 
         val documents = mutableListOf<ClientFileMetadata>()
-        retrieveSelectedDocuments(context.resources, selectedFiles, documents)
+        val selectedDocumentsResult = retrieveSelectedDocuments(selectedFiles, documents)
+        if (selectedDocumentsResult is Err) {
+            return selectedDocumentsResult
+        }
 
         val filesToShare = ArrayList<File>()
-        val shareFolder = createRandomShareFolderInstance(context)
+        val shareFolder = createRandomShareFolderInstance(cacheDir)
         shareFolder.mkdirs()
 
         for (file in documents) {
@@ -72,8 +74,8 @@ class ShareModel(
                     is Ok -> filesToShare.add(image)
                     is Err -> {
                         isLoadingOverlayVisible = false
-                        _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
-                        return _notifyError.postValue(exportDrawingToDiskResult.error.toLbError(context.resources))
+                        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+                        return exportDrawingToDiskResult
                     }
                 }
             } else {
@@ -86,37 +88,42 @@ class ShareModel(
                     is Ok -> filesToShare.add(doc)
                     is Err -> {
                         isLoadingOverlayVisible = false
-                        _showHideProgressOverlay.postValue(isLoadingOverlayVisible)
-                        return _notifyError.postValue(saveDocumentToDiskResult.error.toLbError(context.resources))
+                        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+                        return saveDocumentToDiskResult
                     }
                 }
             }
         }
 
-        _shareDocument.postValue(filesToShare)
+        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShareDocuments(filesToShare))
+        return Ok(Unit)
     }
 
     private fun retrieveSelectedDocuments(
-        resources: Resources,
         selectedFiles: List<ClientFileMetadata>,
         documents: MutableList<ClientFileMetadata>
-    ): Boolean {
-        selectedFiles.forEach { file ->
+    ): Result<Unit, CoreError> {
+        for (file in selectedFiles) {
             when (file.fileType) {
-                FileType.Document -> documents.add(file)
+                FileType.Document -> {
+                    documents.add(file)
+                }
                 FileType.Folder ->
                     when (
                         val getChildrenResult =
                             CoreModel.getChildren(config, file.id)
                     ) {
-                        is Ok -> if (!retrieveSelectedDocuments(resources, getChildrenResult.value, documents)) {
-                            return false
+                        is Ok -> {
+                            val retrieveDocumentsResult = retrieveSelectedDocuments(getChildrenResult.value, documents)
+                            if (retrieveDocumentsResult is Err) {
+                                return retrieveDocumentsResult
+                            }
                         }
-                        is Err -> _notifyError.postValue(getChildrenResult.error.toLbError(resources))
+                        is Err -> return getChildrenResult
                     }
             }
         }
 
-        return true
+        return Ok(Unit)
     }
 }

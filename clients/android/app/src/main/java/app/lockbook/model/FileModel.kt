@@ -12,10 +12,23 @@ enum class SortStyle {
     ZToA,
     LastChanged,
     FirstChanged,
-    FileType
+    FileType;
+
+    fun toStringResource(): Int = when (this) {
+        AToZ -> R.string.sort_files_a_z_value
+        ZToA -> R.string.sort_files_z_a_value
+        LastChanged -> R.string.sort_files_last_changed_value
+        FirstChanged -> R.string.sort_files_first_changed_value
+        FileType -> R.string.sort_files_type_value
+    }
 }
 
-class FileModel(var parent: ClientFileMetadata, var children: List<ClientFileMetadata>, val fileDir: MutableList<ClientFileMetadata>, private var sortStyle: SortStyle) {
+class FileModel(
+    var parent: ClientFileMetadata,
+    var children: List<ClientFileMetadata>,
+    val fileDir: MutableList<ClientFileMetadata>,
+    private var sortStyle: SortStyle
+) {
     companion object {
         fun createAtRoot(context: Context): Result<FileModel, LbError> {
             val pref = PreferenceManager.getDefaultSharedPreferences(context)
@@ -40,7 +53,12 @@ class FileModel(var parent: ClientFileMetadata, var children: List<ClientFileMet
                     val root = getRootResult.value
                     when (val getChildrenResult = CoreModel.getChildren(config, root.id)) {
                         is Ok -> {
-                            val fileModel = FileModel(root, getChildrenResult.value, mutableListOf(root), sortStyle)
+                            val fileModel = FileModel(
+                                root,
+                                getChildrenResult.value,
+                                mutableListOf(root),
+                                sortStyle
+                            )
                             fileModel.sortChildren()
 
                             Ok(fileModel)
@@ -51,20 +69,9 @@ class FileModel(var parent: ClientFileMetadata, var children: List<ClientFileMet
                 is Err -> Err(getRootResult.error.toLbError(res))
             }
         }
-
-        fun deleteFiles(ids: List<String>): Result<Unit, CoreError> {
-            for (id in ids) {
-                val deleteFileResult = CoreModel.deleteFile(config, id)
-                if (deleteFileResult is Err) {
-                    return deleteFileResult
-                }
-            }
-
-            return Ok(Unit)
-        }
     }
 
-    fun refreshChildrenAtPastParent(position: Int): Result<Unit, GetChildrenError> {
+    fun refreshChildrenAtAncestor(position: Int): Result<Unit, GetChildrenError> {
         val firstChildPosition = position + 1
         for (index in firstChildPosition until fileDir.size) {
             fileDir.removeAt(firstChildPosition)
@@ -131,9 +138,10 @@ class FileModel(var parent: ClientFileMetadata, var children: List<ClientFileMet
             fileMetadata.name
         }
 
-    private fun sortFilesChanged(files: List<ClientFileMetadata>): List<ClientFileMetadata> = files.sortedBy { fileMetadata ->
-        fileMetadata.metadataVersion
-    }
+    private fun sortFilesChanged(files: List<ClientFileMetadata>): List<ClientFileMetadata> =
+        files.sortedBy { fileMetadata ->
+            fileMetadata.metadataVersion
+        }
 
     private fun sortFilesType(files: List<ClientFileMetadata>): List<ClientFileMetadata> {
         val tempFolders = files.filter { fileMetadata ->

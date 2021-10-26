@@ -9,7 +9,7 @@
         android:icon="@drawable/ic_baseline_sort_24"
         android:orderInCategory="2"
         android:title="@string/menu_sort"
-        app:showAsAction="ifRoom">
+        app:showAsAction="always">
         <menu>
             <group
                 android:id="@+id/sorting_options"
@@ -29,26 +29,6 @@
                 <item
                     android:id="@+id/menu_list_files_sort_type"
                     android:title="@string/menu_list_files_sort_type" />
-            </group>
-        </menu>
-    </item>
-
-    <item
-        android:id="@+id/menu_list_files_file_layout"
-        android:icon="@drawable/ic_baseline_blur_linear_24"
-        android:orderInCategory="2"
-        android:title="@string/menu_layout"
-        app:showAsAction="always">
-        <menu>
-            <group
-                android:id="@+id/file_layout_options"
-                android:checkableBehavior="single">
-                <item
-                    android:id="@+id/menu_list_files_linear_view"
-                    android:title="@string/menu_list_files_linear_layout" />
-                <item
-                    android:id="@+id/menu_list_files_grid_view"
-                    android:title="@string/menu_list_files_grid_layout" />
             </group>
         </menu>
     </item>
@@ -80,31 +60,23 @@
     <item
         android:id="@+id/menu_list_files_move"
         android:icon="@drawable/ic_baseline_content_cut_24"
+        android:orderInCategory="4"
         android:title="@string/menu_list_files_move"
         android:visible="false"
-        android:orderInCategory="4"
         app:showAsAction="always" />
 
     <item
         android:id="@+id/menu_list_files_share"
         android:icon="@drawable/ic_baseline_share_24"
+        android:orderInCategory="5"
         android:title="@string/menu_list_files_move"
         android:visible="false"
-        android:orderInCategory="5"
         app:showAsAction="always" />
 
     <item
-        android:icon="@drawable/ic_baseline_more_vert_24"
+        android:id="@+id/menu_list_files_settings"
         android:orderInCategory="6"
-        app:showAsAction="always"
-        android:title="@string/overflow">
-        <menu
-            android:id="@+id/menu_list_files_more">
-            <item
-                android:id="@+id/menu_list_files_settings"
-                android:title="@string/settings_title" />
-
-        </menu>
-    </item>
+        android:title="@string/settings_title"
+        app:showAsAction="never" />
 
 </menu>

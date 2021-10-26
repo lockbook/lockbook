@@ -65,7 +65,7 @@ class NewAccountActivity : AppCompatActivity() {
             when (createAccountResult) {
                 is Ok -> {
                     binding.newAccountProgressBar.visibility = View.GONE
-                    startActivity(Intent(applicationContext, ListFilesActivity::class.java))
+                    startActivity(Intent(applicationContext, MainScreenActivity::class.java))
                     finishAffinity()
                 }
                 is Err -> {

@@ -61,7 +61,7 @@
     <style name="Main.Widget.Actionbar" parent="Widget.AppCompat.ActionBar">
         <item name="backgroundColor">@color/windowBackground</item>
         <item name="android:textColorPrimary">@color/textColor</item>
-        <item name="android:textColorSecondary">@color/textColor</item>
+        <item name="android:textColorSecondary">@color/colorPrimary</item>
         <item name="actionMenuTextColor">@color/textColor</item>
     </style>
 

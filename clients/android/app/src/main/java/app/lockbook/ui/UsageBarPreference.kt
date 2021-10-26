@@ -66,9 +66,11 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                 if (getUsageResult is Err) {
                     val lbError = getUsageResult.error.toLbError(context.resources)
                     alertModel.notifyError(lbError)
-                    if (lbError.kind == LbErrorKind.User) {
-                        withContext(Dispatchers.Main) {
-                            usageInfo.text = lbError.msg
+                    withContext(Dispatchers.Main) {
+                        usageInfo.text = if (lbError.kind == LbErrorKind.User) {
+                            lbError.msg
+                        } else {
+                            getString(context.resources, R.string.basic_error)
                         }
                     }
                 }

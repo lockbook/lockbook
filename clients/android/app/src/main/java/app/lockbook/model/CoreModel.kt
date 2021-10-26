@@ -205,12 +205,12 @@ object CoreModel {
 
     fun getFileById(
         config: Config,
-        fileId: String
+        id: String
     ): Result<ClientFileMetadata, GetFileByIdError> {
         val getFileByIdResult: Result<ClientFileMetadata, GetFileByIdError>? =
             Klaxon().converter(
                 getFileByIdConverter
-            ).parse(getFileById(Klaxon().toJsonString(config), fileId))
+            ).parse(getFileById(Klaxon().toJsonString(config), id))
 
         if (getFileByIdResult != null) {
             return getFileByIdResult
@@ -221,11 +221,11 @@ object CoreModel {
 
     fun readDocument(
         config: Config,
-        fileId: String
+        id: String
     ): Result<String, ReadDocumentError> {
         val getDocumentResult: Result<String, ReadDocumentError>? =
             Klaxon().converter(readDocumentConverter)
-                .parse(readDocument(Klaxon().toJsonString(config), fileId))
+                .parse(readDocument(Klaxon().toJsonString(config), id))
 
         if (getDocumentResult != null) {
             return getDocumentResult
@@ -236,12 +236,12 @@ object CoreModel {
 
     fun saveDocumentToDisk(
         config: Config,
-        fileId: String,
+        id: String,
         location: String
     ): Result<Unit, SaveDocumentToDiskError> {
         val saveDocumentToDiskResult: Result<Unit, SaveDocumentToDiskError>? =
             Klaxon().converter(saveDocumentToDiskConverter)
-                .parse(saveDocumentToDisk(Klaxon().toJsonString(config), fileId, location))
+                .parse(saveDocumentToDisk(Klaxon().toJsonString(config), id, location))
 
         if (saveDocumentToDiskResult != null) {
             return saveDocumentToDiskResult

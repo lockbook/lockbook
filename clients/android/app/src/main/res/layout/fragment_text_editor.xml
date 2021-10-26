@@ -37,6 +37,7 @@
             android:hint="@string/text_editor_hint"
             android:importantForAutofill="no"
             android:inputType="textMultiLine|textCapSentences"
+            android:freezesText="true"
             android:textColor="@color/textColor" />
 
     </ScrollView>

@@ -103,7 +103,7 @@ class ImportAccountActivity : AppCompatActivity() {
             when (importAccountResult) {
                 is Ok -> {
                     binding.importAccountProgressBar.visibility = View.GONE
-                    val intent = Intent(applicationContext, ListFilesActivity::class.java)
+                    val intent = Intent(applicationContext, MainScreenActivity::class.java)
                     intent.putExtra("is_this_an_import", true)
 
                     startActivity(intent)

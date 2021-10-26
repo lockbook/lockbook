@@ -6,37 +6,17 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.fragment.app.DialogFragment
-import androidx.lifecycle.ViewModelProvider
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
+import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
-import app.lockbook.model.AlertModel
-import app.lockbook.model.MoveFileAdapter
-import app.lockbook.model.MoveFileViewModel
-import app.lockbook.modelfactory.MoveFileViewModelFactory
+import app.lockbook.model.*
+import app.lockbook.util.ClientFileMetadata
+import app.lockbook.util.FileType
+import app.lockbook.util.HorizontalViewHolder
+import com.afollestad.recyclical.setup
+import com.afollestad.recyclical.withItem
 import java.lang.ref.WeakReference
-
-data class MoveFileInfo(
-    val ids: Array<String>,
-    val names: Array<String>
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as MoveFileInfo
-
-        if (!ids.contentEquals(other.ids)) return false
-        if (!names.contentEquals(other.names)) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = ids.contentHashCode()
-        result = 31 * result + names.contentHashCode()
-        return result
-    }
-}
 
 class MoveFileDialogFragment : DialogFragment() {
 
@@ -49,26 +29,11 @@ class MoveFileDialogFragment : DialogFragment() {
         AlertModel(WeakReference(requireActivity()), view)
     }
 
-    private lateinit var ids: Array<String>
-    private lateinit var names: Array<String>
-    private lateinit var moveFileViewModel: MoveFileViewModel
+    private val activityModel: StateViewModel by activityViewModels()
+    private val model: MoveFileViewModel by viewModels()
 
     companion object {
-
         const val MOVE_FILE_DIALOG_TAG = "MoveFileDialogFragment"
-
-        private const val IDS_KEY = "IDS_KEY"
-        private const val NAMES_KEY = "NAMES_KEY"
-
-        fun newInstance(ids: Array<String>, names: Array<String>): MoveFileDialogFragment {
-            val args = Bundle()
-            args.putStringArray(IDS_KEY, ids)
-            args.putStringArray(NAMES_KEY, names)
-
-            val fragment = MoveFileDialogFragment()
-            fragment.arguments = args
-            return fragment
-        }
     }
 
     override fun onCreateView(
@@ -86,53 +51,54 @@ class MoveFileDialogFragment : DialogFragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        val bundle = arguments
-        val nullableIds = bundle?.getStringArray(IDS_KEY)
-        val nullableNames = bundle?.getStringArray(NAMES_KEY)
-        if (nullableIds != null && nullableNames != null) {
-            ids = nullableIds
-            names = nullableNames
-        } else {
-            alertModel.notifyBasicError(::dismiss)
+        binding.moveFileList.setup {
+            withDataSource(model.files)
+            withItem<ClientFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
+                onBind(::HorizontalViewHolder) { _, item ->
+                    name.text = item.name
+                    description.text = resources.getString(
+                        R.string.last_synced,
+                        CoreModel.convertToHumanDuration(item.metadataVersion)
+                    )
+
+                    when {
+                        item.fileType == FileType.Document && item.name.endsWith(".draw") -> {
+                            icon.setImageResource(R.drawable.ic_baseline_border_color_24)
+                        }
+                        item.fileType == FileType.Document -> {
+                            icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                        }
+                        else -> {
+                            icon.setImageResource(R.drawable.round_folder_white_18dp)
+                        }
+                    }
+                }
+                onClick {
+                    model.onItemClick(item)
+                }
+            }
         }
 
-        val moveFileViewModelFactory =
-            MoveFileViewModelFactory(requireActivity().application)
-        moveFileViewModel =
-            ViewModelProvider(this, moveFileViewModelFactory).get(MoveFileViewModel::class.java)
-        val adapter =
-            MoveFileAdapter(moveFileViewModel)
-
-        binding.moveFileList.layoutManager = LinearLayoutManager(context)
-        binding.moveFileList.adapter = adapter
         binding.moveFileCancel.setOnClickListener {
             dismiss()
         }
         binding.moveFileConfirm.setOnClickListener {
             binding.moveFileProgressBar.visibility = View.VISIBLE
-            moveFileViewModel.moveFilesToFolder()
+            model.moveFilesToFolder((activityModel.transientScreen as TransientScreen.Move).ids)
         }
 
         dialog?.setCanceledOnTouchOutside(false) ?: alertModel.notifyBasicError()
 
-        moveFileViewModel.ids = ids
-        moveFileViewModel.names = names
+        model.ids = (activityModel.transientScreen as TransientScreen.Move).ids
 
-        moveFileViewModel.files.observe(
-            viewLifecycleOwner
-        ) { files ->
-            adapter.files = files
-        }
-
-        moveFileViewModel.closeDialog.observe(
+        model.closeDialog.observe(
             viewLifecycleOwner
         ) {
             binding.moveFileProgressBar.visibility = View.GONE
             dismiss()
         }
 
-        moveFileViewModel.notifyError.observe(
+        model.notifyError.observe(
             viewLifecycleOwner
         ) { error ->
             alertModel.notifyError(error)

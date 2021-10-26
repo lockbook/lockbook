@@ -5,6 +5,19 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/files_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        android:theme="@style/Main.Widget.Actionbar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+    </androidx.appcompat.widget.Toolbar>
+
+
     <app.lockbook.ui.BreadCrumbView
         android:id="@+id/files_breadcrumb_bar"
         android:layout_width="match_parent"
@@ -13,33 +26,26 @@
         app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/files_toolbar"
         app:text_color="@color/textColor"
         app:text_size="15" />
 
-    <LinearLayout
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/list_files_refresh"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_gravity="center"
-        android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/files_breadcrumb_bar">
 
-        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-            android:id="@+id/list_files_refresh"
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/files_list"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="wrap_content"
+            android:scrollbars="vertical" />
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/files_list"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
-
-        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-    </LinearLayout>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <FrameLayout
         android:id="@+id/list_files_frame_layout"
@@ -52,7 +58,7 @@
         app:layout_constraintTop_toTopOf="@+id/files_breadcrumb_bar">
 
         <TextView
-            android:id="@+id/list_files_empty_folder"
+            android:id="@+id/files_empty_folder"
             style="@style/Main.Text.Caption"
             android:layout_width="150dp"
             android:layout_height="wrap_content"
@@ -66,4 +72,5 @@
             layout="@layout/fabs_new_file" />
 
     </FrameLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

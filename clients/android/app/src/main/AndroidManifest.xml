@@ -22,7 +22,8 @@
         <activity
             android:name=".screen.InitialLaunchFigureOuter"
             android:noHistory="true"
-            android:theme="@style/Main">
+            android:theme="@style/Main"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -34,12 +35,8 @@
             android:name=".screen.NewAccountActivity" />
         <activity
             android:name=".screen.ImportAccountActivity" />
-        <activity
-            android:name=".screen.DrawingActivity"
-            android:theme="@style/Main.FullScreen" />
-        <activity android:name=".screen.ListFilesActivity" />
+        <activity android:name=".screen.MainScreenActivity" />
         <activity android:name=".screen.SettingsActivity" />
-        <activity android:name=".screen.TextEditorActivity" />
         <activity android:name=".screen.LogActivity" />
 
         <provider
