@@ -3,6 +3,8 @@ package app.lockbook
 
 import android.app.Application
 import android.content.Context
+import android.content.res.Resources
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.*
 import androidx.preference.PreferenceManager
@@ -106,4 +108,19 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
             Result.success()
         }
     }
+}
+
+fun AndroidViewModel.getContext(): Context {
+    return this.getApplication<Application>()
+}
+
+fun AndroidViewModel.getRes(): Resources {
+    return this.getApplication<Application>().resources
+}
+
+fun AndroidViewModel.getString(
+    @StringRes stringRes: Int,
+    vararg formatArgs: Any = emptyArray()
+): String {
+    return getString(this.getRes(), stringRes, *formatArgs)
 }

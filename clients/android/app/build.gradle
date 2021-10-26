@@ -4,14 +4,14 @@ apply plugin: 'androidx.navigation.safeargs'
 apply plugin: "org.jmailen.kotlinter"
 
 android {
-    compileSdkVersion 30
+    compileSdkVersion 31
 
     defaultConfig {
         applicationId "app.lockbook"
         minSdkVersion 22
-        targetSdkVersion 30
+        targetSdkVersion 31
         versionCode 1
-        versionName "0.3.6"
+        versionName "0.3.7"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -65,6 +65,8 @@ dependencies {
     implementation "com.afollestad.material-dialogs:core:$dialog_version"
     implementation "androidx.preference:preference-ktx:$preference_version"
     implementation "androidx.fragment:fragment-ktx:$fragment_version"
+    implementation "androidx.slidingpanelayout:slidingpanelayout:$sliding_pane_layout_version"
+    implementation "com.afollestad:recyclical:$recyclical_version"
 
     // Support Libraries
     implementation "androidx.constraintlayout:constraintlayout:$constraint_layout_version"
