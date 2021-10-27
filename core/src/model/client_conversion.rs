@@ -31,9 +31,10 @@ pub struct ClientWorkCalculated {
 
 #[derive(Debug, Serialize, Clone)]
 pub enum ClientWorkUnit {
-    ServerUnknownName(Uuid),
-    Server(ClientFileMetadata),
-    Local(ClientFileMetadata),
+    PullMetadata,
+    PushMetadata,
+    PullDocument(String),
+    PushDocument(String),
 }
 
 pub fn generate_client_file_metadata(
@@ -50,21 +51,6 @@ pub fn generate_client_file_metadata(
         content_version: meta.content_version,
         deleted: meta.deleted,
         users_with_access: vec![account_repo::get(config)?.username], // todo: fix
-    })
-}
-
-pub fn generate_client_work_unit(
-    config: &Config,
-    work_unit: &WorkUnit,
-) -> Result<ClientWorkUnit, CoreError> {
-    let maybe_file_metadata = generate_client_file_metadata(config, &work_unit.get_metadata());
-
-    Ok(match work_unit {
-        WorkUnit::LocalChange { .. } => ClientWorkUnit::Local(maybe_file_metadata?),
-        WorkUnit::ServerChange { metadata } => match maybe_file_metadata {
-            Ok(file_metadata) => ClientWorkUnit::Server(file_metadata),
-            Err(_) => ClientWorkUnit::ServerUnknownName(metadata.id), // todo: this can be triggered by unexpected errors; what's this supposed to mean, anyway?
-        },
     })
 }
 

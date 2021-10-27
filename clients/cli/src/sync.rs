@@ -12,9 +12,10 @@ pub fn sync() -> CliResult<()> {
     let config = config()?;
     let closure = |sync_progress: SyncProgress| {
         match sync_progress.current_work_unit {
-            ClientWorkUnit::ServerUnknownName(_) => println!("Pulling: New File"),
-            ClientWorkUnit::Server(metadata) => println!("Pulling: {}", metadata.name),
-            ClientWorkUnit::Local(metadata) => println!("Pushing: {}", metadata.name),
+            ClientWorkUnit::PullMetadata => println!("Pulling file tree updates"),
+            ClientWorkUnit::PushMetadata => println!("Pushing file tree updates"),
+            ClientWorkUnit::PullDocument(name) => println!("Pulling: {}", name),
+            ClientWorkUnit::PushDocument(name) => println!("Pushing: {}", name),
         };
     };
 

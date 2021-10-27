@@ -361,11 +361,13 @@ impl StatusPanel {
     }
 
     pub fn set_sync_progress(&self, s: &LbSyncMsg) {
-        let prefix = match s.work {
-            ClientWorkUnit::Server(_) | ClientWorkUnit::ServerUnknownName(_) => "Pulling",
-            ClientWorkUnit::Local(_) => "Pushing",
+        let status = match &s.work {
+            ClientWorkUnit::PullMetadata => String::from("Pulling file tree updates"),
+            ClientWorkUnit::PushMetadata => String::from("Pushing file tree updates"),
+            ClientWorkUnit::PullDocument(name) => format!("Pulling: {}", name),
+            ClientWorkUnit::PushDocument(name) => format!("Pushing: {}", name),
         };
-        self.set_status(&format!("{}: {}", prefix, s.name), None);
+        self.set_status(&status, None);
         self.sync_progress
             .set_fraction(s.index as f64 / s.total as f64);
     }

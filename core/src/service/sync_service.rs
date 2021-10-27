@@ -445,18 +445,45 @@ fn get_resolved_document(
     }
 }
 
+fn should_pull_document(
+    maybe_base: &Option<DecryptedFileMetadata>,
+    maybe_local: &Option<DecryptedFileMetadata>,
+    maybe_remote: &Option<DecryptedFileMetadata>,
+) -> bool {
+    if let Some(remote) = maybe_remote {
+        remote.file_type == FileType::Document
+            && if let Some(local) = maybe_local {
+                remote.content_version > local.content_version
+            } else if let Some(base) = maybe_base {
+                remote.content_version > base.content_version
+            } else {
+                true
+            }
+            && !remote.deleted
+    } else {
+        false
+    }
+}
+
 /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
-fn pull(
+fn pull<F>(
     config: &Config,
     account: &Account,
-    _f: &Option<Box<dyn Fn(SyncProgress)>>,
-) -> Result<(), CoreError> {
+    update_sync_progress: &mut F,
+) -> Result<(), CoreError>
+where
+    F: FnMut(SyncProgressOperation),
+{
     let base_metadata = file_repo::get_all_metadata(config, RepoSource::Base)?;
     let base_max_metadata_version = base_metadata
         .iter()
         .map(|f| f.metadata_version)
         .max()
         .unwrap_or(0);
+
+    update_sync_progress(SyncProgressOperation::StartWorkUnit(
+        ClientWorkUnit::PullMetadata,
+    ));
 
     let remote_metadata_changes = client::request(
         account,
@@ -473,6 +500,23 @@ fn pull(
         RepoSource::Base,
         &remote_metadata_changes,
     )?;
+
+    let num_documents_to_pull = remote_metadata_changes
+        .iter()
+        .filter(|&f| {
+            let maybe_remote_metadatum = utils::maybe_find(&remote_metadata, f.id);
+            let maybe_base_metadatum = utils::maybe_find(&base_metadata, f.id);
+            let maybe_local_metadatum = utils::maybe_find(&local_metadata, f.id);
+            should_pull_document(
+                &maybe_base_metadatum,
+                &maybe_local_metadatum,
+                &maybe_remote_metadatum,
+            )
+        })
+        .count();
+    update_sync_progress(SyncProgressOperation::IncrementTotalWork(
+        num_documents_to_pull,
+    ));
 
     let mut base_metadata_updates = Vec::new();
     let mut base_document_updates = Vec::new();
@@ -496,15 +540,15 @@ fn pull(
         local_metadata_updates.push(merged_metadatum.clone()); // update local to merged
 
         // merge document content
-        let content_updated = remote_metadatum.file_type == FileType::Document
-            && if let Some(local) = maybe_local_metadatum {
-                remote_metadatum.content_version > local.content_version
-            } else if let Some(base) = maybe_base_metadatum {
-                remote_metadatum.content_version > base.content_version
-            } else {
-                true
-            };
-        if content_updated && !remote_metadatum.deleted {
+        if should_pull_document(
+            &maybe_base_metadatum,
+            &maybe_local_metadatum,
+            &Some(remote_metadatum.clone()),
+        ) {
+            update_sync_progress(SyncProgressOperation::StartWorkUnit(
+                ClientWorkUnit::PullDocument(remote_metadatum.decrypted_name.clone()),
+            ));
+
             match get_resolved_document(config, account, &remote_metadatum, &merged_metadatum)? {
                 Some(ResolvedDocument::Merged {
                     remote_metadata,
@@ -580,11 +624,18 @@ fn pull(
 }
 
 /// Updates remote and base metadata to local.
-fn push_metadata(
+fn push_metadata<F>(
     config: &Config,
     account: &Account,
-    _f: &Option<Box<dyn Fn(SyncProgress)>>,
-) -> Result<(), CoreError> {
+    update_sync_progress: &mut F,
+) -> Result<(), CoreError>
+where
+    F: FnMut(SyncProgressOperation),
+{
+    update_sync_progress(SyncProgressOperation::StartWorkUnit(
+        ClientWorkUnit::PushMetadata,
+    ));
+
     // update remote to local (metadata)
     let metadata_changes = file_repo::get_all_metadata_changes(config)?;
     if !metadata_changes.is_empty() {
@@ -604,11 +655,14 @@ fn push_metadata(
 }
 
 /// Updates remote and base files to local.
-fn push_documents(
+fn push_documents<F>(
     config: &Config,
     account: &Account,
-    _f: &Option<Box<dyn Fn(SyncProgress)>>,
-) -> Result<(), CoreError> {
+    update_sync_progress: &mut F,
+) -> Result<(), CoreError>
+where
+    F: FnMut(SyncProgressOperation),
+{
     for id in file_repo::get_all_with_document_changes(config)? {
         let mut local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
         let local_content = file_repo::get_document(config, RepoSource::Local, id)?;
@@ -616,6 +670,10 @@ fn push_documents(
             &file_compression_service::compress(&local_content)?,
             &local_metadata,
         )?;
+
+        update_sync_progress(SyncProgressOperation::StartWorkUnit(
+            ClientWorkUnit::PushDocument(local_metadata.decrypted_name.clone()),
+        ));
 
         // update remote to local (document)
         local_metadata.content_version = client::request(
@@ -642,13 +700,37 @@ fn push_documents(
     Ok(())
 }
 
-pub fn sync(config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), CoreError> {
+enum SyncProgressOperation {
+    IncrementTotalWork(usize),
+    StartWorkUnit(ClientWorkUnit),
+}
+
+pub fn sync(
+    config: &Config,
+    maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
+) -> Result<(), CoreError> {
+    let mut sync_progress_total = 4 + file_repo::get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
+    let mut sync_progress = 0;
+    let mut update_sync_progress = |op: SyncProgressOperation| match op {
+        SyncProgressOperation::IncrementTotalWork(inc) => sync_progress_total += inc,
+        SyncProgressOperation::StartWorkUnit(work_unit) => {
+            if let Some(ref update_sync_progress) = maybe_update_sync_progress {
+                update_sync_progress(SyncProgress {
+                    total: sync_progress_total,
+                    progress: sync_progress,
+                    current_work_unit: work_unit,
+                })
+            }
+            sync_progress += 1;
+        }
+    };
+
     let account = &account_repo::get(config)?;
-    pull(config, account, &f)?;
-    push_metadata(config, account, &f)?;
-    pull(config, account, &f)?;
-    push_documents(config, account, &f)?;
-    pull(config, account, &f)?;
+    pull(config, account, &mut update_sync_progress)?;
+    push_metadata(config, account, &mut update_sync_progress)?;
+    pull(config, account, &mut update_sync_progress)?;
+    push_documents(config, account, &mut update_sync_progress)?;
+    pull(config, account, &mut update_sync_progress)?;
     file_repo::prune_deleted(config)?;
     Ok(())
 }

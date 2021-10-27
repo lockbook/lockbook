@@ -274,16 +274,15 @@ impl LbCore {
 
     pub fn sync(&self, ch: glib::Sender<Option<LbSyncMsg>>) -> LbResult<()> {
         let closure = closure!(ch => move |sync_progress: SyncProgress| {
-            let wu = sync_progress.current_work_unit;
-
-            let name = match &wu {
-                ClientWorkUnit::ServerUnknownName(_) => "New file".to_string(),
-                ClientWorkUnit::Server(metadata) => metadata.name.clone(),
-                ClientWorkUnit::Local(metadata) => metadata.name.clone(),
+            let name = match sync_progress.current_work_unit {
+                ClientWorkUnit::PullMetadata => String::from("file tree updates"),
+                ClientWorkUnit::PushMetadata => String::from("file tree updates"),
+                ClientWorkUnit::PullDocument(ref name) => name.clone(),
+                ClientWorkUnit::PushDocument(ref name) => name.clone(),
             };
 
             let data = LbSyncMsg {
-                work: wu,
+                work: sync_progress.current_work_unit,
                 name: name,
                 index: sync_progress.progress + 1,
                 total: sync_progress.total,
