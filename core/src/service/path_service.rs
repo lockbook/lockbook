@@ -63,7 +63,13 @@ pub fn create_at_path(
             Document
         };
 
-        current = file_service::create(file_type, current.id, next_name, &account.username);
+        current = file_service::apply_create(
+            &files,
+            file_type,
+            current.id,
+            next_name,
+            &account.username,
+        )?;
         file_repo::insert_metadatum(config, RepoSource::Local, &current)?;
     }
 
