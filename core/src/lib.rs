@@ -231,6 +231,9 @@ pub enum CreateFileAtPathError {
     PathDoesntStartWithRoot,
     PathContainsEmptyFile,
     DocumentTreatedAsFolder,
+    FileNameEmpty,
+    FileNameContainsSlash,
+    FileIsOwnParent,
 }
 
 pub fn create_file_at_path(
@@ -249,6 +252,11 @@ pub fn create_file_at_path(
             CoreError::AccountNonexistent => UiError(CreateFileAtPathError::NoAccount),
             CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
             CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
+            CoreError::FileNameEmpty => UiError(CreateFileAtPathError::FileNameEmpty),
+            CoreError::FileNameContainsSlash => {
+                UiError(CreateFileAtPathError::FileNameContainsSlash)
+            }
+            CoreError::RootModificationInvalid => UiError(CreateFileAtPathError::FileIsOwnParent),
             _ => unexpected!("{:#?}", e),
         })
         .and_then(|file_metadata| {
@@ -316,17 +324,14 @@ pub fn create_file(
         file_service::apply_create(&all_metadata, file_type, parent, name, &account.username)
             .map_err(|e| match e {
                 CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
+                CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
+                CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
+                CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
+                CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
                 _ => unexpected!("{:#?}", e),
             })?;
-    file_repo::insert_metadatum(config, RepoSource::Local, &metadata).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
-        CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
-        CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-        CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
-        CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
-        CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
-        _ => unexpected!("{:#?}", e),
-    })?;
+    file_repo::insert_metadatum(config, RepoSource::Local, &metadata)
+        .map_err(|e| unexpected!("{:#?}", e))?;
     generate_client_file_metadata(config, &metadata).map_err(|e| unexpected!("{:#?}", e))
 }
 

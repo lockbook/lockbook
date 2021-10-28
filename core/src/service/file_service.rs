@@ -49,6 +49,11 @@ pub fn apply_create(
     let file = create(file_type, parent, name, owner);
     validate_not_root(&file)?;
     validate_file_name(name)?;
+    let parent = utils::find(files, parent).map_err(|e| match e {
+        CoreError::FileNonexistent => CoreError::FileParentNonexistent,
+        e => e
+    })?;
+    validate_is_folder(&parent)?;
 
     if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
         return Err(CoreError::PathTaken);
@@ -396,6 +401,22 @@ mod unit_tests {
         let document_id = document.id;
         let result = file_service::apply_move(&[root, document], document_id, folder_id);
         assert_eq!(result, Err(CoreError::FileParentNonexistent));
+    }
+
+    #[test]
+    fn apply_move_parent_document() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let document1 =
+            file_service::create(FileType::Document, root.id, "document1", &account.username);
+        let document2 =
+            file_service::create(FileType::Document, root.id, "document2", &account.username);
+
+        let document1_id = document1.id;
+        let document2_id = document2.id;
+        let result =
+            file_service::apply_move(&[root, document1, document2], document2_id, document1_id);
+        assert_eq!(result, Err(CoreError::FileNotFolder));
     }
 
     #[test]
