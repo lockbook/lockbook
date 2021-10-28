@@ -231,9 +231,6 @@ pub enum CreateFileAtPathError {
     PathDoesntStartWithRoot,
     PathContainsEmptyFile,
     DocumentTreatedAsFolder,
-    FileNameEmpty,
-    FileNameContainsSlash,
-    FileIsOwnParent,
 }
 
 pub fn create_file_at_path(
@@ -252,11 +249,6 @@ pub fn create_file_at_path(
             CoreError::AccountNonexistent => UiError(CreateFileAtPathError::NoAccount),
             CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
             CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
-            CoreError::FileNameEmpty => UiError(CreateFileAtPathError::FileNameEmpty),
-            CoreError::FileNameContainsSlash => {
-                UiError(CreateFileAtPathError::FileNameContainsSlash)
-            }
-            CoreError::RootModificationInvalid => UiError(CreateFileAtPathError::FileIsOwnParent),
             _ => unexpected!("{:#?}", e),
         })
         .and_then(|file_metadata| {
