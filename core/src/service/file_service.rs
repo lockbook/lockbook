@@ -51,7 +51,7 @@ pub fn apply_create(
     validate_file_name(name)?;
     let parent = utils::find(files, parent).map_err(|e| match e {
         CoreError::FileNonexistent => CoreError::FileParentNonexistent,
-        e => e
+        e => e,
     })?;
     validate_is_folder(&parent)?;
 
