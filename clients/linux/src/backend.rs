@@ -301,9 +301,7 @@ impl LbCore {
 
         ch.send(None).unwrap();
 
-        sync?;
-
-        Ok(())
+        sync
     }
 
     pub fn calculate_work(&self) -> LbResult<ClientWorkCalculated> {
