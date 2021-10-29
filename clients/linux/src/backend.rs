@@ -379,25 +379,25 @@ impl LbCore {
     pub fn usage_status(&self) -> LbResult<(Option<String>, Option<String>)> {
         let usage = self.get_usage()?;
 
-        if usage.server_usage.exact >= usage.data_cap.exact {
-            return Ok((
+        Ok(if usage.server_usage.exact >= usage.data_cap.exact {
+            (
                 Some("You're out of space!".to_string()),
                 Some("You have run out of space, go to the settings to buy more!".to_string()),
-            ));
+            )
         } else if usage.server_usage.exact as f32 / usage.data_cap.exact as f32
             > USAGE_WARNING_THRESHOLD
         {
-            return Ok((
+            (
                 Some(format!(
                     "{} of {} remaining!",
                     bytes_to_human(usage.data_cap.exact - usage.server_usage.exact),
                     usage.data_cap.readable
                 )),
                 Some("You are running out of space, go to the settings to buy more!".to_string()),
-            ));
-        }
-
-        Ok((None, None))
+            )
+        } else {
+            (None, None)
+        })
     }
 }
 
