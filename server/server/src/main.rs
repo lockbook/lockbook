@@ -167,6 +167,9 @@ async fn route(
             hyper_request,
             server_state
         ),
+        route_case!(GetBuildInfoRequest) => {
+            pack::<GetBuildInfoRequest>(wrap_err::<GetBuildInfoRequest>(get_build_info()))
+        }
         _ => {
             warn!(
                 "Request matched no endpoints: {} {}",
@@ -180,7 +183,7 @@ async fn route(
     }
 }
 
-fn _get_build_info() -> Result<GetBuildInfoResponse, Result<GetBuildInfoError, String>> {
+fn get_build_info() -> Result<GetBuildInfoResponse, Result<GetBuildInfoError, String>> {
     Ok(GetBuildInfoResponse {
         build_version: env!("CARGO_PKG_VERSION"),
         git_commit_hash: build_info::COMMIT_HASH,
