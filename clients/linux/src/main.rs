@@ -68,9 +68,8 @@ fn main() {
         }
     }));
     gtk_app.connect_shutdown(closure!(settings => move |_| {
-        match settings.borrow_mut().to_file() {
-            Ok(_) => println!("bye!"),
-            Err(err) => println!("error: {:?}", err),
+        if let Err(err) = settings.borrow_mut().to_file() {
+            println!("error: {:?}", err);
         }
     }));
     gtk_app.run(&[]);
