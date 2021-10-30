@@ -5,6 +5,11 @@ extern crate log;
 extern crate reqwest;
 
 use crate::client::ApiError;
+use crate::lib_helpers::{
+    delete_file_helper, export_drawing_helper, export_drawing_to_disk_helper,
+    get_and_get_children_recursively_helper, get_children_helper, get_drawing_helper,
+    move_file_helper, rename_file_helper, save_drawing_helper,
+};
 use crate::model::client_conversion::{
     generate_client_file_metadata, generate_client_work_calculated, ClientFileMetadata,
     ClientWorkCalculated,
@@ -19,8 +24,7 @@ use crate::service::import_export_service::{self, ImportExportFileInfo};
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
-    account_service, db_state_service, drawing_service, file_encryption_service, file_service,
-    path_service, sync_service, usage_service,
+    account_service, db_state_service, file_service, path_service, sync_service, usage_service,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -356,16 +360,6 @@ pub fn get_children(
     get_children_helper(config, id).map_err(|e| unexpected!("{:#?}", e))
 }
 
-fn get_children_helper(config: &Config, id: Uuid) -> Result<Vec<ClientFileMetadata>, CoreError> {
-    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files);
-    let children = utils::find_children(&files, id);
-    children
-        .iter()
-        .map(|c| generate_client_file_metadata(config, c))
-        .collect()
-}
-
 #[derive(Debug, Serialize, EnumIter)]
 pub enum GetAndGetChildrenError {
     FileDoesNotExist,
@@ -381,32 +375,6 @@ pub fn get_and_get_children_recursively(
         CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-pub fn get_and_get_children_recursively_helper(
-    config: &Config,
-    id: Uuid,
-) -> Result<Vec<FileMetadata>, CoreError> {
-    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files);
-    let file_and_descendants = utils::find_with_descendants(&files, id)?;
-
-    // convert from decryptedfilemetadata to filemetadata because that's what this function needs to return for some reason
-    let account = account_repo::get(config)?;
-    let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files)?;
-    let mut result = Vec::new();
-    for file in file_and_descendants {
-        let encrypted_file = encrypted_files
-            .iter()
-            .find(|f| f.id == file.id)
-            .ok_or_else(|| {
-                CoreError::Unexpected(String::from(
-                    "get_and_get_children_recursively: encrypted file not found",
-                ))
-            })?;
-        result.push(encrypted_file.clone());
-    }
-    Ok(result)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -461,12 +429,6 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteErro
         CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-fn delete_file_helper(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let file = file_service::apply_delete(&files, id)?;
-    file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -583,13 +545,6 @@ pub fn rename_file(
     })
 }
 
-fn rename_file_helper(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
-    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files);
-    let file = file_service::apply_rename(&files, id, new_name)?;
-    file_repo::insert_metadatum(config, RepoSource::Local, &file)
-}
-
 #[derive(Debug, Serialize, EnumIter)]
 pub enum MoveFileError {
     CannotMoveRoot,
@@ -612,13 +567,6 @@ pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Erro
         CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-fn move_file_helper(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
-    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files);
-    let file = file_service::apply_move(&files, id, new_parent)?;
-    file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -749,11 +697,6 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
     })
 }
 
-fn get_drawing_helper(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
-    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
-    drawing_service::parse_drawing(&drawing_bytes)
-}
-
 #[derive(Debug, Serialize, EnumIter)]
 pub enum SaveDrawingError {
     NoAccount,
@@ -774,16 +717,6 @@ pub fn save_drawing(
         CoreError::FileNotDocument => UiError(SaveDrawingError::FolderTreatedAsDrawing),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-pub fn save_drawing_helper(
-    config: &Config,
-    id: Uuid,
-    drawing_bytes: &[u8],
-) -> Result<(), CoreError> {
-    drawing_service::parse_drawing(drawing_bytes)?; // validate drawing
-    let metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?;
-    file_repo::insert_document(config, RepoSource::Local, &metadata, drawing_bytes)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -807,16 +740,6 @@ pub fn export_drawing(
         CoreError::FileNotDocument => UiError(ExportDrawingError::FolderTreatedAsDrawing),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-fn export_drawing_helper(
-    config: &Config,
-    id: Uuid,
-    format: SupportedImageFormats,
-    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-) -> Result<Vec<u8>, CoreError> {
-    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
-    drawing_service::export_drawing(&drawing_bytes, format, render_theme)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -845,19 +768,6 @@ pub fn export_drawing_to_disk(
         CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-fn export_drawing_to_disk_helper(
-    config: &Config,
-    id: Uuid,
-    format: SupportedImageFormats,
-    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    location: String,
-) -> Result<(), CoreError> {
-    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
-    let exported_drawing_bytes =
-        drawing_service::export_drawing(&drawing_bytes, format, render_theme)?;
-    file_service::save_document_to_disk(&exported_drawing_bytes, location)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -962,6 +872,7 @@ pub mod c_interface;
 pub mod client;
 pub mod java_interface;
 mod json_interface;
+pub mod lib_helpers;
 pub mod loggers;
 pub mod model;
 pub mod repo;
