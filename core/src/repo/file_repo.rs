@@ -260,8 +260,11 @@ pub fn insert_document(
     metadata: &DecryptedFileMetadata,
     document: &[u8],
 ) -> Result<(), CoreError> {
-    // check that document exists
+    // check that document exists and is a document
     get_metadata(config, RepoSource::Local, metadata.id)?;
+    if metadata.file_type == FileType::Folder {
+        return Err(CoreError::FileNotDocument);
+    }
 
     // encrypt document and compute digest
     let digest = Sha256::digest(document);

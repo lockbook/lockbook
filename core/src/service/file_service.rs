@@ -90,7 +90,10 @@ pub fn apply_move(
     new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = utils::find(files, target_id)?;
-    let parent = utils::find_parent(files, target_id)?;
+    let parent = utils::find(files, new_parent).map_err(|err| match err {
+        CoreError::FileNonexistent => CoreError::FileParentNonexistent,
+        e => e,
+    })?;
     validate_not_root(&file)?;
     validate_is_folder(&parent)?;
 

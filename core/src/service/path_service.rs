@@ -20,7 +20,7 @@ pub fn create_at_path(
 
     let is_folder = path_and_name.ends_with('/');
 
-    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let mut files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let mut current = utils::find_root(&files)?;
     let root_id = current.id;
     let account = account_repo::get(config)?;
@@ -70,6 +70,7 @@ pub fn create_at_path(
             next_name,
             &account.username,
         )?;
+        files.push(current.clone());
         file_repo::insert_metadatum(config, RepoSource::Local, &current)?;
     }
 
