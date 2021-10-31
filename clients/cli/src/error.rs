@@ -105,11 +105,12 @@ make_errkind_enum!(
     50 => InvalidDrawing(String),
     51 => FolderTreatedAsDoc(String),
 
-    // Validation errors (53 - 55)
+    // Validation errors (53 - 57)
     53 => FileOrphaned(String),
     54 => CycleDetected,
     55 => NameConflictDetected(String),
-    56 => WarningsFound(i32),
+    56 => DocumentReadError(String, String),
+    57 => WarningsFound(i32),
 );
 
 impl ErrorKind {
@@ -155,6 +156,7 @@ impl ErrorKind {
             Self::FileOrphaned(path) => format!("file '{}' has no path to root", path),
             Self::CycleDetected => "A cycle was detected in the file hierarchy".to_string(),
             Self::NameConflictDetected(path) => format!("A name conflict was detected for file at path `{}`", path),
+            Self::DocumentReadError(path, err) => format!("{} was not readable due to: {}", path, err),
             Self::WarningsFound(count) => format!("{} warnings found", count),
         }
     }

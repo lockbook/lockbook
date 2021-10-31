@@ -2,10 +2,7 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_fuzzer {
-    use crate::sync_fuzzer::Actions::{
-        AttemptFolderMove, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile, SyncAndCheck,
-        UpdateDocument,
-    };
+    use crate::sync_fuzzer::Actions::{AttemptFolderMove, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile, SyncAndCheck, UpdateDocument, DeleteFile};
     use indicatif::{ProgressBar, ProgressStyle};
     use lockbook_core::model::client_conversion::ClientFileMetadata;
     use lockbook_core::model::state::Config;
@@ -14,10 +11,7 @@ mod sync_fuzzer {
     use lockbook_core::service::sync_service::sync;
     use lockbook_core::service::test_utils::{assert_dbs_eq, random_username, test_config, url};
     use lockbook_core::Error::UiError;
-    use lockbook_core::{
-        calculate_work, create_file, list_metadatas, move_file, rename_file, write_document,
-        MoveFileError,
-    };
+    use lockbook_core::{calculate_work, create_file, list_metadatas, move_file, rename_file, write_document, MoveFileError, delete_file};
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use rand::distributions::{Alphanumeric, Distribution, Standard};
     use rand::rngs::StdRng;
@@ -30,7 +24,6 @@ mod sync_fuzzer {
     static CLIENTS: u8 = 2;
     static ACTION_COUNT: u64 = 250;
     static MAX_FILE_SIZE: usize = 1024;
-
     ///
     static SHOW_PROGRESS: bool = false;
 
@@ -45,6 +38,7 @@ mod sync_fuzzer {
         MoveDocument,
         AttemptFolderMove,
         RenameFile,
+        DeleteFile,
     }
 
     #[test]
@@ -54,17 +48,246 @@ mod sync_fuzzer {
         println!("seed: {}", SEED);
         println!("clients: {}", CLIENTS);
 
+        let bug1: Vec<Actions> = vec![
+            NewMarkdownDocument,
+            NewFolder,
+            NewMarkdownDocument,
+            DeleteFile,
+            DeleteFile,
+            NewMarkdownDocument,
+            NewFolder,
+            DeleteFile,
+            NewFolder,
+            NewFolder,
+            NewMarkdownDocument,
+            NewFolder,
+            NewMarkdownDocument,
+            SyncAndCheck,
+            NewMarkdownDocument,
+            NewMarkdownDocument,
+            NewFolder,
+            DeleteFile,
+            NewFolder,
+            NewMarkdownDocument,
+            SyncAndCheck,
+        ];
+
+        let bug2: Vec<Actions> = vec![
+            NewMarkdownDocument,
+            NewMarkdownDocument,
+            DeleteFile,
+            NewMarkdownDocument,
+            NewFolder,
+            DeleteFile,
+            NewFolder,
+            NewFolder,
+            NewMarkdownDocument,
+            NewFolder,
+            NewMarkdownDocument,
+            SyncAndCheck,
+            NewMarkdownDocument,
+            NewMarkdownDocument,
+            NewFolder,
+            DeleteFile,
+            NewFolder,
+            NewMarkdownDocument,
+            SyncAndCheck,
+        ];
+
+
+        let bug2: Vec<Actions> = vec![
+            NewMarkdownDocument,
+            NewMarkdownDocument,
+            DeleteFile,
+            NewMarkdownDocument,
+            NewFolder,
+            DeleteFile,
+            NewFolder,
+            NewFolder,
+            NewMarkdownDocument,
+            NewFolder,
+            NewMarkdownDocument,
+            SyncAndCheck,
+            NewMarkdownDocument,
+            NewMarkdownDocument,
+            NewFolder,
+            DeleteFile,
+            NewFolder,
+            NewMarkdownDocument,
+            SyncAndCheck,
+        ];
+        let bug3: Vec<Actions> = vec![
+            SyncAndCheck,
+            NewFolder,
+            NewMarkdownDocument,
+            SyncAndCheck,
+            SyncAndCheck,
+            DeleteFile,
+            MoveDocument,
+            DeleteFile,
+            AttemptFolderMove,
+            RenameFile,
+            DeleteFile,
+            SyncAndCheck,
+            MoveDocument,
+            DeleteFile,
+            UpdateDocument,
+            NewMarkdownDocument,
+            RenameFile,
+            NewMarkdownDocument,
+            SyncAndCheck,
+            DeleteFile,
+            NewMarkdownDocument,
+            UpdateDocument,
+            SyncAndCheck,
+            RenameFile,
+            AttemptFolderMove,
+            SyncAndCheck,
+            SyncAndCheck,
+            NewMarkdownDocument,
+            SyncAndCheck,
+            UpdateDocument,
+            AttemptFolderMove,
+            DeleteFile,
+            RenameFile,
+            DeleteFile,
+            SyncAndCheck,
+            RenameFile,
+            RenameFile,
+            NewFolder,
+            UpdateDocument,
+            SyncAndCheck,
+            NewFolder,
+            RenameFile,
+            AttemptFolderMove,
+            MoveDocument,
+            SyncAndCheck,
+            RenameFile,
+            MoveDocument,
+            SyncAndCheck,
+            SyncAndCheck,
+            NewMarkdownDocument,
+            RenameFile,
+            DeleteFile,
+            UpdateDocument,
+            SyncAndCheck,
+            UpdateDocument,
+            NewMarkdownDocument,
+            NewMarkdownDocument,
+            UpdateDocument,
+            DeleteFile,
+            RenameFile,
+            NewFolder,
+            UpdateDocument,
+            UpdateDocument,
+            UpdateDocument,
+            DeleteFile,
+            MoveDocument,
+            RenameFile,
+            NewFolder,
+            RenameFile,
+            NewMarkdownDocument,
+            UpdateDocument,
+            MoveDocument,
+            RenameFile,
+            NewFolder,
+            SyncAndCheck,
+            NewMarkdownDocument,
+            DeleteFile,
+            RenameFile,
+            RenameFile,
+            DeleteFile,
+            UpdateDocument,
+            NewFolder,
+            MoveDocument,
+            DeleteFile,
+            MoveDocument,
+            AttemptFolderMove,
+            MoveDocument,
+            SyncAndCheck,
+            NewFolder,
+            RenameFile,
+            NewFolder,
+            UpdateDocument,
+            AttemptFolderMove,
+            DeleteFile,
+            RenameFile,
+            DeleteFile,
+            AttemptFolderMove,
+            UpdateDocument,
+            SyncAndCheck,
+            SyncAndCheck,
+            AttemptFolderMove,
+            SyncAndCheck,
+            AttemptFolderMove,
+            DeleteFile,
+            SyncAndCheck,
+            NewFolder,
+            NewFolder,
+            MoveDocument,
+            SyncAndCheck,
+            NewFolder,
+            UpdateDocument,
+            RenameFile,
+            DeleteFile,
+            MoveDocument,
+            AttemptFolderMove,
+            NewFolder,
+            UpdateDocument,
+            RenameFile,
+            NewMarkdownDocument,
+            RenameFile,
+            NewFolder,
+            SyncAndCheck,
+            NewMarkdownDocument,
+            NewMarkdownDocument,
+            NewFolder,
+            MoveDocument,
+            NewFolder,
+            DeleteFile,
+            UpdateDocument,
+            UpdateDocument,
+            AttemptFolderMove,
+            UpdateDocument,
+            UpdateDocument,
+            NewFolder,
+            AttemptFolderMove,
+            NewFolder,
+            SyncAndCheck,
+            NewFolder,
+            NewFolder,
+            AttemptFolderMove,
+            NewMarkdownDocument,
+            DeleteFile,
+            DeleteFile,
+            DeleteFile,
+            UpdateDocument,
+            NewFolder,
+            MoveDocument,
+            RenameFile,
+            SyncAndCheck,
+            SyncAndCheck,
+            DeleteFile,
+            NewFolder,
+            DeleteFile,
+            UpdateDocument,
+            DeleteFile,
+            DeleteFile,
+            NewMarkdownDocument,
+            SyncAndCheck,
+        ];
+
         let mut rng = StdRng::seed_from_u64(SEED);
         let clients = create_clients();
 
         let pb = setup_progress_bar();
-        for event_id in 0..ACTION_COUNT {
-            let action = rng.gen::<Actions>();
+        for action in bug3 {
+            let _ = rng.gen::<Actions>();
             if SHOW_PROGRESS {
-                pb.set_message(format!("{}: {:?}", event_id, action));
+                // pb.set_message(format!("{}: {:?}", event_id, action));
                 pb.inc(1)
             } else {
-                println!("{}: {:?}", event_id, action)
+                println!("{:?}", action)
             }
             action.execute(&clients, &mut rng);
         }
@@ -139,6 +362,12 @@ mod sync_fuzzer {
                     if let Some(file) = Self::pick_random_file(&client, rng) {
                         let new_name = Self::random_filename(rng) + ".md";
                         rename_file(&client, file.id, &new_name).unwrap();
+                    }
+                }
+                DeleteFile => {
+                    let client = Self::random_client(clients, rng);
+                    if let Some(file) = Self::pick_random_file(&client, rng) {
+                        delete_file(&client, file.id).unwrap();
                     }
                 }
             }
@@ -229,14 +458,15 @@ mod sync_fuzzer {
 
     impl Distribution<Actions> for Standard {
         fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Actions {
-            match rng.gen_range(0..Actions::VARIANT_COUNT) {
+            match rng.gen_range(0..4) {
                 0 => SyncAndCheck,
                 1 => NewFolder,
                 2 => NewMarkdownDocument,
-                3 => UpdateDocument,
-                4 => MoveDocument,
-                5 => AttemptFolderMove,
-                6 => RenameFile,
+                // 3 => UpdateDocument,
+                // 4 => MoveDocument,
+                // 5 => AttemptFolderMove,
+                // 6 => RenameFile,
+                3 => DeleteFile,
                 _ => panic!("An enum was added to Actions, but does not have a corresponding random selection")
             }
         }

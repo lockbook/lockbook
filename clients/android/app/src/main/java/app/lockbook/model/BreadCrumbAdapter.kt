@@ -1,5 +1,6 @@
 package app.lockbook.model
 
+import android.annotation.SuppressLint
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -9,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.ui.BreadCrumbItem
 
+@SuppressLint("NotifyDataSetChanged")
 class BreadCrumbAdapter(var breadCrumbItemClickListener: BreadCrumbItemClickListener) : RecyclerView.Adapter<BreadCrumbAdapter.ViewHolder>() {
 
     private var breadCrumbItemsData: MutableList<BreadCrumbItem> = mutableListOf()
@@ -37,21 +39,6 @@ class BreadCrumbAdapter(var breadCrumbItemClickListener: BreadCrumbItemClickList
     fun getBreadCrumbItem(position: Int) = breadCrumbItemsData[position]
 
     fun getBreadCrumbItemsSize(): Int = breadCrumbItemsData.size
-
-    fun removeLastBreadCrumbItem() {
-        breadCrumbItemsData.removeLast()
-        notifyDataSetChanged()
-    }
-
-    fun removeAllBreadCrumbItems() {
-        breadCrumbItemsData.removeAll { true }
-        notifyDataSetChanged()
-    }
-
-    fun addBreadCrumbItem(item: BreadCrumbItem) {
-        breadCrumbItemsData.add(item)
-        notifyDataSetChanged()
-    }
 
     fun setBreadCrumbItems(items: MutableList<BreadCrumbItem>) {
         breadCrumbItemsData = items
