@@ -145,7 +145,7 @@ mod sync_fuzzer {
         }
 
         fn random_client(clients: &[Config], rng: &mut StdRng) -> Config {
-            clients[rng.gen_range(0, CLIENTS) as usize].clone()
+            clients[rng.gen_range(0..CLIENTS) as usize].clone()
         }
 
         fn random_filename(rng: &mut StdRng) -> String {
@@ -168,7 +168,7 @@ mod sync_fuzzer {
             possible_files.sort_by(Self::deterministic_sort());
 
             if !possible_files.is_empty() {
-                let parent_index = rng.gen_range(0, possible_files.len());
+                let parent_index = rng.gen_range(0..possible_files.len());
                 Some(possible_files[parent_index].clone())
             } else {
                 None
@@ -192,7 +192,7 @@ mod sync_fuzzer {
             possible_parents.retain(|meta| meta.file_type == Folder);
             possible_parents.sort_by(Self::deterministic_sort());
 
-            let parent_index = rng.gen_range(0, possible_parents.len());
+            let parent_index = rng.gen_range(0..possible_parents.len());
             possible_parents[parent_index].clone()
         }
 
@@ -202,7 +202,7 @@ mod sync_fuzzer {
             possible_documents.sort_by(Self::deterministic_sort());
 
             if !possible_documents.is_empty() {
-                let document_index = rng.gen_range(0, possible_documents.len());
+                let document_index = rng.gen_range(0..possible_documents.len());
                 Some(possible_documents[document_index].clone())
             } else {
                 None
@@ -229,7 +229,7 @@ mod sync_fuzzer {
 
     impl Distribution<Actions> for Standard {
         fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Actions {
-            match rng.gen_range(0, Actions::VARIANT_COUNT) {
+            match rng.gen_range(0..Actions::VARIANT_COUNT) {
                 0 => SyncAndCheck,
                 1 => NewFolder,
                 2 => NewMarkdownDocument,

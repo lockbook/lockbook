@@ -10,7 +10,7 @@ pub fn set(config: &Config, last_updated: u64) -> Result<(), CoreError> {
         config,
         LAST_UPDATED,
         LAST_UPDATED,
-        serde_json::to_vec(&last_updated).map_err(core_err_unexpected)?,
+        bincode::serialize(&last_updated).map_err(core_err_unexpected)?,
     )
 }
 
@@ -18,7 +18,7 @@ pub fn get(config: &Config) -> Result<u64, CoreError> {
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, LAST_UPDATED, LAST_UPDATED)?;
     match maybe_value {
         None => Ok(0),
-        Some(value) => Ok(serde_json::from_slice(value.as_ref()).map_err(core_err_unexpected)?),
+        Some(value) => Ok(bincode::deserialize(value.as_ref()).map_err(core_err_unexpected)?),
     }
 }
 

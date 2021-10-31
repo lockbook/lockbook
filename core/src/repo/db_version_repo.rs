@@ -10,7 +10,7 @@ pub fn set(config: &Config, version: &str) -> Result<(), CoreError> {
         config,
         DB_VERSION,
         DB_VERSION.as_bytes(),
-        serde_json::to_vec(version).map_err(core_err_unexpected)?,
+        bincode::serialize(version).map_err(core_err_unexpected)?,
     )
 }
 
@@ -21,7 +21,7 @@ pub fn maybe_get(config: &Config) -> Result<Option<String>, CoreError> {
         None => Ok(None),
         Some(file) => {
             let version: String =
-                serde_json::from_slice(file.as_ref()).map_err(core_err_unexpected)?;
+                bincode::deserialize(file.as_ref()).map_err(core_err_unexpected)?;
 
             Ok(Some(version))
         }

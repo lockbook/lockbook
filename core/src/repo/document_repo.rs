@@ -26,7 +26,7 @@ pub fn insert(
         config,
         namespace(source),
         id.to_string().as_str(),
-        serde_json::to_vec(document).map_err(core_err_unexpected)?,
+        bincode::serialize(document).map_err(core_err_unexpected)?,
     )
 }
 
@@ -35,7 +35,7 @@ pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDoc
         local_storage::read(config, namespace(source), id.to_string().as_str())?;
     match maybe_data {
         None => Err(CoreError::FileNonexistent),
-        Some(data) => serde_json::from_slice(&data).map_err(core_err_unexpected),
+        Some(data) => bincode::deserialize(&data).map_err(core_err_unexpected),
     }
 }
 
@@ -48,7 +48,7 @@ pub fn maybe_get(
         local_storage::read(config, namespace(source), id.to_string().as_str())?;
     match maybe_data {
         None => Ok(None),
-        Some(data) => serde_json::from_slice(&data)
+        Some(data) => bincode::deserialize(&data)
             .map(Some)
             .map_err(core_err_unexpected),
     }
@@ -58,7 +58,7 @@ pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedDocum
     Ok(
         local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
             .into_iter()
-            .map(|s| serde_json::from_slice(s.as_ref()).map_err(core_err_unexpected))
+            .map(|s| bincode::deserialize(s.as_ref()).map_err(core_err_unexpected))
             .collect::<Result<Vec<EncryptedDocument>, CoreError>>()?
             .into_iter()
             .collect(),

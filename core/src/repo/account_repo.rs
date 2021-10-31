@@ -10,7 +10,7 @@ pub fn insert(config: &Config, account: &Account) -> Result<(), CoreError> {
         config,
         ACCOUNT,
         ACCOUNT,
-        serde_json::to_vec(account).map_err(core_err_unexpected)?,
+        bincode::serialize(account).map_err(core_err_unexpected)?,
     )
 }
 
@@ -28,7 +28,7 @@ pub fn get(config: &Config) -> Result<Account, CoreError> {
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, ACCOUNT, ACCOUNT)?;
     match maybe_value {
         None => Err(CoreError::AccountNonexistent),
-        Some(account) => Ok(serde_json::from_slice(account.as_ref()).map_err(core_err_unexpected)?),
+        Some(account) => Ok(bincode::deserialize(account.as_ref()).map_err(core_err_unexpected)?),
     }
 }
 
