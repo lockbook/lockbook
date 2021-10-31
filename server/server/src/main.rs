@@ -275,12 +275,7 @@ fn deserialize_request<TRequest: Request + DeserializeOwned>(
 
 fn verify_client_version<TRequest: Request>(request: &RequestWrapper<TRequest>) -> Result<(), ()> {
     match &request.client_version as &str {
-        "0.0.0" => Err(()),
-        "0.1.0" => Err(()),
-        "0.1.1" => Err(()),
-        "0.1.2" => Err(()),
-        "0.1.3" => Err(()),
-        "0.1.4" => Ok(()),
+        "0.1.5" => Ok(()),
         _ => Err(()),
     }
 }

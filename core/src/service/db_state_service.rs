@@ -28,7 +28,7 @@ pub fn get_state(config: &Config) -> Result<State, CoreError> {
                 Ok(State::ReadyToUse)
             } else {
                 match state_version.as_str() {
-                    "0.1.4" => Ok(State::ReadyToUse),
+                    "0.1.5" => Ok(State::ReadyToUse),
                     _ => Ok(State::StateRequiresClearing),
                 }
             }
@@ -47,7 +47,7 @@ pub fn perform_migration(config: &Config) -> Result<(), CoreError> {
     }
 
     match db_version.as_str() {
-        "0.1.4" => Ok(()),
+        "0.1.5" => Ok(()),
         _ => Err(CoreError::ClientWipeRequired),
     }
 }
