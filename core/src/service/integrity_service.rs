@@ -2,8 +2,8 @@ use crate::model::state::Config;
 use crate::repo::file_metadata_repo;
 use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::{
-    Core, CycleDetected, DocumentTreatedAsFolder, FileNameContainsSlash, FileNameEmpty,
-    FileOrphaned, NameConflictDetected, NoRootFolder,
+    Core, CycleDetected, DocumentReadError, DocumentTreatedAsFolder, FileNameContainsSlash,
+    FileNameEmpty, FileOrphaned, NameConflictDetected, NoRootFolder,
 };
 use crate::CoreError;
 use lockbook_models::file_metadata::FileMetadata;
@@ -29,6 +29,7 @@ pub enum TestRepoError {
     FileNameEmpty(Uuid),
     FileNameContainsSlash(Uuid),
     NameConflictDetected(Uuid),
+    DocumentReadError(Uuid, CoreError),
     Core(CoreError),
 }
 
@@ -126,7 +127,8 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     let mut warnings = Vec::new();
     for file in all.clone() {
         if file.file_type == Document {
-            let file_content = file_service::read_document(config, file.id).map_err(Core)?;
+            let file_content = file_service::read_document(config, file.id)
+                .map_err(|err| DocumentReadError(file.id, err))?;
 
             if file_content.len() as u64 == 0 {
                 warnings.push(Warning::EmptyFile(file.id));
