@@ -7,6 +7,7 @@ use crate::service::{drawing_service, file_service, path_service};
 use crate::{utils, CoreError};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use uuid::Uuid;
+use crate::service::integrity_service::TestRepoError::DocumentReadError;
 
 const UTF8_SUFFIXES: [&str; 12] = [
     "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
@@ -21,6 +22,7 @@ pub enum TestRepoError {
     FileNameEmpty(Uuid),
     FileNameContainsSlash(Uuid),
     NameConflictDetected(Uuid),
+    DocumentReadError(Uuid, CoreError),
     Core(CoreError),
 }
 
@@ -91,7 +93,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     for file in files {
         if file.file_type == FileType::Document {
             let file_content = file_repo::get_document(config, RepoSource::Local, file.id)
-                .map_err(TestRepoError::Core)?;
+                .map_err(|err| DocumentReadError(file.id, err))?;
 
             if file_content.len() as u64 == 0 {
                 warnings.push(Warning::EmptyFile(file.id));

@@ -103,7 +103,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     }
 
     private fun launchListFilesActivity() {
-        val intent = Intent(this, ListFilesActivity::class.java)
+        val intent = Intent(this, MainScreenActivity::class.java)
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
         overridePendingTransition(0, 0)
         startActivity(intent)

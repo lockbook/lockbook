@@ -2,8 +2,10 @@ package app.lockbook.util
 
 import android.content.res.Configuration
 import android.graphics.Color
+import app.lockbook.model.DrawingViewModel
 import com.beust.klaxon.Json
 import java.util.LinkedHashMap
+import kotlin.properties.Delegates
 
 data class Drawing(
     var scale: Float = 1f,
@@ -11,9 +13,26 @@ data class Drawing(
     var translationX: Float = 0f,
     @Json(name = "translation_y")
     var translationY: Float = 0f,
-    val strokes: MutableList<Stroke> = mutableListOf(),
-    var theme: LinkedHashMap<String, ColorRGB>? = null
+    var strokes: MutableList<Stroke> = mutableListOf(),
+    var theme: LinkedHashMap<String, ColorRGB>? = null,
 ) {
+
+    @Json(ignored = true)
+    lateinit var model: DrawingViewModel
+    @Json(ignored = true)
+    var isDirty: Boolean by Delegates.observable(false) { property, oldValue, newValue ->
+        if (newValue && !oldValue) {
+            model.waitAndSaveContents()
+        }
+    }
+
+    fun set(drawing: Drawing) {
+        scale = drawing.scale
+        translationX = drawing.translationX
+        translationY = drawing.translationY
+        strokes = drawing.strokes
+        theme = drawing.theme
+    }
 
     fun getARGBColor(uiMode: Int, colorAlias: ColorAlias, alpha: Int = 255): Int? {
         val modifiedColorAlias = when (colorAlias) {
@@ -40,7 +59,7 @@ data class Drawing(
     }
 
     fun clone(): Drawing {
-        return Drawing(
+        val drawing = Drawing(
             scale,
             translationX,
             translationY,
@@ -55,6 +74,9 @@ data class Drawing(
             }.toMutableList(),
             theme
         )
+        drawing.model = model
+        drawing.isDirty = isDirty
+        return drawing
     }
 }
 

@@ -1,103 +1,98 @@
 package app.lockbook.model
 
 import android.app.Application
-import android.view.View
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.viewModelScope
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.os.Handler
+import android.os.Looper
+import androidx.lifecycle.*
 import app.lockbook.App.Companion.config
+import app.lockbook.getRes
+import app.lockbook.ui.DrawingStrokeState
+import app.lockbook.ui.DrawingView
 import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class DrawingViewModel(
     application: Application,
-    private val id: String
+    val id: String,
+    var persistentDrawing: Drawing,
+    var persistentBitmap: Bitmap = Bitmap.createBitmap(
+        DrawingView.CANVAS_WIDTH,
+        DrawingView.CANVAS_HEIGHT, Bitmap.Config.ARGB_8888
+    ),
+    var persistentCanvas: Canvas = Canvas(persistentBitmap),
+    var persistentStrokeState: DrawingStrokeState = DrawingStrokeState()
 ) : AndroidViewModel(application) {
-    var backupDrawing: Drawing? = null
+    var selectedTool: Tool = Tool.Pen(ColorAlias.Black)
 
-    private var selectedTool: Tool = Tool.Pen(ColorAlias.White)
+    private val handler = Handler(Looper.myLooper()!!)
+    var lastEdit = 0L
 
-    private val _setToolsVisibility = MutableLiveData<Int>()
-    private val _selectNewTool = MutableLiveData<Pair<Tool?, Tool>>()
-    private val _selectedNewPenSize = MutableLiveData<Int>()
-    private val _drawableReady = SingleMutableLiveData<Unit>()
-    private val _notifyError = MutableLiveData<LbError>()
-
-    val setToolsVisibility: LiveData<Int>
-        get() = _setToolsVisibility
-
-    val selectNewTool: LiveData<Pair<Tool?, Tool>>
-        get() = _selectNewTool
-
-    val selectedNewPenSize: LiveData<Int>
-        get() = _selectedNewPenSize
+    private val _notifyError = SingleMutableLiveData<LbError>()
 
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
-    val drawableReady: LiveData<Unit>
-        get() = _drawableReady
-
     init {
-        _selectNewTool.postValue(Pair(null, selectedTool))
-        _selectedNewPenSize.postValue(7)
+        setUpPaint()
+        persistentDrawing.model = this
     }
 
-    fun handleTouchEvent(toolsVisibility: Int) {
-        if (toolsVisibility == View.VISIBLE) {
-            _setToolsVisibility.postValue(View.GONE)
-        } else {
-            _setToolsVisibility.postValue(View.VISIBLE)
+    fun setUpPaint() {
+        persistentStrokeState.apply {
+            strokePaint.isAntiAlias = true
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeJoin = Paint.Join.ROUND
+            strokePaint.color = Color.WHITE
+            strokePaint.strokeCap = Paint.Cap.ROUND
+
+            bitmapPaint.strokeCap = Paint.Cap.ROUND
+            bitmapPaint.strokeJoin = Paint.Join.ROUND
+
+            backgroundPaint.style = Paint.Style.FILL
+
+            strokeColor = ColorAlias.White
         }
     }
 
-    fun getDrawing(id: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val contents = readDocument(id)
-            if (contents != null && contents.isEmpty()) {
-                backupDrawing = Drawing()
-            } else if (contents != null) {
-                backupDrawing = Klaxon().parse<Drawing>(contents)
-            }
+    fun waitAndSaveContents() {
+        lastEdit = System.currentTimeMillis()
+        val currentEdit = lastEdit
 
-            _drawableReady.postValue(Unit)
-        }
-    }
+        handler.postDelayed(
+            {
+                viewModelScope.launch(Dispatchers.IO) {
 
-    private fun readDocument(id: String): String? {
-        when (val documentResult = CoreModel.readDocument(config, id)) {
-            is Ok -> {
-                return documentResult.value
-            }
-            is Err -> _notifyError.postValue(documentResult.error.toLbError(getRes()))
-        }.exhaustive
+                    if (currentEdit == lastEdit && persistentDrawing.isDirty) {
+                        val writeToDocumentResult =
+                            CoreModel.writeToDocument(
+                                config,
+                                id,
+                                Klaxon().toJsonString(persistentDrawing.clone()).replace(" ", "")
+                            )
 
-        return null
-    }
-
-    fun saveDrawing(drawing: Drawing) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val writeToDocumentResult = CoreModel.writeToDocument(config, id, Klaxon().toJsonString(drawing).replace(" ", ""))
-
-            if (writeToDocumentResult is Err) {
-                _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
-            }
-        }
-    }
-
-    fun handleNewToolSelected(newTool: Tool) {
-        _selectNewTool.postValue(Pair(selectedTool, newTool))
-        selectedTool = newTool
-    }
-
-    fun handleNewPenSizeSelected(newPenSize: Int) {
-        _selectedNewPenSize.postValue(newPenSize)
+                        if (writeToDocumentResult is Err) {
+                            _notifyError.postValue(
+                                writeToDocumentResult.error.toLbError(
+                                    getRes()
+                                )
+                            )
+                        } else {
+                            persistentDrawing.isDirty = false
+                        }
+                    }
+                }
+            },
+            5000
+        )
     }
 }
