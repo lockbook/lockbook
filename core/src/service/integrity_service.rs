@@ -3,11 +3,11 @@ use std::path::Path;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{file_repo, metadata_repo, root_repo};
+use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::service::{drawing_service, file_service, path_service};
 use crate::{utils, CoreError};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use uuid::Uuid;
-use crate::service::integrity_service::TestRepoError::DocumentReadError;
 
 const UTF8_SUFFIXES: [&str; 12] = [
     "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
