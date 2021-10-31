@@ -56,7 +56,10 @@ pub fn validate() -> CliResult<()> {
                 err!(NameConflictDetected(get_path_by_id_or_err(&config, id)?))
             }
             TestRepoError::DocumentReadError(id, err) => {
-                err!(DocumentReadError(get_path_by_id_or_err(&config, id)?, format!("{:#?}", err)))
+                err!(DocumentReadError(
+                    get_path_by_id_or_err(&config, id)?,
+                    format!("{:#?}", err)
+                ))
             }
             TestRepoError::Core(err) => {
                 err_unexpected!("an unexpected error occurred: {:#?}", err)
