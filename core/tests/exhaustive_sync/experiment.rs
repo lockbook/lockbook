@@ -17,7 +17,7 @@ impl Default for Experiment {
                 id: Uuid::new_v4(),
                 clients: vec![],
                 target_clients: 2,
-                target_steps: 5,
+                target_steps: 4,
                 steps: vec![],
                 completed_steps: 0,
                 status: Status::Ready,
@@ -60,14 +60,18 @@ impl Experiment {
                         let mutants = work.execute();
                         Self::publish_results(thread_state.clone(), work, &mutants);
                     }
-                    (None, true) => {}
+                    (None, true) => {
+                        thread::sleep(time::Duration::from_millis(100));
+                    }
                     (None, false) => break,
                 }
             });
         }
 
+        let mut print_count = 0;
         loop {
-            thread::sleep(time::Duration::from_millis(1000));
+            print_count += 1;
+            thread::sleep(time::Duration::from_millis(10000));
             let experiments = state.lock().unwrap();
             let mut failures = experiments.concluded.clone();
             failures.retain(|trial| trial.status.failed());
@@ -76,13 +80,16 @@ impl Experiment {
             }
 
             println!(
-                "{} pending, {} running, {} failures.",
+                "{} pending, {} running, {} run, {} failures.",
                 &experiments.pending.len(),
                 &experiments.running.len(),
+                &experiments.concluded.len(),
                 &failures.len()
             );
 
-            println!("{:#?}", failures);
+            if print_count % 6 == 0 {
+                println!("{:#?}", failures);
+            }
         }
 
         let experiments = state.lock().unwrap();

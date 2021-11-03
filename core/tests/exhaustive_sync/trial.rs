@@ -1,3 +1,5 @@
+use std::{fs, thread};
+
 use crate::exhaustive_sync::trial::Action::{
     AttemptFolderMove, DeleteFile, MoveDocument, NewDocument, NewFolder, NewMarkdownDocument,
     RenameFile, SyncAndCheck, UpdateDocument,
@@ -87,6 +89,14 @@ pub struct Trial {
     pub steps: Vec<Action>,
     pub completed_steps: usize,
     pub status: Status,
+}
+
+impl Drop for Trial {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            println!("{} is stuck in {:?}", self.id, self.status);
+        }
+    }
 }
 
 impl Trial {
@@ -230,10 +240,34 @@ impl Trial {
                                 break 'steps;
                             }
                         }
-                        test_repo_integrity(row).unwrap();
-                        assert!(calculate_work(row).unwrap().local_files.is_empty());
-                        assert!(calculate_work(row).unwrap().server_files.is_empty());
-                        assert_eq!(calculate_work(row).unwrap().server_unknown_name_count, 0);
+                        if let Err(err) = test_repo_integrity(row) {
+                            self.status = Failed(format!("Repo integrity compromised: {:#?}", err));
+                            break 'steps;
+                        }
+
+                        if !calculate_work(row).unwrap().local_files.is_empty() {
+                            self.status = Failed(format!(
+                                "local_files not empty, client: {}",
+                                row.writeable_path
+                            ));
+                            break 'steps;
+                        }
+
+                        if !calculate_work(row).unwrap().server_files.is_empty() {
+                            self.status = Failed(format!(
+                                "server_files not empty, client: {}",
+                                row.writeable_path
+                            ));
+                            break 'steps;
+                        }
+
+                        if calculate_work(row).unwrap().server_unknown_name_count > 0 {
+                            self.status = Failed(format!(
+                                "server_unknown_name_count not empty, client: {}",
+                                row.writeable_path
+                            ));
+                            break 'steps;
+                        }
                     }
                 }
             }
@@ -351,6 +385,15 @@ impl Trial {
                 self.steps.push(next_action.steps.last().unwrap().clone());
                 all_mutations.extend(mutations);
             }
+        }
+
+        for client in &self.clients {
+            fs::remove_dir_all(&client.writeable_path).unwrap_or_else(|err| {
+                println!(
+                    "failed to cleanup file: {}, error: {}",
+                    client.writeable_path, err
+                )
+            });
         }
 
         all_mutations
