@@ -2066,6 +2066,7 @@ dependencies = [
  "lockbook-crypto",
  "lockbook-models",
  "log",
+ "num_cpus",
  "rand",
  "raqote",
  "reqwest",

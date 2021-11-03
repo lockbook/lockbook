@@ -195,3 +195,13 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
         file_repo::get_all_document_state(db2).unwrap()
     );
 }
+
+pub fn dbs_equal(db1: &Config, db2: &Config) -> bool {
+    account_repo::get(db1).unwrap() == account_repo::get(db2).unwrap()
+        && db_version_repo::maybe_get(db1).unwrap() == db_version_repo::maybe_get(db2).unwrap()
+        && root_repo::maybe_get(db1).unwrap() == root_repo::maybe_get(db2).unwrap()
+        && file_repo::get_all_metadata_state(db1).unwrap()
+            == file_repo::get_all_metadata_state(db2).unwrap()
+        && file_repo::get_all_document_state(db1).unwrap()
+            == file_repo::get_all_document_state(db2).unwrap()
+}
