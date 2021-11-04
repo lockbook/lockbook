@@ -128,7 +128,9 @@ pub async fn get(
             if data.is_empty() {
                 Ok(None)
             } else {
-                Ok(Some(bincode::deserialize(&data).map_err(Error::Deserialization)?))
+                Ok(Some(
+                    bincode::deserialize(&data).map_err(Error::Deserialization)?,
+                ))
             }
         }
         (body, _) => Err(Error::from(body)),

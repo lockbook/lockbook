@@ -208,6 +208,54 @@ pub async fn check_cycles(
 }
 
 #[derive(Debug)]
+pub enum ApplyRecursiveDeletionsError {
+    Postgres(sqlx::Error),
+    Serialize(serde_json::Error),
+    UuidDeserialize(uuid::Error),
+}
+
+pub async fn apply_recursive_deletions(
+    transaction: &mut Transaction<'_, Postgres>,
+    public_key: &PublicKey,
+) -> Result<Vec<Uuid>, ApplyRecursiveDeletionsError> {
+    sqlx::query!(
+        r#"
+        WITH RECURSIVE effective_deleted AS (
+            SELECT
+                id,
+                parent,
+                deleted
+            FROM files
+            WHERE owner = $1
+                UNION DISTINCT
+            SELECT
+                effective_deleted.id,
+                files.parent,
+                effective_deleted.deleted OR files.deleted
+            FROM effective_deleted
+            JOIN files ON effective_deleted.parent = files.id
+        ),
+        deletions AS (
+            SELECT
+                effective_deleted.id
+            FROM effective_deleted
+            JOIN files ON effective_deleted.id = files.id
+            WHERE effective_deleted.deleted AND NOT files.deleted
+        )
+        UPDATE files SET deleted = true WHERE id IN (SELECT id FROM deletions)
+        RETURNING id AS "id!";
+        "#,
+        &serde_json::to_string(public_key).map_err(ApplyRecursiveDeletionsError::Serialize)?,
+    )
+    .fetch_all(transaction)
+    .await
+    .map_err(ApplyRecursiveDeletionsError::Postgres)?
+    .iter()
+    .map(|row| Uuid::parse_str(&row.id).map_err(ApplyRecursiveDeletionsError::UuidDeserialize))
+    .collect()
+}
+
+#[derive(Debug)]
 pub enum ChangeDocumentVersionAndSizeError {
     Postgres(sqlx::Error),
     Deserialize(serde_json::Error),

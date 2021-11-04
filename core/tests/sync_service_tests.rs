@@ -5,9 +5,10 @@ mod sync_tests {
     use itertools::Itertools;
     use lockbook_core::model::repo::RepoSource;
     use lockbook_core::repo::{file_repo, metadata_repo};
+    use lockbook_core::service::integrity_service::test_repo_integrity;
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::service::{account_service, file_service, path_service, sync_service};
-    use lockbook_core::{make_account, move_file, path, rename_file};
+    use lockbook_core::{calculate_work, delete_file, make_account, move_file, path, rename_file};
     use lockbook_models::work_unit::WorkUnit;
 
     macro_rules! assert_dirty_ids {
@@ -1682,5 +1683,39 @@ mod sync_tests {
 
         move_file(&db2, a.id, b.id).unwrap();
         sync!(&db2);
+    }
+
+    #[test]
+    fn delete_folder_with_document() {
+        let db = test_config();
+        let account = make_account!(db);
+        sync!(&db);
+        let f = path_service::create_at_path(&db, path!(account, "f/")).unwrap();
+        let _d = path_service::create_at_path(&db, path!(account, "f/d")).unwrap();
+        delete_file(&db, f.id).unwrap();
+        for _ in 0..2 {
+            sync!(&db);
+        }
+        test_repo_integrity(&db).unwrap();
+        assert!(calculate_work(&db).unwrap().local_files.is_empty());
+        assert!(calculate_work(&db).unwrap().server_files.is_empty());
+        assert_eq!(calculate_work(&db).unwrap().server_unknown_name_count, 0);
+    }
+
+    #[test]
+    fn delete_folder_with_folder() {
+        let db = test_config();
+        let account = make_account!(db);
+        sync!(&db);
+        let f1 = path_service::create_at_path(&db, path!(account, "f/")).unwrap();
+        let _f2 = path_service::create_at_path(&db, path!(account, "f/f2/")).unwrap();
+        delete_file(&db, f1.id).unwrap();
+        for _ in 0..2 {
+            sync!(&db);
+        }
+        test_repo_integrity(&db).unwrap();
+        assert!(calculate_work(&db).unwrap().local_files.is_empty());
+        assert!(calculate_work(&db).unwrap().server_files.is_empty());
+        assert_eq!(calculate_work(&db).unwrap().server_unknown_name_count, 0);
     }
 }

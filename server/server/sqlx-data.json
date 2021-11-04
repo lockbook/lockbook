@@ -99,56 +99,6 @@
       ]
     }
   },
-  "0972fd8ef65479575f29be9f3299fce820627bb348b1472065bfb39d0de81d50": {
-    "query": "\nWITH RECURSIVE file_descendants AS (\n        SELECT * FROM files AS parent\n        WHERE parent.id = $1\n            UNION\n        SELECT children.* FROM files AS children\n        JOIN file_descendants ON file_descendants.id = children.parent\n    ),\n    old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE)\nUPDATE files new\nSET\n    document_size =\n        (CASE WHEN\n            NOT old.deleted AND\n            old.id != old.parent\n        THEN\n            (CASE WHEN\n                old.is_folder\n            THEN NULL\n            ELSE 0 END)\n        ELSE old.document_size END),\n    deleted =\n        (CASE WHEN\n            NOT old.deleted AND\n            old.id != old.parent\n        THEN TRUE\n        ELSE old.deleted END),\n    metadata_version =\n        (CASE WHEN\n            NOT old.deleted AND\n            old.id != old.parent\n        THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n        ELSE old.metadata_version END)\nFROM old\nWHERE old.id = new.id\nRETURNING\n    old.id AS id,\n    old.deleted AS old_deleted,\n    old.parent AS parent_id,\n    old.content_version AS old_content_version,\n    new.metadata_version AS new_metadata_version,\n    old.is_folder AS is_folder;\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "old_deleted",
-          "type_info": "Bool"
-        },
-        {
-          "ordinal": 2,
-          "name": "parent_id",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 3,
-          "name": "old_content_version",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 4,
-          "name": "new_metadata_version",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 5,
-          "name": "is_folder",
-          "type_info": "Bool"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
-      ]
-    }
-  },
   "12be31a805736cd77161fe0860485c91885dd98b551927d250d143334494aa71": {
     "query": "\nSELECT public_key FROM accounts WHERE name = $1;\n        ",
     "describe": {
@@ -250,104 +200,6 @@
   },
   "65d57d7f9e7f5c969fdbb3285a37bb21a27bea539b58f4e1cebc9912bef23a11": {
     "query": "\nSELECT\n    files.*,\n    user_access_keys.encrypted_key AS \"encrypted_key?\",\n    accounts.public_key,\n    accounts.name AS username\nFROM files\nJOIN accounts ON files.owner = accounts.public_key\nLEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee\nWHERE\n    accounts.public_key = $1;\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "parent",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 2,
-          "name": "parent_access_key",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 3,
-          "name": "is_folder",
-          "type_info": "Bool"
-        },
-        {
-          "ordinal": 4,
-          "name": "name_encrypted",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 5,
-          "name": "name_hmac",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 6,
-          "name": "owner",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 7,
-          "name": "deleted",
-          "type_info": "Bool"
-        },
-        {
-          "ordinal": 8,
-          "name": "metadata_version",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 9,
-          "name": "content_version",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 10,
-          "name": "document_size",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 11,
-          "name": "encrypted_key?",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 12,
-          "name": "public_key",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 13,
-          "name": "username",
-          "type_info": "Text"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false
-      ]
-    }
-  },
-  "6ebd195c2be554c9ea03a04b86fc8ea19ca6308170e81d0f0228133a0d284d18": {
-    "query": "\nSELECT\n    files.*,\n    user_access_keys.encrypted_key AS \"encrypted_key?\",\n    accounts.public_key,\n    accounts.name AS username\nFROM files\nJOIN accounts ON files.owner = accounts.public_key\nLEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee\nWHERE\n    files.owner = $1 AND\n    files.id = files.parent;\n        ",
     "describe": {
       "columns": [
         {
@@ -650,6 +502,26 @@
         ]
       },
       "nullable": []
+    }
+  },
+  "fd6c7e4d98e1c71f789eb7e14b8fc1d5ff73d79019d35d6f96ad35047b76b84c": {
+    "query": "\n        WITH RECURSIVE effective_deleted AS (\n            SELECT\n                id,\n                parent,\n                deleted\n            FROM files\n            WHERE owner = $1\n                UNION DISTINCT\n            SELECT\n                effective_deleted.id,\n                files.parent,\n                effective_deleted.deleted OR files.deleted\n            FROM effective_deleted\n            JOIN files ON effective_deleted.parent = files.id\n        ),\n        deletions AS (\n            SELECT\n                effective_deleted.id\n            FROM effective_deleted\n            JOIN files ON effective_deleted.id = files.id\n            WHERE effective_deleted.deleted AND NOT files.deleted\n        )\n        UPDATE files SET deleted = true WHERE id IN (SELECT id FROM deletions)\n        RETURNING id AS \"id!\";\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false
+      ]
     }
   }
 }

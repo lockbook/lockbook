@@ -67,6 +67,15 @@ pub async fn upsert_file_metadata(
         }
     }
 
+    let deletions_result =
+        file_index_repo::apply_recursive_deletions(&mut transaction, &context.public_key).await;
+    let deleted_file_ids = match deletions_result {
+        Ok(ids) => ids,
+        Err(e) => {
+            return Err(Err(format!("Cannot apply recursive deletions: {:?}", e)));
+        }
+    };
+
     match transaction.commit().await {
         Ok(()) => Ok(()),
         Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
@@ -92,25 +101,26 @@ pub async fn upsert_file_metadata(
     let files = file_index_repo::get_files(&mut transaction, &context.public_key)
         .await
         .map_err(|e| Err(format!("Cannot get files: {:?}", e)))?;
-    for upsert in &request.updates {
-        if upsert.new_deleted {
-            let content_version = files
-                .iter()
-                .find(|&f| f.id == upsert.id)
-                .map_or(0, |f| f.content_version);
-            let delete_result = file_content_client::delete(
-                &server_state.files_db_client,
-                upsert.id,
-                content_version,
-            )
-            .await;
-            if delete_result.is_err() {
-                return Err(Err(format!(
-                    "Cannot delete file in S3: {:?}",
-                    delete_result
-                )));
-            };
-        }
+    for deleted_id in request
+        .updates
+        .iter()
+        .filter(|upsert| upsert.new_deleted)
+        .map(|upsert| upsert.id)
+        .chain(deleted_file_ids.into_iter())
+    {
+        let content_version = files
+            .iter()
+            .find(|&f| f.id == deleted_id)
+            .map_or(0, |f| f.content_version);
+        let delete_result =
+            file_content_client::delete(&server_state.files_db_client, deleted_id, content_version)
+                .await;
+        if delete_result.is_err() {
+            return Err(Err(format!(
+                "Cannot delete file in S3: {:?}",
+                delete_result
+            )));
+        };
     }
 
     match transaction.commit().await {
