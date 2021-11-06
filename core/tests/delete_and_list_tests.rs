@@ -2,18 +2,18 @@ mod integration_test;
 
 #[cfg(test)]
 mod delete_and_list_tests {
-    use lockbook_core::service::account_service;
     use lockbook_core::service::path_service::Filter;
     use lockbook_core::service::test_utils::generate_account;
     use lockbook_core::service::test_utils::test_config;
+    use lockbook_core::service::{account_service, path_service};
     use lockbook_core::Error::UiError;
     use lockbook_models::file_metadata::FileType;
 
     use lockbook_core::{
-        assert_matches, create_file, create_file_at_path, delete_file, get_root, list_paths,
-        make_account, move_file, path, read_document, rename_file, save_document_to_disk,
-        write_document, CreateFileError, FileDeleteError, MoveFileError, ReadDocumentError,
-        RenameFileError, SaveDocumentToDiskError, WriteToDocumentError,
+        assert_matches, create_file, create_file_at_path, delete_file, get_root, list_metadatas,
+        list_paths, make_account, move_file, path, read_document, rename_file,
+        save_document_to_disk, write_document, CreateFileError, FileDeleteError, MoveFileError,
+        ReadDocumentError, RenameFileError, SaveDocumentToDiskError, WriteToDocumentError,
     };
 
     #[test]
@@ -214,5 +214,20 @@ mod delete_and_list_tests {
             move_file(&db, doc.parent, folder2.id),
             Err(UiError(MoveFileError::TargetParentDoesNotExist))
         );
+    }
+
+    #[test]
+    fn test_delete_list_files() {
+        let db = test_config();
+        let account = make_account!(db);
+        let f1 = path_service::create_at_path(&db, path!(account, "f1/")).unwrap();
+        let f2 = path_service::create_at_path(&db, path!(account, "f1/f2/")).unwrap();
+        let d1 = path_service::create_at_path(&db, path!(account, "f1/f2/d1.md")).unwrap();
+        delete_file(&db, f1.id).unwrap();
+
+        let mut files = list_metadatas(&db).unwrap();
+        files.retain(|f| f.id == d1.id);
+
+        assert!(files.is_empty());
     }
 }
