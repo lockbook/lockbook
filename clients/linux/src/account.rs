@@ -63,19 +63,11 @@ impl AccountScreen {
 
     pub fn show(&self, mode: &EditMode) {
         match mode {
-            EditMode::PlainText {
-                path: _,
-                meta,
-                content,
-            } => {
+            EditMode::PlainText { meta, content } => {
                 self.sidebar.tree.select(&meta.id);
                 self.editor.set_file(&meta.name, content);
             }
-            EditMode::Folder {
-                path: _,
-                meta,
-                n_children,
-            } => {
+            EditMode::Folder { meta, n_children } => {
                 self.sidebar.tree.focus();
                 self.sidebar.tree.select(&meta.id);
                 self.editor.show_folder_info(meta, *n_children);

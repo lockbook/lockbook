@@ -560,17 +560,12 @@ impl LbApp {
         // Check for file dirtiness here
         let (meta, content) = self.core.open(id)?;
         self.state.borrow_mut().open_file_dirty = false;
-        self.edit(&EditMode::PlainText {
-            path: self.core.full_path_for(&meta.id)?,
-            meta,
-            content,
-        })
+        self.edit(&EditMode::PlainText { meta, content })
     }
 
     fn open_folder(&self, f: &ClientFileMetadata) -> LbResult<()> {
         let children = self.core.children(f)?;
         self.edit(&EditMode::Folder {
-            path: self.core.full_path_for(&f.id)?,
             meta: f.clone(),
             n_children: children.len(),
         })

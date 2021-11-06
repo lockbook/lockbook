@@ -83,7 +83,6 @@ impl Menubar {
     pub fn set(&self, mode: &EditMode) {
         match mode {
             EditMode::Folder {
-                path: _,
                 meta: _,
                 n_children: _,
             } => {
@@ -92,7 +91,6 @@ impl Menubar {
                 );
             }
             EditMode::PlainText {
-                path: _,
                 meta: _,
                 content: _,
             } => {
