@@ -766,7 +766,7 @@ impl LbApp {
 
                     match lb.core.file_by_id(id) {
                         Ok(f) => {
-                            if let Ok(_) = lb.core.full_path_for(&f.id) {
+                            if lb.core.full_path_for(&f.id).is_ok() {
                                 lb.messenger.send(Msg::RefreshSyncStatus);
                             }
                         }
@@ -846,7 +846,7 @@ impl LbApp {
             } else {
                 "edit-find-symbolic"
             };
-            util::gui::set_entry_icon(&entry, icon_name);
+            util::gui::set_entry_icon(entry, icon_name);
         });
 
         let d = self.gui.new_dialog("Search");
@@ -867,7 +867,7 @@ impl LbApp {
     }
 
     fn search_field_exec(&self, maybe_input: Option<String>) -> LbResult<()> {
-        if let Some(path) = maybe_input.or(self.state.borrow().get_first_search_match()) {
+        if let Some(path) = maybe_input.or_else(|| self.state.borrow().get_first_search_match()) {
             match self.core.file_by_path(&path) {
                 Ok(meta) => self.messenger.send(Msg::OpenFile(Some(meta.id))),
                 Err(err) => self

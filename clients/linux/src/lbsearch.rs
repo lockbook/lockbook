@@ -41,7 +41,7 @@ impl LbSearch {
             cmp::Ordering::Equal => {
                 let text1 = tree_iter_value!(model, it1, 1, String);
                 let text2 = model
-                    .get_value(&it2, 1)
+                    .get_value(it2, 1)
                     .get::<String>()
                     .unwrap_or_default()
                     .unwrap_or_default();
@@ -72,7 +72,7 @@ impl LbSearch {
         list.clear();
 
         for p in &self.possibs {
-            if let Some(score) = self.matcher.fuzzy_match(&p, &pattern) {
+            if let Some(score) = self.matcher.fuzzy_match(p, pattern) {
                 let values: [&dyn ToValue; 2] = [&score, &p];
                 list.set(&list.append(), &[0, 1], &values);
                 //list.set(&list.append(), &[(0, &score), (1, &p)]);

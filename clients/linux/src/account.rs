@@ -118,12 +118,8 @@ impl AccountScreen {
         buf.get_text(&start, &end, true).unwrap().to_string()
     }
 
-    pub fn set_saving(&self, is_saving: bool) {
-        if is_saving {
-            //self.header.show_spinner();
-        } else {
-            //self.header.hide_spinner();
-        }
+    pub fn set_saving(&self, _is_saving: bool) {
+        // todo: how to indicate saving now since there is no more header bar
     }
 
     pub fn status(&self) -> &Rc<StatusPanel> {

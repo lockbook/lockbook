@@ -43,7 +43,7 @@ macro_rules! tree_iter_value {
             .expect(&format!(
                 "getting treeview value: column id {}: mandatory value not found",
                 $id
-            ));
+            ))
     };
 }
 
@@ -377,10 +377,11 @@ impl FileTree {
     pub fn add(&self, b: &LbCore, f: &ClientFileMetadata) -> LbResult<()> {
         let mut file = f.clone();
         let mut parent_iter: Option<GtkTreeIter>;
-        while {
+        loop {
             parent_iter = self.search(&self.iter(), &file.parent);
-            parent_iter == None
-        } {
+            if parent_iter.is_some() {
+                break;
+            }
             file = b.file_by_id(file.parent)?;
         }
 
