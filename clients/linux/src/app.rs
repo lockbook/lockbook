@@ -1,13 +1,14 @@
 use std::cell::RefCell;
-use std::cmp::Ordering;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use gdk::{Cursor, WindowExt};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gio::prelude::*;
+use glib::uri_unescape_string;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
@@ -16,16 +17,16 @@ use gtk::{
     Button, CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox,
     Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
     FileChooserAction, FileChooserDialog, Image as GtkImage, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
-    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode,
-    SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
-    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
+    Notebook as GtkNotebook, ProgressBar as GtkProgressBar, ResponseType as GtkResponseType,
+    SelectionMode as GtkSelectionMode, Spinner as GtkSpinner, Stack as GtkStack,
     TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
     Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
 };
-
-use lockbook_models::file_metadata::FileType;
 use uuid::Uuid;
+
+use lockbook_core::model::client_conversion::ClientFileMetadata;
+use lockbook_core::service::import_export_service::ImportExportFileInfo;
+use lockbook_models::file_metadata::FileType;
 
 use crate::account::{AccountScreen, TextAreaDropPasteInfo};
 use crate::backend::{LbCore, LbSyncMsg};
@@ -37,17 +38,12 @@ use crate::error::{
 };
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
+use crate::lbsearch::LbSearch;
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
-
-use gdk::{Cursor, WindowExt};
-use glib::uri_unescape_string;
-use lockbook_core::model::client_conversion::ClientFileMetadata;
-use lockbook_core::service::import_export_service::ImportExportFileInfo;
-use std::path::PathBuf;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -810,7 +806,7 @@ impl LbApp {
     }
 
     fn search_field_focus(&self) -> LbResult<()> {
-        let search = SearchComponents::new(&self.core);
+        let search = LbSearch::new(self.core.list_paths().unwrap_or_default());
 
         let comp = GtkEntryCompletion::new();
         comp.set_model(Some(&search.sort_model));
@@ -1235,7 +1231,7 @@ impl LbApp {
 }
 
 struct LbState {
-    search: Option<SearchComponents>,
+    search: Option<LbSearch>,
     opened_file: Option<ClientFileMetadata>,
     open_file_dirty: bool,
     background_work: Arc<Mutex<BackgroundWork>>,
@@ -1265,77 +1261,6 @@ impl LbState {
         self.opened_file = f;
         if self.opened_file.is_some() {
             self.search = None;
-        }
-    }
-}
-
-struct SearchComponents {
-    possibs: Vec<String>,
-    list_store: GtkListStore,
-    sort_model: GtkTreeModelSort,
-    matcher: SkimMatcherV2,
-}
-
-impl SearchComponents {
-    fn new(core: &LbCore) -> Self {
-        let list_store = GtkListStore::new(&[glib::Type::I64, glib::Type::String]);
-        let sort_model = GtkTreeModelSort::new(&list_store);
-        sort_model.set_sort_column_id(GtkSortColumn::Index(0), GtkSortType::Descending);
-        sort_model.set_sort_func(GtkSortColumn::Index(0), Self::compare_possibs);
-
-        Self {
-            possibs: core.list_paths().unwrap_or_default(),
-            list_store,
-            sort_model,
-            matcher: SkimMatcherV2::default(),
-        }
-    }
-
-    fn compare_possibs(model: &GtkTreeModel, it1: &GtkTreeIter, it2: &GtkTreeIter) -> Ordering {
-        let score1 = tree_iter_value!(model, it1, 0, i64);
-        let score2 = tree_iter_value!(model, it2, 0, i64);
-
-        match score1.cmp(&score2) {
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Less => Ordering::Less,
-            Ordering::Equal => {
-                let text1 = tree_iter_value!(model, it1, 1, String);
-                let text2 = model
-                    .get_value(it2, 1)
-                    .get::<String>()
-                    .unwrap_or_default()
-                    .unwrap_or_default();
-                if text2.is_empty() {
-                    return Ordering::Less;
-                }
-
-                let chars1: Vec<char> = text1.chars().collect();
-                let chars2: Vec<char> = text2.chars().collect();
-
-                let n_chars1 = chars1.len();
-                let n_chars2 = chars2.len();
-
-                for i in 0..std::cmp::min(n_chars1, n_chars2) {
-                    let ord = chars1[i].cmp(&chars2[i]);
-                    if ord != Ordering::Equal {
-                        return ord.reverse();
-                    }
-                }
-
-                n_chars1.cmp(&n_chars2)
-            }
-        }
-    }
-
-    fn update_for(&self, pattern: &str) {
-        let list = &self.list_store;
-        list.clear();
-
-        for p in &self.possibs {
-            if let Some(score) = self.matcher.fuzzy_match(p, pattern) {
-                let values: [&dyn ToValue; 2] = [&score, &p];
-                list.set(&list.append(), &[0, 1], &values);
-            }
         }
     }
 }
