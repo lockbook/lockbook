@@ -189,7 +189,7 @@ pub fn filter_deleted(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMetad
                 result.push(file.clone());
                 break;
             }
-            match maybe_find(files, file.parent) {
+            match maybe_find(files, ancestor.parent) {
                 Some(parent) => {
                     if ancestor.id == parent.id {
                         break;

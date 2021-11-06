@@ -221,12 +221,12 @@ mod delete_and_list_tests {
         let db = test_config();
         let account = make_account!(db);
         let f1 = path_service::create_at_path(&db, path!(account, "f1/")).unwrap();
-        let f2 = path_service::create_at_path(&db, path!(account, "f1/f2/")).unwrap();
+        let _f2 = path_service::create_at_path(&db, path!(account, "f1/f2/")).unwrap();
         let d1 = path_service::create_at_path(&db, path!(account, "f1/f2/d1.md")).unwrap();
         delete_file(&db, f1.id).unwrap();
 
         let mut files = list_metadatas(&db).unwrap();
-        files.retain(|f| f.id == d1.id);
+        files.retain(|meta| meta.id == d1.id);
 
         assert!(files.is_empty());
     }
