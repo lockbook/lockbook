@@ -156,6 +156,15 @@ impl LbApp {
             glib::Continue(true)
         });
 
+        let prompt_search = gio::SimpleAction::new("prompt_search", None);
+        prompt_search.connect_activate(glib::clone!(@strong lb_app => move |_, _| {
+            if let Err(err) = lb_app.prompt_search() {
+                println!("{}", err.msg());
+            }
+        }));
+        a.add_action(&prompt_search);
+        a.set_accels_for_action("app.prompt_search", &["<Ctrl>space", "<Ctrl>L"]);
+
         lb_app
     }
 
@@ -803,6 +812,71 @@ impl LbApp {
 
     fn refresh_tree(&self) -> LbResult<()> {
         self.gui.account.sidebar.tree.refresh(&self.core)
+    }
+
+    fn prompt_search(&self) -> LbResult<()> {
+        let possibs = self.core.list_paths().unwrap_or_default();
+        let search = LbSearch::new(possibs);
+
+        let comp = gtk::EntryCompletion::new();
+        comp.set_model(Some(&search.sort_model));
+        comp.set_popup_completion(true);
+        comp.set_inline_selection(true);
+        comp.set_text_column(1);
+        comp.set_match_func(|_, _, _| true);
+        comp.connect_match_selected(closure!(self.messenger as m => move |_, model, iter| {
+            let iter_val = tree_iter_value!(model, iter, 1, String);
+            m.send(Msg::SearchFieldExec(Some(iter_val)));
+            gtk::Inhibit(false)
+        }));
+
+        self.state.borrow_mut().search = Some(search);
+
+        let search_entry = gtk::Entry::new();
+        util::gui::set_entry_icon(&search_entry, "edit-find-symbolic");
+        util::gui::set_marginx(&search_entry, 16);
+        search_entry.set_margin_top(16);
+        search_entry.set_placeholder_text(Some("Start typing..."));
+        search_entry.set_completion(Some(&comp));
+
+        search_entry.connect_key_release_event(closure!(self as lb => move |entry, key| {
+            let k = key.get_hardware_keycode();
+            if k != util::gui::KEY_ARROW_UP && k != util::gui::KEY_ARROW_DOWN {
+                if let Some(search) = lb.state.borrow().search.as_ref() {
+                    let input = entry.get_text().to_string();
+                    search.update_for(&input);
+                }
+            }
+            gtk::Inhibit(false)
+        }));
+
+        search_entry.connect_changed(move |entry| {
+            let input = entry.get_text().to_string();
+            let icon_name = if input.ends_with(".md") || input.ends_with(".txt") {
+                "text-x-generic-symbolic"
+            } else if input.ends_with('/') {
+                "folder-symbolic"
+            } else {
+                "edit-find-symbolic"
+            };
+            util::gui::set_entry_icon(&entry, icon_name);
+        });
+
+        let d = self.gui.new_dialog("Search");
+
+        search_entry.connect_activate(
+            glib::clone!(@strong self.messenger as m, @strong d => move |entry| {
+                d.close();
+                if !entry.get_text().eq("") {
+                    m.send(Msg::SearchFieldExec(None));
+                }
+            }),
+        );
+
+        d.get_content_area().add(&search_entry);
+        d.get_content_area().set_margin_bottom(16);
+        d.show_all();
+        Ok(())
     }
 
     fn search_field_focus(&self) -> LbResult<()> {

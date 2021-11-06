@@ -28,8 +28,8 @@ use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
 use crate::util::{
-    gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK, IMAGE_TARGET_INFO, TEXT_TARGET_INFO,
-    URI_TARGET_INFO,
+    gui as gui_util, gui::KEY_ARROW_DOWN, gui::KEY_ARROW_UP, gui::LEFT_CLICK, gui::RIGHT_CLICK,
+    IMAGE_TARGET_INFO, TEXT_TARGET_INFO, URI_TARGET_INFO,
 };
 use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog};
 
@@ -231,7 +231,7 @@ impl Header {
 
         search.connect_key_release_event(closure!(m => move |_, key| {
             let k = key.get_hardware_keycode();
-            if k != ARROW_UP && k != ARROW_DOWN {
+            if k != KEY_ARROW_UP && k != KEY_ARROW_DOWN {
                 m.send(Msg::SearchFieldUpdate);
             }
             gtk::Inhibit(false)
@@ -622,5 +622,3 @@ fn entry_set_primary_icon_tooltip(entry: &GtkEntry, tooltip: Option<&str>) {
 const LOGO: &[u8] = include_bytes!("../res/lockbook-pixdata");
 
 const ESC: u16 = 9;
-const ARROW_UP: u16 = 111;
-const ARROW_DOWN: u16 = 116;
