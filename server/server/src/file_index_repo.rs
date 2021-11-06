@@ -134,7 +134,7 @@ WITH
                 ELSE files.name_hmac END),
             deleted =
                 (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
-                THEN $8
+                THEN excluded.deleted OR $8
                 ELSE files.deleted END)
     )
 SELECT
@@ -242,7 +242,10 @@ pub async fn apply_recursive_deletions(
             JOIN files ON effective_deleted.id = files.id
             WHERE effective_deleted.deleted AND NOT files.deleted
         )
-        UPDATE files SET deleted = true WHERE id IN (SELECT id FROM deletions)
+        UPDATE files SET
+            deleted = true,
+            metadata_version = CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
+        WHERE id IN (SELECT id FROM deletions)
         RETURNING id AS "id!";
         "#,
         &serde_json::to_string(public_key).map_err(ApplyRecursiveDeletionsError::Serialize)?,
