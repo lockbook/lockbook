@@ -2,24 +2,16 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gdk::{DragAction, DragContext, ModifierType};
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
-use glib::SignalHandlerId;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
+use gtk::Box as GtkBox;
 use gtk::Orientation::{Horizontal, Vertical};
-use gtk::{
-    Adjustment as GtkAdjustment, Align as GtkAlign, Box as GtkBox, Button as GtkBtn, Clipboard,
-    DestDefaults, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
-    EntryIconPosition as GtkEntryIconPosition, Grid as GtkGrid, Image as GtkImage,
-    Label as GtkLabel, Menu as GtkMenu, MenuItem as GtkMenuItem, Paned as GtkPaned,
-    ProgressBar as GtkProgressBar, ScrolledWindow as GtkScrolledWindow, SelectionData,
-    Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack, TargetList, TextMark,
-    TextWindowType, WrapMode as GtkWrapMode,
-};
+use regex::Regex;
 use sourceview::prelude::*;
-use sourceview::View as GtkSourceView;
-use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager};
+use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager, View as GtkSourceView};
+
+use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
 
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
@@ -28,16 +20,12 @@ use crate::filetree::FileTree;
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::settings::Settings;
 use crate::util::{
-    gui as gui_util, gui::KEY_ARROW_DOWN, gui::KEY_ARROW_UP, gui::LEFT_CLICK, gui::RIGHT_CLICK,
-    IMAGE_TARGET_INFO, TEXT_TARGET_INFO, URI_TARGET_INFO,
+    gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK, IMAGE_TARGET_INFO, TEXT_TARGET_INFO,
+    URI_TARGET_INFO,
 };
 use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog};
 
-use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
-use regex::Regex;
-
 pub struct AccountScreen {
-    header: Header,
     pub sidebar: Sidebar,
     editor: Editor,
     pub cntr: GtkBox,
@@ -45,22 +33,18 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(m: &Messenger, s: &Settings, c: &Arc<LbCore>) -> Self {
-        let header = Header::new(m);
         let sidebar = Sidebar::new(m, c, s);
         let editor = Editor::new(m);
 
-        let paned = GtkPaned::new(Horizontal);
+        let paned = gtk::Paned::new(Horizontal);
         paned.set_position(350);
         paned.add1(&sidebar.cntr);
         paned.add2(&editor.cntr);
 
         let cntr = GtkBox::new(Vertical, 0);
-        cntr.add(&header.cntr);
-        cntr.add(&GtkSeparator::new(Horizontal));
         cntr.pack_start(&paned, true, true, 0);
 
         Self {
-            header,
             sidebar,
             editor,
             cntr,
@@ -80,32 +64,29 @@ impl AccountScreen {
     pub fn show(&self, mode: &EditMode) {
         match mode {
             EditMode::PlainText {
-                path,
+                path: _,
                 meta,
                 content,
             } => {
-                self.header.set_file(path);
                 self.sidebar.tree.select(&meta.id);
                 self.editor.set_file(&meta.name, content);
             }
             EditMode::Folder {
-                path,
+                path: _,
                 meta,
                 n_children,
             } => {
-                self.header.set_file(path);
                 self.sidebar.tree.focus();
                 self.sidebar.tree.select(&meta.id);
                 self.editor.show_folder_info(meta, *n_children);
             }
             EditMode::None => {
-                self.header.set_file("");
                 self.editor.show("empty");
             }
         }
     }
 
-    pub fn get_cursor_mark(&self) -> LbResult<TextMark> {
+    pub fn get_cursor_mark(&self) -> LbResult<gtk::TextMark> {
         let svb = self
             .editor
             .textarea
@@ -126,7 +107,7 @@ impl AccountScreen {
         .ok_or_else(|| uerr_dialog!("Cannot create textmark!"))
     }
 
-    pub fn insert_text_at_mark(&self, mark: &TextMark, txt: &str) {
+    pub fn insert_text_at_mark(&self, mark: &gtk::TextMark, txt: &str) {
         let svb = self
             .editor
             .textarea
@@ -147,114 +128,14 @@ impl AccountScreen {
 
     pub fn set_saving(&self, is_saving: bool) {
         if is_saving {
-            self.header.show_spinner();
+            //self.header.show_spinner();
         } else {
-            self.header.hide_spinner();
+            //self.header.hide_spinner();
         }
     }
 
     pub fn status(&self) -> &Rc<StatusPanel> {
         &self.sidebar.status
-    }
-
-    pub fn get_search_field_text(&self) -> String {
-        self.header.search.get_text().to_string()
-    }
-
-    pub fn set_search_field_text(&self, txt: &str) {
-        self.header.search.set_text(txt);
-    }
-
-    pub fn set_search_field_icon(&self, icon_name: &str, tooltip: Option<&str>) {
-        entry_set_primary_icon(&self.header.search, icon_name);
-        entry_set_primary_icon_tooltip(&self.header.search, tooltip);
-    }
-
-    pub fn set_search_field_completion(&self, comp: &GtkEntryCompletion) {
-        self.header.search.set_completion(Some(comp));
-        self.header.search.grab_focus();
-    }
-
-    pub fn deselect_search_field(&self) {
-        self.header.search.select_region(0, 0);
-    }
-
-    pub fn focus_editor(&self) {
-        self.editor.textarea.grab_focus();
-    }
-}
-
-struct Header {
-    search: GtkEntry,
-    spinner: GtkSpinner,
-    cntr: GtkBox,
-}
-
-impl Header {
-    fn new(m: &Messenger) -> Self {
-        let search = Self::new_search_field(m);
-
-        let spinner = GtkSpinner::new();
-        spinner.set_margin_start(6);
-        spinner.set_margin_end(3);
-
-        let cntr = GtkBox::new(Horizontal, 0);
-        cntr.set_margin_top(6);
-        cntr.set_margin_bottom(6);
-        cntr.set_margin_start(3);
-        cntr.set_margin_end(3);
-        cntr.pack_start(&search, true, true, 0);
-
-        Self {
-            search,
-            spinner,
-            cntr,
-        }
-    }
-
-    fn new_search_field(m: &Messenger) -> GtkEntry {
-        let search = GtkEntry::new();
-        entry_set_primary_icon(&search, "edit-find-symbolic");
-        search.set_placeholder_text(Some("Enter a file location..."));
-
-        search.connect_focus_out_event(closure!(m => move |_, _| {
-            m.send(Msg::SearchFieldBlur(false));
-            gtk::Inhibit(false)
-        }));
-
-        search.connect_key_press_event(closure!(m => move |_, key| {
-            if key.get_hardware_keycode() == ESC {
-                m.send(Msg::SearchFieldBlur(true));
-            }
-            gtk::Inhibit(false)
-        }));
-
-        search.connect_key_release_event(closure!(m => move |_, key| {
-            let k = key.get_hardware_keycode();
-            if k != KEY_ARROW_UP && k != KEY_ARROW_DOWN {
-                m.send(Msg::SearchFieldUpdate);
-            }
-            gtk::Inhibit(false)
-        }));
-
-        search.connect_changed(closure!(m => move |_| m.send(Msg::SearchFieldUpdateIcon)));
-        search.connect_activate(closure!(m => move |_| m.send(Msg::SearchFieldExec(None))));
-        search
-    }
-
-    fn set_file(&self, path: &str) {
-        self.search.set_text(path);
-    }
-
-    fn show_spinner(&self) {
-        self.cntr.pack_end(&self.spinner, false, false, 0);
-        self.cntr.show_all();
-        self.spinner.start();
-    }
-
-    fn hide_spinner(&self) {
-        self.spinner.stop();
-        self.cntr.remove(&self.spinner);
     }
 }
 
@@ -266,14 +147,14 @@ pub struct Sidebar {
 
 impl Sidebar {
     fn new(m: &Messenger, c: &Arc<LbCore>, s: &Settings) -> Self {
-        let scroll = GtkScrolledWindow::new::<GtkAdjustment, GtkAdjustment>(None, None);
         let tree = FileTree::new(m, c, &s.hidden_tree_cols);
+        let scroll = gui_util::scrollable(tree.widget());
+
         let sync = Rc::new(StatusPanel::new(m));
-        scroll.add(tree.widget());
 
         let cntr = GtkBox::new(Vertical, 0);
         cntr.pack_start(&scroll, true, true, 0);
-        cntr.add(&GtkSeparator::new(Horizontal));
+        cntr.add(&gtk::Separator::new(Horizontal));
         cntr.add(&sync.cntr);
 
         Self {
@@ -289,28 +170,28 @@ impl Sidebar {
 }
 
 pub struct StatusPanel {
-    status: GtkLabel,
-    sync_button: GtkBtn,
-    sync_progress: GtkProgressBar,
+    status: gtk::Label,
+    sync_button: gtk::Button,
+    sync_progress: gtk::ProgressBar,
     cntr: GtkBox,
 }
 
 impl StatusPanel {
     fn new(m: &Messenger) -> Self {
-        let status = GtkLabel::new(None);
-        status.set_halign(GtkAlign::Start);
+        let status = gtk::Label::new(None);
+        status.set_halign(gtk::Align::Start);
 
         let status_evbox = gtk::EventBox::new();
         status_evbox.add(&status);
         status_evbox.connect_button_press_event(closure!(m => move |_, evt| {
             if evt.get_button() == RIGHT_CLICK {
-                let menu = GtkMenu::new();
+                let menu = gtk::Menu::new();
                 let item_data: Vec<(&str, MsgFn)> = vec![
                     ("Refresh Sync Status", || Msg::RefreshSyncStatus),
                     ("Show Sync Details", || Msg::ShowDialogSyncDetails),
                 ];
                 for (name, msg) in item_data {
-                    let mi = GtkMenuItem::with_label(name);
+                    let mi = gtk::MenuItem::with_label(name);
                     mi.connect_activate(closure!(m => move |_| m.send(msg())));
                     menu.append(&mi);
                 }
@@ -320,10 +201,10 @@ impl StatusPanel {
             gtk::Inhibit(false)
         }));
 
-        let sync_button = GtkBtn::with_label("Sync");
+        let sync_button = gtk::Button::with_label("Sync");
         sync_button.connect_clicked(closure!(m => move |_| m.send(Msg::PerformSync)));
 
-        let progress = GtkProgressBar::new();
+        let progress = gtk::ProgressBar::new();
         progress.set_margin_top(3);
 
         let cntr = GtkBox::new(Horizontal, 0);
@@ -380,32 +261,32 @@ struct Editor {
     info: GtkBox,
     textarea: GtkSourceView,
     highlighter: LanguageManager,
-    change_sig_id: RefCell<Option<SignalHandlerId>>,
-    cntr: GtkStack,
+    change_sig_id: RefCell<Option<glib::SignalHandlerId>>,
+    cntr: gtk::Stack,
     messenger: Messenger,
 }
 
 impl Editor {
     fn new(m: &Messenger) -> Self {
         let empty = GtkBox::new(Vertical, 0);
-        empty.set_valign(GtkAlign::Center);
-        empty.add(&GtkImage::from_pixbuf(Some(
+        empty.set_valign(gtk::Align::Center);
+        empty.add(&gtk::Image::from_pixbuf(Some(
             &GdkPixbuf::from_inline(LOGO, false).unwrap(),
         )));
 
         let info = GtkBox::new(Vertical, 0);
         info.set_vexpand(false);
-        info.set_valign(GtkAlign::Center);
+        info.set_valign(gtk::Align::Center);
 
         let textarea = GtkSourceView::new();
         textarea.set_property_monospace(true);
-        textarea.set_wrap_mode(GtkWrapMode::Word);
+        textarea.set_wrap_mode(gtk::WrapMode::Word);
         textarea.set_left_margin(4);
         textarea.set_tab_width(4);
 
-        let target_list = TargetList::new(&[]);
+        let target_list = gtk::TargetList::new(&[]);
 
-        textarea.drag_dest_set(DestDefaults::ALL, &[], DragAction::COPY);
+        textarea.drag_dest_set(gtk::DestDefaults::ALL, &[], gdk::DragAction::COPY);
 
         target_list.add_uri_targets(URI_TARGET_INFO);
         target_list.add_text_targets(TEXT_TARGET_INFO);
@@ -422,10 +303,9 @@ impl Editor {
         let gspell_view = gspell::TextView::get_from_gtk_text_view(textview).unwrap();
         gspell_view.basic_setup();
 
-        let scroll = GtkScrolledWindow::new(None::<&GtkAdjustment>, None::<&GtkAdjustment>);
-        scroll.add(&textarea);
+        let scroll = gui_util::scrollable(&textarea);
 
-        let cntr = GtkStack::new();
+        let cntr = gtk::Stack::new();
         cntr.add_named(&empty, "empty");
         cntr.add_named(&info, "folderinfo");
         cntr.add_named(&scroll, "scroll");
@@ -450,7 +330,7 @@ impl Editor {
 
     fn on_drag_data_received(
         m: &Messenger,
-    ) -> impl Fn(&GtkSourceView, &DragContext, i32, i32, &SelectionData, u32, u32) {
+    ) -> impl Fn(&GtkSourceView, &gdk::DragContext, i32, i32, &gtk::SelectionData, u32, u32) {
         closure!(m => move |_, _, _, _, s, info, _| {
             let target = match info {
                 URI_TARGET_INFO => {
@@ -482,7 +362,7 @@ impl Editor {
 
     fn on_paste_clipboard(m: &Messenger) -> impl Fn(&GtkSourceView) {
         closure!(m => move |w| {
-            let clipboard = Clipboard::get(&gdk::SELECTION_CLIPBOARD);
+            let clipboard = gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD);
 
             if let Some(pixbuf) = clipboard.wait_for_image() {
                 match pixbuf.save_to_bufferv("jpeg", &[]) {
@@ -507,9 +387,9 @@ impl Editor {
 
     fn on_button_press(m: &Messenger) -> impl Fn(&GtkSourceView, &gdk::EventButton) -> Inhibit {
         closure!(m => move |w, evt| {
-            if evt.get_button() == LEFT_CLICK && evt.get_state() == ModifierType::CONTROL_MASK {
+            if evt.get_button() == LEFT_CLICK && evt.get_state() == gdk::ModifierType::CONTROL_MASK {
                 let (absol_x, absol_y) = evt.get_position();
-                let (x, y) = w.window_to_buffer_coords(TextWindowType::Text, absol_x as i32, absol_y as i32);
+                let (x, y) = w.window_to_buffer_coords(gtk::TextWindowType::Text, absol_x as i32, absol_y as i32);
                 if let Some(iter) = w.get_iter_at_location(x, y) {
                     let mut start = iter.clone();
                     let mut end = iter.clone();
@@ -581,13 +461,13 @@ impl Editor {
     }
 
     fn show_folder_info(&self, f: &ClientFileMetadata, n_children: usize) {
-        let name = GtkLabel::new(None);
+        let name = gtk::Label::new(None);
         name.set_markup(&format!("<span><big>{}/</big></span>", f.name));
         name.set_margin_end(64);
         name.set_margin_bottom(16);
 
-        let grid = GtkGrid::new();
-        grid.set_halign(GtkAlign::Center);
+        let grid = gtk::Grid::new();
+        grid.set_halign(gtk::Align::Center);
 
         let rows = vec![
             ("ID", f.id.to_string()),
@@ -611,14 +491,4 @@ impl Editor {
     }
 }
 
-fn entry_set_primary_icon(entry: &GtkEntry, name: &str) {
-    entry.set_icon_from_icon_name(GtkEntryIconPosition::Primary, Some(name));
-}
-
-fn entry_set_primary_icon_tooltip(entry: &GtkEntry, tooltip: Option<&str>) {
-    entry.set_icon_tooltip_text(GtkEntryIconPosition::Primary, tooltip);
-}
-
 const LOGO: &[u8] = include_bytes!("../res/lockbook-pixdata");
-
-const ESC: u16 = 9;

@@ -176,7 +176,7 @@ impl Item {
     #[rustfmt::skip]
     fn data() -> Vec<(Self, ItemData)> {
         vec![
-            (Self::FileOpen, ("Open", "", || Msg::SearchFieldFocus)),
+            (Self::FileOpen, ("Open", "<Primary>L", || Msg::PromptSearch)),
             (Self::FileSave, ("Save", "<Primary>S", || Msg::SaveFile)),
             (Self::FileClose, ("Close File", "<Primary>W", || Msg::CloseFile)),
             (Self::FileQuit, ("Quit", "", || Msg::Quit)),
