@@ -1100,7 +1100,7 @@ mod sync_tests {
                 .is_none()
         );
 
-        assert_dirty_ids!(db1, 1);
+        assert_dirty_ids!(db1, 4);
         sync!(&db1);
 
         assert!(

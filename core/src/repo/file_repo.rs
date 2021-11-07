@@ -244,10 +244,36 @@ pub fn get_all_metadata_with_encrypted_changes(
         }
         RepoSource::Base => base,
     };
-    let staged = utils::stage_encrypted(&sourced, changes)
+
+    // in certain situations, the server will send updates for deleted files that have already been pruned
+    // these updates sometimes cannot be decrypted but are safe to ignore
+    let mut preprocessed_changes = Vec::new();
+    for change in changes {
+        if change.deleted {
+            match utils::maybe_find_encrypted(&sourced, change.id) {
+                Some(mut existing) => {
+                    if existing.deleted {
+                        // local and remote files deleted: ignore
+                        continue
+                    } else {
+                        // if something is deleted, ignore other updates
+                        existing.deleted = true;
+                        preprocessed_changes.push(existing);
+                    }
+                },
+                // local non-existent and remote deleted: ignore
+                None => {},
+            }
+        } else {
+            preprocessed_changes.push(change.clone());
+        }
+    }
+
+    let staged = utils::stage_encrypted(&sourced, &preprocessed_changes)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<FileMetadata>>();
+
     file_encryption_service::decrypt_metadata(&account, &staged)
 }
 

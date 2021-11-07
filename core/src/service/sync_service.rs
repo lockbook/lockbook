@@ -68,6 +68,11 @@ fn calculate_work_from_updates(
         server_updates,
     )?;
     for metadata in server_updates {
+        // skip filtered changes
+        if utils::maybe_find(&all_metadata, metadata.id).is_none() {
+            continue;
+        }
+
         if metadata.metadata_version > last_sync {
             last_sync = metadata.metadata_version;
         }
@@ -525,6 +530,11 @@ where
 
     // iterate changes
     for encrypted_remote_metadatum in remote_metadata_changes {
+        // skip filtered changes
+        if utils::maybe_find(&remote_metadata, encrypted_remote_metadatum.id).is_none() {
+            continue;
+        }
+
         // merge metadata
         let remote_metadatum = utils::find(&remote_metadata, encrypted_remote_metadatum.id)?;
         let maybe_base_metadatum = utils::maybe_find(&base_metadata, encrypted_remote_metadatum.id);
@@ -638,6 +648,7 @@ where
 
     // update remote to local (metadata)
     let metadata_changes = file_repo::get_all_metadata_changes(config)?;
+    println!("{:?}", metadata_changes);
     if !metadata_changes.is_empty() {
         client::request(
             account,

@@ -182,22 +182,22 @@ pub async fn check_cycles(
         r#"
         WITH RECURSIVE not_sure AS (
             SELECT
-                0 AS i,
+                FALSE AS i,
                 id AS id,
                 parent AS parent,
                 (SELECT parent_files.parent FROM files AS parent_files WHERE parent_files.id = files.parent) AS grandparent
             FROM files
             WHERE owner = $1
-                UNION ALL
+                UNION DISTINCT
             SELECT
-                i+1 AS i,
+                TRUE AS i,
                 id AS id,
                 (SELECT parent_files.parent FROM files AS parent_files WHERE parent_files.id = not_sure.parent) AS parent,
                 (SELECT grandparent_files.parent FROM files AS grandparent_files WHERE grandparent_files.id = (SELECT parent_files.parent FROM files AS parent_files WHERE id = (SELECT files.parent FROM files WHERE id = not_sure.parent))) AS grandparent
             FROM not_sure
             WHERE parent != grandparent
         )
-        SELECT COUNT(*) != 0 AS "has_cycles!" FROM not_sure WHERE id = parent AND i != 0;
+        SELECT COUNT(*) != 0 AS "has_cycles!" FROM not_sure WHERE id = parent AND i;
         "#,
         &serde_json::to_string(public_key).map_err(CheckCyclesError::Serialize)?,
     )
