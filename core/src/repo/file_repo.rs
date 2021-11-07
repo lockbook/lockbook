@@ -88,7 +88,9 @@ pub fn insert_metadata(
 
         // local deletions should discard other changes
         if source == RepoSource::Local && metadatum.deleted {
-            if let Some(mut base) = metadata_repo::maybe_get(config, RepoSource::Base, encrypted_metadata.id)? {
+            if let Some(mut base) =
+                metadata_repo::maybe_get(config, RepoSource::Base, encrypted_metadata.id)?
+            {
                 base.deleted = true;
                 metadata_repo::insert(config, source, &base)?;
             } else {
@@ -256,39 +258,22 @@ pub fn get_all_metadata_with_encrypted_changes(
         RepoSource::Base => base,
     };
 
-    // in certain situations, the server will send updates for deleted files that have already been pruned
-    // these updates sometimes cannot be decrypted but are safe to ignore
-    let mut preprocessed_changes = Vec::new();
-    for change in changes {
-        if change.deleted {
-            match utils::maybe_find_encrypted(&sourced, change.id) {
-                Some(existing) => {
-                    if existing.deleted {
-                        // local and remote files deleted: ignore
-                        continue
-                    } else {
-                        preprocessed_changes.push(change.clone());
-                    }
-                },
-                // local non-existent and remote deleted: ignore
-                None => {},
-            }
-        } else {
-            preprocessed_changes.push(change.clone());
-        }
-    }
-
-    let staged = utils::stage_encrypted(&sourced, &preprocessed_changes)
+    let staged = utils::stage_encrypted(&sourced, &changes)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<FileMetadata>>();
-    
-    println!("get_all_metadata_with_encrypted_changes sourced: {:?}", sourced);
-    println!("get_all_metadata_with_encrypted_changes changes: {:?}", changes);
-    println!("get_all_metadata_with_encrypted_changes preprocessed_changes: {:?}", preprocessed_changes);
-    println!("get_all_metadata_with_encrypted_changes staged: {:?}", staged);
 
-    file_encryption_service::decrypt_metadata(&account, &staged)
+    // orphaned files are descendants of pruned files, which we don't care about because we already knew they were deleted
+    let root = utils::find_root_encrypted(&staged)?;
+    let non_orphans = utils::find_with_descendants_encrypted(&staged, root.id)?;
+    let mut staged_non_orphans = Vec::new();
+    for f in staged {
+        if utils::maybe_find_encrypted(&non_orphans, f.id).is_some() {
+            staged_non_orphans.push(f)
+        }
+    }
+
+    file_encryption_service::decrypt_metadata(&account, &staged_non_orphans)
 }
 
 /// Adds or updates the content of a document on disk.
@@ -542,6 +527,7 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
 
     // remove files from disk
     for file in deleted_both_without_deleted_descendants_ids {
+        println!("\npruned: {:?}\n", file.id);
         delete_metadata(config, file.id)?;
         if file.file_type == FileType::Document {
             delete_document(config, file.id)?;

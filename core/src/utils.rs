@@ -128,6 +128,14 @@ pub fn find_children(
         .collect()
 }
 
+pub fn find_children_encrypted(files: &[FileMetadata], target_id: Uuid) -> Vec<FileMetadata> {
+    files
+        .iter()
+        .filter(|f| f.parent == target_id)
+        .cloned()
+        .collect()
+}
+
 pub fn find_with_descendants(
     files: &[DecryptedFileMetadata],
     target_id: Uuid,
@@ -135,10 +143,31 @@ pub fn find_with_descendants(
     let mut result = vec![find(files, target_id)?];
     let mut i = 0;
     while i < result.len() {
-        let target = result
-            .get(i)
-            .ok_or_else(|| CoreError::Unexpected(String::from("filter_deleted: missing target")))?;
+        let target = result.get(i).ok_or_else(|| {
+            CoreError::Unexpected(String::from("find_with_descendants: missing target"))
+        })?;
         let children = find_children(files, target.id);
+        for child in children {
+            if child.id != target_id {
+                result.push(child);
+            }
+        }
+        i += 1;
+    }
+    Ok(result)
+}
+
+pub fn find_with_descendants_encrypted(
+    files: &[FileMetadata],
+    target_id: Uuid,
+) -> Result<Vec<FileMetadata>, CoreError> {
+    let mut result = vec![find_encrypted(files, target_id)?];
+    let mut i = 0;
+    while i < result.len() {
+        let target = result.get(i).ok_or_else(|| {
+            CoreError::Unexpected(String::from("find_with_descendants: missing target"))
+        })?;
+        let children = find_children_encrypted(files, target.id);
         for child in children {
             if child.id != target_id {
                 result.push(child);

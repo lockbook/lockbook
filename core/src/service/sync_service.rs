@@ -607,7 +607,10 @@ where
     for self_descendant in
         file_service::get_invalid_cycles(&local_metadata, &local_metadata_updates)?
     {
-        println!("invalid cycle detected. self_descendant={:?}", self_descendant);
+        println!(
+            "invalid cycle detected. self_descendant={:?}",
+            self_descendant
+        );
         if let Some(RepoState::Modified { mut local, base }) =
             file_repo::maybe_get_metadata_state(config, self_descendant)?
         {
@@ -741,6 +744,7 @@ pub fn sync(
 
     let account = &account_repo::get(config)?;
     pull(config, account, &mut update_sync_progress)?;
+    file_repo::prune_deleted(config)?;
     push_metadata(config, account, &mut update_sync_progress)?;
     pull(config, account, &mut update_sync_progress)?;
     push_documents(config, account, &mut update_sync_progress)?;
