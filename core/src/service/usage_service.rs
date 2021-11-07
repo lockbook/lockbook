@@ -1,12 +1,9 @@
-use crate::client;
 use crate::model::state::Config;
-use crate::repo::{account_repo, file_metadata_repo};
-use crate::service::file_service;
-use crate::CoreError;
+use crate::repo::{account_repo, file_repo};
+use crate::{client, model::repo::RepoSource};
+use crate::{utils, CoreError};
 use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
-use lockbook_models::file_metadata::FileType::Document;
 use serde::Serialize;
-use uuid::Uuid;
 
 pub const BYTE: u64 = 1;
 pub const KILOBYTE: u64 = BYTE * 1000;
@@ -26,7 +23,7 @@ pub struct UsageMetrics {
     pub data_cap: UsageItemMetric,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, PartialEq, Debug)]
 pub struct UsageItemMetric {
     pub exact: u64,
     pub readable: String,
@@ -48,7 +45,7 @@ pub fn bytes_to_human(size: u64) -> String {
 }
 
 pub fn server_usage(config: &Config) -> Result<GetUsageResponse, CoreError> {
-    let acc = account_repo::get_account(config)?;
+    let acc = account_repo::get(config)?;
 
     client::request(&acc, GetUsageRequest {}).map_err(CoreError::from)
 }
@@ -76,15 +73,12 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
 }
 
 pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreError> {
-    let doc_ids: Vec<Uuid> = file_metadata_repo::get_all(config)?
-        .into_iter()
-        .filter(|f| f.file_type == Document)
-        .map(|f| f.id)
-        .collect();
+    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let docs = utils::filter_documents(&files);
 
     let mut local_usage: u64 = 0;
-    for id in doc_ids {
-        local_usage += file_service::read_document(config, id)?.len() as u64
+    for doc in docs {
+        local_usage += file_repo::get_document(config, RepoSource::Local, doc.id)?.len() as u64
     }
 
     let readable = bytes_to_human(local_usage);
@@ -97,21 +91,118 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreEr
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::service::usage_service::bytes_to_human;
+    use lockbook_models::file_metadata::FileType;
 
-    const BYTES_SMALL: u64 = 1000;
-    const BYTES_MEDIUM: u64 = 1000000;
-    const BYTES_LARGE: u64 = 1000000000;
+    use crate::{
+        model::{repo::RepoSource, state::temp_config},
+        repo::{account_repo, file_repo},
+        service::{
+            file_service, test_utils,
+            usage_service::{self, UsageItemMetric},
+        },
+    };
 
     #[test]
-    fn usage_human_string_sanity_check() {
-        let bytes_small_total = BYTES_SMALL * 2;
-        assert_eq!(bytes_to_human(bytes_small_total), "2 KB".to_string());
+    fn bytes_to_human_kb() {
+        assert_eq!(usage_service::bytes_to_human(2000), "2 KB".to_string());
+    }
 
-        let bytes_medium_total = BYTES_MEDIUM * 2;
-        assert_eq!(bytes_to_human(bytes_medium_total), "2 MB".to_string());
+    #[test]
+    fn bytes_to_human_mb() {
+        assert_eq!(usage_service::bytes_to_human(2000000), "2 MB".to_string());
+    }
 
-        let bytes_large_total = BYTES_LARGE * 2;
-        assert_eq!(bytes_to_human(bytes_large_total), "2 GB".to_string());
+    #[test]
+    fn bytes_to_human_gb() {
+        assert_eq!(
+            usage_service::bytes_to_human(2000000000),
+            "2 GB".to_string()
+        );
+    }
+
+    #[test]
+    fn get_uncompressed_usage_no_documents() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+
+        account_repo::insert(config, &account).unwrap();
+
+        assert_eq!(
+            usage_service::get_uncompressed_usage(config).unwrap(),
+            UsageItemMetric {
+                exact: 0,
+                readable: "0 B".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn get_uncompressed_usage_empty_document() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"").unwrap();
+
+        assert_eq!(
+            usage_service::get_uncompressed_usage(config).unwrap(),
+            UsageItemMetric {
+                exact: 0,
+                readable: "0 B".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn get_uncompressed_usage_one_document() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"0123456789").unwrap();
+
+        assert_eq!(
+            usage_service::get_uncompressed_usage(config).unwrap(),
+            UsageItemMetric {
+                exact: 10,
+                readable: "10 B".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn get_uncompressed_usage_multiple_documents() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let document =
+            file_service::create(FileType::Document, root.id, "document", &account.username);
+        let document2 =
+            file_service::create(FileType::Document, root.id, "document 2", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Base, &document2).unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document, b"01234").unwrap();
+        file_repo::insert_document(config, RepoSource::Base, &document2, b"56789").unwrap();
+
+        assert_eq!(
+            usage_service::get_uncompressed_usage(config).unwrap(),
+            UsageItemMetric {
+                exact: 10,
+                readable: "10 B".to_string()
+            }
+        );
     }
 }

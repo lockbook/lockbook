@@ -43,7 +43,7 @@ macro_rules! tree_iter_value {
             .expect(&format!(
                 "getting treeview value: column id {}: mandatory value not found",
                 $id
-            ));
+            ))
     };
 }
 

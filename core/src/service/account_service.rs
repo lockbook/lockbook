@@ -1,11 +1,11 @@
-use crate::client;
 use crate::client::ApiError;
 use crate::core_err_unexpected;
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::account_repo;
-use crate::repo::file_metadata_repo;
-use crate::service::file_encryption_service;
+use crate::repo::{account_repo, file_repo, last_updated_repo, root_repo};
+use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
+use crate::{client, utils};
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
@@ -18,7 +18,7 @@ pub fn create_account(
     api_url: &str,
 ) -> Result<Account, CoreError> {
     info!("Checking if account already exists");
-    if account_repo::maybe_get_account(config)?.is_some() {
+    if account_repo::maybe_get(config)?.is_some() {
         return Err(CoreError::AccountExists);
     }
 
@@ -34,11 +34,21 @@ pub fn create_account(
     };
 
     info!("Generating Root Folder");
-    let mut file_metadata = file_encryption_service::create_metadata_for_root_folder(&account)?;
+    let mut root_metadata = file_service::create_root(&account.username);
+    let encrypted_metadata =
+        file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?;
+    let encrypted_metadatum = utils::single_or(
+        encrypted_metadata,
+        CoreError::Unexpected(String::from(
+            "create_account: multiple metadata decrypted from root",
+        )),
+    )?;
 
     info!("Sending username & public key to server");
-    let version = match client::request(&account, NewAccountRequest::new(&account, &file_metadata))
-    {
+    root_metadata.metadata_version = match client::request(
+        &account,
+        NewAccountRequest::new(&account, &encrypted_metadatum),
+    ) {
         Ok(response) => response.folder_metadata_version,
         Err(ApiError::SendFailed(_)) => {
             return Err(CoreError::ServerUnreachable);
@@ -56,12 +66,8 @@ pub fn create_account(
             return Err(core_err_unexpected(e));
         }
     };
+    root_metadata.content_version = root_metadata.metadata_version;
     info!("Account creation success!");
-
-    file_metadata.metadata_version = version;
-    file_metadata.content_version = version;
-
-    file_metadata_repo::insert(config, &file_metadata)?;
 
     debug!(
         "{}",
@@ -69,14 +75,17 @@ pub fn create_account(
     );
 
     info!("Saving account locally");
-    account_repo::insert_account(config, &account)?;
+    account_repo::insert(config, &account)?;
+    file_repo::insert_metadatum(config, RepoSource::Base, &root_metadata)?;
+    root_repo::set(config, root_metadata.id)?;
+    last_updated_repo::set(config, root_metadata.metadata_version)?;
 
     Ok(account)
 }
 
 pub fn import_account(config: &Config, account_string: &str) -> Result<Account, CoreError> {
     info!("Checking if account already exists");
-    if account_repo::maybe_get_account(config)?.is_some() {
+    if account_repo::maybe_get(config)?.is_some() {
         return Err(CoreError::AccountExists);
     }
 
@@ -128,14 +137,14 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
     }
 
     info!("Account String seems valid, saving now");
-    account_repo::insert_account(config, &account)?;
+    account_repo::insert(config, &account)?;
 
     info!("Account imported successfully");
     Ok(account)
 }
 
 pub fn export_account(config: &Config) -> Result<String, CoreError> {
-    let account = account_repo::get_account(config)?;
+    let account = account_repo::get(config)?;
     let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
     Ok(base64::encode(&encoded))
 }
