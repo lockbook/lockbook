@@ -151,8 +151,7 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
             } else {
                 current_path = format!("{}/{}", current.decrypted_name, current_path);
             }
-            current =
-                file_repo::get_not_deleted_metadata(config, RepoSource::Local, current.parent)?;
+            current = utils::find(&files, current.parent)?;
         }
 
         current_path = format!("{}/{}", current.decrypted_name, current_path);
