@@ -1,75 +1,265 @@
 use crate::core_err_unexpected;
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::local_storage;
 use crate::CoreError;
 use lockbook_models::crypto::*;
 use uuid::Uuid;
 
-pub const NAMESPACE: &[u8; 9] = b"documents";
+const NAMESPACE_LOCAL: &str = "changed_local_documents";
+const NAMESPACE_BASE: &str = "all_base_documents";
 
-pub fn insert(config: &Config, id: Uuid, document: &EncryptedDocument) -> Result<(), CoreError> {
-    local_storage::write(
-        config,
-        NAMESPACE,
-        id.to_string().as_str(),
-        serde_json::to_vec(document).map_err(core_err_unexpected)?,
-    )
-}
-
-pub fn get(config: &Config, id: Uuid) -> Result<EncryptedDocument, CoreError> {
-    let maybe_data: Option<Vec<u8>> =
-        local_storage::read(config, NAMESPACE, id.to_string().as_str())?;
-    match maybe_data {
-        None => Err(CoreError::FileNonexistent),
-        Some(data) => serde_json::from_slice(&data).map_err(core_err_unexpected),
+fn namespace(source: RepoSource) -> &'static str {
+    match source {
+        RepoSource::Local => NAMESPACE_LOCAL,
+        RepoSource::Base => NAMESPACE_BASE,
     }
 }
 
-pub fn maybe_get(config: &Config, id: Uuid) -> Result<Option<EncryptedDocument>, CoreError> {
+pub fn insert(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+    document: &EncryptedDocument,
+) -> Result<(), CoreError> {
+    local_storage::write(
+        config,
+        namespace(source),
+        id.to_string().as_str(),
+        bincode::serialize(document).map_err(core_err_unexpected)?,
+    )
+}
+
+pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDocument, CoreError> {
     let maybe_data: Option<Vec<u8>> =
-        local_storage::read(config, NAMESPACE, id.to_string().as_str())?;
+        local_storage::read(config, namespace(source), id.to_string().as_str())?;
+    match maybe_data {
+        None => Err(CoreError::FileNonexistent),
+        Some(data) => bincode::deserialize(&data).map_err(core_err_unexpected),
+    }
+}
+
+pub fn maybe_get(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+) -> Result<Option<EncryptedDocument>, CoreError> {
+    let maybe_data: Option<Vec<u8>> =
+        local_storage::read(config, namespace(source), id.to_string().as_str())?;
     match maybe_data {
         None => Ok(None),
-        Some(data) => serde_json::from_slice(&data)
+        Some(data) => bincode::deserialize(&data)
             .map(Some)
             .map_err(core_err_unexpected),
     }
 }
 
-pub fn delete(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    local_storage::delete(config, NAMESPACE, id.to_string().as_str())
+pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedDocument>, CoreError> {
+    Ok(
+        local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
+            .into_iter()
+            .map(|s| bincode::deserialize(s.as_ref()).map_err(core_err_unexpected))
+            .collect::<Result<Vec<EncryptedDocument>, CoreError>>()?
+            .into_iter()
+            .collect(),
+    )
+}
+
+pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
+    local_storage::delete(config, namespace(source), id.to_string().as_str())
+}
+
+pub fn delete_all(config: &Config, source: RepoSource) -> Result<(), CoreError> {
+    local_storage::delete_all(config, namespace(source))
 }
 
 #[cfg(test)]
 mod unit_tests {
-    use uuid::Uuid;
-
+    use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
     use crate::repo::document_repo;
-    use lockbook_models::crypto::*;
+    use crate::service::test_utils;
+    use lockbook_crypto::symkey;
+    use lockbook_models::crypto::AESEncrypted;
+    use uuid::Uuid;
 
     #[test]
-    fn update_document() {
-        let test_document = EncryptedDocument::new("something", "nonce1");
+    fn get() {
+        let config = &temp_config();
 
-        let config = temp_config();
+        let id = Uuid::new_v4();
+        let result = document_repo::get(config, RepoSource::Local, id);
 
-        let document_id = Uuid::new_v4();
+        assert!(result.is_err());
+    }
 
-        document_repo::insert(&config, document_id, &test_document).unwrap();
+    #[test]
+    fn maybe_get() {
+        let config = &temp_config();
 
-        let document = document_repo::get(&config, document_id).unwrap();
-        assert_eq!(document, EncryptedDocument::new("something", "nonce1"),);
+        let id = Uuid::new_v4();
+        let result = document_repo::maybe_get(config, RepoSource::Local, id).unwrap();
 
-        document_repo::insert(
-            &config,
-            document_id,
-            &EncryptedDocument::new("updated", "nonce2"),
-        )
-        .unwrap();
+        assert_eq!(result, None);
+    }
 
-        let file_updated = document_repo::get(&config, document_id).unwrap();
+    #[test]
+    fn insert_get() {
+        let config = &temp_config();
+        let key = &symkey::generate_key();
 
-        assert_eq!(file_updated, EncryptedDocument::new("updated", "nonce2"));
+        let (id, document) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
+        let result = document_repo::get(config, RepoSource::Local, id).unwrap();
+
+        assert_eq!(result, document);
+    }
+
+    #[test]
+    fn insert_get_different_source() {
+        let config = &temp_config();
+        let key = &symkey::generate_key();
+
+        let (id, document) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
+        let result = document_repo::maybe_get(config, RepoSource::Base, id).unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn insert_get_overwrite_different_source() {
+        let config = &temp_config();
+        let key = &symkey::generate_key();
+
+        let (id, document) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
+        let (id_2, document_2) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document_2").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Base, id_2, &document_2).unwrap();
+        let result = document_repo::get(config, RepoSource::Local, id).unwrap();
+
+        assert_eq!(result, document);
+    }
+
+    #[test]
+    fn insert_get_all() {
+        let config = &temp_config();
+        let key = &symkey::generate_key();
+
+        let (id, document) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
+        let (id_2, document_2) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document_2").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id_2, &document_2).unwrap();
+        let (id_3, document_3) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document_3").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id_3, &document_3).unwrap();
+        let (id_4, document_4) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document_4").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id_4, &document_4).unwrap();
+        let (id_5, document_5) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document_5").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id_5, &document_5).unwrap();
+        let result = document_repo::get_all(config, RepoSource::Local).unwrap();
+
+        let mut expectation = vec![
+            (id, document),
+            (id_2, document_2),
+            (id_3, document_3),
+            (id_4, document_4),
+            (id_5, document_5),
+        ];
+        expectation.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        let expectation = expectation
+            .into_iter()
+            .map(|(_, d)| d)
+            .collect::<Vec<AESEncrypted<Vec<u8>>>>();
+        assert_eq!(result, expectation);
+    }
+
+    #[test]
+    fn insert_get_all_different_source() {
+        let config = &temp_config();
+        let key = &symkey::generate_key();
+
+        let (id, document) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
+        let result = document_repo::get_all(config, RepoSource::Base).unwrap();
+
+        assert_eq!(result, Vec::<AESEncrypted<Vec<u8>>>::new());
+    }
+
+    #[test]
+    fn insert_delete() {
+        let config = &temp_config();
+        let key = &symkey::generate_key();
+
+        let (id, document) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
+        document_repo::delete(config, RepoSource::Local, id).unwrap();
+        let result = document_repo::maybe_get(config, RepoSource::Local, id).unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn insert_delete_all() {
+        let config = &temp_config();
+        let key = &symkey::generate_key();
+
+        let (id, document) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
+        document_repo::delete_all(config, RepoSource::Local).unwrap();
+        let result = document_repo::get_all(config, RepoSource::Local).unwrap();
+
+        assert_eq!(result, Vec::<AESEncrypted<Vec<u8>>>::new());
+    }
+
+    #[test]
+    fn insert_delete_all_different_source() {
+        let config = &temp_config();
+        let key = &symkey::generate_key();
+
+        let (id, document) = (
+            Uuid::new_v4(),
+            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
+        );
+        document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
+        document_repo::delete_all(config, RepoSource::Base).unwrap();
+        let result = document_repo::get_all(config, RepoSource::Local).unwrap();
+
+        assert_eq!(result, vec![document]);
     }
 }

@@ -223,6 +223,18 @@ namespace test {
 
         [TestMethod]
         public void GetRootNoRoot() {
+            var username = RandomUsername();
+            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
+            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
+
+            var exportAccountResult = CoreService.ExportAccount().WaitResult();
+            var accountString = CastOrDie(exportAccountResult, out Core.ExportAccount.Success _).accountString;
+
+            Directory.Delete(lockbookDir, true);
+
+            var importAccountResult = CoreService.ImportAccount(accountString).WaitResult();
+            CastOrDie(importAccountResult, out Core.ImportAccount.Success _);
+            
             var getRootResult = CoreService.GetRoot().WaitResult();
             Assert.AreEqual(Core.GetRoot.PossibleErrors.NoRoot,
                 CastOrDie(getRootResult, out Core.GetRoot.ExpectedError _).Error);

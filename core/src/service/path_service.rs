@@ -1,12 +1,16 @@
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::file_metadata_repo;
-use crate::service::{file_encryption_service, file_service};
-use crate::CoreError;
-use lockbook_models::file_metadata::FileMetadata;
+use crate::repo::{account_repo, file_repo};
+use crate::service::file_service;
+use crate::{utils, CoreError};
+use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use uuid::Uuid;
 
-pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetadata, CoreError> {
+pub fn create_at_path(
+    config: &Config,
+    path_and_name: &str,
+) -> Result<DecryptedFileMetadata, CoreError> {
     if path_and_name.contains("//") {
         return Err(CoreError::PathContainsEmptyFileName);
     }
@@ -16,9 +20,12 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 
     let is_folder = path_and_name.ends_with('/');
 
-    let mut current = file_metadata_repo::get_root(config)?.ok_or(CoreError::RootNonexistent)?;
+    let mut files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let mut current = utils::find_root(&files)?;
+    let root_id = current.id;
+    let account = account_repo::get(config)?;
 
-    if file_encryption_service::get_name(config, &current)? != path_components[0] {
+    if current.decrypted_name != path_components[0] {
         return Err(CoreError::PathStartsWithNonRoot);
     }
 
@@ -28,21 +35,23 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
 
     // We're going to look ahead, and find or create the right child
     'path: for index in 0..path_components.len() - 1 {
-        let children = file_metadata_repo::get_children_non_recursively(config, current.id)?;
+        let children = utils::find_children(&files, current.id);
 
         let next_name = path_components[index + 1];
         debug!("child we're searching for: {}", next_name);
 
         for child in children {
-            if file_encryption_service::get_name(config, &child)? == next_name {
+            if child.decrypted_name == next_name {
                 // If we're at the end and we find this child, that means this path already exists
-                if index == path_components.len() - 2 {
+                if child.id != root_id && index == path_components.len() - 2 {
                     return Err(CoreError::PathTaken);
                 }
 
                 if child.file_type == Folder {
                     current = child;
                     continue 'path; // Child exists, onto the next one
+                } else {
+                    return Err(CoreError::FileNotFolder);
                 }
             }
         }
@@ -54,21 +63,28 @@ pub fn create_at_path(config: &Config, path_and_name: &str) -> Result<FileMetada
             Document
         };
 
-        current = file_service::create(config, next_name, current.id, file_type)?;
+        current = file_service::apply_create(
+            &files,
+            file_type,
+            current.id,
+            next_name,
+            &account.username,
+        )?;
+        files.push(current.clone());
+        file_repo::insert_metadatum(config, RepoSource::Local, &current)?;
     }
 
     Ok(current)
 }
 
-pub fn get_by_path(config: &Config, path: &str) -> Result<FileMetadata, CoreError> {
-    let root = file_metadata_repo::get_root(config)?
-        .ok_or_else(|| CoreError::Unexpected(String::from("no root")))?;
-
+pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
     let paths = split_path(path);
-    let mut current = root;
 
-    for (i, value) in paths.iter().enumerate() {
-        if *value != file_encryption_service::get_name(config, &current)? {
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let mut current = utils::find_root(&files)?;
+
+    for (i, &value) in paths.iter().enumerate() {
+        if value != current.decrypted_name {
             return Err(CoreError::FileNonexistent);
         }
 
@@ -76,13 +92,11 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<FileMetadata, CoreErro
             return Ok(current);
         }
 
-        let children = file_metadata_repo::get_children_non_recursively(config, current.id)?;
+        let children = utils::find_children(&files, current.id);
         let mut found_child = false;
 
         for child in children {
-            let child_name = file_encryption_service::get_name(config, &child)?;
-
-            if child_name == paths[i + 1] {
+            if child.decrypted_name == paths[i + 1] {
                 current = child;
                 found_child = true;
             }
@@ -113,7 +127,7 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, CoreError> {
 }
 
 pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
-    let files = file_metadata_repo::get_all(config)?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
 
     let mut filtered_files = files.clone();
 
@@ -132,17 +146,16 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
         let mut current = file.clone();
         let mut current_path = String::from("");
         while current.id != current.parent {
-            let current_name = file_encryption_service::get_name(config, &current)?;
             if current.file_type == Document {
-                current_path = current_name;
+                current_path = current.decrypted_name;
             } else {
-                current_path = format!("{}/{}", current_name, current_path);
+                current_path = format!("{}/{}", current.decrypted_name, current_path);
             }
-            current = file_metadata_repo::get(config, current.parent)?;
+            current =
+                file_repo::get_not_deleted_metadata(config, RepoSource::Local, current.parent)?;
         }
 
-        let root_name = file_encryption_service::get_name(config, &current)?;
-        current_path = format!("{}/{}", root_name, current_path);
+        current_path = format!("{}/{}", current.decrypted_name, current_path);
         paths.push(current_path.to_string());
     }
 
@@ -151,21 +164,21 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
 
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
     let mut current_id = id;
-    let mut current_metadata = file_metadata_repo::get(config, current_id)?;
+    let mut current_metadata =
+        file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
     let mut path = String::from("");
 
     let is_folder = current_metadata.file_type == Folder;
 
     while current_metadata.parent != current_id {
-        let name = file_encryption_service::get_name(config, &current_metadata)?;
-        path = format!("{}/{}", name, path);
+        path = format!("{}/{}", current_metadata.decrypted_name, path);
         current_id = current_metadata.parent;
-        current_metadata = file_metadata_repo::get(config, current_id)?
+        current_metadata =
+            file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
     }
 
     {
-        let name = file_encryption_service::get_name(config, &current_metadata)?;
-        path = format!("{}/{}", name, path);
+        path = format!("{}/{}", current_metadata.decrypted_name, path);
     }
     // Remove the last forward slash if not a folder.
     if !is_folder {
@@ -180,4 +193,419 @@ fn split_path(path: &str) -> Vec<&str> {
         .into_iter()
         .filter(|s| !s.is_empty()) // Remove the trailing empty element in the case this is a folder
         .collect::<Vec<&str>>()
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use lockbook_models::file_metadata::FileType;
+
+    use crate::model::repo::RepoSource;
+    use crate::model::state::temp_config;
+    use crate::repo::{account_repo, file_repo};
+    use crate::service::path_service::Filter;
+    use crate::service::{file_service, path_service, test_utils};
+    use crate::CoreError;
+
+    #[test]
+    fn create_at_path_document() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let doc = path_service::create_at_path(config, &format!("{}/document", &account.username))
+            .unwrap();
+
+        assert_eq!(doc.file_type, FileType::Document);
+    }
+
+    #[test]
+    fn create_at_path_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let folder =
+            path_service::create_at_path(config, &format!("{}/folder/", &account.username))
+                .unwrap();
+
+        assert_eq!(folder.file_type, FileType::Folder);
+    }
+
+    #[test]
+    fn create_at_path_in_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let folder =
+            path_service::create_at_path(config, &format!("{}/folder/", &account.username))
+                .unwrap();
+        let document =
+            path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
+
+        assert_eq!(folder.file_type, FileType::Folder);
+        assert_eq!(document.file_type, FileType::Document);
+    }
+
+    #[test]
+    fn create_at_path_missing_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let document =
+            path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
+        let folder =
+            path_service::get_by_path(config, &format!("{}/folder", &account.username)).unwrap();
+
+        assert_eq!(folder.file_type, FileType::Folder);
+        assert_eq!(document.file_type, FileType::Document);
+    }
+
+    #[test]
+    fn create_at_path_missing_folders() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let document = path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        let folder1 =
+            path_service::get_by_path(config, &format!("{}/folder", &account.username)).unwrap();
+        let folder2 =
+            path_service::get_by_path(config, &format!("{}/folder/folder", &account.username))
+                .unwrap();
+
+        assert_eq!(folder1.file_type, FileType::Folder);
+        assert_eq!(folder2.file_type, FileType::Folder);
+        assert_eq!(document.file_type, FileType::Document);
+    }
+
+    #[test]
+    fn create_at_path_path_contains_empty_file_name() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let result =
+            path_service::create_at_path(config, &format!("{}//document", &account.username));
+
+        assert_eq!(result, Err(CoreError::PathContainsEmptyFileName));
+    }
+
+    #[test]
+    fn create_at_path_path_starts_with_non_root() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let result = path_service::create_at_path(
+            config,
+            &format!("{}/folder/document", "not-account-username"),
+        );
+
+        assert_eq!(result, Err(CoreError::PathStartsWithNonRoot));
+    }
+
+    #[test]
+    fn create_at_path_path_taken() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+            .unwrap();
+        let result =
+            path_service::create_at_path(config, &format!("{}/folder/document", &account.username));
+
+        assert_eq!(result, Err(CoreError::PathTaken));
+    }
+
+    #[test]
+    fn create_at_path_not_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        path_service::create_at_path(config, &format!("{}/not-folder", &account.username)).unwrap();
+        let result = path_service::create_at_path(
+            config,
+            &format!("{}/not-folder/document", &account.username),
+        );
+
+        assert_eq!(result, Err(CoreError::FileNotFolder));
+    }
+
+    #[test]
+    fn get_by_path_document() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let created_document =
+            path_service::create_at_path(config, &format!("{}/document", &account.username))
+                .unwrap();
+        let document =
+            path_service::get_by_path(config, &format!("{}/document", &account.username)).unwrap();
+
+        assert_eq!(created_document, document);
+    }
+
+    #[test]
+    fn get_by_path_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let created_folder =
+            path_service::create_at_path(config, &format!("{}/folder/", &account.username))
+                .unwrap();
+        let folder =
+            path_service::get_by_path(config, &format!("{}/folder", &account.username)).unwrap();
+
+        assert_eq!(created_folder, folder);
+    }
+
+    #[test]
+    fn get_by_path_document_in_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let created_document =
+            path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
+        let document =
+            path_service::get_by_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
+
+        assert_eq!(created_document, document);
+    }
+
+    #[test]
+    fn get_path_by_id_document() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let document =
+            path_service::create_at_path(config, &format!("{}/document", &account.username))
+                .unwrap();
+        let document_path = path_service::get_path_by_id(config, document.id).unwrap();
+
+        assert_eq!(&document_path, &format!("{}/document", &account.username));
+    }
+
+    #[test]
+    fn get_path_by_id_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let folder =
+            path_service::create_at_path(config, &format!("{}/folder/", &account.username))
+                .unwrap();
+        let folder_path = path_service::get_path_by_id(config, folder.id).unwrap();
+
+        assert_eq!(&folder_path, &format!("{}/folder/", &account.username));
+    }
+
+    #[test]
+    fn get_path_by_id_document_in_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        let document =
+            path_service::create_at_path(config, &format!("{}/folder/document", &account.username))
+                .unwrap();
+        let document_path = path_service::get_path_by_id(config, document.id).unwrap();
+
+        assert_eq!(
+            &document_path,
+            &format!("{}/folder/document", &account.username)
+        );
+    }
+
+    #[test]
+    fn get_all_paths() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/folder/", &account.username),
+        )
+        .unwrap();
+
+        let all_paths = path_service::get_all_paths(config, None).unwrap();
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/document", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));
+        assert_eq!(all_paths.len(), 5);
+    }
+
+    #[test]
+    fn get_all_paths_documents_only() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/folder/", &account.username),
+        )
+        .unwrap();
+
+        let all_paths = path_service::get_all_paths(config, Some(Filter::DocumentsOnly)).unwrap();
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/document", &account.username)));
+        assert_eq!(all_paths.len(), 1);
+    }
+
+    #[test]
+    fn get_all_paths_folders_only() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/folder/", &account.username),
+        )
+        .unwrap();
+
+        let all_paths = path_service::get_all_paths(config, Some(Filter::FoldersOnly)).unwrap();
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));
+        assert_eq!(all_paths.len(), 4);
+    }
+
+    #[test]
+    fn get_all_paths_leaf_nodes_only() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_repo::insert_metadatum(config, RepoSource::Local, &root).unwrap();
+
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/document", &account.username),
+        )
+        .unwrap();
+        path_service::create_at_path(
+            config,
+            &format!("{}/folder/folder/folder/", &account.username),
+        )
+        .unwrap();
+
+        let all_paths = path_service::get_all_paths(config, Some(Filter::LeafNodesOnly)).unwrap();
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/document", &account.username)));
+        assert_eq!(all_paths.len(), 2);
+    }
 }

@@ -34,8 +34,6 @@ mod unit_tests_file {
     fn write_and_dump() {
         let config = temp_config();
 
-        println!("{:?}", config);
-
         let data = "noice";
 
         local_storage::write(&config, "files", "a.txt", data).unwrap();

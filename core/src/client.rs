@@ -141,5 +141,6 @@ mod request_common_tests {
         assert_matches!(result, Err(ApiError::<NewAccountError>::ExpiredAuth));
     }
 
-    // TODO add a test for bad signatures
+    // todo: these are actually integration tests
+    // todo: test for invalid signature, signature mismatch during create account request
 }

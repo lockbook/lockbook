@@ -25,6 +25,24 @@ mod new_account_tests {
         assert_matches!(
             result,
             Err(ApiError::<NewAccountError>::Endpoint(
+                NewAccountError::PublicKeyTaken
+            ))
+        );
+    }
+
+    #[test]
+    fn new_account_duplicate_username() {
+        let account = generate_account();
+        let (root, _) = generate_root_metadata(&account);
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+
+        let mut account2 = generate_account();
+        account2.username = account.username;
+        let (root2, _) = generate_root_metadata(&account2);
+        let result = client::request(&account2, NewAccountRequest::new(&account2, &root2));
+        assert_matches!(
+            result,
+            Err(ApiError::<NewAccountError>::Endpoint(
                 NewAccountError::UsernameTaken
             ))
         );
@@ -33,12 +51,8 @@ mod new_account_tests {
     #[test]
     fn new_account_invalid_username() {
         let mut account = generate_account();
-        let (mut root, _) = generate_root_metadata(&account);
-        let access_key = root.user_access_keys[&account.username].clone();
-        root.user_access_keys.remove(&account.username);
         account.username += " ";
-        root.user_access_keys
-            .insert(account.username.clone(), access_key);
+        let (root, _) = generate_root_metadata(&account);
 
         let result = client::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
@@ -48,62 +62,4 @@ mod new_account_tests {
             ))
         );
     }
-
-    // #[test]
-    // fn new_account_invalid_public_key() {
-    //     let account = generate_account();
-    //     let folder_id = Uuid::new_v4();
-    //     let folder_key = AESImpl::generate_key();
-
-    //     assert_matches!(
-    //         DefaultClient::new_account(
-    //                 //             &account.username,
-    //             &sign(&account),
-    //             RSAPrivateKey::from_components(
-    //                 BigUint::from_bytes_be(b"a"),
-    //                 BigUint::from_bytes_be(b"a"),
-    //                 BigUint::from_bytes_be(b"a"),
-    //                 vec![
-    //                     BigUint::from_bytes_le(&vec![105, 101, 60, 173, 19, 153, 3, 192]),
-    //                     BigUint::from_bytes_le(&vec![235, 65, 160, 134, 32, 136, 6, 241]),
-    //                 ],
-    //             )
-    //             .to_public_key(),
-    //             folder_id,
-    //             FolderAccessInfo {
-    //                 folder_id: folder_id,
-    //                 access_key: aes_encrypt(&folder_key, &folder_key),
-    //             },
-    //             rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-    //         ),
-    //         Err(ApiError::<NewAccountError>::Endpoint(
-    //             NewAccountError::InvalidPublicKey
-    //         ))
-    //     );
-    // }
-
-    // #[test]
-    // fn new_account_invalid_signature() {
-    //     let account = generate_account();
-    //     let folder_id = Uuid::new_v4();
-    //     let folder_key = AESImpl::generate_key();
-
-    //     assert_matches!(
-    //         DefaultClient::new_account(
-    //                 //             &account.username,
-    //             &SignedValue {
-    //                 content: String::default(),
-    //                 signature: String::default(),
-    //             },
-    //             account.private_key.to_public_key(),
-    //             folder_id,
-    //             FolderAccessInfo {
-    //                 folder_id: folder_id,
-    //                 access_key: aes_encrypt(&folder_key, &folder_key),
-    //             },
-    //             rsa_encrypt(&account.private_key.to_public_key(), &folder_key)
-    //         ),
-    //         Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::InvalidAuth))
-    //     );
-    // }
 }

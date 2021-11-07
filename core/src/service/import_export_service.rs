@@ -1,9 +1,10 @@
 use crate::model::client_conversion;
 use crate::model::client_conversion::ClientFileMetadata;
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::file_metadata_repo;
-use crate::service::{file_service, path_service};
-use crate::CoreError;
+use crate::repo::file_repo;
+use crate::service::path_service;
+use crate::{utils, CoreError};
 use lockbook_models::file_metadata::FileType;
 use std::fs;
 use std::fs::{DirEntry, OpenOptions};
@@ -22,7 +23,9 @@ pub fn import_file(
     parent: Uuid,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    if file_metadata_repo::get(config, parent)?.is_document() {
+    if file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type
+        != FileType::Folder
+    {
         return Err(CoreError::FileNotFolder);
     }
 
@@ -72,7 +75,7 @@ fn import_file_recursively(
             Err(err) => return Err(err),
         };
 
-        file_service::write_document(config, file_metadata.id, content.as_slice())?;
+        file_repo::insert_document(config, RepoSource::Local, &file_metadata, &content)?;
     } else {
         let children: Vec<Result<DirEntry, std::io::Error>> =
             fs::read_dir(disk_path).map_err(CoreError::from)?.collect();
@@ -112,7 +115,7 @@ pub fn export_file(
 
     let file_metadata = client_conversion::generate_client_file_metadata(
         config,
-        &file_metadata_repo::get(config, id)?,
+        &file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?,
     )?;
     export_file_recursively(config, &file_metadata, &destination, edit, &export_progress)
 }
@@ -135,8 +138,8 @@ fn export_file_recursively(
 
     match parent_file_metadata.file_type {
         FileType::Folder => {
-            let children =
-                file_metadata_repo::get_children_non_recursively(config, parent_file_metadata.id)?;
+            let all = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+            let children = utils::find_children(&all, parent_file_metadata.id);
             fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
             for child in children.iter() {
@@ -167,7 +170,12 @@ fn export_file_recursively(
             .map_err(CoreError::from)?;
 
             file.write_all(
-                file_service::read_document(config, parent_file_metadata.id)?.as_slice(),
+                file_repo::get_not_deleted_document(
+                    config,
+                    RepoSource::Local,
+                    parent_file_metadata.id,
+                )?
+                .as_slice(),
             )
             .map_err(CoreError::from)?;
         }

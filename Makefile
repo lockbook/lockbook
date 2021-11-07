@@ -169,7 +169,7 @@ local_store_of_state: db_container
 		-f containers/docker-compose-integration-tests.yml \
 		-f containers/docker-compose-local-dev.yml \
 		--project-name=lockbook-$(hash) \
-		up -V --detach config_indexdb
+		up -V --detach pgbouncer
 	HASH=$(hash) docker-compose \
 		-f containers/docker-compose-integration-tests.yml \
 		-f containers/docker-compose-local-dev.yml \

@@ -1,20 +1,13 @@
-use crate::model::state::Config;
-use crate::repo::file_metadata_repo;
-use crate::service::file_service;
-use crate::service::integrity_service::TestRepoError::{
-    Core, CycleDetected, DocumentReadError, DocumentTreatedAsFolder, FileNameContainsSlash,
-    FileNameEmpty, FileOrphaned, NameConflictDetected, NoRootFolder,
-};
-use crate::CoreError;
-use lockbook_models::file_metadata::FileMetadata;
-use lockbook_models::file_metadata::FileType::{Document, Folder};
-use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use uuid::Uuid;
 
-use super::file_encryption_service;
-use crate::service::drawing_service::get_drawing;
-use crate::service::path_service::get_path_by_id;
+use crate::model::repo::RepoSource;
+use crate::model::state::Config;
+use crate::repo::{file_repo, metadata_repo, root_repo};
+use crate::service::integrity_service::TestRepoError::DocumentReadError;
+use crate::service::{drawing_service, file_service, path_service};
+use crate::{utils, CoreError};
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+use uuid::Uuid;
 
 const UTF8_SUFFIXES: [&str; 12] = [
     "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
@@ -41,93 +34,65 @@ pub enum Warning {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoError> {
-    let root = file_metadata_repo::get_root(config)
-        .map_err(Core)?
-        .ok_or(NoRootFolder)?;
+    root_repo::maybe_get(config)
+        .map_err(TestRepoError::Core)?
+        .ok_or(TestRepoError::NoRootFolder)?;
 
-    let all = file_metadata_repo::get_all(config).map_err(Core)?;
+    let files_encrypted = utils::stage_encrypted(
+        &metadata_repo::get_all(config, RepoSource::Base).map_err(TestRepoError::Core)?,
+        &metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?,
+    )
+    .into_iter()
+    .map(|(f, _)| f)
+    .collect::<Vec<FileMetadata>>();
 
-    {
-        let document_with_children = all
-            .clone()
-            .into_iter()
-            .filter(|f| f.file_type == Document)
-            .filter(|doc| all.clone().into_iter().any(|child| child.parent == doc.id))
-            .last();
-
-        if let Some(file) = document_with_children {
-            return Err(DocumentTreatedAsFolder(file.id));
+    for file_encrypted in &files_encrypted {
+        if utils::maybe_find_encrypted(&files_encrypted, file_encrypted.parent).is_none() {
+            return Err(TestRepoError::FileOrphaned(file_encrypted.id));
         }
     }
 
-    // Find files that don't descend from root
-    {
-        let mut not_orphaned = HashMap::new();
-        not_orphaned.insert(root.id, root);
-
-        for file in all.clone() {
-            let mut visited: HashMap<Uuid, FileMetadata> = HashMap::new();
-            let mut current = file.clone();
-            'parent_finder: loop {
-                if visited.contains_key(&current.id) {
-                    return Err(CycleDetected(current.id));
-                }
-                visited.insert(current.id, current.clone());
-
-                match file_metadata_repo::maybe_get(config, current.parent).map_err(Core)? {
-                    None => {
-                        return Err(FileOrphaned(current.id));
-                    }
-                    Some(parent) => {
-                        // No Problems
-                        if not_orphaned.contains_key(&parent.id) {
-                            for node in visited.values() {
-                                not_orphaned.insert(node.id, node.clone());
-                            }
-
-                            break 'parent_finder;
-                        } else {
-                            current = parent.clone();
-                        }
-                    }
-                }
-            }
-        }
+    let maybe_self_descendant = file_service::get_invalid_cycles_encrypted(&files_encrypted, &[])
+        .map_err(TestRepoError::Core)?
+        .into_iter()
+        .next();
+    if let Some(self_descendant) = maybe_self_descendant {
+        return Err(TestRepoError::CycleDetected(self_descendant));
     }
 
-    // Find files with invalid names
-    for file in all.clone() {
-        let name = file_encryption_service::get_name(config, &file).map_err(Core)?;
-        if name.is_empty() {
-            return Err(FileNameEmpty(file.id));
-        }
-
-        if name.contains('/') {
-            return Err(FileNameContainsSlash(file.id));
-        }
+    let files =
+        file_repo::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
+    let maybe_doc_with_children = utils::filter_documents(&files)
+        .into_iter()
+        .find(|d| !utils::find_children(&files, d.id).is_empty());
+    if let Some(doc) = maybe_doc_with_children {
+        return Err(TestRepoError::DocumentTreatedAsFolder(doc.id));
     }
 
-    // Find naming conflicts
-    {
-        for file in all.iter().filter(|f| f.file_type == Folder) {
-            let children =
-                file_metadata_repo::get_children_non_recursively(config, file.id).map_err(Core)?;
-            let mut children_set = HashSet::new();
-            for child in children {
-                let name = file_encryption_service::get_name(config, &child).map_err(Core)?;
-                if children_set.contains(&name) {
-                    return Err(NameConflictDetected(child.id));
-                }
+    let maybe_file_with_empty_name = files.iter().find(|f| f.decrypted_name.is_empty());
+    if let Some(file_with_empty_name) = maybe_file_with_empty_name {
+        return Err(TestRepoError::FileNameEmpty(file_with_empty_name.id));
+    }
 
-                children_set.insert(name);
-            }
-        }
+    let maybe_file_with_name_with_slash = files.iter().find(|f| f.decrypted_name.contains('/'));
+    if let Some(file_with_name_with_slash) = maybe_file_with_name_with_slash {
+        return Err(TestRepoError::FileNameContainsSlash(
+            file_with_name_with_slash.id,
+        ));
+    }
+
+    let maybe_path_conflict = file_service::get_path_conflicts(&files, &[])
+        .map_err(TestRepoError::Core)?
+        .into_iter()
+        .next();
+    if let Some(path_conflict) = maybe_path_conflict {
+        return Err(TestRepoError::NameConflictDetected(path_conflict.existing));
     }
 
     let mut warnings = Vec::new();
-    for file in all.clone() {
-        if file.file_type == Document {
-            let file_content = file_service::read_document(config, file.id)
+    for file in files {
+        if file.file_type == FileType::Document {
+            let file_content = file_repo::get_document(config, RepoSource::Local, file.id)
                 .map_err(|err| DocumentReadError(file.id, err))?;
 
             if file_content.len() as u64 == 0 {
@@ -135,7 +100,8 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
                 continue;
             }
 
-            let file_path = get_path_by_id(config, file.id).map_err(Core)?;
+            let file_path =
+                path_service::get_path_by_id(config, file.id).map_err(TestRepoError::Core)?;
             let extension = Path::new(&file_path)
                 .extension()
                 .and_then(|ext| ext.to_str())
@@ -146,7 +112,13 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
                 continue;
             }
 
-            if extension == "draw" && get_drawing(config, file.id).is_err() {
+            if extension == "draw"
+                && drawing_service::parse_drawing(
+                    &file_repo::get_document(config, RepoSource::Local, file.id)
+                        .map_err(TestRepoError::Core)?,
+                )
+                .is_err()
+            {
                 warnings.push(Warning::UnreadableDrawing(file.id));
             }
         }

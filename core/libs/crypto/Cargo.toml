@@ -7,13 +7,13 @@ edition = "2018"
 [dependencies]
 aead = "0.4.2"
 aes-gcm = "0.9.3"
-libsecp256k1 = "0.5.0"
+bincode = "1.2.1"
+libsecp256k1 = "0.7.0"
 sha2 = "0.9.0"
 hmac = "0.11.0"
-rand = "0.7"
+rand = "0.8.4"
 lockbook-models = { path = "../models" }
 serde = { version = "1.0", features = ["derive"] }
-bincode = "1.2.1"
 
 [dev-dependencies]
 uuid = { version = "0.8.1", features = ["v4", "serde"] }

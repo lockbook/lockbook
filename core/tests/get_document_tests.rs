@@ -6,9 +6,11 @@ mod get_document_tests {
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
     use lockbook_core::service::test_utils::{
-        aes_decrypt, aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
+        generate_account, generate_file_metadata, generate_root_metadata,
     };
     use lockbook_models::api::*;
+    use lockbook_models::crypto::AESEncrypted;
+    use lockbook_models::file_metadata::FileMetadataDiff;
     use lockbook_models::file_metadata::FileType;
     use uuid::Uuid;
 
@@ -20,32 +22,78 @@ mod get_document_tests {
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, doc_key) =
+        let (doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.content_version = client::request(
+        client::request(
             &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
+        )
+        .unwrap();
+
+        // get metadata version
+        let metadata_version = client::request(
+            &account,
+            GetUpdatesRequest {
+                since_metadata_version: root.metadata_version,
+            },
         )
         .unwrap()
-        .new_metadata_and_content_version;
+        .file_metadata
+        .iter()
+        .filter(|&f| f.id == doc.id)
+        .next()
+        .unwrap()
+        .metadata_version;
+
+        // update document content
+        client::request(
+            &account,
+            ChangeDocumentContentRequest {
+                id: doc.id,
+                old_metadata_version: metadata_version,
+                new_content: AESEncrypted {
+                    value: vec![69],
+                    nonce: vec![69],
+                    _t: Default::default(),
+                },
+            },
+        )
+        .unwrap();
+
+        // get content version
+        let content_version = client::request(
+            &account,
+            GetUpdatesRequest {
+                since_metadata_version: metadata_version,
+            },
+        )
+        .unwrap()
+        .file_metadata
+        .iter()
+        .filter(|&f| f.id == doc.id)
+        .next()
+        .unwrap()
+        .content_version;
 
         // get document
-        let result = aes_decrypt(
-            &doc_key,
-            &client::request(
-                &account,
-                GetDocumentRequest {
-                    id: doc.id,
-                    content_version: doc.content_version,
-                },
-            )
-            .unwrap()
-            .content,
+        let result = &client::request(
+            &account,
+            GetDocumentRequest {
+                id: doc.id,
+                content_version: content_version,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            result.content,
+            Some(AESEncrypted {
+                value: vec!(69),
+                nonce: vec!(69),
+                _t: Default::default()
+            })
         );
-        assert_eq!(result, String::from("doc content").into_bytes());
     }
 
     #[test]

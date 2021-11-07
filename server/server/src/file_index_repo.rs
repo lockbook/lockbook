@@ -1,11 +1,11 @@
 use crate::config::IndexDbConfig;
+use base64;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::{
     EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
 };
-use lockbook_models::file_metadata::FileMetadata;
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::{FileMetadata, FileMetadataDiff, FileType};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
 use std::array::IntoIter;
@@ -41,6 +41,221 @@ pub async fn connect(config: &IndexDbConfig) -> Result<PgPool, ConnectError> {
         .connect_with(pool_options)
         .await
         .map_err(ConnectError::Postgres)
+}
+
+#[derive(Debug)]
+pub enum UpsertFileMetadataError {
+    Postgres(sqlx::Error),
+    Serialize(serde_json::Error),
+    FailedPreconditions,
+}
+
+pub async fn upsert_file_metadata(
+    transaction: &mut Transaction<'_, Postgres>,
+    public_key: &PublicKey,
+    upsert: &FileMetadataDiff,
+) -> Result<u64, UpsertFileMetadataError> {
+    let old_parent_param = upsert
+        .old_parent_and_name
+        .clone()
+        .map(|(parent, _)| format!("{}", parent))
+        .unwrap_or_default();
+    let old_name_param = match &upsert
+        .old_parent_and_name
+        .clone()
+        .map(|(_, name)| name.hmac)
+    {
+        Some(name_hmac) => base64::encode(name_hmac),
+        None => String::from(""),
+    };
+
+    sqlx::query!(
+        r#"
+WITH
+    preconditions AS (
+        SELECT
+            -- both args empty and file does not exist...
+            ($9 = '' AND $10 = '' AND NOT EXISTS(SELECT * FROM files WHERE id = $1)) OR
+            -- ...or neither arg empty and matching file exists
+            ($9 != '' AND $10 != '' AND EXISTS(SELECT * FROM files WHERE id = $1 AND is_folder = $4 AND parent = $9 AND name_hmac = $10)) AS met
+            UNION ALL
+        -- new parent must be a folder if it exists already
+        SELECT NOT EXISTS(SELECT * FROM files WHERE id = $2 AND NOT is_folder) AS met
+            UNION ALL
+        -- cannot have children if document
+        SELECT $4 OR NOT EXISTS(SELECT * FROM files WHERE parent = $1) AS met
+    ),
+    insert AS (
+        INSERT INTO files (
+            id,
+            parent,
+            parent_access_key,
+            is_folder,
+            name_encrypted,
+            name_hmac,
+            owner,
+            deleted,
+            metadata_version,
+            content_version,
+            document_size
+        )
+        SELECT
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
+            0,
+            0
+        ON CONFLICT (id) DO UPDATE SET
+            metadata_version =
+                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
+                THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
+                ELSE files.metadata_version END),
+            parent =
+                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
+                THEN $2
+                ELSE files.parent END),
+            parent_access_key =
+                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
+                THEN $3
+                ELSE files.parent_access_key END),
+            name_encrypted =
+                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
+                THEN $5
+                ELSE files.name_encrypted END),
+            name_hmac =
+                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
+                THEN $6
+                ELSE files.name_hmac END),
+            deleted =
+                (CASE WHEN (SELECT BOOL_AND(met) FROM preconditions)
+                THEN excluded.deleted OR $8
+                ELSE files.deleted END)
+    )
+SELECT
+    BOOL_AND(met) AS "preconditions_met!",
+    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS "version!"
+FROM preconditions;
+        "#,
+        &format!("{}", upsert.id),
+        &format!("{}", upsert.new_parent),
+        &serde_json::to_string(&upsert.new_folder_access_keys)
+            .map_err(UpsertFileMetadataError::Serialize)?,
+        &(upsert.file_type == FileType::Folder),
+        &serde_json::to_string(&upsert.new_name.encrypted_value)
+            .map_err(UpsertFileMetadataError::Serialize)?,
+        &base64::encode(upsert.new_name.hmac),
+        &serde_json::to_string(public_key).map_err(UpsertFileMetadataError::Serialize)?,
+        &upsert.new_deleted,
+        &old_parent_param,
+        &old_name_param,
+    )
+    .fetch_one(transaction)
+    .await
+    .map(|row| {
+        if !row.preconditions_met {
+            Err(UpsertFileMetadataError::FailedPreconditions)
+        } else {
+            Ok(row.version as u64)
+        }
+    })
+    .map_err(UpsertFileMetadataError::Postgres)?
+}
+
+#[derive(Debug)]
+pub enum CheckCyclesError {
+    Postgres(sqlx::Error),
+    Serialize(serde_json::Error),
+    CyclesDetected,
+}
+
+pub async fn check_cycles(
+    transaction: &mut Transaction<'_, Postgres>,
+    public_key: &PublicKey,
+) -> Result<(), CheckCyclesError> {
+    sqlx::query!(
+        r#"
+        WITH RECURSIVE not_sure AS (
+            SELECT
+                FALSE AS i,
+                id AS id,
+                parent AS parent,
+                (SELECT parent_files.parent FROM files AS parent_files WHERE parent_files.id = files.parent) AS grandparent
+            FROM files
+            WHERE owner = $1
+                UNION DISTINCT
+            SELECT
+                TRUE AS i,
+                id AS id,
+                (SELECT parent_files.parent FROM files AS parent_files WHERE parent_files.id = not_sure.parent) AS parent,
+                (SELECT grandparent_files.parent FROM files AS grandparent_files WHERE grandparent_files.id = (SELECT parent_files.parent FROM files AS parent_files WHERE id = (SELECT files.parent FROM files WHERE id = not_sure.parent))) AS grandparent
+            FROM not_sure
+            WHERE parent != grandparent
+        )
+        SELECT COUNT(*) != 0 AS "has_cycles!" FROM not_sure WHERE id = parent AND i;
+        "#,
+        &serde_json::to_string(public_key).map_err(CheckCyclesError::Serialize)?,
+    )
+    .fetch_one(transaction)
+    .await
+    .map(|row| if row.has_cycles { Err(CheckCyclesError::CyclesDetected) } else { Ok(()) })
+    .map_err(CheckCyclesError::Postgres)?
+}
+
+#[derive(Debug)]
+pub enum ApplyRecursiveDeletionsError {
+    Postgres(sqlx::Error),
+    Serialize(serde_json::Error),
+    UuidDeserialize(uuid::Error),
+}
+
+pub async fn apply_recursive_deletions(
+    transaction: &mut Transaction<'_, Postgres>,
+    public_key: &PublicKey,
+) -> Result<Vec<Uuid>, ApplyRecursiveDeletionsError> {
+    sqlx::query!(
+        r#"
+        WITH RECURSIVE effective_deleted AS (
+            SELECT
+                id,
+                parent,
+                deleted
+            FROM files
+            WHERE owner = $1
+                UNION DISTINCT
+            SELECT
+                effective_deleted.id,
+                files.parent,
+                effective_deleted.deleted OR files.deleted
+            FROM effective_deleted
+            JOIN files ON effective_deleted.parent = files.id
+        ),
+        deletions AS (
+            SELECT
+                effective_deleted.id
+            FROM effective_deleted
+            JOIN files ON effective_deleted.id = files.id
+            WHERE effective_deleted.deleted AND NOT files.deleted
+        )
+        UPDATE files SET
+            deleted = true,
+            metadata_version = CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
+        WHERE id IN (SELECT id FROM deletions)
+        RETURNING id AS "id!";
+        "#,
+        &serde_json::to_string(public_key).map_err(ApplyRecursiveDeletionsError::Serialize)?,
+    )
+    .fetch_all(transaction)
+    .await
+    .map_err(ApplyRecursiveDeletionsError::Postgres)?
+    .iter()
+    .map(|row| Uuid::parse_str(&row.id).map_err(ApplyRecursiveDeletionsError::UuidDeserialize))
+    .collect()
 }
 
 #[derive(Debug)]
@@ -85,9 +300,7 @@ RETURNING
     new.metadata_version AS new_metadata_version,
     old.is_folder AS is_folder;
         "#,
-        &id.to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
+        &format!("{}", id),
         &(old_metadata_version as i64),
         &(document_size_bytes as i64)
     )
@@ -135,60 +348,51 @@ pub async fn create_file(
     match sqlx::query!(
         r#"
 WITH RECURSIVE file_ancestors AS (
-        SELECT * FROM files AS new_file_parent
-        WHERE new_file_parent.id = $2
-            UNION DISTINCT
-        SELECT ancestors.* FROM files AS ancestors
-        JOIN file_ancestors ON file_ancestors.parent = ancestors.id
-    ),
-    insert_cte AS (
-        INSERT INTO files (
-            id,
-            parent,
-            parent_access_key,
-            is_folder,
-            name_encrypted,
-            name_hmac,
-            owner,
-            deleted,
-            metadata_version,
-            content_version,
-            document_size
-        )
-        SELECT
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            (
-                SELECT name
-                FROM accounts
-                WHERE public_key = $7
-            ),
-            FALSE,
-            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
-            CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
-            $8
-        WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)
-        RETURNING NULL
+    SELECT * FROM files AS new_file_parent
+    WHERE new_file_parent.id = $2
+        UNION DISTINCT
+    SELECT ancestors.* FROM files AS ancestors
+    JOIN file_ancestors ON file_ancestors.parent = ancestors.id
+),
+insert_cte AS (
+    INSERT INTO files (
+        id,
+        parent,
+        parent_access_key,
+        is_folder,
+        name_encrypted,
+        name_hmac,
+        owner,
+        deleted,
+        metadata_version,
+        content_version,
+        document_size
     )
+    SELECT
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        FALSE,
+        CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
+        CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
+        $8
+    WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)
+    RETURNING NULL
+)
 SELECT
     CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS "metadata_version!",
     EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS "ancestor_deleted!";
         "#,
-        &id.to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
-        &parent
-            .to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
+        &format!("{}", id),
+        &format!("{}", parent),
         &serde_json::to_string(&access_key).map_err(CreateFileError::Serialize)?,
         &(file_type == FileType::Folder),
         &serde_json::to_string(&name.encrypted_value).map_err(CreateFileError::Serialize)?,
-        &serde_json::to_string(&name.hmac).map_err(CreateFileError::Serialize)?,
+        &base64::encode(name.hmac),
         &serde_json::to_string(public_key).map_err(CreateFileError::Serialize)?,
         (maybe_document_bytes.map(|bytes_u64| bytes_u64 as i64))
     )
@@ -219,296 +423,6 @@ pub struct FileDeleteResponse {
     pub old_content_version: u64,
     pub new_metadata_version: u64,
     pub is_folder: bool,
-}
-
-#[derive(Debug)]
-pub enum DeleteFileError {
-    Postgres(sqlx::Error),
-    Serialize(serde_json::Error),
-    Deserialize(serde_json::Error),
-    UuidDeserialize(uuid::Error),
-    DoesNotExist,
-    Deleted,
-    IllegalRootChange,
-}
-
-pub async fn delete_file(
-    transaction: &mut Transaction<'_, Postgres>,
-    id: Uuid,
-) -> Result<Vec<FileDeleteResponse>, DeleteFileError> {
-    match sqlx::query!(
-        r#"
-WITH RECURSIVE file_descendants AS (
-        SELECT * FROM files AS parent
-        WHERE parent.id = $1
-            UNION
-        SELECT children.* FROM files AS children
-        JOIN file_descendants ON file_descendants.id = children.parent
-    ),
-    old AS (SELECT * FROM files WHERE id IN (SELECT id FROM file_descendants) FOR UPDATE)
-UPDATE files new
-SET
-    document_size =
-        (CASE WHEN
-            NOT old.deleted AND
-            old.id != old.parent
-        THEN
-            (CASE WHEN
-                old.is_folder
-            THEN NULL
-            ELSE 0 END)
-        ELSE old.document_size END),
-    deleted =
-        (CASE WHEN
-            NOT old.deleted AND
-            old.id != old.parent
-        THEN TRUE
-        ELSE old.deleted END),
-    metadata_version =
-        (CASE WHEN
-            NOT old.deleted AND
-            old.id != old.parent
-        THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-        ELSE old.metadata_version END)
-FROM old
-WHERE old.id = new.id
-RETURNING
-    old.id AS id,
-    old.deleted AS old_deleted,
-    old.parent AS parent_id,
-    old.content_version AS old_content_version,
-    new.metadata_version AS new_metadata_version,
-    old.is_folder AS is_folder;
-        "#,
-        &id.to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned()
-    )
-    .fetch_all(transaction)
-    .await
-    .map_err(DeleteFileError::Postgres)?
-    .as_slice()
-    {
-        [] => Err(DeleteFileError::DoesNotExist),
-        rows => rows
-            .iter()
-            .map(|row| {
-                if row.parent_id == row.id {
-                    Err(DeleteFileError::IllegalRootChange)
-                } else if row.id
-                    == *id
-                        .to_simple()
-                        .encode_lower(&mut Uuid::encode_buffer())
-                        .to_owned()
-                    && row.old_deleted
-                {
-                    Err(DeleteFileError::Deleted)
-                } else {
-                    Ok(FileDeleteResponse {
-                        id: Uuid::parse_str(&row.id).map_err(DeleteFileError::UuidDeserialize)?,
-                        old_content_version: row.old_content_version as u64,
-                        new_metadata_version: row.new_metadata_version as u64,
-                        is_folder: row.is_folder,
-                    })
-                }
-            })
-            .collect(),
-    }
-}
-
-#[derive(Debug)]
-pub enum MoveFileError {
-    Postgres(sqlx::Error),
-    Serialize(serde_json::Error),
-    Deleted,
-    DoesNotExist,
-    IncorrectOldVersion,
-    ParentDeleted,
-    FolderMovedIntoDescendants,
-    IllegalRootChange,
-    PathTaken,
-    ParentDoesNotExist,
-}
-
-pub async fn move_file(
-    transaction: &mut Transaction<'_, Postgres>,
-    id: Uuid,
-    old_metadata_version: u64,
-    parent: Uuid,
-    access_key: EncryptedFolderAccessKey,
-) -> Result<u64, MoveFileError> {
-    match sqlx::query!(
-        r#"
-WITH RECURSIVE file_descendants AS (
-        SELECT * FROM files AS parent
-        WHERE parent.id = $1
-            UNION
-        SELECT children.* FROM files AS children
-        JOIN file_descendants ON file_descendants.id = children.parent
-    ),
-    old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE),
-    parent AS (
-        SELECT * FROM files WHERE id = $3
-    )
-UPDATE files new
-SET
-    parent =
-        (CASE WHEN
-            NOT old.deleted
-            AND old.id != old.parent
-            AND old.metadata_version = $2
-            AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $3)
-            AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
-        THEN $3
-        ELSE old.parent END),
-    metadata_version =
-        (CASE WHEN
-            NOT old.deleted
-            AND old.id != old.parent
-            AND old.metadata_version = $2
-            AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $3)
-            AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
-        THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-        ELSE old.metadata_version END),
-    parent_access_key =
-        (CASE WHEN
-            NOT old.deleted
-            AND old.id != old.parent
-            AND old.metadata_version = $2
-            AND NOT EXISTS(SELECT * FROM file_descendants WHERE id = $3)
-            AND EXISTS(SELECT * FROM parent WHERE NOT deleted)
-        THEN $4
-        ELSE old.parent_access_key END)
-FROM old
-LEFT JOIN parent ON TRUE
-WHERE old.id = new.id
-RETURNING
-    old.deleted AS old_deleted,
-    parent.deleted AS "parent_deleted?",
-    old.parent AS parent_id,
-    COALESCE(EXISTS(SELECT * FROM file_descendants WHERE id = $3), FALSE) AS "moved_into_descendant!",
-    EXISTS(SELECT * FROM parent) AS "parent_exists!",
-    old.metadata_version AS old_metadata_version,
-    new.metadata_version AS new_metadata_version,
-    old.is_folder AS is_folder;
-        "#,
-        &id.to_simple().encode_lower(&mut Uuid::encode_buffer()).to_owned(),
-        &(old_metadata_version as i64),
-        &parent.to_simple().encode_lower(&mut Uuid::encode_buffer()).to_owned(),
-        &serde_json::to_string(&access_key).map_err(MoveFileError::Serialize)?,
-    )
-        .fetch_optional(transaction)
-        .await
-    {
-        Ok(Some(row)) => {
-            if row.old_deleted {
-                Err(MoveFileError::Deleted)
-            } else if row.old_metadata_version as u64 != old_metadata_version {
-                Err(MoveFileError::IncorrectOldVersion)
-            } else if row.parent_deleted == Some(true) {
-                Err(MoveFileError::ParentDeleted)
-            } else if !row.parent_exists {
-                Err(MoveFileError::ParentDoesNotExist)
-            } else if &row.parent_id == id.to_simple().encode_lower(&mut Uuid::encode_buffer()) {
-                Err(MoveFileError::IllegalRootChange)
-            } else if row.moved_into_descendant {
-                Err(MoveFileError::FolderMovedIntoDescendants)
-            } else {
-                Ok(row.new_metadata_version as u64)
-            }
-        }
-        Ok(None) => Err(MoveFileError::DoesNotExist),
-        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("uk_files_name_parent") => Err(MoveFileError::PathTaken),
-            _ => Err(MoveFileError::Postgres(sqlx::Error::Database(db_err))),
-        },
-        Err(db_err) => Err(MoveFileError::Postgres(db_err)),
-    }
-}
-
-#[derive(Debug)]
-pub enum RenameFileError {
-    Postgres(sqlx::Error),
-    Serialize(serde_json::Error),
-    Deleted,
-    DoesNotExist,
-    IncorrectOldVersion,
-    IllegalRootChange,
-    PathTaken,
-}
-
-pub async fn rename_file(
-    transaction: &mut Transaction<'_, Postgres>,
-    id: Uuid,
-    old_metadata_version: u64,
-    file_type: FileType,
-    name: &SecretFileName,
-) -> Result<u64, RenameFileError> {
-    match sqlx::query!(
-        r#"
-WITH old AS (SELECT * FROM files WHERE id = $1 FOR UPDATE)
-UPDATE files new
-SET
-    name_encrypted =
-        (CASE WHEN NOT old.deleted
-        AND old.metadata_version = $2
-        AND old.is_folder = $3
-        AND old.id != old.parent
-        THEN $4
-        ELSE old.name_encrypted END),
-    name_hmac =
-        (CASE WHEN NOT old.deleted
-        AND old.metadata_version = $2
-        AND old.is_folder = $3
-        AND old.id != old.parent
-        THEN $5
-        ELSE old.name_hmac END),
-    metadata_version =
-        (CASE WHEN NOT old.deleted
-        AND old.metadata_version = $2
-        AND old.is_folder = $3
-        AND old.id != old.parent
-        THEN CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)
-        ELSE old.metadata_version END)
-FROM old
-WHERE old.id = new.id
-RETURNING
-    old.deleted AS old_deleted,
-    old.metadata_version AS old_metadata_version,
-    old.content_version AS old_content_version,
-    old.parent AS parent_id,
-    new.metadata_version AS new_metadata_version,
-    old.is_folder AS is_folder;
-        "#,
-        &id.to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
-        &(old_metadata_version as i64),
-        &(file_type == FileType::Folder),
-        &serde_json::to_string(&name.encrypted_value).map_err(RenameFileError::Serialize)?,
-        &serde_json::to_string(&name.hmac).map_err(RenameFileError::Serialize)?,
-    )
-    .fetch_optional(transaction)
-    .await
-    {
-        Ok(Some(row)) => {
-            if row.old_deleted {
-                Err(RenameFileError::Deleted)
-            } else if row.old_metadata_version as u64 != old_metadata_version {
-                Err(RenameFileError::IncorrectOldVersion)
-            } else if &row.parent_id == id.to_simple().encode_lower(&mut Uuid::encode_buffer()) {
-                Err(RenameFileError::IllegalRootChange)
-            } else {
-                Ok(row.new_metadata_version as u64)
-            }
-        }
-        Ok(None) => Err(RenameFileError::DoesNotExist),
-        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("uk_files_name_parent") => Err(RenameFileError::PathTaken),
-            _ => Err(RenameFileError::Postgres(sqlx::Error::Database(db_err))),
-        },
-        Err(db_err) => Err(RenameFileError::Postgres(db_err)),
-    }
 }
 
 #[derive(Debug)]
@@ -545,6 +459,7 @@ pub enum GetFilesError {
     Serialize(serde_json::Error),
     Deserialize(serde_json::Error),
     UuidDeserialize(uuid::Error),
+    HmacDeserialize(DeserializeHmacError),
 }
 
 pub async fn get_files(
@@ -559,8 +474,8 @@ SELECT
     accounts.public_key,
     accounts.name AS username
 FROM files
-JOIN accounts ON files.owner = accounts.name
-LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id
+JOIN accounts ON files.owner = accounts.public_key
+LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee
 WHERE
     accounts.public_key = $1;
         "#,
@@ -576,7 +491,7 @@ WHERE
         parent: Uuid::parse_str(&row.parent).map_err(GetFilesError::UuidDeserialize)?,
         name: SecretFileName{
             encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetFilesError::Deserialize)?,
-            hmac: serde_json::from_str(&row.name_hmac).map_err(GetFilesError::Deserialize)?,
+            hmac: deserialize_hmac(&row.name_hmac).map_err(GetFilesError::HmacDeserialize)?,
         },
         owner: row.owner.clone(),
         metadata_version: row.metadata_version as u64,
@@ -615,6 +530,7 @@ pub enum GetUpdatesError {
     Serialize(serde_json::Error),
     Deserialize(serde_json::Error),
     UuidDeserialize(uuid::Error),
+    HmacDeserialize(DeserializeHmacError),
 }
 
 pub async fn get_updates(
@@ -630,8 +546,8 @@ SELECT
     accounts.public_key,
     accounts.name AS username
 FROM files
-JOIN accounts ON files.owner = accounts.name
-LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id
+JOIN accounts ON files.owner = accounts.public_key
+LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee
 WHERE
     accounts.public_key = $1 AND
     metadata_version > $2;
@@ -649,9 +565,9 @@ WHERE
         parent: Uuid::parse_str(&row.parent).map_err(GetUpdatesError::UuidDeserialize)?,
         name: SecretFileName{
             encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetUpdatesError::Deserialize)?,
-            hmac: serde_json::from_str(&row.name_hmac).map_err(GetUpdatesError::Deserialize)?,
+            hmac: deserialize_hmac(&row.name_hmac).map_err(GetUpdatesError::HmacDeserialize)?,
         },
-        owner: row.owner.clone(),
+        owner: row.username.clone(),
         metadata_version: row.metadata_version as u64,
         content_version: row.content_version as u64,
         deleted: row.deleted,
@@ -682,81 +598,11 @@ WHERE
 }
 
 #[derive(Debug)]
-pub enum GetRootError {
-    Postgres(sqlx::Error),
-    Serialize(serde_json::Error),
-    Deserialize(serde_json::Error),
-    UuidDeserialize(uuid::Error),
-}
-
-pub async fn get_root(
-    transaction: &mut Transaction<'_, Postgres>,
-    public_key: &PublicKey,
-) -> Result<FileMetadata, GetRootError> {
-    let row = sqlx::query!(
-        r#"
-SELECT
-    files.*,
-    user_access_keys.encrypted_key AS "encrypted_key?",
-    accounts.public_key,
-    accounts.name AS username
-FROM files
-JOIN accounts ON files.owner = accounts.name
-LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND files.owner = user_access_keys.sharee_id
-WHERE
-    accounts.public_key = $1 AND
-    id = parent;
-        "#,
-        &serde_json::to_string(public_key).map_err(GetRootError::Serialize)?
-    )
-    .fetch_one(transaction)
-    .await
-    .map_err(GetRootError::Postgres)?;
-
-    Ok(FileMetadata {
-        id: Uuid::parse_str(&row.id).map_err(GetRootError::UuidDeserialize)?,
-        file_type: if row.is_folder {
-            FileType::Folder
-        } else {
-            FileType::Document
-        },
-        parent: Uuid::parse_str(&row.parent).map_err(GetRootError::UuidDeserialize)?,
-        name: SecretFileName {
-            encrypted_value: serde_json::from_str(&row.name_encrypted)
-                .map_err(GetRootError::Deserialize)?,
-            hmac: serde_json::from_str(&row.name_hmac).map_err(GetRootError::Deserialize)?,
-        },
-        owner: row.owner.clone(),
-        metadata_version: row.metadata_version as u64,
-        content_version: row.content_version as u64,
-        deleted: row.deleted,
-        user_access_keys: {
-            if let Some(encrypted_key) = &row.encrypted_key {
-                IntoIter::new([(
-                    row.username.clone(),
-                    UserAccessInfo {
-                        username: row.username.clone(),
-                        encrypted_by: serde_json::from_str(&row.public_key)
-                            .map_err(GetRootError::Deserialize)?,
-                        access_key: serde_json::from_str(encrypted_key)
-                            .map_err(GetRootError::Deserialize)?,
-                    },
-                )])
-                .collect()
-            } else {
-                HashMap::new()
-            }
-        },
-        folder_access_keys: serde_json::from_str(&row.parent_access_key)
-            .map_err(GetRootError::Deserialize)?,
-    })
-}
-
-#[derive(Debug)]
 pub enum NewAccountError {
     Postgres(sqlx::Error),
     Serialization(serde_json::Error),
     UsernameTaken,
+    PublicKeyTaken,
 }
 
 pub async fn new_account(
@@ -779,7 +625,7 @@ INSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, (SELECT id
     {
         Ok(_) => Ok(()),
         Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("pk_accounts") => Err(NewAccountError::UsernameTaken),
+            Some("accounts_pkey") => Err(NewAccountError::PublicKeyTaken),
             _ => Err(NewAccountError::Postgres(sqlx::Error::Database(db_err))),
         },
         Err(db_err) => Err(NewAccountError::Postgres(db_err)),
@@ -794,19 +640,16 @@ pub enum CreateUserAccessKeyError {
 
 pub async fn create_user_access_key(
     transaction: &mut Transaction<'_, Postgres>,
-    username: &str,
+    public_key: &PublicKey,
     folder_id: Uuid,
     user_access_key: &EncryptedUserAccessKey,
 ) -> Result<(), CreateUserAccessKeyError> {
     sqlx::query!(
         r#"
-INSERT INTO user_access_keys (file_id, sharee_id, encrypted_key) VALUES ($1, $2, $3);
+INSERT INTO user_access_keys (file_id, sharee, encrypted_key) VALUES ($1, $2, $3);
         "#,
-        &folder_id
-            .to_simple()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned(),
-        &username,
+        &format!("{}", folder_id),
+        &serde_json::to_string(&public_key).map_err(CreateUserAccessKeyError::Serialization)?,
         &serde_json::to_string(&user_access_key)
             .map_err(CreateUserAccessKeyError::Serialization)?,
     )
@@ -827,7 +670,7 @@ pub async fn delete_account_access_keys(
 ) -> Result<(), DeleteAccountAccessKeysError> {
     sqlx::query!(
         r#"
-DELETE FROM user_access_keys where sharee_id = $1
+DELETE FROM user_access_keys where sharee = $1
         "#,
         &username.to_string(),
     )
@@ -947,13 +790,25 @@ pub async fn get_file_usages(
 ) -> Result<Vec<FileUsage>, GetFileUsageError> {
     sqlx::query!(
         r#"
+    WITH RECURSIVE file_ancestors AS (
+        SELECT id, id AS ancestor FROM files
+            UNION DISTINCT
+        SELECT file_ancestors.id, files.parent AS ancestor FROM files
+        JOIN file_ancestors ON files.id = file_ancestors.ancestor
+    ),
+    files_with_deleted_ancestors AS (
+        SELECT id FROM files WHERE EXISTS(
+            SELECT * FROM file_ancestors
+            JOIN files AS ancestor_files ON file_ancestors.ancestor = ancestor_files.id
+            WHERE files.id = file_ancestors.id AND ancestor_files.deleted
+        )
+    )
     SELECT
         files.id,
-        files.document_size AS "document_size!"
+        CASE WHEN EXISTS(SELECT * FROM files_with_deleted_ancestors WHERE files_with_deleted_ancestors.id = files.id) THEN 0 ELSE files.document_size END AS "document_size!"
     FROM files
-    JOIN accounts ON files.owner = accounts.name
     WHERE
-        accounts.public_key = $1 AND
+        files.owner = $1 AND
         NOT files.is_folder;
         "#,
         &serde_json::to_string(public_key).map_err(GetFileUsageError::Serialize)?
@@ -969,4 +824,21 @@ pub async fn get_file_usages(
         })
     })
     .collect()
+}
+
+#[derive(Debug)]
+pub enum DeserializeHmacError {
+    Base64Decode(base64::DecodeError),
+    WrongLength(usize),
+}
+
+fn deserialize_hmac(s: &str) -> Result<[u8; 32], DeserializeHmacError> {
+    let v = base64::decode(s).map_err(DeserializeHmacError::Base64Decode)?;
+    if v.len() != 32 {
+        Err(DeserializeHmacError::WrongLength(v.len()))
+    } else {
+        let mut result = [0; 32];
+        result.clone_from_slice(&v);
+        Ok(result)
+    }
 }

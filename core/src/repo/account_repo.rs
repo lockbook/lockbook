@@ -3,20 +3,19 @@ use crate::repo::local_storage;
 use crate::{core_err_unexpected, CoreError};
 use lockbook_models::account::{Account, ApiUrl};
 
-static ACCOUNT: &str = "account";
-static YOU: &str = "you";
+static ACCOUNT: &str = "ACCOUNT";
 
-pub fn insert_account(config: &Config, account: &Account) -> Result<(), CoreError> {
+pub fn insert(config: &Config, account: &Account) -> Result<(), CoreError> {
     local_storage::write(
         config,
         ACCOUNT,
-        YOU,
-        serde_json::to_vec(account).map_err(core_err_unexpected)?,
+        ACCOUNT,
+        bincode::serialize(account).map_err(core_err_unexpected)?,
     )
 }
 
-pub fn maybe_get_account(config: &Config) -> Result<Option<Account>, CoreError> {
-    match get_account(config) {
+pub fn maybe_get(config: &Config) -> Result<Option<Account>, CoreError> {
+    match get(config) {
         Ok(account) => Ok(Some(account)),
         Err(err) => match err {
             CoreError::AccountNonexistent => Ok(None),
@@ -25,41 +24,62 @@ pub fn maybe_get_account(config: &Config) -> Result<Option<Account>, CoreError> 
     }
 }
 
-pub fn get_account(config: &Config) -> Result<Account, CoreError> {
-    let maybe_value: Option<Vec<u8>> = local_storage::read(config, ACCOUNT, YOU)?;
+pub fn get(config: &Config) -> Result<Account, CoreError> {
+    let maybe_value: Option<Vec<u8>> = local_storage::read(config, ACCOUNT, ACCOUNT)?;
     match maybe_value {
         None => Err(CoreError::AccountNonexistent),
-        Some(account) => Ok(serde_json::from_slice(account.as_ref()).map_err(core_err_unexpected)?),
+        Some(account) => Ok(bincode::deserialize(account.as_ref()).map_err(core_err_unexpected)?),
     }
 }
 
 pub fn get_api_url(config: &Config) -> Result<ApiUrl, CoreError> {
-    get_account(config).map(|account| account.api_url)
+    get(config).map(|account| account.api_url)
 }
 
 #[cfg(test)]
 mod unit_tests {
     use crate::model::state::temp_config;
-
     use crate::repo::account_repo;
-    use lockbook_crypto::pubkey;
-    use lockbook_models::account::Account;
+    use crate::service::test_utils;
 
     #[test]
-    fn insert_account() {
-        let test_account = Account {
-            username: "parth".to_string(),
-            api_url: "ftp://uranus.net".to_string(),
-            private_key: pubkey::generate_key(),
-        };
+    fn get() {
+        let config = &temp_config();
 
-        let config = temp_config();
-        let res = account_repo::get_account(&config);
-        assert!(res.is_err());
+        let result = account_repo::get(config);
 
-        account_repo::insert_account(&config, &test_account).unwrap();
+        assert!(result.is_err());
+    }
 
-        let db_account = account_repo::get_account(&config).unwrap();
-        assert_eq!(test_account, db_account);
+    #[test]
+    fn maybe_get() {
+        let config = &temp_config();
+
+        let result = account_repo::maybe_get(config).unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn insert_get() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+
+        account_repo::insert(config, &account).unwrap();
+
+        let db_account = account_repo::get(config).unwrap();
+        assert_eq!(account, db_account);
+    }
+
+    #[test]
+    fn insert_get_api_url() {
+        let config = &temp_config();
+        let mut account = test_utils::generate_account();
+        account.api_url = String::from("ftp://uranus.net");
+
+        account_repo::insert(config, &account).unwrap();
+
+        let db_api_url = account_repo::get_api_url(config).unwrap();
+        assert_eq!("ftp://uranus.net", db_api_url);
     }
 }
