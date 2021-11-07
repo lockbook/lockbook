@@ -10,18 +10,18 @@ pub fn set(config: &Config, version: &str) -> Result<(), CoreError> {
         config,
         DB_VERSION,
         DB_VERSION.as_bytes(),
-        serde_json::to_vec(version).map_err(core_err_unexpected)?,
+        bincode::serialize(version).map_err(core_err_unexpected)?,
     )
 }
 
-pub fn get(config: &Config) -> Result<Option<String>, CoreError> {
+pub fn maybe_get(config: &Config) -> Result<Option<String>, CoreError> {
     let maybe_value: Option<Vec<u8>> =
         local_storage::read(config, DB_VERSION, DB_VERSION.as_bytes())?;
     match maybe_value {
         None => Ok(None),
         Some(file) => {
             let version: String =
-                serde_json::from_slice(file.as_ref()).map_err(core_err_unexpected)?;
+                bincode::deserialize(file.as_ref()).map_err(core_err_unexpected)?;
 
             Ok(Some(version))
         }
@@ -34,13 +34,21 @@ mod unit_tests {
     use crate::repo::db_version_repo;
 
     #[test]
-    fn db_version_sanity_check() {
-        let config = temp_config();
+    fn maybe_get() {
+        let config = &temp_config();
 
-        assert!(db_version_repo::get(&config).unwrap().is_none());
-        db_version_repo::set(&config, "version 1").unwrap();
-        assert_eq!(db_version_repo::get(&config).unwrap().unwrap(), "version 1");
-        db_version_repo::set(&config, "version 2").unwrap();
-        assert_eq!(db_version_repo::get(&config).unwrap().unwrap(), "version 2");
+        let result = db_version_repo::maybe_get(config).unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn set_maybe_get() {
+        let config = &temp_config();
+
+        db_version_repo::set(config, "version").unwrap();
+        let result = db_version_repo::maybe_get(config).unwrap();
+
+        assert_eq!(result, Some(String::from("version")));
     }
 }

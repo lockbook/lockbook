@@ -11,8 +11,8 @@ pub enum Error {
     NoSuchKey(String),
     ResponseNotUtf8(String),
     SignatureDoesNotMatch(String),
-    Serialization(serde_json::Error),
-    Deserialization(serde_json::Error),
+    Serialization(Box<bincode::ErrorKind>),
+    Deserialization(Box<bincode::ErrorKind>),
     Unknown(Option<String>),
 }
 
@@ -73,8 +73,27 @@ pub async fn create(
     match client
         .put_object_with_content_type(
             &format!("/{}-{}", file_id, content_version),
-            &serde_json::to_vec(file_contents).map_err(Error::Serialization)?,
-            "text/plain",
+            &bincode::serialize(file_contents).map_err(Error::Serialization)?,
+            "binary/octet-stream",
+        )
+        .await
+        .map_err(|err| err.to_string())?
+    {
+        (_, 200) => Ok(()),
+        (body, _) => Err(Error::from(body)),
+    }
+}
+
+pub async fn create_empty(
+    client: &S3Client,
+    file_id: Uuid,
+    content_version: u64,
+) -> Result<(), Error> {
+    match client
+        .put_object_with_content_type(
+            &format!("/{}-{}", file_id, content_version),
+            &[],
+            "binary/octet-stream",
         )
         .await
         .map_err(|err| err.to_string())?
@@ -99,13 +118,21 @@ pub async fn get(
     client: &S3Client,
     file_id: Uuid,
     content_version: u64,
-) -> Result<EncryptedDocument, Error> {
+) -> Result<Option<EncryptedDocument>, Error> {
     match client
         .get_object(&format!("/{}-{}", file_id, content_version))
         .await
         .map_err(|err| err.to_string())?
     {
-        (data, 200) => Ok(serde_json::from_slice(&data).map_err(Error::Deserialization)?),
+        (data, 200) => {
+            if data.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(
+                    bincode::deserialize(&data).map_err(Error::Deserialization)?,
+                ))
+            }
+        }
         (body, _) => Err(Error::from(body)),
     }
 }

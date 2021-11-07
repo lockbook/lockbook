@@ -2,14 +2,15 @@ mod integration_test;
 
 #[cfg(test)]
 mod rename_document_tests {
+    use lockbook_core::assert_get_updates_required;
     use lockbook_core::assert_matches;
     use lockbook_core::client;
     use lockbook_core::client::ApiError;
     use lockbook_core::service::test_utils::{
-        aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
-        random_filename,
+        generate_account, generate_file_metadata, generate_root_metadata, random_filename,
     };
     use lockbook_models::api::*;
+    use lockbook_models::file_metadata::FileMetadataDiff;
     use lockbook_models::file_metadata::FileType;
 
     #[test]
@@ -20,21 +21,26 @@ mod rename_document_tests {
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, doc_key) =
+        let (mut doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.metadata_version = client::request(
+        client::request(
             &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // rename document
+        let old_name = doc.name.clone();
         doc.name = random_filename();
-        client::request(&account, RenameDocumentRequest::new(&doc)).unwrap();
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -44,16 +50,17 @@ mod rename_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // rename document that wasn't created
-        let (mut doc, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.name = random_filename();
-        let result = client::request(&account, RenameDocumentRequest::new(&doc));
-        assert_matches!(
-            result,
-            Err(ApiError::<RenameDocumentError>::Endpoint(
-                RenameDocumentError::DocumentNotFound
-            ))
+        // create document
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                // create document as if renaming an existing document
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
         );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -64,29 +71,27 @@ mod rename_document_tests {
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, doc_key) =
+        let (mut doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        doc.deleted = true;
         client::request(
             &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
         )
         .unwrap();
 
-        // delete document
-        client::request(&account, DeleteDocumentRequest { id: doc.id }).unwrap();
-
         // rename document
+        let old_name = doc.name.clone();
         doc.name = random_filename();
-        let result = client::request(&account, RenameDocumentRequest::new(&doc));
-        assert_matches!(
-            result,
-            Err(ApiError::<RenameDocumentError>::Endpoint(
-                RenameDocumentError::DocumentDeleted
-            ))
-        );
+        client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -97,28 +102,26 @@ mod rename_document_tests {
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, doc_key) =
+        let (mut doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.metadata_version = client::request(
+        client::request(
             &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
         )
-        .unwrap()
-        .new_metadata_and_content_version;
+        .unwrap();
 
         // rename document
         doc.name = random_filename();
-        doc.metadata_version -= 1;
-        let result = client::request(&account, RenameDocumentRequest::new(&doc));
-        assert_matches!(
-            result,
-            Err(ApiError::<RenameDocumentError>::Endpoint(
-                RenameDocumentError::EditConflict
-            ))
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                // use incorrect previous name
+                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            },
         );
+        assert_get_updates_required!(result);
     }
 
     #[test]
@@ -128,57 +131,45 @@ mod rename_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create document
-        let (mut doc, doc_key) =
+        // create 2 document
+        let (mut doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.metadata_version = client::request(
-            &account,
-            CreateDocumentRequest::new(
-                &doc,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
-        )
-        .unwrap()
-        .new_metadata_and_content_version;
-
-        // create document in same folder
-        let (doc2, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (doc2, _doc_key2) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
         client::request(
             &account,
-            CreateDocumentRequest::new(
-                &doc2,
-                aes_encrypt(&doc_key, &String::from("doc content").into_bytes()),
-            ),
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)],
+            },
         )
         .unwrap();
 
-        // rename first document to same name as second
+        // rename document to match name of other document
+        let old_name = doc.name.clone();
         doc.name = doc2.name;
-        let result = client::request(&account, RenameDocumentRequest::new(&doc));
-        assert_matches!(
-            result,
-            Err(ApiError::<RenameDocumentError>::Endpoint(
-                RenameDocumentError::DocumentPathTaken
-            ))
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
+            },
         );
+        assert_get_updates_required!(result);
     }
 
     #[test]
     fn rename_folder_cannot_rename_root() {
         // new account
         let account = generate_account();
-        let (mut root, _root_key) = generate_root_metadata(&account);
-        root.metadata_version = client::request(&account, NewAccountRequest::new(&account, &root))
-            .unwrap()
-            .folder_metadata_version;
+        let (root, _root_key) = generate_root_metadata(&account);
+        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // rename root
-        let result = client::request(&account, RenameFolderRequest::new(&root));
-        assert_matches!(
-            result,
-            Err(ApiError::<RenameFolderError>::Endpoint(
-                RenameFolderError::CannotRenameRoot
-            ))
+        let result = client::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
+            },
         );
+        assert_get_updates_required!(result);
     }
 }
