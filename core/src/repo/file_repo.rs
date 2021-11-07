@@ -255,7 +255,7 @@ pub fn get_all_metadata_with_encrypted_changes(
                 .map(|(f, _)| f)
                 .collect()
         }
-        RepoSource::Base => base.clone(),
+        RepoSource::Base => base,
     };
 
     let staged = utils::stage_encrypted(&sourced, changes)
