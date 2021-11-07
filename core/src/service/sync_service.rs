@@ -479,7 +479,6 @@ fn pull<F>(
 where
     F: FnMut(SyncProgressOperation),
 {
-    println!("PULL");
     let base_metadata = file_repo::get_all_metadata(config, RepoSource::Base)?;
     let base_max_metadata_version = base_metadata
         .iter()
@@ -533,7 +532,6 @@ where
     for encrypted_remote_metadatum in remote_metadata_changes {
         // skip filtered changes
         if utils::maybe_find(&remote_metadata, encrypted_remote_metadatum.id).is_none() {
-            println!("skipping remote update: {:?}", encrypted_remote_metadatum);
             continue;
         }
 
@@ -631,10 +629,6 @@ where
     for self_descendant in
         file_service::get_invalid_cycles(&local_metadata, &local_metadata_updates)?
     {
-        println!(
-            "invalid cycle detected. self_descendant={:?}",
-            self_descendant
-        );
         if let Some(RepoState::Modified { mut local, base }) =
             file_repo::maybe_get_metadata_state(config, self_descendant)?
         {
@@ -678,7 +672,6 @@ where
 
     // update remote to local (metadata)
     let metadata_changes = file_repo::get_all_metadata_changes(config)?;
-    println!("\nPUSH: {:?}", metadata_changes);
     if !metadata_changes.is_empty() {
         client::request(
             account,

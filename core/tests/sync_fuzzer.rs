@@ -80,9 +80,7 @@ mod sync_fuzzer {
             match &self {
                 SyncAndCheck => {
                     for _ in 0..2 {
-                        println!("new sync round ---------------------------------------------");
                         for client in clients {
-                            println!("new sync client --------------------");
                             sync(client, None).unwrap()
                         }
                     }

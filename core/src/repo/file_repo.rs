@@ -534,7 +534,6 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
 
     // remove files from disk
     for file in deleted_both_without_deleted_descendants_ids {
-        println!("\npruned: {:?}\n", file.id);
         delete_metadata(config, file.id)?;
         if file.file_type == FileType::Document {
             delete_document(config, file.id)?;

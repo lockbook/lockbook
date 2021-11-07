@@ -1797,14 +1797,10 @@ mod sync_tests {
         sync!(&db1);
         make_and_sync_new_client!(db2, db1);
 
-        println!("------------------------------");
-
         move_file(&db2, b.id, e.id).unwrap();
         delete_file(&db1, d.id).unwrap();
         delete_file(&db2, d.id).unwrap();
         let _f = path_service::create_at_path(&db1, path!(account, "f")).unwrap();
-
-        println!("------------------------------");
 
         for _ in 0..2 {
             sync!(&db1);

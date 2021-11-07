@@ -21,12 +21,10 @@ pub async fn upsert_file_metadata(
         if let Some((old_parent, _)) = upsert.old_parent_and_name {
             // prevent all updates to root
             if upsert.id == old_parent {
-                println!("root update");
                 return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)); // todo: better error
             }
             // prevent turning existing folder into root
             if upsert.id == upsert.new_parent {
-                println!("new root");
                 return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)); // todo: better error
             }
         }
@@ -50,7 +48,6 @@ pub async fn upsert_file_metadata(
                 }
             }
             Err(UpsertFileMetadataError::FailedPreconditions) => {
-                println!("failed precondition");
                 return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
             }
             Err(e) => {
@@ -63,7 +60,6 @@ pub async fn upsert_file_metadata(
     match cycles_result {
         Ok(()) => {}
         Err(CheckCyclesError::CyclesDetected) => {
-            println!("cycle detected");
             return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
         }
         Err(e) => {
@@ -83,12 +79,8 @@ pub async fn upsert_file_metadata(
     match transaction.commit().await {
         Ok(()) => Ok(()),
         Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("uk_files_name_parent") => {
-                println!("name conflict");
-                Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
-            }
+            Some("uk_files_name_parent") => Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)),
             Some("fk_files_parent_files_id") => {
-                println!("parent nonexistent");
                 Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
             }
             _ => Err(Err(format!(
