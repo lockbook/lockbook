@@ -258,7 +258,7 @@ pub fn get_all_metadata_with_encrypted_changes(
         RepoSource::Base => base,
     };
 
-    let staged = utils::stage_encrypted(&sourced, &changes)
+    let staged = utils::stage_encrypted(&sourced, changes)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<FileMetadata>>();
