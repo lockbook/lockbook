@@ -28,7 +28,7 @@ use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog};
 pub struct AccountScreen {
     pub sidebar: Sidebar,
     editor: Editor,
-    pub cntr: GtkBox,
+    pub cntr: gtk::Paned,
 }
 
 impl AccountScreen {
@@ -36,13 +36,10 @@ impl AccountScreen {
         let sidebar = Sidebar::new(m, c, s);
         let editor = Editor::new(m);
 
-        let paned = gtk::Paned::new(Horizontal);
-        paned.set_position(350);
-        paned.add1(&sidebar.cntr);
-        paned.add2(&editor.cntr);
-
-        let cntr = GtkBox::new(Vertical, 0);
-        cntr.pack_start(&paned, true, true, 0);
+        let cntr = gtk::Paned::new(Horizontal);
+        cntr.set_position(350);
+        cntr.add1(&sidebar.cntr);
+        cntr.add2(&editor.cntr);
 
         Self {
             sidebar,
