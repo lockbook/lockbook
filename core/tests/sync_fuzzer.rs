@@ -64,7 +64,7 @@ mod sync_fuzzer {
                 pb.set_message(format!("{}: {:?}", event_id, action));
                 pb.inc(1)
             } else {
-                println!("{:?}", action)
+                println!("{}: {:?}", event_id, action)
             }
             action.execute(&clients, &mut rng);
         }
