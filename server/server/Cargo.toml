@@ -14,6 +14,8 @@ name = "lockbook-server"
 path = "src/main.rs"
 
 [dependencies]
+base64 = "0.13.0"
+bincode = "1.2.1"
 chrono = "0.4.15"
 fern = { version = "0.6.0", features = ["colored"]}
 futures = "0.3.13"
@@ -29,7 +31,7 @@ shadow-rs = "0.6.2"
 tokio = { version = "1.5.0", features = ["full"] }
 sqlx = { version = "0.5.2", features = ["macros", "postgres", "uuid", "tls", "runtime-tokio-native-tls", "offline"] }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
-libsecp256k1 = "0.5.0"
+libsecp256k1 = "0.7.0"
 
 [build-dependencies]
 shadow-rs = "0.6.2"
