@@ -4,7 +4,7 @@
 set -a
 . "$(dirname $0)"/vars.env
 
-TARGET=$1
+TARGET="$1"
 ssh -q $TARGET exit || { echo "could not SSH into $TARGET"; exit 1; }
 
 if [ "$2" == "-f" ]; then
@@ -25,9 +25,13 @@ ssh $TARGET << EOF
 EOF
 fi
 
-scp $GIT_ROOT/server/instances/haproxy/load-balancer.haproxy.cfg $TARGET:/etc/haproxy/haproxy.cfg
+scp $GIT_ROOT/server/instances/haproxy/load-balancer.haproxy.cfg \
+    $TARGET:/etc/haproxy/haproxy.cfg
+scp $GIT_ROOT/server/instances/haproxy/update-ssl-cert.sh \
+    $TARGET:/etc/letsencrypt/renewal-hooks/post/update-ssl-cert.sh
 
 ssh $TARGET << EOF
+  chmod +x /etc/letsencrypt/renewal-hooks/post/update-ssl-cert.sh
   systemctl enable haproxy
   systemctl restart haproxy
   systemctl status haproxy
