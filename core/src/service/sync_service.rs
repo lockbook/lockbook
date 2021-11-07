@@ -648,7 +648,6 @@ where
 
     // update remote to local (metadata)
     let metadata_changes = file_repo::get_all_metadata_changes(config)?;
-    println!("{:?}", metadata_changes);
     if !metadata_changes.is_empty() {
         client::request(
             account,

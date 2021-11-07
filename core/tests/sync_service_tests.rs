@@ -1718,4 +1718,12 @@ mod sync_tests {
         assert!(calculate_work(&db).unwrap().server_files.is_empty());
         assert_eq!(calculate_work(&db).unwrap().server_unknown_name_count, 0);
     }
+
+    #[test]
+    fn double_sync_test() {
+        let db = test_config();
+        make_account!(db);
+        sync!(&db);
+        sync!(&db);
+    }
 }
