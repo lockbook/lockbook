@@ -19,4 +19,5 @@ for SITE in $(ls "$CERTBOT_SITES_DIR" ); do
 		echo "SSL cert written to $SSL_CERT"
 	fi
 done
-echo "please restart any dependant services..."
+
+systemctl restart haproxy && echo "HAProxy restarted"
