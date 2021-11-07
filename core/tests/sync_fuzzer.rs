@@ -14,10 +14,7 @@ mod sync_fuzzer {
     use lockbook_core::service::sync_service::sync;
     use lockbook_core::service::test_utils::{assert_dbs_eq, random_username, test_config, url};
     use lockbook_core::Error::UiError;
-    use lockbook_core::{
-        calculate_work, create_file, delete_file, list_metadatas, move_file, rename_file,
-        write_document, MoveFileError,
-    };
+    use lockbook_core::{MoveFileError, calculate_work, create_file, delete_file, get_path_by_id, list_metadatas, move_file, rename_file, write_document};
     use lockbook_models::file_metadata::FileType::{Document, Folder};
     use rand::distributions::{Alphanumeric, Distribution, Standard};
     use rand::rngs::StdRng;
@@ -64,7 +61,12 @@ mod sync_fuzzer {
                 pb.set_message(format!("{}: {:?}", event_id, action));
                 pb.inc(1)
             } else {
-                println!("{}: {:?}", event_id, action)
+                print!("\n{}: {:?}\t", event_id, action);
+                match action {
+                    NewFolder | RenameFile | DeleteFile => print!("\t"),
+                    SyncAndCheck => println!(),
+                    _ => {}
+                };
             }
             action.execute(&clients, &mut rng);
         }
@@ -75,7 +77,9 @@ mod sync_fuzzer {
             match &self {
                 SyncAndCheck => {
                     for _ in 0..2 {
+                        println!("new sync round");
                         for client in clients {
+                            println!("new sync client");
                             sync(client, None).unwrap()
                         }
                     }
@@ -94,19 +98,22 @@ mod sync_fuzzer {
                     let client = Self::random_client(clients, rng);
                     let parent = Self::pick_random_parent(&client, rng);
                     let name = Self::random_filename(rng);
-                    create_file(&client, &name, parent.id, Folder).unwrap();
+                    let file = create_file(&client, &name, parent.id, Folder).unwrap();
+                    print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
                 }
                 NewMarkdownDocument => {
                     let client = Self::random_client(clients, rng);
                     let parent = Self::pick_random_parent(&client, rng);
                     let name = Self::random_filename(rng) + ".md"; // TODO pick a random extension (or no extension)
-                    create_file(&client, &name, parent.id, Document).unwrap();
+                    let file = create_file(&client, &name, parent.id, Document).unwrap();
+                    print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
                 }
                 UpdateDocument => {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_document(&client, rng) {
                         let new_content = Self::random_utf8(rng);
                         write_document(&client, file.id, &new_content.as_bytes()).unwrap();
+                        print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
                     }
                 }
                 MoveDocument => {
@@ -114,7 +121,9 @@ mod sync_fuzzer {
                     if let Some(file) = Self::pick_random_document(&client, rng) {
                         let new_parent = Self::pick_random_parent(&client, rng);
                         if file.parent != new_parent.id && file.id != new_parent.id {
+                            let initial_path = get_path_by_id(&client, file.id).unwrap();
                             move_file(&client, file.id, new_parent.id).unwrap();
+                            print!("[{:?}]\t{:?} to {:?}", file.id, initial_path, get_path_by_id(&client, file.id).unwrap());
                         }
                     }
                 }
@@ -123,6 +132,7 @@ mod sync_fuzzer {
                     if let Some(file) = Self::pick_random_file(&client, rng) {
                         let new_parent = Self::pick_random_parent(&client, rng);
                         if file.parent != new_parent.id && file.id != new_parent.id {
+                            let initial_path = get_path_by_id(&client, file.id).unwrap();
                             let move_file_result = move_file(&client, file.id, new_parent.id);
                             match move_file_result {
                                 Ok(()) | Err(UiError(MoveFileError::FolderMovedIntoItself)) => {}
@@ -131,19 +141,23 @@ mod sync_fuzzer {
                                     move_file_result
                                 ),
                             }
+                            print!("[{:?}]\t{:?} to {:?}", file.id, initial_path, get_path_by_id(&client, file.id).unwrap());
                         }
                     }
                 }
                 RenameFile => {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_file(&client, rng) {
+                        let initial_path = get_path_by_id(&client, file.id).unwrap();
                         let new_name = Self::random_filename(rng) + ".md";
                         rename_file(&client, file.id, &new_name).unwrap();
+                        print!("[{:?}]\t{:?} to {:?}", file.id, initial_path, get_path_by_id(&client, file.id).unwrap());
                     }
                 }
                 DeleteFile => {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_file(&client, rng) {
+                        print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
                         delete_file(&client, file.id).unwrap();
                     }
                 }

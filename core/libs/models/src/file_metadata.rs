@@ -124,12 +124,16 @@ impl fmt::Debug for FileMetadataDiff {
         f.debug_struct("FileMetadataDiff")
             .field("id", &self.id)
             .field("file_type", &self.file_type)
+            .field("new_parent", &self.new_parent)
+            .field("new_deleted", &self.new_deleted)
             .field(
                 "old_parent",
                 &self.old_parent_and_name.clone().map(|(p, _)| p),
             )
-            .field("new_parent", &self.new_parent)
-            .field("new_deleted", &self.new_deleted)
+            .field(
+                "old_name",
+                &self.old_parent_and_name.clone().map(|(_, n)| base64::encode(n.hmac)),
+            )
             .finish()
     }
 }

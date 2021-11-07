@@ -1661,9 +1661,6 @@ mod sync_tests {
         move_file(&db1, b.id, a.id).unwrap();
         move_file(&db2, a.id, b.id).unwrap();
 
-        println!("a: {:?}", a.id);
-        println!("b: {:?}", b.id);
-
         sync!(&db1);
         sync!(&db2);
     }
@@ -1682,6 +1679,42 @@ mod sync_tests {
         sync!(&db1);
 
         move_file(&db2, a.id, b.id).unwrap();
+        sync!(&db2);
+    }
+
+    #[test]
+    fn cycle_in_a_sync_with_a_delete() {
+        let db1 = test_config();
+        let account = make_account!(db1);
+        let a = path_service::create_at_path(&db1, path!(account, "a/")).unwrap();
+        let b = path_service::create_at_path(&db1, path!(account, "b/")).unwrap();
+        sync!(&db1);
+        make_and_sync_new_client!(db2, db1);
+
+        move_file(&db1, b.id, a.id).unwrap();
+        delete_file(&db1, b.id).unwrap();
+        sync!(&db1);
+
+        move_file(&db2, a.id, b.id).unwrap();
+        delete_file(&db2, b.id).unwrap();
+        sync!(&db2);
+    }
+
+    #[test]
+    fn cycle_in_a_sync_with_a_delete_2() {
+        let db1 = test_config();
+        let account = make_account!(db1);
+        let a = path_service::create_at_path(&db1, path!(account, "a/")).unwrap();
+        let b = path_service::create_at_path(&db1, path!(account, "b/")).unwrap();
+        sync!(&db1);
+        make_and_sync_new_client!(db2, db1);
+
+        move_file(&db1, b.id, a.id).unwrap();
+        delete_file(&db1, a.id).unwrap();
+        sync!(&db1);
+
+        move_file(&db2, a.id, b.id).unwrap();
+        delete_file(&db2, a.id).unwrap();
         sync!(&db2);
     }
 
@@ -1717,5 +1750,38 @@ mod sync_tests {
         assert!(calculate_work(&db).unwrap().local_files.is_empty());
         assert!(calculate_work(&db).unwrap().server_files.is_empty());
         assert_eq!(calculate_work(&db).unwrap().server_unknown_name_count, 0);
+    }
+
+    #[test]
+    fn move_into_new_folder_and_delete_folder() {
+        let db1 = test_config();
+        let account = make_account!(db1);
+        let to_move = path_service::create_at_path(&db1, path!(account, "to_move/")).unwrap();
+        let to_delete = path_service::create_at_path(&db1, path!(account, "to_delete/")).unwrap();
+        sync!(&db1);
+        make_and_sync_new_client!(db2, db1);
+
+        move_file(&db1, to_move.id, to_delete.id).unwrap();
+        delete_file(&db1, to_delete.id).unwrap();
+        sync!(&db1);
+
+        sync!(&db2);
+    }
+
+    #[test]
+    fn move_into_new_folder_and_delete_folders_parent() {
+        let db1 = test_config();
+        let account = make_account!(db1);
+        let to_move = path_service::create_at_path(&db1, path!(account, "to_move/")).unwrap();
+        let to_delete = path_service::create_at_path(&db1, path!(account, "to_delete/")).unwrap();
+        sync!(&db1);
+        make_and_sync_new_client!(db2, db1);
+
+        let intermediate_folder = path_service::create_at_path(&db1, path!(account, "to_delete/intermediate_folder/")).unwrap();
+        move_file(&db1, to_move.id, intermediate_folder.id).unwrap();
+        delete_file(&db1, to_delete.id).unwrap();
+        sync!(&db1);
+
+        sync!(&db2);
     }
 }

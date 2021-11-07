@@ -80,12 +80,23 @@ pub fn insert_metadata(
 
     for metadatum in metadata {
         let encrypted_metadata = utils::find_encrypted(&all_metadata_encrypted, metadatum.id)?;
+
         // perform insertion
         let new_doc = source == RepoSource::Local
             && metadatum.file_type == FileType::Document
             && file_repo::maybe_get_metadata(config, RepoSource::Local, metadatum.id)?.is_none();
 
-        metadata_repo::insert(config, source, &encrypted_metadata)?;
+        // local deletions should discard other changes
+        if source == RepoSource::Local && metadatum.deleted {
+            if let Some(mut base) = metadata_repo::maybe_get(config, RepoSource::Base, encrypted_metadata.id)? {
+                base.deleted = true;
+                metadata_repo::insert(config, source, &base)?;
+            } else {
+                metadata_repo::insert(config, source, &encrypted_metadata)?;
+            }
+        } else {
+            metadata_repo::insert(config, source, &encrypted_metadata)?;
+        }
 
         if new_doc {
             file_repo::insert_document(config, RepoSource::Local, metadatum, &[])?;
@@ -251,14 +262,12 @@ pub fn get_all_metadata_with_encrypted_changes(
     for change in changes {
         if change.deleted {
             match utils::maybe_find_encrypted(&sourced, change.id) {
-                Some(mut existing) => {
+                Some(existing) => {
                     if existing.deleted {
                         // local and remote files deleted: ignore
                         continue
                     } else {
-                        // if something is deleted, ignore other updates
-                        existing.deleted = true;
-                        preprocessed_changes.push(existing);
+                        preprocessed_changes.push(change.clone());
                     }
                 },
                 // local non-existent and remote deleted: ignore
@@ -273,6 +282,11 @@ pub fn get_all_metadata_with_encrypted_changes(
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<FileMetadata>>();
+    
+    println!("get_all_metadata_with_encrypted_changes sourced: {:?}", sourced);
+    println!("get_all_metadata_with_encrypted_changes changes: {:?}", changes);
+    println!("get_all_metadata_with_encrypted_changes preprocessed_changes: {:?}", preprocessed_changes);
+    println!("get_all_metadata_with_encrypted_changes staged: {:?}", staged);
 
     file_encryption_service::decrypt_metadata(&account, &staged)
 }
