@@ -17,7 +17,7 @@ impl Default for Experiment {
                 id: Uuid::new_v4(),
                 clients: vec![],
                 target_clients: 2,
-                target_steps: 4,
+                target_steps: 6,
                 steps: vec![],
                 completed_steps: 0,
                 status: Status::Ready,
