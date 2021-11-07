@@ -26,7 +26,7 @@ mod db_state_service_tests {
 
         db_version_repo::set(&config, "0.1.0").unwrap();
         assert_ne!(
-            db_version_repo::get(&config).unwrap().unwrap(),
+            db_version_repo::maybe_get(&config).unwrap().unwrap(),
             db_state_service::get_code_version()
         );
 

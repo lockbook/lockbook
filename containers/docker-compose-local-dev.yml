@@ -5,6 +5,16 @@ services:
     ports:
       - "9000:9000"
 
-  indexdb:
+  pgbouncer:
+    image: edoburu/pgbouncer
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=indexdb
+      - DB_NAME=postgres
+      - POOL_MODE=session
+      - ADMIN_USERS=postgres
     ports:
-    - "5432:5432"
+      - "5432:5432"
+    depends_on:
+      - config_indexdb
