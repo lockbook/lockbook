@@ -200,7 +200,7 @@ mod sync_fuzzer {
 
         fn random_client(clients: &[Config], rng: &mut StdRng) -> Config {
             let client_index = rng.gen_range(0..CLIENTS) as usize;
-            println!("client index = {:?}", client_index);
+            print!("client index = {:?}\t", client_index);
             clients[client_index].clone()
         }
 

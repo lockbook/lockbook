@@ -244,7 +244,7 @@ pub fn get_all_metadata_with_encrypted_changes(
     config: &Config,
     source: RepoSource,
     changes: &[FileMetadata],
-) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+) -> Result<(Vec<DecryptedFileMetadata>, Vec<FileMetadata>), CoreError> {
     let account = account_repo::get(config)?;
     let base = metadata_repo::get_all(config, RepoSource::Base)?;
     let sourced = match source {
@@ -255,7 +255,7 @@ pub fn get_all_metadata_with_encrypted_changes(
                 .map(|(f, _)| f)
                 .collect()
         }
-        RepoSource::Base => base,
+        RepoSource::Base => base.clone(),
     };
 
     let staged = utils::stage_encrypted(&sourced, &changes)
@@ -263,17 +263,24 @@ pub fn get_all_metadata_with_encrypted_changes(
         .map(|(f, _)| f)
         .collect::<Vec<FileMetadata>>();
 
-    // orphaned files are descendants of pruned files, which we don't care about because we already knew they were deleted
     let root = utils::find_root_encrypted(&staged)?;
     let non_orphans = utils::find_with_descendants_encrypted(&staged, root.id)?;
     let mut staged_non_orphans = Vec::new();
+    let mut encrypted_orphans = Vec::new();
     for f in staged {
         if utils::maybe_find_encrypted(&non_orphans, f.id).is_some() {
+            // only decrypt non-orphans
             staged_non_orphans.push(f)
+        } else {
+            // deleted orphaned files
+            encrypted_orphans.push(f)
         }
     }
 
-    file_encryption_service::decrypt_metadata(&account, &staged_non_orphans)
+    Ok((
+        file_encryption_service::decrypt_metadata(&account, &staged_non_orphans)?,
+        encrypted_orphans,
+    ))
 }
 
 /// Adds or updates the content of a document on disk.

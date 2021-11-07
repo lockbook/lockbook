@@ -62,7 +62,7 @@ fn calculate_work_from_updates(
     mut last_sync: u64,
 ) -> Result<WorkCalculated, CoreError> {
     let mut work_units: Vec<WorkUnit> = vec![];
-    let all_metadata = file_repo::get_all_metadata_with_encrypted_changes(
+    let (all_metadata, _) = file_repo::get_all_metadata_with_encrypted_changes(
         config,
         RepoSource::Local,
         server_updates,
@@ -501,7 +501,7 @@ where
     .file_metadata;
 
     let local_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
-    let remote_metadata = file_repo::get_all_metadata_with_encrypted_changes(
+    let (remote_metadata, remote_orphans) = file_repo::get_all_metadata_with_encrypted_changes(
         config,
         RepoSource::Base,
         &remote_metadata_changes,
@@ -587,6 +587,30 @@ where
                     // new local document from merge
                 }
                 None => {}
+            }
+        }
+    }
+
+    // deleted orphaned updates
+    for orphan in remote_orphans {
+        if let Some(mut metadatum) = utils::maybe_find(&base_metadata, orphan.id) {
+            if let Some(mut metadatum_update) =
+                utils::maybe_find_mut(&mut base_metadata_updates, orphan.id)
+            {
+                metadatum_update.deleted = true;
+            } else {
+                metadatum.deleted = true;
+                base_metadata_updates.push(metadatum);
+            }
+        }
+        if let Some(mut metadatum) = utils::maybe_find(&local_metadata, orphan.id) {
+            if let Some(mut metadatum_update) =
+                utils::maybe_find_mut(&mut local_metadata_updates, orphan.id)
+            {
+                metadatum_update.deleted = true;
+            } else {
+                metadatum.deleted = true;
+                local_metadata_updates.push(metadatum);
             }
         }
     }
