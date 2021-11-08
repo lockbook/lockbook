@@ -8,7 +8,8 @@ use crate::client::ApiError;
 use crate::lib_helpers::{
     delete_file_helper, export_drawing_helper, export_drawing_to_disk_helper,
     get_and_get_children_recursively_helper, get_children_helper, get_drawing_helper,
-    move_file_helper, rename_file_helper, save_drawing_helper,
+    move_file_helper, read_document_helper, rename_file_helper, save_document_to_disk_helper,
+    save_drawing_helper,
 };
 use crate::model::client_conversion::{
     generate_client_file_metadata, generate_client_work_calculated, ClientFileMetadata,
@@ -256,8 +257,7 @@ pub fn create_file_at_path(
             _ => unexpected!("{:#?}", e),
         })
         .and_then(|file_metadata| {
-            generate_client_file_metadata(config, &file_metadata)
-                .map_err(|e| unexpected!("{:#?}", e))
+            generate_client_file_metadata(&file_metadata).map_err(|e| unexpected!("{:#?}", e))
         })
 }
 
@@ -328,7 +328,7 @@ pub fn create_file(
             })?;
     file_repo::insert_metadatum(config, RepoSource::Local, &metadata)
         .map_err(|e| unexpected!("{:#?}", e))?;
-    generate_client_file_metadata(config, &metadata).map_err(|e| unexpected!("{:#?}", e))
+    generate_client_file_metadata(&metadata).map_err(|e| unexpected!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -341,7 +341,7 @@ pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootErro
         .map_err(|e| unexpected!("{:#?}", e))?;
     match utils::maybe_find_root(&files) {
         None => Err(UiError(GetRootError::NoRoot)),
-        Some(file_metadata) => match generate_client_file_metadata(config, &file_metadata) {
+        Some(file_metadata) => match generate_client_file_metadata(&file_metadata) {
             Ok(client_file_metadata) => Ok(client_file_metadata),
             Err(err) => Err(unexpected!("{:#?}", err)),
         },
@@ -392,8 +392,7 @@ pub fn get_file_by_id(
             _ => unexpected!("{:#?}", e),
         })
         .and_then(|file_metadata| {
-            generate_client_file_metadata(config, &file_metadata)
-                .map_err(|e| unexpected!("{:#?}", e))
+            generate_client_file_metadata(&file_metadata).map_err(|e| unexpected!("{:#?}", e))
         })
 }
 
@@ -412,8 +411,7 @@ pub fn get_file_by_path(
             _ => unexpected!("{:#?}", e),
         })
         .and_then(|file_metadata| {
-            generate_client_file_metadata(config, &file_metadata)
-                .map_err(|e| unexpected!("{:#?}", e))
+            generate_client_file_metadata(&file_metadata).map_err(|e| unexpected!("{:#?}", e))
         })
 }
 
@@ -442,7 +440,7 @@ pub fn read_document(
     config: &Config,
     id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    file_repo::get_not_deleted_document(config, RepoSource::Local, id).map_err(|e| match e {
+    read_document_helper(config, id).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
         CoreError::AccountNonexistent => UiError(ReadDocumentError::NoAccount),
         CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
@@ -464,15 +462,10 @@ pub fn save_document_to_disk(
     id: Uuid,
     location: String,
 ) -> Result<(), Error<SaveDocumentToDiskError>> {
-    let document = file_repo::get_not_deleted_document(config, RepoSource::Local, id).map_err(
-        |e| match e {
-            CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
-            CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
-            CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
-            _ => unexpected!("{:#?}", e),
-        },
-    )?;
-    file_service::save_document_to_disk(&document, location).map_err(|e| match e {
+    save_document_to_disk_helper(config, id, location).map_err(|e| match e {
+        CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
+        CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
+        CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
         CoreError::DiskPathInvalid => UiError(SaveDocumentToDiskError::BadPath),
         CoreError::DiskPathTaken => UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk),
         _ => unexpected!("{:#?}", e),
@@ -513,9 +506,8 @@ pub fn list_metadatas(
     let mut client_metas = vec![];
 
     for meta in metas {
-        client_metas.push(
-            generate_client_file_metadata(config, &meta).map_err(|e| unexpected!("{:#?}", e))?,
-        );
+        client_metas
+            .push(generate_client_file_metadata(&meta).map_err(|e| unexpected!("{:#?}", e))?);
     }
 
     Ok(client_metas)
@@ -617,8 +609,7 @@ pub fn calculate_work(config: &Config) -> Result<ClientWorkCalculated, Error<Cal
             _ => unexpected!("{:#?}", e),
         })
         .and_then(|work_calculated| {
-            generate_client_work_calculated(config, &work_calculated)
-                .map_err(|e| unexpected!("{:#?}", e))
+            generate_client_work_calculated(&work_calculated).map_err(|e| unexpected!("{:#?}", e))
         })
 }
 

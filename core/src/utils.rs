@@ -123,7 +123,7 @@ pub fn find_children(
 ) -> Vec<DecryptedFileMetadata> {
     files
         .iter()
-        .filter(|f| f.parent == target_id)
+        .filter(|f| f.parent == target_id && f.id != f.parent)
         .cloned()
         .collect()
 }
@@ -131,7 +131,7 @@ pub fn find_children(
 pub fn find_children_encrypted(files: &[FileMetadata], target_id: Uuid) -> Vec<FileMetadata> {
     files
         .iter()
-        .filter(|f| f.parent == target_id)
+        .filter(|f| f.parent == target_id && f.id != f.parent)
         .cloned()
         .collect()
 }

@@ -11,6 +11,7 @@ use crate::service::{
     drawing_service, file_encryption_service, file_service, path_service, sync_service,
 };
 use crate::{loggers, utils, CoreError, Error, LOG_FILE};
+use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use std::collections::HashMap;
@@ -41,7 +42,7 @@ pub fn create_file_at_path_helper(
     path_and_name: &str,
 ) -> Result<ClientFileMetadata, CoreError> {
     let file_metadata = path_service::create_at_path(config, path_and_name)?;
-    generate_client_file_metadata(config, &file_metadata)
+    generate_client_file_metadata(&file_metadata)
 }
 
 pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
@@ -61,14 +62,14 @@ pub fn create_file(
     let metadata =
         file_service::apply_create(&all_metadata, file_type, parent, name, &account.username)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &metadata)?;
-    generate_client_file_metadata(config, &metadata)
+    generate_client_file_metadata(&metadata)
 }
 
 pub fn get_root_helper(config: &Config) -> Result<ClientFileMetadata, CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     match utils::maybe_find_root(&files) {
         None => Err(CoreError::RootNonexistent),
-        Some(file_metadata) => generate_client_file_metadata(config, &file_metadata),
+        Some(file_metadata) => generate_client_file_metadata(&file_metadata),
     }
 }
 
@@ -81,7 +82,7 @@ pub fn get_children_helper(
     let children = utils::find_children(&files, id);
     children
         .iter()
-        .map(|c| generate_client_file_metadata(config, c))
+        .map(|c| generate_client_file_metadata(c))
         .collect()
 }
 
@@ -113,7 +114,7 @@ pub fn get_and_get_children_recursively_helper(
 
 pub fn get_file_by_id_helper(config: &Config, id: Uuid) -> Result<ClientFileMetadata, CoreError> {
     let file_metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?;
-    generate_client_file_metadata(config, &file_metadata)
+    generate_client_file_metadata(&file_metadata)
 }
 
 pub fn get_file_by_path_helper(
@@ -121,7 +122,7 @@ pub fn get_file_by_path_helper(
     path: &str,
 ) -> Result<ClientFileMetadata, CoreError> {
     let file_metadata = path_service::get_by_path(config, path)?;
-    generate_client_file_metadata(config, &file_metadata)
+    generate_client_file_metadata(&file_metadata)
 }
 
 pub fn delete_file_helper(config: &Config, id: Uuid) -> Result<(), CoreError> {
@@ -130,12 +131,19 @@ pub fn delete_file_helper(config: &Config, id: Uuid) -> Result<(), CoreError> {
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
+pub fn read_document_helper(config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)
+}
+
 pub fn save_document_to_disk_helper(
     config: &Config,
     id: Uuid,
     location: String,
 ) -> Result<(), CoreError> {
-    let document = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let document =
+        file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     file_service::save_document_to_disk(&document, location)
 }
 
@@ -143,7 +151,7 @@ pub fn list_metadatas_helper(config: &Config) -> Result<Vec<ClientFileMetadata>,
     let metas = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let mut client_metas = vec![];
     for meta in metas {
-        client_metas.push(generate_client_file_metadata(config, &meta)?);
+        client_metas.push(generate_client_file_metadata(&meta)?);
     }
     Ok(client_metas)
 }
@@ -164,11 +172,13 @@ pub fn move_file_helper(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(
 
 pub fn calculate_work_helper(config: &Config) -> Result<ClientWorkCalculated, CoreError> {
     let work_calculated = sync_service::calculate_work(config)?;
-    generate_client_work_calculated(config, &work_calculated)
+    generate_client_work_calculated(&work_calculated)
 }
 
 pub fn get_drawing_helper(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
-    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let drawing_bytes =
+        file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     drawing_service::parse_drawing(&drawing_bytes)
 }
 
@@ -188,7 +198,9 @@ pub fn export_drawing_helper(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, CoreError> {
-    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let drawing_bytes =
+        file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     drawing_service::export_drawing(&drawing_bytes, format, render_theme)
 }
 
@@ -199,7 +211,9 @@ pub fn export_drawing_to_disk_helper(
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     location: String,
 ) -> Result<(), CoreError> {
-    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let drawing_bytes =
+        file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     let exported_drawing_bytes =
         drawing_service::export_drawing(&drawing_bytes, format, render_theme)?;
     file_service::save_document_to_disk(&exported_drawing_bytes, location)
