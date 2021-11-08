@@ -146,7 +146,7 @@ fn export_file_recursively(
 
     match parent_file_metadata.file_type {
         FileType::Folder => {
-            let children = utils::find_children(&all, parent_file_metadata.id);
+            let children = utils::find_children(all, parent_file_metadata.id);
             fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
             for child in children.iter() {

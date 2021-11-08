@@ -428,7 +428,7 @@ fn get_resolved_document(
         .iter()
         .find(|&f| f.clone().local().id == remote_metadatum.id);
     let maybe_document_state = if let Some(metadata_state) = maybe_metadata_state {
-        file_repo::maybe_get_document_state(config, &metadata_state)?
+        file_repo::maybe_get_document_state(config, metadata_state)?
     } else {
         None
     };

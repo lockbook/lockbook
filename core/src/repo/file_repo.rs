@@ -372,7 +372,7 @@ pub fn maybe_get_document(
         None => None,
         Some(encrypted_document) => {
             let compressed_document =
-                file_encryption_service::decrypt_document(&encrypted_document, &metadata)?;
+                file_encryption_service::decrypt_document(&encrypted_document, metadata)?;
             let document = file_compression_service::decompress(&compressed_document)?;
             Some(document)
         }
