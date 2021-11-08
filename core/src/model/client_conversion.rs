@@ -1,5 +1,3 @@
-use crate::model::state::Config;
-use crate::repo::account_repo;
 use crate::service::sync_service::WorkCalculated;
 use crate::CoreError;
 use lockbook_models::account::Username;
@@ -38,7 +36,6 @@ pub enum ClientWorkUnit {
 }
 
 pub fn generate_client_file_metadata(
-    config: &Config,
     meta: &DecryptedFileMetadata,
 ) -> Result<ClientFileMetadata, CoreError> {
     Ok(ClientFileMetadata {
@@ -50,12 +47,11 @@ pub fn generate_client_file_metadata(
         owner: meta.owner.clone(),
         content_version: meta.content_version,
         deleted: meta.deleted,
-        users_with_access: vec![account_repo::get(config)?.username], // todo: fix
+        users_with_access: vec![meta.owner.clone()],
     })
 }
 
 pub fn generate_client_work_calculated(
-    config: &Config,
     work_calculated: &WorkCalculated,
 ) -> Result<ClientWorkCalculated, CoreError> {
     let mut local_files = vec![];
@@ -63,7 +59,7 @@ pub fn generate_client_work_calculated(
     let mut new_files_count = 0;
 
     for work_unit in work_calculated.work_units.iter() {
-        let maybe_file_metadata = generate_client_file_metadata(config, &work_unit.get_metadata());
+        let maybe_file_metadata = generate_client_file_metadata(&work_unit.get_metadata());
 
         match work_unit {
             WorkUnit::LocalChange { .. } => local_files.push(maybe_file_metadata?),
