@@ -164,7 +164,7 @@ mod sync_tests {
         assert_dirty_ids!(db2, 0);
 
         assert_eq!(
-            file_repo::get_document(&db2, RepoSource::Local, edited_file.id).unwrap(),
+            file_repo::get_document(&db2, RepoSource::Local, &edited_file).unwrap(),
             "meaningful messages".as_bytes()
         );
         assert_dbs_eq(&db, &db2);
@@ -216,7 +216,7 @@ mod sync_tests {
         );
 
         assert_eq!(
-            file_repo::get_document(&db2, RepoSource::Local, file.id).unwrap(),
+            file_repo::get_document(&db2, RepoSource::Local, &file).unwrap(),
             "nice document".as_bytes()
         );
 
@@ -279,7 +279,7 @@ mod sync_tests {
             new_folder1.id
         );
         assert_eq!(
-            file_repo::get_document(&db2, RepoSource::Local, file.id).unwrap(),
+            file_repo::get_document(&db2, RepoSource::Local, &file).unwrap(),
             "Wow, what a doc".as_bytes()
         );
     }
@@ -613,15 +613,15 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 1"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 2"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
@@ -674,15 +674,15 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 1"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 2"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
@@ -735,15 +735,15 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 1"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 2"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
@@ -796,15 +796,15 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 1"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 2"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, file.id).unwrap()
+            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
@@ -903,7 +903,7 @@ mod sync_tests {
             .unwrap()
             .is_none());
 
-        assert!(file_repo::get_document(&db2, RepoSource::Local, file.id).is_err());
+        assert!(file_repo::get_document(&db2, RepoSource::Local, &file).is_err());
     }
 
     #[test]
@@ -933,11 +933,11 @@ mod sync_tests {
                 .deleted
         );
         assert!(
-            file_repo::maybe_get_document(&db1, RepoSource::Local, file.id)
+            file_repo::maybe_get_document(&db1, RepoSource::Local, &file)
                 .unwrap()
                 .is_some()
         );
-        assert!(file_repo::get_document(&db1, RepoSource::Local, file.id).is_ok());
+        assert!(file_repo::get_document(&db1, RepoSource::Local, &file).is_ok());
     }
 
     #[test]
@@ -973,12 +973,12 @@ mod sync_tests {
             .is_none());
 
         assert!(
-            file_repo::maybe_get_document(&db1, RepoSource::Local, file.id)
+            file_repo::maybe_get_document(&db1, RepoSource::Local, &file)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_document(&db2, RepoSource::Local, file.id)
+            file_repo::maybe_get_document(&db2, RepoSource::Local, &file)
                 .unwrap()
                 .is_none()
         );

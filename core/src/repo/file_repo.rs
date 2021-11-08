@@ -322,62 +322,73 @@ pub fn insert_document(
 pub fn get_not_deleted_document(
     config: &Config,
     source: RepoSource,
+    metadata: &[DecryptedFileMetadata],
     id: Uuid,
 ) -> Result<DecryptedDocument, CoreError> {
-    maybe_get_not_deleted_document(config, source, id)
+    maybe_get_not_deleted_document(config, source, metadata, id)
         .and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_not_deleted_document(
     config: &Config,
     source: RepoSource,
+    metadata: &[DecryptedFileMetadata],
     id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
-    if maybe_get_not_deleted_metadata(config, source, id)?.is_none() {
-        return Ok(None);
-    }
-    match maybe_get_document_state(config, id)? {
-        Some(r) => Ok(r.source(source)),
-        None => Ok(None),
+    if let Some(metadata) = utils::maybe_find(&utils::filter_not_deleted(metadata), id) {
+        maybe_get_document(config, source, &metadata)
+    } else {
+        Ok(None)
     }
 }
 
 pub fn get_document(
     config: &Config,
     source: RepoSource,
-    id: Uuid,
+    metadata: &DecryptedFileMetadata,
 ) -> Result<DecryptedDocument, CoreError> {
-    maybe_get_document(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
+    maybe_get_document(config, source, metadata).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_document(
     config: &Config,
     source: RepoSource,
-    id: Uuid,
+    metadata: &DecryptedFileMetadata,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
-    match maybe_get_document_state(config, id)? {
-        Some(r) => Ok(r.source(source)),
-        None => Ok(None),
+    if metadata.file_type != FileType::Document {
+        return Err(CoreError::FileNotDocument);
     }
+    let maybe_encrypted_document = match source {
+        RepoSource::Local => {
+            match document_repo::maybe_get(config, RepoSource::Local, metadata.id)? {
+                Some(local) => Some(local),
+                None => document_repo::maybe_get(config, RepoSource::Base, metadata.id)?,
+            }
+        }
+        RepoSource::Base => document_repo::maybe_get(config, RepoSource::Base, metadata.id)?,
+    };
+
+    Ok(match maybe_encrypted_document {
+        None => None,
+        Some(encrypted_document) => {
+            let compressed_document =
+                file_encryption_service::decrypt_document(&encrypted_document, metadata)?;
+            let document = file_compression_service::decompress(&compressed_document)?;
+            Some(document)
+        }
+    })
 }
 
 pub fn get_all_document_state(
     config: &Config,
 ) -> Result<Vec<RepoState<DecryptedDocument>>, CoreError> {
-    let all_metadata = get_all_metadata_state(config)?
+    let doc_metadata: Vec<RepoState<DecryptedFileMetadata>> = get_all_metadata_state(config)?
         .into_iter()
-        .map(|f| match f {
-            RepoState::New(local) => local,
-            RepoState::Modified { local, base: _ } => local,
-            RepoState::Unmodified(base) => base,
-        })
-        .collect::<Vec<DecryptedFileMetadata>>();
-    let doc_ids = utils::filter_documents(&all_metadata)
-        .into_iter()
-        .map(|f| f.id);
+        .filter(|r| r.clone().local().file_type == FileType::Document)
+        .collect();
     let mut result = Vec::new();
-    for doc_id in doc_ids {
-        if let Some(doc_state) = maybe_get_document_state(config, doc_id)? {
+    for doc_metadatum in doc_metadata {
+        if let Some(doc_state) = maybe_get_document_state(config, &doc_metadatum)? {
             result.push(doc_state);
         }
     }
@@ -386,48 +397,35 @@ pub fn get_all_document_state(
 
 pub fn maybe_get_document_state(
     config: &Config,
-    id: Uuid,
+    metadata: &RepoState<DecryptedFileMetadata>,
 ) -> Result<Option<RepoState<DecryptedDocument>>, CoreError> {
-    let base = {
-        match maybe_get_metadata(config, RepoSource::Base, id)? {
+    if metadata.clone().local().file_type != FileType::Document {
+        return Err(CoreError::FileNotDocument);
+    }
+    let id = metadata.clone().local().id;
+
+    let base = if let Some(base_metadata) = metadata.clone().base() {
+        match document_repo::maybe_get(config, RepoSource::Base, id)? {
             None => None,
-            Some(metadata) => {
-                if metadata.file_type != FileType::Document {
-                    return Err(CoreError::FileNotDocument);
-                }
-                match document_repo::maybe_get(config, RepoSource::Base, id)? {
-                    None => None,
-                    Some(encrypted_document) => {
-                        let compressed_document = file_encryption_service::decrypt_document(
-                            &encrypted_document,
-                            &metadata,
-                        )?;
-                        let document = file_compression_service::decompress(&compressed_document)?;
-                        Some(document)
-                    }
-                }
+            Some(encrypted_document) => {
+                let compressed_document =
+                    file_encryption_service::decrypt_document(&encrypted_document, &base_metadata)?;
+                let document = file_compression_service::decompress(&compressed_document)?;
+                Some(document)
             }
         }
+    } else {
+        None
     };
-    let local = {
-        match maybe_get_metadata(config, RepoSource::Local, id)? {
-            None => None,
-            Some(metadata) => {
-                if metadata.file_type != FileType::Document {
-                    return Err(CoreError::FileNotDocument);
-                }
-                match document_repo::maybe_get(config, RepoSource::Local, id)? {
-                    None => None,
-                    Some(encrypted_document) => {
-                        let compressed_document = file_encryption_service::decrypt_document(
-                            &encrypted_document,
-                            &metadata,
-                        )?;
-                        let document = file_compression_service::decompress(&compressed_document)?;
-                        Some(document)
-                    }
-                }
-            }
+    let local = match document_repo::maybe_get(config, RepoSource::Local, id)? {
+        None => None,
+        Some(encrypted_document) => {
+            let compressed_document = file_encryption_service::decrypt_document(
+                &encrypted_document,
+                &metadata.clone().local(),
+            )?;
+            let document = file_compression_service::decompress(&compressed_document)?;
+            Some(document)
         }
     };
     Ok(RepoState::from_local_and_base(local, base))
@@ -788,7 +786,7 @@ mod unit_tests {
         file_repo::insert_metadatum(config, RepoSource::Local, &document).unwrap();
         file_repo::insert_document(config, RepoSource::Local, &document, b"document content")
             .unwrap();
-        let result = file_repo::get_document(config, RepoSource::Local, document.id).unwrap();
+        let result = file_repo::get_document(config, RepoSource::Local, &document).unwrap();
 
         assert_eq!(result, b"document content");
         assert_metadata_count!(config, RepoSource::Base, 0);
@@ -803,7 +801,16 @@ mod unit_tests {
         let account = test_utils::generate_account();
 
         account_repo::insert(config, &account).unwrap();
-        let result = file_repo::get_document(config, RepoSource::Local, Uuid::new_v4());
+        let result = file_repo::get_document(
+            config,
+            RepoSource::Local,
+            &file_service::create(
+                FileType::Document,
+                file_service::create_root(&account.username).id,
+                "asdf",
+                &account.username,
+            ),
+        );
 
         assert!(result.is_err());
         assert_metadata_count!(config, RepoSource::Base, 0);
@@ -825,7 +832,7 @@ mod unit_tests {
         file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
         file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
             .unwrap();
-        let result = file_repo::get_document(config, RepoSource::Local, document.id).unwrap();
+        let result = file_repo::get_document(config, RepoSource::Local, &document).unwrap();
 
         assert_eq!(result, b"document content");
         assert_metadata_count!(config, RepoSource::Base, 2);
@@ -849,7 +856,7 @@ mod unit_tests {
             .unwrap();
         file_repo::insert_document(config, RepoSource::Local, &document, b"document content 2")
             .unwrap();
-        let result = file_repo::get_document(config, RepoSource::Local, document.id).unwrap();
+        let result = file_repo::get_document(config, RepoSource::Local, &document).unwrap();
 
         assert_eq!(result, b"document content 2");
         assert_metadata_count!(config, RepoSource::Base, 2);
@@ -871,7 +878,7 @@ mod unit_tests {
         file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
         file_repo::insert_document(config, RepoSource::Base, &document, b"document content")
             .unwrap();
-        let result = file_repo::maybe_get_document(config, RepoSource::Local, document.id).unwrap();
+        let result = file_repo::maybe_get_document(config, RepoSource::Local, &document).unwrap();
 
         assert_eq!(result, Some(b"document content".to_vec()));
         assert_metadata_count!(config, RepoSource::Base, 2);
@@ -886,8 +893,17 @@ mod unit_tests {
         let account = test_utils::generate_account();
 
         account_repo::insert(config, &account).unwrap();
-        let result =
-            file_repo::maybe_get_document(config, RepoSource::Local, Uuid::new_v4()).unwrap();
+        let result = file_repo::maybe_get_document(
+            config,
+            RepoSource::Local,
+            &file_service::create(
+                FileType::Document,
+                file_service::create_root(&account.username).id,
+                "asdf",
+                &account.username,
+            ),
+        )
+        .unwrap();
 
         assert!(result.is_none());
         assert_metadata_count!(config, RepoSource::Base, 0);
@@ -1399,19 +1415,9 @@ mod unit_tests {
         assert_metadata_eq!(config, RepoSource::Base, document.id, document);
         assert_metadata_eq!(config, RepoSource::Base, document2.id, document2);
         assert_metadata_eq!(config, RepoSource::Base, document3.id, document3);
-        assert_document_eq!(config, RepoSource::Base, document.id, b"document content 2");
-        assert_document_eq!(
-            config,
-            RepoSource::Base,
-            document2.id,
-            b"document 2 content"
-        );
-        assert_document_eq!(
-            config,
-            RepoSource::Base,
-            document3.id,
-            b"document 3 content"
-        );
+        assert_document_eq!(config, RepoSource::Base, &document, b"document content 2");
+        assert_document_eq!(config, RepoSource::Base, &document2, b"document 2 content");
+        assert_document_eq!(config, RepoSource::Base, &document3, b"document 3 content");
         assert_metadata_count!(config, RepoSource::Base, 5);
         assert_metadata_count!(config, RepoSource::Local, 5);
         assert_document_count!(config, RepoSource::Base, 3);
