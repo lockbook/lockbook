@@ -401,12 +401,33 @@ pub fn maybe_get_document_state(
     config: &Config,
     metadata: &RepoState<DecryptedFileMetadata>,
 ) -> Result<Option<RepoState<DecryptedDocument>>, CoreError> {
-    let base = if let Some(base) = metadata.clone().source(RepoSource::Base) {
-        maybe_get_document(config, RepoSource::Local, &base)?
+    if metadata.clone().local().file_type != FileType::Document {
+        return Err(CoreError::FileNotDocument);
+    }
+    let id = metadata.clone().local().id;
+
+    let base = if let Some(base_metadata) = metadata.clone().base() {
+        match document_repo::maybe_get(config, RepoSource::Base, id)? {
+            None => None,
+            Some(encrypted_document) => {
+                let compressed_document =
+                    file_encryption_service::decrypt_document(&encrypted_document, &base_metadata)?;
+                let document = file_compression_service::decompress(&compressed_document)?;
+                Some(document)
+            }
+        }
     } else {
         None
     };
-    let local = maybe_get_document(config, RepoSource::Local, &metadata.clone().local())?;
+    let local = match document_repo::maybe_get(config, RepoSource::Local, id)? {
+        None => None,
+        Some(encrypted_document) => {
+            let compressed_document =
+                file_encryption_service::decrypt_document(&encrypted_document, &metadata.clone().local())?;
+            let document = file_compression_service::decompress(&compressed_document)?;
+            Some(document)
+        }
+    };
     Ok(RepoState::from_local_and_base(local, base))
 }
 

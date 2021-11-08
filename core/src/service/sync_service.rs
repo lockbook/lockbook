@@ -402,8 +402,7 @@ impl fmt::Debug for ResolvedDocument {
 fn get_resolved_document(
     config: &Config,
     account: &Account,
-    base_metadata: &[DecryptedFileMetadata],
-    local_metadata: &[DecryptedFileMetadata],
+    all_metadata_state: &[RepoState<DecryptedFileMetadata>],
     remote_metadatum: &DecryptedFileMetadata,
     merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<Option<ResolvedDocument>, CoreError> {
@@ -425,17 +424,21 @@ fn get_resolved_document(
         None => None,
     };
 
-    let maybe_base_metadata = utils::maybe_find(base_metadata, remote_metadatum.id);
-    let maybe_local_metadata = utils::maybe_find(local_metadata, remote_metadatum.id);
-    let maybe_base_document = if let Some(base_metadatum) = maybe_base_metadata {
-        file_repo::maybe_get_document(config, RepoSource::Base, &base_metadatum)?
+    let maybe_metadata_state = all_metadata_state.iter().find(|&f| f.clone().local().id == remote_metadatum.id);
+    let maybe_document_state = if let Some(metadata_state) = maybe_metadata_state {
+        file_repo::maybe_get_document_state(config, &metadata_state)?
     } else {
         None
     };
-    let maybe_local_document = if let Some(local_metadatum) = maybe_local_metadata {
-        file_repo::maybe_get_document(config, RepoSource::Local, &local_metadatum)?
+
+    let (maybe_local_document, maybe_base_document) = if let Some(document_state) = maybe_document_state {
+        match document_state {
+            RepoState::New(local) => (Some(local), None),
+            RepoState::Unmodified(base) => (None, Some(base)),
+            RepoState::Modified{ local, base } => (Some(local), Some(base)),
+        }
     } else {
-        None
+        (None, None)
     };
 
     match maybe_remote_document {
@@ -510,6 +513,7 @@ where
         RepoSource::Base,
         &remote_metadata_changes,
     )?;
+    let all_metadata_state = file_repo::get_all_metadata_state(config)?;
 
     let num_documents_to_pull = remote_metadata_changes
         .iter()
@@ -564,7 +568,7 @@ where
                 ClientWorkUnit::PullDocument(remote_metadatum.decrypted_name.clone()),
             ));
 
-            match get_resolved_document(config, account, &base_metadata, &local_metadata, &remote_metadatum, &merged_metadatum)? {
+            match get_resolved_document(config, account, &all_metadata_state, &remote_metadatum, &merged_metadatum)? {
                 Some(ResolvedDocument::Merged {
                     remote_metadata,
                     remote_document,
