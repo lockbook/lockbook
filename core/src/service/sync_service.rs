@@ -402,6 +402,8 @@ impl fmt::Debug for ResolvedDocument {
 fn get_resolved_document(
     config: &Config,
     account: &Account,
+    base_metadata: &[DecryptedFileMetadata],
+    local_metadata: &[DecryptedFileMetadata],
     remote_metadatum: &DecryptedFileMetadata,
     merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<Option<ResolvedDocument>, CoreError> {
@@ -423,14 +425,17 @@ fn get_resolved_document(
         None => None,
     };
 
-    let maybe_document_state = file_repo::maybe_get_document_state(config, remote_metadatum.id)?;
-    let (maybe_base_document, maybe_local_document) = match maybe_document_state {
-        Some(document_state) => match document_state {
-            RepoState::New(local) => (None, Some(local)),
-            RepoState::Modified { local, base } => (Some(base), Some(local)),
-            RepoState::Unmodified(base) => (Some(base), None),
-        },
-        None => (None, None),
+    let maybe_base_metadata = utils::maybe_find(base_metadata, remote_metadatum.id);
+    let maybe_local_metadata = utils::maybe_find(local_metadata, remote_metadatum.id);
+    let maybe_base_document = if let Some(base_metadatum) = maybe_base_metadata {
+        file_repo::maybe_get_document(config, RepoSource::Base, &base_metadatum)?
+    } else {
+        None
+    };
+    let maybe_local_document = if let Some(local_metadatum) = maybe_local_metadata {
+        file_repo::maybe_get_document(config, RepoSource::Local, &local_metadatum)?
+    } else {
+        None
     };
 
     match maybe_remote_document {
@@ -559,7 +564,7 @@ where
                 ClientWorkUnit::PullDocument(remote_metadatum.decrypted_name.clone()),
             ));
 
-            match get_resolved_document(config, account, &remote_metadatum, &merged_metadatum)? {
+            match get_resolved_document(config, account, &base_metadata, &local_metadata, &remote_metadatum, &merged_metadatum)? {
                 Some(ResolvedDocument::Merged {
                     remote_metadata,
                     remote_document,
@@ -699,7 +704,7 @@ where
 {
     for id in file_repo::get_all_with_document_changes(config)? {
         let mut local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
-        let local_content = file_repo::get_document(config, RepoSource::Local, id)?;
+        let local_content = file_repo::get_document(config, RepoSource::Local, &local_metadata)?;
         let encrypted_content = file_encryption_service::encrypt_document(
             &file_compression_service::compress(&local_content)?,
             &local_metadata,

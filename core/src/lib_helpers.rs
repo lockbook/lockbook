@@ -11,6 +11,7 @@ use crate::service::{
     drawing_service, file_encryption_service, file_service, path_service, sync_service,
 };
 use crate::{loggers, utils, CoreError, Error, LOG_FILE};
+use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use std::collections::HashMap;
@@ -130,12 +131,19 @@ pub fn delete_file_helper(config: &Config, id: Uuid) -> Result<(), CoreError> {
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
+pub fn read_document_helper(config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)
+}
+
 pub fn save_document_to_disk_helper(
     config: &Config,
     id: Uuid,
     location: String,
 ) -> Result<(), CoreError> {
-    let document = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let document =
+        file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     file_service::save_document_to_disk(&document, location)
 }
 
@@ -168,7 +176,9 @@ pub fn calculate_work_helper(config: &Config) -> Result<ClientWorkCalculated, Co
 }
 
 pub fn get_drawing_helper(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
-    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let drawing_bytes =
+        file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     drawing_service::parse_drawing(&drawing_bytes)
 }
 
@@ -188,7 +198,9 @@ pub fn export_drawing_helper(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, CoreError> {
-    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let drawing_bytes =
+        file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     drawing_service::export_drawing(&drawing_bytes, format, render_theme)
 }
 
@@ -199,7 +211,9 @@ pub fn export_drawing_to_disk_helper(
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     location: String,
 ) -> Result<(), CoreError> {
-    let drawing_bytes = file_repo::get_not_deleted_document(config, RepoSource::Local, id)?;
+    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let drawing_bytes =
+        file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     let exported_drawing_bytes =
         drawing_service::export_drawing(&drawing_bytes, format, render_theme)?;
     file_service::save_document_to_disk(&exported_drawing_bytes, location)

@@ -5,7 +5,7 @@ use crate::model::state::Config;
 use crate::repo::file_repo;
 use crate::service::path_service;
 use crate::{utils, CoreError};
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use std::fs;
 use std::fs::{DirEntry, OpenOptions};
 use std::io::Write;
@@ -117,11 +117,20 @@ pub fn export_file(
         config,
         &file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?,
     )?;
-    export_file_recursively(config, &file_metadata, &destination, edit, &export_progress)
+    let all = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    export_file_recursively(
+        config,
+        &all,
+        &file_metadata,
+        &destination,
+        edit,
+        &export_progress,
+    )
 }
 
 fn export_file_recursively(
     config: &Config,
+    all: &[DecryptedFileMetadata],
     parent_file_metadata: &ClientFileMetadata,
     disk_path: &Path,
     edit: bool,
@@ -138,7 +147,6 @@ fn export_file_recursively(
 
     match parent_file_metadata.file_type {
         FileType::Folder => {
-            let all = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
             let children = utils::find_children(&all, parent_file_metadata.id);
             fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
@@ -148,6 +156,7 @@ fn export_file_recursively(
 
                 export_file_recursively(
                     config,
+                    all,
                     &child_file_metadata,
                     &dest_with_new,
                     edit,
@@ -173,6 +182,7 @@ fn export_file_recursively(
                 file_repo::get_not_deleted_document(
                     config,
                     RepoSource::Local,
+                    all,
                     parent_file_metadata.id,
                 )?
                 .as_slice(),

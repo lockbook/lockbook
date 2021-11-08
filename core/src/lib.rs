@@ -8,7 +8,8 @@ use crate::client::ApiError;
 use crate::lib_helpers::{
     delete_file_helper, export_drawing_helper, export_drawing_to_disk_helper,
     get_and_get_children_recursively_helper, get_children_helper, get_drawing_helper,
-    move_file_helper, rename_file_helper, save_drawing_helper,
+    move_file_helper, read_document_helper, rename_file_helper, save_document_to_disk_helper,
+    save_drawing_helper,
 };
 use crate::model::client_conversion::{
     generate_client_file_metadata, generate_client_work_calculated, ClientFileMetadata,
@@ -442,7 +443,7 @@ pub fn read_document(
     config: &Config,
     id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    file_repo::get_not_deleted_document(config, RepoSource::Local, id).map_err(|e| match e {
+    read_document_helper(config, id).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
         CoreError::AccountNonexistent => UiError(ReadDocumentError::NoAccount),
         CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
@@ -464,15 +465,10 @@ pub fn save_document_to_disk(
     id: Uuid,
     location: String,
 ) -> Result<(), Error<SaveDocumentToDiskError>> {
-    let document = file_repo::get_not_deleted_document(config, RepoSource::Local, id).map_err(
-        |e| match e {
-            CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
-            CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
-            CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
-            _ => unexpected!("{:#?}", e),
-        },
-    )?;
-    file_service::save_document_to_disk(&document, location).map_err(|e| match e {
+    save_document_to_disk_helper(config, id, location).map_err(|e| match e {
+        CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
+        CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
+        CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
         CoreError::DiskPathInvalid => UiError(SaveDocumentToDiskError::BadPath),
         CoreError::DiskPathTaken => UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk),
         _ => unexpected!("{:#?}", e),
