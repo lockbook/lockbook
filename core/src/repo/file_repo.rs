@@ -364,21 +364,19 @@ pub fn maybe_get_document(
                 Some(local) => Some(local),
                 None => document_repo::maybe_get(config, RepoSource::Base, metadata.id)?,
             }
-        },
+        }
         RepoSource::Base => document_repo::maybe_get(config, RepoSource::Base, metadata.id)?,
     };
 
-    Ok(
-        match maybe_encrypted_document {
-            None => None,
-            Some(encrypted_document) => {
-                let compressed_document =
-                    file_encryption_service::decrypt_document(&encrypted_document, &metadata)?;
-                let document = file_compression_service::decompress(&compressed_document)?;
-                Some(document)
-            }
-        },
-    )
+    Ok(match maybe_encrypted_document {
+        None => None,
+        Some(encrypted_document) => {
+            let compressed_document =
+                file_encryption_service::decrypt_document(&encrypted_document, &metadata)?;
+            let document = file_compression_service::decompress(&compressed_document)?;
+            Some(document)
+        }
+    })
 }
 
 pub fn get_all_document_state(
@@ -422,8 +420,10 @@ pub fn maybe_get_document_state(
     let local = match document_repo::maybe_get(config, RepoSource::Local, id)? {
         None => None,
         Some(encrypted_document) => {
-            let compressed_document =
-                file_encryption_service::decrypt_document(&encrypted_document, &metadata.clone().local())?;
+            let compressed_document = file_encryption_service::decrypt_document(
+                &encrypted_document,
+                &metadata.clone().local(),
+            )?;
             let document = file_compression_service::decompress(&compressed_document)?;
             Some(document)
         }
@@ -1416,18 +1416,8 @@ mod unit_tests {
         assert_metadata_eq!(config, RepoSource::Base, document2.id, document2);
         assert_metadata_eq!(config, RepoSource::Base, document3.id, document3);
         assert_document_eq!(config, RepoSource::Base, &document, b"document content 2");
-        assert_document_eq!(
-            config,
-            RepoSource::Base,
-            &document2,
-            b"document 2 content"
-        );
-        assert_document_eq!(
-            config,
-            RepoSource::Base,
-            &document3,
-            b"document 3 content"
-        );
+        assert_document_eq!(config, RepoSource::Base, &document2, b"document 2 content");
+        assert_document_eq!(config, RepoSource::Base, &document3, b"document 3 content");
         assert_metadata_count!(config, RepoSource::Base, 5);
         assert_metadata_count!(config, RepoSource::Local, 5);
         assert_document_count!(config, RepoSource::Base, 3);
