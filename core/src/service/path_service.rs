@@ -162,18 +162,15 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
 }
 
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
-    let mut current_id = id;
-    let mut current_metadata =
-        file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
+    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let mut current_metadata = utils::find(&files, id)?;
     let mut path = String::from("");
 
     let is_folder = current_metadata.file_type == Folder;
 
-    while current_metadata.parent != current_id {
+    while current_metadata.parent != current_metadata.id {
         path = format!("{}/{}", current_metadata.decrypted_name, path);
-        current_id = current_metadata.parent;
-        current_metadata =
-            file_repo::get_not_deleted_metadata(config, RepoSource::Local, current_id)?;
+        current_metadata = utils::find(&files, current_metadata.parent)?;
     }
 
     {
