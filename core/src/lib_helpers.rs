@@ -41,7 +41,7 @@ pub fn create_file_at_path_helper(
     path_and_name: &str,
 ) -> Result<ClientFileMetadata, CoreError> {
     let file_metadata = path_service::create_at_path(config, path_and_name)?;
-    generate_client_file_metadata(config, &file_metadata)
+    generate_client_file_metadata(&file_metadata)
 }
 
 pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
@@ -61,14 +61,14 @@ pub fn create_file(
     let metadata =
         file_service::apply_create(&all_metadata, file_type, parent, name, &account.username)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &metadata)?;
-    generate_client_file_metadata(config, &metadata)
+    generate_client_file_metadata(&metadata)
 }
 
 pub fn get_root_helper(config: &Config) -> Result<ClientFileMetadata, CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     match utils::maybe_find_root(&files) {
         None => Err(CoreError::RootNonexistent),
-        Some(file_metadata) => generate_client_file_metadata(config, &file_metadata),
+        Some(file_metadata) => generate_client_file_metadata(&file_metadata),
     }
 }
 
@@ -81,7 +81,7 @@ pub fn get_children_helper(
     let children = utils::find_children(&files, id);
     children
         .iter()
-        .map(|c| generate_client_file_metadata(config, c))
+        .map(|c| generate_client_file_metadata(c))
         .collect()
 }
 
@@ -113,7 +113,7 @@ pub fn get_and_get_children_recursively_helper(
 
 pub fn get_file_by_id_helper(config: &Config, id: Uuid) -> Result<ClientFileMetadata, CoreError> {
     let file_metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?;
-    generate_client_file_metadata(config, &file_metadata)
+    generate_client_file_metadata(&file_metadata)
 }
 
 pub fn get_file_by_path_helper(
@@ -121,7 +121,7 @@ pub fn get_file_by_path_helper(
     path: &str,
 ) -> Result<ClientFileMetadata, CoreError> {
     let file_metadata = path_service::get_by_path(config, path)?;
-    generate_client_file_metadata(config, &file_metadata)
+    generate_client_file_metadata(&file_metadata)
 }
 
 pub fn delete_file_helper(config: &Config, id: Uuid) -> Result<(), CoreError> {
@@ -143,7 +143,7 @@ pub fn list_metadatas_helper(config: &Config) -> Result<Vec<ClientFileMetadata>,
     let metas = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let mut client_metas = vec![];
     for meta in metas {
-        client_metas.push(generate_client_file_metadata(config, &meta)?);
+        client_metas.push(generate_client_file_metadata(&meta)?);
     }
     Ok(client_metas)
 }
@@ -164,7 +164,7 @@ pub fn move_file_helper(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(
 
 pub fn calculate_work_helper(config: &Config) -> Result<ClientWorkCalculated, CoreError> {
     let work_calculated = sync_service::calculate_work(config)?;
-    generate_client_work_calculated(config, &work_calculated)
+    generate_client_work_calculated(&work_calculated)
 }
 
 pub fn get_drawing_helper(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {

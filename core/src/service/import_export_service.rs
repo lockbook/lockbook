@@ -114,7 +114,6 @@ pub fn export_file(
     }
 
     let file_metadata = client_conversion::generate_client_file_metadata(
-        config,
         &file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?,
     )?;
     export_file_recursively(config, &file_metadata, &destination, edit, &export_progress)
@@ -143,8 +142,7 @@ fn export_file_recursively(
             fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
             for child in children.iter() {
-                let child_file_metadata =
-                    client_conversion::generate_client_file_metadata(config, child)?;
+                let child_file_metadata = client_conversion::generate_client_file_metadata(child)?;
 
                 export_file_recursively(
                     config,
