@@ -36,10 +36,6 @@ public struct FakeApi: LockbookApi {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func setLastSynced(lastSync: UInt64) -> FfiResult<Empty, SetLastSyncedError> {
-        .failure(.init(unexpected: "LAZY"))
-    }
-    
     public func getRoot() -> FfiResult<ClientFileMetadata, GetRootError> {
         return .success(FakeApi.root)
     }

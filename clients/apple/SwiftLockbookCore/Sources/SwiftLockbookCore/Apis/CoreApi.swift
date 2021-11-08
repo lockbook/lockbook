@@ -43,10 +43,6 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: calculate_work(documentsDirectory))
     }
     
-    public func setLastSynced(lastSync: UInt64) -> FfiResult<Empty, SetLastSyncedError> {
-        fromPrimitiveResult(result: set_last_synced(documentsDirectory, lastSync))
-    }
-    
     public func getRoot() -> FfiResult<ClientFileMetadata, GetRootError> {
         fromPrimitiveResult(result: get_root(documentsDirectory))
     }
