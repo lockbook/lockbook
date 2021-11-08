@@ -95,9 +95,6 @@ namespace lockbook {
         private static extern IntPtr sync_all(IntPtr writeable_path);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr set_last_synced(IntPtr writeable_path, ulong last_sync);
-
-        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_last_synced(IntPtr writeable_path);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
@@ -350,12 +347,6 @@ namespace lockbook {
             return await FFICommon<Core.CalculateWork.IResult, Core.CalculateWork.ExpectedError, Core.CalculateWork.PossibleErrors, Core.CalculateWork.UnexpectedError>(
                 () => calculate_work(path),
                 s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<ClientWorkCalculated>(s) });
-        }
-
-        public async Task<Core.SetLastSynced.IResult> SetLastSynced(ulong lastSync) {
-            return await FFICommon<Core.SetLastSynced.IResult, Core.SetLastSynced.ExpectedError, Core.SetLastSynced.PossibleErrors, Core.SetLastSynced.UnexpectedError>(
-                () => set_last_synced(path, lastSync),
-                s => new Core.SetLastSynced.Success());
         }
 
         public async Task<Core.GetLastSynced.IResult> GetLastSynced() {

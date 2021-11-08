@@ -4,7 +4,7 @@ use crate::{core_err_unexpected, CoreError};
 
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
-pub fn set(config: &Config, last_updated: u64) -> Result<(), CoreError> {
+pub fn set(config: &Config, last_updated: i64) -> Result<(), CoreError> {
     debug!("Setting last updated to: {}", last_updated);
     local_storage::write(
         config,
@@ -14,7 +14,7 @@ pub fn set(config: &Config, last_updated: u64) -> Result<(), CoreError> {
     )
 }
 
-pub fn get(config: &Config) -> Result<u64, CoreError> {
+pub fn get(config: &Config) -> Result<i64, CoreError> {
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, LAST_UPDATED, LAST_UPDATED)?;
     match maybe_value {
         None => Ok(0),

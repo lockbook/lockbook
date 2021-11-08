@@ -7,7 +7,6 @@ external fun createAccount(config: String, username: String, apiUrl: String): St
 external fun importAccount(config: String, account: String): String
 external fun exportAccount(config: String): String
 external fun getAccount(config: String): String
-external fun setLastSynced(config: String, lastSynced: Long): String
 external fun convertToHumanDuration(metadataVersion: Long): String
 external fun getUsage(config: String): String
 external fun getUncompressedUsage(config: String): String
