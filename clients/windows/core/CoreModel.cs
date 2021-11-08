@@ -357,16 +357,6 @@ namespace Core {
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
-    namespace SetLastSynced {
-        public interface IResult { }
-        public class Success : IResult { }
-        public enum PossibleErrors {
-            Stub,
-        }
-        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
-        public class UnexpectedError : Core.UnexpectedError, IResult { }
-    }
-
     namespace GetLastSynced {
         public interface IResult { }
         public class Success : IResult {

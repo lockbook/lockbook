@@ -55,7 +55,6 @@ val errorsToCheck = listOf<KClass<*>>(
     MoveFileError::class,
     ReadDocumentError::class,
     RenameFileError::class,
-    SetLastSyncedError::class,
     SyncAllError::class,
     WriteToDocumentError::class,
     ExportDrawingError::class
