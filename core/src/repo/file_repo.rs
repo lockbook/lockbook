@@ -322,15 +322,17 @@ pub fn insert_document(
 pub fn get_not_deleted_document(
     config: &Config,
     source: RepoSource,
+    metadata: &[DecryptedFileMetadata],
     id: Uuid,
 ) -> Result<DecryptedDocument, CoreError> {
-    maybe_get_not_deleted_document(config, source, id)
+    maybe_get_not_deleted_document(config, source, metadata, id)
         .and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_not_deleted_document(
     config: &Config,
     source: RepoSource,
+    metadata: &[DecryptedFileMetadata],
     id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
     if maybe_get_not_deleted_metadata(config, source, id)?.is_none() {
@@ -345,7 +347,7 @@ pub fn maybe_get_not_deleted_document(
 pub fn get_document(
     config: &Config,
     source: RepoSource,
-    id: Uuid,
+    metadata: &DecryptedFileMetadata,
 ) -> Result<DecryptedDocument, CoreError> {
     maybe_get_document(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
@@ -353,31 +355,34 @@ pub fn get_document(
 pub fn maybe_get_document(
     config: &Config,
     source: RepoSource,
-    id: Uuid,
+    metadata: &DecryptedFileMetadata,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
-    match maybe_get_document_state(config, id)? {
-        Some(r) => Ok(r.source(source)),
-        None => Ok(None),
+    if metadata.file_type != FileType::Document {
+        return Err(CoreError::FileNotDocument);
+    }
+    match document_repo::maybe_get(config, RepoSource::Base, metadata.id)? {
+        None => None,
+        Some(encrypted_document) => {
+            let compressed_document = file_encryption_service::decrypt_document(
+                &encrypted_document,
+                &metadata,
+            )?;
+            let document = file_compression_service::decompress(&compressed_document)?;
+            Some(document)
+        }
     }
 }
 
 pub fn get_all_document_state(
     config: &Config,
 ) -> Result<Vec<RepoState<DecryptedDocument>>, CoreError> {
-    let all_metadata = get_all_metadata_state(config)?
+    let doc_metadata: Vec<RepoState<DecryptedFileMetadata>> = get_all_metadata_state(config)?
         .into_iter()
-        .map(|f| match f {
-            RepoState::New(local) => local,
-            RepoState::Modified { local, base: _ } => local,
-            RepoState::Unmodified(base) => base,
-        })
-        .collect::<Vec<DecryptedFileMetadata>>();
-    let doc_ids = utils::filter_documents(&all_metadata)
-        .into_iter()
-        .map(|f| f.id);
+        .filter(|r| r.local().file_type == FileType::Document)
+        .collect();
     let mut result = Vec::new();
-    for doc_id in doc_ids {
-        if let Some(doc_state) = maybe_get_document_state(config, doc_id)? {
+    for doc_metadatum in doc_metadata {
+        if let Some(doc_state) = maybe_get_document_state(config, doc_metadatum)? {
             result.push(doc_state);
         }
     }
@@ -386,50 +391,14 @@ pub fn get_all_document_state(
 
 pub fn maybe_get_document_state(
     config: &Config,
-    id: Uuid,
+    metadata: RepoState<DecryptedFileMetadata>,
 ) -> Result<Option<RepoState<DecryptedDocument>>, CoreError> {
-    let base = {
-        match maybe_get_metadata(config, RepoSource::Base, id)? {
-            None => None,
-            Some(metadata) => {
-                if metadata.file_type != FileType::Document {
-                    return Err(CoreError::FileNotDocument);
-                }
-                match document_repo::maybe_get(config, RepoSource::Base, id)? {
-                    None => None,
-                    Some(encrypted_document) => {
-                        let compressed_document = file_encryption_service::decrypt_document(
-                            &encrypted_document,
-                            &metadata,
-                        )?;
-                        let document = file_compression_service::decompress(&compressed_document)?;
-                        Some(document)
-                    }
-                }
-            }
-        }
+    let base = if let Some(base) = metadata.source(RepoSource::Base) {
+        maybe_get_document(config, RepoSource::Local, &base)?
+    } else {
+        None
     };
-    let local = {
-        match maybe_get_metadata(config, RepoSource::Local, id)? {
-            None => None,
-            Some(metadata) => {
-                if metadata.file_type != FileType::Document {
-                    return Err(CoreError::FileNotDocument);
-                }
-                match document_repo::maybe_get(config, RepoSource::Local, id)? {
-                    None => None,
-                    Some(encrypted_document) => {
-                        let compressed_document = file_encryption_service::decrypt_document(
-                            &encrypted_document,
-                            &metadata,
-                        )?;
-                        let document = file_compression_service::decompress(&compressed_document)?;
-                        Some(document)
-                    }
-                }
-            }
-        }
-    };
+    let local = maybe_get_document(config, RepoSource::Local, &metadata.local());
     Ok(RepoState::from_local_and_base(local, base))
 }
 
