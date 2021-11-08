@@ -92,7 +92,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     let mut warnings = Vec::new();
     for file in files {
         if file.file_type == FileType::Document {
-            let file_content = file_repo::get_document(config, RepoSource::Local, file.id)
+            let file_content = file_repo::get_document(config, RepoSource::Local, &file)
                 .map_err(|err| DocumentReadError(file.id, err))?;
 
             if file_content.len() as u64 == 0 {
@@ -114,7 +114,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
 
             if extension == "draw"
                 && drawing_service::parse_drawing(
-                    &file_repo::get_document(config, RepoSource::Local, file.id)
+                    &file_repo::get_document(config, RepoSource::Local, &file)
                         .map_err(TestRepoError::Core)?,
                 )
                 .is_err()
