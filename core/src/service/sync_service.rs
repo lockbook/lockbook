@@ -6,7 +6,7 @@ use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::model::state::Config;
 use crate::repo::account_repo;
-use crate::repo::file_repo;
+use crate::repo::{file_repo, last_updated_repo};
 use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
 use crate::{client, utils};
@@ -20,6 +20,7 @@ use lockbook_models::work_unit::WorkUnit;
 use serde::Serialize;
 
 use super::file_compression_service;
+use lockbook_crypto::clock_service::get_time;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -767,6 +768,7 @@ pub fn sync(
     push_documents(config, account, &mut update_sync_progress)?;
     pull(config, account, &mut update_sync_progress)?;
     file_repo::prune_deleted(config)?;
+    last_updated_repo::set(config, get_time().0)?;
     Ok(())
 }
 

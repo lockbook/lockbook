@@ -132,7 +132,10 @@ impl fmt::Debug for FileMetadataDiff {
             )
             .field(
                 "old_name",
-                &self.old_parent_and_name.clone().map(|(_, n)| base64::encode(n.hmac)),
+                &self
+                    .old_parent_and_name
+                    .clone()
+                    .map(|(_, n)| base64::encode(n.hmac)),
             )
             .finish()
     }

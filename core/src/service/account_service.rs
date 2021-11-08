@@ -6,6 +6,7 @@ use crate::repo::{account_repo, file_repo, last_updated_repo, root_repo};
 use crate::service::{file_encryption_service, file_service};
 use crate::CoreError;
 use crate::{client, utils};
+use lockbook_crypto::clock_service::get_time;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
@@ -78,7 +79,7 @@ pub fn create_account(
     account_repo::insert(config, &account)?;
     file_repo::insert_metadatum(config, RepoSource::Base, &root_metadata)?;
     root_repo::set(config, root_metadata.id)?;
-    last_updated_repo::set(config, root_metadata.metadata_version)?;
+    last_updated_repo::set(config, get_time().0)?;
 
     Ok(account)
 }

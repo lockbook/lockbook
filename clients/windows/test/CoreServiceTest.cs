@@ -308,16 +308,6 @@ namespace test {
         }
 
         [TestMethod]
-        public void SetLastSynced() {
-            var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
-            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
-
-            var setLastSyncedResult = CoreService.SetLastSynced(420).WaitResult();
-            CastOrDie(setLastSyncedResult, out Core.SetLastSynced.Success _);
-        }
-
-        [TestMethod]
         public void GetUsage() {
             var username = RandomUsername();
             var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
@@ -756,7 +746,6 @@ namespace test {
                 {"MoveFileError", typeof(Core.MoveFile.PossibleErrors)},
                 {"ReadDocumentError", typeof(Core.ReadDocument.PossibleErrors)},
                 {"RenameFileError", typeof(Core.RenameFile.PossibleErrors)},
-                {"SetLastSyncedError", typeof(Core.SetLastSynced.PossibleErrors)},
                 {"SyncAllError", typeof(Core.SyncAll.PossibleErrors)},
                 {"WriteToDocumentError", typeof(Core.WriteDocument.PossibleErrors)},
                 {"GetDrawingError", typeof(Core.GetDrawing.PossibleErrors)},

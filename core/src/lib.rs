@@ -623,15 +623,6 @@ pub fn calculate_work(config: &Config) -> Result<ClientWorkCalculated, Error<Cal
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum SetLastSyncedError {
-    Stub, // TODO: Enums should not be empty
-}
-
-pub fn set_last_synced(config: &Config, last_sync: u64) -> Result<(), Error<SetLastSyncedError>> {
-    last_updated_repo::set(config, last_sync).map_err(|e| unexpected!("{:#?}", e))
-}
-
-#[derive(Debug, Serialize, EnumIter)]
 pub enum GetLastSyncedError {
     Stub, // TODO: Enums should not be empty
 }
@@ -858,7 +849,6 @@ impl_get_variants!(
     MoveFileError,
     SyncAllError,
     CalculateWorkError,
-    SetLastSyncedError,
     GetLastSyncedError,
     GetUsageError,
     GetDrawingError,

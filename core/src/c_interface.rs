@@ -275,17 +275,6 @@ pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_cha
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn set_last_synced(
-    writeable_path: *const c_char,
-    last_sync: u64,
-) -> *const c_char {
-    c_string(translate(crate::set_last_synced(
-        &config_from_ptr(writeable_path),
-        last_sync,
-    )))
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn get_last_synced(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_last_synced(&Config {
         writeable_path: str_from_ptr(writeable_path),

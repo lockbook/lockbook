@@ -141,21 +141,6 @@ object CoreModel {
         return Err(GetAccountError.Unexpected("getChildrenConverter was unable to be called!"))
     }
 
-    fun setLastSynced(
-        config: Config,
-        lastSyncedDuration: Long
-    ): Result<Unit, SetLastSyncedError> {
-        val setLastSyncedResult: Result<Unit, SetLastSyncedError>? =
-            Klaxon().converter(setLastSyncedConverter)
-                .parse(setLastSynced(Klaxon().toJsonString(config), lastSyncedDuration))
-
-        if (setLastSyncedResult != null) {
-            return setLastSyncedResult
-        }
-
-        return Err(SetLastSyncedError.Unexpected("setLastSyncedConverter was unable to be called!"))
-    }
-
     fun convertToHumanDuration(
         metadataVersion: Long
     ): String = app.lockbook.core.convertToHumanDuration(metadataVersion)

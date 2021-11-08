@@ -275,28 +275,6 @@ val getAccountConverter = object : Converter {
     override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }
 
-val setLastSyncedConverter = object : Converter {
-    override fun canConvert(cls: Class<*>): Boolean = true
-
-    override fun fromJson(jv: JsonValue): Any = when (jv.obj?.string("tag")) {
-        okTag -> Ok(Unit)
-        errTag -> when (val errorTag = jv.obj?.obj("content")?.string("tag")) {
-            unexpectedTag -> {
-                val error = jv.obj?.obj("content")?.string("content")
-                if (error != null) {
-                    Err(SetLastSyncedError.Unexpected(error))
-                } else {
-                    Err(SetLastSyncedError.Unexpected("setLastSyncedConverter $unableToGetUnexpectedError ${jv.obj?.toJsonString()}"))
-                }
-            }
-            else -> Err(SetLastSyncedError.Unexpected("setLastSyncedConverter $unmatchedErrorTag $errorTag"))
-        }
-        else -> Err(SetLastSyncedError.Unexpected("setLastSyncedConverter $unmatchedTag ${jv.obj?.toJsonString()}"))
-    }
-
-    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
-}
-
 val getUsageConverter = object : Converter {
     override fun canConvert(cls: Class<*>): Boolean = true
 

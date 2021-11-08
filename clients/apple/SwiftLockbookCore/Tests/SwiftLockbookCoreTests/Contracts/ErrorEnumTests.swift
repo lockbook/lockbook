@@ -24,7 +24,6 @@ class ErrorEnumTests: XCTestCase {
         let MoveFileError: [MoveFileError]
         let SyncAllError: [SyncAllError]
         let CalculateWorkError: [CalculateWorkError]
-        let SetLastSyncedError: [SetLastSyncedError]
         let GetLastSyncedError: [GetLastSyncedError]
         let GetUsageError: [GetUsageError]
         let FileDeleteError: [FileDeleteError]
@@ -53,7 +52,6 @@ class ErrorEnumTests: XCTestCase {
                 && !MoveFileError.isEmpty
                 && !SyncAllError.isEmpty
                 && !CalculateWorkError.isEmpty
-                && !SetLastSyncedError.isEmpty
                 && !GetLastSyncedError.isEmpty
                 && !GetUsageError.isEmpty
                 && !FileDeleteError.isEmpty
