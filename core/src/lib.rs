@@ -586,11 +586,18 @@ pub enum GetLocalChangesError {
 }
 
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, Error<GetLocalChangesError>> {
-    Ok(file_repo::get_all_metadata_changes(config)
+    let mut metadata_changes: Vec<Uuid> = file_repo::get_all_metadata_changes(config)
         .map_err(|err| unexpected!("{:#?}", err))?
         .iter()
         .map(|f| f.id)
-        .collect())
+        .collect();
+
+    let document_changes = file_repo::get_all_with_document_changes(config)
+        .map_err(|err| unexpected!("{:#?}", err))?;
+
+    metadata_changes.extend(document_changes);
+
+    Ok(metadata_changes)
 }
 
 #[derive(Debug, Serialize, EnumIter)]
