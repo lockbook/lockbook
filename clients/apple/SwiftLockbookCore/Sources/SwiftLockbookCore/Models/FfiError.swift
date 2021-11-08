@@ -181,9 +181,6 @@ public enum CalculateWorkError: String, UiError {
     case CouldNotReachServer
     case ClientUpdateRequired
 }
-public enum SetLastSyncedError: String, UiError {
-    case Stub
-}
 public enum GetLastSyncedError: String, UiError {
     case Stub
 }

@@ -85,7 +85,6 @@ sealed class CoreError {
         is GetRootError.Unexpected -> LbError.newProgError(this.error)
         is WriteToDocumentError.Unexpected -> LbError.newProgError(this.error)
         is GetAccountError.Unexpected -> LbError.newProgError(this.error)
-        is SetLastSyncedError.Unexpected -> LbError.newProgError(this.error)
         is AccountExportError.Unexpected -> LbError.newProgError(this.error)
         is ImportError.Unexpected -> LbError.newProgError(this.error)
         is CreateAccountError.Unexpected -> LbError.newProgError(this.error)
@@ -145,10 +144,6 @@ sealed class AccountExportError : CoreError() {
 sealed class GetAccountError : CoreError() {
     object NoAccount : GetAccountError()
     data class Unexpected(val error: String) : GetAccountError()
-}
-
-sealed class SetLastSyncedError : CoreError() {
-    data class Unexpected(val error: String) : SetLastSyncedError()
 }
 
 sealed class GetRootError : CoreError() {
