@@ -100,18 +100,22 @@ impl Drop for Trial {
 }
 
 impl Trial {
-    fn create_clients(&mut self) {
+    fn create_clients(&mut self) -> Result<(), Status> {
         for _ in 0..self.target_clients {
             self.clients.push(test_config());
         }
 
-        create_account(&self.clients[0], &random_username(), &url()).unwrap();
+        create_account(&self.clients[0], &random_username(), &url())
+            .map_err(|err| Failed(format!("{:#?}", err)))?;
         let account_string = export_account(&self.clients[0]).unwrap();
 
         for client in &self.clients[1..] {
-            import_account(&client, &account_string).unwrap();
-            sync_all(&client, None).unwrap();
+            import_account(&client, &account_string)
+                .map_err(|err| Failed(format!("{:#?}", err)))?;
+            sync_all(&client, None).map_err(|err| Failed(format!("{:#?}", err)))?;
         }
+
+        Ok(())
     }
 
     fn perform_all_known_actions(&mut self) {
@@ -374,7 +378,9 @@ impl Trial {
 
     pub fn execute(&mut self) -> Vec<Trial> {
         self.status = Running;
-        self.create_clients();
+        if let Err(err) = self.create_clients() {
+            self.status = err;
+        }
 
         let mut all_mutations = vec![];
 

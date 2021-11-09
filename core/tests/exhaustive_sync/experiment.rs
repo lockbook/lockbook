@@ -1,5 +1,8 @@
+use crate::exhaustive_sync::trial::Status::Failed;
 use crate::exhaustive_sync::trial::{Status, Trial};
 use core::time;
+use lockbook_crypto::clock_service::{get_time, Timestamp};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use uuid::Uuid;
@@ -52,12 +55,19 @@ impl Experiment {
 
     pub fn kick_off(self) {
         let state = Arc::new(Mutex::new(self));
+        let checkins = Arc::new(Mutex::new(HashMap::<Uuid, Timestamp>::new()));
+
         for _ in 0..num_cpus::get() {
             let thread_state = state.clone();
+            let thread_checkins = checkins.clone();
             thread::spawn(move || loop {
                 match Self::grab_ready_trial(thread_state.clone()) {
                     (Some(mut work), _) => {
+                        thread_checkins.lock().unwrap().insert(work.id, get_time());
+
                         let mutants = work.execute();
+                        thread_checkins.lock().unwrap().remove(&work.id);
+
                         Self::publish_results(thread_state.clone(), work, &mutants);
                     }
                     (None, true) => {
@@ -72,11 +82,23 @@ impl Experiment {
         loop {
             print_count += 1;
             thread::sleep(time::Duration::from_millis(10000));
-            let experiments = state.lock().unwrap();
+            let mut experiments = state.lock().unwrap();
             let mut failures = experiments.concluded.clone();
             failures.retain(|trial| trial.status.failed());
             if experiments.pending.is_empty() && experiments.running.is_empty() {
                 break;
+            }
+
+            for running_trial in &mut experiments.running.clone() {
+                if let Some(time) = checkins.lock().unwrap().get(&running_trial.id) {
+                    if get_time().0 - time.0 > 30000 {
+                        running_trial.status = Failed("Timeout.".to_string());
+                        experiments
+                            .running
+                            .retain(|trial| trial.id != running_trial.id);
+                        experiments.concluded.push(running_trial.clone());
+                    }
+                }
             }
 
             println!(
