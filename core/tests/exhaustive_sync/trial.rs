@@ -89,6 +89,7 @@ pub struct Trial {
     pub steps: Vec<Action>,
     pub completed_steps: usize,
     pub status: Status,
+    pub time_of_start: i64
 }
 
 impl Drop for Trial {
@@ -377,10 +378,11 @@ impl Trial {
     }
 
     pub fn execute(&mut self) -> Vec<Trial> {
-        self.status = Running;
-        if let Err(err) = self.create_clients() {
-            self.status = err;
-        }
+        self.status = if let Err(err) = self.create_clients() {
+            err
+        } else {
+            Running
+        };
 
         let mut all_mutations = vec![];
 
