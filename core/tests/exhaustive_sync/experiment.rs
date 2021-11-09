@@ -22,7 +22,7 @@ impl Default for Experiment {
                 steps: vec![],
                 completed_steps: 0,
                 status: Status::Ready,
-                time_of_start: get_time().0
+                time_of_start: get_time().0,
             }],
             running: vec![],
             concluded: vec![],
@@ -90,7 +90,8 @@ impl Experiment {
                 }
             }
 
-            println!( // show count of trails that have been running over 30 seconds
+            println!(
+                // show count of trails that have been running over 30 seconds
                 "{} pending, {} running, {} stuck, {} run, {} failures.",
                 &experiments.pending.len(),
                 &experiments.running.len(),

@@ -89,7 +89,7 @@ pub struct Trial {
     pub steps: Vec<Action>,
     pub completed_steps: usize,
     pub status: Status,
-    pub time_of_start: i64
+    pub time_of_start: i64,
 }
 
 impl Drop for Trial {
