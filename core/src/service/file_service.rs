@@ -291,7 +291,7 @@ pub fn suggest_non_conflicting_filename(
 
     let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
     loop {
-        if sibblings
+        if !sibblings
             .iter()
             .any(|f| f.decrypted_name == new_name.to_name())
         {
