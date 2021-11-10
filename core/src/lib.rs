@@ -29,6 +29,7 @@ use crate::service::{
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
+use itertools::Itertools;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
@@ -586,18 +587,17 @@ pub enum GetLocalChangesError {
 }
 
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, Error<GetLocalChangesError>> {
-    let mut metadata_changes: Vec<Uuid> = file_repo::get_all_metadata_changes(config)
+    Ok(file_repo::get_all_metadata_changes(config)
         .map_err(|err| unexpected!("{:#?}", err))?
-        .iter()
+        .into_iter()
         .map(|f| f.id)
-        .collect();
-
-    let document_changes = file_repo::get_all_with_document_changes(config)
-        .map_err(|err| unexpected!("{:#?}", err))?;
-
-    metadata_changes.extend(document_changes);
-
-    Ok(metadata_changes)
+        .chain(
+            file_repo::get_all_with_document_changes(config)
+                .map_err(|err| unexpected!("{:#?}", err))?
+                .into_iter(),
+        )
+        .unique()
+        .collect())
 }
 
 #[derive(Debug, Serialize, EnumIter)]
