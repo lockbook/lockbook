@@ -15,7 +15,9 @@ use lockbook_core::{
     rename_file, sync_all, write_document, MoveFileError,
 };
 use lockbook_core::{create_file, list_metadatas};
+use lockbook_crypto::clock_service::get_time;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
+use std::time::Duration;
 use uuid::Uuid;
 use variant_count::VariantCount;
 
@@ -89,6 +91,8 @@ pub struct Trial {
     pub steps: Vec<Action>,
     pub completed_steps: usize,
     pub status: Status,
+    pub start_time: i64,
+    pub end_time: i64,
 }
 
 impl Drop for Trial {
@@ -100,18 +104,22 @@ impl Drop for Trial {
 }
 
 impl Trial {
-    fn create_clients(&mut self) {
+    fn create_clients(&mut self) -> Result<(), Status> {
         for _ in 0..self.target_clients {
             self.clients.push(test_config());
         }
 
-        create_account(&self.clients[0], &random_username(), &url()).unwrap();
+        create_account(&self.clients[0], &random_username(), &url())
+            .map_err(|err| Failed(format!("{:#?}", err)))?;
         let account_string = export_account(&self.clients[0]).unwrap();
 
         for client in &self.clients[1..] {
-            import_account(&client, &account_string).unwrap();
-            sync_all(&client, None).unwrap();
+            import_account(&client, &account_string)
+                .map_err(|err| Failed(format!("{:#?}", err)))?;
+            sync_all(&client, None).map_err(|err| Failed(format!("{:#?}", err)))?;
         }
+
+        Ok(())
     }
 
     fn perform_all_known_actions(&mut self) {
@@ -373,8 +381,12 @@ impl Trial {
     }
 
     pub fn execute(&mut self) -> Vec<Trial> {
-        self.status = Running;
-        self.create_clients();
+        self.start_time = get_time().0;
+        self.status = if let Err(err) = self.create_clients() {
+            err
+        } else {
+            Running
+        };
 
         let mut all_mutations = vec![];
 
@@ -396,6 +408,7 @@ impl Trial {
             });
         }
 
+        self.end_time = get_time().0;
         all_mutations
     }
 
@@ -404,6 +417,8 @@ impl Trial {
         clone.steps.push(new_action);
         clone.status = Ready;
         clone.completed_steps = 0;
+        clone.start_time = 0;
+        clone.end_time = 0;
         clone.clients = vec![];
         clone.id = Uuid::new_v4();
         clone
