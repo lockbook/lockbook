@@ -293,8 +293,7 @@ pub fn suggest_non_conflicting_filename(
     loop {
         if sibblings
             .iter()
-            .find(|f| f.decrypted_name == new_name.to_name())
-            .is_none()
+            .any(|f| f.decrypted_name == new_name.to_name())
         {
             return Ok(new_name.to_name());
         } else {

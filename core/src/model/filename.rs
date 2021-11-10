@@ -49,8 +49,8 @@ impl NameComponents {
         }
 
         let name = {
-            let name_right_bound =
-                variant_location.unwrap_or(extension_location.unwrap_or(file_name.len()));
+            let name_right_bound = variant_location
+                .unwrap_or_else(|| extension_location.unwrap_or_else(|| file_name.len()));
             (&file_name[0..name_right_bound]).to_string()
         };
 
@@ -65,7 +65,7 @@ impl NameComponents {
 
     pub fn generate_next(&self) -> NameComponents {
         let mut next = self.clone();
-        next.variant = Some(self.variant.unwrap_or(0) + 1);
+        next.variant = Some(self.variant.unwrap_or_else(|| 0) + 1);
         next
     }
 
@@ -74,7 +74,7 @@ impl NameComponents {
             (Some(variant), Some(extension)) => format!("{}-{}.{}", self.name, variant, extension),
             (Some(variant), None) => format!("{}-{}", self.name, variant),
             (None, Some(extension)) => format!("{}.{}", self.name, extension),
-            (None, None) => format!("{}", self.name),
+            (None, None) => self.name.to_string(),
         }
     }
 }
