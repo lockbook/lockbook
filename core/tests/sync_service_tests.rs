@@ -8,7 +8,10 @@ mod sync_tests {
     use lockbook_core::service::integrity_service::test_repo_integrity;
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
     use lockbook_core::service::{account_service, file_service, path_service, sync_service};
-    use lockbook_core::{calculate_work, delete_file, make_account, move_file, path, rename_file};
+    use lockbook_core::{
+        calculate_work, create_file_at_path, delete_file, list_metadatas, make_account, move_file,
+        path, rename_file,
+    };
     use lockbook_models::work_unit::WorkUnit;
 
     macro_rules! assert_dirty_ids {
@@ -571,11 +574,59 @@ mod sync_tests {
         let all_metadata = file_repo::get_all_metadata(&db2, RepoSource::Base).unwrap();
         assert!(all_metadata
             .into_iter()
-            .any(|m| m.decrypted_name.contains("CONTENT-CONFLICT")));
+            .any(|m| m.decrypted_name.contains("test-1.bin")));
 
         sync!(&db1);
 
         assert_dbs_eq(&db1, &db2);
+    }
+
+    #[test]
+    fn test_path_conflict() {
+        let db1 = test_config();
+
+        let account = make_account!(db1);
+        make_and_sync_new_client!(db2, db1);
+
+        create_file_at_path(&db1, path!(account, "new.md")).unwrap();
+        sync!(&db1);
+        create_file_at_path(&db2, path!(account, "new.md")).unwrap();
+        sync!(&db2);
+
+        assert_eq!(
+            list_metadatas(&db2)
+                .unwrap()
+                .iter()
+                .filter(|file| file.id != file.parent)
+                .map(|file| file.name.clone())
+                .sorted()
+                .collect::<Vec<String>>(),
+            ["new-1.md", "new.md"]
+        )
+    }
+
+    #[test]
+    fn test_path_conflict2() {
+        let db1 = test_config();
+
+        let account = make_account!(db1);
+        make_and_sync_new_client!(db2, db1);
+
+        create_file_at_path(&db1, path!(account, "new-1.md")).unwrap();
+        sync!(&db1);
+        create_file_at_path(&db2, path!(account, "new-1.md")).unwrap();
+        sync!(&db2);
+
+        assert_eq!(
+            list_metadatas(&db2)
+                .unwrap()
+                .iter()
+                .filter(|file| file.id != file.parent)
+                .map(|file| file.name.clone())
+                .sorted()
+                .collect::<Vec<String>>(),
+            ["new-1.md", "new-2.md"]
+        )
     }
 
     #[test]
