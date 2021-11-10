@@ -1,3 +1,4 @@
+use crate::model::filename::NameComponents;
 use crate::utils::StageSource;
 use crate::{utils, CoreError};
 use lockbook_crypto::symkey;
@@ -275,6 +276,33 @@ pub fn get_path_conflicts(
     Ok(result)
 }
 
+pub fn suggest_non_conflicting_filename(
+    id: Uuid,
+    files: &[DecryptedFileMetadata],
+    staged_changes: &[DecryptedFileMetadata],
+) -> Result<String, CoreError> {
+    let files: Vec<DecryptedFileMetadata> = utils::stage(files, staged_changes)
+        .iter()
+        .map(|(f, _)| f.clone())
+        .collect();
+
+    let file = utils::find(&files, id)?;
+    let sibblings = utils::find_children(&files, file.parent);
+
+    let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
+    loop {
+        if sibblings
+            .iter()
+            .find(|f| f.decrypted_name == new_name.to_name())
+            .is_none()
+        {
+            return Ok(new_name.to_name());
+        } else {
+            new_name = new_name.generate_next();
+        }
+    }
+}
+
 pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), CoreError> {
     OpenOptions::new()
         .write(true)
@@ -504,5 +532,35 @@ mod unit_tests {
         let root_id = root.id;
         let result = file_service::apply_delete(&[root, folder, document], root_id);
         assert_eq!(result, Err(CoreError::RootModificationInvalid));
+    }
+
+    #[test]
+    fn get_nonconflicting_filename() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        assert_eq!(
+            file_service::suggest_non_conflicting_filename(folder.id, &[root, folder], &[])
+                .unwrap(),
+            "folder-1"
+        );
+    }
+
+    #[test]
+    fn get_nonconflicting_filename2() {
+        let account = test_utils::generate_account();
+        let root = file_service::create_root(&account.username);
+        let folder1 = file_service::create(FileType::Folder, root.id, "folder", &account.username);
+        let folder2 =
+            file_service::create(FileType::Folder, root.id, "folder-1", &account.username);
+        assert_eq!(
+            file_service::suggest_non_conflicting_filename(
+                folder1.id,
+                &[root, folder1, folder2],
+                &[]
+            )
+            .unwrap(),
+            "folder-2"
+        );
     }
 }
