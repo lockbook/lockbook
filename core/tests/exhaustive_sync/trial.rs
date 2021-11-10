@@ -15,6 +15,7 @@ use lockbook_core::{
     rename_file, sync_all, write_document, MoveFileError,
 };
 use lockbook_core::{create_file, list_metadatas};
+use lockbook_crypto::clock_service::get_time;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use uuid::Uuid;
 use variant_count::VariantCount;
@@ -378,6 +379,7 @@ impl Trial {
     }
 
     pub fn execute(&mut self) -> Vec<Trial> {
+        self.start_time = get_time().0;
         self.status = if let Err(err) = self.create_clients() {
             err
         } else {

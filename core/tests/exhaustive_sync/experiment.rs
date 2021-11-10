@@ -37,8 +37,7 @@ impl Experiment {
         let mut state = experiments.lock().unwrap();
         let experiment = state.pending.pop();
         match experiment {
-            Some(mut found) => {
-                found.start_time = get_time().0;
+            Some(found) => {
                 state.running.push(found.clone());
                 (Some(found), true)
             }
@@ -83,25 +82,27 @@ impl Experiment {
                 break;
             }
 
-            let mut stuck_count = 0;
-            for trial in &experiments.running {
-                if get_time().0 - trial.start_time > 30000 {
-                    stuck_count += 1;
-                }
-            }
+            let stuck: Vec<Trial> = experiments
+                .running
+                .clone()
+                .into_iter()
+                .filter(|t| t.start_time != 0)
+                .filter(|t| get_time().0 - t.start_time > 30000)
+                .collect();
 
             println!(
                 // show count of trails that have been running over 30 seconds
                 "{} pending, {} running, {} stuck, {} run, {} failures.",
                 &experiments.pending.len(),
                 &experiments.running.len(),
-                stuck_count,
+                &stuck.len(),
                 &experiments.concluded.len(),
                 &failures.len()
             );
 
-            if print_count % 6 == 0 {
-                println!("{:#?}", failures);
+            if print_count % 12 == 0 {
+                println!("failures: {:#?}", failures);
+                println!("stuck: {:#?}", stuck);
             }
         }
 
