@@ -3,6 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub type TimeGetter = fn() -> Timestamp;
 
+#[derive(Clone, Debug)]
 pub struct Timestamp(pub i64);
 
 pub fn get_time() -> Timestamp {

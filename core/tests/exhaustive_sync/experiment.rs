@@ -1,13 +1,18 @@
 use crate::exhaustive_sync::trial::{Status, Trial};
 use core::time;
+use itertools::Itertools;
+use lockbook_crypto::clock_service::{get_time, Timestamp};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use uuid::Uuid;
 
+pub type ThreadID = usize;
+
 pub struct Experiment {
     pub pending: Vec<Trial>,
-    pub running: Vec<Trial>,
     pub concluded: Vec<Trial>,
+    pub running: HashMap<ThreadID, (Timestamp, Trial)>,
 }
 
 impl Default for Experiment {
@@ -21,8 +26,10 @@ impl Default for Experiment {
                 steps: vec![],
                 completed_steps: 0,
                 status: Status::Ready,
+                start_time: 0,
+                end_time: 0,
             }],
-            running: vec![],
+            running: HashMap::new(),
             concluded: vec![],
         }
     }
@@ -31,34 +38,43 @@ impl Default for Experiment {
 type Continue = bool;
 
 impl Experiment {
-    pub fn grab_ready_trial(experiments: Arc<Mutex<Self>>) -> (Option<Trial>, Continue) {
+    pub fn grab_ready_trial_for_thread(
+        thread: ThreadID,
+        experiments: Arc<Mutex<Self>>,
+    ) -> (Option<Trial>, Continue) {
         let mut state = experiments.lock().unwrap();
         let experiment = state.pending.pop();
         match experiment {
             Some(found) => {
-                state.running.push(found.clone());
+                state.running.insert(thread, (get_time(), found.clone()));
                 (Some(found), true)
             }
             None => (None, !state.running.is_empty()),
         }
     }
 
-    pub fn publish_results(experiments: Arc<Mutex<Self>>, result: Trial, mutants: &[Trial]) {
+    pub fn publish_results(
+        thread: ThreadID,
+        experiments: Arc<Mutex<Self>>,
+        result: Trial,
+        mutants: &[Trial],
+    ) {
         let mut state = experiments.lock().unwrap();
-        state.running.retain(|trial| trial.id != result.id);
+        state.running.remove(&thread);
         state.concluded.push(result);
         state.pending.extend_from_slice(mutants);
     }
 
     pub fn kick_off(self) {
         let state = Arc::new(Mutex::new(self));
-        for _ in 0..num_cpus::get() {
+
+        for thread in 0..num_cpus::get() {
             let thread_state = state.clone();
             thread::spawn(move || loop {
-                match Self::grab_ready_trial(thread_state.clone()) {
+                match Self::grab_ready_trial_for_thread(thread, thread_state.clone()) {
                     (Some(mut work), _) => {
                         let mutants = work.execute();
-                        Self::publish_results(thread_state.clone(), work, &mutants);
+                        Self::publish_results(thread, thread_state.clone(), work, &mutants);
                     }
                     (None, true) => {
                         thread::sleep(time::Duration::from_millis(100));
@@ -79,16 +95,42 @@ impl Experiment {
                 break;
             }
 
+            let stuck: HashMap<ThreadID, (Timestamp, Trial)> = experiments
+                .running
+                .clone()
+                .into_iter()
+                .filter(|(_, (time, _))| time.0 != 0 && get_time().0 - time.0 > 10000)
+                .collect();
+
             println!(
-                "{} pending, {} running, {} run, {} failures.",
+                // show count of trails that have been running over 10 seconds
+                "{} pending, {} running, {} stuck, {} run, {} failures.",
                 &experiments.pending.len(),
                 &experiments.running.len(),
+                &stuck.len(),
                 &experiments.concluded.len(),
                 &failures.len()
             );
 
-            if print_count % 6 == 0 {
-                println!("{:#?}", failures);
+            if (!failures.is_empty() || !stuck.is_empty()) && print_count % 12 == 0 {
+                println!("failures: {:#?}", failures);
+                println!("stuck: {:#?}", stuck);
+            }
+
+            if print_count % 12 == 0 {
+                if let Some(trial) = experiments
+                    .concluded
+                    .clone()
+                    .into_iter()
+                    .sorted_by_key(|t| t.end_time - t.end_time)
+                    .next()
+                {
+                    println!(
+                        "slowest trial took {}s: {:#?}",
+                        (trial.end_time - trial.start_time) as f64 / 1000.0,
+                        trial
+                    );
+                }
             }
         }
 
