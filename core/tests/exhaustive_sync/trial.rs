@@ -17,6 +17,7 @@ use lockbook_core::{
 use lockbook_core::{create_file, list_metadatas};
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
+use std::time::Duration;
 use uuid::Uuid;
 use variant_count::VariantCount;
 
@@ -91,6 +92,7 @@ pub struct Trial {
     pub completed_steps: usize,
     pub status: Status,
     pub start_time: i64,
+    pub end_time: i64,
 }
 
 impl Drop for Trial {
@@ -406,6 +408,7 @@ impl Trial {
             });
         }
 
+        self.end_time = get_time().0;
         all_mutations
     }
 
@@ -415,6 +418,7 @@ impl Trial {
         clone.status = Ready;
         clone.completed_steps = 0;
         clone.start_time = 0;
+        clone.end_time = 0;
         clone.clients = vec![];
         clone.id = Uuid::new_v4();
         clone
