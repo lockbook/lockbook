@@ -89,7 +89,7 @@ pub struct Trial {
     pub steps: Vec<Action>,
     pub completed_steps: usize,
     pub status: Status,
-    pub time_of_start: i64,
+    pub start_time: i64,
 }
 
 impl Drop for Trial {
@@ -412,6 +412,7 @@ impl Trial {
         clone.steps.push(new_action);
         clone.status = Ready;
         clone.completed_steps = 0;
+        clone.start_time = 0;
         clone.clients = vec![];
         clone.id = Uuid::new_v4();
         clone

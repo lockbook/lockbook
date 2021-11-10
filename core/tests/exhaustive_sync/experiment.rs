@@ -22,7 +22,7 @@ impl Default for Experiment {
                 steps: vec![],
                 completed_steps: 0,
                 status: Status::Ready,
-                time_of_start: get_time().0,
+                start_time: 0,
             }],
             running: vec![],
             concluded: vec![],
@@ -38,7 +38,7 @@ impl Experiment {
         let experiment = state.pending.pop();
         match experiment {
             Some(mut found) => {
-                found.time_of_start = get_time().0;
+                found.start_time = get_time().0;
                 state.running.push(found.clone());
                 (Some(found), true)
             }
@@ -85,7 +85,7 @@ impl Experiment {
 
             let mut stuck_count = 0;
             for trial in &experiments.running {
-                if get_time().0 - trial.time_of_start > 30000 {
+                if get_time().0 - trial.start_time > 30000 {
                     stuck_count += 1;
                 }
             }
