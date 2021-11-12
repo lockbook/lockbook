@@ -16,37 +16,6 @@ However, building clients has a varied list of hardware and software requirement
 
 More specific instructions for things like installing the stable Rust toolchain can be found [here](#reference-instructions).
 
-## CLI
-
-CLI is the most straightforward client. You can build it on any machine and don't need anything in addition to the stable Rust toolchain.
-
-Simply go into the [CLI Folder](/clients/cli) and `cargo run`.
-
-## Linux
-
-In order to build the Linux client, you need the stable Rust toolchain on a
-Linux distro with GTK installed, as well as the shared libraries for gtksourceview and gspell. Then, go into the [Linux
-folder](/clients/linux) and `cargo run`.
-
-## Android
-
-Standard Android development toolchain, along with the native development kit.
-
-Native development support for cargo:
-```shell script
-cargo install cargo-ndk
-```
-
-Android targets for cargo:
-```shell script
-rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-```
-
-Download the android ndk through android studio or directly online from the android developers website. Extract it and set the environment variable `ANDROID_NDK_HOME` to its location.
-
-`make android` in the `core` folder.
-
-
 ## Windows
 
 You need a Windows computer, and you need to set yourself up for [UWP development](https://docs.microsoft.com/en-us/windows/uwp/get-started/get-set-up).
