@@ -1,6 +1,6 @@
 # Linux Releasing
 
-- Set up your [build environment](/docs/guides/building/linux.md:3).
+- Set up your [build environment](/docs/guides/build/linux.md:3).
 
 ## Github Releases
 

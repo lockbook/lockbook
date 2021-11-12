@@ -1,6 +1,6 @@
 # Android Releasing
 
-- Set up your [build environment](/docs/guides/building/android.md:3).
+- Set up your [build environment](/docs/guides/build/android.md:3).
 
 ## Github Releases
 
