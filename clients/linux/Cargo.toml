@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-desktop"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2018"
 
 [dependencies]
