@@ -46,7 +46,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
+pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
     let print_colors = env::var("LOG_NO_COLOR").is_err();
     let lockbook_log_level = env::var("LOG_LEVEL")
         .ok()
@@ -54,11 +54,11 @@ pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
         .unwrap_or(log::LevelFilter::Debug);
 
     loggers::init(log_path, LOG_FILE.to_string(), print_colors)
-        .map_err(|err| unexpected!("IO Error: {:#?}", err))?
+        .map_err(|err| unexpected_only!("IO Error: {:#?}", err))?
         .level(log::LevelFilter::Warn)
         .level_for("lockbook_core", lockbook_log_level)
         .apply()
-        .map_err(|err| unexpected!("{:#?}", err))?;
+        .map_err(|err| unexpected_only!("{:#?}", err))?;
     info!("Logger initialized! Path: {:?}", log_path);
     Ok(())
 }
@@ -272,16 +272,8 @@ pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootErro
     }
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetChildrenError {
-    Stub, // TODO: Enums should not be empty
-}
-
-pub fn get_children(
-    config: &Config,
-    id: Uuid,
-) -> Result<Vec<ClientFileMetadata>, Error<GetChildrenError>> {
-    get_children_helper(config, id).map_err(|e| unexpected!("{:#?}", e))
+pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<ClientFileMetadata>, UnexpectedError> {
+    get_children_helper(config, id).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -396,42 +388,25 @@ pub fn save_document_to_disk(
     })
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ListPathsError {
-    Stub, // TODO: Enums should not be empty
-}
-
 pub fn list_paths(
     config: &Config,
     filter: Option<path_service::Filter>,
-) -> Result<Vec<String>, Error<ListPathsError>> {
-    path_service::get_all_paths(config, filter).map_err(|e| unexpected!("{:#?}", e))
+) -> Result<Vec<String>, UnexpectedError> {
+    path_service::get_all_paths(config, filter).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetPathError {
-    Stub, // TODO: Enums should not be empty
+pub fn get_path_by_id(config: &Config, uuid: Uuid) -> Result<String, UnexpectedError> {
+    path_service::get_path_by_id(config, uuid).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
-pub fn get_path_by_id(config: &Config, uuid: Uuid) -> Result<String, Error<GetPathError>> {
-    path_service::get_path_by_id(config, uuid).map_err(|e| unexpected!("{:#?}", e))
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ListMetadatasError {
-    Stub, // TODO: Enums should not be empty
-}
-
-pub fn list_metadatas(
-    config: &Config,
-) -> Result<Vec<ClientFileMetadata>, Error<ListMetadatasError>> {
+pub fn list_metadatas(config: &Config) -> Result<Vec<ClientFileMetadata>, UnexpectedError> {
     let metas = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)
-        .map_err(|e| unexpected!("{:#?}", e))?;
+        .map_err(|e| unexpected_only!("{:#?}", e))?;
     let mut client_metas = vec![];
 
     for meta in metas {
         client_metas
-            .push(generate_client_file_metadata(&meta).map_err(|e| unexpected!("{:#?}", e))?);
+            .push(generate_client_file_metadata(&meta).map_err(|e| unexpected_only!("{:#?}", e))?);
     }
 
     Ok(client_metas)
@@ -504,19 +479,14 @@ pub fn sync_all(
     })
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetLocalChangesError {
-    Stub,
-}
-
-pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, Error<GetLocalChangesError>> {
+pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, UnexpectedError> {
     Ok(file_repo::get_all_metadata_changes(config)
-        .map_err(|err| unexpected!("{:#?}", err))?
+        .map_err(|err| unexpected_only!("{:#?}", err))?
         .into_iter()
         .map(|f| f.id)
         .chain(
             file_repo::get_all_with_document_changes(config)
-                .map_err(|err| unexpected!("{:#?}", err))?
+                .map_err(|err| unexpected_only!("{:#?}", err))?
                 .into_iter(),
         )
         .unique()
@@ -543,18 +513,13 @@ pub fn calculate_work(config: &Config) -> Result<ClientWorkCalculated, Error<Cal
         })
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetLastSyncedError {
-    Stub, // TODO: Enums should not be empty
-}
-
-pub fn get_last_synced(config: &Config) -> Result<i64, Error<GetLastSyncedError>> {
+pub fn get_last_synced(config: &Config) -> Result<i64, UnexpectedError> {
     last_updated_repo::get(config)
         .map(|n| n as i64)
-        .map_err(|e| unexpected!("{:#?}", e))
+        .map_err(|e| unexpected_only!("{:#?}", e))
 }
 
-pub fn get_last_synced_human_string(config: &Config) -> Result<String, Error<GetLastSyncedError>> {
+pub fn get_last_synced_human_string(config: &Config) -> Result<String, UnexpectedError> {
     let last_synced = get_last_synced(config)?;
 
     Ok(if last_synced != 0 {
@@ -758,18 +723,14 @@ impl_get_variants!(
     WriteToDocumentError,
     CreateFileError,
     GetRootError,
-    GetChildrenError,
     GetFileByIdError,
     GetFileByPathError,
     FileDeleteError,
     ReadDocumentError,
-    ListPathsError,
-    ListMetadatasError,
     RenameFileError,
     MoveFileError,
     SyncAllError,
     CalculateWorkError,
-    GetLastSyncedError,
     GetUsageError,
     GetDrawingError,
     SaveDrawingError,
