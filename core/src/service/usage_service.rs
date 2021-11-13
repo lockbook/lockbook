@@ -1,6 +1,7 @@
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{account_repo, file_repo};
-use crate::{client, model::repo::RepoSource};
+use crate::service::client;
 use crate::{utils, CoreError};
 use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use serde::Serialize;

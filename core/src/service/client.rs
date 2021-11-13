@@ -90,8 +90,8 @@ mod request_common_tests {
     };
 
     use crate::assert_matches;
-    use crate::client::{request_helper, ApiError};
     use crate::model::state::temp_config;
+    use crate::service::client::{request_helper, ApiError};
     use crate::service::db_state_service::get_code_version;
     use crate::service::test_utils;
 

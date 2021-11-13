@@ -43,10 +43,7 @@ pub fn account() -> CliResult<Account> {
 }
 
 pub fn check_and_perform_migrations() -> CliResult<()> {
-    let state = get_db_state(&config()?).map_err(|err| match err {
-        CoreError::UiError(GetStateError::Stub) => err_unexpected!("impossible"),
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-    })?;
+    let state = get_db_state(&config()?).map_err(|err| err_unexpected!("{}", err))?;
 
     match state {
         State::ReadyToUse => {}

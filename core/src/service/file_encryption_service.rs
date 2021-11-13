@@ -1,4 +1,4 @@
-use crate::{core_err_unexpected, CoreError};
+use crate::model::errors::{core_err_unexpected, CoreError};
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;

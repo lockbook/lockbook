@@ -7,9 +7,9 @@ use crate::model::repo::RepoState;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::{file_repo, last_updated_repo};
-use crate::service::{file_encryption_service, file_service};
+use crate::service::{client, file_encryption_service, file_service};
+use crate::utils;
 use crate::CoreError;
-use crate::{client, utils};
 use lockbook_models::account::Account;
 use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,

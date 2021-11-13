@@ -16,7 +16,7 @@ use crate::{
     export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
     get_file_by_id, get_root, get_uncompressed_usage, get_usage, import_account, init_logger,
     migrate_db, move_file, read_document, rename_file, save_document_to_disk, sync_all,
-    write_document, Error,
+    unexpected_only, write_document, Error, UnexpectedError,
 };
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -72,10 +72,11 @@ fn deserialize<U: DeserializeOwned>(env: &JNIEnv, json: JString, name: &str) -> 
     serde_json::from_str::<U>(&json_string).map_err(|err| {
         string_to_jstring(
             env,
-            translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
+            translate::<(), UnexpectedError>(Err(unexpected_only!(
                 "Couldn't deserialize {}: {:?}",
-                name, err
-            )))),
+                name,
+                err
+            ))),
         )
     })
 }

@@ -17,7 +17,6 @@ use lockbook_core::{
 use lockbook_core::{create_file, list_metadatas};
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use std::time::Duration;
 use uuid::Uuid;
 use variant_count::VariantCount;
 

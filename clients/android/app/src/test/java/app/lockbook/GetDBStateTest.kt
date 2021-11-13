@@ -35,7 +35,8 @@ class GetDBStateTest {
 
     @Test
     fun getDBStateUnexpectedError() {
-        Klaxon().converter(getStateConverter).parse<Result<State, GetStateError>>(getDBState(""))
+        val a = Klaxon().converter(getStateConverter).parse<Result<State, GetStateError>>(getDBState(""))
+        a
             .unwrapErrorType<GetStateError.Unexpected>()
     }
 }

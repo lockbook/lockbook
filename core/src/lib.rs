@@ -4,7 +4,6 @@
 extern crate log;
 extern crate reqwest;
 
-use crate::client::ApiError;
 use crate::lib_helpers::{
     delete_file_helper, export_drawing_helper, export_drawing_to_disk_helper,
     get_and_get_children_recursively_helper, get_children_helper, get_drawing_helper,
@@ -35,88 +34,17 @@ use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
+use model::errors::Error::UiError;
+pub use model::errors::{CoreError, Error, UnexpectedError};
 use serde::Serialize;
 use serde_json::{json, value::Value};
 use std::collections::HashMap;
 use std::env;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
-use Error::UiError;
-
-#[derive(Debug, Serialize)]
-#[serde(tag = "tag", content = "content")]
-pub enum Error<U: Serialize> {
-    UiError(U),
-    Unexpected(String),
-}
-
-macro_rules! unexpected {
-    ($base:literal $(, $args:tt )*) => {
-        Error::Unexpected(format!($base $(, $args )*))
-    };
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum CoreError {
-    AccountExists,
-    AccountNonexistent,
-    AccountStringCorrupted,
-    ClientUpdateRequired,
-    ClientWipeRequired,
-    DiskPathInvalid,
-    DiskPathTaken,
-    DrawingInvalid,
-    FileExists,
-    FileNameContainsSlash,
-    FileNameEmpty,
-    FileNonexistent,
-    FileNotDocument,
-    FileNotFolder,
-    FileParentNonexistent,
-    FolderMovedIntoSelf,
-    PathContainsEmptyFileName,
-    PathNonexistent,
-    PathStartsWithNonRoot,
-    PathTaken,
-    ImportCollision(String),
-    RootModificationInvalid,
-    RootNonexistent,
-    ServerUnreachable,
-    UsernameInvalid,
-    UsernamePublicKeyMismatch,
-    UsernameTaken,
-    Unexpected(String),
-}
-
-fn core_err_unexpected<T: std::fmt::Debug>(err: T) -> CoreError {
-    CoreError::Unexpected(format!("{:#?}", err))
-}
-
-impl From<std::io::Error> for CoreError {
-    fn from(e: std::io::Error) -> Self {
-        match e.kind() {
-            ErrorKind::NotFound | ErrorKind::PermissionDenied | ErrorKind::InvalidInput => {
-                CoreError::DiskPathInvalid
-            }
-            ErrorKind::AlreadyExists => CoreError::DiskPathTaken,
-            _ => core_err_unexpected(e),
-        }
-    }
-}
-
-impl<T: std::fmt::Debug> From<ApiError<T>> for CoreError {
-    fn from(e: ApiError<T>) -> Self {
-        match e {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            e => core_err_unexpected(e),
-        }
-    }
-}
 
 pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
     let print_colors = env::var("LOG_NO_COLOR").is_err();
@@ -140,8 +68,8 @@ pub enum GetStateError {
     Stub, // TODO: Enums should not be empty
 }
 
-pub fn get_db_state(config: &Config) -> Result<State, Error<GetStateError>> {
-    db_state_service::get_state(config).map_err(|e| unexpected!("{:#?}", e))
+pub fn get_db_state(config: &Config) -> Result<State, UnexpectedError> {
+    db_state_service::get_state(config).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -857,7 +785,6 @@ impl_get_variants!(
 );
 
 pub mod c_interface;
-pub mod client;
 pub mod java_interface;
 mod json_interface;
 pub mod lib_helpers;

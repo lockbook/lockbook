@@ -1,11 +1,11 @@
-use crate::client::ApiError;
-use crate::core_err_unexpected;
+use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{account_repo, file_repo, last_updated_repo, root_repo};
-use crate::service::{file_encryption_service, file_service};
+use crate::service::client::ApiError;
+use crate::service::{client, file_encryption_service, file_service};
+use crate::utils;
 use crate::CoreError;
-use crate::{client, utils};
 use lockbook_crypto::clock_service::get_time;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;

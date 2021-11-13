@@ -10,7 +10,7 @@ use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::{
     drawing_service, file_encryption_service, file_service, path_service, sync_service,
 };
-use crate::{loggers, utils, CoreError, Error, LOG_FILE};
+use crate::{loggers, unexpected, utils, CoreError, Error, LOG_FILE};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};

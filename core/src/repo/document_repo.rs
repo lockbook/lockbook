@@ -1,4 +1,4 @@
-use crate::core_err_unexpected;
+use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::local_storage;

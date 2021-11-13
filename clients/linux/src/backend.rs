@@ -13,11 +13,10 @@ use lockbook_core::{
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
     get_file_by_path, get_last_synced, get_path_by_id, get_root, get_usage, import_account,
     import_file, list_paths, migrate_db, move_file, read_document, rename_file, sync_all,
-    write_document,
+    unexpected, write_document, Error,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::{FileMetadata, FileType};
 
 use crate::error::{LbErrTarget, LbError, LbResult};
 use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
@@ -26,6 +25,7 @@ use lockbook_core::model::client_conversion::{
 };
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
+use lockbook_models::file_metadata::{FileMetadata, FileType};
 
 macro_rules! match_core_err {
     (
@@ -78,9 +78,7 @@ impl LbCore {
             writeable_path: cfg_path.to_string(),
         };
 
-        match get_db_state(&config).map_err(map_core_err!(GetStateError,
-            Stub => panic!("impossible"),
-        ))? {
+        match get_db_state(&config).map_err(|err| progerr!("{}", err))? {
             DbState::ReadyToUse | DbState::Empty => {}
             DbState::StateRequiresClearing => return Err(uerr_dialog!("{}", STATE_REQ_CLEAN_MSG)),
             DbState::MigrationRequired => {

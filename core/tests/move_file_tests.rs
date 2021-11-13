@@ -2,11 +2,12 @@ mod integration_test;
 
 #[cfg(test)]
 mod move_document_tests {
-    use lockbook_core::client::ApiError;
+    use lockbook_core::service::client;
+    use lockbook_core::service::client::ApiError;
     use lockbook_core::service::test_utils::{
         generate_account, generate_file_metadata, generate_root_metadata,
     };
-    use lockbook_core::{assert_get_updates_required, assert_matches, client};
+    use lockbook_core::{assert_get_updates_required, assert_matches};
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileMetadataDiff;
     use lockbook_models::file_metadata::FileType;

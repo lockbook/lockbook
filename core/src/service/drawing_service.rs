@@ -1,4 +1,4 @@
-use crate::{core_err_unexpected, CoreError};
+use crate::model::errors::{core_err_unexpected, CoreError};
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::farbfeld::FarbfeldEncoder;
 use image::codecs::jpeg::JpegEncoder;
