@@ -1,20 +1,21 @@
 #![allow(dead_code)]
 
-use crate::model::state::Config;
-use crate::repo::{file_repo, root_repo};
-
-use lockbook_models::account::Account;
-use lockbook_models::crypto::*;
-use lockbook_models::file_metadata::{FileMetadata, FileType};
-
-use crate::repo::{account_repo, db_version_repo};
-use lockbook_crypto::{pubkey, symkey};
-use lockbook_models::file_metadata::FileType::Folder;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
+
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use uuid::Uuid;
+
+use lockbook_crypto::{pubkey, symkey};
+use lockbook_models::account::Account;
+use lockbook_models::crypto::*;
+use lockbook_models::file_metadata::FileType::Folder;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+
+use crate::model::state::Config;
+use crate::repo::{account_repo, db_version_repo};
+use crate::repo::{file_repo, root_repo};
 
 #[macro_export]
 macro_rules! assert_matches (

@@ -2,6 +2,8 @@ mod integration_test;
 
 #[cfg(test)]
 mod create_document_tests {
+    use uuid::Uuid;
+
     use lockbook_core::assert_get_updates_required;
     use lockbook_core::assert_matches;
     use lockbook_core::service::api_service;
@@ -12,7 +14,6 @@ mod create_document_tests {
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileMetadataDiff;
     use lockbook_models::file_metadata::FileType;
-    use uuid::Uuid;
 
     #[test]
     fn create_document() {

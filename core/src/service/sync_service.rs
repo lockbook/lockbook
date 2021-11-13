@@ -1,5 +1,16 @@
 use std::fmt;
 
+use serde::Serialize;
+
+use lockbook_crypto::clock_service::get_time;
+use lockbook_models::account::Account;
+use lockbook_models::api::{
+    ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
+};
+use lockbook_models::crypto::DecryptedDocument;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::work_unit::WorkUnit;
+
 use crate::model::client_conversion::ClientWorkUnit;
 use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
@@ -8,19 +19,10 @@ use crate::model::state::Config;
 use crate::pure_functions::files;
 use crate::repo::account_repo;
 use crate::repo::{file_repo, last_updated_repo};
-use crate::service::{api_service, file_encryption_service, file_service};
+use crate::service::{api_service, file_encryption_service};
 use crate::CoreError;
-use lockbook_models::account::Account;
-use lockbook_models::api::{
-    ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
-};
-use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
-use lockbook_models::work_unit::WorkUnit;
-use serde::Serialize;
 
 use super::file_compression_service;
-use lockbook_crypto::clock_service::get_time;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -279,7 +281,7 @@ fn merge_maybe_documents(
                     }
                     // other documents have local version copied to new file
                     DocumentType::Drawing | DocumentType::Other => {
-                        let copied_local_metadata = file_service::create(
+                        let copied_local_metadata = files::create(
                             FileType::Document,
                             merged_metadata.parent,
                             &merged_metadata.decrypted_name,
@@ -317,7 +319,7 @@ fn merge_maybe_documents(
                     }
                     // other documents have local version copied to new file
                     DocumentType::Drawing | DocumentType::Other => {
-                        let copied_local_metadata = file_service::create(
+                        let copied_local_metadata = files::create(
                             FileType::Document,
                             merged_metadata.parent,
                             &merged_metadata.decrypted_name,
@@ -622,11 +624,10 @@ where
     }
 
     // resolve path conflicts
-    for path_conflict in file_service::get_path_conflicts(&local_metadata, &local_metadata_updates)?
-    {
+    for path_conflict in files::get_path_conflicts(&local_metadata, &local_metadata_updates)? {
         let local_meta_updates_copy = local_metadata_updates.clone();
         let to_rename = files::find_mut(&mut local_metadata_updates, path_conflict.staged)?;
-        let conflict_name = file_service::suggest_non_conflicting_filename(
+        let conflict_name = files::suggest_non_conflicting_filename(
             to_rename.id,
             &local_metadata,
             &local_meta_updates_copy,
@@ -635,9 +636,7 @@ where
     }
 
     // resolve cycles
-    for self_descendant in
-        file_service::get_invalid_cycles(&local_metadata, &local_metadata_updates)?
-    {
+    for self_descendant in files::get_invalid_cycles(&local_metadata, &local_metadata_updates)? {
         if let Some(RepoState::Modified { mut local, base }) =
             file_repo::maybe_get_metadata_state(config, self_descendant)?
         {
@@ -784,8 +783,9 @@ pub fn sync(
 mod unit_test_sync_service {
     use std::str::FromStr;
 
-    use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
     use uuid::Uuid;
+
+    use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
     use crate::service::sync_service::{self, MaybeMergeResult};
 

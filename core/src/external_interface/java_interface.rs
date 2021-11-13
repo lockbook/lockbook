@@ -2,10 +2,17 @@
 
 use std::path::Path;
 
+use basic_human_duration::ChronoHumanDuration;
+use chrono::Duration;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use uuid::Uuid;
+
+use lockbook_crypto::clock_service;
+use lockbook_models::file_metadata::FileType;
 
 use crate::external_interface::json_interface::translate;
 use crate::model::state::Config;
@@ -18,12 +25,6 @@ use crate::{
     migrate_db, move_file, read_document, rename_file, save_document_to_disk, sync_all,
     unexpected_only, write_document, Error, UnexpectedError,
 };
-use basic_human_duration::ChronoHumanDuration;
-use chrono::Duration;
-use lockbook_crypto::clock_service;
-use lockbook_models::file_metadata::FileType;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =

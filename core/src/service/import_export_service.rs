@@ -1,3 +1,12 @@
+use std::fs;
+use std::fs::{DirEntry, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+
+use uuid::Uuid;
+
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+
 use crate::model::client_conversion;
 use crate::model::client_conversion::ClientFileMetadata;
 use crate::model::repo::RepoSource;
@@ -6,12 +15,6 @@ use crate::pure_functions::files;
 use crate::repo::file_repo;
 use crate::service::path_service;
 use crate::CoreError;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-use std::fs;
-use std::fs::{DirEntry, OpenOptions};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use uuid::Uuid;
 
 pub struct ImportExportFileInfo {
     pub disk_path: PathBuf,

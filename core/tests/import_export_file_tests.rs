@@ -2,6 +2,9 @@ mod integration_test;
 
 #[cfg(test)]
 mod import_export_file_tests {
+    use rand::Rng;
+    use uuid::Uuid;
+
     use lockbook_core::model::state::temp_config;
     use lockbook_core::service::import_export_service::ImportExportFileInfo;
     use lockbook_core::service::test_utils::generate_account;
@@ -10,8 +13,6 @@ mod import_export_file_tests {
         import_file, write_document,
     };
     use lockbook_models::file_metadata::FileType;
-    use rand::Rng;
-    use uuid::Uuid;
 
     #[test]
     fn import_file_successfully() {

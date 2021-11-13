@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod integrity_tests {
+    use rand::Rng;
+
     use lockbook_core::model::repo::RepoSource;
     use lockbook_core::repo::file_repo;
     use lockbook_core::repo::metadata_repo;
@@ -10,7 +12,6 @@ mod integrity_tests {
     use lockbook_core::{assert_matches, get_file_by_path, path};
     use lockbook_core::{create_account, create_file_at_path};
     use lockbook_models::file_metadata::FileType::Document;
-    use rand::Rng;
 
     #[test]
     fn test_integrity_no_problems() {

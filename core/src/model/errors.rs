@@ -1,8 +1,10 @@
-use crate::service::api_service::ApiError;
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
+
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
+
+use crate::service::api_service::ApiError;
 
 #[derive(Debug)]
 pub struct UnexpectedError(pub String);

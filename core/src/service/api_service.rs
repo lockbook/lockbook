@@ -1,13 +1,15 @@
-use crate::service::db_state_service::get_code_version;
+use reqwest::blocking::Client as ReqwestClient;
+use reqwest::Error as ReqwestError;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
 use lockbook_crypto::clock_service::{get_time, Timestamp};
 use lockbook_crypto::pubkey;
 use lockbook_crypto::pubkey::ECSignError;
 use lockbook_models::account::Account;
 use lockbook_models::api::*;
-use reqwest::blocking::Client as ReqwestClient;
-use reqwest::Error as ReqwestError;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+
+use crate::service::db_state_service::get_code_version;
 
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
@@ -79,11 +81,9 @@ fn request_helper<
 
 #[cfg(test)]
 mod request_common_tests {
-
-    use crate::{create_account, get_account};
     use libsecp256k1::PublicKey;
-    use lockbook_crypto::clock_service::{get_time, Timestamp};
 
+    use lockbook_crypto::clock_service::{get_time, Timestamp};
     use lockbook_models::api::{
         GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, NewAccountError,
         NewAccountRequest,
@@ -94,6 +94,7 @@ mod request_common_tests {
     use crate::service::api_service::{request_helper, ApiError};
     use crate::service::db_state_service::get_code_version;
     use crate::service::test_utils;
+    use crate::{create_account, get_account};
 
     static CODE_VERSION: fn() -> &'static str = || "0.0.0";
 

@@ -1,10 +1,12 @@
-use crate::service::sync_service::WorkCalculated;
-use crate::CoreError;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
 use lockbook_models::account::Username;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use lockbook_models::work_unit::WorkUnit;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+use crate::service::sync_service::WorkCalculated;
+use crate::CoreError;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ClientFileMetadata {

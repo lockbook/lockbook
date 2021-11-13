@@ -2,11 +2,14 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_fuzzer {
-    use crate::sync_fuzzer::Actions::{
-        AttemptFolderMove, DeleteFile, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile,
-        SyncAndCheck, UpdateDocument,
-    };
+    use std::cmp::Ordering;
+
     use indicatif::{ProgressBar, ProgressStyle};
+    use rand::distributions::{Alphanumeric, Distribution, Standard};
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use variant_count::VariantCount;
+
     use lockbook_core::model::client_conversion::ClientFileMetadata;
     use lockbook_core::model::state::Config;
     use lockbook_core::service::account_service::{create_account, export_account, import_account};
@@ -19,11 +22,11 @@ mod sync_fuzzer {
         rename_file, write_document, MoveFileError,
     };
     use lockbook_models::file_metadata::FileType::{Document, Folder};
-    use rand::distributions::{Alphanumeric, Distribution, Standard};
-    use rand::rngs::StdRng;
-    use rand::{Rng, SeedableRng};
-    use std::cmp::Ordering;
-    use variant_count::VariantCount;
+
+    use crate::sync_fuzzer::Actions::{
+        AttemptFolderMove, DeleteFile, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile,
+        SyncAndCheck, UpdateDocument,
+    };
 
     /// Starting parameters that matter
     static SEED: u64 = 0;

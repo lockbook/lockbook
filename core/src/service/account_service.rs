@@ -1,17 +1,18 @@
-use crate::model::errors::core_err_unexpected;
-use crate::model::repo::RepoSource;
-use crate::model::state::Config;
-use crate::pure_functions::files;
-use crate::repo::{account_repo, file_repo, last_updated_repo, root_repo};
-use crate::service::api_service::ApiError;
-use crate::service::{api_service, file_encryption_service, file_service};
-use crate::CoreError;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
     GetPublicKeyError, GetPublicKeyRequest, NewAccountError, NewAccountRequest,
 };
+
+use crate::model::errors::core_err_unexpected;
+use crate::model::repo::RepoSource;
+use crate::model::state::Config;
+use crate::pure_functions::files;
+use crate::repo::{account_repo, file_repo, last_updated_repo, root_repo};
+use crate::service::api_service::ApiError;
+use crate::service::{api_service, file_encryption_service};
+use crate::CoreError;
 
 pub fn create_account(
     config: &Config,
@@ -34,7 +35,7 @@ pub fn create_account(
         private_key: keys,
     };
 
-    let mut root_metadata = file_service::create_root(&account.username);
+    let mut root_metadata = files::create_root(&account.username);
     let encrypted_metadata =
         file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?;
     let encrypted_metadatum = files::single_or(

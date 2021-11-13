@@ -1,9 +1,11 @@
-use crate::model::errors::core_err_unexpected;
-use crate::CoreError;
-use fern::colors::{Color, ColoredLevelConfig};
 use std::path::Path;
 use std::str::FromStr;
 use std::{env, fs};
+
+use fern::colors::{Color, ColoredLevelConfig};
+
+use crate::model::errors::core_err_unexpected;
+use crate::CoreError;
 
 static LOG_FILE: &str = "lockbook.log";
 

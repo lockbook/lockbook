@@ -1,9 +1,10 @@
-use lockbook_core::list_metadatas;
-use lockbook_core::model::client_conversion::ClientFileMetadata;
-use lockbook_core::model::state::Config;
 use rand::distributions::Alphanumeric;
 use rand::rngs::OsRng;
 use rand::Rng;
+
+use lockbook_core::list_metadatas;
+use lockbook_core::model::client_conversion::ClientFileMetadata;
+use lockbook_core::model::state::Config;
 
 pub fn find_by_name(config: &Config, name: &str) -> ClientFileMetadata {
     let mut possible_matches = list_metadatas(config).unwrap();

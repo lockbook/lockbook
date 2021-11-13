@@ -1,3 +1,11 @@
+use std::collections::HashMap;
+
+use uuid::Uuid;
+
+use lockbook_models::crypto::DecryptedDocument;
+use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
+use lockbook_models::file_metadata::FileMetadata;
+
 use crate::model::client_conversion::{generate_client_file_metadata, ClientFileMetadata};
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -5,13 +13,8 @@ use crate::pure_functions::files;
 use crate::repo::account_repo;
 use crate::repo::file_repo;
 use crate::service::drawing_service::SupportedImageFormats;
-use crate::service::{drawing_service, file_encryption_service, file_service};
+use crate::service::{drawing_service, file_encryption_service};
 use crate::CoreError;
-use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
-use lockbook_models::file_metadata::FileMetadata;
-use std::collections::HashMap;
-use uuid::Uuid;
 
 pub fn get_children_helper(
     config: &Config,
@@ -54,7 +57,7 @@ pub fn get_and_get_children_recursively_helper(
 
 pub fn delete_file_helper(config: &Config, id: Uuid) -> Result<(), CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let file = file_service::apply_delete(&files, id)?;
+    let file = files::apply_delete(&files, id)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
@@ -71,20 +74,20 @@ pub fn save_document_to_disk_helper(
     let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
     let document =
         file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
-    file_service::save_document_to_disk(&document, location)
+    files::save_document_to_disk(&document, location)
 }
 
 pub fn rename_file_helper(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = files::filter_not_deleted(&files);
-    let file = file_service::apply_rename(&files, id, new_name)?;
+    let file = files::apply_rename(&files, id, new_name)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
 pub fn move_file_helper(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = files::filter_not_deleted(&files);
-    let file = file_service::apply_move(&files, id, new_parent)?;
+    let file = files::apply_move(&files, id, new_parent)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
@@ -129,5 +132,5 @@ pub fn export_drawing_to_disk_helper(
         file_repo::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     let exported_drawing_bytes =
         drawing_service::export_drawing(&drawing_bytes, format, render_theme)?;
-    file_service::save_document_to_disk(&exported_drawing_bytes, location)
+    files::save_document_to_disk(&exported_drawing_bytes, location)
 }

@@ -1,11 +1,12 @@
-use crate::account::Account;
-use crate::account::Username;
-use crate::crypto::*;
-use crate::file_metadata::{FileMetadata, FileMetadataDiff};
 use libsecp256k1::PublicKey;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::account::Account;
+use crate::account::Username;
+use crate::crypto::*;
+use crate::file_metadata::{FileMetadata, FileMetadataDiff};
 
 pub trait Request {
     type Response;

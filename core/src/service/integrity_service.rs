@@ -1,14 +1,16 @@
 use std::path::Path;
 
+use uuid::Uuid;
+
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::files;
 use crate::repo::{file_repo, metadata_repo, root_repo};
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
-use crate::service::{drawing_service, file_service, path_service};
+use crate::service::{drawing_service, path_service};
 use crate::CoreError;
-use lockbook_models::file_metadata::{FileMetadata, FileType};
-use uuid::Uuid;
 
 const UTF8_SUFFIXES: [&str; 12] = [
     "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
@@ -53,7 +55,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         }
     }
 
-    let maybe_self_descendant = file_service::get_invalid_cycles_encrypted(&files_encrypted, &[])
+    let maybe_self_descendant = files::get_invalid_cycles_encrypted(&files_encrypted, &[])
         .map_err(TestRepoError::Core)?
         .into_iter()
         .next();
@@ -82,7 +84,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         ));
     }
 
-    let maybe_path_conflict = file_service::get_path_conflicts(&files, &[])
+    let maybe_path_conflict = files::get_path_conflicts(&files, &[])
         .map_err(TestRepoError::Core)?
         .into_iter()
         .next();

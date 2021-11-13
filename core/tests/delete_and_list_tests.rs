@@ -7,14 +7,13 @@ mod delete_and_list_tests {
     use lockbook_core::service::test_utils::test_config;
     use lockbook_core::service::{account_service, path_service};
     use lockbook_core::Error::UiError;
-    use lockbook_models::file_metadata::FileType;
-
     use lockbook_core::{
         assert_matches, create_file, create_file_at_path, delete_file, get_root, list_metadatas,
         list_paths, make_account, move_file, path, read_document, rename_file,
         save_document_to_disk, write_document, CreateFileError, FileDeleteError, MoveFileError,
         ReadDocumentError, RenameFileError, SaveDocumentToDiskError, WriteToDocumentError,
     };
+    use lockbook_models::file_metadata::FileType;
 
     #[test]
     fn test_create_delete_list() {

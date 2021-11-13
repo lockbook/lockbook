@@ -3,11 +3,13 @@ mod integration_test;
 #[cfg(test)]
 mod sync_tests {
     use itertools::Itertools;
+
     use lockbook_core::model::repo::RepoSource;
+    use lockbook_core::pure_functions::files;
     use lockbook_core::repo::{file_repo, metadata_repo};
     use lockbook_core::service::integrity_service::test_repo_integrity;
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
-    use lockbook_core::service::{account_service, file_service, path_service, sync_service};
+    use lockbook_core::service::{account_service, path_service, sync_service};
     use lockbook_core::{
         calculate_work, create_file_at_path, delete_file, list_metadatas, make_account, move_file,
         path, rename_file,
@@ -195,7 +197,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
                 new_folder.id,
@@ -250,7 +252,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db2,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file.id,
                 new_folder1.id,
@@ -263,7 +265,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
                 new_folder2.id,
@@ -299,7 +301,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_rename(
+            &files::apply_rename(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.parent,
                 "folder1-new",
@@ -337,7 +339,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_rename(
+            &files::apply_rename(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.parent,
                 "folder1-new",
@@ -351,7 +353,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db2,
             RepoSource::Local,
-            &file_service::apply_rename(
+            &files::apply_rename(
                 &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file.parent,
                 "folder2-new",
@@ -389,7 +391,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_rename(
+            &files::apply_rename(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
                 "new_name.txt",
@@ -418,7 +420,7 @@ mod sync_tests {
     //     file_repo::insert_metadata(
     //         &db2,
     //         RepoSource::Local,
-    //         &file_service::apply_rename(
+    //         &files::apply_rename(
     //             &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
     //             file1.id,
     //             "test3.txt",
@@ -431,7 +433,7 @@ mod sync_tests {
     //     file_repo::insert_metadata(
     //         &db1,
     //         RepoSource::Local,
-    //         &file_service::apply_rename(
+    //         &files::apply_rename(
     //             &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
     //             file2.id,
     //             "test3.txt",
@@ -482,7 +484,7 @@ mod sync_tests {
     //     file_repo::insert_metadata(
     //         &db1,
     //         RepoSource::Local,
-    //         &file_service::apply_move(
+    //         &files::apply_move(
     //             &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
     //             file1.id,
     //             root_repo::get(&db1).unwrap(),
@@ -495,7 +497,7 @@ mod sync_tests {
     //     file_repo::insert_metadata(
     //         &db2,
     //         RepoSource::Local,
-    //         &file_service::apply_move(
+    //         &files::apply_move(
     //             &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
     //             file2.id,
     //             root_repo::get(&db2).unwrap(),
@@ -705,7 +707,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db2,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file.id,
                 folder.id,
@@ -773,7 +775,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db2,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file.id,
                 folder.id,
@@ -826,7 +828,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
                 folder.id,
@@ -905,7 +907,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db, RepoSource::Local).unwrap(),
                 file.id,
                 file.parent,
@@ -928,7 +930,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
             )
@@ -968,7 +970,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
             )
@@ -1006,7 +1008,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
             )
@@ -1068,7 +1070,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db2,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 to_delete.id,
             )
@@ -1231,7 +1233,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db2,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file2_delete.id,
                 file1_stay.parent,
@@ -1243,7 +1245,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db2,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 to_delete.id,
             )
@@ -1394,7 +1396,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file2_delete.id,
                 new_folder.id,
@@ -1405,7 +1407,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_move(
+            &files::apply_move(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file4_delete.id,
                 new_folder.id,
@@ -1416,7 +1418,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 new_folder.id,
             )
@@ -1500,7 +1502,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file1.id,
             )
@@ -1523,7 +1525,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file1.id,
             )
@@ -1549,7 +1551,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 folder_to_delete.id,
             )
@@ -1573,7 +1575,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
             )
@@ -1614,7 +1616,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &file_service::apply_rename(
+            &files::apply_rename(
                 &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file_to_break.id,
                 "tmp2",
@@ -1628,7 +1630,7 @@ mod sync_tests {
         file_repo::insert_metadatum(
             &db2,
             RepoSource::Local,
-            &file_service::apply_delete(
+            &files::apply_delete(
                 &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file_to_break.id,
             )
@@ -1647,7 +1649,7 @@ mod sync_tests {
     //     file_repo::insert_metadata(
     //         &db1,
     //         RepoSource::Local,
-    //         &file_service::create(Folder, parent.id, "child", &account.username),
+    //         &files::create(Folder, parent.id, "child", &account.username),
     //     )
     //     .unwrap();
 
@@ -1658,7 +1660,7 @@ mod sync_tests {
     //     file_repo::insert_metadata(
     //         &db2,
     //         RepoSource::Local,
-    //         &file_service::create(Folder, parent.id, "child2", &account.username),
+    //         &files::create(Folder, parent.id, "child2", &account.username),
     //     )
     //     .unwrap();
     //     let work = sync_service::calculate_work(&db2).unwrap().work_units; // 1 piece of work, the new child
@@ -1667,7 +1669,7 @@ mod sync_tests {
     //     file_repo::insert_metadata(
     //         &db1,
     //         RepoSource::Local,
-    //         &file_service::apply_delete(
+    //         &files::apply_delete(
     //             &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
     //             parent.id,
     //         )

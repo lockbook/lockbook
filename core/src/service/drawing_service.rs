@@ -1,4 +1,8 @@
-use crate::model::errors::{core_err_unexpected, CoreError};
+use std::array::IntoIter;
+use std::collections::HashMap;
+use std::io::BufWriter;
+use std::iter::FromIterator;
+
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::farbfeld::FarbfeldEncoder;
 use image::codecs::jpeg::JpegEncoder;
@@ -6,16 +10,15 @@ use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
 use image::codecs::tga::TgaEncoder;
 use image::ColorType;
-use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
 };
 use serde::Deserialize;
 use serde_json::error::Category;
-use std::array::IntoIter;
-use std::collections::HashMap;
-use std::io::BufWriter;
-use std::iter::FromIterator;
+
+use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+
+use crate::model::errors::{core_err_unexpected, CoreError};
 
 #[derive(Deserialize)]
 pub enum SupportedImageFormats {
@@ -313,9 +316,10 @@ fn get_drawing_bounds(strokes: &[Stroke]) -> (u32, u32) {
 
 #[cfg(test)]
 mod unit_tests {
+    use lockbook_models::drawing::{ColorAlias, Drawing, Stroke};
+
     use crate::service::drawing_service;
     use crate::service::drawing_service::SupportedImageFormats;
-    use lockbook_models::drawing::{ColorAlias, Drawing, Stroke};
 
     #[test]
     fn parse_drawing_invalid() {

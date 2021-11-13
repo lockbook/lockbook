@@ -1,6 +1,6 @@
-use crate::file_metadata::DecryptedFileMetadata;
-
 use serde::{Deserialize, Serialize};
+
+use crate::file_metadata::DecryptedFileMetadata;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "tag", content = "content")]

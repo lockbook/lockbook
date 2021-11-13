@@ -4,6 +4,28 @@
 extern crate log;
 extern crate reqwest;
 
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+use basic_human_duration::ChronoHumanDuration;
+use chrono::Duration;
+use itertools::Itertools;
+use serde::Serialize;
+use serde_json::{json, value::Value};
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
+use uuid::Uuid;
+
+use lockbook_crypto::clock_service;
+use lockbook_models::account::Account;
+use lockbook_models::crypto::DecryptedDocument;
+use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+use model::errors::Error::UiError;
+pub use model::errors::{CoreError, Error, UnexpectedError};
+use pure_functions::files;
+use service::log_service;
+
 use crate::lib_helpers::{
     delete_file_helper, export_drawing_helper, export_drawing_to_disk_helper,
     get_and_get_children_recursively_helper, get_children_helper, get_drawing_helper,
@@ -24,27 +46,8 @@ use crate::service::import_export_service::{self, ImportExportFileInfo};
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
-    account_service, db_state_service, file_service, path_service, sync_service, usage_service,
+    account_service, db_state_service, path_service, sync_service, usage_service,
 };
-use basic_human_duration::ChronoHumanDuration;
-use chrono::Duration;
-use itertools::Itertools;
-use lockbook_crypto::clock_service;
-use lockbook_models::account::Account;
-use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
-use lockbook_models::file_metadata::{FileMetadata, FileType};
-use model::errors::Error::UiError;
-pub use model::errors::{CoreError, Error, UnexpectedError};
-use pure_functions::files;
-use serde::Serialize;
-use serde_json::{json, value::Value};
-use service::log_service;
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-use uuid::Uuid;
 
 pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
     log_service::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))
@@ -227,16 +230,15 @@ pub fn create_file(
     )?;
     let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)
         .map_err(|e| unexpected!("{:#?}", e))?;
-    let metadata =
-        file_service::apply_create(&all_metadata, file_type, parent, name, &account.username)
-            .map_err(|e| match e {
-                CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
-                CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
-                CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-                CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
-                CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
-                _ => unexpected!("{:#?}", e),
-            })?;
+    let metadata = files::apply_create(&all_metadata, file_type, parent, name, &account.username)
+        .map_err(|e| match e {
+        CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
+        CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
+        CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
+        CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
+        CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
+        _ => unexpected!("{:#?}", e),
+    })?;
     file_repo::insert_metadatum(config, RepoSource::Local, &metadata)
         .map_err(|e| unexpected!("{:#?}", e))?;
     generate_client_file_metadata(&metadata).map_err(|e| unexpected!("{:#?}", e))

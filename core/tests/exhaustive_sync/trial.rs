@@ -1,11 +1,8 @@
 use std::{fs, thread};
 
-use crate::exhaustive_sync::trial::Action::{
-    AttemptFolderMove, DeleteFile, MoveDocument, NewDocument, NewFolder, NewMarkdownDocument,
-    RenameFile, SyncAndCheck, UpdateDocument,
-};
-use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
-use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
+use uuid::Uuid;
+use variant_count::VariantCount;
+
 use lockbook_core::model::state::Config;
 use lockbook_core::service::integrity_service::test_repo_integrity;
 use lockbook_core::service::test_utils::{dbs_equal, random_username, test_config, url};
@@ -17,8 +14,13 @@ use lockbook_core::{
 use lockbook_core::{create_file, list_metadatas};
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use uuid::Uuid;
-use variant_count::VariantCount;
+
+use crate::exhaustive_sync::trial::Action::{
+    AttemptFolderMove, DeleteFile, MoveDocument, NewDocument, NewFolder, NewMarkdownDocument,
+    RenameFile, SyncAndCheck, UpdateDocument,
+};
+use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
+use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
 
 #[derive(VariantCount, Debug, Clone)]
 pub enum Action {

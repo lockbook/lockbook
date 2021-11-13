@@ -1,11 +1,13 @@
+use serde::Serialize;
+
+use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
+
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::files;
 use crate::repo::{account_repo, file_repo};
 use crate::service::api_service;
 use crate::CoreError;
-use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
-use serde::Serialize;
 
 pub const BYTE: u64 = 1;
 pub const KILOBYTE: u64 = BYTE * 1000;
@@ -96,10 +98,11 @@ mod unit_tests {
     use lockbook_models::file_metadata::FileType;
 
     use crate::{
+        files,
         model::{repo::RepoSource, state::temp_config},
         repo::{account_repo, file_repo},
         service::{
-            file_service, test_utils,
+            test_utils,
             usage_service::{self, UsageItemMetric},
         },
     };
@@ -142,9 +145,8 @@ mod unit_tests {
     fn get_uncompressed_usage_empty_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = file_service::create_root(&account.username);
-        let document =
-            file_service::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account.username);
+        let document = files::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -164,9 +166,8 @@ mod unit_tests {
     fn get_uncompressed_usage_one_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = file_service::create_root(&account.username);
-        let document =
-            file_service::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account.username);
+        let document = files::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -186,11 +187,9 @@ mod unit_tests {
     fn get_uncompressed_usage_multiple_documents() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = file_service::create_root(&account.username);
-        let document =
-            file_service::create(FileType::Document, root.id, "document", &account.username);
-        let document2 =
-            file_service::create(FileType::Document, root.id, "document 2", &account.username);
+        let root = files::create_root(&account.username);
+        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let document2 = files::create(FileType::Document, root.id, "document 2", &account.username);
 
         account_repo::insert(config, &account).unwrap();
         file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
