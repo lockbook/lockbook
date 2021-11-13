@@ -5,8 +5,8 @@ use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::files;
-use crate::repo::{account_repo, file_repo};
-use crate::service::api_service;
+use crate::repo::account_repo;
+use crate::service::{api_service, file_service};
 use crate::CoreError;
 
 pub const BYTE: u64 = 1;
@@ -77,12 +77,12 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
 }
 
 pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreError> {
-    let files = file_repo::get_all_metadata(config, RepoSource::Local)?;
+    let files = file_service::get_all_metadata(config, RepoSource::Local)?;
     let docs = files::filter_documents(&files);
 
     let mut local_usage: u64 = 0;
     for doc in docs {
-        local_usage += file_repo::get_document(config, RepoSource::Local, &doc)?.len() as u64
+        local_usage += file_service::get_document(config, RepoSource::Local, &doc)?.len() as u64
     }
 
     let readable = bytes_to_human(local_usage);
@@ -97,10 +97,11 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreEr
 mod unit_tests {
     use lockbook_models::file_metadata::FileType;
 
+    use crate::service::file_service;
     use crate::{
         files,
         model::{repo::RepoSource, state::temp_config},
-        repo::{account_repo, file_repo},
+        repo::account_repo,
         service::{
             test_utils,
             usage_service::{self, UsageItemMetric},
@@ -149,9 +150,9 @@ mod unit_tests {
         let document = files::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
-        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"").unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_service::insert_document(config, RepoSource::Base, &document, b"").unwrap();
 
         assert_eq!(
             usage_service::get_uncompressed_usage(config).unwrap(),
@@ -170,9 +171,9 @@ mod unit_tests {
         let document = files::create(FileType::Document, root.id, "document", &account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
-        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"0123456789").unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_service::insert_document(config, RepoSource::Base, &document, b"0123456789").unwrap();
 
         assert_eq!(
             usage_service::get_uncompressed_usage(config).unwrap(),
@@ -192,11 +193,11 @@ mod unit_tests {
         let document2 = files::create(FileType::Document, root.id, "document 2", &account.username);
 
         account_repo::insert(config, &account).unwrap();
-        file_repo::insert_metadatum(config, RepoSource::Base, &root).unwrap();
-        file_repo::insert_metadatum(config, RepoSource::Base, &document).unwrap();
-        file_repo::insert_metadatum(config, RepoSource::Base, &document2).unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document, b"01234").unwrap();
-        file_repo::insert_document(config, RepoSource::Base, &document2, b"56789").unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &document2).unwrap();
+        file_service::insert_document(config, RepoSource::Base, &document, b"01234").unwrap();
+        file_service::insert_document(config, RepoSource::Base, &document2, b"56789").unwrap();
 
         assert_eq!(
             usage_service::get_uncompressed_usage(config).unwrap(),

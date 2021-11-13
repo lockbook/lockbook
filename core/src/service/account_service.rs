@@ -9,9 +9,9 @@ use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::files;
-use crate::repo::{account_repo, file_repo, last_updated_repo, root_repo};
+use crate::repo::{account_repo, last_updated_repo, root_repo};
 use crate::service::api_service::ApiError;
-use crate::service::{api_service, file_encryption_service};
+use crate::service::{api_service, file_encryption_service, file_service};
 use crate::CoreError;
 
 pub fn create_account(
@@ -74,7 +74,7 @@ pub fn create_account(
     );
 
     account_repo::insert(config, &account)?;
-    file_repo::insert_metadatum(config, RepoSource::Base, &root_metadata)?;
+    file_service::insert_metadatum(config, RepoSource::Base, &root_metadata)?;
     root_repo::set(config, root_metadata.id)?;
     last_updated_repo::set(config, get_time().0)?;
 

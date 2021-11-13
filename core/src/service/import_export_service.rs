@@ -12,7 +12,7 @@ use crate::model::client_conversion::ClientFileMetadata;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::files;
-use crate::repo::file_repo;
+use crate::service::file_service;
 use crate::service::path_service;
 use crate::CoreError;
 
@@ -27,7 +27,7 @@ pub fn import_file(
     parent: Uuid,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    if file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type
+    if file_service::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type
         != FileType::Folder
     {
         return Err(CoreError::FileNotFolder);
@@ -79,7 +79,7 @@ fn import_file_recursively(
             Err(err) => return Err(err),
         };
 
-        file_repo::insert_document(config, RepoSource::Local, &file_metadata, &content)?;
+        file_service::insert_document(config, RepoSource::Local, &file_metadata, &content)?;
     } else {
         let children: Vec<Result<DirEntry, std::io::Error>> =
             fs::read_dir(disk_path).map_err(CoreError::from)?.collect();
@@ -118,9 +118,9 @@ pub fn export_file(
     }
 
     let file_metadata = client_conversion::generate_client_file_metadata(
-        &file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?,
+        &file_service::get_not_deleted_metadata(config, RepoSource::Local, id)?,
     )?;
-    let all = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let all = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     export_file_recursively(
         config,
         &all,
@@ -181,7 +181,7 @@ fn export_file_recursively(
             .map_err(CoreError::from)?;
 
             file.write_all(
-                file_repo::get_not_deleted_document(
+                file_service::get_not_deleted_document(
                     config,
                     RepoSource::Local,
                     all,

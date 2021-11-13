@@ -7,9 +7,9 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::files;
-use crate::repo::{file_repo, metadata_repo, root_repo};
+use crate::repo::{metadata_repo, root_repo};
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
-use crate::service::{drawing_service, path_service};
+use crate::service::{drawing_service, file_service, path_service};
 use crate::CoreError;
 
 const UTF8_SUFFIXES: [&str; 12] = [
@@ -64,7 +64,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     }
 
     let files =
-        file_repo::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
+        file_service::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
     let maybe_doc_with_children = files::filter_documents(&files)
         .into_iter()
         .find(|d| !files::find_children(&files, d.id).is_empty());
@@ -95,7 +95,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     let mut warnings = Vec::new();
     for file in files {
         if file.file_type == FileType::Document {
-            let file_content = file_repo::get_document(config, RepoSource::Local, &file)
+            let file_content = file_service::get_document(config, RepoSource::Local, &file)
                 .map_err(|err| DocumentReadError(file.id, err))?;
 
             if file_content.len() as u64 == 0 {
@@ -117,7 +117,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
 
             if extension == "draw"
                 && drawing_service::parse_drawing(
-                    &file_repo::get_document(config, RepoSource::Local, &file)
+                    &file_service::get_document(config, RepoSource::Local, &file)
                         .map_err(TestRepoError::Core)?,
                 )
                 .is_err()

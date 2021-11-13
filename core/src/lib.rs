@@ -38,7 +38,6 @@ use crate::model::client_conversion::{
 };
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::file_repo;
 use crate::repo::{account_repo, last_updated_repo};
 use crate::service::db_state_service::State;
 use crate::service::drawing_service::SupportedImageFormats;
@@ -48,6 +47,7 @@ use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
     account_service, db_state_service, path_service, sync_service, usage_service,
 };
+use service::file_service;
 
 pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
     log_service::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))
@@ -187,14 +187,7 @@ pub fn write_document(
     id: Uuid,
     content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
-    let metadata = file_repo::get_not_deleted_metadata(config, RepoSource::Local, id).map_err(
-        |e| match e {
-            CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
-            CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
-            _ => unexpected!("{:#?}", e),
-        },
-    )?;
-    file_repo::insert_document(config, RepoSource::Local, &metadata, content).map_err(|e| match e {
+    file_service::write_document(config, id, content).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
         CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
         CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
@@ -222,13 +215,13 @@ pub fn create_file(
         CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
         _ => unexpected!("{:#?}", e),
     })?;
-    file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent).map_err(
+    file_service::get_not_deleted_metadata(config, RepoSource::Local, parent).map_err(
         |e| match e {
             CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
             _ => unexpected!("{:#?}", e),
         },
     )?;
-    let all_metadata = file_repo::get_all_metadata(config, RepoSource::Local)
+    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)
         .map_err(|e| unexpected!("{:#?}", e))?;
     let metadata = files::apply_create(&all_metadata, file_type, parent, name, &account.username)
         .map_err(|e| match e {
@@ -239,7 +232,7 @@ pub fn create_file(
         CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
         _ => unexpected!("{:#?}", e),
     })?;
-    file_repo::insert_metadatum(config, RepoSource::Local, &metadata)
+    file_service::insert_metadatum(config, RepoSource::Local, &metadata)
         .map_err(|e| unexpected!("{:#?}", e))?;
     generate_client_file_metadata(&metadata).map_err(|e| unexpected!("{:#?}", e))
 }
@@ -250,7 +243,7 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
-    let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)
+    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)
         .map_err(|e| unexpected!("{:#?}", e))?;
     match files::maybe_find_root(&files) {
         None => Err(UiError(GetRootError::NoRoot)),
@@ -291,7 +284,7 @@ pub fn get_file_by_id(
     config: &Config,
     id: Uuid,
 ) -> Result<ClientFileMetadata, Error<GetFileByIdError>> {
-    file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)
+    file_service::get_not_deleted_metadata(config, RepoSource::Local, id)
         .map_err(|e| match e {
             CoreError::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
             _ => unexpected!("{:#?}", e),
@@ -389,7 +382,7 @@ pub fn get_path_by_id(config: &Config, uuid: Uuid) -> Result<String, UnexpectedE
 }
 
 pub fn list_metadatas(config: &Config) -> Result<Vec<ClientFileMetadata>, UnexpectedError> {
-    let metas = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)
+    let metas = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)
         .map_err(|e| unexpected_only!("{:#?}", e))?;
     let mut client_metas = vec![];
 
@@ -469,12 +462,12 @@ pub fn sync_all(
 }
 
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, UnexpectedError> {
-    Ok(file_repo::get_all_metadata_changes(config)
+    Ok(file_service::get_all_metadata_changes(config)
         .map_err(|err| unexpected_only!("{:#?}", err))?
         .into_iter()
         .map(|f| f.id)
         .chain(
-            file_repo::get_all_with_document_changes(config)
+            file_service::get_all_with_document_changes(config)
                 .map_err(|err| unexpected_only!("{:#?}", err))?
                 .into_iter(),
         )

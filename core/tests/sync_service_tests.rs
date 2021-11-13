@@ -6,10 +6,10 @@ mod sync_tests {
 
     use lockbook_core::model::repo::RepoSource;
     use lockbook_core::pure_functions::files;
-    use lockbook_core::repo::{file_repo, metadata_repo};
+    use lockbook_core::repo::metadata_repo;
     use lockbook_core::service::integrity_service::test_repo_integrity;
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config};
-    use lockbook_core::service::{account_service, path_service, sync_service};
+    use lockbook_core::service::{account_service, file_service, path_service, sync_service};
     use lockbook_core::{
         calculate_work, create_file_at_path, delete_file, list_metadatas, make_account, move_file,
         path, rename_file,
@@ -98,8 +98,8 @@ mod sync_tests {
 
         sync!(&db2);
         assert_eq!(
-            file_repo::get_all_metadata(&db, RepoSource::Local).unwrap(),
-            file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap()
+            file_service::get_all_metadata(&db, RepoSource::Local).unwrap(),
+            file_service::get_all_metadata(&db2, RepoSource::Local).unwrap()
         );
         assert_dirty_ids!(db2, 0);
     }
@@ -118,7 +118,7 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db);
 
-        file_repo::insert_document(
+        file_service::insert_document(
             &db,
             RepoSource::Local,
             &file,
@@ -149,7 +149,7 @@ mod sync_tests {
 
         assert_dirty_ids!(db2, 1);
 
-        let edited_file = file_repo::get_metadata(&db, RepoSource::Local, file.id).unwrap();
+        let edited_file = file_service::get_metadata(&db, RepoSource::Local, file.id).unwrap();
 
         match sync_service::calculate_work(&db2)
             .unwrap()
@@ -169,7 +169,7 @@ mod sync_tests {
         assert_dirty_ids!(db2, 0);
 
         assert_eq!(
-            file_repo::get_document(&db2, RepoSource::Local, &edited_file).unwrap(),
+            file_service::get_document(&db2, RepoSource::Local, &edited_file).unwrap(),
             "meaningful messages".as_bytes()
         );
         assert_dbs_eq(&db, &db2);
@@ -184,7 +184,7 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
                 .unwrap();
 
-        file_repo::insert_document(&db1, RepoSource::Local, &file, "nice document".as_bytes())
+        file_service::insert_document(&db1, RepoSource::Local, &file, "nice document".as_bytes())
             .unwrap();
         sync!(&db1);
 
@@ -194,11 +194,11 @@ mod sync_tests {
         let new_folder =
             path_service::create_at_path(&db1, &format!("{}/folder2/", account.username)).unwrap();
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
                 new_folder.id,
             )
@@ -216,12 +216,12 @@ mod sync_tests {
         assert_dirty_ids!(db2, 0);
 
         assert_eq!(
-            file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
-            file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap()
+            file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+            file_service::get_all_metadata(&db2, RepoSource::Local).unwrap()
         );
 
         assert_eq!(
-            file_repo::get_document(&db2, RepoSource::Local, &file).unwrap(),
+            file_service::get_document(&db2, RepoSource::Local, &file).unwrap(),
             "nice document".as_bytes()
         );
 
@@ -237,7 +237,7 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
                 .unwrap();
 
-        file_repo::insert_document(&db1, RepoSource::Local, &file, "Wow, what a doc".as_bytes())
+        file_service::insert_document(&db1, RepoSource::Local, &file, "Wow, what a doc".as_bytes())
             .unwrap();
 
         let new_folder1 =
@@ -249,11 +249,11 @@ mod sync_tests {
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file.id,
                 new_folder1.id,
             )
@@ -262,11 +262,11 @@ mod sync_tests {
         .unwrap();
         sync!(&db2);
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
                 new_folder2.id,
             )
@@ -278,13 +278,13 @@ mod sync_tests {
         assert_dbs_eq(&db1, &db2);
 
         assert_eq!(
-            file_repo::get_metadata(&db1, RepoSource::Local, file.id)
+            file_service::get_metadata(&db1, RepoSource::Local, file.id)
                 .unwrap()
                 .parent,
             new_folder1.id
         );
         assert_eq!(
-            file_repo::get_document(&db2, RepoSource::Local, &file).unwrap(),
+            file_service::get_document(&db2, RepoSource::Local, &file).unwrap(),
             "Wow, what a doc".as_bytes()
         );
     }
@@ -298,11 +298,11 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/folder1/test.txt", account.username))
                 .unwrap();
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_rename(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.parent,
                 "folder1-new",
             )
@@ -336,11 +336,11 @@ mod sync_tests {
                 .unwrap();
         sync!(&db1);
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_rename(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.parent,
                 "folder1-new",
             )
@@ -350,11 +350,11 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db1);
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
             &files::apply_rename(
-                &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file.parent,
                 "folder2-new",
             )
@@ -388,11 +388,11 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/test.txt", account.username)).unwrap();
         sync!(&db1);
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_rename(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
                 "new_name.txt",
             )
@@ -401,7 +401,7 @@ mod sync_tests {
         .unwrap();
         sync!(&db1);
 
-        file_repo::insert_document(&db1, RepoSource::Local, &file, "noice".as_bytes()).unwrap();
+        file_service::insert_document(&db1, RepoSource::Local, &file, "noice".as_bytes()).unwrap();
         sync!(&db1);
     }
 
@@ -540,7 +540,7 @@ mod sync_tests {
         let file =
             path_service::create_at_path(&db1, &format!("{}/test.bin", account.username)).unwrap();
 
-        file_repo::insert_document(
+        file_service::insert_document(
             &db1,
             RepoSource::Local,
             &file,
@@ -551,7 +551,7 @@ mod sync_tests {
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
-        file_repo::insert_document(
+        file_service::insert_document(
             &db1,
             RepoSource::Local,
             &file,
@@ -560,7 +560,7 @@ mod sync_tests {
         .unwrap();
         sync!(&db1);
 
-        file_repo::insert_document(
+        file_service::insert_document(
             &db2,
             RepoSource::Local,
             &file,
@@ -573,7 +573,7 @@ mod sync_tests {
 
         sync!(&db2);
 
-        let all_metadata = file_repo::get_all_metadata(&db2, RepoSource::Base).unwrap();
+        let all_metadata = file_service::get_all_metadata(&db2, RepoSource::Base).unwrap();
         assert!(all_metadata
             .into_iter()
             .any(|m| m.decrypted_name.contains("test-1.bin")));
@@ -640,13 +640,14 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
                 .unwrap();
 
-        file_repo::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes()).unwrap();
+        file_service::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes())
+            .unwrap();
 
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
 
-        file_repo::insert_document(
+        file_service::insert_document(
             &db1,
             RepoSource::Local,
             &file,
@@ -654,7 +655,7 @@ mod sync_tests {
         )
         .unwrap();
         sync!(&db1);
-        file_repo::insert_document(
+        file_service::insert_document(
             &db2,
             RepoSource::Local,
             &file,
@@ -666,15 +667,15 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 1"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 2"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
@@ -689,12 +690,13 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
                 .unwrap();
 
-        file_repo::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes()).unwrap();
+        file_service::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes())
+            .unwrap();
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
 
-        file_repo::insert_document(
+        file_service::insert_document(
             &db1,
             RepoSource::Local,
             &file,
@@ -704,18 +706,18 @@ mod sync_tests {
         sync!(&db1);
         let folder =
             path_service::create_at_path(&db2, &format!("{}/folder1/", account.username)).unwrap();
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file.id,
                 folder.id,
             )
             .unwrap(),
         )
         .unwrap();
-        file_repo::insert_document(
+        file_service::insert_document(
             &db2,
             RepoSource::Local,
             &file,
@@ -727,15 +729,15 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 1"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 2"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
@@ -750,12 +752,13 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
                 .unwrap();
 
-        file_repo::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes()).unwrap();
+        file_service::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes())
+            .unwrap();
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
 
-        file_repo::insert_document(
+        file_service::insert_document(
             &db1,
             RepoSource::Local,
             &file,
@@ -765,18 +768,18 @@ mod sync_tests {
         sync!(&db1);
         let folder =
             path_service::create_at_path(&db2, &format!("{}/folder1/", account.username)).unwrap();
-        file_repo::insert_document(
+        file_service::insert_document(
             &db2,
             RepoSource::Local,
             &file,
             "Line 1\nOffline Line\n".as_bytes(),
         )
         .unwrap();
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file.id,
                 folder.id,
             )
@@ -788,15 +791,15 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 1"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 2"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
@@ -811,12 +814,13 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/mergable_file.md", account.username))
                 .unwrap();
 
-        file_repo::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes()).unwrap();
+        file_service::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes())
+            .unwrap();
         sync!(&db1);
 
         make_and_sync_new_client!(db2, db1);
 
-        file_repo::insert_document(
+        file_service::insert_document(
             &db1,
             RepoSource::Local,
             &file,
@@ -825,11 +829,11 @@ mod sync_tests {
         .unwrap();
         let folder =
             path_service::create_at_path(&db1, &format!("{}/folder1/", account.username)).unwrap();
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
                 folder.id,
             )
@@ -837,7 +841,7 @@ mod sync_tests {
         )
         .unwrap();
         sync!(&db1);
-        file_repo::insert_document(
+        file_service::insert_document(
             &db2,
             RepoSource::Local,
             &file,
@@ -849,15 +853,15 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 1"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Line 2"));
         assert!(String::from_utf8_lossy(
-            &file_repo::get_document(&db1, RepoSource::Local, &file).unwrap()
+            &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
         assert_dbs_eq(&db1, &db2);
@@ -871,11 +875,13 @@ mod sync_tests {
         let file =
             path_service::create_at_path(&db, &format!("{}/file.md", account.username)).unwrap();
 
-        file_repo::insert_document(&db, RepoSource::Local, &file, "original".as_bytes()).unwrap();
+        file_service::insert_document(&db, RepoSource::Local, &file, "original".as_bytes())
+            .unwrap();
         sync!(&db);
         assert_dirty_ids!(db, 0);
 
-        file_repo::insert_document(&db, RepoSource::Local, &file, "original".as_bytes()).unwrap();
+        file_service::insert_document(&db, RepoSource::Local, &file, "original".as_bytes())
+            .unwrap();
         assert_dirty_ids!(db, 0);
     }
 
@@ -904,11 +910,11 @@ mod sync_tests {
         sync!(&db);
         assert_dirty_ids!(db, 0);
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db, RepoSource::Local).unwrap(),
                 file.id,
                 file.parent,
             )
@@ -927,18 +933,18 @@ mod sync_tests {
             path_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
 
         sync!(&db1);
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
             )
             .unwrap(),
         )
         .unwrap();
         assert!(
-            file_repo::get_metadata(&db1, RepoSource::Local, file.id)
+            file_service::get_metadata(&db1, RepoSource::Local, file.id)
                 .unwrap()
                 .deleted
         );
@@ -956,7 +962,7 @@ mod sync_tests {
             .unwrap()
             .is_none());
 
-        assert!(file_repo::get_document(&db2, RepoSource::Local, &file).is_err());
+        assert!(file_service::get_document(&db2, RepoSource::Local, &file).is_err());
     }
 
     #[test]
@@ -967,11 +973,11 @@ mod sync_tests {
         let file =
             path_service::create_at_path(&db1, &format!("{}/file.md", account.username)).unwrap();
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
             )
             .unwrap(),
@@ -986,11 +992,11 @@ mod sync_tests {
                 .deleted
         );
         assert!(
-            file_repo::maybe_get_document(&db1, RepoSource::Local, &file)
+            file_service::maybe_get_document(&db1, RepoSource::Local, &file)
                 .unwrap()
                 .is_some()
         );
-        assert!(file_repo::get_document(&db1, RepoSource::Local, &file).is_ok());
+        assert!(file_service::get_document(&db1, RepoSource::Local, &file).is_ok());
     }
 
     #[test]
@@ -1005,11 +1011,11 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db1);
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
             )
             .unwrap(),
@@ -1026,18 +1032,24 @@ mod sync_tests {
             .is_none());
 
         assert!(
-            file_repo::maybe_get_document(&db1, RepoSource::Local, &file)
+            file_service::maybe_get_document(&db1, RepoSource::Local, &file)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_document(&db2, RepoSource::Local, &file)
+            file_service::maybe_get_document(&db2, RepoSource::Local, &file)
                 .unwrap()
                 .is_none()
         );
 
-        assert_eq!(file_repo::get_all_metadata_changes(&db1).unwrap().len(), 0);
-        assert_eq!(file_repo::get_all_metadata_changes(&db2).unwrap().len(), 0);
+        assert_eq!(
+            file_service::get_all_metadata_changes(&db1).unwrap().len(),
+            0
+        );
+        assert_eq!(
+            file_service::get_all_metadata_changes(&db2).unwrap().len(),
+            0
+        );
     }
 
     #[test]
@@ -1067,11 +1079,11 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db1);
         let to_delete = path_service::get_by_path(&db2, &path("delete")).unwrap();
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 to_delete.id,
             )
             .unwrap(),
@@ -1079,49 +1091,49 @@ mod sync_tests {
         .unwrap();
 
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.parent)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_stay.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file2_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_stay.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1133,22 +1145,22 @@ mod sync_tests {
 
         // deleted files and their descendents are purged after sync
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .is_none()
         );
@@ -1157,45 +1169,45 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(
-            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.parent)
+            file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.parent)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.id)
+            file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file2_delete.id)
+            file_service::maybe_get_metadata(&db1, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file3_delete.id)
+            file_service::maybe_get_metadata(&db1, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.parent)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file2_stay.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file2_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file3_stay.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1230,11 +1242,11 @@ mod sync_tests {
 
         make_and_sync_new_client!(db2, db1);
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file2_delete.id,
                 file1_stay.parent,
             )
@@ -1242,11 +1254,11 @@ mod sync_tests {
         )
         .unwrap();
         let to_delete = path_service::get_by_path(&db2, &path("delete")).unwrap();
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 to_delete.id,
             )
             .unwrap(),
@@ -1254,49 +1266,49 @@ mod sync_tests {
         .unwrap();
 
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.parent)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_stay.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file2_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_stay.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1308,23 +1320,23 @@ mod sync_tests {
 
         // deleted files and their ancestors purged after sync
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.parent)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .is_none()
         );
@@ -1333,46 +1345,46 @@ mod sync_tests {
         sync!(&db1);
 
         assert!(
-            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.parent)
+            file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.parent)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.id)
+            file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file2_delete.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            file_repo::maybe_get_metadata(&db1, RepoSource::Local, file3_delete.id)
+            file_service::maybe_get_metadata(&db1, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.parent)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.parent)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file2_stay.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file2_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file3_stay.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file3_stay.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1393,33 +1405,33 @@ mod sync_tests {
         sync!(&db1);
 
         let new_folder = path_service::create_at_path(&db1, &path("new/")).unwrap();
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file2_delete.id,
                 new_folder.id,
             )
             .unwrap(),
         )
         .unwrap();
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_move(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file4_delete.id,
                 new_folder.id,
             )
             .unwrap(),
         )
         .unwrap();
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 new_folder.id,
             )
             .unwrap(),
@@ -1427,31 +1439,31 @@ mod sync_tests {
         .unwrap();
 
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file2_delete.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file3_delete.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db1, RepoSource::Local, file4_delete.id)
+            !file_service::maybe_get_metadata(&db1, RepoSource::Local, file4_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            file_repo::maybe_get_metadata(&db1, RepoSource::Local, new_folder.id)
+            file_service::maybe_get_metadata(&db1, RepoSource::Local, new_folder.id)
                 .unwrap()
                 .unwrap()
                 .deleted
@@ -1462,29 +1474,29 @@ mod sync_tests {
         make_and_sync_new_client!(db2, db1);
 
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file2_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            !file_repo::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
+            !file_service::maybe_get_metadata(&db2, RepoSource::Local, file3_delete.id)
                 .unwrap()
                 .unwrap()
                 .deleted
         );
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, file4_delete.id)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, file4_delete.id)
                 .unwrap()
                 .is_none()
         );
         assert!(
-            file_repo::maybe_get_metadata(&db2, RepoSource::Local, new_folder.id)
+            file_service::maybe_get_metadata(&db2, RepoSource::Local, new_folder.id)
                 .unwrap()
                 .is_none()
         );
@@ -1499,11 +1511,11 @@ mod sync_tests {
         let file1 = path_service::create_at_path(&db1, &path("file1.md")).unwrap();
 
         sync!(&db1);
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file1.id,
             )
             .unwrap(),
@@ -1522,11 +1534,11 @@ mod sync_tests {
         let file1 = path_service::create_at_path(&db1, &path("file1.md")).unwrap();
         sync!(&db1);
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file1.id,
             )
             .unwrap(),
@@ -1548,11 +1560,11 @@ mod sync_tests {
         make_and_sync_new_client!(db2, db1);
 
         let folder_to_delete = path_service::get_by_path(&db1, path!(account, "test")).unwrap();
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 folder_to_delete.id,
             )
             .unwrap(),
@@ -1572,11 +1584,11 @@ mod sync_tests {
             path_service::create_at_path(&db1, path!(account, "test/folder/document.md")).unwrap();
         sync!(&db1);
 
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file.id,
             )
             .unwrap(),
@@ -1613,11 +1625,11 @@ mod sync_tests {
         let file_to_break = path_service::get_by_path(&db1, path!(account, "tmp")).unwrap();
 
         // 1 Client renames and syncs
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
             &files::apply_rename(
-                &file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
                 file_to_break.id,
                 "tmp2",
             )
@@ -1627,11 +1639,11 @@ mod sync_tests {
         sync!(&db1);
 
         // Other deletes and syncs
-        file_repo::insert_metadatum(
+        file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
             &files::apply_delete(
-                &file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap(),
+                &file_service::get_all_metadata(&db2, RepoSource::Local).unwrap(),
                 file_to_break.id,
             )
             .unwrap(),

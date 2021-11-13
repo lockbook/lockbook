@@ -67,6 +67,6 @@ pub fn init(log_path: &Path) -> Result<(), CoreError> {
         .level(log::LevelFilter::Warn)
         .level_for("lockbook_core", lockbook_log_level)
         .apply()
-        .map_err(|err| core_err_unexpected(err))?;
+        .map_err(core_err_unexpected)?;
     Ok(())
 }
