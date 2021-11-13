@@ -11,11 +11,11 @@ pub fn create_at_path(
     config: &Config,
     path_and_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
+    info!("creating path at: {}", path_and_name);
+
     if path_and_name.contains("//") {
         return Err(CoreError::PathContainsEmptyFileName);
     }
-
-    debug!("Creating path at: {}", path_and_name);
     let path_components = split_path(path_and_name);
 
     let is_folder = path_and_name.ends_with('/');
@@ -38,7 +38,6 @@ pub fn create_at_path(
         let children = utils::find_children(&files, current.id);
 
         let next_name = path_components[index + 1];
-        debug!("child we're searching for: {}", next_name);
 
         for child in children {
             if child.decrypted_name == next_name {

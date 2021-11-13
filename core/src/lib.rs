@@ -45,7 +45,7 @@ use strum_macros::EnumIter;
 use uuid::Uuid;
 
 pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
-    Ok(loggers::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))?)
+    loggers::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))
 }
 
 pub fn get_db_state(config: &Config) -> Result<State, UnexpectedError> {

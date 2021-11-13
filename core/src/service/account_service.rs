@@ -18,14 +18,14 @@ pub fn create_account(
     username: &str,
     api_url: &str,
 ) -> Result<Account, CoreError> {
-    info!("Checking if account already exists");
+    info!(
+        "creating with username {} against server {}",
+        username, api_url
+    );
     if account_repo::maybe_get(config)?.is_some() {
         return Err(CoreError::AccountExists);
     }
 
-    info!("Creating new account for {}", username);
-
-    info!("Generating Key...");
     let keys = pubkey::generate_key();
 
     let account = Account {
@@ -34,7 +34,6 @@ pub fn create_account(
         private_key: keys,
     };
 
-    info!("Generating Root Folder");
     let mut root_metadata = file_service::create_root(&account.username);
     let encrypted_metadata =
         file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?;
@@ -45,7 +44,6 @@ pub fn create_account(
         )),
     )?;
 
-    info!("Sending username & public key to server");
     root_metadata.metadata_version = match client::request(
         &account,
         NewAccountRequest::new(&account, &encrypted_metadatum),
@@ -68,29 +66,28 @@ pub fn create_account(
         }
     };
     root_metadata.content_version = root_metadata.metadata_version;
-    info!("Account creation success!");
 
     debug!(
         "{}",
         serde_json::to_string(&account).map_err(core_err_unexpected)?
     );
 
-    info!("Saving account locally");
     account_repo::insert(config, &account)?;
     file_repo::insert_metadatum(config, RepoSource::Base, &root_metadata)?;
     root_repo::set(config, root_metadata.id)?;
     last_updated_repo::set(config, get_time().0)?;
 
+    info!("account created successfully, root {}", root_metadata.id);
+
     Ok(account)
 }
 
 pub fn import_account(config: &Config, account_string: &str) -> Result<Account, CoreError> {
-    info!("Checking if account already exists");
     if account_repo::maybe_get(config)?.is_some() {
         return Err(CoreError::AccountExists);
     }
 
-    info!("Importing account string: {}", &account_string);
+    info!("Importing account.");
 
     let decoded = match base64::decode(&account_string) {
         Ok(d) => d,
@@ -108,10 +105,6 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
     };
     debug!("Key was valid bincode");
 
-    info!(
-        "Checking this username, public_key pair exists at {}",
-        account.api_url
-    );
     let server_public_key = match client::request(
         &account,
         GetPublicKeyRequest {
@@ -137,14 +130,14 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
         return Err(CoreError::UsernamePublicKeyMismatch);
     }
 
-    info!("Account String seems valid, saving now");
     account_repo::insert(config, &account)?;
 
-    info!("Account imported successfully");
+    info!("account imported successfully");
     Ok(account)
 }
 
 pub fn export_account(config: &Config) -> Result<String, CoreError> {
+    info!("exporting account");
     let account = account_repo::get(config)?;
     let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
     Ok(base64::encode(&encoded))
