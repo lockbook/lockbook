@@ -804,6 +804,7 @@ impl LbApp {
     fn prompt_search(&self) -> LbResult<()> {
         let possibs = self.core.list_paths().unwrap_or_default();
         let search = LbSearch::new(possibs);
+        let d = self.gui.new_dialog("Search");
 
         let comp = gtk::EntryCompletion::new();
         comp.set_model(Some(&search.sort_model));
@@ -811,11 +812,16 @@ impl LbApp {
         comp.set_inline_selection(true);
         comp.set_text_column(1);
         comp.set_match_func(|_, _, _| true);
-        comp.connect_match_selected(closure!(self.messenger as m => move |_, model, iter| {
-            let iter_val = tree_iter_value!(model, iter, 1, String);
-            m.send(Msg::SearchFieldExec(Some(iter_val)));
-            gtk::Inhibit(false)
-        }));
+        comp.connect_match_selected(glib::clone!(
+            @strong self.messenger as m,
+            @strong d
+            => move |_, model, iter| {
+                d.close();
+                let iter_val = tree_iter_value!(model, iter, 1, String);
+                m.send(Msg::SearchFieldExec(Some(iter_val)));
+                gtk::Inhibit(false)
+            }
+        ));
 
         self.state.borrow_mut().search = Some(search);
 
@@ -849,8 +855,6 @@ impl LbApp {
             util::gui::set_entry_icon(entry, icon_name);
         });
 
-        let d = self.gui.new_dialog("Search");
-
         search_entry.connect_activate(
             glib::clone!(@strong self.messenger as m, @strong d => move |entry| {
                 d.close();
@@ -860,6 +864,7 @@ impl LbApp {
             }),
         );
 
+        d.set_size_request(400, -1);
         d.get_content_area().add(&search_entry);
         d.get_content_area().set_margin_bottom(16);
         d.show_all();
