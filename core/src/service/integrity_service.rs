@@ -2,10 +2,11 @@ use std::path::Path;
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
+use crate::pure_functions::files;
 use crate::repo::{file_repo, metadata_repo, root_repo};
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::service::{drawing_service, file_service, path_service};
-use crate::{utils, CoreError};
+use crate::CoreError;
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use uuid::Uuid;
 
@@ -38,7 +39,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         .map_err(TestRepoError::Core)?
         .ok_or(TestRepoError::NoRootFolder)?;
 
-    let files_encrypted = utils::stage_encrypted(
+    let files_encrypted = files::stage_encrypted(
         &metadata_repo::get_all(config, RepoSource::Base).map_err(TestRepoError::Core)?,
         &metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?,
     )
@@ -47,7 +48,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     .collect::<Vec<FileMetadata>>();
 
     for file_encrypted in &files_encrypted {
-        if utils::maybe_find_encrypted(&files_encrypted, file_encrypted.parent).is_none() {
+        if files::maybe_find_encrypted(&files_encrypted, file_encrypted.parent).is_none() {
             return Err(TestRepoError::FileOrphaned(file_encrypted.id));
         }
     }
@@ -62,9 +63,9 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
 
     let files =
         file_repo::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
-    let maybe_doc_with_children = utils::filter_documents(&files)
+    let maybe_doc_with_children = files::filter_documents(&files)
         .into_iter()
-        .find(|d| !utils::find_children(&files, d.id).is_empty());
+        .find(|d| !files::find_children(&files, d.id).is_empty());
     if let Some(doc) = maybe_doc_with_children {
         return Err(TestRepoError::DocumentTreatedAsFolder(doc.id));
     }

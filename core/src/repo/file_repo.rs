@@ -1,13 +1,13 @@
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::model::state::Config;
+use crate::pure_functions::files;
 use crate::repo::digest_repo;
 use crate::repo::document_repo;
 use crate::repo::metadata_repo;
 use crate::repo::{account_repo, file_repo};
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
-use crate::utils;
 use crate::CoreError;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
@@ -40,7 +40,7 @@ pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>
 
 pub fn get_all_with_document_changes(config: &Config) -> Result<Vec<Uuid>, CoreError> {
     let all = get_all_metadata(config, RepoSource::Local)?;
-    let not_deleted = utils::filter_not_deleted(&all);
+    let not_deleted = files::filter_not_deleted(&all);
     let not_deleted_with_document_changes = not_deleted
         .into_iter()
         .map(|f| document_repo::maybe_get(config, RepoSource::Local, f.id).map(|r| r.map(|_| f.id)))
@@ -71,7 +71,7 @@ pub fn insert_metadata(
     // encrypt metadata
     let account = account_repo::get(config)?;
     let all_metadata = get_all_metadata(config, source)?;
-    let all_metadata_with_changes_staged = utils::stage(&all_metadata, metadata)
+    let all_metadata_with_changes_staged = files::stage(&all_metadata, metadata)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<DecryptedFileMetadata>>();
@@ -79,7 +79,7 @@ pub fn insert_metadata(
         file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
 
     for metadatum in metadata {
-        let encrypted_metadata = utils::find_encrypted(&all_metadata_encrypted, metadatum.id)?;
+        let encrypted_metadata = files::find_encrypted(&all_metadata_encrypted, metadatum.id)?;
 
         // perform insertion
         let new_doc = source == RepoSource::Local
@@ -108,7 +108,7 @@ pub fn insert_metadata(
         if let Some(opposite) =
             metadata_repo::maybe_get(config, source.opposite(), encrypted_metadata.id)?
         {
-            if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
+            if files::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
                 && opposite.parent == metadatum.parent
                 && opposite.deleted == metadatum.deleted
             {
@@ -140,7 +140,7 @@ pub fn maybe_get_not_deleted_metadata(
     id: Uuid,
 ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
     let all_not_deleted_metadata = get_all_not_deleted_metadata(config, source)?;
-    Ok(utils::maybe_find(&all_not_deleted_metadata, id))
+    Ok(files::maybe_find(&all_not_deleted_metadata, id))
 }
 
 pub fn get_metadata(
@@ -157,14 +157,14 @@ pub fn maybe_get_metadata(
     id: Uuid,
 ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
     let all_metadata = get_all_metadata(config, source)?;
-    Ok(utils::maybe_find(&all_metadata, id))
+    Ok(files::maybe_find(&all_metadata, id))
 }
 
 pub fn get_all_not_deleted_metadata(
     config: &Config,
     source: RepoSource,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    Ok(utils::filter_not_deleted(&get_all_metadata(
+    Ok(files::filter_not_deleted(&get_all_metadata(
         config, source,
     )?))
 }
@@ -178,7 +178,7 @@ pub fn get_all_metadata(
     match source {
         RepoSource::Local => {
             let local = metadata_repo::get_all(config, RepoSource::Local)?;
-            let staged = utils::stage_encrypted(&base, &local)
+            let staged = files::stage_encrypted(&base, &local)
                 .into_iter()
                 .map(|(f, _)| f)
                 .collect::<Vec<FileMetadata>>();
@@ -200,7 +200,7 @@ pub fn maybe_get_metadata_state(
     id: Uuid,
 ) -> Result<Option<RepoState<DecryptedFileMetadata>>, CoreError> {
     let all_metadata = get_all_metadata_state(config)?;
-    Ok(utils::maybe_find_state(&all_metadata, id))
+    Ok(files::maybe_find_state(&all_metadata, id))
 }
 
 pub fn get_all_metadata_state(
@@ -211,7 +211,7 @@ pub fn get_all_metadata_state(
     let base = file_encryption_service::decrypt_metadata(&account, &base_encrypted)?;
     let local = {
         let local_encrypted = metadata_repo::get_all(config, RepoSource::Local)?;
-        let staged = utils::stage_encrypted(&base_encrypted, &local_encrypted)
+        let staged = files::stage_encrypted(&base_encrypted, &local_encrypted)
             .into_iter()
             .map(|(f, _)| f)
             .collect::<Vec<FileMetadata>>();
@@ -231,7 +231,7 @@ pub fn get_all_metadata_state(
         .filter(|&b| !local.iter().any(|l| l.id == b.id))
         .map(|b| RepoState::Unmodified(b.clone()));
     let modified = base.iter().filter_map(|b| {
-        utils::maybe_find(&local, b.id).map(|l| RepoState::Modified {
+        files::maybe_find(&local, b.id).map(|l| RepoState::Modified {
             base: b.clone(),
             local: l,
         })
@@ -250,7 +250,7 @@ pub fn get_all_metadata_with_encrypted_changes(
     let sourced = match source {
         RepoSource::Local => {
             let local = metadata_repo::get_all(config, RepoSource::Local)?;
-            utils::stage_encrypted(&base, &local)
+            files::stage_encrypted(&base, &local)
                 .into_iter()
                 .map(|(f, _)| f)
                 .collect()
@@ -258,17 +258,17 @@ pub fn get_all_metadata_with_encrypted_changes(
         RepoSource::Base => base,
     };
 
-    let staged = utils::stage_encrypted(&sourced, changes)
+    let staged = files::stage_encrypted(&sourced, changes)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<FileMetadata>>();
 
-    let root = utils::find_root_encrypted(&staged)?;
-    let non_orphans = utils::find_with_descendants_encrypted(&staged, root.id)?;
+    let root = files::find_root_encrypted(&staged)?;
+    let non_orphans = files::find_with_descendants_encrypted(&staged, root.id)?;
     let mut staged_non_orphans = Vec::new();
     let mut encrypted_orphans = Vec::new();
     for f in staged {
-        if utils::maybe_find_encrypted(&non_orphans, f.id).is_some() {
+        if files::maybe_find_encrypted(&non_orphans, f.id).is_some() {
             // only decrypt non-orphans
             staged_non_orphans.push(f)
         } else {
@@ -310,7 +310,7 @@ pub fn insert_document(
 
     // remove local if local == base
     if let Some(opposite) = digest_repo::maybe_get(config, source.opposite(), metadata.id)? {
-        if utils::slices_equal(&opposite, &digest) {
+        if files::slices_equal(&opposite, &digest) {
             document_repo::delete(config, RepoSource::Local, metadata.id)?;
             digest_repo::delete(config, RepoSource::Local, metadata.id)?;
         }
@@ -335,7 +335,7 @@ pub fn maybe_get_not_deleted_document(
     metadata: &[DecryptedFileMetadata],
     id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
-    if let Some(metadata) = utils::maybe_find(&utils::filter_not_deleted(metadata), id) {
+    if let Some(metadata) = files::maybe_find(&files::filter_not_deleted(metadata), id) {
         maybe_get_document(config, source, &metadata)
     } else {
         Ok(None)
@@ -435,7 +435,7 @@ pub fn maybe_get_document_state(
 pub fn promote_metadata(config: &Config) -> Result<(), CoreError> {
     let base_metadata = metadata_repo::get_all(config, RepoSource::Base)?;
     let local_metadata = metadata_repo::get_all(config, RepoSource::Local)?;
-    let staged_metadata = utils::stage_encrypted(&base_metadata, &local_metadata);
+    let staged_metadata = files::stage_encrypted(&base_metadata, &local_metadata);
 
     metadata_repo::delete_all(config, RepoSource::Base)?;
 
@@ -450,7 +450,7 @@ pub fn promote_metadata(config: &Config) -> Result<(), CoreError> {
 pub fn promote_documents(config: &Config) -> Result<(), CoreError> {
     let base_metadata = metadata_repo::get_all(config, RepoSource::Base)?;
     let local_metadata = metadata_repo::get_all(config, RepoSource::Local)?;
-    let staged_metadata = utils::stage_encrypted(&base_metadata, &local_metadata);
+    let staged_metadata = files::stage_encrypted(&base_metadata, &local_metadata);
     let staged_everything = staged_metadata
         .into_iter()
         .map(|(f, _)| {
@@ -496,12 +496,12 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
 
     // find files deleted on base and local
     let all_base_metadata = get_all_metadata(config, RepoSource::Base)?;
-    let deleted_base_metadata = utils::filter_deleted(&all_base_metadata);
+    let deleted_base_metadata = files::filter_deleted(&all_base_metadata);
     let all_local_metadata = get_all_metadata(config, RepoSource::Local)?;
-    let deleted_local_metadata = utils::filter_deleted(&all_local_metadata);
+    let deleted_local_metadata = files::filter_deleted(&all_local_metadata);
     let deleted_both_metadata = deleted_base_metadata
         .into_iter()
-        .filter(|f| utils::maybe_find(&deleted_local_metadata, f.id).is_some())
+        .filter(|f| files::maybe_find(&deleted_local_metadata, f.id).is_some())
         .collect::<Vec<DecryptedFileMetadata>>();
 
     // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
@@ -512,16 +512,16 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
         .collect::<HashSet<Uuid>>();
     let not_deleted_either_ids = all_ids
         .into_iter()
-        .filter(|&id| utils::maybe_find(&deleted_both_metadata, id).is_none())
+        .filter(|&id| files::maybe_find(&deleted_both_metadata, id).is_none())
         .collect::<HashSet<Uuid>>();
     let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
         .iter()
-        .flat_map(|&id| utils::find_ancestors(&all_base_metadata, id))
+        .flat_map(|&id| files::find_ancestors(&all_base_metadata, id))
         .map(|f| f.id)
         .collect::<HashSet<Uuid>>();
     let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
         .iter()
-        .flat_map(|&id| utils::find_ancestors(&all_local_metadata, id))
+        .flat_map(|&id| files::find_ancestors(&all_local_metadata, id))
         .map(|f| f.id)
         .collect::<HashSet<Uuid>>();
     let deleted_both_without_deleted_descendants_ids =

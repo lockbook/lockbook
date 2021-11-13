@@ -1,10 +1,10 @@
 use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
+use crate::pure_functions::files;
 use crate::repo::{account_repo, file_repo, last_updated_repo, root_repo};
 use crate::service::api_service::ApiError;
 use crate::service::{api_service, file_encryption_service, file_service};
-use crate::utils;
 use crate::CoreError;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_crypto::pubkey;
@@ -37,7 +37,7 @@ pub fn create_account(
     let mut root_metadata = file_service::create_root(&account.username);
     let encrypted_metadata =
         file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?;
-    let encrypted_metadatum = utils::single_or(
+    let encrypted_metadatum = files::single_or(
         encrypted_metadata,
         CoreError::Unexpected(String::from(
             "create_account: multiple metadata decrypted from root",

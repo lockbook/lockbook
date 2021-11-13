@@ -1,11 +1,12 @@
 use crate::model::client_conversion::{generate_client_file_metadata, ClientFileMetadata};
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
+use crate::pure_functions::files;
 use crate::repo::account_repo;
 use crate::repo::file_repo;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::{drawing_service, file_encryption_service, file_service};
-use crate::{utils, CoreError};
+use crate::CoreError;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::FileMetadata;
@@ -17,8 +18,8 @@ pub fn get_children_helper(
     id: Uuid,
 ) -> Result<Vec<ClientFileMetadata>, CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files);
-    let children = utils::find_children(&files, id);
+    let files = files::filter_not_deleted(&files);
+    let children = files::find_children(&files, id);
     children
         .iter()
         .map(|c| generate_client_file_metadata(c))
@@ -30,8 +31,8 @@ pub fn get_and_get_children_recursively_helper(
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files);
-    let file_and_descendants = utils::find_with_descendants(&files, id)?;
+    let files = files::filter_not_deleted(&files);
+    let file_and_descendants = files::find_with_descendants(&files, id)?;
 
     // convert from decryptedfilemetadata to filemetadata because that's what this function needs to return for some reason
     let account = account_repo::get(config)?;
@@ -75,14 +76,14 @@ pub fn save_document_to_disk_helper(
 
 pub fn rename_file_helper(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files);
+    let files = files::filter_not_deleted(&files);
     let file = file_service::apply_rename(&files, id, new_name)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }
 
 pub fn move_file_helper(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = utils::filter_not_deleted(&files);
+    let files = files::filter_not_deleted(&files);
     let file = file_service::apply_move(&files, id, new_parent)?;
     file_repo::insert_metadatum(config, RepoSource::Local, &file)
 }

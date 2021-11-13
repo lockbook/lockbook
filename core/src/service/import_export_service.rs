@@ -2,9 +2,10 @@ use crate::model::client_conversion;
 use crate::model::client_conversion::ClientFileMetadata;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
+use crate::pure_functions::files;
 use crate::repo::file_repo;
 use crate::service::path_service;
-use crate::{utils, CoreError};
+use crate::CoreError;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use std::fs;
 use std::fs::{DirEntry, OpenOptions};
@@ -146,7 +147,7 @@ fn export_file_recursively(
 
     match parent_file_metadata.file_type {
         FileType::Folder => {
-            let children = utils::find_children(all, parent_file_metadata.id);
+            let children = files::find_children(all, parent_file_metadata.id);
             fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
             for child in children.iter() {

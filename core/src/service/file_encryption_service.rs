@@ -184,10 +184,8 @@ mod unit_tests {
     use lockbook_models::file_metadata::FileType;
     use uuid::Uuid;
 
-    use crate::{
-        service::{file_encryption_service, file_service, test_utils},
-        utils,
-    };
+    use crate::pure_functions::files;
+    use crate::service::{file_encryption_service, file_service, test_utils};
 
     #[test]
     fn encrypt_decrypt_metadatum() {
@@ -217,16 +215,16 @@ mod unit_tests {
             file_encryption_service::decrypt_metadata(&account, &encrypted_files).unwrap();
 
         assert_eq!(
-            utils::find(&files, root.id).unwrap(),
-            utils::find(&decrypted_files, root.id).unwrap(),
+            files::find(&files, root.id).unwrap(),
+            files::find(&decrypted_files, root.id).unwrap(),
         );
         assert_eq!(
-            utils::find(&files, folder.id).unwrap(),
-            utils::find(&decrypted_files, folder.id).unwrap(),
+            files::find(&files, folder.id).unwrap(),
+            files::find(&decrypted_files, folder.id).unwrap(),
         );
         assert_eq!(
-            utils::find(&files, document.id).unwrap(),
-            utils::find(&decrypted_files, document.id).unwrap(),
+            files::find(&files, document.id).unwrap(),
+            files::find(&decrypted_files, document.id).unwrap(),
         );
     }
 }

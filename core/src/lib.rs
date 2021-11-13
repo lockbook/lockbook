@@ -36,6 +36,7 @@ use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
+use pure_functions::files;
 use serde::Serialize;
 use serde_json::{json, value::Value};
 use service::log_service;
@@ -249,7 +250,7 @@ pub enum GetRootError {
 pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)
         .map_err(|e| unexpected!("{:#?}", e))?;
-    match utils::maybe_find_root(&files) {
+    match files::maybe_find_root(&files) {
         None => Err(UiError(GetRootError::NoRoot)),
         Some(file_metadata) => match generate_client_file_metadata(&file_metadata) {
             Ok(client_file_metadata) => Ok(client_file_metadata),
@@ -728,9 +729,9 @@ impl_get_variants!(
 pub mod external_interface;
 pub mod lib_helpers;
 pub mod model;
+pub mod pure_functions;
 pub mod repo;
 pub mod service;
-pub mod utils;
 
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");

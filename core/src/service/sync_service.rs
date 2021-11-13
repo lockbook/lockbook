@@ -5,10 +5,10 @@ use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::model::state::Config;
+use crate::pure_functions::files;
 use crate::repo::account_repo;
 use crate::repo::{file_repo, last_updated_repo};
 use crate::service::{api_service, file_encryption_service, file_service};
-use crate::utils;
 use crate::CoreError;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
@@ -70,7 +70,7 @@ fn calculate_work_from_updates(
     )?;
     for metadata in server_updates {
         // skip filtered changes
-        if utils::maybe_find(&all_metadata, metadata.id).is_none() {
+        if files::maybe_find(&all_metadata, metadata.id).is_none() {
             continue;
         }
 
@@ -83,14 +83,14 @@ fn calculate_work_from_updates(
                 if !metadata.deleted {
                     // no work for files we don't have that have been deleted
                     work_units.push(WorkUnit::ServerChange {
-                        metadata: utils::find(&all_metadata, metadata.id)?,
+                        metadata: files::find(&all_metadata, metadata.id)?,
                     })
                 }
             }
             Some(local_metadata) => {
                 if metadata.metadata_version != local_metadata.metadata_version {
                     work_units.push(WorkUnit::ServerChange {
-                        metadata: utils::find(&all_metadata, metadata.id)?,
+                        metadata: files::find(&all_metadata, metadata.id)?,
                     })
                 }
             }
@@ -510,9 +510,9 @@ where
     let num_documents_to_pull = remote_metadata_changes
         .iter()
         .filter(|&f| {
-            let maybe_remote_metadatum = utils::maybe_find(&remote_metadata, f.id);
-            let maybe_base_metadatum = utils::maybe_find(&base_metadata, f.id);
-            let maybe_local_metadatum = utils::maybe_find(&local_metadata, f.id);
+            let maybe_remote_metadatum = files::maybe_find(&remote_metadata, f.id);
+            let maybe_base_metadatum = files::maybe_find(&base_metadata, f.id);
+            let maybe_local_metadatum = files::maybe_find(&local_metadata, f.id);
             should_pull_document(
                 &maybe_base_metadatum,
                 &maybe_local_metadatum,
@@ -532,15 +532,15 @@ where
     // iterate changes
     for encrypted_remote_metadatum in remote_metadata_changes {
         // skip filtered changes
-        if utils::maybe_find(&remote_metadata, encrypted_remote_metadatum.id).is_none() {
+        if files::maybe_find(&remote_metadata, encrypted_remote_metadatum.id).is_none() {
             continue;
         }
 
         // merge metadata
-        let remote_metadatum = utils::find(&remote_metadata, encrypted_remote_metadatum.id)?;
-        let maybe_base_metadatum = utils::maybe_find(&base_metadata, encrypted_remote_metadatum.id);
+        let remote_metadatum = files::find(&remote_metadata, encrypted_remote_metadatum.id)?;
+        let maybe_base_metadatum = files::maybe_find(&base_metadata, encrypted_remote_metadatum.id);
         let maybe_local_metadatum =
-            utils::maybe_find(&local_metadata, encrypted_remote_metadatum.id);
+            files::maybe_find(&local_metadata, encrypted_remote_metadatum.id);
 
         let merged_metadatum = merge_maybe_metadata(
             maybe_base_metadatum.clone(),
@@ -599,9 +599,9 @@ where
 
     // deleted orphaned updates
     for orphan in remote_orphans {
-        if let Some(mut metadatum) = utils::maybe_find(&base_metadata, orphan.id) {
+        if let Some(mut metadatum) = files::maybe_find(&base_metadata, orphan.id) {
             if let Some(mut metadatum_update) =
-                utils::maybe_find_mut(&mut base_metadata_updates, orphan.id)
+                files::maybe_find_mut(&mut base_metadata_updates, orphan.id)
             {
                 metadatum_update.deleted = true;
             } else {
@@ -609,9 +609,9 @@ where
                 base_metadata_updates.push(metadatum);
             }
         }
-        if let Some(mut metadatum) = utils::maybe_find(&local_metadata, orphan.id) {
+        if let Some(mut metadatum) = files::maybe_find(&local_metadata, orphan.id) {
             if let Some(mut metadatum_update) =
-                utils::maybe_find_mut(&mut local_metadata_updates, orphan.id)
+                files::maybe_find_mut(&mut local_metadata_updates, orphan.id)
             {
                 metadatum_update.deleted = true;
             } else {
@@ -625,7 +625,7 @@ where
     for path_conflict in file_service::get_path_conflicts(&local_metadata, &local_metadata_updates)?
     {
         let local_meta_updates_copy = local_metadata_updates.clone();
-        let to_rename = utils::find_mut(&mut local_metadata_updates, path_conflict.staged)?;
+        let to_rename = files::find_mut(&mut local_metadata_updates, path_conflict.staged)?;
         let conflict_name = file_service::suggest_non_conflicting_filename(
             to_rename.id,
             &local_metadata,
@@ -642,7 +642,7 @@ where
             file_repo::maybe_get_metadata_state(config, self_descendant)?
         {
             if let Some(existing_update) =
-                utils::maybe_find_mut(&mut local_metadata_updates, self_descendant)
+                files::maybe_find_mut(&mut local_metadata_updates, self_descendant)
             {
                 existing_update.parent = base.parent;
             }

@@ -1,6 +1,7 @@
 use crate::model::filename::NameComponents;
-use crate::utils::StageSource;
-use crate::{utils, CoreError};
+use crate::pure_functions::files;
+use crate::pure_functions::files::StageSource;
+use crate::CoreError;
 use lockbook_crypto::symkey;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
 use std::collections::HashMap;
@@ -50,7 +51,7 @@ pub fn apply_create(
     let file = create(file_type, parent, name, owner);
     validate_not_root(&file)?;
     validate_file_name(name)?;
-    let parent = utils::find(files, parent).map_err(|e| match e {
+    let parent = files::find(files, parent).map_err(|e| match e {
         CoreError::FileNonexistent => CoreError::FileParentNonexistent,
         e => e,
     })?;
@@ -72,7 +73,7 @@ pub fn apply_rename(
     target_id: Uuid,
     new_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    let mut file = utils::find(files, target_id)?;
+    let mut file = files::find(files, target_id)?;
     validate_not_root(&file)?;
     validate_file_name(new_name)?;
 
@@ -90,8 +91,8 @@ pub fn apply_move(
     target_id: Uuid,
     new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    let mut file = utils::find(files, target_id)?;
-    let parent = utils::find(files, new_parent).map_err(|err| match err {
+    let mut file = files::find(files, target_id)?;
+    let parent = files::find(files, new_parent).map_err(|err| match err {
         CoreError::FileNonexistent => CoreError::FileParentNonexistent,
         e => e,
     })?;
@@ -115,7 +116,7 @@ pub fn apply_delete(
     files: &[DecryptedFileMetadata],
     target_id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    let mut file = utils::find(files, target_id)?;
+    let mut file = files::find(files, target_id)?;
     validate_not_root(&file)?;
 
     file.deleted = true;
@@ -153,8 +154,8 @@ pub fn get_invalid_cycles_encrypted(
     files: &[FileMetadata],
     staged_changes: &[FileMetadata],
 ) -> Result<Vec<Uuid>, CoreError> {
-    let maybe_root = utils::maybe_find_root_encrypted(files);
-    let files_with_sources = utils::stage_encrypted(files, staged_changes);
+    let maybe_root = files::maybe_find_root_encrypted(files);
+    let files_with_sources = files::stage_encrypted(files, staged_changes);
     let files = &files_with_sources
         .iter()
         .map(|(f, _)| f.clone())
@@ -163,13 +164,13 @@ pub fn get_invalid_cycles_encrypted(
     let mut found_root = maybe_root.is_some();
 
     for file in files {
-        let mut ancestor_single = utils::find_parent_encrypted(files, file.id)?;
-        let mut ancestor_double = utils::find_parent_encrypted(files, ancestor_single.id)?;
+        let mut ancestor_single = files::find_parent_encrypted(files, file.id)?;
+        let mut ancestor_double = files::find_parent_encrypted(files, ancestor_single.id)?;
         while ancestor_single.id != ancestor_double.id {
-            ancestor_single = utils::find_parent_encrypted(files, ancestor_single.id)?;
-            ancestor_double = utils::find_parent_encrypted(
+            ancestor_single = files::find_parent_encrypted(files, ancestor_single.id)?;
+            ancestor_double = files::find_parent_encrypted(
                 files,
-                utils::find_parent_encrypted(files, ancestor_double.id)?.id,
+                files::find_parent_encrypted(files, ancestor_double.id)?.id,
             )?;
         }
         if ancestor_single.id == file.id {
@@ -194,8 +195,8 @@ pub fn get_invalid_cycles(
     files: &[DecryptedFileMetadata],
     staged_changes: &[DecryptedFileMetadata],
 ) -> Result<Vec<Uuid>, CoreError> {
-    let maybe_root = utils::maybe_find_root(files);
-    let files_with_sources = utils::stage(files, staged_changes);
+    let maybe_root = files::maybe_find_root(files);
+    let files_with_sources = files::stage(files, staged_changes);
     let files = &files_with_sources
         .iter()
         .map(|(f, _)| f.clone())
@@ -204,12 +205,12 @@ pub fn get_invalid_cycles(
     let mut found_root = maybe_root.is_some();
 
     for file in files {
-        let mut ancestor_single = utils::find_parent(files, file.id)?;
-        let mut ancestor_double = utils::find_parent(files, ancestor_single.id)?;
+        let mut ancestor_single = files::find_parent(files, file.id)?;
+        let mut ancestor_double = files::find_parent(files, ancestor_single.id)?;
         while ancestor_single.id != ancestor_double.id {
-            ancestor_single = utils::find_parent(files, ancestor_single.id)?;
+            ancestor_single = files::find_parent(files, ancestor_single.id)?;
             ancestor_double =
-                utils::find_parent(files, utils::find_parent(files, ancestor_double.id)?.id)?;
+                files::find_parent(files, files::find_parent(files, ancestor_double.id)?.id)?;
         }
         if ancestor_single.id == file.id {
             // root in files -> non-root cycles invalid
@@ -238,7 +239,7 @@ pub fn get_path_conflicts(
     files: &[DecryptedFileMetadata],
     staged_changes: &[DecryptedFileMetadata],
 ) -> Result<Vec<PathConflict>, CoreError> {
-    let files_with_sources = utils::stage(files, staged_changes);
+    let files_with_sources = files::stage(files, staged_changes);
     let files = &files_with_sources
         .iter()
         .map(|(f, _)| f.clone())
@@ -246,7 +247,7 @@ pub fn get_path_conflicts(
     let mut result = Vec::new();
 
     for file in files {
-        let children = utils::find_children(files, file.id);
+        let children = files::find_children(files, file.id);
         let mut child_ids_by_name: HashMap<String, Uuid> = HashMap::new();
         for child in children {
             if let Some(conflicting_child_id) = child_ids_by_name.get(&child.decrypted_name) {
@@ -281,13 +282,13 @@ pub fn suggest_non_conflicting_filename(
     files: &[DecryptedFileMetadata],
     staged_changes: &[DecryptedFileMetadata],
 ) -> Result<String, CoreError> {
-    let files: Vec<DecryptedFileMetadata> = utils::stage(files, staged_changes)
+    let files: Vec<DecryptedFileMetadata> = files::stage(files, staged_changes)
         .iter()
         .map(|(f, _)| f.clone())
         .collect();
 
-    let file = utils::find(&files, id)?;
-    let sibblings = utils::find_children(&files, file.parent);
+    let file = files::find(&files, id)?;
+    let sibblings = files::find_children(&files, file.parent);
 
     let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
     loop {

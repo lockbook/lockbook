@@ -1,8 +1,9 @@
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
+use crate::pure_functions::files;
 use crate::repo::{account_repo, file_repo};
 use crate::service::file_service;
-use crate::{utils, CoreError};
+use crate::CoreError;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use uuid::Uuid;
@@ -21,7 +22,7 @@ pub fn create_at_path(
     let is_folder = path_and_name.ends_with('/');
 
     let mut files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let mut current = utils::find_root(&files)?;
+    let mut current = files::find_root(&files)?;
     let root_id = current.id;
     let account = account_repo::get(config)?;
 
@@ -35,7 +36,7 @@ pub fn create_at_path(
 
     // We're going to look ahead, and find or create the right child
     'path: for index in 0..path_components.len() - 1 {
-        let children = utils::find_children(&files, current.id);
+        let children = files::find_children(&files, current.id);
 
         let next_name = path_components[index + 1];
 
@@ -80,7 +81,7 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata,
     let paths = split_path(path);
 
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let mut current = utils::find_root(&files)?;
+    let mut current = files::find_root(&files)?;
 
     for (i, &value) in paths.iter().enumerate() {
         if value != current.decrypted_name {
@@ -91,7 +92,7 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata,
             return Ok(current);
         }
 
-        let children = utils::find_children(&files, current.id);
+        let children = files::find_children(&files, current.id);
         let mut found_child = false;
 
         for child in children {
@@ -150,7 +151,7 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
             } else {
                 current_path = format!("{}/{}", current.decrypted_name, current_path);
             }
-            current = utils::find(&files, current.parent)?;
+            current = files::find(&files, current.parent)?;
         }
 
         current_path = format!("{}/{}", current.decrypted_name, current_path);
@@ -162,14 +163,14 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
 
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
     let files = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let mut current_metadata = utils::find(&files, id)?;
+    let mut current_metadata = files::find(&files, id)?;
     let mut path = String::from("");
 
     let is_folder = current_metadata.file_type == Folder;
 
     while current_metadata.parent != current_metadata.id {
         path = format!("{}/{}", current_metadata.decrypted_name, path);
-        current_metadata = utils::find(&files, current_metadata.parent)?;
+        current_metadata = files::find(&files, current_metadata.parent)?;
     }
 
     {
