@@ -63,11 +63,6 @@ pub fn init_logger(log_path: &Path) -> Result<(), Error<()>> {
     Ok(())
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetStateError {
-    Stub, // TODO: Enums should not be empty
-}
-
 pub fn get_db_state(config: &Config) -> Result<State, UnexpectedError> {
     db_state_service::get_state(config).map_err(|e| unexpected_only!("{:#?}", e))
 }
@@ -754,7 +749,6 @@ macro_rules! impl_get_variants {
 
 // All new errors must be placed in here!
 impl_get_variants!(
-    GetStateError,
     MigrationError,
     CreateAccountError,
     ImportError,
