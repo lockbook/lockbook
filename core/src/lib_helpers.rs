@@ -1,19 +1,14 @@
-use crate::model::client_conversion::{
-    generate_client_file_metadata, generate_client_work_calculated, ClientFileMetadata,
-    ClientWorkCalculated,
-};
+use crate::model::client_conversion::{generate_client_file_metadata, ClientFileMetadata};
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::file_repo;
 use crate::service::drawing_service::SupportedImageFormats;
-use crate::service::{
-    drawing_service, file_encryption_service, file_service, path_service, sync_service,
-};
+use crate::service::{drawing_service, file_encryption_service, file_service};
 use crate::{utils, CoreError};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
-use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_metadata::FileMetadata;
 use std::collections::HashMap;
 use uuid::Uuid;
 

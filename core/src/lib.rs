@@ -39,28 +39,13 @@ pub use model::errors::{CoreError, Error, UnexpectedError};
 use serde::Serialize;
 use serde_json::{json, value::Value};
 use std::collections::HashMap;
-use std::env;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
 pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
-    let print_colors = env::var("LOG_NO_COLOR").is_err();
-    let lockbook_log_level = env::var("LOG_LEVEL")
-        .ok()
-        .and_then(|s| log::LevelFilter::from_str(s.as_str()).ok())
-        .unwrap_or(log::LevelFilter::Debug);
-
-    loggers::init(log_path, LOG_FILE.to_string(), print_colors)
-        .map_err(|err| unexpected_only!("IO Error: {:#?}", err))?
-        .level(log::LevelFilter::Warn)
-        .level_for("lockbook_core", lockbook_log_level)
-        .apply()
-        .map_err(|err| unexpected_only!("{:#?}", err))?;
-    info!("Logger initialized! Path: {:?}", log_path);
-    Ok(())
+    Ok(loggers::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))?)
 }
 
 pub fn get_db_state(config: &Config) -> Result<State, UnexpectedError> {
@@ -749,4 +734,3 @@ pub mod utils;
 
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
-static LOG_FILE: &str = "lockbook.log";
