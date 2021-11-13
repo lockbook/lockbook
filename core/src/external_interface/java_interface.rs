@@ -7,7 +7,7 @@ use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
 use uuid::Uuid;
 
-use crate::json_interface::translate;
+use crate::external_interface::json_interface::translate;
 use crate::model::state::Config;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::sync_service::SyncProgress;

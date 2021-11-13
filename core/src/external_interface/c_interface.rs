@@ -4,8 +4,8 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 use uuid::Uuid;
 
+use crate::external_interface::json_interface::translate;
 use crate::get_all_error_variants;
-use crate::json_interface::translate;
 use crate::model::state::Config;
 use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::path_service::{filter_from_str, Filter};

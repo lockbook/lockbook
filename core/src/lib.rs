@@ -739,9 +739,7 @@ impl_get_variants!(
     SaveDocumentToDiskError,
 );
 
-pub mod c_interface;
-pub mod java_interface;
-mod json_interface;
+pub mod external_interface;
 pub mod lib_helpers;
 pub mod loggers;
 pub mod model;

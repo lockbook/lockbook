@@ -21,7 +21,7 @@ where
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::json_interface::translate;
+    use crate::external_interface::json_interface::translate;
     use crate::UnexpectedError;
 
     #[test]
