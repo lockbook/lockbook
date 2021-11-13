@@ -1,7 +1,7 @@
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{account_repo, file_repo};
-use crate::service::client;
+use crate::service::api_service;
 use crate::{utils, CoreError};
 use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use serde::Serialize;
@@ -48,7 +48,7 @@ pub fn bytes_to_human(size: u64) -> String {
 pub fn server_usage(config: &Config) -> Result<GetUsageResponse, CoreError> {
     let acc = account_repo::get(config)?;
 
-    client::request(&acc, GetUsageRequest {}).map_err(CoreError::from)
+    api_service::request(&acc, GetUsageRequest {}).map_err(CoreError::from)
 }
 
 pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {

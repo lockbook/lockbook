@@ -7,7 +7,7 @@ use crate::model::repo::RepoState;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::repo::{file_repo, last_updated_repo};
-use crate::service::{client, file_encryption_service, file_service};
+use crate::service::{api_service, file_encryption_service, file_service};
 use crate::utils;
 use crate::CoreError;
 use lockbook_models::account::Account;
@@ -45,7 +45,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
         .max()
         .unwrap_or(0);
 
-    let server_updates = client::request(
+    let server_updates = api_service::request(
         &account,
         GetUpdatesRequest {
             since_metadata_version: base_max_metadata_version,
@@ -395,7 +395,7 @@ fn get_resolved_document(
     remote_metadatum: &DecryptedFileMetadata,
     merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<Option<ResolvedDocument>, CoreError> {
-    let maybe_remote_document_encrypted = client::request(
+    let maybe_remote_document_encrypted = api_service::request(
         account,
         GetDocumentRequest {
             id: remote_metadatum.id,
@@ -490,7 +490,7 @@ where
         ClientWorkUnit::PullMetadata,
     ));
 
-    let remote_metadata_changes = client::request(
+    let remote_metadata_changes = api_service::request(
         account,
         GetUpdatesRequest {
             since_metadata_version: base_max_metadata_version,
@@ -682,7 +682,7 @@ where
     // update remote to local (metadata)
     let metadata_changes = file_repo::get_all_metadata_changes(config)?;
     if !metadata_changes.is_empty() {
-        client::request(
+        api_service::request(
             account,
             FileMetadataUpsertsRequest {
                 updates: metadata_changes,
@@ -719,7 +719,7 @@ where
         ));
 
         // update remote to local (document)
-        local_metadata.content_version = client::request(
+        local_metadata.content_version = api_service::request(
             account,
             ChangeDocumentContentRequest {
                 id: id,

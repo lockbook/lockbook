@@ -3,8 +3,8 @@ mod integration_test;
 #[cfg(test)]
 mod get_document_tests {
     use lockbook_core::assert_matches;
-    use lockbook_core::service::client;
-    use lockbook_core::service::client::ApiError;
+    use lockbook_core::service::api_service;
+    use lockbook_core::service::api_service::ApiError;
     use lockbook_core::service::test_utils::{
         generate_account, generate_file_metadata, generate_root_metadata,
     };
@@ -19,12 +19,12 @@ mod get_document_tests {
         // new account
         let account = generate_account();
         let (root, root_key) = generate_root_metadata(&account);
-        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
         let (doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        client::request(
+        api_service::request(
             &account,
             FileMetadataUpsertsRequest {
                 updates: vec![FileMetadataDiff::new(&doc)],
@@ -33,7 +33,7 @@ mod get_document_tests {
         .unwrap();
 
         // get metadata version
-        let metadata_version = client::request(
+        let metadata_version = api_service::request(
             &account,
             GetUpdatesRequest {
                 since_metadata_version: root.metadata_version,
@@ -48,7 +48,7 @@ mod get_document_tests {
         .metadata_version;
 
         // update document content
-        client::request(
+        api_service::request(
             &account,
             ChangeDocumentContentRequest {
                 id: doc.id,
@@ -63,7 +63,7 @@ mod get_document_tests {
         .unwrap();
 
         // get content version
-        let content_version = client::request(
+        let content_version = api_service::request(
             &account,
             GetUpdatesRequest {
                 since_metadata_version: metadata_version,
@@ -78,7 +78,7 @@ mod get_document_tests {
         .content_version;
 
         // get document
-        let result = &client::request(
+        let result = &api_service::request(
             &account,
             GetDocumentRequest {
                 id: doc.id,
@@ -101,10 +101,10 @@ mod get_document_tests {
         // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // get document we never created
-        let result = client::request(
+        let result = api_service::request(
             &account,
             GetDocumentRequest {
                 id: Uuid::new_v4(),

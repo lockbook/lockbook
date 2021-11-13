@@ -3,8 +3,8 @@ mod integration_test;
 #[cfg(test)]
 mod change_document_content_tests {
     use lockbook_core::assert_matches;
-    use lockbook_core::service::client;
-    use lockbook_core::service::client::ApiError;
+    use lockbook_core::service::api_service;
+    use lockbook_core::service::api_service::ApiError;
     use lockbook_core::service::test_utils::{
         aes_encrypt, generate_account, generate_file_metadata, generate_root_metadata,
     };
@@ -19,10 +19,10 @@ mod change_document_content_tests {
         // new account
         let account = generate_account();
         let (mut root, root_key) = generate_root_metadata(&account);
-        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // get root metadata version
-        root.metadata_version = client::request(
+        root.metadata_version = api_service::request(
             &account,
             GetUpdatesRequest {
                 since_metadata_version: 0,
@@ -35,7 +35,7 @@ mod change_document_content_tests {
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        client::request(
+        api_service::request(
             &account,
             FileMetadataUpsertsRequest {
                 updates: vec![FileMetadataDiff::new(&doc)],
@@ -44,7 +44,7 @@ mod change_document_content_tests {
         .unwrap();
 
         // get document metadata version
-        doc.metadata_version = client::request(
+        doc.metadata_version = api_service::request(
             &account,
             GetUpdatesRequest {
                 since_metadata_version: root.metadata_version,
@@ -55,7 +55,7 @@ mod change_document_content_tests {
             .metadata_version;
 
         // change document content
-        client::request(
+        api_service::request(
             &account,
             ChangeDocumentContentRequest {
                 id: doc.id,
@@ -71,10 +71,10 @@ mod change_document_content_tests {
         // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // change content of document we never created
-        let result = client::request(
+        let result = api_service::request(
             &account,
             ChangeDocumentContentRequest {
                 id: Uuid::new_v4(),

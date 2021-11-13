@@ -2,8 +2,8 @@ use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::{account_repo, file_repo, last_updated_repo, root_repo};
-use crate::service::client::ApiError;
-use crate::service::{client, file_encryption_service, file_service};
+use crate::service::api_service::ApiError;
+use crate::service::{api_service, file_encryption_service, file_service};
 use crate::utils;
 use crate::CoreError;
 use lockbook_crypto::clock_service::get_time;
@@ -44,7 +44,7 @@ pub fn create_account(
         )),
     )?;
 
-    root_metadata.metadata_version = match client::request(
+    root_metadata.metadata_version = match api_service::request(
         &account,
         NewAccountRequest::new(&account, &encrypted_metadatum),
     ) {
@@ -105,7 +105,7 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
     };
     debug!("Key was valid bincode");
 
-    let server_public_key = match client::request(
+    let server_public_key = match api_service::request(
         &account,
         GetPublicKeyRequest {
             username: account.username.clone(),

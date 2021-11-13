@@ -38,6 +38,7 @@ use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
 use serde::Serialize;
 use serde_json::{json, value::Value};
+use service::log_service;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use strum::IntoEnumIterator;
@@ -45,7 +46,7 @@ use strum_macros::EnumIter;
 use uuid::Uuid;
 
 pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
-    loggers::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))
+    log_service::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))
 }
 
 pub fn get_db_state(config: &Config) -> Result<State, UnexpectedError> {
@@ -726,7 +727,6 @@ impl_get_variants!(
 
 pub mod external_interface;
 pub mod lib_helpers;
-pub mod loggers;
 pub mod model;
 pub mod repo;
 pub mod service;

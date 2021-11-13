@@ -1,4 +1,4 @@
-use crate::service::client::ApiError;
+use crate::service::api_service::ApiError;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use std::fmt::{Display, Formatter};

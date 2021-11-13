@@ -3,8 +3,8 @@ mod integration_test;
 #[cfg(test)]
 mod get_public_key_tests {
     use lockbook_core::assert_matches;
-    use lockbook_core::service::client;
-    use lockbook_core::service::client::ApiError;
+    use lockbook_core::service::api_service;
+    use lockbook_core::service::api_service::ApiError;
     use lockbook_core::service::test_utils::{generate_account, generate_root_metadata};
     use lockbook_models::api::*;
 
@@ -12,9 +12,9 @@ mod get_public_key_tests {
     fn get_public_key() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-        client::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        let result = client::request(
+        let result = api_service::request(
             &account,
             GetPublicKeyRequest {
                 username: account.username.clone(),
@@ -29,7 +29,7 @@ mod get_public_key_tests {
     fn get_public_key_not_found() {
         let account = generate_account();
 
-        let result = client::request(
+        let result = api_service::request(
             &account,
             GetPublicKeyRequest {
                 username: account.username.clone(),
