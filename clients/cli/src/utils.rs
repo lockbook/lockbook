@@ -1,7 +1,7 @@
 use lockbook_core::model::state::Config;
 use lockbook_core::{
-    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db, Error,
-    GetAccountError, GetStateError, MigrationError,
+    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
+    GetAccountError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 use std::{env, fs};
@@ -26,10 +26,7 @@ macro_rules! path_string {
 }
 
 pub fn init_logger_or_print() -> CliResult<()> {
-    init_logger(config()?.path()).map_err(|err| match err {
-        Error::UiError(()) => err_unexpected!("impossible"),
-        Error::Unexpected(msg) => err_unexpected!("{}", msg),
-    })
+    Ok(init_logger(config()?.path())?)
 }
 
 pub fn account() -> CliResult<Account> {

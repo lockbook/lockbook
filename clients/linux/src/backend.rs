@@ -13,7 +13,7 @@ use lockbook_core::{
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
     get_file_by_path, get_last_synced, get_path_by_id, get_root, get_usage, import_account,
     import_file, list_paths, migrate_db, move_file, read_document, rename_file, sync_all,
-    unexpected, write_document, Error,
+    write_document,
 };
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
@@ -167,9 +167,7 @@ impl LbCore {
     }
 
     pub fn children(&self, parent: &ClientFileMetadata) -> LbResult<Vec<ClientFileMetadata>> {
-        get_children(&self.config, parent.id).map_err(map_core_err!(GetChildrenError,
-            Stub => panic!("impossible"),
-        ))
+        Ok(get_children(&self.config, parent.id)?)
     }
 
     pub fn get_children_recursively(&self, id: Uuid) -> LbResult<Vec<FileMetadata>> {
@@ -208,9 +206,7 @@ impl LbCore {
     }
 
     pub fn list_paths(&self) -> LbResult<Vec<String>> {
-        list_paths(&self.config, None).map_err(map_core_err!(ListPathsError,
-            Stub => panic!("impossible"),
-        ))
+        Ok(list_paths(&self.config, None)?)
     }
 
     pub fn rename(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
@@ -310,9 +306,7 @@ impl LbCore {
     }
 
     pub fn get_last_synced(&self) -> LbResult<i64> {
-        get_last_synced(&self.config).map_err(map_core_err!(GetLastSyncedError,
-            Stub => panic!("impossible"),
-        ))
+        Ok(get_last_synced(&self.config)?)
     }
 
     pub fn get_usage(&self) -> LbResult<UsageMetrics> {
@@ -345,9 +339,7 @@ impl LbCore {
     }
 
     pub fn full_path_for(&self, id: &Uuid) -> LbResult<String> {
-        get_path_by_id(&self.config, *id).map_err(map_core_err!(GetPathError,
-            Stub => panic!("impossible"),
-        ))
+        Ok(get_path_by_id(&self.config, *id)?)
     }
 
     pub fn open(&self, id: &Uuid) -> LbResult<(ClientFileMetadata, String)> {
