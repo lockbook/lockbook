@@ -4,15 +4,15 @@ pub async fn delete_account(server_state: ServerState, username: &str) -> bool {
     let mut transaction = server_state.index_db_client.begin().await.unwrap();
 
     // Ensure this is a real user
-    file_index_repo::get_public_key(&mut transaction, username)
+    let pk = file_index_repo::get_public_key(&mut transaction, username)
         .await
         .expect(&format!("Could not find public key for user {}", &username));
 
-    file_index_repo::delete_account_access_keys(&mut transaction, username)
+    file_index_repo::delete_account_access_keys(&mut transaction, &pk)
         .await
         .expect("Failed to delete account access keys");
 
-    let files = file_index_repo::delete_all_files_of_account(&mut transaction, username)
+    let files = file_index_repo::delete_all_files_of_account(&mut transaction, &pk)
         .await
         .expect("Failed to delete all files of account");
 

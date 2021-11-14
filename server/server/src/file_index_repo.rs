@@ -662,17 +662,18 @@ INSERT INTO user_access_keys (file_id, sharee, encrypted_key) VALUES ($1, $2, $3
 #[derive(Debug)]
 pub enum DeleteAccountAccessKeysError {
     Postgres(sqlx::Error),
+    Serialize(serde_json::Error),
 }
 
 pub async fn delete_account_access_keys(
     transaction: &mut Transaction<'_, Postgres>,
-    username: &str,
+    pk: &PublicKey,
 ) -> Result<(), DeleteAccountAccessKeysError> {
     sqlx::query!(
         r#"
 DELETE FROM user_access_keys where sharee = $1
         "#,
-        &username.to_string(),
+        &serde_json::to_string(pk).map_err(DeleteAccountAccessKeysError::Serialize)?,
     )
     .execute(transaction)
     .await
@@ -684,12 +685,13 @@ DELETE FROM user_access_keys where sharee = $1
 pub enum DeleteAllFilesOfAccountError {
     DoesNotExist,
     Postgres(sqlx::Error),
+    Serialize(serde_json::Error),
     UuidDeserialize(uuid::Error),
 }
 
 pub async fn delete_all_files_of_account(
     transaction: &mut Transaction<'_, Postgres>,
-    username: &str,
+    pk: &PublicKey,
 ) -> Result<Vec<FileDeleteResponse>, DeleteAllFilesOfAccountError> {
     match sqlx::query!(
         r#"
@@ -703,7 +705,7 @@ RETURNING
     metadata_version AS new_metadata_version,
     is_folder AS is_folder;
         "#,
-        &username.to_string()
+        &serde_json::to_string(pk).map_err(DeleteAllFilesOfAccountError::Serialize)?
     )
     .fetch_all(transaction)
     .await
