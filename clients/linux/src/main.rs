@@ -15,6 +15,7 @@ mod editmode;
 mod error;
 mod filetree;
 mod intro;
+mod lbsearch;
 mod menubar;
 mod messages;
 mod settings;
