@@ -19,8 +19,9 @@ macro_rules! closure {
 pub mod gui {
     use gtk::prelude::ButtonExt;
     use gtk::prelude::ContainerExt;
+    use gtk::prelude::EntryExt;
     use gtk::prelude::IsA;
-    use gtk::prelude::WidgetExt as GtkWidgetExt;
+    use gtk::prelude::WidgetExt;
     use gtk::Adjustment as GtkAdjustment;
     use gtk::Align as GtkAlign;
     use gtk::Button as GtkButton;
@@ -59,7 +60,7 @@ pub mod gui {
     }
 
     pub fn set_widget_name<W: IsA<GtkWidget>>(w: &W, name: &str) {
-        GtkWidgetExt::set_widget_name(w, name);
+        gtk::WidgetExt::set_widget_name(w, name);
     }
 
     pub fn set_margin<W: IsA<GtkWidget>>(w: &W, v: i32) {
@@ -91,8 +92,14 @@ pub mod gui {
         l
     }
 
-    pub const RIGHT_CLICK: u32 = 3;
+    pub fn set_entry_icon(entry: &gtk::Entry, name: &str) {
+        entry.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, Some(name));
+    }
+
+    pub const KEY_ARROW_UP: u16 = 111;
+    pub const KEY_ARROW_DOWN: u16 = 116;
     pub const LEFT_CLICK: u32 = 1;
+    pub const RIGHT_CLICK: u32 = 3;
 }
 
 pub mod io {

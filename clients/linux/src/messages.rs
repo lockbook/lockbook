@@ -26,10 +26,7 @@ pub enum Msg {
 
     MarkdownLinkExec(String, String),
 
-    SearchFieldFocus,
-    SearchFieldBlur(bool),
-    SearchFieldUpdate,
-    SearchFieldUpdateIcon,
+    PromptSearch,
     SearchFieldExec(Option<String>),
 
     ToggleTreeCol(FileTreeCol),
