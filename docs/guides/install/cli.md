@@ -1,5 +1,15 @@
 # CLI Installing
 
+## Package Managers
+
+[Arch Linux](https://aur.archlinux.org/packages/lockbook): `yay -S lockbook`
+
+[MacOS](https://github.com/lockbook/homebrew-lockbook/blob/master/Formula/lockbook.rb): `brew tap lockbook/lockbook && brew install lockbook`
+
+## Building from source
+
+[See build instructions.](../build/cli.md)
+
 ## Quick Install
 
 Our binary has no dependencies. Simply:
@@ -10,10 +20,3 @@ Our binary has no dependencies. Simply:
 Repeat the process to upgrade to newer versions.
 
 [See our downloads.](https://github.com/lockbook/lockbook/releases)
-
-## Package Managers
-
-[Arch Linux](https://aur.archlinux.org/packages/lockbook): `yay -S lockbook`
-
-[MacOS](https://github.com/lockbook/homebrew-lockbook/blob/master/Formula/lockbook.rb): `brew tap lockbook/lockbook && brew install lockbook`
-
