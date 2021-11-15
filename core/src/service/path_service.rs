@@ -194,10 +194,11 @@ mod unit_tests {
 
     use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
+    use crate::pure_functions::files;
     use crate::repo::account_repo;
     use crate::service::path_service::Filter;
     use crate::service::{file_service, path_service, test_utils};
-    use crate::{files, CoreError};
+    use crate::CoreError;
 
     #[test]
     fn create_at_path_document() {

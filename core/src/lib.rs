@@ -23,14 +23,12 @@ use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{FileMetadata, FileType};
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
-use pure_functions::files;
 use service::log_service;
 
 use crate::lib_helpers::{
     delete_file_helper, export_drawing_helper, export_drawing_to_disk_helper,
-    get_and_get_children_recursively_helper, get_children_helper, get_drawing_helper,
-    move_file_helper, read_document_helper, rename_file_helper, save_document_to_disk_helper,
-    save_drawing_helper,
+    get_and_get_children_recursively_helper, get_drawing_helper, move_file_helper,
+    read_document_helper, rename_file_helper, save_document_to_disk_helper, save_drawing_helper,
 };
 use crate::model::client_conversion::{
     generate_client_file_metadata, generate_client_work_calculated, ClientFileMetadata,
@@ -211,30 +209,16 @@ pub fn create_file(
     parent: Uuid,
     file_type: FileType,
 ) -> Result<ClientFileMetadata, Error<CreateFileError>> {
-    let account = account_repo::get(config).map_err(|e| match e {
+    file_service::create_file(config, name, parent, file_type).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
-        _ => unexpected!("{:#?}", e),
-    })?;
-    file_service::get_not_deleted_metadata(config, RepoSource::Local, parent).map_err(
-        |e| match e {
-            CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-            _ => unexpected!("{:#?}", e),
-        },
-    )?;
-    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)
-        .map_err(|e| unexpected!("{:#?}", e))?;
-    let metadata = files::apply_create(&all_metadata, file_type, parent, name, &account.username)
-        .map_err(|e| match e {
+        CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
         CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
         CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
         CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
         CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
         CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
         _ => unexpected!("{:#?}", e),
-    })?;
-    file_service::insert_metadatum(config, RepoSource::Local, &metadata)
-        .map_err(|e| unexpected!("{:#?}", e))?;
-    generate_client_file_metadata(&metadata).map_err(|e| unexpected!("{:#?}", e))
+    })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -243,19 +227,14 @@ pub enum GetRootError {
 }
 
 pub fn get_root(config: &Config) -> Result<ClientFileMetadata, Error<GetRootError>> {
-    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)
-        .map_err(|e| unexpected!("{:#?}", e))?;
-    match files::maybe_find_root(&files) {
-        None => Err(UiError(GetRootError::NoRoot)),
-        Some(file_metadata) => match generate_client_file_metadata(&file_metadata) {
-            Ok(client_file_metadata) => Ok(client_file_metadata),
-            Err(err) => Err(unexpected!("{:#?}", err)),
-        },
-    }
+    file_service::get_root(config).map_err(|err| match err {
+        CoreError::RootNonexistent => UiError(GetRootError::NoRoot),
+        _ => unexpected!("{:#?}", err),
+    })
 }
 
 pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<ClientFileMetadata>, UnexpectedError> {
-    get_children_helper(config, id).map_err(|e| unexpected_only!("{:#?}", e))
+    file_service::get_children(config, id).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]

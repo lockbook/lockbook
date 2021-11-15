@@ -602,7 +602,8 @@ pub fn stage_encrypted(
 mod unit_tests {
     use lockbook_models::file_metadata::FileType;
 
-    use crate::{files, service::test_utils, CoreError};
+    use crate::pure_functions::files;
+    use crate::{service::test_utils, CoreError};
 
     #[test]
     fn apply_rename() {

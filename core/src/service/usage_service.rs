@@ -97,9 +97,9 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreEr
 mod unit_tests {
     use lockbook_models::file_metadata::FileType;
 
+    use crate::pure_functions::files;
     use crate::service::file_service;
     use crate::{
-        files,
         model::{repo::RepoSource, state::temp_config},
         repo::account_repo,
         service::{

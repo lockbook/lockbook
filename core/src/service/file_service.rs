@@ -21,14 +21,50 @@ use crate::repo::document_repo;
 use crate::repo::metadata_repo;
 use crate::service::file_encryption_service;
 use crate::service::{file_compression_service, file_service};
-use crate::CoreError;
+use crate::CoreError::RootNonexistent;
+use crate::{generate_client_file_metadata, ClientFileMetadata, CoreError};
 
 use crate::repo::root_repo;
 
 pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
+    info!("writing {} bytes to {}", content.len(), id);
     let metadata = file_service::get_not_deleted_metadata(config, RepoSource::Local, id)?;
     file_service::insert_document(config, RepoSource::Local, &metadata, content)?;
     Ok(())
+}
+
+pub fn create_file(
+    config: &Config,
+    name: &str,
+    parent: Uuid,
+    file_type: FileType,
+) -> Result<ClientFileMetadata, CoreError> {
+    info!("creating {:?} named {} inside {}", file_type, name, parent);
+    let account = account_repo::get(config)?;
+    file_service::get_not_deleted_metadata(config, RepoSource::Local, parent)?;
+    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
+    let metadata = files::apply_create(&all_metadata, file_type, parent, name, &account.username)?;
+    file_service::insert_metadatum(config, RepoSource::Local, &metadata)?;
+    generate_client_file_metadata(&metadata)
+}
+
+pub fn get_root(config: &Config) -> Result<ClientFileMetadata, CoreError> {
+    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+
+    match files::maybe_find_root(&files) {
+        None => Err(RootNonexistent),
+        Some(file_metadata) => Ok(generate_client_file_metadata(&file_metadata)?),
+    }
+}
+
+pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<ClientFileMetadata>, CoreError> {
+    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let files = files::filter_not_deleted(&files);
+    let children = files::find_children(&files, id);
+    children
+        .iter()
+        .map(|c| generate_client_file_metadata(c))
+        .collect()
 }
 
 pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>, CoreError> {
@@ -567,9 +603,9 @@ mod unit_tests {
 
     use lockbook_models::file_metadata::FileType;
 
-    use crate::files;
     use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
+    use crate::pure_functions::files;
     use crate::repo::{account_repo, document_repo};
     use crate::service::{file_service, test_utils};
 

@@ -16,19 +16,6 @@ use crate::service::file_service;
 use crate::service::{drawing_service, file_encryption_service};
 use crate::CoreError;
 
-pub fn get_children_helper(
-    config: &Config,
-    id: Uuid,
-) -> Result<Vec<ClientFileMetadata>, CoreError> {
-    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = files::filter_not_deleted(&files);
-    let children = files::find_children(&files, id);
-    children
-        .iter()
-        .map(|c| generate_client_file_metadata(c))
-        .collect()
-}
-
 pub fn get_and_get_children_recursively_helper(
     config: &Config,
     id: Uuid,
