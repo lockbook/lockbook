@@ -751,6 +751,7 @@ pub fn sync(
     config: &Config,
     maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
+    info!("sync called");
     let mut sync_progress_total = 4 + file_service::get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
     let mut sync_progress = 0;
     let mut update_sync_progress = |op: SyncProgressOperation| match op {

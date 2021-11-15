@@ -6,10 +6,10 @@ use lockbook_models::file_metadata::{FileMetadata, FileType};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::pure_functions::files;
+use crate::pure_functions::{drawing, files};
 use crate::repo::{metadata_repo, root_repo};
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
-use crate::service::{drawing_service, file_service, path_service};
+use crate::service::{file_service, path_service};
 use crate::CoreError;
 
 const UTF8_SUFFIXES: [&str; 12] = [
@@ -116,7 +116,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
             }
 
             if extension == "draw"
-                && drawing_service::parse_drawing(
+                && drawing::parse_drawing(
                     &file_service::get_document(config, RepoSource::Local, &file)
                         .map_err(TestRepoError::Core)?,
                 )

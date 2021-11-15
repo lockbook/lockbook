@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
-use itertools::Itertools;
+
 use serde::Serialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
@@ -25,27 +25,23 @@ use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
 use service::log_service;
 
-use crate::lib_helpers::{
-    delete_file_helper, export_drawing_helper, export_drawing_to_disk_helper,
-    get_and_get_children_recursively_helper, get_drawing_helper, move_file_helper,
-    read_document_helper, rename_file_helper, save_document_to_disk_helper, save_drawing_helper,
-};
 use crate::model::client_conversion::{
     generate_client_file_metadata, generate_client_work_calculated, ClientFileMetadata,
     ClientWorkCalculated,
 };
+
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
+use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::repo::{account_repo, last_updated_repo};
 use crate::service::db_state_service::State;
-use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::import_export_service::{self, ImportExportFileInfo};
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
-    account_service, db_state_service, path_service, sync_service, usage_service,
+    account_service, db_state_service, drawing_service, file_service, path_service, sync_service,
+    usage_service,
 };
-use service::file_service;
 
 pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
     log_service::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))
@@ -247,7 +243,7 @@ pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
-    get_and_get_children_recursively_helper(config, id).map_err(|e| match e {
+    file_service::get_and_get_children_recursively(config, id).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
         CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
         _ => unexpected!("{:#?}", e),
@@ -299,7 +295,7 @@ pub enum FileDeleteError {
 }
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-    delete_file_helper(config, id).map_err(|e| match e {
+    file_service::delete_file(config, id).map_err(|e| match e {
         CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
         CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
         _ => unexpected!("{:#?}", e),
@@ -317,7 +313,7 @@ pub fn read_document(
     config: &Config,
     id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    read_document_helper(config, id).map_err(|e| match e {
+    file_service::read_document(config, id).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
         CoreError::AccountNonexistent => UiError(ReadDocumentError::NoAccount),
         CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
@@ -339,7 +335,7 @@ pub fn save_document_to_disk(
     id: Uuid,
     location: String,
 ) -> Result<(), Error<SaveDocumentToDiskError>> {
-    save_document_to_disk_helper(config, id, location).map_err(|e| match e {
+    file_service::save_document_to_disk(config, id, location).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
         CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
         CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
@@ -387,7 +383,7 @@ pub fn rename_file(
     id: Uuid,
     new_name: &str,
 ) -> Result<(), Error<RenameFileError>> {
-    rename_file_helper(config, id, new_name).map_err(|e| match e {
+    file_service::rename_file(config, id, new_name).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(RenameFileError::FileDoesNotExist),
         CoreError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
         CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
@@ -409,7 +405,7 @@ pub enum MoveFileError {
 }
 
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-    move_file_helper(config, id, new_parent).map_err(|e| match e {
+    file_service::move_file(config, id, new_parent).map_err(|e| match e {
         CoreError::RootModificationInvalid => UiError(MoveFileError::CannotMoveRoot),
         CoreError::FileNotFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
         CoreError::FileNonexistent => UiError(MoveFileError::FileDoesNotExist),
@@ -441,17 +437,7 @@ pub fn sync_all(
 }
 
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, UnexpectedError> {
-    Ok(file_service::get_all_metadata_changes(config)
-        .map_err(|err| unexpected_only!("{:#?}", err))?
-        .into_iter()
-        .map(|f| f.id)
-        .chain(
-            file_service::get_all_with_document_changes(config)
-                .map_err(|err| unexpected_only!("{:#?}", err))?
-                .into_iter(),
-        )
-        .unique()
-        .collect())
+    file_service::get_local_changes(config).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -475,9 +461,7 @@ pub fn calculate_work(config: &Config) -> Result<ClientWorkCalculated, Error<Cal
 }
 
 pub fn get_last_synced(config: &Config) -> Result<i64, UnexpectedError> {
-    last_updated_repo::get(config)
-        .map(|n| n as i64)
-        .map_err(|e| unexpected_only!("{:#?}", e))
+    last_updated_repo::get(config).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
 pub fn get_last_synced_human_string(config: &Config) -> Result<String, UnexpectedError> {
@@ -526,7 +510,7 @@ pub enum GetDrawingError {
 }
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    get_drawing_helper(config, id).map_err(|e| match e {
+    drawing_service::get_drawing(config, id).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
         CoreError::FileNotDocument => UiError(GetDrawingError::FolderTreatedAsDrawing),
         CoreError::AccountNonexistent => UiError(GetDrawingError::NoAccount),
@@ -548,7 +532,7 @@ pub fn save_drawing(
     id: Uuid,
     drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
-    save_drawing_helper(config, id, drawing_bytes).map_err(|e| match e {
+    drawing_service::save_drawing(config, id, drawing_bytes).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
         CoreError::AccountNonexistent => UiError(SaveDrawingError::NoAccount),
         CoreError::FileNonexistent => UiError(SaveDrawingError::FileDoesNotExist),
@@ -571,7 +555,7 @@ pub fn export_drawing(
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    export_drawing_helper(config, id, format, render_theme).map_err(|e| match e {
+    drawing_service::export_drawing(config, id, format, render_theme).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(ExportDrawingError::InvalidDrawing),
         CoreError::AccountNonexistent => UiError(ExportDrawingError::NoAccount),
         CoreError::FileNonexistent => UiError(ExportDrawingError::FileDoesNotExist),
@@ -597,15 +581,17 @@ pub fn export_drawing_to_disk(
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     location: String,
 ) -> Result<(), Error<ExportDrawingToDiskError>> {
-    export_drawing_to_disk_helper(config, id, format, render_theme, location).map_err(|e| match e {
-        CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
-        CoreError::AccountNonexistent => UiError(ExportDrawingToDiskError::NoAccount),
-        CoreError::FileNonexistent => UiError(ExportDrawingToDiskError::FileDoesNotExist),
-        CoreError::FileNotDocument => UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing),
-        CoreError::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
-        CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
-        _ => unexpected!("{:#?}", e),
-    })
+    drawing_service::export_drawing_to_disk(config, id, format, render_theme, location).map_err(
+        |e| match e {
+            CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
+            CoreError::AccountNonexistent => UiError(ExportDrawingToDiskError::NoAccount),
+            CoreError::FileNonexistent => UiError(ExportDrawingToDiskError::FileDoesNotExist),
+            CoreError::FileNotDocument => UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing),
+            CoreError::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
+            CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
+            _ => unexpected!("{:#?}", e),
+        },
+    )
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -701,7 +687,6 @@ impl_get_variants!(
 );
 
 pub mod external_interface;
-pub mod lib_helpers;
 pub mod model;
 pub mod pure_functions;
 pub mod repo;

@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::collections::HashSet;
 
 use sha2::Digest;
@@ -65,6 +66,78 @@ pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<ClientFileMetadata>
         .iter()
         .map(|c| generate_client_file_metadata(c))
         .collect()
+}
+
+pub fn get_and_get_children_recursively(
+    config: &Config,
+    id: Uuid,
+) -> Result<Vec<FileMetadata>, CoreError> {
+    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let files = files::filter_not_deleted(&files);
+    let file_and_descendants = files::find_with_descendants(&files, id)?;
+
+    // convert from decryptedfilemetadata to filemetadata because that's what this function needs to return for some reason
+    let account = account_repo::get(config)?;
+    let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files)?;
+    let mut result = Vec::new();
+    for file in file_and_descendants {
+        let encrypted_file = encrypted_files
+            .iter()
+            .find(|f| f.id == file.id)
+            .ok_or_else(|| {
+                CoreError::Unexpected(String::from(
+                    "get_and_get_children_recursively: encrypted file not found",
+                ))
+            })?;
+        result.push(encrypted_file.clone());
+    }
+    Ok(result)
+}
+
+pub fn delete_file(config: &Config, id: Uuid) -> Result<(), CoreError> {
+    info!("deleting file {}", id);
+    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let file = files::apply_delete(&files, id)?;
+    file_service::insert_metadatum(config, RepoSource::Local, &file)
+}
+
+pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
+    info!("reading document {}", id);
+    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
+    file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)
+}
+
+pub fn save_document_to_disk(config: &Config, id: Uuid, location: String) -> Result<(), CoreError> {
+    info!("saving {} to {}", id, &location);
+    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
+    let document =
+        file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
+    files::save_document_to_disk(&document, location)
+}
+
+pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
+    info!("renaming {} to {}", id, new_name);
+    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let files = files::filter_not_deleted(&files);
+    let file = files::apply_rename(&files, id, new_name)?;
+    file_service::insert_metadatum(config, RepoSource::Local, &file)
+}
+
+pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
+    info!("moving {} to {}", id, new_parent);
+    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let files = files::filter_not_deleted(&files);
+    let file = files::apply_move(&files, id, new_parent)?;
+    file_service::insert_metadatum(config, RepoSource::Local, &file)
+}
+
+pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, CoreError> {
+    Ok(get_all_metadata_changes(config)?
+        .into_iter()
+        .map(|f| f.id)
+        .chain(get_all_with_document_changes(config)?.into_iter())
+        .unique()
+        .collect())
 }
 
 pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>, CoreError> {

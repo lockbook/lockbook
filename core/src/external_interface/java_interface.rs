@@ -16,14 +16,13 @@ use lockbook_models::file_metadata::FileType;
 
 use crate::external_interface::json_interface::translate;
 use crate::model::state::Config;
-use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::sync_service::SyncProgress;
 use crate::{
     calculate_work, create_account, create_file, delete_file, export_account, export_drawing,
     export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
     get_file_by_id, get_root, get_uncompressed_usage, get_usage, import_account, init_logger,
     migrate_db, move_file, read_document, rename_file, save_document_to_disk, sync_all,
-    unexpected_only, write_document, Error, UnexpectedError,
+    unexpected_only, write_document, Error, SupportedImageFormats, UnexpectedError,
 };
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
