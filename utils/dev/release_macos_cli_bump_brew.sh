@@ -23,12 +23,16 @@ then
 	exit 69
 fi
 
-echo "Performing clean build"
+echo "Performing build"
 cd ../../clients/cli
 current_version=$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)
-cargo clean
-cargo build --release
-cd ../../target/release
+cargo build --release --target=aarch64-apple-darwin
+cargo build --release --target=x86_64-apple-darwin
+cd ../../target
+rm -rf cli_universal
+mkdir cli_universal
+cd cli_universal
+lipo -create -output lockbook ../x86_64-apple-darwin/release/lockbook ../aarch64-apple-darwin/release/lockbook
 
 echo "taring"
 tar -czf lockbook-cli-macos.tar.gz lockbook
@@ -64,7 +68,7 @@ github-release upload \
 echo "Verify this sha is a part of the release on github: $sha"
 
 cd ../../../homebrew-lockbook/Formula
-sed -i '' 's=url.*=url "https://github.com/lockbook/lockbook/releases/download/'$current_version'/lockbook-cli-macos.tar.gz"=g' lockbook.rb
+sed -i '' 's=url.*=url "https://github.com/lockbook/lockbook/releases/download/cli-'$current_version'/lockbook-cli-macos.tar.gz"=g' lockbook.rb
 sed -i '' "s/sha256.*/sha256 \"$sha\"/g" lockbook.rb
 sed -i '' "s/version.*/version \"$current_version\"/g" lockbook.rb
 
