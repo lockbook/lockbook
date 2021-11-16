@@ -600,7 +600,7 @@ mod sync_tests {
                 .unwrap()
                 .iter()
                 .filter(|file| file.id != file.parent)
-                .map(|file| file.name.clone())
+                .map(|file| file.decrypted_name.clone())
                 .sorted()
                 .collect::<Vec<String>>(),
             ["new-1.md", "new.md"]
@@ -624,7 +624,7 @@ mod sync_tests {
                 .unwrap()
                 .iter()
                 .filter(|file| file.id != file.parent)
-                .map(|file| file.name.clone())
+                .map(|file| file.decrypted_name.clone())
                 .sorted()
                 .collect::<Vec<String>>(),
             ["new-1.md", "new-2.md"]
@@ -1795,9 +1795,7 @@ mod sync_tests {
             sync!(&db);
         }
         test_repo_integrity(&db).unwrap();
-        assert!(calculate_work(&db).unwrap().local_files.is_empty());
-        assert!(calculate_work(&db).unwrap().server_files.is_empty());
-        assert_eq!(calculate_work(&db).unwrap().server_unknown_name_count, 0);
+        assert!(calculate_work(&db).unwrap().work_units.is_empty());
     }
 
     #[test]
@@ -1812,9 +1810,7 @@ mod sync_tests {
             sync!(&db);
         }
         test_repo_integrity(&db).unwrap();
-        assert!(calculate_work(&db).unwrap().local_files.is_empty());
-        assert!(calculate_work(&db).unwrap().server_files.is_empty());
-        assert_eq!(calculate_work(&db).unwrap().server_unknown_name_count, 0);
+        assert!(calculate_work(&db).unwrap().work_units.is_empty());
     }
 
     #[test]

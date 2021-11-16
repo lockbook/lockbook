@@ -420,7 +420,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
 
     string_to_jstring(
         &env,
-        translate(save_document_to_disk(&config, id, location)),
+        translate(save_document_to_disk(&config, id, &location)),
     )
 }
 
@@ -481,7 +481,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
 
     string_to_jstring(
         &env,
-        translate(export_drawing_to_disk(&config, id, format, None, location)),
+        translate(export_drawing_to_disk(&config, id, format, None, &location)),
     )
 }
 

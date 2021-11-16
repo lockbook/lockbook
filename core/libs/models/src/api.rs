@@ -37,9 +37,9 @@ pub struct FileMetadataUpsertsRequest {
 
 impl FileMetadataUpsertsRequest {
     pub fn new(metadata: &FileMetadata) -> Self {
-        return FileMetadataUpsertsRequest {
+        FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new(metadata)],
-        };
+        }
     }
 
     pub fn new_diff(
@@ -47,13 +47,13 @@ impl FileMetadataUpsertsRequest {
         old_name: &SecretFileName,
         new_metadata: &FileMetadata,
     ) -> Self {
-        return FileMetadataUpsertsRequest {
+        FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(
                 old_parent,
                 old_name,
                 new_metadata,
             )],
-        };
+        }
     }
 }
 

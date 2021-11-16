@@ -22,8 +22,8 @@ use crate::repo::document_repo;
 use crate::repo::metadata_repo;
 use crate::service::file_encryption_service;
 use crate::service::{file_compression_service, file_service};
+use crate::CoreError;
 use crate::CoreError::RootNonexistent;
-use crate::{generate_client_file_metadata, ClientFileMetadata, CoreError};
 
 use crate::repo::root_repo;
 
@@ -39,33 +39,29 @@ pub fn create_file(
     name: &str,
     parent: Uuid,
     file_type: FileType,
-) -> Result<ClientFileMetadata, CoreError> {
+) -> Result<DecryptedFileMetadata, CoreError> {
     info!("creating {:?} named {} inside {}", file_type, name, parent);
     let account = account_repo::get(config)?;
     file_service::get_not_deleted_metadata(config, RepoSource::Local, parent)?;
     let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
     let metadata = files::apply_create(&all_metadata, file_type, parent, name, &account.username)?;
     file_service::insert_metadatum(config, RepoSource::Local, &metadata)?;
-    generate_client_file_metadata(&metadata)
+    Ok(metadata)
 }
 
-pub fn get_root(config: &Config) -> Result<ClientFileMetadata, CoreError> {
+pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, CoreError> {
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
 
     match files::maybe_find_root(&files) {
         None => Err(RootNonexistent),
-        Some(file_metadata) => Ok(generate_client_file_metadata(&file_metadata)?),
+        Some(file_metadata) => Ok(file_metadata),
     }
 }
 
-pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<ClientFileMetadata>, CoreError> {
+pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = files::filter_not_deleted(&files);
-    let children = files::find_children(&files, id);
-    children
-        .iter()
-        .map(|c| generate_client_file_metadata(c))
-        .collect()
+    Ok(files::find_children(&files, id))
 }
 
 pub fn get_and_get_children_recursively(
@@ -107,12 +103,12 @@ pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, Cor
     file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)
 }
 
-pub fn save_document_to_disk(config: &Config, id: Uuid, location: String) -> Result<(), CoreError> {
-    info!("saving {} to {}", id, &location);
+pub fn save_document_to_disk(config: &Config, id: Uuid, location: &str) -> Result<(), CoreError> {
+    info!("saving {} to {}", id, location);
     let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
     let document =
         file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
-    files::save_document_to_disk(&document, location)
+    files::save_document_to_disk(&document, location.to_string())
 }
 
 pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {

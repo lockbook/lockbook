@@ -9,9 +9,8 @@ use lockbook_models::api::{
 };
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
-use lockbook_models::work_unit::WorkUnit;
+use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 
-use crate::model::client_conversion::ClientWorkUnit;
 use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;

@@ -35,13 +35,13 @@ pub fn export_drawing_to_disk(
     id: Uuid,
     format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    location: String,
+    location: &str,
 ) -> Result<(), CoreError> {
     let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
     let drawing_bytes =
         file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
     let exported_drawing_bytes = drawing::export_drawing(&drawing_bytes, format, render_theme)?;
-    files::save_document_to_disk(&exported_drawing_bytes, location)
+    files::save_document_to_disk(&exported_drawing_bytes, location.to_string())
 }
 
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {

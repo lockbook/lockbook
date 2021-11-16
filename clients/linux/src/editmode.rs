@@ -1,15 +1,15 @@
-use lockbook_core::model::client_conversion::ClientFileMetadata;
+use lockbook_models::file_metadata::DecryptedFileMetadata;
 
 pub enum EditMode {
     Folder {
         path: String,
-        meta: ClientFileMetadata,
+        meta: DecryptedFileMetadata,
         n_children: usize,
     },
 
     PlainText {
         path: String,
-        meta: ClientFileMetadata,
+        meta: DecryptedFileMetadata,
         content: String,
     },
 

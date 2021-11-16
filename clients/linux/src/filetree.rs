@@ -21,8 +21,7 @@ use gtk::{Inhibit as GtkInhibit, SelectionData, TreeIter, TreeStore, TreeViewDro
 use gtk::{MenuItem as GtkMenuItem, TargetList};
 use uuid::Uuid;
 
-use lockbook_core::model::client_conversion::ClientFileMetadata;
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
 use crate::backend::LbCore;
 use crate::error::{LbError, LbResult};
@@ -374,7 +373,7 @@ impl FileTree {
         Ok(())
     }
 
-    pub fn add(&self, b: &LbCore, f: &ClientFileMetadata) -> LbResult<()> {
+    pub fn add(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
         let mut file = f.clone();
         let mut parent_iter: Option<GtkTreeIter>;
         while {
@@ -397,11 +396,11 @@ impl FileTree {
         &self,
         b: &LbCore,
         it: Option<&GtkTreeIter>,
-        f: &ClientFileMetadata,
+        f: &DecryptedFileMetadata,
     ) -> LbResult<()> {
-        let icon_name = self.get_icon_name(&f.name, &f.file_type);
+        let icon_name = self.get_icon_name(&f.decrypted_name, &f.file_type);
 
-        let name = &f.name;
+        let name = &f.decrypted_name;
         let id = &f.id.to_string();
         let ftype = &format!("{:?}", f.file_type);
         let item_iter =

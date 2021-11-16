@@ -7,8 +7,6 @@ use uuid::Uuid;
 
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
-use crate::model::client_conversion;
-use crate::model::client_conversion::ClientFileMetadata;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::files;
@@ -117,14 +115,12 @@ pub fn export_file(
         return Err(CoreError::DiskPathInvalid);
     }
 
-    let file_metadata = client_conversion::generate_client_file_metadata(
-        &file_service::get_not_deleted_metadata(config, RepoSource::Local, id)?,
-    )?;
+    let file_metadata = &file_service::get_not_deleted_metadata(config, RepoSource::Local, id)?;
     let all = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     export_file_recursively(
         config,
         &all,
-        &file_metadata,
+        file_metadata,
         &destination,
         edit,
         &export_progress,
@@ -134,12 +130,12 @@ pub fn export_file(
 fn export_file_recursively(
     config: &Config,
     all: &[DecryptedFileMetadata],
-    parent_file_metadata: &ClientFileMetadata,
+    parent_file_metadata: &DecryptedFileMetadata,
     disk_path: &Path,
     edit: bool,
     export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    let dest_with_new = disk_path.join(&parent_file_metadata.name);
+    let dest_with_new = disk_path.join(&parent_file_metadata.decrypted_name);
 
     if let Some(ref func) = export_progress {
         func(ImportExportFileInfo {
@@ -154,16 +150,7 @@ fn export_file_recursively(
             fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
             for child in children.iter() {
-                let child_file_metadata = client_conversion::generate_client_file_metadata(child)?;
-
-                export_file_recursively(
-                    config,
-                    all,
-                    &child_file_metadata,
-                    &dest_with_new,
-                    edit,
-                    export_progress,
-                )?;
+                export_file_recursively(config, all, child, &dest_with_new, edit, export_progress)?;
             }
         }
         FileType::Document => {

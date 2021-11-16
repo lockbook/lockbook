@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use lockbook_core::model::state::Config;
 use lockbook_core::service::db_state_service::State as DbState;
-use lockbook_core::service::sync_service::SyncProgress;
+use lockbook_core::service::sync_service::{SyncProgress, WorkCalculated};
 use lockbook_core::{
     calculate_work, create_account, create_file, delete_file, export_account, export_file,
     get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
@@ -20,12 +20,10 @@ use lockbook_models::crypto::DecryptedDocument;
 
 use crate::error::{LbErrTarget, LbError, LbResult};
 use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
-use lockbook_core::model::client_conversion::{
-    ClientFileMetadata, ClientWorkCalculated, ClientWorkUnit,
-};
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
-use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::work_unit::ClientWorkUnit;
 
 macro_rules! match_core_err {
     (
@@ -137,7 +135,7 @@ impl LbCore {
         name: &str,
         parent: Uuid,
         file_type: FileType,
-    ) -> LbResult<ClientFileMetadata> {
+    ) -> LbResult<DecryptedFileMetadata> {
         create_file(&self.config, name, parent, file_type).map_err(map_core_err!(CreateFileError,
             FileNameNotAvailable => uerr_dialog!("That file name is not available."),
             NoAccount => uerr_dialog!("No account found."),
@@ -160,13 +158,13 @@ impl LbCore {
         ))
     }
 
-    pub fn root(&self) -> LbResult<ClientFileMetadata> {
+    pub fn root(&self) -> LbResult<DecryptedFileMetadata> {
         get_root(&self.config).map_err(map_core_err!(GetRootError,
             NoRoot => uerr_dialog!("No root folder found."),
         ))
     }
 
-    pub fn children(&self, parent: &ClientFileMetadata) -> LbResult<Vec<ClientFileMetadata>> {
+    pub fn children(&self, parent: &DecryptedFileMetadata) -> LbResult<Vec<DecryptedFileMetadata>> {
         Ok(get_children(&self.config, parent.id)?)
     }
 
@@ -178,13 +176,13 @@ impl LbCore {
         ))
     }
 
-    pub fn file_by_id(&self, id: Uuid) -> LbResult<ClientFileMetadata> {
+    pub fn file_by_id(&self, id: Uuid) -> LbResult<DecryptedFileMetadata> {
         get_file_by_id(&self.config, id).map_err(map_core_err!(GetFileByIdError,
             NoFileWithThatId => uerr_dialog!("No file found with ID '{}'.", id),
         ))
     }
 
-    pub fn file_by_path(&self, path: &str) -> LbResult<ClientFileMetadata> {
+    pub fn file_by_path(&self, path: &str) -> LbResult<DecryptedFileMetadata> {
         get_file_by_path(&self.config, path).map_err(map_core_err!(GetFileByPathError,
             NoFileAtThatPath => uerr_dialog!("No file at path '{}'.", path),
         ))
@@ -297,7 +295,7 @@ impl LbCore {
         sync
     }
 
-    pub fn calculate_work(&self) -> LbResult<ClientWorkCalculated> {
+    pub fn calculate_work(&self) -> LbResult<WorkCalculated> {
         calculate_work(&self.config).map_err(map_core_err!(CalculateWorkError,
             CouldNotReachServer => uerr_status_panel!("Offline."),
             ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
@@ -342,7 +340,7 @@ impl LbCore {
         Ok(get_path_by_id(&self.config, *id)?)
     }
 
-    pub fn open(&self, id: &Uuid) -> LbResult<(ClientFileMetadata, String)> {
+    pub fn open(&self, id: &Uuid) -> LbResult<(DecryptedFileMetadata, String)> {
         let meta = self.file_by_id(*id)?;
         let decrypted = self.read(meta.id)?;
         Ok((meta, String::from_utf8_lossy(&decrypted).to_string()))
@@ -353,9 +351,7 @@ impl LbCore {
             0 => Ok("✘  Never synced.".to_string()),
             _ => {
                 let work = self.calculate_work()?;
-                let n_files = work.local_files.len()
-                    + work.server_files.len()
-                    + work.server_unknown_name_count;
+                let n_files = work.work_units.len();
                 Ok(match n_files {
                     0 => "✔  Synced.".to_string(),
                     1 => "<b>1</b>  file not synced.".to_string(),

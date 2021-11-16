@@ -33,7 +33,8 @@ use crate::util::{
 };
 use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog};
 
-use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
+use lockbook_models::file_metadata::DecryptedFileMetadata;
+use lockbook_models::work_unit::ClientWorkUnit;
 use regex::Regex;
 
 pub struct AccountScreen {
@@ -73,7 +74,7 @@ impl AccountScreen {
         Ok(())
     }
 
-    pub fn add_file(&self, b: &LbCore, f: &ClientFileMetadata) -> LbResult<()> {
+    pub fn add_file(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
         self.sidebar.tree.add(b, f)
     }
 
@@ -86,7 +87,7 @@ impl AccountScreen {
             } => {
                 self.header.set_file(path);
                 self.sidebar.tree.select(&meta.id);
-                self.editor.set_file(&meta.name, content);
+                self.editor.set_file(&meta.decrypted_name, content);
             }
             EditMode::Folder {
                 path,
@@ -582,9 +583,9 @@ impl Editor {
         self.textarea.grab_focus();
     }
 
-    fn show_folder_info(&self, f: &ClientFileMetadata, n_children: usize) {
+    fn show_folder_info(&self, f: &DecryptedFileMetadata, n_children: usize) {
         let name = GtkLabel::new(None);
-        name.set_markup(&format!("<span><big>{}/</big></span>", f.name));
+        name.set_markup(&format!("<span><big>{}/</big></span>", f.decrypted_name));
         name.set_margin_end(64);
         name.set_margin_bottom(16);
 

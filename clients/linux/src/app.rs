@@ -24,7 +24,7 @@ use gtk::{
     Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
 };
 
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use uuid::Uuid;
 
 use crate::account::{AccountScreen, TextAreaDropPasteInfo};
@@ -45,8 +45,8 @@ use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 
 use gdk::{Cursor, WindowExt};
 use glib::uri_unescape_string;
-use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
+use lockbook_models::work_unit::WorkUnit;
 use std::path::PathBuf;
 
 macro_rules! make_glib_chan {
@@ -479,7 +479,7 @@ impl LbApp {
 
         if let Some(id) = maybe_id.or(selected) {
             let meta = self.core.file_by_id(id)?;
-            self.gui.win.set_title(&meta.name);
+            self.gui.win.set_title(&meta.decrypted_name);
             self.state.borrow_mut().set_opened_file(Some(meta.clone()));
 
             match meta.file_type {
@@ -491,15 +491,15 @@ impl LbApp {
         }
     }
 
-    fn save_file_with_dialog(&self, open_file: &ClientFileMetadata) -> bool {
+    fn save_file_with_dialog(&self, open_file: &DecryptedFileMetadata) -> bool {
         let file_dealt_with = Rc::new(RefCell::new(false));
 
-        let msg = format!("{} has unsaved changes.", open_file.name);
+        let msg = format!("{} has unsaved changes.", open_file.decrypted_name);
         let lbl = GtkLabel::new(Some(&msg));
         util::gui::set_marginx(&lbl, 16);
         lbl.set_margin_top(16);
 
-        let d = self.gui.new_dialog(&open_file.name);
+        let d = self.gui.new_dialog(&open_file.decrypted_name);
 
         let save = Button::with_label("Save");
         save.connect_clicked(closure!(
@@ -569,7 +569,7 @@ impl LbApp {
         })
     }
 
-    fn open_folder(&self, f: &ClientFileMetadata) -> LbResult<()> {
+    fn open_folder(&self, f: &DecryptedFileMetadata) -> LbResult<()> {
         let children = self.core.children(f)?;
         self.edit(&EditMode::Folder {
             path: self.core.full_path_for(&f.id)?,
@@ -587,7 +587,7 @@ impl LbApp {
     fn file_edited(&self) -> LbResult<()> {
         let open_file = self.state.borrow().opened_file.clone();
         if let Some(f) = open_file {
-            self.gui.win.set_title(&format!("{}*", f.name));
+            self.gui.win.set_title(&format!("{}*", f.decrypted_name));
             self.state.borrow_mut().open_file_dirty = true;
 
             self.state
@@ -606,7 +606,7 @@ impl LbApp {
 
         if let Some(f) = open_file {
             if f.file_type == FileType::Document {
-                self.gui.win.set_title(&f.name);
+                self.gui.win.set_title(&f.decrypted_name);
                 self.state.borrow_mut().open_file_dirty = false;
                 let acctscr = self.gui.account.clone();
                 acctscr.set_saving(true);
@@ -749,7 +749,9 @@ impl LbApp {
         errlbl.set_margin_start(8);
         errlbl.set_margin_bottom(8);
 
-        let d = self.gui.new_dialog(&format!("Rename '{}'", meta.name));
+        let d = self
+            .gui
+            .new_dialog(&format!("Rename '{}'", meta.decrypted_name));
         util::gui::set_marginx(&d.get_content_area(), 16);
         d.set_default_size(300, -1);
         d.get_content_area().add(&lbl);
@@ -1236,7 +1238,7 @@ impl LbApp {
 
 struct LbState {
     search: Option<SearchComponents>,
-    opened_file: Option<ClientFileMetadata>,
+    opened_file: Option<DecryptedFileMetadata>,
     open_file_dirty: bool,
     background_work: Arc<Mutex<BackgroundWork>>,
 }
@@ -1261,7 +1263,7 @@ impl LbState {
         None
     }
 
-    fn set_opened_file(&mut self, f: Option<ClientFileMetadata>) {
+    fn set_opened_file(&mut self, f: Option<DecryptedFileMetadata>) {
         self.opened_file = f;
         if self.opened_file.is_some() {
             self.search = None;
@@ -1538,7 +1540,7 @@ impl SettingsUi {
 
 fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
     let work = c.calculate_work()?;
-    let n_units = work.local_files.len() + work.server_files.len() + work.server_unknown_name_count;
+    let n_units = work.work_units.len();
 
     let cntr = GtkBox::new(Vertical, 0);
     cntr.set_hexpand(true);
@@ -1578,16 +1580,19 @@ fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
         tree_add_col(&tree, "Name", 0);
         tree_add_col(&tree, "Origin", 1);
 
-        work.local_files.into_iter().for_each(|metadata| {
-            model.insert_with_values(None, None, &[0, 1], &[&metadata.name, &"Local"]);
-        });
-        work.server_files.into_iter().for_each(|metadata| {
-            model.insert_with_values(None, None, &[0, 1], &[&metadata.name, &"Server"]);
-        });
+        work.work_units.into_iter().for_each(|work_unit| {
+            let action = match work_unit {
+                WorkUnit::LocalChange { .. } => "Local",
+                WorkUnit::ServerChange { .. } => "Server",
+            };
 
-        for _ in 0..work.server_unknown_name_count {
-            model.insert_with_values(None, None, &[0, 1], &[&"New file".to_string(), &"Server"]);
-        }
+            model.insert_with_values(
+                None,
+                None,
+                &[0, 1],
+                &[&work_unit.get_metadata().decrypted_name, &action],
+            );
+        });
 
         let scrolled = util::gui::scrollable(&tree);
         util::gui::set_margin(&scrolled, 16);

@@ -122,7 +122,7 @@ mod delete_and_list_tests {
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
         delete_file(&db, doc.parent).unwrap();
         assert_matches!(
-            save_document_to_disk(&db, doc.id, "/dev/null".to_string()),
+            save_document_to_disk(&db, doc.id, "/dev/null"),
             Err(UiError(SaveDocumentToDiskError::FileDoesNotExist))
         );
     }

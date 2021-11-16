@@ -254,25 +254,9 @@ impl Trial {
                             break 'steps;
                         }
 
-                        if !calculate_work(row).unwrap().local_files.is_empty() {
+                        if !calculate_work(row).unwrap().work_units.is_empty() {
                             self.status = Failed(format!(
-                                "local_files not empty, client: {}",
-                                row.writeable_path
-                            ));
-                            break 'steps;
-                        }
-
-                        if !calculate_work(row).unwrap().server_files.is_empty() {
-                            self.status = Failed(format!(
-                                "server_files not empty, client: {}",
-                                row.writeable_path
-                            ));
-                            break 'steps;
-                        }
-
-                        if calculate_work(row).unwrap().server_unknown_name_count > 0 {
-                            self.status = Failed(format!(
-                                "server_unknown_name_count not empty, client: {}",
+                                "work units not empty, client: {}",
                                 row.writeable_path
                             ));
                             break 'steps;
@@ -308,13 +292,13 @@ impl Trial {
                 if file.id != file.parent {
                     mutants.push(self.create_mutation(RenameFile {
                         client: client_index,
-                        name: file.name.clone(),
+                        name: file.decrypted_name.clone(),
                         new_name: random_filename(),
                     }));
 
                     mutants.push(self.create_mutation(DeleteFile {
                         client: client_index,
-                        name: file.name,
+                        name: file.decrypted_name,
                     }));
                 }
             }
@@ -323,7 +307,7 @@ impl Trial {
                 let parent_name = if folder.id == folder.parent {
                     "root".to_string()
                 } else {
-                    folder.name
+                    folder.decrypted_name
                 };
 
                 mutants.push(self.create_mutation(NewDocument {
@@ -347,7 +331,7 @@ impl Trial {
                 for doc in docs.clone() {
                     mutants.push(self.create_mutation(MoveDocument {
                         client: client_index,
-                        doc_name: doc.name.clone(),
+                        doc_name: doc.decrypted_name.clone(),
                         destination_name: parent_name.clone(),
                     }))
                 }
@@ -357,7 +341,7 @@ impl Trial {
                         let folder2_name = if folder2.id == folder2.parent {
                             "root".to_string()
                         } else {
-                            folder2.name
+                            folder2.decrypted_name
                         };
                         mutants.push(self.create_mutation(AttemptFolderMove {
                             client: client_index,
@@ -371,7 +355,7 @@ impl Trial {
             for doc in docs.clone() {
                 mutants.push(self.create_mutation(UpdateDocument {
                     client: client_index,
-                    name: doc.name.clone(),
+                    name: doc.decrypted_name.clone(),
                     new_content: random_utf8(),
                 }));
             }
