@@ -58,7 +58,7 @@ class TextEditorFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentTextEditorBinding.inflate(inflater, container, false)
-        val name = (activityModel.detailsScreen as DetailsScreen.TextEditor).fileMetadata.name
+        val name = (activityModel.detailsScreen as DetailsScreen.TextEditor).fileMetadata.decryptedName
 
         textEditorToolbar.title = name
         textEditorToolbar.inflateMenu(R.menu.menu_text_editor)
