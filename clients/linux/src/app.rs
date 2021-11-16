@@ -1,27 +1,22 @@
 use std::cell::RefCell;
-use std::cmp::Ordering;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use gdk::WindowExt;
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
-    get_current_event_time, AboutDialog as GtkAboutDialog, AccelGroup as GtkAccelGroup,
     Align as GtkAlign, Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox,
-    Button, CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox,
-    Dialog as GtkDialog, Entry as GtkEntry, EntryCompletion as GtkEntryCompletion,
-    FileChooserAction, FileChooserDialog, Image as GtkImage, Label as GtkLabel,
-    ListStore as GtkListStore, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
-    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode,
-    SortColumn as GtkSortColumn, SortType as GtkSortType, Spinner as GtkSpinner, Stack as GtkStack,
-    TreeIter as GtkTreeIter, TreeModel as GtkTreeModel, TreeModelSort as GtkTreeModelSort,
-    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
-    Widget as GtkWidget, WidgetExt as GtkWidgetExt, WindowPosition as GtkWindowPosition,
+    CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
+    Image as GtkImage, Label as GtkLabel, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
+    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode, Spinner as GtkSpinner,
+    Stack as GtkStack, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
+    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WindowPosition as GtkWindowPosition,
 };
 
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
@@ -37,17 +32,15 @@ use crate::error::{
 };
 use crate::filetree::FileTreeCol;
 use crate::intro::{IntroScreen, LOGO_INTRO};
+use crate::lbsearch::LbSearch;
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 
-use gdk::{Cursor, WindowExt};
-use glib::uri_unescape_string;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use lockbook_models::work_unit::WorkUnit;
-use std::path::PathBuf;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -119,10 +112,7 @@ impl LbApp {
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
                 Msg::RefreshTree => lb.refresh_tree(),
 
-                Msg::SearchFieldFocus => lb.search_field_focus(),
-                Msg::SearchFieldBlur(escaped) => lb.search_field_blur(escaped),
-                Msg::SearchFieldUpdate => lb.search_field_update(),
-                Msg::SearchFieldUpdateIcon => lb.search_field_update_icon(),
+                Msg::PromptSearch => lb.prompt_search(),
                 Msg::SearchFieldExec(vopt) => lb.search_field_exec(vopt),
 
                 Msg::ShowDialogSyncDetails => lb.show_dialog_sync_details(),
@@ -159,6 +149,15 @@ impl LbApp {
             }
             glib::Continue(true)
         });
+
+        let prompt_search = gio::SimpleAction::new("prompt_search", None);
+        prompt_search.connect_activate(glib::clone!(@strong lb_app => move |_, _| {
+            if let Err(err) = lb_app.prompt_search() {
+                lb_app.err_dialog("opening search", &err)
+            }
+        }));
+        a.add_action(&prompt_search);
+        a.set_accels_for_action("app.prompt_search", &["<Ctrl>space"]);
 
         lb_app
     }
@@ -377,7 +376,7 @@ impl LbApp {
         } else if gtk::show_uri_on_window(
             Some(&self.gui.win),
             &format!("{}{}", scheme, uri),
-            get_current_event_time(),
+            gtk::get_current_event_time(),
         )
         .is_err()
         {
@@ -401,7 +400,7 @@ impl LbApp {
         errlbl.set_margin_start(8);
         errlbl.set_margin_bottom(8);
 
-        let entry = GtkEntry::new();
+        let entry = gtk::Entry::new();
         util::gui::set_marginy(&entry, 16);
         entry.set_margin_start(8);
         entry.set_activates_default(true);
@@ -501,7 +500,7 @@ impl LbApp {
 
         let d = self.gui.new_dialog(&open_file.decrypted_name);
 
-        let save = Button::with_label("Save");
+        let save = gtk::Button::with_label("Save");
         save.connect_clicked(closure!(
             self.core as core, // to save
             self.gui.account as account, // to get text
@@ -531,7 +530,7 @@ impl LbApp {
             }
         ));
 
-        let discard = Button::with_label("Discard");
+        let discard = gtk::Button::with_label("Discard");
         discard.connect_clicked(closure!(d, file_dealt_with => move |_| {
             file_dealt_with.replace(true);
             d.close();
@@ -562,17 +561,12 @@ impl LbApp {
         // Check for file dirtiness here
         let (meta, content) = self.core.open(id)?;
         self.state.borrow_mut().open_file_dirty = false;
-        self.edit(&EditMode::PlainText {
-            path: self.core.full_path_for(&meta.id)?,
-            meta,
-            content,
-        })
+        self.edit(&EditMode::PlainText { meta, content })
     }
 
     fn open_folder(&self, f: &DecryptedFileMetadata) -> LbResult<()> {
         let children = self.core.children(f)?;
         self.edit(&EditMode::Folder {
-            path: self.core.full_path_for(&f.id)?,
             meta: f.clone(),
             n_children: children.len(),
         })
@@ -739,7 +733,7 @@ impl LbApp {
         let lbl = util::gui::text_left("Enter the new name:");
         lbl.set_margin_top(12);
 
-        let entry = GtkEntry::new();
+        let entry = gtk::Entry::new();
         util::gui::set_marginy(&entry, 16);
         entry.set_margin_start(8);
         entry.set_activates_default(true);
@@ -775,8 +769,7 @@ impl LbApp {
 
                     match lb.core.file_by_id(id) {
                         Ok(f) => {
-                            if let Ok(path) = lb.core.full_path_for(&f.id) {
-                                acctscr.set_search_field_text(&path);
+                            if lb.core.full_path_for(&f.id).is_ok() {
                                 lb.messenger.send(Msg::RefreshSyncStatus);
                             }
                         }
@@ -811,79 +804,84 @@ impl LbApp {
         self.gui.account.sidebar.tree.refresh(&self.core)
     }
 
-    fn search_field_focus(&self) -> LbResult<()> {
-        let search = SearchComponents::new(&self.core);
+    fn prompt_search(&self) -> LbResult<()> {
+        let possibs = self.core.list_paths().unwrap_or_default();
+        let search = LbSearch::new(possibs);
+        let d = self.gui.new_dialog("Search");
 
-        let comp = GtkEntryCompletion::new();
+        let comp = gtk::EntryCompletion::new();
         comp.set_model(Some(&search.sort_model));
         comp.set_popup_completion(true);
         comp.set_inline_selection(true);
         comp.set_text_column(1);
         comp.set_match_func(|_, _, _| true);
+        comp.connect_match_selected(glib::clone!(
+            @strong self.messenger as m,
+            @strong d
+            => move |_, model, iter| {
+                d.close();
+                let iter_val = tree_iter_value!(model, iter, 1, String);
+                m.send(Msg::SearchFieldExec(Some(iter_val)));
+                gtk::Inhibit(false)
+            }
+        ));
 
-        comp.connect_match_selected(closure!(self.messenger as m => move |_, model, iter| {
-            let iter_val = tree_iter_value!(model, iter, 1, String);
-            m.send(Msg::SearchFieldExec(Some(iter_val)));
+        self.state.borrow_mut().search = Some(search);
+
+        let search_entry = gtk::Entry::new();
+        util::gui::set_entry_icon(&search_entry, "edit-find-symbolic");
+        util::gui::set_marginx(&search_entry, 16);
+        search_entry.set_margin_top(16);
+        search_entry.set_placeholder_text(Some("Start typing..."));
+        search_entry.set_completion(Some(&comp));
+
+        search_entry.connect_key_release_event(closure!(self as lb => move |entry, key| {
+            let k = key.get_hardware_keycode();
+            if k != util::gui::KEY_ARROW_UP && k != util::gui::KEY_ARROW_DOWN {
+                if let Some(search) = lb.state.borrow().search.as_ref() {
+                    let input = entry.get_text().to_string();
+                    search.update_for(&input);
+                }
+            }
             gtk::Inhibit(false)
         }));
 
-        self.gui.account.set_search_field_completion(&comp);
-        self.state.borrow_mut().search = Some(search);
+        search_entry.connect_changed(move |entry| {
+            let input = entry.get_text().to_string();
+            let icon_name = if input.ends_with(".md") || input.ends_with(".txt") {
+                "text-x-generic-symbolic"
+            } else if input.ends_with('/') {
+                "folder-symbolic"
+            } else {
+                "edit-find-symbolic"
+            };
+            util::gui::set_entry_icon(entry, icon_name);
+        });
+
+        search_entry.connect_activate(
+            glib::clone!(@strong self.messenger as m, @strong d => move |entry| {
+                d.close();
+                if !entry.get_text().eq("") {
+                    m.send(Msg::SearchFieldExec(None));
+                }
+            }),
+        );
+
+        d.set_size_request(400, -1);
+        d.get_content_area().add(&search_entry);
+        d.get_content_area().set_margin_bottom(16);
+        d.show_all();
         Ok(())
     }
 
-    fn search_field_update(&self) -> LbResult<()> {
-        if let Some(search) = self.state.borrow().search.as_ref() {
-            let input = self.gui.account.get_search_field_text();
-            search.update_for(&input);
-        }
-        Ok(())
-    }
-
-    fn search_field_update_icon(&self) -> LbResult<()> {
-        let input = self.gui.account.get_search_field_text();
-        let icon_name = if input.ends_with(".md") || input.ends_with(".txt") {
-            "text-x-generic-symbolic"
-        } else if input.ends_with('/') {
-            "folder-symbolic"
-        } else {
-            "edit-find-symbolic"
-        };
-        self.gui.account.set_search_field_icon(icon_name, None);
-        Ok(())
-    }
-
-    fn search_field_blur(&self, escaped: bool) -> LbResult<()> {
-        let state = self.state.borrow();
-        let opened_file = state.opened_file.as_ref();
-
-        if escaped {
-            match opened_file {
-                Some(_) => self.gui.account.focus_editor(),
-                None => self.gui.account.sidebar.tree.focus(),
+    fn search_field_exec(&self, maybe_input: Option<String>) -> LbResult<()> {
+        if let Some(path) = maybe_input.or_else(|| self.state.borrow().get_first_search_match()) {
+            match self.core.file_by_path(&path) {
+                Ok(meta) => self.messenger.send(Msg::OpenFile(Some(meta.id))),
+                Err(err) => self
+                    .messenger
+                    .send_err_dialog("opening file from search field", err),
             }
-        }
-
-        let txt = match opened_file {
-            None => "".to_string(),
-            Some(f) => self.core.full_path_for(&f.id)?,
-        };
-        self.gui.account.deselect_search_field();
-        self.gui.account.set_search_field_text(&txt);
-        Ok(())
-    }
-
-    fn search_field_exec(&self, explicit: Option<String>) -> LbResult<()> {
-        let entry_text = self.gui.account.get_search_field_text();
-        let best_match = self.state.borrow().get_first_search_match();
-        let path = explicit.unwrap_or_else(|| best_match.unwrap_or(entry_text));
-
-        match self.core.file_by_path(&path) {
-            Ok(meta) => self.messenger.send(Msg::OpenFile(Some(meta.id))),
-            Err(_) => self.gui.account.set_search_field_icon(
-                "dialog-error-symbolic",
-                Some(&format!("The file '{}' does not exist", path)),
-            ),
         }
         Ok(())
     }
@@ -927,7 +925,7 @@ impl LbApp {
     }
 
     fn show_dialog_about(&self) -> LbResult<()> {
-        let d = GtkAboutDialog::new();
+        let d = gtk::AboutDialog::new();
         d.set_transient_for(Some(&self.gui.win));
         d.set_logo(Some(&GdkPixbuf::from_inline(LOGO_INTRO, false).unwrap()));
         d.set_program_name("Lockbook");
@@ -960,7 +958,7 @@ impl LbApp {
 
         for uri in &uris {
             if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
-                let escaped_uri = uri_unescape_string(path, None)
+                let escaped_uri = glib::uri_unescape_string(path, None)
                     .ok_or_else(|| uerr_dialog!("Unable to escape uri!"))?
                     .to_string();
                 total += util::io::get_children_count(PathBuf::from(&escaped_uri))?;
@@ -1049,7 +1047,11 @@ impl LbApp {
             })
             .collect::<Vec<Uuid>>();
 
-        let d = FileChooserDialog::new(None, Some(&self.gui.win), FileChooserAction::SelectFolder);
+        let d = gtk::FileChooserDialog::new(
+            None,
+            Some(&self.gui.win),
+            gtk::FileChooserAction::SelectFolder,
+        );
 
         d.add_buttons(&[
             ("Cancel", GtkResponseType::Cancel),
@@ -1136,7 +1138,7 @@ impl LbApp {
                 let parent_path = self.core.full_path_for(&opened_file.parent)?;
 
                 let gdk_win = self.gui.account.cntr.get_window().unwrap();
-                gdk_win.set_cursor(Cursor::from_name(&gdk_win.get_display(), "wait").as_ref());
+                gdk_win.set_cursor(gdk::Cursor::from_name(&gdk_win.get_display(), "wait").as_ref());
 
                 let image_name = format!("img-{}.{}", Uuid::new_v4(), "png");
 
@@ -1237,7 +1239,7 @@ impl LbApp {
 }
 
 struct LbState {
-    search: Option<SearchComponents>,
+    search: Option<LbSearch>,
     opened_file: Option<DecryptedFileMetadata>,
     open_file_dirty: bool,
     background_work: Arc<Mutex<BackgroundWork>>,
@@ -1271,77 +1273,6 @@ impl LbState {
     }
 }
 
-struct SearchComponents {
-    possibs: Vec<String>,
-    list_store: GtkListStore,
-    sort_model: GtkTreeModelSort,
-    matcher: SkimMatcherV2,
-}
-
-impl SearchComponents {
-    fn new(core: &LbCore) -> Self {
-        let list_store = GtkListStore::new(&[glib::Type::I64, glib::Type::String]);
-        let sort_model = GtkTreeModelSort::new(&list_store);
-        sort_model.set_sort_column_id(GtkSortColumn::Index(0), GtkSortType::Descending);
-        sort_model.set_sort_func(GtkSortColumn::Index(0), Self::compare_possibs);
-
-        Self {
-            possibs: core.list_paths().unwrap_or_default(),
-            list_store,
-            sort_model,
-            matcher: SkimMatcherV2::default(),
-        }
-    }
-
-    fn compare_possibs(model: &GtkTreeModel, it1: &GtkTreeIter, it2: &GtkTreeIter) -> Ordering {
-        let score1 = tree_iter_value!(model, it1, 0, i64);
-        let score2 = tree_iter_value!(model, it2, 0, i64);
-
-        match score1.cmp(&score2) {
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Less => Ordering::Less,
-            Ordering::Equal => {
-                let text1 = tree_iter_value!(model, it1, 1, String);
-                let text2 = model
-                    .get_value(it2, 1)
-                    .get::<String>()
-                    .unwrap_or_default()
-                    .unwrap_or_default();
-                if text2.is_empty() {
-                    return Ordering::Less;
-                }
-
-                let chars1: Vec<char> = text1.chars().collect();
-                let chars2: Vec<char> = text2.chars().collect();
-
-                let n_chars1 = chars1.len();
-                let n_chars2 = chars2.len();
-
-                for i in 0..std::cmp::min(n_chars1, n_chars2) {
-                    let ord = chars1[i].cmp(&chars2[i]);
-                    if ord != Ordering::Equal {
-                        return ord.reverse();
-                    }
-                }
-
-                n_chars1.cmp(&n_chars2)
-            }
-        }
-    }
-
-    fn update_for(&self, pattern: &str) {
-        let list = &self.list_store;
-        list.clear();
-
-        for p in &self.possibs {
-            if let Some(score) = self.matcher.fuzzy_match(p, pattern) {
-                let values: [&dyn ToValue; 2] = [&score, &p];
-                list.set(&list.append(), &[0, 1], &values);
-            }
-        }
-    }
-}
-
 struct Gui {
     win: GtkAppWindow,
     menubar: Menubar,
@@ -1354,7 +1285,7 @@ struct Gui {
 impl Gui {
     fn new(app: &GtkApp, m: &Messenger, s: &Settings, c: &Arc<LbCore>) -> Self {
         // Menubar.
-        let accels = GtkAccelGroup::new();
+        let accels = gtk::AccelGroup::new();
         let menubar = Menubar::new(m, &accels);
         menubar.set(&EditMode::None);
 
