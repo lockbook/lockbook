@@ -37,7 +37,7 @@ class SyncFileTests: SLCTest {
     func testIterativeNoFiles() throws {
         let resultCalculate = core.api.calculateWork()
         
-        assertSuccess(resultCalculate) { $0.localFiles.isEmpty && $0.serverFiles.isEmpty && $0.serverUnknownNameCount == 0 }
+        assertSuccess(resultCalculate) { $0.workUnits.isEmpty }
     }
     
     func testLocalChangesNoFiles() throws {
