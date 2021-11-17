@@ -8,8 +8,8 @@ use lockbook_core::{
 use crate::error::CliResult;
 use crate::utils::{account, config};
 use crate::{err, err_unexpected};
-use lockbook_core::model::client_conversion::ClientFileMetadata;
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
+use lockbook_models::file_metadata::DecryptedFileMetadata;
 
 pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
     account()?;
@@ -35,10 +35,10 @@ pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
             CoreError::UiError(err) => match err {
                 ImportFileError::NoAccount => err!(NoAccount),
                 ImportFileError::ParentDoesNotExist => {
-                    err!(FileNotFound(file_metadata.name.clone()))
+                    err!(FileNotFound(file_metadata.decrypted_name.clone()))
                 }
                 ImportFileError::DocumentTreatedAsFolder => {
-                    err!(DocTreatedAsFolder(file_metadata.name.clone()))
+                    err!(DocTreatedAsFolder(file_metadata.decrypted_name.clone()))
                 }
                 ImportFileError::DiskPathInvalid => err!(OsInvalidPath(lb_path.to_string())),
             },
@@ -49,7 +49,7 @@ pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
     Ok(())
 }
 
-fn get_or_create_file(lb_path: &str) -> CliResult<ClientFileMetadata> {
+fn get_or_create_file(lb_path: &str) -> CliResult<DecryptedFileMetadata> {
     // Try to get a file
     match get_file_by_path(&config()?, lb_path) {
         Ok(file) => return Ok(file),

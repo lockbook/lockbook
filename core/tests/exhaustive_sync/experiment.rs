@@ -1,11 +1,14 @@
-use crate::exhaustive_sync::trial::{Status, Trial};
 use core::time;
-use itertools::Itertools;
-use lockbook_crypto::clock_service::{get_time, Timestamp};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+use itertools::Itertools;
 use uuid::Uuid;
+
+use lockbook_crypto::clock_service::{get_time, Timestamp};
+
+use crate::exhaustive_sync::trial::{Status, Trial};
 
 pub type ThreadID = usize;
 

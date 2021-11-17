@@ -38,7 +38,7 @@ class GetChildrenTest {
     @Test
     fun getChildrenUnexpectedError() {
         Klaxon().converter(getChildrenConverter)
-            .parse<Result<List<ClientFileMetadata>, GetChildrenError>>(getChildren("", ""))
+            .parse<Result<List<DecryptedFileMetadata>, GetChildrenError>>(getChildren("", ""))
             .unwrapErrorType<GetChildrenError.Unexpected>()
     }
 }

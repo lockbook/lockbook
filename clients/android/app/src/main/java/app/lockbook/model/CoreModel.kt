@@ -118,8 +118,8 @@ object CoreModel {
         return Err(WriteToDocumentError.Unexpected("writeDocument was unable to be called!"))
     }
 
-    fun getRoot(config: Config): Result<ClientFileMetadata, GetRootError> {
-        val getRootResult: Result<ClientFileMetadata, GetRootError>? =
+    fun getRoot(config: Config): Result<DecryptedFileMetadata, GetRootError> {
+        val getRootResult: Result<DecryptedFileMetadata, GetRootError>? =
             Klaxon().converter(getRootConverter).parse(getRoot(Klaxon().toJsonString(config)))
 
         if (getRootResult != null) {
@@ -176,8 +176,8 @@ object CoreModel {
     fun getChildren(
         config: Config,
         parentId: String
-    ): Result<List<ClientFileMetadata>, GetChildrenError> {
-        val getChildrenResult: Result<List<ClientFileMetadata>, GetChildrenError>? =
+    ): Result<List<DecryptedFileMetadata>, GetChildrenError> {
+        val getChildrenResult: Result<List<DecryptedFileMetadata>, GetChildrenError>? =
             Klaxon().converter(getChildrenConverter)
                 .parse(getChildren(Klaxon().toJsonString(config), parentId))
 
@@ -191,8 +191,8 @@ object CoreModel {
     fun getFileById(
         config: Config,
         id: String
-    ): Result<ClientFileMetadata, GetFileByIdError> {
-        val getFileByIdResult: Result<ClientFileMetadata, GetFileByIdError>? =
+    ): Result<DecryptedFileMetadata, GetFileByIdError> {
+        val getFileByIdResult: Result<DecryptedFileMetadata, GetFileByIdError>? =
             Klaxon().converter(
                 getFileByIdConverter
             ).parse(getFileById(Klaxon().toJsonString(config), id))
@@ -275,9 +275,9 @@ object CoreModel {
         parentId: String,
         name: String,
         fileType: FileType
-    ): Result<ClientFileMetadata, CreateFileError> {
+    ): Result<DecryptedFileMetadata, CreateFileError> {
         val klaxon = Klaxon()
-        val createFileResult: Result<ClientFileMetadata, CreateFileError>? =
+        val createFileResult: Result<DecryptedFileMetadata, CreateFileError>? =
             klaxon.converter(createFileConverter)
                 .parse(createFile(Klaxon().toJsonString(config), name, parentId, klaxon.toJsonString(fileType)))
 

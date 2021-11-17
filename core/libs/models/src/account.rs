@@ -43,9 +43,10 @@ pub mod secret_key_serializer {
 
 #[cfg(test)]
 mod test_account_serialization {
-    use crate::account::Account;
     use libsecp256k1::SecretKey;
     use rand::rngs::OsRng;
+
+    use crate::account::Account;
 
     #[test]
     fn account_serialize_deserialize() {

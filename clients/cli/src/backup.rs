@@ -7,7 +7,6 @@ use chrono::{DateTime, Utc};
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lockbook_core::{
     export_file, get_root, list_paths, Error as CoreError, ExportFileError, GetRootError,
-    ListPathsError,
 };
 
 use crate::error::CliResult;
@@ -19,24 +18,11 @@ pub fn backup() -> CliResult<()> {
 
     let config = config()?;
 
-    let leaf_nodes = list_paths(&config, Some(LeafNodesOnly)).map_err(|err| match err {
-        CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible"),
-        CoreError::Unexpected(msg) => err_unexpected!("listing leaf nodes: {}", msg),
-    })?;
+    let leaf_nodes = list_paths(&config, Some(LeafNodesOnly))?;
 
-    let docs_len = list_paths(&config, Some(DocumentsOnly))
-        .map_err(|err| match err {
-            CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible"),
-            CoreError::Unexpected(msg) => err_unexpected!("listing documents: {}", msg),
-        })?
-        .len();
+    let docs_len = list_paths(&config, Some(DocumentsOnly))?.len();
 
-    let folders_len = list_paths(&config, Some(FoldersOnly))
-        .map_err(|err| match err {
-            CoreError::UiError(ListPathsError::Stub) => err_unexpected!("impossible"),
-            CoreError::Unexpected(msg) => err_unexpected!("listing folders: {}", msg),
-        })?
-        .len();
+    let folders_len = list_paths(&config, Some(FoldersOnly))?.len();
 
     println!(
         "Creating an index to keep track of {} files",

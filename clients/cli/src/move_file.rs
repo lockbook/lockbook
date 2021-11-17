@@ -31,13 +31,13 @@ pub fn move_file(path1: &str, path2: &str) -> CliResult<()> {
                 MoveFileError::TargetParentDoesNotExist => err!(FileNotFound(path2.to_string())),
                 MoveFileError::FolderMovedIntoItself => err!(CannotMoveFolderIntoItself),
                 MoveFileError::TargetParentHasChildNamedThat => {
-                    err!(FileNameNotAvailable(target_file_metadata.name))
+                    err!(FileNameNotAvailable(target_file_metadata.decrypted_name))
                 }
                 MoveFileError::DocumentTreatedAsFolder => err_extra!(
                     DocTreatedAsFolder(path2.to_string()),
                     "{} cannot be moved to {}",
-                    file_metadata.name,
-                    target_file_metadata.name
+                    file_metadata.decrypted_name,
+                    target_file_metadata.decrypted_name
                 ),
             },
             CoreError::Unexpected(msg) => err_unexpected!("{}", msg),

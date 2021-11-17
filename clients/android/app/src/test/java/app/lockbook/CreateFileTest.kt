@@ -124,7 +124,7 @@ class CreateFileTest {
     @Test
     fun createFileUnexpectedError() {
         Klaxon().converter(createFileConverter)
-            .parse<Result<ClientFileMetadata, CreateFileError>>(createFile("", "", "", ""))
+            .parse<Result<DecryptedFileMetadata, CreateFileError>>(createFile("", "", "", ""))
             .unwrapErrorType<CreateFileError.Unexpected>()
     }
 }

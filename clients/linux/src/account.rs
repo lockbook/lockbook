@@ -11,8 +11,6 @@ use regex::Regex;
 use sourceview::prelude::*;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager, View as GtkSourceView};
 
-use lockbook_core::model::client_conversion::{ClientFileMetadata, ClientWorkUnit};
-
 use crate::backend::{LbCore, LbSyncMsg};
 use crate::editmode::EditMode;
 use crate::error::{LbErrTarget, LbError, LbResult};
@@ -24,6 +22,9 @@ use crate::util::{
     URI_TARGET_INFO,
 };
 use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog};
+
+use lockbook_models::file_metadata::DecryptedFileMetadata;
+use lockbook_models::work_unit::ClientWorkUnit;
 
 pub struct AccountScreen {
     pub sidebar: Sidebar,
@@ -54,7 +55,7 @@ impl AccountScreen {
         Ok(())
     }
 
-    pub fn add_file(&self, b: &LbCore, f: &ClientFileMetadata) -> LbResult<()> {
+    pub fn add_file(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
         self.sidebar.tree.add(b, f)
     }
 
@@ -62,7 +63,7 @@ impl AccountScreen {
         match mode {
             EditMode::PlainText { meta, content } => {
                 self.sidebar.tree.select(&meta.id);
-                self.editor.set_file(&meta.name, content);
+                self.editor.set_file(&meta.decrypted_name, content);
             }
             EditMode::Folder { meta, n_children } => {
                 self.sidebar.tree.focus();
@@ -447,9 +448,9 @@ impl Editor {
         self.textarea.grab_focus();
     }
 
-    fn show_folder_info(&self, f: &ClientFileMetadata, n_children: usize) {
+    fn show_folder_info(&self, f: &DecryptedFileMetadata, n_children: usize) {
         let name = gtk::Label::new(None);
-        name.set_markup(&format!("<span><big>{}/</big></span>", f.name));
+        name.set_markup(&format!("<span><big>{}/</big></span>", f.decrypted_name));
         name.set_margin_end(64);
         name.set_margin_bottom(16);
 

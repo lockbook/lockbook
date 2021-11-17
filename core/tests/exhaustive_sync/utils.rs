@@ -1,16 +1,17 @@
-use lockbook_core::list_metadatas;
-use lockbook_core::model::client_conversion::ClientFileMetadata;
-use lockbook_core::model::state::Config;
 use rand::distributions::Alphanumeric;
 use rand::rngs::OsRng;
 use rand::Rng;
 
-pub fn find_by_name(config: &Config, name: &str) -> ClientFileMetadata {
+use lockbook_core::list_metadatas;
+use lockbook_core::model::state::Config;
+use lockbook_models::file_metadata::DecryptedFileMetadata;
+
+pub fn find_by_name(config: &Config, name: &str) -> DecryptedFileMetadata {
     let mut possible_matches = list_metadatas(config).unwrap();
     if name == "root" {
         possible_matches.retain(|meta| meta.parent == meta.id);
     } else {
-        possible_matches.retain(|meta| meta.name == name);
+        possible_matches.retain(|meta| meta.decrypted_name == name);
     }
     if possible_matches.len() > 1 {
         eprintln!("Multiple matches for a file name found: {}", name);

@@ -1,7 +1,8 @@
+use lockbook_models::account::{Account, ApiUrl};
+
+use crate::model::errors::{core_err_unexpected, CoreError};
 use crate::model::state::Config;
 use crate::repo::local_storage;
-use crate::{core_err_unexpected, CoreError};
-use lockbook_models::account::{Account, ApiUrl};
 
 static ACCOUNT: &str = "ACCOUNT";
 

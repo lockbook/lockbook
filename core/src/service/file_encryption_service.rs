@@ -1,10 +1,13 @@
-use crate::{core_err_unexpected, CoreError};
+use std::collections::HashMap;
+
+use uuid::Uuid;
+
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata};
-use std::collections::HashMap;
-use uuid::Uuid;
+
+use crate::model::errors::{core_err_unexpected, CoreError};
 
 /// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is not supported; user access keys are encrypted for the provided account. This is a pure function.
 pub fn encrypt_metadatum(
@@ -180,20 +183,19 @@ pub fn decrypt_document(
 
 #[cfg(test)]
 mod unit_tests {
-    use lockbook_crypto::symkey;
-    use lockbook_models::file_metadata::FileType;
     use uuid::Uuid;
 
-    use crate::{
-        service::{file_encryption_service, file_service, test_utils},
-        utils,
-    };
+    use lockbook_crypto::symkey;
+    use lockbook_models::file_metadata::FileType;
+
+    use crate::pure_functions::files;
+    use crate::service::{file_encryption_service, test_utils};
 
     #[test]
     fn encrypt_decrypt_metadatum() {
         let account = test_utils::generate_account();
         let key = symkey::generate_key();
-        let file = file_service::create(FileType::Folder, Uuid::new_v4(), "folder", "owner");
+        let file = files::create(FileType::Folder, Uuid::new_v4(), "folder", "owner");
 
         let encrypted_file =
             file_encryption_service::encrypt_metadatum(&account, &key, &file).unwrap();
@@ -206,10 +208,9 @@ mod unit_tests {
     #[test]
     fn encrypt_decrypt_metadata() {
         let account = test_utils::generate_account();
-        let root = file_service::create_root(&account.username);
-        let folder = file_service::create(FileType::Folder, root.id, "folder", &account.username);
-        let document =
-            file_service::create(FileType::Folder, folder.id, "document", &account.username);
+        let root = files::create_root(&account.username);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let document = files::create(FileType::Folder, folder.id, "document", &account.username);
         let files = [root.clone(), folder.clone(), document.clone()];
 
         let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files).unwrap();
@@ -217,16 +218,16 @@ mod unit_tests {
             file_encryption_service::decrypt_metadata(&account, &encrypted_files).unwrap();
 
         assert_eq!(
-            utils::find(&files, root.id).unwrap(),
-            utils::find(&decrypted_files, root.id).unwrap(),
+            files::find(&files, root.id).unwrap(),
+            files::find(&decrypted_files, root.id).unwrap(),
         );
         assert_eq!(
-            utils::find(&files, folder.id).unwrap(),
-            utils::find(&decrypted_files, folder.id).unwrap(),
+            files::find(&files, folder.id).unwrap(),
+            files::find(&decrypted_files, folder.id).unwrap(),
         );
         assert_eq!(
-            utils::find(&files, document.id).unwrap(),
-            utils::find(&decrypted_files, document.id).unwrap(),
+            files::find(&files, document.id).unwrap(),
+            files::find(&decrypted_files, document.id).unwrap(),
         );
     }
 }

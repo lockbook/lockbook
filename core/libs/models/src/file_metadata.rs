@@ -1,11 +1,13 @@
-use crate::account::Username;
-use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
-use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
+
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::account::Username;
+use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {

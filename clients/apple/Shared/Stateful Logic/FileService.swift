@@ -4,8 +4,8 @@ import SwiftLockbookCore
 class FileService: ObservableObject {
     let core: LockbookApi
     
-    @Published var root: ClientFileMetadata? = nil
-    @Published var files: [ClientFileMetadata] = []
+    @Published var root: DecryptedFileMetadata? = nil
+    @Published var files: [DecryptedFileMetadata] = []
     
     init(_ core: LockbookApi) {
         self.core = core
@@ -126,7 +126,7 @@ class FileService: ObservableObject {
         }
     }
     
-    private func notifyDocumentChanged(_ meta: ClientFileMetadata) {
+    private func notifyDocumentChanged(_ meta: DecryptedFileMetadata) {
         if let openDocument = DI.documentLoader.meta, meta.id == openDocument.id, meta.contentVersion != openDocument.contentVersion {
             DI.documentLoader.updatesFromCoreAvailable(meta)
         }

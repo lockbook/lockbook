@@ -4,7 +4,7 @@ import PencilKit
 
 struct DocumentView: View {
         
-    let meta: ClientFileMetadata
+    let meta: DecryptedFileMetadata
     
     @EnvironmentObject var model: DocumentLoader
     #if os(iOS)
@@ -17,9 +17,9 @@ struct DocumentView: View {
                 .onAppear {
                     model.startLoading(meta)
                 }
-                .navigationTitle(meta.name)
+                .navigationTitle(meta.decryptedName)
         } else if model.deleted {
-            Text("\(meta.name) was deleted.")
+            Text("\(meta.decryptedName) was deleted.")
         } else {
             if let type = model.type {
                 switch type {
@@ -27,7 +27,7 @@ struct DocumentView: View {
                     if let img = model.image {
                         ScrollView([.horizontal, .vertical]) {
                             img
-                        }.navigationTitle(meta.name)
+                        }.navigationTitle(meta.decryptedName)
                     }
                 #if os(iOS)
                 case .Drawing:
@@ -35,7 +35,7 @@ struct DocumentView: View {
                         model: model,
                         toolPicker: toolbar
                     )
-                    .navigationTitle(meta.name)
+                    .navigationTitle(meta.decryptedName)
                     .toolbar {
                         ToolbarItemGroup(placement: .bottomBar) {
                             Spacer()
@@ -52,10 +52,10 @@ struct DocumentView: View {
                             frame: geo.frame(in: .local),
                             theme: LockbookTheme
                         )
-                    }.navigationTitle(meta.name)
+                    }.navigationTitle(meta.decryptedName)
                     // TODO there needs to be a 20 horiz padding here on iOS
                 case .Unknown:
-                    Text("\(meta.name) cannot be opened on this device.")
+                    Text("\(meta.decryptedName) cannot be opened on this device.")
                 }
             }
         }

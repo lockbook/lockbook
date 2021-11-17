@@ -2,18 +2,16 @@ extern crate rand;
 
 use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
-
+use hmac::crypto_mac::{InvalidKeyLength, MacError};
 use hmac::{Hmac, Mac, NewMac};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use sha2::Sha256;
 
 use lockbook_models::crypto::*;
 
 use self::rand::rngs::OsRng;
 use self::rand::RngCore;
-
-use hmac::crypto_mac::{InvalidKeyLength, MacError};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use sha2::Sha256;
 
 type HmacSha256 = Hmac<Sha256>;
 

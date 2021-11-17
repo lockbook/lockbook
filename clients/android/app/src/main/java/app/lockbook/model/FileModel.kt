@@ -24,9 +24,9 @@ enum class SortStyle {
 }
 
 class FileModel(
-    var parent: ClientFileMetadata,
-    var children: List<ClientFileMetadata>,
-    val fileDir: MutableList<ClientFileMetadata>,
+    var parent: DecryptedFileMetadata,
+    var children: List<DecryptedFileMetadata>,
+    val fileDir: MutableList<DecryptedFileMetadata>,
     private var sortStyle: SortStyle
 ) {
     companion object {
@@ -98,7 +98,7 @@ class FileModel(
         }
     }
 
-    private fun refreshChildrenAtNewParent(newParent: ClientFileMetadata): Result<Unit, GetChildrenError> {
+    private fun refreshChildrenAtNewParent(newParent: DecryptedFileMetadata): Result<Unit, GetChildrenError> {
         val oldParent = parent
         parent = newParent
 
@@ -117,7 +117,7 @@ class FileModel(
         }
     }
 
-    fun intoChild(newParent: ClientFileMetadata): Result<Unit, GetChildrenError> {
+    fun intoChild(newParent: DecryptedFileMetadata): Result<Unit, GetChildrenError> {
         return refreshChildrenAtNewParent(newParent).map {
             fileDir.add(newParent)
         }
@@ -133,17 +133,17 @@ class FileModel(
         }
     }
 
-    private fun sortFilesAlpha(files: List<ClientFileMetadata>): List<ClientFileMetadata> =
+    private fun sortFilesAlpha(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> =
         files.sortedBy { fileMetadata ->
-            fileMetadata.name
+            fileMetadata.decryptedName
         }
 
-    private fun sortFilesChanged(files: List<ClientFileMetadata>): List<ClientFileMetadata> =
+    private fun sortFilesChanged(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> =
         files.sortedBy { fileMetadata ->
             fileMetadata.metadataVersion
         }
 
-    private fun sortFilesType(files: List<ClientFileMetadata>): List<ClientFileMetadata> {
+    private fun sortFilesType(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> {
         val tempFolders = files.filter { fileMetadata ->
             fileMetadata.fileType.name == FileType.Folder.name
         }
@@ -155,10 +155,10 @@ class FileModel(
             tempDocuments.sortedWith(
                 compareBy(
                     { fileMetadata ->
-                        Regex(".[^.]+\$").find(fileMetadata.name)?.value
+                        Regex(".[^.]+\$").find(fileMetadata.decryptedName)?.value
                     },
                     { fileMetaData ->
-                        fileMetaData.name
+                        fileMetaData.decryptedName
                     }
                 )
             )

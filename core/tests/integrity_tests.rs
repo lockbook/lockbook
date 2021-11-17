@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod integrity_tests {
+    use rand::Rng;
+
     use lockbook_core::model::repo::RepoSource;
-    use lockbook_core::repo::file_repo;
     use lockbook_core::repo::metadata_repo;
+    use lockbook_core::service::file_service;
     use lockbook_core::service::integrity_service;
     use lockbook_core::service::integrity_service::TestRepoError::*;
     use lockbook_core::service::integrity_service::Warning;
@@ -10,7 +12,6 @@ mod integrity_tests {
     use lockbook_core::{assert_matches, get_file_by_path, path};
     use lockbook_core::{create_account, create_file_at_path};
     use lockbook_models::file_metadata::FileType::Document;
-    use rand::Rng;
 
     #[test]
     fn test_integrity_no_problems() {
@@ -64,9 +65,9 @@ mod integrity_tests {
         let cfg = test_config();
         let account = create_account(&cfg, &random_username(), &url()).unwrap();
         let doc = create_file_at_path(&cfg, path!(account, "document1.md")).unwrap();
-        let mut doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
+        let mut doc = file_service::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
         doc.decrypted_name = String::from("na/me.md");
-        file_repo::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
+        file_service::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
 
         assert_matches!(
             integrity_service::test_repo_integrity(&cfg),
@@ -79,9 +80,9 @@ mod integrity_tests {
         let cfg = test_config();
         let account = create_account(&cfg, &random_username(), &url()).unwrap();
         let doc = create_file_at_path(&cfg, path!(account, "document1.md")).unwrap();
-        let mut doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
+        let mut doc = file_service::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
         doc.decrypted_name = String::from("");
-        file_repo::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
+        file_service::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
 
         assert_matches!(
             integrity_service::test_repo_integrity(&cfg),
@@ -167,9 +168,9 @@ mod integrity_tests {
         let account = create_account(&cfg, &random_username(), &url()).unwrap();
         let doc = create_file_at_path(&cfg, path!(account, "document1.md")).unwrap();
         create_file_at_path(&cfg, path!(account, "document2.md")).unwrap();
-        let mut doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
+        let mut doc = file_service::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
         doc.decrypted_name = String::from("document2.md");
-        file_repo::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
+        file_service::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
 
         assert_matches!(
             integrity_service::test_repo_integrity(&cfg),
@@ -182,8 +183,8 @@ mod integrity_tests {
         let cfg = test_config();
         let account = create_account(&cfg, &random_username(), &url()).unwrap();
         let doc = create_file_at_path(&cfg, path!(account, "document.txt")).unwrap();
-        let doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
-        file_repo::insert_document(&cfg, RepoSource::Local, &doc, "".as_bytes()).unwrap();
+        let doc = file_service::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
+        file_service::insert_document(&cfg, RepoSource::Local, &doc, "".as_bytes()).unwrap();
 
         let warnings = integrity_service::test_repo_integrity(&cfg);
 
@@ -198,8 +199,8 @@ mod integrity_tests {
         let cfg = test_config();
         let account = create_account(&cfg, &random_username(), &url()).unwrap();
         let doc = create_file_at_path(&cfg, path!(account, "document.txt")).unwrap();
-        let doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
-        file_repo::insert_document(
+        let doc = file_service::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
+        file_service::insert_document(
             &cfg,
             RepoSource::Local,
             &doc,
@@ -220,8 +221,8 @@ mod integrity_tests {
         let cfg = test_config();
         let account = create_account(&cfg, &random_username(), &url()).unwrap();
         let doc = create_file_at_path(&cfg, path!(account, "document.png")).unwrap();
-        let doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
-        file_repo::insert_document(
+        let doc = file_service::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
+        file_service::insert_document(
             &cfg,
             RepoSource::Local,
             &doc,
@@ -239,8 +240,8 @@ mod integrity_tests {
         let cfg = test_config();
         let account = create_account(&cfg, &random_username(), &url()).unwrap();
         let doc = create_file_at_path(&cfg, path!(account, "document.draw")).unwrap();
-        let doc = file_repo::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
-        file_repo::insert_document(
+        let doc = file_service::get_metadata(&cfg, RepoSource::Local, doc.id).unwrap();
+        file_service::insert_document(
             &cfg,
             RepoSource::Local,
             &doc,

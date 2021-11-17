@@ -1,13 +1,16 @@
 use std::path::Path;
 
+use uuid::Uuid;
+
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::{file_repo, metadata_repo, root_repo};
+use crate::pure_functions::{drawing, files};
+use crate::repo::{metadata_repo, root_repo};
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
-use crate::service::{drawing_service, file_service, path_service};
-use crate::{utils, CoreError};
-use lockbook_models::file_metadata::{FileMetadata, FileType};
-use uuid::Uuid;
+use crate::service::{file_service, path_service};
+use crate::CoreError;
 
 const UTF8_SUFFIXES: [&str; 12] = [
     "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
@@ -38,7 +41,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         .map_err(TestRepoError::Core)?
         .ok_or(TestRepoError::NoRootFolder)?;
 
-    let files_encrypted = utils::stage_encrypted(
+    let files_encrypted = files::stage_encrypted(
         &metadata_repo::get_all(config, RepoSource::Base).map_err(TestRepoError::Core)?,
         &metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?,
     )
@@ -47,12 +50,12 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     .collect::<Vec<FileMetadata>>();
 
     for file_encrypted in &files_encrypted {
-        if utils::maybe_find_encrypted(&files_encrypted, file_encrypted.parent).is_none() {
+        if files::maybe_find_encrypted(&files_encrypted, file_encrypted.parent).is_none() {
             return Err(TestRepoError::FileOrphaned(file_encrypted.id));
         }
     }
 
-    let maybe_self_descendant = file_service::get_invalid_cycles_encrypted(&files_encrypted, &[])
+    let maybe_self_descendant = files::get_invalid_cycles_encrypted(&files_encrypted, &[])
         .map_err(TestRepoError::Core)?
         .into_iter()
         .next();
@@ -61,10 +64,10 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     }
 
     let files =
-        file_repo::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
-    let maybe_doc_with_children = utils::filter_documents(&files)
+        file_service::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
+    let maybe_doc_with_children = files::filter_documents(&files)
         .into_iter()
-        .find(|d| !utils::find_children(&files, d.id).is_empty());
+        .find(|d| !files::find_children(&files, d.id).is_empty());
     if let Some(doc) = maybe_doc_with_children {
         return Err(TestRepoError::DocumentTreatedAsFolder(doc.id));
     }
@@ -81,7 +84,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         ));
     }
 
-    let maybe_path_conflict = file_service::get_path_conflicts(&files, &[])
+    let maybe_path_conflict = files::get_path_conflicts(&files, &[])
         .map_err(TestRepoError::Core)?
         .into_iter()
         .next();
@@ -92,7 +95,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     let mut warnings = Vec::new();
     for file in files {
         if file.file_type == FileType::Document {
-            let file_content = file_repo::get_document(config, RepoSource::Local, &file)
+            let file_content = file_service::get_document(config, RepoSource::Local, &file)
                 .map_err(|err| DocumentReadError(file.id, err))?;
 
             if file_content.len() as u64 == 0 {
@@ -113,8 +116,8 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
             }
 
             if extension == "draw"
-                && drawing_service::parse_drawing(
-                    &file_repo::get_document(config, RepoSource::Local, &file)
+                && drawing::parse_drawing(
+                    &file_service::get_document(config, RepoSource::Local, &file)
                         .map_err(TestRepoError::Core)?,
                 )
                 .is_err()

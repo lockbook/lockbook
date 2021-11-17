@@ -22,8 +22,12 @@ pub fn export_drawing(lb_path: &str, format: &str) -> CliResult<()> {
                         err!(FolderTreatedAsDoc(lb_path.to_string()))
                     }
                     ExportDrawingError::NoAccount => err!(NoAccount),
-                    ExportDrawingError::InvalidDrawing => err!(InvalidDrawing(file_metadata.name)),
-                    ExportDrawingError::FileDoesNotExist => err!(FileNotFound(file_metadata.name)),
+                    ExportDrawingError::InvalidDrawing => {
+                        err!(InvalidDrawing(file_metadata.decrypted_name))
+                    }
+                    ExportDrawingError::FileDoesNotExist => {
+                        err!(FileNotFound(file_metadata.decrypted_name))
+                    }
                 },
                 CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
             })?;

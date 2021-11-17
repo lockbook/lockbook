@@ -27,7 +27,7 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
             updateDetailScreenLoaderUI(
                 when (getContentsResults) {
                     is Ok -> {
-                        when (loadingInfo.fileMetadata.name.endsWith(".draw")) {
+                        when (loadingInfo.fileMetadata.decryptedName.endsWith(".draw")) {
                             true -> {
                                 val drawing = if (getContentsResults.value.isEmpty()) {
                                     Drawing()

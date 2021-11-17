@@ -35,7 +35,7 @@ class ShareModel(
         }
     }
 
-    fun shareDocuments(selectedFiles: List<ClientFileMetadata>, appDataDir: File): Result<Unit, CoreError> {
+    fun shareDocuments(selectedFiles: List<DecryptedFileMetadata>, appDataDir: File): Result<Unit, CoreError> {
         val cacheDir = getMainShareFolder(appDataDir)
 
         isLoadingOverlayVisible = true
@@ -43,7 +43,7 @@ class ShareModel(
 
         clearShareStorage(cacheDir)
 
-        val documents = mutableListOf<ClientFileMetadata>()
+        val documents = mutableListOf<DecryptedFileMetadata>()
         val selectedDocumentsResult = retrieveSelectedDocuments(selectedFiles, documents)
         if (selectedDocumentsResult is Err) {
             return selectedDocumentsResult
@@ -61,10 +61,10 @@ class ShareModel(
 
             shareItemFolder.mkdir()
 
-            if (file.name.endsWith(".draw")) {
+            if (file.decryptedName.endsWith(".draw")) {
                 val image = File(
                     shareItemFolder,
-                    file.name.removeSuffix(".draw") + ".${IMAGE_EXPORT_TYPE.name.lowercase()}"
+                    file.decryptedName.removeSuffix(".draw") + ".${IMAGE_EXPORT_TYPE.name.lowercase()}"
                 ).absoluteFile
 
                 when (
@@ -81,7 +81,7 @@ class ShareModel(
             } else {
                 val doc = File(
                     shareItemFolder,
-                    file.name
+                    file.decryptedName
                 ).absoluteFile
 
                 when (val saveDocumentToDiskResult = CoreModel.saveDocumentToDisk(config, file.id, doc.absolutePath)) {
@@ -100,8 +100,8 @@ class ShareModel(
     }
 
     private fun retrieveSelectedDocuments(
-        selectedFiles: List<ClientFileMetadata>,
-        documents: MutableList<ClientFileMetadata>
+        selectedFiles: List<DecryptedFileMetadata>,
+        documents: MutableList<DecryptedFileMetadata>
     ): Result<Unit, CoreError> {
         for (file in selectedFiles) {
             when (file.fileType) {

@@ -1,10 +1,12 @@
-use crate::core_err_unexpected;
+use uuid::Uuid;
+
+use lockbook_models::crypto::*;
+
+use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::local_storage;
 use crate::CoreError;
-use lockbook_models::crypto::*;
-use uuid::Uuid;
 
 const NAMESPACE_LOCAL: &str = "changed_local_documents";
 const NAMESPACE_BASE: &str = "all_base_documents";
@@ -75,13 +77,15 @@ pub fn delete_all(config: &Config, source: RepoSource) -> Result<(), CoreError> 
 
 #[cfg(test)]
 mod unit_tests {
+    use uuid::Uuid;
+
+    use lockbook_crypto::symkey;
+    use lockbook_models::crypto::AESEncrypted;
+
     use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
     use crate::repo::document_repo;
     use crate::service::test_utils;
-    use lockbook_crypto::symkey;
-    use lockbook_models::crypto::AESEncrypted;
-    use uuid::Uuid;
 
     #[test]
     fn get() {

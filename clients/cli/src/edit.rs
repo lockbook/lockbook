@@ -32,7 +32,11 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         | CoreError::Unexpected(_) => err_unexpected!("reading encrypted doc: {:#?}", err),
     })?;
 
-    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.name);
+    let file_location = format!(
+        "{}/{}",
+        get_directory_location()?,
+        file_metadata.decrypted_name
+    );
     let temp_file_path = Path::new(file_location.as_str());
     let mut file_handle = fs::File::create(&temp_file_path)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;

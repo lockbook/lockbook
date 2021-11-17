@@ -7,10 +7,10 @@ struct OutlineSection: View {
     @EnvironmentObject var onboarding: OnboardingService
     @ObservedObject var state: OutlineState
     
-    var root: ClientFileMetadata
+    var root: DecryptedFileMetadata
     
 
-    var children: [ClientFileMetadata] {
+    var children: [DecryptedFileMetadata] {
         files.files.filter {
             $0.parent == root.id && $0.id != root.id
         }

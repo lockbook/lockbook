@@ -2,9 +2,9 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct OutlineContextMenu {
-    static func getContextView(meta: ClientFileMetadata, outlineState: OutlineState, branchState: BranchState?) -> some View {
+    static func getContextView(meta: DecryptedFileMetadata, outlineState: OutlineState, branchState: BranchState?) -> some View {
         VStack {
-            Text(meta.name)
+            Text(meta.decryptedName)
             if meta.fileType == .Folder {
                 Button(action: {
                     branchState?.open = true

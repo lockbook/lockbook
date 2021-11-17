@@ -6,12 +6,12 @@ struct OutlineRow: View {
     
     @EnvironmentObject var files: FileService
     
-    var file: ClientFileMetadata
+    var file: DecryptedFileMetadata
     var level: CGFloat
     @Binding var open: Bool
-    @Binding var dragging: ClientFileMetadata?
+    @Binding var dragging: DecryptedFileMetadata?
 
-    var children: [ClientFileMetadata] {
+    var children: [DecryptedFileMetadata] {
         files.files.filter {
             $0.parent == file.id && $0.id != file.id
         }
@@ -45,7 +45,7 @@ struct OutlineRow: View {
                 .frame(width: 16, height: 16)
                 .padding(.leading, -4)
 
-            Text(file.name)
+            Text(file.decryptedName)
                 .lineLimit(1) // If lineLimit is not specified, non-leaf names will wrap
                 .truncationMode(.tail)
                 .allowsTightening(true)

@@ -2,7 +2,6 @@ pub mod exhaustive_sync;
 
 #[cfg(test)]
 pub mod sync_fuzzer2 {
-
     use crate::exhaustive_sync::experiment::Experiment;
 
     #[test]

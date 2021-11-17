@@ -62,7 +62,7 @@ class GetFileByIdTest {
     @Test
     fun getFileByIdUnexpectedError() {
         Klaxon().converter(getFileByIdConverter)
-            .parse<Result<ClientFileMetadata, GetFileByIdError>>(exportAccount(""))
+            .parse<Result<DecryptedFileMetadata, GetFileByIdError>>(exportAccount(""))
             .unwrapErrorType<GetFileByIdError.Unexpected>()
     }
 }

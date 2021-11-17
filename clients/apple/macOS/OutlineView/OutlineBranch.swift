@@ -14,10 +14,10 @@ struct OutlineBranch: View {
     @ObservedObject var outlineState: OutlineState
     @StateObject var state: BranchState = BranchState()
     
-    let file: ClientFileMetadata
+    let file: DecryptedFileMetadata
     var level: CGFloat
 
-    var children: [ClientFileMetadata] {
+    var children: [DecryptedFileMetadata] {
         files.files.filter {
             $0.parent == file.id && $0.id != file.id
         }
@@ -32,7 +32,7 @@ struct OutlineBranch: View {
         ScrollViewReader { scrollView in
             VStack(alignment: .leading, spacing: 2) { // spacing: 2 is what List uses
                 if level == -1 {
-                    Text(file.name).opacity(0.4)
+                    Text(file.decryptedName).opacity(0.4)
                 } else {
                     if let isRenaming = outlineState.renaming, isRenaming == file {
                         SyntheticOutlineRow(
@@ -48,7 +48,7 @@ struct OutlineBranch: View {
                                 }
                             },
                             pendingImage: Image(systemName: "pencil"),
-                            nameField: file.name
+                            nameField: file.decryptedName
                         ).onDisappear {
                             withAnimation {
                                 self.files.refresh()
@@ -114,13 +114,13 @@ struct OutlineBranch: View {
         }
     }
     
-    func handleDelete(meta: ClientFileMetadata) -> () -> Void {
+    func handleDelete(meta: DecryptedFileMetadata) -> () -> Void {
         return {
             files.deleteFile(id: meta.id)
         }
     }
     
-    func handleCreate(meta: ClientFileMetadata, type: FileType) -> (String) -> Void {
+    func handleCreate(meta: DecryptedFileMetadata, type: FileType) -> (String) -> Void {
         return { creatingName in
             switch DI.core.createFile(name: creatingName, dirId: meta.id, isFolder: type == .Folder) {
             case .success(let newMeta):
@@ -145,12 +145,12 @@ struct OutlineBranch: View {
 
 
 struct DragDropper: DropDelegate {
-    let file: ClientFileMetadata
-    @Binding var current: ClientFileMetadata?
+    let file: DecryptedFileMetadata
+    @Binding var current: DecryptedFileMetadata?
     @Binding var open: Bool
-    let moveFile: (ClientFileMetadata) -> Void
+    let moveFile: (DecryptedFileMetadata) -> Void
 
-    init(file: ClientFileMetadata, current: Binding<ClientFileMetadata?>, open: Binding<Bool>, moveFile: @escaping (ClientFileMetadata) -> Void) {
+    init(file: DecryptedFileMetadata, current: Binding<DecryptedFileMetadata?>, open: Binding<Bool>, moveFile: @escaping (DecryptedFileMetadata) -> Void) {
         self.file = file
         self._current = current
         self._open = open

@@ -1,10 +1,10 @@
 use lockbook_core::service::sync_service::SyncProgress;
 use lockbook_core::{sync_all, Error, SyncAllError};
+use lockbook_models::work_unit::ClientWorkUnit;
 
 use crate::error::CliResult;
 use crate::utils::{account, config};
 use crate::{err, err_unexpected};
-use lockbook_core::model::client_conversion::ClientWorkUnit;
 
 pub fn sync() -> CliResult<()> {
     account()?;

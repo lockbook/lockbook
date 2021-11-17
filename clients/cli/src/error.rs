@@ -1,3 +1,6 @@
+use crate::err_unexpected;
+use lockbook_core::UnexpectedError;
+
 pub type CliResult<T> = Result<T, Error>;
 
 pub enum Error {
@@ -30,6 +33,12 @@ impl Error {
             Self::Simple(base) => base.code(),
             Self::Custom(err) => err.base.code(),
         })
+    }
+}
+
+impl From<UnexpectedError> for Error {
+    fn from(e: UnexpectedError) -> Self {
+        err_unexpected!("unexpected error: {}", e)
     }
 }
 

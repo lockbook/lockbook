@@ -1,20 +1,22 @@
 #![allow(dead_code)]
 
-use crate::model::state::Config;
-use crate::repo::{file_repo, root_repo};
-
-use lockbook_models::account::Account;
-use lockbook_models::crypto::*;
-use lockbook_models::file_metadata::{FileMetadata, FileType};
-
-use crate::repo::{account_repo, db_version_repo};
-use lockbook_crypto::{pubkey, symkey};
-use lockbook_models::file_metadata::FileType::Folder;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
+
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use uuid::Uuid;
+
+use lockbook_crypto::{pubkey, symkey};
+use lockbook_models::account::Account;
+use lockbook_models::crypto::*;
+use lockbook_models::file_metadata::FileType::Folder;
+use lockbook_models::file_metadata::{FileMetadata, FileType};
+
+use crate::model::state::Config;
+use crate::repo::root_repo;
+use crate::repo::{account_repo, db_version_repo};
+use crate::service::file_service;
 
 #[macro_export]
 macro_rules! assert_matches (
@@ -186,13 +188,13 @@ pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
     );
 
     assert_eq!(
-        file_repo::get_all_metadata_state(db1).unwrap(),
-        file_repo::get_all_metadata_state(db2).unwrap()
+        file_service::get_all_metadata_state(db1).unwrap(),
+        file_service::get_all_metadata_state(db2).unwrap()
     );
 
     assert_eq!(
-        file_repo::get_all_document_state(db1).unwrap(),
-        file_repo::get_all_document_state(db2).unwrap()
+        file_service::get_all_document_state(db1).unwrap(),
+        file_service::get_all_document_state(db2).unwrap()
     );
 }
 
@@ -200,8 +202,8 @@ pub fn dbs_equal(db1: &Config, db2: &Config) -> bool {
     account_repo::get(db1).unwrap() == account_repo::get(db2).unwrap()
         && db_version_repo::maybe_get(db1).unwrap() == db_version_repo::maybe_get(db2).unwrap()
         && root_repo::maybe_get(db1).unwrap() == root_repo::maybe_get(db2).unwrap()
-        && file_repo::get_all_metadata_state(db1).unwrap()
-            == file_repo::get_all_metadata_state(db2).unwrap()
-        && file_repo::get_all_document_state(db1).unwrap()
-            == file_repo::get_all_document_state(db2).unwrap()
+        && file_service::get_all_metadata_state(db1).unwrap()
+            == file_service::get_all_metadata_state(db2).unwrap()
+        && file_service::get_all_document_state(db1).unwrap()
+            == file_service::get_all_document_state(db2).unwrap()
 }

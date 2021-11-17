@@ -1,8 +1,9 @@
+use uuid::Uuid;
+
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::local_storage;
 use crate::CoreError;
-use uuid::Uuid;
 
 const NAMESPACE_LOCAL: &str = "changed_local_document_digests";
 const NAMESPACE_BASE: &str = "all_base_document_digests";
@@ -53,10 +54,11 @@ pub fn delete_all(config: &Config, source: RepoSource) -> Result<(), CoreError> 
 
 #[cfg(test)]
 mod unit_tests {
+    use uuid::Uuid;
+
     use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
     use crate::repo::digest_repo;
-    use uuid::Uuid;
 
     #[test]
     fn get() {

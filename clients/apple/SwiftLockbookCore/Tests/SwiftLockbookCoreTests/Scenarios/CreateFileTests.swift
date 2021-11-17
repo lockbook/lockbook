@@ -3,7 +3,7 @@ import XCTest
 
 class CreateFileTests: SLCTest {
     var account: Account?
-    var root: ClientFileMetadata?
+    var root: DecryptedFileMetadata?
     
     override func setUpWithError() throws {
         try super.setUpWithError()

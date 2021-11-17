@@ -11,7 +11,7 @@ import androidx.fragment.app.viewModels
 import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
-import app.lockbook.util.ClientFileMetadata
+import app.lockbook.util.DecryptedFileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.HorizontalViewHolder
 import com.afollestad.recyclical.setup
@@ -53,16 +53,16 @@ class MoveFileDialogFragment : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         binding.moveFileList.setup {
             withDataSource(model.files)
-            withItem<ClientFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
+            withItem<DecryptedFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
                 onBind(::HorizontalViewHolder) { _, item ->
-                    name.text = item.name
+                    name.text = item.decryptedName
                     description.text = resources.getString(
                         R.string.last_synced,
                         CoreModel.convertToHumanDuration(item.metadataVersion)
                     )
 
                     when {
-                        item.fileType == FileType.Document && item.name.endsWith(".draw") -> {
+                        item.fileType == FileType.Document && item.decryptedName.endsWith(".draw") -> {
                             icon.setImageResource(R.drawable.ic_baseline_border_color_24)
                         }
                         item.fileType == FileType.Document -> {

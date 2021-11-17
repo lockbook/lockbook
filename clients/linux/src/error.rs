@@ -1,3 +1,4 @@
+use lockbook_core::UnexpectedError;
 #[macro_export]
 macro_rules! uerr {
     ($base:literal $(, $args:tt )* | $target:expr) => {
@@ -75,5 +76,11 @@ impl LbError {
 
     pub fn fmt_program_err<T: std::fmt::Debug>(err: T) -> Self {
         progerr!("{:?}", err)
+    }
+}
+
+impl From<UnexpectedError> for LbError {
+    fn from(e: UnexpectedError) -> Self {
+        progerr!("unexpected error: {}", e)
     }
 }

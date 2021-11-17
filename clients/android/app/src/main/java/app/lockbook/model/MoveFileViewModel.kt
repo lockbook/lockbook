@@ -12,10 +12,10 @@ import kotlinx.coroutines.*
 
 class MoveFileViewModel(application: Application) :
     AndroidViewModel(application) {
-    private lateinit var currentParent: ClientFileMetadata
+    private lateinit var currentParent: DecryptedFileMetadata
     lateinit var ids: Array<String>
 
-    var files = emptyDataSourceTyped<ClientFileMetadata>()
+    var files = emptyDataSourceTyped<DecryptedFileMetadata>()
 
     private val _closeDialog = MutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
@@ -71,11 +71,10 @@ class MoveFileViewModel(application: Application) :
                 }.toMutableList()
                 tempFiles.add(
                     0,
-                    ClientFileMetadata(
+                    DecryptedFileMetadata(
                         id = "PARENT",
-                        name = "..",
-                        parent = "The parent file is ${currentParent.name}"
-
+                        decryptedName = "..",
+                        parent = "The parent file is ${currentParent.decryptedName}"
                     )
                 )
 
@@ -98,7 +97,7 @@ class MoveFileViewModel(application: Application) :
         }.exhaustive
     }
 
-    fun onItemClick(item: ClientFileMetadata) {
+    fun onItemClick(item: DecryptedFileMetadata) {
         viewModelScope.launch(Dispatchers.IO) {
             when (item.id) {
                 "PARENT" -> {

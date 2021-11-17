@@ -2,6 +2,8 @@ mod integration_test;
 
 #[cfg(test)]
 mod get_usage_tests {
+    use std::path::Path;
+
     use lockbook_core::model::repo::RepoSource;
     use lockbook_core::repo::document_repo;
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
@@ -11,7 +13,6 @@ mod get_usage_tests {
     };
     use lockbook_models::file_metadata::FileType;
     use lockbook_models::file_metadata::FileType::Folder;
-    use std::path::Path;
 
     // TODO can likely be moved to test_utils
     #[macro_export]
