@@ -3,10 +3,10 @@ import SwiftLockbookCore
 
 struct BookView: View {
     
-    let currentFolder: ClientFileMetadata
+    let currentFolder: DecryptedFileMetadata
     let account: Account
     
-    @State var moving: ClientFileMetadata?
+    @State var moving: DecryptedFileMetadata?
 
     var body: some View {
         NavigationView {

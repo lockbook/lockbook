@@ -3,7 +3,7 @@ import Foundation
 
 class ModifyFileTests: SLCTest {
     var account: Account?
-    var root: ClientFileMetadata?
+    var root: DecryptedFileMetadata?
     
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -52,9 +52,9 @@ class ModifyFileTests: SLCTest {
         
         let resultCreateFile = core.api.createFile(name: filename1, dirId: root!.id, isFolder: false)
         
-        assertSuccess(resultCreateFile) { $0.name == filename1 }
+        assertSuccess(resultCreateFile) { $0.decryptedName == filename1 }
         
-        assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.name == filename1 || $0.id == root?.id } }
+        assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.decryptedName == filename1 || $0.id == root?.id } }
         
         let createdFile = try resultCreateFile.get()
         
@@ -62,6 +62,6 @@ class ModifyFileTests: SLCTest {
         
         assertSuccess(core.api.renameFile(id: createdFile.id, name: filename2))
         
-        assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.name == filename2 || $0.id == root?.id } }
+        assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.decryptedName == filename2 || $0.id == root?.id } }
     }
 }
