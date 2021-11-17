@@ -14,13 +14,13 @@ struct FileListView: View {
     @State var creatingFile: Bool = false
     @State var creating: FileType?
     @State var creatingName: String = ""
-    let currentFolder: ClientFileMetadata
+    let currentFolder: DecryptedFileMetadata
     let account: Account
-    @Binding var moving: ClientFileMetadata?
-    @State var renaming: ClientFileMetadata?
-    @State private var selection: ClientFileMetadata?
+    @Binding var moving: DecryptedFileMetadata?
+    @State var renaming: DecryptedFileMetadata?
+    @State private var selection: DecryptedFileMetadata?
     
-    var files: [ClientFileMetadata] {
+    var files: [DecryptedFileMetadata] {
         fileService.files.filter {
             $0.parent == currentFolder.id && $0.id != currentFolder.id
         }
@@ -44,7 +44,7 @@ struct FileListView: View {
                         })
                         Button(action: {
                             renaming = meta
-                            creatingName = meta.name
+                            creatingName = meta.decryptedName
                         }, label: {
                             Label("Rename", systemImage: "pencil")
                         })
@@ -65,7 +65,7 @@ struct FileListView: View {
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 sync.sync()
             }
-            .navigationBarTitle(currentFolder.name)
+            .navigationBarTitle(currentFolder.decryptedName)
             HStack {
                 BottomBar(onCreating: { creatingFile = true })
             }
@@ -76,13 +76,13 @@ struct FileListView: View {
 
     }
     
-    func renderMoveDialog(meta: ClientFileMetadata) -> some View {
+    func renderMoveDialog(meta: DecryptedFileMetadata) -> some View {
         let root = fileService.files.first(where: { $0.parent == $0.id })!
         let wc = WithChild(root, fileService.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
         
         return ScrollView {
             VStack {
-                Text("Moving \(meta.name)").font(.headline)
+                Text("Moving \(meta.decryptedName)").font(.headline)
                 NestedList(
                     node: wc,
                     row: { dest in
@@ -90,7 +90,7 @@ struct FileListView: View {
                             moving = nil
                             fileService.moveFile(id: meta.id, newParent: dest.id)
                         }, label: {
-                            Label(dest.name, systemImage: "folder")
+                            Label(dest.decryptedName, systemImage: "folder")
                         })
                     }
                 )
@@ -99,7 +99,7 @@ struct FileListView: View {
         }
     }
     
-    func renderCell(meta: ClientFileMetadata) -> AnyView {
+    func renderCell(meta: DecryptedFileMetadata) -> AnyView {
         if let isRenaming = renaming, isRenaming == meta {
             return AnyView(
                 SyntheticFileCell(
@@ -133,12 +133,12 @@ struct FileListView: View {
         }
     }
     
-    func handleDelete(meta: ClientFileMetadata) {
+    func handleDelete(meta: DecryptedFileMetadata) {
         self.fileService.deleteFile(id: meta.id)
         selection = .none
     }
     
-    func fileSuccessfullyCreated(new: ClientFileMetadata) {
+    func fileSuccessfullyCreated(new: DecryptedFileMetadata) {
         creatingFile = false
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1000)) {
             selection = new

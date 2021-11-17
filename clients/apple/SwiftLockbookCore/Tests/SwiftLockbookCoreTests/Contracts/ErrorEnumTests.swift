@@ -4,7 +4,6 @@ import XCTest
 
 class ErrorEnumTests: XCTestCase {
     struct AllErrors: Decodable {
-        let GetStateError: [GetStateError]
         let MigrationError: [MigrationError]
         let CreateAccountError: [CreateAccountError]
         let ImportError: [ImportError]
@@ -14,17 +13,13 @@ class ErrorEnumTests: XCTestCase {
         let WriteToDocumentError: [WriteToDocumentError]
         let CreateFileError: [CreateFileError]
         let GetRootError: [GetRootError]
-        let GetChildrenError: [GetChildrenError]
         let GetFileByIdError: [GetFileByIdError]
         let GetFileByPathError: [GetFileByPathError]
         let ReadDocumentError: [ReadDocumentError]
-        let ListPathsError: [ListPathsError]
-        let ListMetadatasError: [ListMetadatasError]
         let RenameFileError: [RenameFileError]
         let MoveFileError: [MoveFileError]
         let SyncAllError: [SyncAllError]
         let CalculateWorkError: [CalculateWorkError]
-        let GetLastSyncedError: [GetLastSyncedError]
         let GetUsageError: [GetUsageError]
         let FileDeleteError: [FileDeleteError]
         let GetDrawingError: [GetDrawingError]
@@ -32,8 +27,7 @@ class ErrorEnumTests: XCTestCase {
         let ExportDrawingError: [ExportDrawingError]
 
         func noneEmpty() -> Bool {
-            !GetStateError.isEmpty
-                && !MigrationError.isEmpty
+                !MigrationError.isEmpty
                 && !CreateAccountError.isEmpty
                 && !ImportError.isEmpty
                 && !AccountExportError.isEmpty
@@ -42,17 +36,13 @@ class ErrorEnumTests: XCTestCase {
                 && !WriteToDocumentError.isEmpty
                 && !CreateFileError.isEmpty
                 && !GetRootError.isEmpty
-                && !GetChildrenError.isEmpty
                 && !GetFileByIdError.isEmpty
                 && !GetFileByPathError.isEmpty
                 && !ReadDocumentError.isEmpty
-                && !ListPathsError.isEmpty
-                && !ListMetadatasError.isEmpty
                 && !RenameFileError.isEmpty
                 && !MoveFileError.isEmpty
                 && !SyncAllError.isEmpty
                 && !CalculateWorkError.isEmpty
-                && !GetLastSyncedError.isEmpty
                 && !GetUsageError.isEmpty
                 && !FileDeleteError.isEmpty
                 && !GetDrawingError.isEmpty

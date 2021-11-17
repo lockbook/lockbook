@@ -43,7 +43,7 @@ class SyncModel(
             resources.getString(R.string.list_files_sync_finished_snackbar)
 
         when (val workCalculatedResult = CoreModel.calculateWork(config)) {
-            is Ok -> if (workCalculatedResult.value.localFiles.size + workCalculatedResult.value.serverFiles.size + workCalculatedResult.value.serverUnknownNameCount == 0) {
+            is Ok -> if (workCalculatedResult.value.workUnits.isEmpty()) {
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(upToDateMsg))
                 return
             }

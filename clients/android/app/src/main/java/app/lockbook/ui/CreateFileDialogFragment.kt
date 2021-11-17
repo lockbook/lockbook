@@ -35,7 +35,7 @@ class CreateFileDialogFragment : DialogFragment() {
 
     private val activityModel: StateViewModel by activityViewModels()
     private lateinit var info: CreateFileInfo
-    var newFile: ClientFileMetadata? = null
+    var newFile: DecryptedFileMetadata? = null
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()), view)

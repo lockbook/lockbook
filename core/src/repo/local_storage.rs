@@ -1,9 +1,10 @@
-use crate::core_err_unexpected;
-use crate::model::state::Config;
-use crate::CoreError;
 use std::fs::{self, create_dir_all, read_dir, remove_file, File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
+
+use crate::model::errors::core_err_unexpected;
+use crate::model::state::Config;
+use crate::CoreError;
 
 pub fn write<N, K, V>(db: &Config, namespace: N, key: K, value: V) -> Result<(), CoreError>
 where

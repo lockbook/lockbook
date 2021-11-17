@@ -1,16 +1,18 @@
-use crate::model::client_conversion;
-use crate::model::client_conversion::ClientFileMetadata;
-use crate::model::repo::RepoSource;
-use crate::model::state::Config;
-use crate::repo::file_repo;
-use crate::service::path_service;
-use crate::{utils, CoreError};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use std::fs;
 use std::fs::{DirEntry, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
 use uuid::Uuid;
+
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+
+use crate::model::repo::RepoSource;
+use crate::model::state::Config;
+use crate::pure_functions::files;
+use crate::service::file_service;
+use crate::service::path_service;
+use crate::CoreError;
 
 pub struct ImportExportFileInfo {
     pub disk_path: PathBuf,
@@ -23,7 +25,7 @@ pub fn import_file(
     parent: Uuid,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    if file_repo::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type
+    if file_service::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type
         != FileType::Folder
     {
         return Err(CoreError::FileNotFolder);
@@ -75,7 +77,7 @@ fn import_file_recursively(
             Err(err) => return Err(err),
         };
 
-        file_repo::insert_document(config, RepoSource::Local, &file_metadata, &content)?;
+        file_service::insert_document(config, RepoSource::Local, &file_metadata, &content)?;
     } else {
         let children: Vec<Result<DirEntry, std::io::Error>> =
             fs::read_dir(disk_path).map_err(CoreError::from)?.collect();
@@ -113,14 +115,12 @@ pub fn export_file(
         return Err(CoreError::DiskPathInvalid);
     }
 
-    let file_metadata = client_conversion::generate_client_file_metadata(
-        &file_repo::get_not_deleted_metadata(config, RepoSource::Local, id)?,
-    )?;
-    let all = file_repo::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    let file_metadata = &file_service::get_not_deleted_metadata(config, RepoSource::Local, id)?;
+    let all = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     export_file_recursively(
         config,
         &all,
-        &file_metadata,
+        file_metadata,
         &destination,
         edit,
         &export_progress,
@@ -130,12 +130,12 @@ pub fn export_file(
 fn export_file_recursively(
     config: &Config,
     all: &[DecryptedFileMetadata],
-    parent_file_metadata: &ClientFileMetadata,
+    parent_file_metadata: &DecryptedFileMetadata,
     disk_path: &Path,
     edit: bool,
     export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    let dest_with_new = disk_path.join(&parent_file_metadata.name);
+    let dest_with_new = disk_path.join(&parent_file_metadata.decrypted_name);
 
     if let Some(ref func) = export_progress {
         func(ImportExportFileInfo {
@@ -146,20 +146,11 @@ fn export_file_recursively(
 
     match parent_file_metadata.file_type {
         FileType::Folder => {
-            let children = utils::find_children(all, parent_file_metadata.id);
+            let children = files::find_children(all, parent_file_metadata.id);
             fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
             for child in children.iter() {
-                let child_file_metadata = client_conversion::generate_client_file_metadata(child)?;
-
-                export_file_recursively(
-                    config,
-                    all,
-                    &child_file_metadata,
-                    &dest_with_new,
-                    edit,
-                    export_progress,
-                )?;
+                export_file_recursively(config, all, child, &dest_with_new, edit, export_progress)?;
             }
         }
         FileType::Document => {
@@ -177,7 +168,7 @@ fn export_file_recursively(
             .map_err(CoreError::from)?;
 
             file.write_all(
-                file_repo::get_not_deleted_document(
+                file_service::get_not_deleted_document(
                     config,
                     RepoSource::Local,
                     all,
