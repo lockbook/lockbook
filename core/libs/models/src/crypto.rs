@@ -1,8 +1,9 @@
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
 use libsecp256k1::PublicKey;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::marker::PhantomData;
 
 pub type AESKey = [u8; 32];
 pub type DecryptedDocument = Vec<u8>;

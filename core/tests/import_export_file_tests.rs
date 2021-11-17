@@ -2,6 +2,9 @@ mod integration_test;
 
 #[cfg(test)]
 mod import_export_file_tests {
+    use rand::Rng;
+    use uuid::Uuid;
+
     use lockbook_core::model::state::temp_config;
     use lockbook_core::service::import_export_service::ImportExportFileInfo;
     use lockbook_core::service::test_utils::generate_account;
@@ -10,8 +13,6 @@ mod import_export_file_tests {
         import_file, write_document,
     };
     use lockbook_models::file_metadata::FileType;
-    use rand::Rng;
-    use uuid::Uuid;
 
     #[test]
     fn import_file_successfully() {
@@ -42,7 +43,7 @@ mod import_export_file_tests {
 
         import_file(&config, doc_path, root.id, Some(Box::new(f.clone()))).unwrap();
 
-        get_file_by_path(&config, &format!("/{}/{}", root.name, name)).unwrap();
+        get_file_by_path(&config, &format!("/{}/{}", root.decrypted_name, name)).unwrap();
 
         // generating folder with a document in /tmp/
         let parent_name = Uuid::new_v4().to_string();
@@ -59,7 +60,7 @@ mod import_export_file_tests {
 
         get_file_by_path(
             &config,
-            &format!("/{}/{}/{}", root.name, parent_name, child_name),
+            &format!("/{}/{}/{}", root.decrypted_name, parent_name, child_name),
         )
         .unwrap();
     }
@@ -100,14 +101,14 @@ mod import_export_file_tests {
         )
         .unwrap();
 
-        assert!(tmp_path.join(file.name).exists());
+        assert!(tmp_path.join(file.decrypted_name).exists());
 
         // generating folder with a document in lockbook
         let parent_name = Uuid::new_v4().to_string();
         let child_name = Uuid::new_v4().to_string();
         let child = create_file_at_path(
             &config,
-            &format!("/{}/{}/{}", root.name, parent_name, child_name),
+            &format!("/{}/{}/{}", root.decrypted_name, parent_name, child_name),
         )
         .unwrap();
 

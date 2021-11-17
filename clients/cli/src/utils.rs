@@ -1,7 +1,7 @@
 use lockbook_core::model::state::Config;
 use lockbook_core::{
-    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db, Error,
-    GetAccountError, GetStateError, MigrationError,
+    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
+    GetAccountError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 use std::{env, fs};
@@ -10,11 +10,9 @@ use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
+use lockbook_core::pure_functions::drawing::SupportedImageFormats;
+use lockbook_core::pure_functions::drawing::SupportedImageFormats::*;
 use lockbook_core::service::db_state_service::State;
-use lockbook_core::service::drawing_service::SupportedImageFormats;
-use lockbook_core::service::drawing_service::SupportedImageFormats::{
-    Bmp, Farbfeld, Jpeg, Png, Pnm, Tga,
-};
 use lockbook_models::account::Account;
 use uuid::Uuid;
 
@@ -26,10 +24,7 @@ macro_rules! path_string {
 }
 
 pub fn init_logger_or_print() -> CliResult<()> {
-    init_logger(config()?.path()).map_err(|err| match err {
-        Error::UiError(()) => err_unexpected!("impossible"),
-        Error::Unexpected(msg) => err_unexpected!("{}", msg),
-    })
+    Ok(init_logger(config()?.path())?)
 }
 
 pub fn account() -> CliResult<Account> {
@@ -43,10 +38,7 @@ pub fn account() -> CliResult<Account> {
 }
 
 pub fn check_and_perform_migrations() -> CliResult<()> {
-    let state = get_db_state(&config()?).map_err(|err| match err {
-        CoreError::UiError(GetStateError::Stub) => err_unexpected!("impossible"),
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-    })?;
+    let state = get_db_state(&config()?).map_err(|err| err_unexpected!("{}", err))?;
 
     match state {
         State::ReadyToUse => {}

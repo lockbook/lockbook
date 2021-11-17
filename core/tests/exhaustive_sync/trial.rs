@@ -1,11 +1,8 @@
 use std::{fs, thread};
 
-use crate::exhaustive_sync::trial::Action::{
-    AttemptFolderMove, DeleteFile, MoveDocument, NewDocument, NewFolder, NewMarkdownDocument,
-    RenameFile, SyncAndCheck, UpdateDocument,
-};
-use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
-use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
+use uuid::Uuid;
+use variant_count::VariantCount;
+
 use lockbook_core::model::state::Config;
 use lockbook_core::service::integrity_service::test_repo_integrity;
 use lockbook_core::service::test_utils::{dbs_equal, random_username, test_config, url};
@@ -17,9 +14,13 @@ use lockbook_core::{
 use lockbook_core::{create_file, list_metadatas};
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use std::time::Duration;
-use uuid::Uuid;
-use variant_count::VariantCount;
+
+use crate::exhaustive_sync::trial::Action::{
+    AttemptFolderMove, DeleteFile, MoveDocument, NewDocument, NewFolder, NewMarkdownDocument,
+    RenameFile, SyncAndCheck, UpdateDocument,
+};
+use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
+use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
 
 #[derive(VariantCount, Debug, Clone)]
 pub enum Action {
@@ -253,25 +254,9 @@ impl Trial {
                             break 'steps;
                         }
 
-                        if !calculate_work(row).unwrap().local_files.is_empty() {
+                        if !calculate_work(row).unwrap().work_units.is_empty() {
                             self.status = Failed(format!(
-                                "local_files not empty, client: {}",
-                                row.writeable_path
-                            ));
-                            break 'steps;
-                        }
-
-                        if !calculate_work(row).unwrap().server_files.is_empty() {
-                            self.status = Failed(format!(
-                                "server_files not empty, client: {}",
-                                row.writeable_path
-                            ));
-                            break 'steps;
-                        }
-
-                        if calculate_work(row).unwrap().server_unknown_name_count > 0 {
-                            self.status = Failed(format!(
-                                "server_unknown_name_count not empty, client: {}",
+                                "work units not empty, client: {}",
                                 row.writeable_path
                             ));
                             break 'steps;
@@ -307,13 +292,13 @@ impl Trial {
                 if file.id != file.parent {
                     mutants.push(self.create_mutation(RenameFile {
                         client: client_index,
-                        name: file.name.clone(),
+                        name: file.decrypted_name.clone(),
                         new_name: random_filename(),
                     }));
 
                     mutants.push(self.create_mutation(DeleteFile {
                         client: client_index,
-                        name: file.name,
+                        name: file.decrypted_name,
                     }));
                 }
             }
@@ -322,7 +307,7 @@ impl Trial {
                 let parent_name = if folder.id == folder.parent {
                     "root".to_string()
                 } else {
-                    folder.name
+                    folder.decrypted_name
                 };
 
                 mutants.push(self.create_mutation(NewDocument {
@@ -346,7 +331,7 @@ impl Trial {
                 for doc in docs.clone() {
                     mutants.push(self.create_mutation(MoveDocument {
                         client: client_index,
-                        doc_name: doc.name.clone(),
+                        doc_name: doc.decrypted_name.clone(),
                         destination_name: parent_name.clone(),
                     }))
                 }
@@ -356,7 +341,7 @@ impl Trial {
                         let folder2_name = if folder2.id == folder2.parent {
                             "root".to_string()
                         } else {
-                            folder2.name
+                            folder2.decrypted_name
                         };
                         mutants.push(self.create_mutation(AttemptFolderMove {
                             client: client_index,
@@ -370,7 +355,7 @@ impl Trial {
             for doc in docs.clone() {
                 mutants.push(self.create_mutation(UpdateDocument {
                     client: client_index,
-                    name: doc.name.clone(),
+                    name: doc.decrypted_name.clone(),
                     new_content: random_utf8(),
                 }));
             }

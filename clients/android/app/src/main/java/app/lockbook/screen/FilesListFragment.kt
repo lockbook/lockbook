@@ -245,9 +245,9 @@ class FilesListFragment : Fragment(), FilesFragment {
             withDataSource(model.selectableFiles)
             withEmptyView(binding.listFilesFrameLayout.findViewById(R.id.files_empty_folder)!!)
 
-            withItem<ClientFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
+            withItem<DecryptedFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
                 onBind(::HorizontalViewHolder) { _, item ->
-                    name.text = item.name
+                    name.text = item.decryptedName
                     description.text = resources.getString(
                         R.string.last_synced,
                         CoreModel.convertToHumanDuration(item.metadataVersion)
@@ -257,7 +257,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                         isSelected() -> {
                             icon.setImageResource(R.drawable.ic_baseline_check_24)
                         }
-                        item.fileType == FileType.Document && item.name.endsWith(".draw") -> {
+                        item.fileType == FileType.Document && item.decryptedName.endsWith(".draw") -> {
                             icon.setImageResource(R.drawable.ic_baseline_border_color_24)
                         }
                         item.fileType == FileType.Document -> {
@@ -292,7 +292,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
-    private fun enterFile(item: ClientFileMetadata) {
+    private fun enterFile(item: DecryptedFileMetadata) {
         when (item.fileType) {
             FileType.Document -> {
                 activityModel.launchDetailsScreen(DetailsScreen.Loading(item))
@@ -451,7 +451,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         toggleMenuBar()
     }
 
-    override fun onNewFileCreated(newDocument: ClientFileMetadata?) {
+    override fun onNewFileCreated(newDocument: DecryptedFileMetadata?) {
         when {
             newDocument != null && PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .getBoolean(getString(R.string.open_new_doc_automatically_key), true) -> {

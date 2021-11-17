@@ -63,7 +63,7 @@ lib_c_for_swift_ios:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
 	@rm ${swift_inc}lockbook_core.h || true
-	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	cbindgen src/external_interface/c_interface.rs -l c > lockbook_core.h
 	@mkdir -p ${swift_inc}
 	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
@@ -78,7 +78,7 @@ lib_c_for_swift_native:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
 	@rm ${swift_inc}lockbook_core.h || echo "no prior .h"
-	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	cbindgen src/external_interface/c_interface.rs -l c > lockbook_core.h
 	@mkdir -p ${swift_inc}
 	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
@@ -92,7 +92,7 @@ lib_c_for_swift_universal:
 	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
 	@echo "Creating header"
 	@rm ${swift_inc}lockbook_core.h || echo "no prior .h"
-	cbindgen src/c_interface.rs -l c > lockbook_core.h
+	cbindgen src/external_interface/c_interface.rs -l c > lockbook_core.h
 	@mkdir -p ${swift_inc}
 	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
