@@ -16,14 +16,14 @@ struct NewFileSheet: View {
     
     @Environment(\.presentationMode) var presentationMode
     
-    let parent: ClientFileMetadata
+    let parent: DecryptedFileMetadata
     
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
     @State var errors: String = ""
     @State var introspected = false
     
-    var onSuccess: (_: ClientFileMetadata) -> Void
+    var onSuccess: (_: DecryptedFileMetadata) -> Void
     
     var body: some View {
         VStack (alignment: .leading, spacing: 15){
@@ -41,7 +41,7 @@ struct NewFileSheet: View {
             }
             HStack {
                 Text("Inside:")
-                Text(parent.name + "/")
+                Text(parent.decryptedName + "/")
                     .font(.system(.body, design: .monospaced))
             }
             Picker(selection: $selected, label: Text(""), content: {

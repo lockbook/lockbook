@@ -3,11 +3,11 @@ import SwiftLockbookCore
 import Introspect
 
 struct FileCell: View {
-    let meta: ClientFileMetadata
+    let meta: DecryptedFileMetadata
     
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(meta.name)
+            Text(meta.decryptedName)
                 .font(.title3)
             HStack {
                 Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
@@ -24,7 +24,7 @@ struct FileCell: View {
 }
 
 struct SyntheticFileCell: View {
-    let parent: ClientFileMetadata
+    let parent: DecryptedFileMetadata
     let type: FileType
     @Binding var name: String
     let onCommit: () -> Void
@@ -54,7 +54,7 @@ struct SyntheticFileCell: View {
                 HStack {
                     Image(systemName: type == .Folder ? "folder" : "doc")
                         .foregroundColor(type == .Folder ? .blue : .secondary)
-                    Text(renaming ? "Renaming \(parent.name)" : "New \(newWhat) in \(parent.name)")
+                    Text(renaming ? "Renaming \(parent.decryptedName)" : "New \(newWhat) in \(parent.decryptedName)")
                         .foregroundColor(.gray)
                 }.font(.footnote)
             }

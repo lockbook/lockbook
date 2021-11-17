@@ -1,6 +1,6 @@
+use crate::model::errors::{core_err_unexpected, CoreError};
 use crate::model::state::Config;
 use crate::repo::local_storage;
-use crate::{core_err_unexpected, CoreError};
 
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 

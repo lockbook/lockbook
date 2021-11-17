@@ -70,7 +70,7 @@ struct NestedList_Previews: PreviewProvider {
         NestedList(
             node: .init(FakeApi.root, FakeApi.fileMetas, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder }),
             row: {
-                Label($0.name, systemImage: "folder")
+                Label($0.decryptedName, systemImage: "folder")
             }
         )
     }

@@ -1,12 +1,14 @@
+use std::convert::TryInto;
+
 use libsecp256k1::Message;
 use libsecp256k1::{PublicKey, SecretKey, SharedSecret, Signature};
 use rand::rngs::OsRng;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::convert::TryInto;
+
+use lockbook_models::crypto::*;
 
 use crate::clock_service::{timestamp, TimeGetter};
-use lockbook_models::crypto::*;
 
 pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)
@@ -104,9 +106,10 @@ pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> Result<AESKey, GetAesKeyEr
 
 #[cfg(test)]
 mod unit_test_pubkey {
+    use libsecp256k1::PublicKey;
+
     use crate::clock_service::Timestamp;
     use crate::pubkey::*;
-    use libsecp256k1::PublicKey;
 
     static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(500);
     static LATE_CLOCK: fn() -> Timestamp = || Timestamp(520);

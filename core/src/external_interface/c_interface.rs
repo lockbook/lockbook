@@ -1,16 +1,17 @@
-use serde_json::json;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::str::FromStr;
+
+use serde::Serialize;
+use serde_json::json;
 use uuid::Uuid;
 
-use crate::get_all_error_variants;
-use crate::json_interface::translate;
-use crate::model::state::Config;
-use crate::service::drawing_service::SupportedImageFormats;
-use crate::service::path_service::{filter_from_str, Filter};
 use lockbook_models::file_metadata::FileType;
-use serde::Serialize;
+
+use crate::external_interface::json_interface::translate;
+use crate::model::state::Config;
+use crate::service::path_service::{filter_from_str, Filter};
+use crate::{get_all_error_variants, SupportedImageFormats};
 
 fn c_string(value: String) -> *const c_char {
     CString::new(value)

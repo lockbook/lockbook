@@ -24,7 +24,7 @@ class SyncFileTests: SLCTest {
         (0..<numberOfFiles).forEach { _ in assertSuccess(core.api.createFile(name: randomFilename(), dirId: root.id, isFolder: false)) }
         
         /// Verify all non-root files are unsynced
-        assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.name == root.name || $0.metadataVersion == 0 } && $0.count == numberOfFiles+1 }
+        assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.decryptedName == root.decryptedName || $0.metadataVersion == 0 } && $0.count == numberOfFiles+1 }
         
         let resultSync = core.api.syncAll()
         
@@ -37,7 +37,7 @@ class SyncFileTests: SLCTest {
     func testIterativeNoFiles() throws {
         let resultCalculate = core.api.calculateWork()
         
-        assertSuccess(resultCalculate) { $0.localFiles.isEmpty && $0.serverFiles.isEmpty && $0.serverUnknownNameCount == 0 }
+        assertSuccess(resultCalculate) { $0.workUnits.isEmpty }
     }
     
     func testLocalChangesNoFiles() throws {
@@ -54,7 +54,7 @@ class SyncFileTests: SLCTest {
         (0..<numberOfFiles).forEach { _ in assertSuccess(core.api.createFile(name: randomFilename(), dirId: root.id, isFolder: false)) }
         
         /// Verify all non-root files are unsynced
-        assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.name == root.name || $0.metadataVersion == 0 } && $0.count == numberOfFiles+1 }
+        assertSuccess(core.api.listFiles()) { $0.allSatisfy { $0.decryptedName == root.decryptedName || $0.metadataVersion == 0 } && $0.count == numberOfFiles+1 }
         
         var resultCalculate = core.api.getLocalChanges()
 

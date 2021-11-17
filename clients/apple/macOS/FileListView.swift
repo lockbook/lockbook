@@ -8,10 +8,10 @@ struct FileListView: View {
     
     @StateObject var outlineState = OutlineState()
     
-    let currentFolder: ClientFileMetadata
+    let currentFolder: DecryptedFileMetadata
     let account: Account
     
-    init(currentFolder: ClientFileMetadata, account: Account) {
+    init(currentFolder: DecryptedFileMetadata, account: Account) {
         self.account = account
         self.currentFolder = currentFolder
     }

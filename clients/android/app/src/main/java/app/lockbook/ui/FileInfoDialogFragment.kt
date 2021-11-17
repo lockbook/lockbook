@@ -64,7 +64,7 @@ class FileInfoDialogFragment : DialogFragment() {
             R.string.popup_info_content_version,
             if (dateContentVersion.time != 0L) dateContentVersion else resources.getString(R.string.pop_up_info_never_synced)
         )
-        binding.popupInfoName.text = getString(R.string.popup_info_name, file.name)
+        binding.popupInfoName.text = getString(R.string.popup_info_name, file.decryptedName)
         binding.popupInfoId.text = getString(R.string.popup_info_id, file.id)
         binding.popupInfoFileType.text =
             getString(R.string.popup_info_file_type, file.fileType.name)
