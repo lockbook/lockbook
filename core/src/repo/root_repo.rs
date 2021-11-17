@@ -1,7 +1,8 @@
+use uuid::Uuid;
+
 use crate::model::state::Config;
 use crate::repo::local_storage;
 use crate::CoreError;
-use uuid::Uuid;
 
 static ROOT: &[u8; 4] = b"ROOT";
 

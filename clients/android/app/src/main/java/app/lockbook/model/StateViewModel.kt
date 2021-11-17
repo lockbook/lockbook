@@ -43,7 +43,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         _launchDetailsScreen.postValue(detailsScreen)
     }
 
-    fun shareSelectedFiles(selectedFiles: List<ClientFileMetadata>, appDataDir: File) {
+    fun shareSelectedFiles(selectedFiles: List<DecryptedFileMetadata>, appDataDir: File) {
         viewModelScope.launch(Dispatchers.IO) {
             val shareResult = shareModel.shareDocuments(selectedFiles, appDataDir)
             if (shareResult is Err) {
@@ -99,22 +99,22 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     }
 }
 
-sealed class DetailsScreen(open val fileMetadata: ClientFileMetadata) {
-    data class Loading(override val fileMetadata: ClientFileMetadata) : DetailsScreen(fileMetadata)
-    data class TextEditor(override val fileMetadata: ClientFileMetadata, val text: String) :
+sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
+    data class Loading(override val fileMetadata: DecryptedFileMetadata) : DetailsScreen(fileMetadata)
+    data class TextEditor(override val fileMetadata: DecryptedFileMetadata, val text: String) :
         DetailsScreen(fileMetadata)
 
     data class Drawing(
-        override val fileMetadata: ClientFileMetadata,
+        override val fileMetadata: DecryptedFileMetadata,
         val drawing: app.lockbook.util.Drawing
     ) : DetailsScreen(fileMetadata)
 }
 
 sealed class TransientScreen {
     data class Move(val ids: Array<String>) : TransientScreen()
-    data class Rename(val file: ClientFileMetadata) : TransientScreen()
+    data class Rename(val file: DecryptedFileMetadata) : TransientScreen()
     data class Create(val info: CreateFileInfo) : TransientScreen()
-    data class Info(val file: ClientFileMetadata) : TransientScreen()
+    data class Info(val file: DecryptedFileMetadata) : TransientScreen()
     data class Share(val files: List<File>) : TransientScreen()
 }
 

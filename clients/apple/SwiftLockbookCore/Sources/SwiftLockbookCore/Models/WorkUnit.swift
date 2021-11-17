@@ -1,8 +1,11 @@
 import Foundation
 
+public struct WorkUnit: Decodable {
+    public var content: DecryptedFileMetadata
+    public var tag: String
+}
+
 public struct WorkMetadata: Decodable {
     public var mostRecentUpdateFromServer: Date
-    public var localFiles: [ClientFileMetadata]
-    public var serverFiles: [ClientFileMetadata]
-    public var serverUnknownNameCount: Int
+    public var workUnits: [WorkUnit]
 }

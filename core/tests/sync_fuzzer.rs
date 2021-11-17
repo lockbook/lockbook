@@ -2,12 +2,14 @@ mod integration_test;
 
 #[cfg(test)]
 mod sync_fuzzer {
-    use crate::sync_fuzzer::Actions::{
-        AttemptFolderMove, DeleteFile, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile,
-        SyncAndCheck, UpdateDocument,
-    };
+    use std::cmp::Ordering;
+
     use indicatif::{ProgressBar, ProgressStyle};
-    use lockbook_core::model::client_conversion::ClientFileMetadata;
+    use rand::distributions::{Alphanumeric, Distribution, Standard};
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use variant_count::VariantCount;
+
     use lockbook_core::model::state::Config;
     use lockbook_core::service::account_service::{create_account, export_account, import_account};
     use lockbook_core::service::integrity_service::test_repo_integrity;
@@ -18,12 +20,13 @@ mod sync_fuzzer {
         calculate_work, create_file, delete_file, get_path_by_id, list_metadatas, move_file,
         rename_file, write_document, MoveFileError,
     };
+    use lockbook_models::file_metadata::DecryptedFileMetadata;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
-    use rand::distributions::{Alphanumeric, Distribution, Standard};
-    use rand::rngs::StdRng;
-    use rand::{Rng, SeedableRng};
-    use std::cmp::Ordering;
-    use variant_count::VariantCount;
+
+    use crate::sync_fuzzer::Actions::{
+        AttemptFolderMove, DeleteFile, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile,
+        SyncAndCheck, UpdateDocument,
+    };
 
     /// Starting parameters that matter
     static SEED: u64 = 0;
@@ -90,9 +93,7 @@ mod sync_fuzzer {
                             assert_dbs_eq(row, col);
                         }
                         test_repo_integrity(row).unwrap();
-                        assert!(calculate_work(row).unwrap().local_files.is_empty());
-                        assert!(calculate_work(row).unwrap().server_files.is_empty());
-                        assert_eq!(calculate_work(row).unwrap().server_unknown_name_count, 0);
+                        assert!(calculate_work(row).unwrap().work_units.is_empty());
                     }
                 }
                 NewFolder => {
@@ -216,7 +217,7 @@ mod sync_fuzzer {
                 .collect()
         }
 
-        fn pick_random_file(config: &Config, rng: &mut StdRng) -> Option<ClientFileMetadata> {
+        fn pick_random_file(config: &Config, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
             let mut possible_files = list_metadatas(&config).unwrap();
             possible_files.retain(|meta| meta.parent != meta.id);
             possible_files.sort_by(Self::deterministic_sort());
@@ -229,19 +230,19 @@ mod sync_fuzzer {
             }
         }
 
-        fn deterministic_sort() -> fn(&ClientFileMetadata, &ClientFileMetadata) -> Ordering {
+        fn deterministic_sort() -> fn(&DecryptedFileMetadata, &DecryptedFileMetadata) -> Ordering {
             |lhs, rhs| {
                 if lhs.parent == lhs.id {
                     Ordering::Less
                 } else if rhs.id == rhs.parent {
                     Ordering::Greater
                 } else {
-                    lhs.name.cmp(&rhs.name)
+                    lhs.decrypted_name.cmp(&rhs.decrypted_name)
                 }
             }
         }
 
-        fn pick_random_parent(config: &Config, rng: &mut StdRng) -> ClientFileMetadata {
+        fn pick_random_parent(config: &Config, rng: &mut StdRng) -> DecryptedFileMetadata {
             let mut possible_parents = list_metadatas(&config).unwrap();
             possible_parents.retain(|meta| meta.file_type == Folder);
             possible_parents.sort_by(Self::deterministic_sort());
@@ -250,7 +251,10 @@ mod sync_fuzzer {
             possible_parents[parent_index].clone()
         }
 
-        fn pick_random_document(config: &Config, rng: &mut StdRng) -> Option<ClientFileMetadata> {
+        fn pick_random_document(
+            config: &Config,
+            rng: &mut StdRng,
+        ) -> Option<DecryptedFileMetadata> {
             let mut possible_documents = list_metadatas(&config).unwrap();
             possible_documents.retain(|meta| meta.file_type == Document);
             possible_documents.sort_by(Self::deterministic_sort());

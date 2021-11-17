@@ -36,7 +36,7 @@ class GetRootTest {
     @Test
     fun getRootUnexpectedError() {
         Klaxon().converter(getRootConverter)
-            .parse<Result<ClientFileMetadata, GetRootError>>(getRoot(""))
+            .parse<Result<DecryptedFileMetadata, GetRootError>>(getRoot(""))
             .unwrapErrorType<GetRootError.Unexpected>()
     }
 }

@@ -2,28 +2,28 @@
 
 use std::path::Path;
 
+use basic_human_duration::ChronoHumanDuration;
+use chrono::Duration;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use uuid::Uuid;
 
-use crate::json_interface::translate;
+use lockbook_crypto::clock_service;
+use lockbook_models::file_metadata::FileType;
+
+use crate::external_interface::json_interface::translate;
 use crate::model::state::Config;
-use crate::service::drawing_service::SupportedImageFormats;
 use crate::service::sync_service::SyncProgress;
 use crate::{
     calculate_work, create_account, create_file, delete_file, export_account, export_drawing,
     export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
     get_file_by_id, get_root, get_uncompressed_usage, get_usage, import_account, init_logger,
     migrate_db, move_file, read_document, rename_file, save_document_to_disk, sync_all,
-    write_document, Error,
+    unexpected_only, write_document, Error, SupportedImageFormats, UnexpectedError,
 };
-use basic_human_duration::ChronoHumanDuration;
-use chrono::Duration;
-use lockbook_crypto::clock_service;
-use lockbook_models::file_metadata::FileType;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
     let serialized_result =
@@ -72,10 +72,11 @@ fn deserialize<U: DeserializeOwned>(env: &JNIEnv, json: JString, name: &str) -> 
     serde_json::from_str::<U>(&json_string).map_err(|err| {
         string_to_jstring(
             env,
-            translate::<(), Error<()>>(Err(Error::<()>::Unexpected(format!(
+            translate::<(), UnexpectedError>(Err(unexpected_only!(
                 "Couldn't deserialize {}: {:?}",
-                name, err
-            )))),
+                name,
+                err
+            ))),
         )
     })
 }
@@ -419,7 +420,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
 
     string_to_jstring(
         &env,
-        translate(save_document_to_disk(&config, id, location)),
+        translate(save_document_to_disk(&config, id, &location)),
     )
 }
 
@@ -480,7 +481,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
 
     string_to_jstring(
         &env,
-        translate(export_drawing_to_disk(&config, id, format, None, location)),
+        translate(export_drawing_to_disk(&config, id, format, None, &location)),
     )
 }
 

@@ -8,7 +8,7 @@ import androidx.preference.PreferenceManager
 import app.lockbook.*
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
-import app.lockbook.util.ClientFileMetadata
+import app.lockbook.util.DecryptedFileMetadata
 import app.lockbook.util.SingleMutableLiveData
 import com.afollestad.recyclical.datasource.*
 import com.github.michaelbull.result.Err
@@ -25,7 +25,7 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
 
     lateinit var fileModel: FileModel
 
-    val selectableFiles = emptySelectableDataSourceTyped<ClientFileMetadata>()
+    val selectableFiles = emptySelectableDataSourceTyped<DecryptedFileMetadata>()
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
     val syncModel = SyncModel(_notifyUpdateFilesUI)
@@ -44,7 +44,7 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
             is Ok -> {
                 fileModel = createAtRootResult.value
                 refreshFiles()
-                breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+                breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
             }
             is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createAtRootResult.error))
@@ -55,7 +55,7 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
         _notifyUpdateFilesUI.postValue(update)
     }
 
-    fun enterFolder(folder: ClientFileMetadata) {
+    fun enterFolder(folder: DecryptedFileMetadata) {
         viewModelScope.launch(Dispatchers.IO) {
             val intoChildResult = fileModel.intoChild(folder)
             if (intoChildResult is Err) {
@@ -67,7 +67,7 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
                 selectableFiles.set(fileModel.children)
             }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
         }
     }
@@ -84,7 +84,7 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
                 selectableFiles.set(fileModel.children)
             }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
         }
     }
@@ -101,7 +101,7 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
                 selectableFiles.set(fileModel.children)
             }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
 
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
 //            _notifyUpdateFilesUI.postValue(UpdateFilesUI.ToggleMenuBar)

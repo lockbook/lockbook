@@ -2,17 +2,21 @@ package app.lockbook.util
 
 import com.beust.klaxon.Json
 
-data class ClientFileMetadata(
+data class DecryptedFileMetadata(
     val id: String = "",
     @Json(name = "file_type")
     val fileType: FileType = FileType.Document,
     val parent: String = "",
-    val name: String = "",
+    @Json(name = "decrypted_name")
+    val decryptedName: String = "",
     val owner: String = "",
     @Json(name = "metadata_version")
     val metadataVersion: Long = 0,
     @Json(name = "content_version")
     val contentVersion: Long = 0,
+    val deleted: Boolean = false,
+    @Json(name = "decrypted_access_key")
+    val decryptedAccessKey: List<Int> = listOf()
 )
 
 enum class FileType {
@@ -28,15 +32,13 @@ data class Account(
 )
 
 data class WorkCalculated(
-    @Json(name = "local_files")
-    val localFiles: List<ClientFileMetadata>,
-    @Json(name = "server_files")
-    val serverFiles: List<ClientFileMetadata>,
-    @Json(name = "server_unknown_name_count")
-    val serverUnknownNameCount: Int,
+    @Json(name = "work_units")
+    val workUnits: List<WorkUnit>,
     @Json(name = "most_recent_update_from_server")
-    val mostRecentUpdateFromServer: Long
+    val mostRecentUpdateFromServer: Long,
 )
+
+data class WorkUnit(val content: DecryptedFileMetadata, val tag: String)
 
 data class Config(val writeable_path: String)
 

@@ -1,26 +1,27 @@
 use std::fmt;
 
-use crate::model::client_conversion::ClientWorkUnit;
-use crate::model::filename::DocumentType;
-use crate::model::repo::RepoSource;
-use crate::model::repo::RepoState;
-use crate::model::state::Config;
-use crate::repo::account_repo;
-use crate::repo::{file_repo, last_updated_repo};
-use crate::service::{file_encryption_service, file_service};
-use crate::CoreError;
-use crate::{client, utils};
+use serde::Serialize;
+
+use lockbook_crypto::clock_service::get_time;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
-use lockbook_models::work_unit::WorkUnit;
-use serde::Serialize;
+use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
+
+use crate::model::filename::DocumentType;
+use crate::model::repo::RepoSource;
+use crate::model::repo::RepoState;
+use crate::model::state::Config;
+use crate::pure_functions::files;
+use crate::repo::account_repo;
+use crate::repo::last_updated_repo;
+use crate::service::{api_service, file_encryption_service, file_service};
+use crate::CoreError;
 
 use super::file_compression_service;
-use lockbook_crypto::clock_service::get_time;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -38,14 +39,14 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
     info!("Calculating Work");
 
     let account = account_repo::get(config)?;
-    let base_metadata = file_repo::get_all_metadata(config, RepoSource::Base)?;
+    let base_metadata = file_service::get_all_metadata(config, RepoSource::Base)?;
     let base_max_metadata_version = base_metadata
         .iter()
         .map(|f| f.metadata_version)
         .max()
         .unwrap_or(0);
 
-    let server_updates = client::request(
+    let server_updates = api_service::request(
         &account,
         GetUpdatesRequest {
             since_metadata_version: base_max_metadata_version,
@@ -63,14 +64,14 @@ fn calculate_work_from_updates(
     mut last_sync: u64,
 ) -> Result<WorkCalculated, CoreError> {
     let mut work_units: Vec<WorkUnit> = vec![];
-    let (all_metadata, _) = file_repo::get_all_metadata_with_encrypted_changes(
+    let (all_metadata, _) = file_service::get_all_metadata_with_encrypted_changes(
         config,
         RepoSource::Local,
         server_updates,
     )?;
     for metadata in server_updates {
         // skip filtered changes
-        if utils::maybe_find(&all_metadata, metadata.id).is_none() {
+        if files::maybe_find(&all_metadata, metadata.id).is_none() {
             continue;
         }
 
@@ -78,19 +79,19 @@ fn calculate_work_from_updates(
             last_sync = metadata.metadata_version;
         }
 
-        match file_repo::maybe_get_metadata(config, RepoSource::Local, metadata.id)? {
+        match file_service::maybe_get_metadata(config, RepoSource::Local, metadata.id)? {
             None => {
                 if !metadata.deleted {
                     // no work for files we don't have that have been deleted
                     work_units.push(WorkUnit::ServerChange {
-                        metadata: utils::find(&all_metadata, metadata.id)?,
+                        metadata: files::find(&all_metadata, metadata.id)?,
                     })
                 }
             }
             Some(local_metadata) => {
                 if metadata.metadata_version != local_metadata.metadata_version {
                     work_units.push(WorkUnit::ServerChange {
-                        metadata: utils::find(&all_metadata, metadata.id)?,
+                        metadata: files::find(&all_metadata, metadata.id)?,
                     })
                 }
             }
@@ -103,12 +104,12 @@ fn calculate_work_from_updates(
             .cmp(&f2.get_metadata().metadata_version)
     });
 
-    for file_diff in file_repo::get_all_metadata_changes(config)? {
-        let metadata = file_repo::get_metadata(config, RepoSource::Local, file_diff.id)?;
+    for file_diff in file_service::get_all_metadata_changes(config)? {
+        let metadata = file_service::get_metadata(config, RepoSource::Local, file_diff.id)?;
         work_units.push(WorkUnit::LocalChange { metadata });
     }
-    for doc_id in file_repo::get_all_with_document_changes(config)? {
-        let metadata = file_repo::get_metadata(config, RepoSource::Local, doc_id)?;
+    for doc_id in file_service::get_all_with_document_changes(config)? {
+        let metadata = file_service::get_metadata(config, RepoSource::Local, doc_id)?;
         work_units.push(WorkUnit::LocalChange { metadata });
     }
     debug!("Work Calculated: {:#?}", work_units);
@@ -279,7 +280,7 @@ fn merge_maybe_documents(
                     }
                     // other documents have local version copied to new file
                     DocumentType::Drawing | DocumentType::Other => {
-                        let copied_local_metadata = file_service::create(
+                        let copied_local_metadata = files::create(
                             FileType::Document,
                             merged_metadata.parent,
                             &merged_metadata.decrypted_name,
@@ -317,7 +318,7 @@ fn merge_maybe_documents(
                     }
                     // other documents have local version copied to new file
                     DocumentType::Drawing | DocumentType::Other => {
-                        let copied_local_metadata = file_service::create(
+                        let copied_local_metadata = files::create(
                             FileType::Document,
                             merged_metadata.parent,
                             &merged_metadata.decrypted_name,
@@ -395,7 +396,7 @@ fn get_resolved_document(
     remote_metadatum: &DecryptedFileMetadata,
     merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<Option<ResolvedDocument>, CoreError> {
-    let maybe_remote_document_encrypted = client::request(
+    let maybe_remote_document_encrypted = api_service::request(
         account,
         GetDocumentRequest {
             id: remote_metadatum.id,
@@ -417,7 +418,7 @@ fn get_resolved_document(
         .iter()
         .find(|&f| f.clone().local().id == remote_metadatum.id);
     let maybe_document_state = if let Some(metadata_state) = maybe_metadata_state {
-        file_repo::maybe_get_document_state(config, metadata_state)?
+        file_service::maybe_get_document_state(config, metadata_state)?
     } else {
         None
     };
@@ -479,7 +480,7 @@ fn pull<F>(
 where
     F: FnMut(SyncProgressOperation),
 {
-    let base_metadata = file_repo::get_all_metadata(config, RepoSource::Base)?;
+    let base_metadata = file_service::get_all_metadata(config, RepoSource::Base)?;
     let base_max_metadata_version = base_metadata
         .iter()
         .map(|f| f.metadata_version)
@@ -490,7 +491,7 @@ where
         ClientWorkUnit::PullMetadata,
     ));
 
-    let remote_metadata_changes = client::request(
+    let remote_metadata_changes = api_service::request(
         account,
         GetUpdatesRequest {
             since_metadata_version: base_max_metadata_version,
@@ -499,20 +500,20 @@ where
     .map_err(CoreError::from)?
     .file_metadata;
 
-    let local_metadata = file_repo::get_all_metadata(config, RepoSource::Local)?;
-    let (remote_metadata, remote_orphans) = file_repo::get_all_metadata_with_encrypted_changes(
+    let local_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
+    let (remote_metadata, remote_orphans) = file_service::get_all_metadata_with_encrypted_changes(
         config,
         RepoSource::Base,
         &remote_metadata_changes,
     )?;
-    let all_metadata_state = file_repo::get_all_metadata_state(config)?;
+    let all_metadata_state = file_service::get_all_metadata_state(config)?;
 
     let num_documents_to_pull = remote_metadata_changes
         .iter()
         .filter(|&f| {
-            let maybe_remote_metadatum = utils::maybe_find(&remote_metadata, f.id);
-            let maybe_base_metadatum = utils::maybe_find(&base_metadata, f.id);
-            let maybe_local_metadatum = utils::maybe_find(&local_metadata, f.id);
+            let maybe_remote_metadatum = files::maybe_find(&remote_metadata, f.id);
+            let maybe_base_metadatum = files::maybe_find(&base_metadata, f.id);
+            let maybe_local_metadatum = files::maybe_find(&local_metadata, f.id);
             should_pull_document(
                 &maybe_base_metadatum,
                 &maybe_local_metadatum,
@@ -532,15 +533,15 @@ where
     // iterate changes
     for encrypted_remote_metadatum in remote_metadata_changes {
         // skip filtered changes
-        if utils::maybe_find(&remote_metadata, encrypted_remote_metadatum.id).is_none() {
+        if files::maybe_find(&remote_metadata, encrypted_remote_metadatum.id).is_none() {
             continue;
         }
 
         // merge metadata
-        let remote_metadatum = utils::find(&remote_metadata, encrypted_remote_metadatum.id)?;
-        let maybe_base_metadatum = utils::maybe_find(&base_metadata, encrypted_remote_metadatum.id);
+        let remote_metadatum = files::find(&remote_metadata, encrypted_remote_metadatum.id)?;
+        let maybe_base_metadatum = files::maybe_find(&base_metadata, encrypted_remote_metadatum.id);
         let maybe_local_metadatum =
-            utils::maybe_find(&local_metadata, encrypted_remote_metadatum.id);
+            files::maybe_find(&local_metadata, encrypted_remote_metadatum.id);
 
         let merged_metadatum = merge_maybe_metadata(
             maybe_base_metadatum.clone(),
@@ -599,9 +600,9 @@ where
 
     // deleted orphaned updates
     for orphan in remote_orphans {
-        if let Some(mut metadatum) = utils::maybe_find(&base_metadata, orphan.id) {
+        if let Some(mut metadatum) = files::maybe_find(&base_metadata, orphan.id) {
             if let Some(mut metadatum_update) =
-                utils::maybe_find_mut(&mut base_metadata_updates, orphan.id)
+                files::maybe_find_mut(&mut base_metadata_updates, orphan.id)
             {
                 metadatum_update.deleted = true;
             } else {
@@ -609,9 +610,9 @@ where
                 base_metadata_updates.push(metadatum);
             }
         }
-        if let Some(mut metadatum) = utils::maybe_find(&local_metadata, orphan.id) {
+        if let Some(mut metadatum) = files::maybe_find(&local_metadata, orphan.id) {
             if let Some(mut metadatum_update) =
-                utils::maybe_find_mut(&mut local_metadata_updates, orphan.id)
+                files::maybe_find_mut(&mut local_metadata_updates, orphan.id)
             {
                 metadatum_update.deleted = true;
             } else {
@@ -622,11 +623,10 @@ where
     }
 
     // resolve path conflicts
-    for path_conflict in file_service::get_path_conflicts(&local_metadata, &local_metadata_updates)?
-    {
+    for path_conflict in files::get_path_conflicts(&local_metadata, &local_metadata_updates)? {
         let local_meta_updates_copy = local_metadata_updates.clone();
-        let to_rename = utils::find_mut(&mut local_metadata_updates, path_conflict.staged)?;
-        let conflict_name = file_service::suggest_non_conflicting_filename(
+        let to_rename = files::find_mut(&mut local_metadata_updates, path_conflict.staged)?;
+        let conflict_name = files::suggest_non_conflicting_filename(
             to_rename.id,
             &local_metadata,
             &local_meta_updates_copy,
@@ -635,32 +635,30 @@ where
     }
 
     // resolve cycles
-    for self_descendant in
-        file_service::get_invalid_cycles(&local_metadata, &local_metadata_updates)?
-    {
+    for self_descendant in files::get_invalid_cycles(&local_metadata, &local_metadata_updates)? {
         if let Some(RepoState::Modified { mut local, base }) =
-            file_repo::maybe_get_metadata_state(config, self_descendant)?
+            file_service::maybe_get_metadata_state(config, self_descendant)?
         {
             if let Some(existing_update) =
-                utils::maybe_find_mut(&mut local_metadata_updates, self_descendant)
+                files::maybe_find_mut(&mut local_metadata_updates, self_descendant)
             {
                 existing_update.parent = base.parent;
             }
             local.parent = base.parent;
-            file_repo::insert_metadatum(config, RepoSource::Local, &local)?;
+            file_service::insert_metadatum(config, RepoSource::Local, &local)?;
         }
     }
 
     // update base
-    file_repo::insert_metadata(config, RepoSource::Base, &base_metadata_updates)?;
+    file_service::insert_metadata(config, RepoSource::Base, &base_metadata_updates)?;
     for (metadata, document_update) in base_document_updates {
-        file_repo::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
+        file_service::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
     }
 
     // update local
-    file_repo::insert_metadata(config, RepoSource::Local, &local_metadata_updates)?;
+    file_service::insert_metadata(config, RepoSource::Local, &local_metadata_updates)?;
     for (metadata, document_update) in local_document_updates {
-        file_repo::insert_document(config, RepoSource::Local, &metadata, &document_update)?;
+        file_service::insert_document(config, RepoSource::Local, &metadata, &document_update)?;
     }
 
     Ok(())
@@ -680,9 +678,9 @@ where
     ));
 
     // update remote to local (metadata)
-    let metadata_changes = file_repo::get_all_metadata_changes(config)?;
+    let metadata_changes = file_service::get_all_metadata_changes(config)?;
     if !metadata_changes.is_empty() {
-        client::request(
+        api_service::request(
             account,
             FileMetadataUpsertsRequest {
                 updates: metadata_changes,
@@ -692,7 +690,7 @@ where
     }
 
     // update base to local
-    file_repo::promote_metadata(config)?;
+    file_service::promote_metadata(config)?;
 
     Ok(())
 }
@@ -706,9 +704,9 @@ fn push_documents<F>(
 where
     F: FnMut(SyncProgressOperation),
 {
-    for id in file_repo::get_all_with_document_changes(config)? {
-        let mut local_metadata = file_repo::get_metadata(config, RepoSource::Local, id)?;
-        let local_content = file_repo::get_document(config, RepoSource::Local, &local_metadata)?;
+    for id in file_service::get_all_with_document_changes(config)? {
+        let mut local_metadata = file_service::get_metadata(config, RepoSource::Local, id)?;
+        let local_content = file_service::get_document(config, RepoSource::Local, &local_metadata)?;
         let encrypted_content = file_encryption_service::encrypt_document(
             &file_compression_service::compress(&local_content)?,
             &local_metadata,
@@ -719,7 +717,7 @@ where
         ));
 
         // update remote to local (document)
-        local_metadata.content_version = client::request(
+        local_metadata.content_version = api_service::request(
             account,
             ChangeDocumentContentRequest {
                 id: id,
@@ -731,14 +729,14 @@ where
         .new_content_version;
 
         // save content version change
-        let mut base_metadata = file_repo::get_metadata(config, RepoSource::Base, id)?;
+        let mut base_metadata = file_service::get_metadata(config, RepoSource::Base, id)?;
         base_metadata.content_version = local_metadata.content_version;
-        file_repo::insert_metadatum(config, RepoSource::Local, &local_metadata)?;
-        file_repo::insert_metadatum(config, RepoSource::Base, &base_metadata)?;
+        file_service::insert_metadatum(config, RepoSource::Local, &local_metadata)?;
+        file_service::insert_metadatum(config, RepoSource::Base, &base_metadata)?;
     }
 
     // update base to local
-    file_repo::promote_documents(config)?;
+    file_service::promote_documents(config)?;
 
     Ok(())
 }
@@ -752,7 +750,8 @@ pub fn sync(
     config: &Config,
     maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
-    let mut sync_progress_total = 4 + file_repo::get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
+    info!("sync called");
+    let mut sync_progress_total = 4 + file_service::get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
     let mut sync_progress = 0;
     let mut update_sync_progress = |op: SyncProgressOperation| match op {
         SyncProgressOperation::IncrementTotalWork(inc) => sync_progress_total += inc,
@@ -770,12 +769,12 @@ pub fn sync(
 
     let account = &account_repo::get(config)?;
     pull(config, account, &mut update_sync_progress)?;
-    file_repo::prune_deleted(config)?;
+    file_service::prune_deleted(config)?;
     push_metadata(config, account, &mut update_sync_progress)?;
     pull(config, account, &mut update_sync_progress)?;
     push_documents(config, account, &mut update_sync_progress)?;
     pull(config, account, &mut update_sync_progress)?;
-    file_repo::prune_deleted(config)?;
+    file_service::prune_deleted(config)?;
     last_updated_repo::set(config, get_time().0)?;
     Ok(())
 }
@@ -784,8 +783,9 @@ pub fn sync(
 mod unit_test_sync_service {
     use std::str::FromStr;
 
-    use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
     use uuid::Uuid;
+
+    use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
     use crate::service::sync_service::{self, MaybeMergeResult};
 

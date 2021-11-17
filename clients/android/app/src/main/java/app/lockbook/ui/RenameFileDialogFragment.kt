@@ -85,7 +85,7 @@ class RenameFileDialogFragment : DialogFragment() {
             true
         }
 
-        binding.renameFile.setText((model.transientScreen as TransientScreen.Rename).file.name)
+        binding.renameFile.setText((model.transientScreen as TransientScreen.Rename).file.decryptedName)
     }
 
     private fun handleRenameRequest(newName: String) {
