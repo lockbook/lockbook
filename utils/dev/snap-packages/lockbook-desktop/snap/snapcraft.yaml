@@ -1,0 +1,20 @@
+name: lockbook-desktop
+base: core20
+version: '0.1.6'
+summary: The linux gui version of Lockbook
+description: |
+  The best place to store and share thoughts.
+grade: devel
+confinement: devmode
+
+apps:
+  lockbook-desktop:
+    command: bin/lockbook
+
+parts:
+  lockbook-desktop:
+    plugin: rust
+    source: https://github.com/lockbook/lockbook.git
+    build-packages:
+      - git
+    rust-path: ["clients/linux"]

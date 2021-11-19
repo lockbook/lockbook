@@ -1,0 +1,23 @@
+name: lockbook
+base: core20
+version: '0.2.24'
+summary: The CLI version of Lockbook
+description: |
+  The best place to store and share thoughts.
+grade: devel
+confinement: strict
+
+apps:
+  lockbook:
+    command: bin/lockbook
+    plugs:
+      - network
+      - home
+
+parts:
+  lockbook:
+    plugin: rust
+    source: https://github.com/lockbook/lockbook.git
+    build-packages:
+      - git
+    rust-path: ["clients/cli"]
