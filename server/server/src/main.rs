@@ -5,6 +5,7 @@ extern crate tokio;
 #[macro_use]
 extern crate log;
 
+
 use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
@@ -110,7 +111,7 @@ macro_rules! route_handler {
                     public_key,
                 })
                 .await;
-                if let Err(Err(ref e)) = result {
+                if let Err(ServerError::InternalError(ref e)) = result {
                     error!("Internal error! Request: {}, Error: {}", request_string, e);
                 }
                 wrap_err::<$TRequest>(result)
@@ -183,7 +184,7 @@ async fn route(
     }
 }
 
-fn get_build_info() -> Result<GetBuildInfoResponse, Result<GetBuildInfoError, String>> {
+fn get_build_info() -> Result<GetBuildInfoResponse, ServerError<GetBuildInfoError>> {
     Ok(GetBuildInfoResponse {
         build_version: env!("CARGO_PKG_VERSION"),
         git_commit_hash: build_info::COMMIT_HASH,
@@ -191,12 +192,12 @@ fn get_build_info() -> Result<GetBuildInfoResponse, Result<GetBuildInfoError, St
 }
 
 fn wrap_err<TRequest: Request>(
-    result: Result<TRequest::Response, Result<TRequest::Error, String>>,
+    result: Result<TRequest::Response, ServerError<TRequest::Error>>,
 ) -> Result<TRequest::Response, ErrorWrapper<TRequest::Error>> {
     match result {
         Ok(response) => Ok(response),
-        Err(Ok(e)) => Err(ErrorWrapper::Endpoint(e)),
-        Err(Err(_)) => Err(ErrorWrapper::InternalError),
+        Err(ServerError::ClientError(e)) => Err(ErrorWrapper::Endpoint(e)),
+        Err(ServerError::InternalError(_)) => Err(ErrorWrapper::InternalError),
     }
 }
 

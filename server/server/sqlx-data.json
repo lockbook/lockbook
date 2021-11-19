@@ -403,32 +403,6 @@
       ]
     }
   },
-  "88a3b8b4f839d31f47c47d46cd4617f48973a7abe8a116fdb9dbade43df8bf22": {
-    "query": "\n    WITH RECURSIVE file_ancestors AS (\n        SELECT id, id AS ancestor FROM files\n            UNION DISTINCT\n        SELECT file_ancestors.id, files.parent AS ancestor FROM files\n        JOIN file_ancestors ON files.id = file_ancestors.ancestor\n    ),\n    files_with_deleted_ancestors AS (\n        SELECT id FROM files WHERE EXISTS(\n            SELECT * FROM file_ancestors\n            JOIN files AS ancestor_files ON file_ancestors.ancestor = ancestor_files.id\n            WHERE files.id = file_ancestors.id AND ancestor_files.deleted\n        )\n    )\n    SELECT\n        files.id,\n        CASE WHEN EXISTS(SELECT * FROM files_with_deleted_ancestors WHERE files_with_deleted_ancestors.id = files.id) THEN 0 ELSE files.document_size END AS \"document_size!\"\n    FROM files\n    WHERE\n        files.owner = $1 AND\n        NOT files.is_folder;\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "document_size!",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text"
-        ]
-      },
-      "nullable": [
-        false,
-        null
-      ]
-    }
-  },
   "959f62b7e1270148112b3a230e1690f8dd3eccf6012d400fec6ca494225bbc14": {
     "query": "\n        WITH RECURSIVE effective_deleted AS (\n            SELECT\n                id,\n                parent,\n                deleted\n            FROM files\n            WHERE owner = $1\n                UNION DISTINCT\n            SELECT\n                effective_deleted.id,\n                files.parent,\n                effective_deleted.deleted OR files.deleted\n            FROM effective_deleted\n            JOIN files ON effective_deleted.parent = files.id\n        ),\n        deletions AS (\n            SELECT\n                effective_deleted.id\n            FROM effective_deleted\n            JOIN files ON effective_deleted.id = files.id\n            WHERE effective_deleted.deleted AND NOT files.deleted\n        )\n        UPDATE files SET\n            deleted = true,\n            metadata_version = CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT)\n        WHERE id IN (SELECT id FROM deletions)\n        RETURNING id AS \"id!\";\n        ",
     "describe": {
@@ -496,6 +470,32 @@
         false,
         false,
         false
+      ]
+    }
+  },
+  "c69b753cb7f9f80e3e013345e15dba1aca55d705bf4d0552e9439025e005ff42": {
+    "query": "\n        SELECT\n            files.id,\n            files.document_size as \"document_size!\"\n        FROM files\n        WHERE\n            NOT files.is_folder AND\n            NOT files.deleted AND\n            files.owner = $1\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "document_size!",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        true
       ]
     }
   },

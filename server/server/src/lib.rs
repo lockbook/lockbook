@@ -21,3 +21,8 @@ pub struct RequestContext<'a, TRequest> {
     pub request: TRequest,
     pub public_key: PublicKey,
 }
+
+pub enum ServerError<U> {
+    ClientError(U),
+    InternalError(String),
+}

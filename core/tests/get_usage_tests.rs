@@ -78,9 +78,7 @@ mod get_usage_tests {
         delete_file(&config, file.id).unwrap();
         sync_all!(&config).unwrap();
 
-        assert_eq!(get_usage(&config).unwrap().usages[0].file_id, file.id);
-        assert_eq!(get_usage(&config).unwrap().usages.len(), 1);
-        assert_eq!(get_usage(&config).unwrap().usages[0].size_bytes, 0)
+        assert!(get_usage(&config).unwrap().usages.is_empty());
     }
 
     #[test]
@@ -120,7 +118,7 @@ mod get_usage_tests {
             total_usage += usage.size_bytes;
         }
 
-        assert_eq!(get_usage(&config).unwrap().usages.len(), 3);
+        assert_eq!(get_usage(&config).unwrap().usages.len(), 1);
         assert_eq!(total_usage, local_encrypted.len() as u64)
     }
 }

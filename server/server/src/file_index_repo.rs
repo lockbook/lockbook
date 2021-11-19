@@ -792,26 +792,14 @@ pub async fn get_file_usages(
 ) -> Result<Vec<FileUsage>, GetFileUsageError> {
     sqlx::query!(
         r#"
-    WITH RECURSIVE file_ancestors AS (
-        SELECT id, id AS ancestor FROM files
-            UNION DISTINCT
-        SELECT file_ancestors.id, files.parent AS ancestor FROM files
-        JOIN file_ancestors ON files.id = file_ancestors.ancestor
-    ),
-    files_with_deleted_ancestors AS (
-        SELECT id FROM files WHERE EXISTS(
-            SELECT * FROM file_ancestors
-            JOIN files AS ancestor_files ON file_ancestors.ancestor = ancestor_files.id
-            WHERE files.id = file_ancestors.id AND ancestor_files.deleted
-        )
-    )
-    SELECT
-        files.id,
-        CASE WHEN EXISTS(SELECT * FROM files_with_deleted_ancestors WHERE files_with_deleted_ancestors.id = files.id) THEN 0 ELSE files.document_size END AS "document_size!"
-    FROM files
-    WHERE
-        files.owner = $1 AND
-        NOT files.is_folder;
+        SELECT
+            files.id,
+            files.document_size as "document_size!"
+        FROM files
+        WHERE
+            NOT files.is_folder AND
+            NOT files.deleted AND
+            files.owner = $1
         "#,
         &serde_json::to_string(public_key).map_err(GetFileUsageError::Serialize)?
     )
