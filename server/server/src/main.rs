@@ -5,7 +5,6 @@ extern crate tokio;
 #[macro_use]
 extern crate log;
 
-
 use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};

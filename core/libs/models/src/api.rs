@@ -83,12 +83,11 @@ pub struct ChangeDocumentContentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum ChangeDocumentContentError {
-    InvalidUsername,
-    NotPermissioned,
     UserNotFound,
     DocumentNotFound,
     EditConflict,
     DocumentDeleted,
+    OutOfSpace,
 }
 
 impl Request for ChangeDocumentContentRequest {
@@ -133,7 +132,6 @@ pub struct GetPublicKeyResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetPublicKeyError {
-    InvalidUsername,
     UserNotFound,
 }
 
@@ -166,10 +164,7 @@ pub struct FileUsage {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetUsageError {
-    InvalidUsername,
-    UserNotFound,
-}
+pub enum GetUsageError {}
 
 impl Request for GetUsageRequest {
     type Response = GetUsageResponse;
@@ -189,10 +184,7 @@ pub struct GetUpdatesResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetUpdatesError {
-    UserNotFound,
-    InvalidUsername,
-}
+pub enum GetUpdatesError {}
 
 impl Request for GetUpdatesRequest {
     type Response = GetUpdatesResponse;

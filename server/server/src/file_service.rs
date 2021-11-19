@@ -145,7 +145,7 @@ async fn has_space_for_document(
     transaction: &mut Transaction<'_, Postgres>,
     pk: &PublicKey,
     id: Uuid,
-    new_content: u64,
+    new_content: usize,
 ) -> Result<bool, ServerError<ChangeDocumentContentError>> {
     let new_size: u64 = file_index_repo::get_file_usages(transaction, &pk)
         .await
@@ -158,7 +158,7 @@ async fn has_space_for_document(
         .into_iter()
         .map(|usage| {
             if usage.file_id == id {
-                new_content
+                new_content as u64
             } else {
                 usage.size_bytes
             }
@@ -190,6 +190,18 @@ pub async fn change_document_content(
             return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
         }
     };
+
+    // Check if the person has space for this document and is an actual person in our db
+    if !has_space_for_document(
+        &mut transaction,
+        &context.public_key,
+        context.request.id,
+        context.request.new_content.value.len(),
+    )
+    .await?
+    {
+        return Err(ClientError(ChangeDocumentContentError::OutOfSpace));
+    }
 
     let result = file_index_repo::change_document_version_and_size(
         &mut transaction,
