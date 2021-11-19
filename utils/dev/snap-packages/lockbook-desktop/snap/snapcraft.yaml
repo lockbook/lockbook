@@ -5,11 +5,15 @@ summary: The linux gui version of Lockbook
 description: |
   The best place to store and share thoughts.
 grade: devel
-confinement: devmode
+confinement: strict
 
 apps:
   lockbook-desktop:
-    command: bin/lockbook
+    command: bin/lockbook-desktop
+    extensions: [gnome-3-38]
+    plugs:
+      - network
+      - home
 
 parts:
   lockbook-desktop:
@@ -17,4 +21,6 @@ parts:
     source: https://github.com/lockbook/lockbook.git
     build-packages:
       - git
+      - libgtksourceview-3.0-dev
+      - libgspell-1-dev
     rust-path: ["clients/linux"]
