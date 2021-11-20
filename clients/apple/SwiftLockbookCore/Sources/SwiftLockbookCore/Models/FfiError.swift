@@ -175,6 +175,7 @@ public enum SyncAllError: String, UiError {
     case NoAccount
     case ClientUpdateRequired
     case CouldNotReachServer
+    case OutOfSpace
 }
 public enum CalculateWorkError: String, UiError {
     case NoAccount

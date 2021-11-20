@@ -399,6 +399,7 @@ pub enum SyncAllError {
     NoAccount,
     ClientUpdateRequired,
     CouldNotReachServer,
+    OutOfSpace,
 }
 
 pub fn sync_all(
@@ -409,6 +410,7 @@ pub fn sync_all(
         CoreError::AccountNonexistent => UiError(SyncAllError::NoAccount),
         CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
         CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
+        CoreError::OutOfSpace => UiError(SyncAllError::OutOfSpace),
         _ => unexpected!("{:#?}", e),
     })
 }

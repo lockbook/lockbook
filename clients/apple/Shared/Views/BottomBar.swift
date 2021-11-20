@@ -74,7 +74,13 @@ struct BottomBar: View {
     }
     
     var statusText: AnyView {
-        if sync.syncing {
+        if sync.updateRequired {
+            return AnyView(Text("Update Required")
+                            .foregroundColor(.secondary))
+        } else if sync.outOfSpace {
+            return AnyView(Text("Out of space, see settings")
+                            .foregroundColor(.secondary))
+        }else if sync.syncing {
             return AnyView(Text("Syncing...")
                             .foregroundColor(.secondary))
         } else {

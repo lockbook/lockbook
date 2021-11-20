@@ -6,6 +6,8 @@ class SyncService: ObservableObject {
     
     @Published var syncing: Bool = false
     @Published var offline: Bool = false
+    @Published var updateRequired: Bool = false
+    @Published var outOfSpace: Bool = false
     
     private var syncTimer: Timer? = nil
     
@@ -51,6 +53,8 @@ class SyncService: ObservableObject {
                 switch result {
                 case .success(_):
                     self.offline = false
+                    self.outOfSpace = false
+                    self.updateRequired = false
                     self.postSyncSteps()
                 case .failure(let error):
                     switch error.kind {
@@ -61,7 +65,9 @@ class SyncService: ObservableObject {
                         case .NoAccount:
                             print("No account yet, but tried to sync, ignoring")
                         case .ClientUpdateRequired:
-                            print("Upgrade required but not shown to user, ignoring (TODO)") // TODO
+                            self.updateRequired = true
+                        case .OutOfSpace:
+                            self.outOfSpace = true
                         }
                     default:
                         DI.errors.handleError(error)

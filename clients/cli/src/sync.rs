@@ -24,6 +24,7 @@ pub fn sync() -> CliResult<()> {
             SyncAllError::NoAccount => err!(NoAccount),
             SyncAllError::ClientUpdateRequired => err!(UpdateRequired),
             SyncAllError::CouldNotReachServer => err!(NetworkIssue),
+            SyncAllError::OutOfSpace => err!(OutOfSpace),
         },
         Error::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;

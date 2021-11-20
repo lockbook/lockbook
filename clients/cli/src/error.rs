@@ -90,6 +90,7 @@ make_errkind_enum!(
     24 => UsernameTaken(String),
     25 => UsernameInvalid(String),
     26 => UsernamePkMismatch,
+    27 => OutOfSpace,
 
     // OS (30s)
     30 => OsPwdMissing(IoError),
@@ -140,6 +141,7 @@ impl ErrorKind {
             Self::UsernameTaken(uname) => format!("username '{}' is already taken.", uname),
             Self::UsernameInvalid(uname) => format!("username '{}' invalid (a-z || 0-9).", uname),
             Self::UsernamePkMismatch => "The public_key in this account_string does not match what is on the server.".to_string(),
+            Self::OutOfSpace => "Your account is out of space, see lockbook get-usage and lockbook add-billing-info".to_string(),
 
             Self::OsPwdMissing(err) => format!("getting PWD from OS: {}", err),
             Self::OsCouldNotCreateDir(path, err) => format!("could not create directory '{}': {}", path, err),
