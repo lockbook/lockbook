@@ -4,7 +4,7 @@ version: '0.1.6'
 summary: The linux gui version of Lockbook
 description: |
   The best place to store and share thoughts.
-grade: devel
+grade: stable
 confinement: strict
 
 apps:

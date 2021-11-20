@@ -4,7 +4,7 @@ version: '0.2.24'
 summary: The CLI version of Lockbook
 description: |
   The best place to store and share thoughts.
-grade: devel
+grade: stable
 confinement: strict
 
 apps:
