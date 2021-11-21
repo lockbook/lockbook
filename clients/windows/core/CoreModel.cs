@@ -27,24 +27,24 @@ namespace Core {
     }
 
     public class ClientFileMetadata {
-        [JsonProperty("id")]
+        [JsonProperty("id", Required = Required.Always)]
         public string Id;
-        [JsonProperty("name")]
+        [JsonProperty("name", Required = Required.Always)]
         public string Name;
-        [JsonProperty("parent")]
+        [JsonProperty("parent", Required = Required.Always)]
         public string Parent;
-        [JsonProperty("file_type")]
+        [JsonProperty("file_type", Required = Required.Always)]
         public string Type;
-        [JsonProperty("deleted")]
+        [JsonProperty("deleted", Required = Required.Always)]
         public bool deleted;
     }
 
     public class Account {
-        [JsonProperty("username")]
+        [JsonProperty("username", Required = Required.Always)]
         public string username;
-        [JsonProperty("api_url")]
+        [JsonProperty("api_url", Required = Required.Always)]
         public string apiUrl;
-        [JsonProperty("private_key")]
+        [JsonProperty("private_key", Required = Required.Always)]
         public byte[] key;
     }
 
@@ -61,36 +61,36 @@ namespace Core {
     }
 
     public class UsageMetrics {
-        [JsonProperty("usages")]
+        [JsonProperty("usages", Required = Required.Always)]
         public List<FileUsage> usages;
-        [JsonProperty("server_usage")]
+        [JsonProperty("server_usage", Required = Required.Always)]
         public UsageItemMetric server_usage;
-        [JsonProperty("data_cap")]
+        [JsonProperty("data_cap", Required = Required.Always)]
         public UsageItemMetric data_cap;
-}
+    }
 
     public class UsageItemMetric {
-        [JsonProperty("exact")]
+        [JsonProperty("exact", Required = Required.Always)]
         public ulong exact;
-        [JsonProperty("readable")]
+        [JsonProperty("readable", Required = Required.Always)]
         public string readable;
     }
 
     public class FileUsage {
-        [JsonProperty("file_id")]
+        [JsonProperty("file_id", Required = Required.Always)]
         public string fileId;
-        [JsonProperty("size_bytes")]
+        [JsonProperty("size_bytes", Required = Required.Always)]
         public ulong sizeBytes;
     }
 
     public class ClientWorkCalculated {
-        [JsonProperty("local_files")]
+        [JsonProperty("local_files", Required = Required.Always)]
         public List<ClientFileMetadata> localFiles;
-        [JsonProperty("server_files")]
+        [JsonProperty("server_files", Required = Required.Always)]
         public List<ClientFileMetadata> serverFiles;
-        [JsonProperty("server_unknown_name_count")]
+        [JsonProperty("server_unknown_name_count", Required = Required.Always)]
         public ulong serverUnknownNameCount;
-        [JsonProperty("most_recent_update_from_server")]
+        [JsonProperty("most_recent_update_from_server", Required = Required.Always)]
         public ulong mostRecentUpdateFromServer;
     }
 
@@ -396,47 +396,47 @@ namespace Core {
     }
 
     namespace GetDrawing {
-            public interface IResult { }
-            public class Success : IResult {
-                public string content;
-            }
-            public enum PossibleErrors {
-                NoAccount,
-                FolderTreatedAsDrawing,
-                InvalidDrawing,
-                FileDoesNotExist,
-            }
-            public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
-            public class UnexpectedError : Core.UnexpectedError, IResult { }
+        public interface IResult { }
+        public class Success : IResult {
+            public string content;
+        }
+        public enum PossibleErrors {
+            NoAccount,
+            FolderTreatedAsDrawing,
+            InvalidDrawing,
+            FileDoesNotExist,
+        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace SaveDrawing {
-            public interface IResult { }
-            public class Success : IResult {
-                public string content;
-            }
-            public enum PossibleErrors {
-                NoAccount,
-                FileDoesNotExist,
-                FolderTreatedAsDrawing,
-                InvalidDrawing,
-            }
-            public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
-            public class UnexpectedError : Core.UnexpectedError, IResult { }
+        public interface IResult { }
+        public class Success : IResult {
+            public string content;
+        }
+        public enum PossibleErrors {
+            NoAccount,
+            FileDoesNotExist,
+            FolderTreatedAsDrawing,
+            InvalidDrawing,
+        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
     namespace ExportDrawing {
-            public interface IResult { }
-            public class Success : IResult {
-                public string content;
-            }
-            public enum PossibleErrors {
-                FolderTreatedAsDrawing,
-                FileDoesNotExist,
-                NoAccount,
-                InvalidDrawing,
-            }
-            public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
-            public class UnexpectedError : Core.UnexpectedError, IResult { }
+        public interface IResult { }
+        public class Success : IResult {
+            public string content;
+        }
+        public enum PossibleErrors {
+            FolderTreatedAsDrawing,
+            FileDoesNotExist,
+            NoAccount,
+            InvalidDrawing,
+        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 }
