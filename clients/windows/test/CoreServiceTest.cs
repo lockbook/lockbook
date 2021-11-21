@@ -259,7 +259,7 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var getChildrenResult = CoreService.GetChildren(root.Id).WaitResult();
+            var getChildrenResult = CoreService.GetChildren(root.id).WaitResult();
             CastOrDie(getChildrenResult, out Core.GetChildren.Success _);
         }
 
@@ -333,7 +333,7 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
         }
 
@@ -353,10 +353,10 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var createFileResult2 = CoreService.CreateFile("TestFile", file.Id, FileType.Document).WaitResult();
+            var createFileResult2 = CoreService.CreateFile("TestFile", file.id, FileType.Document).WaitResult();
             Assert.AreEqual(Core.CreateFile.PossibleErrors.DocumentTreatedAsFolder,
                 CastOrDie(createFileResult2, out Core.CreateFile.ExpectedError _).Error);
         }
@@ -370,10 +370,10 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
 
-            var createFileResult2 = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult2 = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             Assert.AreEqual(Core.CreateFile.PossibleErrors.FileNameNotAvailable,
                 CastOrDie(createFileResult2, out Core.CreateFile.ExpectedError _).Error);
         }
@@ -387,7 +387,7 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("Test/File", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("Test/File", root.id, FileType.Document).WaitResult();
             Assert.AreEqual(Core.CreateFile.PossibleErrors.FileNameContainsSlash,
                 CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
         }
@@ -401,7 +401,7 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("", root.id, FileType.Document).WaitResult();
             Assert.AreEqual(Core.CreateFile.PossibleErrors.FileNameEmpty,
                 CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
         }
@@ -415,10 +415,10 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var writeDocResult = CoreService.WriteDocument(file.Id, "test content").WaitResult();
+            var writeDocResult = CoreService.WriteDocument(file.id, "test content").WaitResult();
             CastOrDie(writeDocResult, out Core.WriteDocument.Success _);
         }
 
@@ -431,9 +431,9 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.id;
             DeleteAccount();
 
             var writeDocResult = CoreService.WriteDocument(fileId, "content").WaitResult();
@@ -450,9 +450,9 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.id;
 
             var writeDocResult = CoreService.WriteDocument(fileId, "test content").WaitResult();
             CastOrDie(writeDocResult, out Core.WriteDocument.Success _);
@@ -471,9 +471,9 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.id;
             DeleteAccount();
 
             var readDocResult = CoreService.ReadDocument(fileId).WaitResult();
@@ -490,9 +490,9 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Folder).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Folder).WaitResult();
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.id;
 
             var readDocResult = CoreService.ReadDocument(fileId).WaitResult();
             Assert.AreEqual(Core.ReadDocument.PossibleErrors.TreatedFolderAsDocument,
@@ -519,9 +519,9 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.id;
 
             var renameFileResult = CoreService.RenameFile(fileId, "NewTestFile").WaitResult();
             CastOrDie(renameFileResult, out Core.RenameFile.Success _);
@@ -536,13 +536,13 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var createFolderResult = CoreService.CreateFile("TestFile2", root.Id, FileType.Folder).WaitResult();
+            var createFolderResult = CoreService.CreateFile("TestFile2", root.id, FileType.Folder).WaitResult();
             var folder = CastOrDie(createFolderResult, out Core.CreateFile.Success _).newFile;
 
-            var moveFileResult = CoreService.MoveFile(file.Id, folder.Id).WaitResult();
+            var moveFileResult = CoreService.MoveFile(file.id, folder.id).WaitResult();
             CastOrDie(moveFileResult, out Core.MoveFile.Success _);
         }
 
@@ -555,14 +555,14 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var createFolderResult = CoreService.CreateFile("TestFile2", root.Id, FileType.Folder).WaitResult();
+            var createFolderResult = CoreService.CreateFile("TestFile2", root.id, FileType.Folder).WaitResult();
             var folder = CastOrDie(createFolderResult, out Core.CreateFile.Success _).newFile;
             DeleteAccount();
 
-            var moveFileResult = CoreService.MoveFile(file.Id, folder.Id).WaitResult();
+            var moveFileResult = CoreService.MoveFile(file.id, folder.id).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.NoAccount,
                 CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
@@ -576,7 +576,7 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var moveFileResult = CoreService.MoveFile(Guid.NewGuid().ToString(), root.Id).WaitResult();
+            var moveFileResult = CoreService.MoveFile(Guid.NewGuid().ToString(), root.id).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.FileDoesNotExist,
                 CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
@@ -590,13 +590,13 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var createFileResult2 = CoreService.CreateFile("TestFile2", root.Id, FileType.Document).WaitResult();
+            var createFileResult2 = CoreService.CreateFile("TestFile2", root.id, FileType.Document).WaitResult();
             var file2 = CastOrDie(createFileResult2, out Core.CreateFile.Success _).newFile;
 
-            var moveFileResult = CoreService.MoveFile(file.Id, file2.Id).WaitResult();
+            var moveFileResult = CoreService.MoveFile(file.id, file2.id).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.DocumentTreatedAsFolder,
                 CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
@@ -610,16 +610,16 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var createFolderResult = CoreService.CreateFile("TestFile2", root.Id, FileType.Folder).WaitResult();
+            var createFolderResult = CoreService.CreateFile("TestFile2", root.id, FileType.Folder).WaitResult();
             var folder = CastOrDie(createFolderResult, out Core.CreateFile.Success _).newFile;
 
-            var createFileResult2 = CoreService.CreateFile("TestFile", folder.Id, FileType.Document).WaitResult();
+            var createFileResult2 = CoreService.CreateFile("TestFile", folder.id, FileType.Document).WaitResult();
             CastOrDie(createFileResult2, out Core.CreateFile.Success _);
 
-            var moveFileResult = CoreService.MoveFile(file.Id, folder.Id).WaitResult();
+            var moveFileResult = CoreService.MoveFile(file.id, folder.id).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.TargetParentHasChildNamedThat,
                 CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
@@ -633,10 +633,10 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             var file = CastOrDie(createFileResult, out Core.CreateFile.Success _).newFile;
 
-            var moveFileResult = CoreService.MoveFile(file.Id, Guid.NewGuid().ToString()).WaitResult();
+            var moveFileResult = CoreService.MoveFile(file.id, Guid.NewGuid().ToString()).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.TargetParentDoesNotExist,
                 CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
@@ -650,10 +650,10 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFolderResult = CoreService.CreateFile("TestFile2", root.Id, FileType.Folder).WaitResult();
+            var createFolderResult = CoreService.CreateFile("TestFile2", root.id, FileType.Folder).WaitResult();
             var folder = CastOrDie(createFolderResult, out Core.CreateFile.Success _).newFile;
 
-            var moveFileResult = CoreService.MoveFile(root.Id, folder.Id).WaitResult();
+            var moveFileResult = CoreService.MoveFile(root.id, folder.id).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.CannotMoveRoot,
                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
@@ -668,13 +668,13 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFolderResult1 = CoreService.CreateFile("TestFile", root.Id, FileType.Folder).WaitResult();
+            var createFolderResult1 = CoreService.CreateFile("TestFile", root.id, FileType.Folder).WaitResult();
             var folder1 = CastOrDie(createFolderResult1, out Core.CreateFile.Success _).newFile;
 
-            var createFolderResult2 = CoreService.CreateFile("TestFile2", folder1.Id, FileType.Folder).WaitResult();
+            var createFolderResult2 = CoreService.CreateFile("TestFile2", folder1.id, FileType.Folder).WaitResult();
             var folder2 = CastOrDie(createFolderResult2, out Core.CreateFile.Success _).newFile;
 
-            var moveFileResult = CoreService.MoveFile(folder1.Id, folder2.Id).WaitResult();
+            var moveFileResult = CoreService.MoveFile(folder1.id, folder2.id).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.FolderMovedIntoItself,
                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
@@ -688,9 +688,9 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var createFileResult = CoreService.CreateFile("TestFile", root.Id, FileType.Document).WaitResult();
+            var createFileResult = CoreService.CreateFile("TestFile", root.id, FileType.Document).WaitResult();
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
-            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.Id;
+            var fileId = ((Core.CreateFile.Success)createFileResult).newFile.id;
 
             var deleteFileResult = CoreService.DeleteFile(fileId).WaitResult();
             CastOrDie(deleteFileResult, out Core.DeleteFile.Success _);
@@ -716,7 +716,7 @@ namespace test {
             var getRootResult = CoreService.GetRoot().WaitResult();
             var root = CastOrDie(getRootResult, out Core.GetRoot.Success _).root;
 
-            var deleteFileResult = CoreService.DeleteFile(root.Id).WaitResult();
+            var deleteFileResult = CoreService.DeleteFile(root.id).WaitResult();
             Assert.AreEqual(Core.DeleteFile.PossibleErrors.CannotDeleteRoot,
                 CastOrDie(deleteFileResult, out Core.DeleteFile.ExpectedError _).Error);
         }

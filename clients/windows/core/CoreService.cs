@@ -90,9 +90,6 @@ namespace lockbook {
         private static extern IntPtr calculate_work(IntPtr writeable_path);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr execute_work(IntPtr writeable_path, IntPtr work_unit);
-
-        [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr sync_all(IntPtr writeable_path);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
@@ -230,7 +227,7 @@ namespace lockbook {
             var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.CreateFileAtPath.IResult, Core.CreateFileAtPath.ExpectedError, Core.CreateFileAtPath.PossibleErrors, Core.CreateFileAtPath.UnexpectedError>(
                 () => create_file_at_path(path, pathWithNamePtr),
-                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<ClientFileMetadata>(s, jsonSettings) });
+                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
             Marshal.FreeHGlobal(pathWithNamePtr);
             return result;
         }
@@ -252,7 +249,7 @@ namespace lockbook {
             var fileTypePtr = Utils.ToFFI(ft == FileType.Folder ? "Folder" : "Document");
             var result = await FFICommon<Core.CreateFile.IResult, Core.CreateFile.ExpectedError, Core.CreateFile.PossibleErrors, Core.CreateFile.UnexpectedError>(
                 () => create_file(path, namePtr, parentPtr, fileTypePtr),
-                s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<ClientFileMetadata>(s, jsonSettings) });
+                s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
             Marshal.FreeHGlobal(namePtr);
             Marshal.FreeHGlobal(parentPtr);
             Marshal.FreeHGlobal(fileTypePtr);
@@ -262,14 +259,14 @@ namespace lockbook {
         public async Task<Core.GetRoot.IResult> GetRoot() {
             return await FFICommon<Core.GetRoot.IResult, Core.GetRoot.ExpectedError, Core.GetRoot.PossibleErrors, Core.GetRoot.UnexpectedError>(
                 () => get_root(path),
-                s => new Core.GetRoot.Success { root = JsonConvert.DeserializeObject<ClientFileMetadata>(s, jsonSettings) });
+                s => new Core.GetRoot.Success { root = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
         }
 
         public async Task<Core.GetChildren.IResult> GetChildren(string id) {
             var idPtr = Utils.ToFFI(id);
             var result = await FFICommon<Core.GetChildren.IResult, Core.GetChildren.ExpectedError, Core.GetChildren.PossibleErrors, Core.GetChildren.UnexpectedError>(
                 () => get_children(path, idPtr),
-                s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<ClientFileMetadata>>(s, jsonSettings) });
+                s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<DecryptedFileMetadata>>(s, jsonSettings) });
             Marshal.FreeHGlobal(idPtr);
             return result;
         }
@@ -287,7 +284,7 @@ namespace lockbook {
             var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.GetFileByPath.IResult, Core.GetFileByPath.ExpectedError, Core.GetFileByPath.PossibleErrors, Core.GetFileByPath.UnexpectedError>(
                 () => get_file_by_path(path, pathWithNamePtr),
-                s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<ClientFileMetadata>(s, jsonSettings) });
+                s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
             Marshal.FreeHGlobal(pathWithNamePtr);
             return result;
         }
@@ -313,7 +310,7 @@ namespace lockbook {
         public async Task<Core.ListMetadatas.IResult> ListMetadatas() {
             return await FFICommon<Core.ListMetadatas.IResult, Core.ListMetadatas.ExpectedError, Core.ListMetadatas.PossibleErrors, Core.ListMetadatas.UnexpectedError>(
                 () => list_metadatas(path),
-                s => new Core.ListMetadatas.Success { files = JsonConvert.DeserializeObject<List<ClientFileMetadata>>(s, jsonSettings) });
+                s => new Core.ListMetadatas.Success { files = JsonConvert.DeserializeObject<List<DecryptedFileMetadata>>(s, jsonSettings) });
         }
 
         public async Task<Core.RenameFile.IResult> RenameFile(string id, string newName) {
@@ -347,7 +344,7 @@ namespace lockbook {
         public async Task<Core.CalculateWork.IResult> CalculateWork() {
             return await FFICommon<Core.CalculateWork.IResult, Core.CalculateWork.ExpectedError, Core.CalculateWork.PossibleErrors, Core.CalculateWork.UnexpectedError>(
                 () => calculate_work(path),
-                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<ClientWorkCalculated>(s, jsonSettings) });
+                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<WorkCalculated>(s, jsonSettings) });
         }
 
         public async Task<Core.GetLastSynced.IResult> GetLastSynced() {

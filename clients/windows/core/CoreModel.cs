@@ -26,17 +26,25 @@ namespace Core {
         }
     }
 
-    public class ClientFileMetadata {
+    public class DecryptedFileMetadata {
         [JsonProperty("id", Required = Required.Always)]
-        public string Id;
-        [JsonProperty("name", Required = Required.Always)]
-        public string Name;
-        [JsonProperty("parent", Required = Required.Always)]
-        public string Parent;
+        public string id;
         [JsonProperty("file_type", Required = Required.Always)]
-        public string Type;
+        public string fileType;
+        [JsonProperty("parent", Required = Required.Always)]
+        public string parent;
+        [JsonProperty("decrypted_name", Required = Required.Always)]
+        public string decryptedName;
+        [JsonProperty("owner", Required = Required.Always)]
+        public string owner;
+        [JsonProperty("metadata_version", Required = Required.Always)]
+        public ulong metadataVersion;
+        [JsonProperty("content_version", Required = Required.Always)]
+        public ulong contentVersion;
         [JsonProperty("deleted", Required = Required.Always)]
         public bool deleted;
+        [JsonProperty("decrypted_access_key", Required = Required.Always)]
+        public List<byte> decrypted_access_key;
     }
 
     public class Account {
@@ -83,15 +91,18 @@ namespace Core {
         public ulong sizeBytes;
     }
 
-    public class ClientWorkCalculated {
-        [JsonProperty("local_files", Required = Required.Always)]
-        public List<ClientFileMetadata> localFiles;
-        [JsonProperty("server_files", Required = Required.Always)]
-        public List<ClientFileMetadata> serverFiles;
-        [JsonProperty("server_unknown_name_count", Required = Required.Always)]
-        public ulong serverUnknownNameCount;
+    public class WorkCalculated {
+        [JsonProperty("work_units", Required = Required.Always)]
+        public List<WorkUnit> workUnits;
         [JsonProperty("most_recent_update_from_server", Required = Required.Always)]
         public ulong mostRecentUpdateFromServer;
+    }
+
+    public class WorkUnit {
+        [JsonProperty("content", Required = Required.Always)]
+        public DecryptedFileMetadata content;
+        [JsonProperty("tag", Required = Required.Always)]
+        public string tag;
     }
 
     namespace GetDbState {
@@ -172,7 +183,7 @@ namespace Core {
     namespace CreateFileAtPath {
         public interface IResult { }
         public class Success : IResult {
-            public ClientFileMetadata newFile;
+            public DecryptedFileMetadata newFile;
         }
         public enum PossibleErrors {
             PathDoesntStartWithRoot,
@@ -201,7 +212,7 @@ namespace Core {
     namespace CreateFile {
         public interface IResult { }
         public class Success : IResult {
-            public ClientFileMetadata newFile;
+            public DecryptedFileMetadata newFile;
         }
         public enum PossibleErrors {
             NoAccount,
@@ -218,7 +229,7 @@ namespace Core {
     namespace GetRoot {
         public interface IResult { }
         public class Success : IResult {
-            public ClientFileMetadata root;
+            public DecryptedFileMetadata root;
         }
         public enum PossibleErrors {
             NoRoot,
@@ -230,7 +241,7 @@ namespace Core {
     namespace GetChildren {
         public interface IResult { }
         public class Success : IResult {
-            public List<ClientFileMetadata> children;
+            public List<DecryptedFileMetadata> children;
         }
         public enum PossibleErrors {
             Stub,
@@ -256,7 +267,7 @@ namespace Core {
     namespace GetFileByPath {
         public interface IResult { }
         public class Success : IResult {
-            public ClientFileMetadata file;
+            public DecryptedFileMetadata file;
         }
         public enum PossibleErrors {
             NoFileAtThatPath,
@@ -292,7 +303,7 @@ namespace Core {
     namespace ListMetadatas {
         public interface IResult { }
         public class Success : IResult {
-            public List<ClientFileMetadata> files;
+            public List<DecryptedFileMetadata> files;
         }
         public enum PossibleErrors {
             Stub,
@@ -346,7 +357,7 @@ namespace Core {
     namespace CalculateWork {
         public interface IResult { }
         public class Success : IResult {
-            public ClientWorkCalculated workCalculated;
+            public WorkCalculated workCalculated;
         }
         public enum PossibleErrors {
             NoAccount,
