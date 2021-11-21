@@ -6,6 +6,8 @@
 
 [MacOS](https://github.com/lockbook/homebrew-lockbook/blob/master/Formula/lockbook.rb): `brew tap lockbook/lockbook && brew install lockbook`
 
+[Snap Store](https://snapcraft.io/lockbook)
+
 ## Building from source
 
 [See build instructions.](../build/cli.md)
