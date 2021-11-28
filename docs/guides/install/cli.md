@@ -6,28 +6,14 @@
 
 [MacOS](https://github.com/lockbook/homebrew-lockbook/blob/master/Formula/lockbook.rb): `brew tap lockbook/lockbook && brew install lockbook`
 
-[Snap Store](https://snapcraft.io/lockbook) **Not entirely secure, see below**
+[Snap Store](https://snapcraft.io/lockbook)
 
-### Install from Snap Store Securely
+### Install from Snap Store More Securely
 
-The Snap Store does not automatically verify builds are of the publisher who made them. If you wish to
-gain a level of security by verifying the snap build is compiled by the lockbook team, follow these steps.
+Snap does not check if a package was built by the publisher. As a result, there needs to be an alternative method
+to verify this. We have bundled this check into a single command.
 
-- Run `snap download lockbook`. You should now have two files, `lockbook_<#>.snap` and `lockbook_<#>.assert`. 
-- Enter the `.assert` file, search for the field `snap-sha3-384` and copy its value. 
-- Run `snap known --remote snap-build snap-sha3-384=<value> lockbook.snap-build`, replacing `<value>` with 
-what you copied last step. 
-- Enter the `.sign-build` file, search for the field `sign-key-sha3-384` and copy its value. 
-- Run `snap known --remote account-key public-key-sha3-384=<value> lockbook.account-key`, replacing `<value>` with 
-what you copied last step. 
-- Run `sudo snap ack lockbook_<#>.assert`. 
-- Run `sudo snap ack lockbook.account-key`. 
-- Run `sudo snap ack lockbook.snap-build`. 
-- Run  `snap install ./lockbook_<#>.snap`, and now you have installed lockbook securely.
-
-## Building from source
-
-[See build instructions.](../build/cli.md)
+- Run `curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/SmailBarkouch/snap-verify/main/snap-verify.sh | sh -s lockbook fqikNXeTHExTwMsksdo78qofrP5HwVISTlZz2dFDsNeNzY_Z6FEki9w9CWqXoDLU`
 
 ## Quick Install
 
