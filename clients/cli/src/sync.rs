@@ -5,7 +5,6 @@ use lockbook_models::work_unit::ClientWorkUnit;
 use crate::error::CliResult;
 use crate::utils::{account, config};
 use crate::{err, err_unexpected};
-use core::cmp;
 use lockbook_core::model::state::Config;
 
 pub fn sync() -> CliResult<()> {

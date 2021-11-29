@@ -68,6 +68,7 @@ lib_c_for_swift_ios:
 	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
 	@rm ${swift_lib_ios}liblockbook_core.a || true
+	# Cargo-lipo considers themselves deprecated, we can just build various libs and configure them in xcode (search for LIBRARY_SEARCH...), or we could just lipo this ourselves like we do for macOS (cli and lib)
 	cargo lipo --release
 	@mkdir -p ${swift_lib_ios}
 	cp ../target/universal/release/liblockbook_core.a ${swift_lib_ios}

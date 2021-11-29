@@ -650,8 +650,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
+				LIBRARY_SEARCH_PATHS = "";
+				"LIBRARY_SEARCH_PATHS[arch=*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
 				MARKETING_VERSION = 0.3.11;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
@@ -675,8 +677,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
+				LIBRARY_SEARCH_PATHS = "";
+				"LIBRARY_SEARCH_PATHS[arch=*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
 				MARKETING_VERSION = 0.3.11;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
@@ -706,7 +710,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
-				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = 0.3.11;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
@@ -735,8 +739,9 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
-				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = 0.3.11;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
@@ -819,8 +824,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
+				LIBRARY_SEARCH_PATHS = "";
+				"LIBRARY_SEARCH_PATHS[arch=*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
 				MARKETING_VERSION = 0.3.11;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
@@ -849,7 +856,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
-				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = 0.3.11;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
