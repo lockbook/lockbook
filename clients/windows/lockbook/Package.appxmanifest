@@ -9,7 +9,7 @@
   <Identity
     Name="f2b67865-90b6-4ca9-965a-2ca644a7eec1"
     Publisher="CN=lockbook"
-    Version="1.0.0.0" />
+    Version="0.0.2.0" />
 
   <mp:PhoneIdentity PhoneProductId="f2b67865-90b6-4ca9-965a-2ca644a7eec1" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
