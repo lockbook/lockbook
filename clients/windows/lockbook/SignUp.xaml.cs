@@ -94,6 +94,28 @@ namespace lockbook {
 
             switch (await App.CoreService.ImportAccount(AccountString)) {
                 case Core.ImportAccount.Success:
+                    switch (await App.CoreService.SyncAll()) {
+                        case Core.SyncAll.Success:
+                            break;
+                        case Core.SyncAll.UnexpectedError uhOh:
+                            await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
+                            break;
+                        case Core.SyncAll.ExpectedError error:
+                            switch (error.Error) {
+                                case Core.SyncAll.PossibleErrors.CouldNotReachServer:
+                                    // When in doubt, sign out
+                                    await App.SignOut();
+                                    App.Refresh();
+                                    break;
+                                case Core.SyncAll.PossibleErrors.ClientUpdateRequired:
+                                    ImportAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
+                                    break;
+                                case Core.SyncAll.PossibleErrors.NoAccount:
+                                    ImportAccountError = "Successfully imported account but failed to load it. Try restarting the app. If the problem persists, please file a bug report.";
+                                    break;
+                            }
+                            break;
+                    }
                     break;
                 case Core.ImportAccount.UnexpectedError error:
                     await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();
@@ -119,29 +141,6 @@ namespace lockbook {
                             ImportAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
                             break;
                     };
-                    break;
-            }
-
-            switch (await App.CoreService.SyncAll()) {
-                case Core.SyncAll.Success:
-                    break;
-                case Core.SyncAll.UnexpectedError uhOh:
-                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
-                    break;
-                case Core.SyncAll.ExpectedError error:
-                    switch (error.Error) {
-                        case Core.SyncAll.PossibleErrors.CouldNotReachServer:
-                            // When in doubt, sign out
-                            await App.SignOut();
-                            App.Refresh();
-                            break;
-                        case Core.SyncAll.PossibleErrors.ClientUpdateRequired:
-                            ImportAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
-                            break;
-                        case Core.SyncAll.PossibleErrors.NoAccount:
-                            ImportAccountError = "Successfully imported account but failed to load it. Try restarting the app. If the problem persists, please file a bug report.";
-                            break;
-                    }
                     break;
             }
 
