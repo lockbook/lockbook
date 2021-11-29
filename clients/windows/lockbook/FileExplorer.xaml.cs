@@ -108,7 +108,7 @@ namespace lockbook {
             switch (await App.CoreService.CalculateWork()) {
                 case Core.CalculateWork.Success success:
                     App.IsOnline = true;
-                    itemsToSync = success.workCalculated.localFiles.Count + (int)success.workCalculated.serverUnknownNameCount + success.workCalculated.serverFiles.Count;
+                    itemsToSync = success.workCalculated.workUnits.Count;
                     break;
                 case Core.CalculateWork.UnexpectedError uhOh:
                     System.Diagnostics.Debug.WriteLine("Unexpected error during calc work loop: " + uhOh.ErrorMessage);
@@ -162,16 +162,16 @@ namespace lockbook {
             }
         }
 
-        private async Task PopulateTree(List<ClientFileMetadata> files) {
+        private async Task PopulateTree(List<DecryptedFileMetadata> files) {
             files = files.Where(f => !f.deleted).ToList();
             var newUIFiles = new Dictionary<string, UIFile>();
-            var root = files.FirstOrDefault(file => file.Id == file.Parent);
+            var root = files.FirstOrDefault(file => file.id == file.parent);
             if (root == null) {
                 await new MessageDialog("Root not found, file a bug report!", "Root not found!").ShowAsync();
                 return;
             }
             PopulateTreeRecursive(files, newUIFiles, root);
-            newUIFiles[root.Id].IsRoot = true;
+            newUIFiles[root.id].IsRoot = true;
             foreach (var f in App.UIFiles) {
                 if (f.Value.IsExpanded) {
                     if (newUIFiles.TryGetValue(f.Key, out var newUIFile)) {
@@ -180,21 +180,21 @@ namespace lockbook {
                 }
             }
             Files.Clear();
-            Files.Add(newUIFiles[root.Id]);
+            Files.Add(newUIFiles[root.id]);
             App.UIFiles = newUIFiles;
         }
 
-        private void PopulateTreeRecursive(List<ClientFileMetadata> files, Dictionary<string, UIFile> tree, ClientFileMetadata file) {
-            tree[file.Id] = new UIFile {
-                Id = file.Id,
-                Name = file.Name,
-                IsDocument = file.Type == "Document",
-                Children = file.Type == "Document" ? null : new ObservableCollection<UIFile>(),
+        private void PopulateTreeRecursive(List<DecryptedFileMetadata> files, Dictionary<string, UIFile> tree, DecryptedFileMetadata file) {
+            tree[file.id] = new UIFile {
+                Id = file.id,
+                Name = file.decryptedName,
+                IsDocument = file.fileType == "Document",
+                Children = file.fileType == "Document" ? null : new ObservableCollection<UIFile>(),
             };
-            if (file.Id != file.Parent) {
-                tree[file.Parent].Children.Add(tree[file.Id]);
+            if (file.id != file.parent) {
+                tree[file.parent].Children.Add(tree[file.id]);
             }
-            foreach(var f in files.Where(f => f.Parent == file.Id && f.Id != file.Id)) {
+            foreach(var f in files.Where(f => f.parent == file.id && f.id != file.id)) {
                 PopulateTreeRecursive(files, tree, f);
             }
         }
