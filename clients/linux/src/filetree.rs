@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -31,6 +31,7 @@ use crate::util::{LOCKBOOK_FILES_TARGET_INFO, URI_TARGET_INFO};
 use crate::{closure, progerr};
 use glib::timeout_add_local;
 use std::cell::RefCell;
+use glib::glib_sys::GTree;
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -347,10 +348,45 @@ impl FileTree {
         self.tree.get_selection().get_selected_rows()
     }
 
+    pub fn vec_into_tree(&self, mut metadatas_left: &Vec<DecryptedFileMetadata>, parent: (Uuid, Option<&TreeIter>)) {
+        if metadatas_left.is_empty() || (metadatas_left.len() == 1 && meta) {
+            return;
+        }
+
+        let mut children: Vec<DecryptedFileMetadata> = Vec::new();
+
+        metadatas_left.retain(|metadata| {
+            if metadata.parent == parent.0 {
+                children.push(metadata.clone());
+                return false;
+            }
+
+            return true;
+        });
+
+        for child in &children {
+            let icon_name = self.get_icon_name(&child.decrypted_name, &child.file_type);
+
+            let name = &child.decrypted_name;
+            let id = &child.id.to_string();
+            let ftype = &format!("{:?}", child.file_type);
+            let item_iter =
+                self.model
+                    .insert_with_values(parent.1, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype]);
+
+            if child.file_type == FileType::Folder {
+                self.vec_into_tree(metadatas_left, (child.id, Some(&item_iter)));
+            }
+        }
+    }
+
     pub fn fill(&self, c: &LbCore) -> LbResult<()> {
         self.model.clear();
-        let root = c.root()?;
-        self.append(c, None, &root)
+        let mut metadatas = c.get_all_files()?;
+
+
+
+        return Ok(());
     }
 
     pub fn refresh(&self, c: &LbCore) -> LbResult<()> {
