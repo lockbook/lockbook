@@ -12,3 +12,4 @@ Prerequisites:
 rustup target add aarch64-apple-ios x86_64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin
 ```
 6. You can run `make swift_libs` which will generate `core` libs and place them into the correct location within your xcode project.
+7. Open xcode, import the project and hit the Run button.
