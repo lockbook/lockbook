@@ -3,15 +3,9 @@
 ## Setting Up Build Environment
 
 - You will need the stable Rust toolchain installed on a Linux distribution.
-- You will also need a series of dependencies installed.
+- You will also need a series of development dependencies installed.
 Gtk
 GtkSourceView
-Pango
-Glib
-GdkPixbuf
-Atk
-Gobject Introspection
-Libepoxy
 Gspell
 
 ## Generating Binary

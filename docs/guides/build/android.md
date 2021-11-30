@@ -2,11 +2,10 @@
 
 ## Setting Up Build Environment
 
-- You will need the stable Rust toolchain installed.
-- Download and install the Android Software Development Kit (SDK) Manager, along with the Native Development Kit (NDK).
-- Ensure that the SDK mentioned in the [this build.gradle](/clients/android/app/build.gradle) is installed.
-The SDK version is mentioned at the `targetSdkVersion` field.
-- Set the environment variable `ANDROID_NDK_HOME` to the NDK's location.
+### Dependencies
+- Stable rust toolchain.
+- Android SDK. The version mentioned in [this build.gradle](/clients/android/app/build.gradle), at the `targetSdkVersion` field.
+- Android NDK. Set the environment variable `ANDROID_NDK_HOME` to the NDK's location.
 - Native development support for cargo:
 ```shell script
 cargo install cargo-ndk

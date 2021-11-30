@@ -10,9 +10,9 @@
 
 [Debian Linux](https://github.com/lockbook/lockbook/releases)
 
-[Snap Store](https://snapcraft.io/lockbook-desktop)
+[Snap Store](https://snapcraft.io/lockbook-desktop) `snap install lockbook-desktop`
 
-### Install from Snap Store More Securely
+### Verify snap package prior to installing it
 
 Snap does not check if a package was built by the publisher. As a result, there needs to be an alternative method
 to verify this. We have bundled this check into a single command.
