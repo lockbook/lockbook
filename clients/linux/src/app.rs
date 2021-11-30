@@ -930,7 +930,7 @@ impl LbApp {
         d.set_logo(Some(&GdkPixbuf::from_inline(LOGO_INTRO, false).unwrap()));
         d.set_program_name("Lockbook");
         d.set_version(Some(VERSION));
-        d.set_website(Some("https://lockbook.app"));
+        d.set_website(Some("https://lockbook.net"));
         d.set_authors(&["The Lockbook Team"]);
         d.set_license(Some(LICENSE));
         d.set_comments(Some(COMMENTS));
