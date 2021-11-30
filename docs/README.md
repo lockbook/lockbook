@@ -80,5 +80,5 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 [Linux]: guides/install/linux.md
 [Android]: guides/install/android.md
 [Windows]: guides/install/windows.md
-[MacOS]: guides/install/macos.md
+[macOS]: guides/install/macos.md
 [iOS/iPadOS]: guides/install/iOS-iPadOS.md
