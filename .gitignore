@@ -101,3 +101,5 @@ lockbook_core.dll
 *.crt
 lockbook-server.prod
 lockbook-server
+
+!docs/guides/build
