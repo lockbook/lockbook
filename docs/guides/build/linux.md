@@ -10,4 +10,4 @@ Gspell
 
 ## Generating Binary
 
-- Go to the [linux folder](/clients/linux) and `cargo run`.
+- Go to the [linux folder](/clients/linux) and `cargo build --release`.
