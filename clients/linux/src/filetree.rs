@@ -349,37 +349,22 @@ impl FileTree {
 
     pub fn vec_into_tree(
         &self,
-        metadatas_left: &mut Vec<DecryptedFileMetadata>,
-        parent_metadata: DecryptedFileMetadata,
-        parent_iter: Option<&TreeIter>,
+        metadatas: &[DecryptedFileMetadata],
+        parent_metadata: &DecryptedFileMetadata,
+        parent_iter: &TreeIter,
     ) -> LbResult<()> {
-        if metadatas_left.is_empty() {
-            return Ok(());
-        }
+        let children: Vec<&DecryptedFileMetadata> = metadatas
+            .iter()
+            .filter(|metadata| {
+                metadata.parent == parent_metadata.id && metadata.parent != metadata.id
+            })
+            .collect();
 
-        if parent_iter.is_none() {
-            metadatas_left.retain(|metadata| metadata.parent != metadata.id);
-            let item_iter = self.shallow_append(None, &parent_metadata);
-
-            return self.vec_into_tree(metadatas_left, parent_metadata, Some(&item_iter));
-        }
-
-        let mut children: Vec<DecryptedFileMetadata> = Vec::new();
-
-        metadatas_left.retain(|metadata| {
-            if metadata.parent == parent_metadata.id {
-                children.push(metadata.clone());
-                return false;
-            }
-
-            true
-        });
-
-        for child in &children {
-            let item_iter = self.shallow_append(parent_iter, child);
+        for child in children {
+            let item_iter = self.shallow_append(Some(parent_iter), child);
 
             if child.file_type == FileType::Folder {
-                self.vec_into_tree(metadatas_left, child.clone(), Some(&item_iter))?;
+                self.vec_into_tree(metadatas, child, &item_iter)?;
             }
         }
 
@@ -388,16 +373,16 @@ impl FileTree {
 
     fn shallow_append(
         &self,
-        parent_iter: Option<&TreeIter>,
-        child: &DecryptedFileMetadata,
+        iter: Option<&TreeIter>,
+        metadata: &DecryptedFileMetadata,
     ) -> TreeIter {
-        let icon_name = self.get_icon_name(&child.decrypted_name, &child.file_type);
+        let icon_name = self.get_icon_name(&metadata.decrypted_name, &metadata.file_type);
 
-        let name = &child.decrypted_name;
-        let id = &child.id.to_string();
-        let ftype = &format!("{:?}", child.file_type);
+        let name = &metadata.decrypted_name;
+        let id = &metadata.id.to_string();
+        let ftype = &format!("{:?}", metadata.file_type);
         self.model.insert_with_values(
-            parent_iter,
+            iter,
             None,
             &[0, 1, 2, 3],
             &[&icon_name, name, id, ftype],
@@ -406,9 +391,11 @@ impl FileTree {
 
     pub fn fill(&self, c: &LbCore) -> LbResult<()> {
         self.model.clear();
-        let mut metadatas = c.get_all_files()?;
-        self.vec_into_tree(&mut metadatas, c.root()?, None)?;
+        let metadatas = c.get_all_files()?;
+        let root = &c.root()?;
+        let root_iter = self.shallow_append(None, root);
 
+        self.vec_into_tree(metadatas.as_slice(), root, &root_iter)?;
         Ok(())
     }
 
