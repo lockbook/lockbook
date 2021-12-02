@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -9,7 +8,13 @@ use uuid::Uuid;
 use lockbook_core::model::state::Config;
 use lockbook_core::service::db_state_service::State as DbState;
 use lockbook_core::service::sync_service::{SyncProgress, WorkCalculated};
-use lockbook_core::{calculate_work, create_account, create_file, delete_file, export_account, export_file, get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id, get_file_by_path, get_last_synced, get_path_by_id, get_root, get_usage, import_account, import_file, list_metadatas, list_paths, migrate_db, move_file, read_document, rename_file, sync_all, write_document};
+use lockbook_core::{
+    calculate_work, create_account, create_file, delete_file, export_account, export_file,
+    get_account, get_and_get_children_recursively, get_children, get_db_state, get_file_by_id,
+    get_file_by_path, get_last_synced, get_path_by_id, get_root, get_usage, import_account,
+    import_file, list_metadatas, list_paths, migrate_db, move_file, read_document, rename_file,
+    sync_all, write_document,
+};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
 
