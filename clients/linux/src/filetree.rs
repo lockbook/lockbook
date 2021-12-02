@@ -381,12 +381,8 @@ impl FileTree {
         let name = &metadata.decrypted_name;
         let id = &metadata.id.to_string();
         let ftype = &format!("{:?}", metadata.file_type);
-        self.model.insert_with_values(
-            iter,
-            None,
-            &[0, 1, 2, 3],
-            &[&icon_name, name, id, ftype],
-        )
+        self.model
+            .insert_with_values(iter, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype])
     }
 
     pub fn fill(&self, c: &LbCore) -> LbResult<()> {
