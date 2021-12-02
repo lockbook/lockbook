@@ -347,12 +347,12 @@ impl FileTree {
         self.tree.get_selection().get_selected_rows()
     }
 
-    pub fn vec_into_tree(
+    pub fn populate_tree(
         &self,
         metadatas: &[DecryptedFileMetadata],
         parent_metadata: &DecryptedFileMetadata,
         parent_iter: &TreeIter,
-    ) -> LbResult<()> {
+    ) {
         let children: Vec<&DecryptedFileMetadata> = metadatas
             .iter()
             .filter(|metadata| {
@@ -364,11 +364,9 @@ impl FileTree {
             let item_iter = self.shallow_append(Some(parent_iter), child);
 
             if child.file_type == FileType::Folder {
-                self.vec_into_tree(metadatas, child, &item_iter)?;
+                self.populate_tree(metadatas, child, &item_iter);
             }
         }
-
-        Ok(())
     }
 
     fn shallow_append(
@@ -391,7 +389,7 @@ impl FileTree {
         let root = &c.root()?;
         let root_iter = self.shallow_append(None, root);
 
-        self.vec_into_tree(metadatas.as_slice(), root, &root_iter)?;
+        self.populate_tree(metadatas.as_slice(), root, &root_iter);
         Ok(())
     }
 
