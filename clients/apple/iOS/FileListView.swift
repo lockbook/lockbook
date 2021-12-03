@@ -10,6 +10,7 @@ struct FileListView: View {
     @EnvironmentObject var status: StatusService
     @EnvironmentObject var errors: UnexpectedErrorService
     @EnvironmentObject var onboarding: OnboardingService
+    @EnvironmentObject var settings: SettingsService
     
     @State var creatingFile: Bool = false
     @State var creating: FileType?
@@ -59,6 +60,9 @@ struct FileListView: View {
                         }
                 }
             }
+            .onAppear { // Different from willEnterForeground because its called on startup
+                settings.calculateServerUsageDuringInitialLoad()
+            }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
                 sync.sync()
             }
@@ -66,6 +70,12 @@ struct FileListView: View {
                 sync.sync()
             }
             .navigationBarTitle(currentFolder.decryptedName)
+            if settings.showUsageAlert {
+                NavigationLink(
+                    destination: SettingsView(account: account).equatable()) {
+                        UsageBanner()
+                    }
+            }
             HStack {
                 BottomBar(onCreating: { creatingFile = true })
             }
@@ -73,7 +83,7 @@ struct FileListView: View {
             .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: { BeforeYouStart() })
             .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, onSuccess: fileSuccessfullyCreated)})
         }
-
+        
     }
     
     func renderMoveDialog(meta: DecryptedFileMetadata) -> some View {
@@ -149,7 +159,7 @@ struct FileListView: View {
 struct FileListView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            FileListView(currentFolder: Mock.files.root!, account: Mock.accounts.account!, moving: .constant(.none))
+            FileListView(currentFolder: Mock.dummyRoot, account: Mock.dummyAccount, moving: .constant(.none))
                 .mockDI()
         }
     }

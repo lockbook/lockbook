@@ -36,6 +36,9 @@ class Mock {
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
+    
+    static let dummyAccount = Account(username: "Parth", apiUrl: "ftp://uranus.net", keys: [1, 2, 3, 4])
+    static let dummyRoot = DecryptedFileMetadata(fileType: FileType.Folder, id: UUID.init(), parent: UUID.init(), decryptedName: "Parth", owner: "Parth", contentVersion: 0, metadataVersion: 0)
 }
 
 extension View {

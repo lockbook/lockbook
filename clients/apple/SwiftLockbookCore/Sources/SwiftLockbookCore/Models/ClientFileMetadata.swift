@@ -1,6 +1,7 @@
 import Foundation
 
 public struct DecryptedFileMetadata: Codable, Identifiable, Equatable, Hashable {
+    
     public var fileType: FileType
     public var id: UUID
     public var parent: UUID
@@ -9,6 +10,16 @@ public struct DecryptedFileMetadata: Codable, Identifiable, Equatable, Hashable 
     public var contentVersion: UInt64
     public var metadataVersion: UInt64
     public var isRoot: Bool { parent == id }
+    
+    public init(fileType: FileType, id: UUID, parent: UUID, decryptedName: String, owner: String, contentVersion: UInt64, metadataVersion: UInt64) {
+        self.fileType = fileType
+        self.id = id
+        self.parent = parent
+        self.decryptedName = decryptedName
+        self.owner = owner
+        self.contentVersion = contentVersion
+        self.metadataVersion = metadataVersion
+    }
     
     public static func == (lhs: DecryptedFileMetadata, rhs: DecryptedFileMetadata) -> Bool {
         return lhs.fileType == rhs.fileType &&

@@ -40,35 +40,37 @@ struct SettingsView: View, Equatable {
                 }
             }
             Section(header:  Text("Usage")) {
-                if let usage = settingsState.usages {
+                if let serverUsage = settingsState.serverUsages, let uncompressedUsage = settingsState.uncompressedUsage {
                     VStack (alignment: .leading) {
                         HStack {
                             Text("Server Utilization:")
                             Spacer()
-                            Text("\(usage.serverUsages.serverUsage.readable) / \(usage.serverUsages.dataCap.readable)")
+                            Text("\(serverUsage.serverUsage.readable) / \(serverUsage.dataCap.readable)")
                         }
-                        if settingsState.usageProgress < 0.8 {
-                            ProgressView(value: settingsState.usageProgress)
-                        } else if settingsState.usageProgress < 0.9 {
-                            ProgressView(value: settingsState.usageProgress)
-                                .accentColor(Color.orange)
-                        } else {
+                        if settingsState.usageProgress > 0.95 {
                             ProgressView(value: settingsState.usageProgress)
                                 .accentColor(Color.red)
+                        } else if settingsState.usageProgress > 0.85 {
+                            ProgressView(value: settingsState.usageProgress)
+                                .accentColor(Color.orange)
+                        } else if settingsState.usageProgress > 0.80 {
+                            ProgressView(value: settingsState.usageProgress)
+                                .accentColor(Color.yellow)
+                        } else {
+                            ProgressView(value: settingsState.usageProgress)
+                                .accentColor(Color.accentColor)
                         }
                         
                     }
                     HStack {
                         Text("Uncompressed usage:")
                         Spacer()
-                        Text(usage.uncompressedUsage.readable)
+                        Text(uncompressedUsage.readable)
                     }
                     HStack {
                         Text("Compression ratio:")
                         Spacer()
-                        Text(usage.compressionRatio)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        
+                        Text(settingsState.compressionRatio)
                     }
                 } else {
                     Text("Calculating...")

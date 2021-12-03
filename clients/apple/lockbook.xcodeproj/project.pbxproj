@@ -46,6 +46,8 @@
 		877FB55E26D1B8A10008AB3F /* LBDrawingPKDrawingConversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */; };
 		877FB56026D2C7D60008AB3F /* StatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB55F26D2C7D60008AB3F /* StatusService.swift */; };
 		877FB56126D2C7D60008AB3F /* StatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB55F26D2C7D60008AB3F /* StatusService.swift */; };
+		87A6050D2756E2A300D7FB46 /* UsageBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87A6050C2756E2A300D7FB46 /* UsageBanner.swift */; };
+		87A6050E2756E2A300D7FB46 /* UsageBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87A6050C2756E2A300D7FB46 /* UsageBanner.swift */; };
 		87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AA99F2269610D8009E5591 /* NewFileSheet.swift */; };
 		87BD383826C020B00030D2B1 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD383726C020B00030D2B1 /* SettingsService.swift */; };
 		87BD383926C020B00030D2B1 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD383726C020B00030D2B1 /* SettingsService.swift */; };
@@ -117,6 +119,7 @@
 		877FB55526D18AA60008AB3F /* AccountService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountService.swift; sourceTree = "<group>"; };
 		877FB55826D18EC80008AB3F /* FileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileService.swift; sourceTree = "<group>"; };
 		877FB55F26D2C7D60008AB3F /* StatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusService.swift; sourceTree = "<group>"; };
+		87A6050C2756E2A300D7FB46 /* UsageBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBanner.swift; sourceTree = "<group>"; };
 		87AA99F2269610D8009E5591 /* NewFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFileSheet.swift; sourceTree = "<group>"; };
 		87BD383726C020B00030D2B1 /* SettingsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsService.swift; sourceTree = "<group>"; };
 		87F78F6E270785E00001E159 /* OutlineSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSection.swift; sourceTree = "<group>"; };
@@ -309,6 +312,7 @@
 				872175EF26F2850600A77C59 /* DocumentView.swift */,
 				87F78F762709352C0001E159 /* LogoView.swift */,
 				8715F92727161CC60051689E /* OnboardingView.swift */,
+				87A6050C2756E2A300D7FB46 /* UsageBanner.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -453,6 +457,7 @@
 				872175F326F2858400A77C59 /* DocumentLoader.swift in Sources */,
 				EA9079C32569960A00E04F5D /* FileCell.swift in Sources */,
 				87F78F7A27094A040001E159 /* BeforeYouStart.swift in Sources */,
+				87A6050D2756E2A300D7FB46 /* UsageBanner.swift in Sources */,
 				8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */,
 				8737B2BE25D83EE600C93E09 /* DrawingView.swift in Sources */,
 				EA4559BE25169F7D003AD80A /* CodeScannerView.swift in Sources */,
@@ -481,6 +486,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				877FB55E26D1B8A10008AB3F /* LBDrawingPKDrawingConversions.swift in Sources */,
+				87A6050E2756E2A300D7FB46 /* UsageBanner.swift in Sources */,
 				87BD383926C020B00030D2B1 /* SettingsService.swift in Sources */,
 				B2B7E2E325C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				EA5979A226040DB1007B9357 /* NestedList.swift in Sources */,
@@ -574,6 +580,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -628,6 +636,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -645,7 +655,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -672,7 +682,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -801,6 +811,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -819,7 +831,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

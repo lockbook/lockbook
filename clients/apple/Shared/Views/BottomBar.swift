@@ -107,7 +107,6 @@ struct BottomBar: View {
         Spacer()
         menu
         #else
-        Divider()
         statusText
             .padding(4)
         syncButton
