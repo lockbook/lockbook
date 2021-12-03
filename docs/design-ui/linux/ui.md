@@ -3,41 +3,41 @@
 ## New Account
 <details>
 
-![new-account](/linux/new-account.png)
+![new-account](/docs/design-ui/linux/new-account.png)
 </details>
 
 ## Import Account
 <details>
 
-![import-account](/linux/import-account.png)
+![import-account](/docs/design-ui/linux/import-account.png)
 </details>
 
 ## Main Screen
 <details>
 
-![main-screen](/linux/main-screen.png)
+![main-screen](/docs/design-ui/linux/main-screen.png)
 </details>
 
 ## Editor
 <details>
 
-![editor](/linux/editor.png)
+![editor](/docs/design-ui/linux/editor.png)
 </details>
 
 ## Settings
 <details>
 
-![settings](/linux/settings.png)
+![settings](/docs/design-ui/linux/settings.png)
 </details>
 
 ## Usage
 <details>
 
-![usage](/linux/usage.png)
+![usage](/docs/design-ui/linux/usage.png)
 </details>
 
 ## About
 <details>
 
-![about](/linux/about.png)
+![about](/docs/design-ui/linux/about.png)
 </details>
