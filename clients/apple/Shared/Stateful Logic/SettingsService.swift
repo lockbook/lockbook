@@ -7,8 +7,8 @@ class SettingsService: ObservableObject {
     
     // TODO give future consideration to what users will experience once they've paid and have run out of storage once again
     // how do these get reset?
-    @AppStorage("usage_80_warning4") public var dismissed80 = false
-    @AppStorage("usage_95_warning4") public var dismissed95 = false
+    @AppStorage("usage_80_warning") public var dismissed80 = false
+    @AppStorage("usage_95_warning") public var dismissed95 = false
     
     @Published var serverUsages: UsageMetrics?
     @Published var uncompressedUsage: UsageItemMetric?
