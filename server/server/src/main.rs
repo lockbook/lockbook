@@ -58,9 +58,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .expect("Failed to connect to files_db");
     debug!("Connected to files_db");
 
+    let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
+
     let port = config.server.port;
     let server_state = Arc::new(ServerState {
         config,
+        stripe_client,
         index_db_client,
         files_db_client,
     });

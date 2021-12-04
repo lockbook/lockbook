@@ -32,6 +32,7 @@ tokio = { version = "1.5.0", features = ["full"] }
 sqlx = { version = "0.5.2", features = ["macros", "postgres", "uuid", "tls", "runtime-tokio-native-tls", "offline"] }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 libsecp256k1 = "0.7.0"
+async-stripe = { version = "0.13.0-rc3", features = ["runtime-tokio-hyper"] }
 
 [build-dependencies]
 shadow-rs = "0.6.2"

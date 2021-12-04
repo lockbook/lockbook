@@ -261,3 +261,5 @@ impl Request for GetBuildInfoRequest {
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-build-info";
 }
+
+pub struct RegisterCreditCardInformation {}

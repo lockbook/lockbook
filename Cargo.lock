@@ -148,6 +148,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-stripe"
+version = "0.13.0-rc3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab0b4196d6fb45057dc4d3be8e645bde98473cf242da6906a3e5a4d689ab27b2"
+dependencies = [
+ "chrono",
+ "hmac 0.10.1",
+ "hyper",
+ "hyper-tls",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_qs",
+ "sha2 0.9.8",
+ "smol_str",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -473,6 +493,7 @@ dependencies = [
  "libc",
  "num-integer",
  "num-traits",
+ "serde",
  "time 0.1.43",
  "winapi 0.3.9",
 ]
@@ -736,6 +757,16 @@ name = "crypto-mac"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
+dependencies = [
+ "generic-array 0.14.4",
+ "subtle",
+]
+
+[[package]]
+name = "crypto-mac"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bff07008ec701e8028e2ceb8f83f0e4274ee62bd2dbdc4fefff2e9a91824081a"
 dependencies = [
  "generic-array 0.14.4",
  "subtle",
@@ -1560,6 +1591,16 @@ dependencies = [
 
 [[package]]
 name = "hmac"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1441c6b1e930e2817404b5046f1f989899143a12bf92de603b69f4e0aee1e15"
+dependencies = [
+ "crypto-mac 0.10.1",
+ "digest 0.9.0",
+]
+
+[[package]]
+name = "hmac"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a2a2320eb7ec0ebe8da8f744d7812d9fc4cb4d09344ac01898dbcb6a20ae69b"
@@ -2107,6 +2148,7 @@ dependencies = [
 name = "lockbook-server"
 version = "0.1.1"
 dependencies = [
+ "async-stripe",
  "atomic-counter",
  "base64 0.13.0",
  "bincode",
@@ -3189,6 +3231,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_qs"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7715380eec75f029a4ef7de39a9200e0a63823176b759d055b613f5a87df6a6"
+dependencies = [
+ "percent-encoding",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3297,6 +3350,15 @@ name = "smallvec"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ecab6c735a6bb4139c0caafd0cc3635748bbb3acf4550e8138122099251f309"
+
+[[package]]
+name = "smol_str"
+version = "0.1.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61d15c83e300cce35b7c8cd39ff567c1ef42dde6d4a1a38dbdbf9a59902261bd"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "socket2"
