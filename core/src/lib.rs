@@ -34,8 +34,8 @@ use crate::service::import_export_service::{self, ImportExportFileInfo};
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
-    account_service, db_state_service, drawing_service, file_service, path_service, sync_service,
-    usage_service,
+    account_service, billing_service, db_state_service, drawing_service, file_service,
+    path_service, sync_service, usage_service,
 };
 use crate::sync_service::WorkCalculated;
 
@@ -618,6 +618,17 @@ pub fn export_file(
             _ => unexpected!("{:#?}", e),
         },
     )
+}
+
+pub fn add_credit_card(
+    config: &Config,
+    card_number: String,
+    exp_month: String,
+    exp_year: String,
+    cvc: String,
+) -> Result<(), UnexpectedError> {
+    billing_service::add_credit_card(config, card_number, exp_month, exp_year, cvc)
+        .map_err(|e| unexpected_only!("{:#?}", e))
 }
 
 // This basically generates a function called `get_all_error_variants`,

@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .expect("Failed to connect to files_db");
     debug!("Connected to files_db");
 
-    let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
+    let stripe_client = reqwest::Client::new();
 
     let port = config.server.port;
     let server_state = Arc::new(ServerState {
@@ -167,6 +167,12 @@ async fn route(
         route_case!(NewAccountRequest) => route_handler!(
             NewAccountRequest,
             account_service::new_account,
+            hyper_request,
+            server_state
+        ),
+        route_case!(RegisterCreditCard) => route_handler!(
+            RegisterCreditCard,
+            payment_service::register_for_stripe,
             hyper_request,
             server_state
         ),

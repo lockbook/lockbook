@@ -12,3 +12,4 @@ pub mod path_service;
 pub mod sync_service;
 pub mod test_utils;
 pub mod usage_service;
+pub mod billing_service;

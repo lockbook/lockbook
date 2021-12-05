@@ -4,7 +4,8 @@ use lockbook_core::{
     GetAccountError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
-use std::{env, fs};
+use std::io::Write;
+use std::{env, fs, io};
 
 use crate::error::CliResult;
 use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
@@ -217,6 +218,24 @@ pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
             None
         }
     }
+}
+
+pub fn grab_line_stdin(prompt: &str) -> CliResult<String> {
+    print!("{}", prompt);
+    io::stdout().flush().unwrap();
+
+    let mut s = String::new();
+    io::stdin()
+        .read_line(&mut s)
+        .map_err(|err| err!(OsStdInFailed(err)))?;
+
+    if s.ends_with('\n') {
+        s.pop();
+        if s.ends_with('\r') {
+            s.pop();
+        }
+    }
+    Ok(s)
 }
 
 pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {

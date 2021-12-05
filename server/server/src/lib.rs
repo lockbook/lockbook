@@ -10,10 +10,11 @@ pub mod utils;
 extern crate log;
 
 use libsecp256k1::PublicKey;
+use reqwest::Client;
 
 pub struct ServerState {
     pub config: config::Config,
-    pub stripe_client: stripe::Client,
+    pub stripe_client: Client,
     pub index_db_client: sqlx::PgPool,
     pub files_db_client: s3::bucket::Bucket,
 }

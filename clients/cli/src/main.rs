@@ -5,6 +5,7 @@ use structopt::StructOpt;
 use crate::utils::{check_and_perform_migrations, init_logger_or_print};
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
+mod add_billing;
 mod backup;
 mod calculate_usage;
 mod copy;
@@ -31,6 +32,9 @@ mod whoami;
 enum Lockbook {
     /// Backup your Lockbook files and structure to the current directory
     Backup,
+
+    /// Manage billing preferences
+    Billing(Billing),
 
     /// Copy a file from your file system into your Lockbook
     Copy {
@@ -145,6 +149,13 @@ enum Lockbook {
     Validate,
 }
 
+#[derive(Debug, PartialEq, StructOpt)]
+#[structopt(about = "Manage billing preferences.")]
+enum Billing {
+    /// Add a billing method
+    Add,
+}
+
 fn main() {
     if let Err(err) = init_logger_or_print() {
         err.exit()
@@ -157,6 +168,7 @@ fn main() {
     }
 
     if let Err(err) = match args {
+        Lockbook::Billing(Billing::Add) => add_billing::add_billing(),
         Lockbook::Copy {
             disk_files: files,
             destination,

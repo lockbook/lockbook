@@ -262,14 +262,22 @@ impl Request for GetBuildInfoRequest {
     const ROUTE: &'static str = "/get-build-info";
 }
 
-pub struct RegisterCreditCard {}
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct RegisterCreditCard {
+    pub card_number: String,
+    pub exp_month: String,
+    pub exp_year: String,
+    pub cvc: String,
+}
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RegisterCreditCardResponse {}
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RegisterCreditCardError {}
 
 impl Request for RegisterCreditCard {
-    type Response = RegisterCreditCardResponse;
+    type Response = ();
     type Error = RegisterCreditCardError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/register-credit-card";

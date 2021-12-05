@@ -100,6 +100,7 @@ make_errkind_enum!(
     34 => OsCouldNotDeleteFile(String, IoError),
     35 => OsInvalidPath(String),
     36 => OsFileCollision(String),
+    37 => OsStdInFailed(IoError),
 
     // Lockbook file ops (40-52)
     40 => FileNotFound(String),
@@ -150,6 +151,7 @@ impl ErrorKind {
             Self::OsCouldNotDeleteFile(path, err) => format!("could not delete file '{}': {}", path, err),
             Self::OsInvalidPath(path) => format!("'{}' is an invalid path", path),
             Self::OsFileCollision(path) => format!("A file collision was detected in '{}'", path),
+            Self::OsStdInFailed(err) => format!("could not read from stdin: {}", err),
 
             Self::FileNotFound(path) => format!("file '{}' not found", path),
             Self::FileAlreadyExists(path) => format!("the file '{}' already exists", path),

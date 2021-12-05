@@ -4,18 +4,11 @@ use std::{env, io};
 use lockbook_core::{create_account, CreateAccountError, Error as CoreError};
 
 use crate::error::CliResult;
-use crate::utils::config;
+use crate::utils::{config, grab_line_stdin};
 use crate::{err, err_unexpected};
 
 pub fn new_account() -> CliResult<()> {
-    print!("Enter a Username: ");
-    io::stdout().flush().unwrap();
-
-    let mut username = String::new();
-    io::stdin()
-        .read_line(&mut username)
-        .expect("Failed to read from stdin");
-    username.retain(|c| c != '\n' && c != '\r');
+    let username = grab_line_stdin("Enter a Username: ")?;
 
     let api_location =
         env::var("API_URL").unwrap_or_else(|_| lockbook_core::DEFAULT_API_LOCATION.to_string());
