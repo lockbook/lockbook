@@ -335,6 +335,11 @@ class FilesListFragment : Fragment(), FilesFragment {
                 snackProgressBarManager.updateTo(syncSnackProgressBar)
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
+            UpdateFilesUI.SyncSuccessfullyFinished -> {
+                alertModel.notify(resources.getString(R.string.list_files_sync_finished_snackbar)) {
+                    binding.listFilesOutOfSpace.updateBasedOnUsage(requireContext())
+                }
+            }
         }.exhaustive
     }
 
@@ -475,6 +480,7 @@ sealed class UpdateFilesUI {
     object ToggleMenuBar : UpdateFilesUI()
     data class UpdateSyncSnackBar(val total: Int, val progress: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
+    object SyncSuccessfullyFinished : UpdateFilesUI()
 }
 
 private val menuItemsNoneSelected = listOf(

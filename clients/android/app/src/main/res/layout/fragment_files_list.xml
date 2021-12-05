@@ -47,6 +47,20 @@
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
+    <app.lockbook.ui.OutOfSpaceView
+        android:id="@+id/list_files_out_of_space"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="30dp"
+        android:background="@color/windowBackground"
+        android:translationZ="10dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"/>
+
     <FrameLayout
         android:id="@+id/list_files_frame_layout"
         android:layout_width="match_parent"

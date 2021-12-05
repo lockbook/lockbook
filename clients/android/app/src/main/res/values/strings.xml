@@ -234,6 +234,8 @@
         <item>@string/biometric_strict</item>
     </array>
 
+    <string name="out_of_space">You are running out of space!</string>
+
     <!-- Preference keys -->
 
     <array name="settings_biometric_values">
@@ -271,4 +273,8 @@
     <string name="file_layout_linear_value" translatable="false">linear_layout</string>
 
     <string name="open_new_doc_automatically_key" translatable="false">open_new_doc_automatically</string>
+
+    <string name="hide_out_of_space_80" translatable="false">hide_out_of_space_80</string>
+    <string name="hide_out_of_space_95" translatable="false">hide_out_of_space_95</string>
+
 </resources>
