@@ -8,8 +8,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:paddingHorizontal="20dp"
-    android:paddingVertical="26dp"
-    android:background="@color/windowBackground">
+    android:paddingVertical="26dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
