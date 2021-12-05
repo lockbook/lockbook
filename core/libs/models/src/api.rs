@@ -262,4 +262,15 @@ impl Request for GetBuildInfoRequest {
     const ROUTE: &'static str = "/get-build-info";
 }
 
-pub struct RegisterCreditCardInformation {}
+pub struct RegisterCreditCard {}
+
+pub struct RegisterCreditCardResponse {}
+
+pub struct RegisterCreditCardError {}
+
+impl Request for RegisterCreditCard {
+    type Response = RegisterCreditCardResponse;
+    type Error = RegisterCreditCardError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/register-credit-card";
+}
