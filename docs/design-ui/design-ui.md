@@ -2,8 +2,8 @@
 
 [Apple]()
 
-[Android](/docs/design-ui/android/ui.md)
+[Android](/docs/design-ui/android/README.md)
 
 [Windows]()
 
-[Linux](/docs/design-ui/linux/ui.md)
+[Linux](/docs/design-ui/linux/README.md)
