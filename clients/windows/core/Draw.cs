@@ -170,9 +170,9 @@ namespace Core {
 
         private static Stroke SubStroke(Stroke stroke, int startIndexInclusive, int endIndexExclusive) {
             return new Stroke {
-                pointsX = stroke.pointsX.Skip(startIndexInclusive).Take(endIndexExclusive).ToList(),
-                pointsY = stroke.pointsY.Skip(startIndexInclusive).Take(endIndexExclusive).ToList(),
-                pointsGirth = stroke.pointsGirth.Skip(startIndexInclusive).Take(endIndexExclusive).ToList(),
+                pointsX = stroke.pointsX.Skip(startIndexInclusive).Take(endIndexExclusive - startIndexInclusive).ToList(),
+                pointsY = stroke.pointsY.Skip(startIndexInclusive).Take(endIndexExclusive - startIndexInclusive).ToList(),
+                pointsGirth = stroke.pointsGirth.Skip(startIndexInclusive).Take(endIndexExclusive - startIndexInclusive).ToList(),
                 color = stroke.color,
                 alpha = stroke.alpha,
             };
@@ -186,7 +186,7 @@ namespace Core {
                 var connectedStrokes = context.splitStrokes[strokeToEmit];
                 yield return JoinStroke(connectedStrokes.Select(stroke => CoreStrokeToStroke(stroke, context.theme)), context.theme.RGBColorToAlias(strokeToEmit.color));
                 foreach (var connectedStroke in connectedStrokes) {
-                    strokesToEmit.Remove(strokesToEmit.First(stroke => comparer.Equals(stroke, connectedStroke)));
+                    strokesToEmit.RemoveAll(stroke => comparer.Equals(stroke, connectedStroke));
                 }
             }
         }

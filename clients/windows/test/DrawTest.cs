@@ -1,5 +1,6 @@
 ﻿using Core;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -110,9 +111,9 @@ namespace devtest {
             var drawing = new Drawing {
                 strokes = new List<Stroke> {
                     new Stroke {
-                        pointsX = new List<float> {0, 1, 2},
-                        pointsY = new List<float> {0, 0, 0},
-                        pointsGirth = new List<float> {3.1f, 3.1f * 3, 3.1f * 9},
+                        pointsX = new List<float> {0, 1, 2, 3},
+                        pointsY = new List<float> {0, 0, 0, 0},
+                        pointsGirth = new List<float> {3.1f, 3.1f * 3, 3.1f * 9, 3.1f * 27},
                     }
                 }
             };
@@ -130,6 +131,13 @@ namespace devtest {
                         points = new List<InkPoint> {
                             new InkPoint { x = 1, y = 0, pressure = .16f },
                             new InkPoint { x = 2, y = 0, pressure = .80f },
+                        },
+                    },
+                    new InkStroke {
+                        size = 56.25f,
+                        points = new List<InkPoint> {
+                            new InkPoint { x = 2, y = 0, pressure = .16f },
+                            new InkPoint { x = 3, y = 0, pressure = .80f },
                         },
                     },
                 },
@@ -157,6 +165,13 @@ namespace devtest {
                                     new InkPoint { x = 2, y = 0, pressure = .80f },
                                 },
                             },
+                            new InkStroke {
+                                size = 56.25f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 2, y = 0, pressure = .16f },
+                                    new InkPoint { x = 3, y = 0, pressure = .80f },
+                                },
+                            },
                         }
                     },
                     {
@@ -180,6 +195,45 @@ namespace devtest {
                                 points = new List<InkPoint> {
                                     new InkPoint { x = 1, y = 0, pressure = .16f },
                                     new InkPoint { x = 2, y = 0, pressure = .80f },
+                                },
+                            },
+                            new InkStroke {
+                                size = 56.25f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 2, y = 0, pressure = .16f },
+                                    new InkPoint { x = 3, y = 0, pressure = .80f },
+                                },
+                            },
+                        }
+                    },
+                    {
+                        new InkStroke {
+                            size = 56.25f,
+                            points = new List<InkPoint> {
+                                new InkPoint { x = 2, y = 0, pressure = .16f },
+                                new InkPoint { x = 3, y = 0, pressure = .80f },
+                            },
+                        },
+                        new List<InkStroke> {
+                            new InkStroke {
+                                size = 6.25f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 0, y = 0, pressure = .16f },
+                                    new InkPoint { x = 1, y = 0, pressure = .80f },
+                                },
+                            },
+                            new InkStroke {
+                                size = 18.75f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 1, y = 0, pressure = .16f },
+                                    new InkPoint { x = 2, y = 0, pressure = .80f },
+                                },
+                            },
+                            new InkStroke {
+                                size = 56.25f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 2, y = 0, pressure = .16f },
+                                    new InkPoint { x = 3, y = 0, pressure = .80f },
                                 },
                             },
                         }
@@ -261,6 +315,13 @@ namespace devtest {
                             new InkPoint { x = 2, y = 0, pressure = .80f },
                         },
                     },
+                    new InkStroke {
+                        size = 56.25f,
+                        points = new List<InkPoint> {
+                            new InkPoint { x = 2, y = 0, pressure = .16f },
+                            new InkPoint { x = 3, y = 0, pressure = .80f },
+                        },
+                    },
                 },
                 splitStrokes = new Dictionary<InkStroke, List<InkStroke>>(new Draw.InkStrokeComparer()) {
                     {
@@ -284,6 +345,13 @@ namespace devtest {
                                 points = new List<InkPoint> {
                                     new InkPoint { x = 1, y = 0, pressure = .16f },
                                     new InkPoint { x = 2, y = 0, pressure = .80f },
+                                },
+                            },
+                            new InkStroke {
+                                size = 56.25f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 2, y = 0, pressure = .16f },
+                                    new InkPoint { x = 3, y = 0, pressure = .80f },
                                 },
                             },
                         }
@@ -311,6 +379,45 @@ namespace devtest {
                                     new InkPoint { x = 2, y = 0, pressure = .80f },
                                 },
                             },
+                            new InkStroke {
+                                size = 56.25f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 2, y = 0, pressure = .16f },
+                                    new InkPoint { x = 3, y = 0, pressure = .80f },
+                                },
+                            },
+                        }
+                    },
+                    {
+                        new InkStroke {
+                            size = 56.25f,
+                            points = new List<InkPoint> {
+                                new InkPoint { x = 2, y = 0, pressure = .16f },
+                                new InkPoint { x = 3, y = 0, pressure = .80f },
+                            },
+                        },
+                        new List<InkStroke> {
+                            new InkStroke {
+                                size = 6.25f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 0, y = 0, pressure = .16f },
+                                    new InkPoint { x = 1, y = 0, pressure = .80f },
+                                },
+                            },
+                            new InkStroke {
+                                size = 18.75f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 1, y = 0, pressure = .16f },
+                                    new InkPoint { x = 2, y = 0, pressure = .80f },
+                                },
+                            },
+                            new InkStroke {
+                                size = 56.25f,
+                                points = new List<InkPoint> {
+                                    new InkPoint { x = 2, y = 0, pressure = .16f },
+                                    new InkPoint { x = 3, y = 0, pressure = .80f },
+                                },
+                            },
                         }
                     },
                 }
@@ -318,9 +425,9 @@ namespace devtest {
             var expectedDrawing = new Drawing {
                 strokes = new List<Stroke> {
                     new Stroke {
-                        pointsX = new List<float> {0, 1, 2},
-                        pointsY = new List<float> {0, 0, 0},
-                        pointsGirth = new List<float> {3.1f, 3.1f * 3, 3.1f * 9},
+                        pointsX = new List<float> {0, 1, 2, 3},
+                        pointsY = new List<float> {0, 0, 0, 0},
+                        pointsGirth = new List<float> {3.1f, 3.1f * 3, 3.1f * 9, 3.1f * 27},
                     }
                 }
             };
