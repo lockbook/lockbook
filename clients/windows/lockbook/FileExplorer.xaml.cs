@@ -1,4 +1,6 @@
 ﻿using Core;
+using Lockbook;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -6,6 +8,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.UI;
+using Windows.UI.Core;
+using Windows.UI.Input.Inking;
 using Windows.UI.Popups;
 using Windows.UI.Text;
 using Windows.UI.Xaml;
@@ -23,7 +27,7 @@ namespace lockbook {
             get {
                 return IsRoot ? rootGlyph : (IsDocument ? documentGlyph : folderGlyph);
             }
-            set {} // required for Xaml
+            set { } // required for Xaml
         }
         public string Name { get; set; }
         public bool IsDocument { get; set; }
@@ -40,6 +44,8 @@ namespace lockbook {
     }
 
     public sealed partial class FileExplorer : Page {
+        Symbol TouchWriting = (Symbol)0xED5F;
+
         public string SelectedDocumentId { get; set; } = "";
         private int itemsToSync;
         public int ItemsToSync {
@@ -60,17 +66,39 @@ namespace lockbook {
                 Refresh();
             }
         }
+        public enum EditMode {
+            None,
+            Text,
+            Draw
+        }
+        private EditMode currentEditMode;
+        public EditMode CurrentEditMode {
+            get {
+                return currentEditMode;
+            }
+            set {
+                currentEditMode = value;
+                Refresh();
+            }
+        }
 
         public const string checkGlyph = "\uE73E";
         public const string syncGlyph = "\uE895";
         public const string offlineGlyph = "\uF384";
 
         ObservableCollection<UIFile> Files = new ObservableCollection<UIFile>();
-        Dictionary<string, int> keyStrokeCount = new Dictionary<string, int>();
+        Dictionary<string, int> editCount = new Dictionary<string, int>();
+        Lockbook.DrawingContext drawingContext;
 
         public FileExplorer() {
             InitializeComponent();
             Files.Add(App.UIFiles.FirstOrDefault(kvp => kvp.Value.IsRoot).Value);
+            inkCanvas.InkPresenter.InputDeviceTypes =
+                CoreInputDeviceTypes.Mouse |
+                CoreInputDeviceTypes.Pen |
+                CoreInputDeviceTypes.Touch;
+            inkCanvas.InkPresenter.StrokesCollected += StrokesCollected;
+            inkCanvas.InkPresenter.StrokesErased += StrokesErased;
         }
 
         private async void SignOutClicked(object sender, RoutedEventArgs e) {
@@ -90,6 +118,17 @@ namespace lockbook {
             if (await dialog.ShowAsync() == ContentDialogResult.Primary) {
                 await App.SignOut();
             }
+        }
+
+        private void drawToolbarPenButton_Loaded(object sender, RoutedEventArgs e) {
+            drawToolbarPenButton.SelectedBrushIndex = 1;
+            drawToolbarPenButton.SelectedBrushIndex = 0;
+            drawToolbarPenButton.SelectedStrokeWidth = 5;
+        }
+
+        private void toggleButton_Loaded(object sender, RoutedEventArgs e) {
+            toggleButton.IsChecked = true;
+            toggleButton.IsChecked = false;
         }
 
         private async void NavigationViewLoaded(object sender, RoutedEventArgs e) {
@@ -131,18 +170,32 @@ namespace lockbook {
         }
 
         public void Refresh() {
-            if(!App.IsOnline) {
+            switch (currentEditMode) {
+                case EditMode.None:
+                    textEditor.Visibility = Visibility.Collapsed;
+                    drawEditor.Visibility = Visibility.Collapsed;
+                    break;
+                case EditMode.Text:
+                    textEditor.Visibility = Visibility.Visible;
+                    drawEditor.Visibility = Visibility.Collapsed;
+                    break;
+                case EditMode.Draw:
+                    textEditor.Visibility = Visibility.Collapsed;
+                    drawEditor.Visibility = Visibility.Visible;
+                    break;
+            }
+            if (!App.IsOnline) {
                 syncIcon.Glyph = offlineGlyph;
                 syncText.Text = "Offline";
             }
-            if(SyncWorking) {
+            if (SyncWorking) {
                 syncIcon.Glyph = syncGlyph;
                 syncText.Text = "Syncing...";
             }
-            if(ItemsToSync == 0) {
+            if (ItemsToSync == 0) {
                 syncIcon.Glyph = checkGlyph;
                 syncText.Text = "Up to date";
-            } else if(ItemsToSync == 1) {
+            } else if (ItemsToSync == 1) {
                 syncIcon.Glyph = syncGlyph;
                 syncText.Text = ItemsToSync + " item need to be synced";
             } else {
@@ -172,6 +225,7 @@ namespace lockbook {
             }
             PopulateTreeRecursive(files, newUIFiles, root);
             newUIFiles[root.id].IsRoot = true;
+            newUIFiles[root.id].IsExpanded = true;
             foreach (var f in App.UIFiles) {
                 if (f.Value.IsExpanded) {
                     if (newUIFiles.TryGetValue(f.Key, out var newUIFile)) {
@@ -194,7 +248,7 @@ namespace lockbook {
             if (file.id != file.parent) {
                 tree[file.parent].Children.Add(tree[file.id]);
             }
-            foreach(var f in files.Where(f => f.parent == file.id && f.id != file.id)) {
+            foreach (var f in files.Where(f => f.parent == file.id && f.id != file.id)) {
                 PopulateTreeRecursive(files, tree, f);
             }
         }
@@ -298,6 +352,7 @@ namespace lockbook {
             switch (result) {
                 case Core.RenameFile.Success:
                     await ReloadFiles();
+                    // todo: re-open file
                     break;
                 case Core.RenameFile.UnexpectedError uhOh:
                     await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
@@ -405,15 +460,39 @@ namespace lockbook {
             string tag = (string)((FrameworkElement)sender).Tag;
             var file = App.UIFiles[tag];
 
+            inkCanvas.InkPresenter.StrokeContainer.Clear();
+            textEditor.TextDocument.SetText(TextSetOptions.None, "");
+
             if (file.IsDocument) {
                 SelectedDocumentId = tag;
                 var result = await App.CoreService.ReadDocument(SelectedDocumentId);
 
                 switch (result) {
                     case Core.ReadDocument.Success content:
-                        editor.TextDocument.SetText(TextSetOptions.None, content.content);
-                        editor.TextDocument.ClearUndoRedoHistory();
-                        keyStrokeCount[tag] = 0;
+                        if (file.Name.EndsWith(".draw")) {
+                            CurrentEditMode = EditMode.Draw;
+                            if (!string.IsNullOrWhiteSpace(content.content)) {
+                                drawingContext = Lockbook.Draw.CoreContextToContext(Core.Draw.DrawingToCoreContext(JsonConvert.DeserializeObject<Drawing>(content.content)));
+                            } else {
+                                drawingContext = new Lockbook.DrawingContext();
+                            }
+                            foreach (var stroke in drawingContext.strokes) {
+                                inkCanvas.InkPresenter.StrokeContainer.AddStroke(stroke);
+                            }
+                            PenPaletteBlack.Color = drawingContext.theme.GetUIColor(ColorAlias.Black, 1f);
+                            PenPaletteRed.Color = drawingContext.theme.GetUIColor(ColorAlias.Red, 1f);
+                            PenPaletteGreen.Color = drawingContext.theme.GetUIColor(ColorAlias.Green, 1f);
+                            PenPaletteBlue.Color = drawingContext.theme.GetUIColor(ColorAlias.Blue, 1f);
+                            PenPaletteYellow.Color = drawingContext.theme.GetUIColor(ColorAlias.Yellow, 1f);
+                            PenPaletteMagenta.Color = drawingContext.theme.GetUIColor(ColorAlias.Magenta, 1f);
+                            PenPaletteCyan.Color = drawingContext.theme.GetUIColor(ColorAlias.Cyan, 1f);
+                            PenPaletteWhite.Color = drawingContext.theme.GetUIColor(ColorAlias.White, 1f);
+                        } else {
+                            CurrentEditMode = EditMode.Text;
+                            textEditor.TextDocument.SetText(TextSetOptions.None, content.content);
+                            textEditor.TextDocument.ClearUndoRedoHistory();
+                        }
+                        editCount[tag] = 0;
                         break;
                     case Core.ReadDocument.UnexpectedError uhOh:
                         await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
@@ -432,46 +511,113 @@ namespace lockbook {
                         }
                         break;
                 }
+            } else {
+                CurrentEditMode = EditMode.None;
             }
         }
 
         private async void TextChanged(object sender, RoutedEventArgs e) {
-            if (SelectedDocumentId != "" && editor.FocusState != FocusState.Unfocused) {
+            if (SelectedDocumentId != "" && textEditor.FocusState != FocusState.Unfocused) {
+                // Capture variables in case document is closed before save actually happens
                 string docID = SelectedDocumentId;
                 string text;
-                editor.TextDocument.GetText(TextGetOptions.UseLf, out text);
+                textEditor.TextDocument.GetText(TextGetOptions.UseLf, out text);
 
                 // Only save the document if no keystrokes have happened in the last .5 seconds
-                keyStrokeCount[docID]++;
-                var current = keyStrokeCount[docID];
+                editCount[docID]++;
+                var current = editCount[docID];
                 await Task.Delay(500);
-                if (current != keyStrokeCount[docID]) {
+                if (current != editCount[docID]) {
                     return;
                 }
 
-                var result = await App.CoreService.WriteDocument(docID, text);
+                await SaveContent(docID, text);
+            }
+        }
 
-                switch (result) {
-                    case Core.WriteDocument.Success:
-                        await ReloadCalculatedWork();
-                        break;
-                    case Core.WriteDocument.UnexpectedError uhOh:
-                        await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
-                        break;
-                    case Core.WriteDocument.ExpectedError error:
-                        switch (error.Error) {
-                            case Core.WriteDocument.PossibleErrors.NoAccount:
-                                await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                                break;
-                            case Core.WriteDocument.PossibleErrors.FolderTreatedAsDocument:
-                                await new MessageDialog("You cannot read a folder, please file a bug report!", "Bad read target!").ShowAsync();
-                                break;
-                            case Core.WriteDocument.PossibleErrors.FileDoesNotExist:
-                                await new MessageDialog("Could not locate the file you're trying to edit! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                                break;
-                        }
-                        break;
+        private void StrokesErased(InkPresenter sender, InkStrokesErasedEventArgs args) {
+            var comparer = new Lockbook.Draw.InkStrokeComparer();
+            var redraw = false;
+            foreach (var erasedStroke in args.Strokes) {
+                var removedCount = 0;
+                foreach(var connectedSubstroke in drawingContext.splitStrokes[erasedStroke]) {
+                    drawingContext.strokes.RemoveAll(stroke => comparer.Equals(stroke, connectedSubstroke));
+                    drawingContext.splitStrokes.Remove(connectedSubstroke);
+                    removedCount++;
                 }
+                if(removedCount > 1) {
+                    redraw = true;
+                }
+            }
+
+            // todo: better way to erase
+            if(redraw) {
+                inkCanvas.InkPresenter.StrokeContainer.Clear();
+                // I forget why we do this
+                var context = Lockbook.Draw.CoreContextToContext(Core.Draw.DrawingToCoreContext(Core.Draw.CoreContextToDrawing(Lockbook.Draw.ContextToCoreContext(drawingContext))));
+                foreach (var stroke in context.strokes) {
+                    inkCanvas.InkPresenter.StrokeContainer.AddStroke(stroke);
+                }
+            }
+
+            DrawingChanged();
+        }
+
+        private void AllStrokesErased(InkToolbar sender, object args) {
+            drawingContext.strokes.Clear();
+            drawingContext.splitStrokes.Clear();
+            DrawingChanged();
+        }
+
+        private void StrokesCollected(InkPresenter sender, InkStrokesCollectedEventArgs args) {
+            foreach (var addedStroke in args.Strokes) {
+                drawingContext.strokes.Add(addedStroke);
+                drawingContext.splitStrokes[addedStroke] = new List<Windows.UI.Input.Inking.InkStroke> { addedStroke };
+            }
+
+            DrawingChanged();
+        }
+
+        private async void DrawingChanged() {
+            // Capture variables in case document is closed before save actually happens
+            string docID = SelectedDocumentId;
+            var context = drawingContext;
+
+            // Only save the document if no strokes have happened in the last .5 seconds
+            editCount[docID]++;
+            var current = editCount[docID];
+            await Task.Delay(500);
+            if (current != editCount[docID]) {
+                return;
+            }
+
+            var drawingJSON = JsonConvert.SerializeObject(Core.Draw.CoreContextToDrawing(Lockbook.Draw.ContextToCoreContext(context)));
+            await SaveContent(docID, drawingJSON);
+        }
+
+        private async Task SaveContent(string docID, string text) {
+            var result = await App.CoreService.WriteDocument(docID, text);
+
+            switch (result) {
+                case Core.WriteDocument.Success:
+                    await ReloadCalculatedWork();
+                    break;
+                case Core.WriteDocument.UnexpectedError uhOh:
+                    await new MessageDialog(uhOh.ErrorMessage, "Unexpected Error!").ShowAsync();
+                    break;
+                case Core.WriteDocument.ExpectedError error:
+                    switch (error.Error) {
+                        case Core.WriteDocument.PossibleErrors.NoAccount:
+                            await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                            break;
+                        case Core.WriteDocument.PossibleErrors.FolderTreatedAsDocument:
+                            await new MessageDialog("You cannot read a folder, please file a bug report!", "Bad read target!").ShowAsync();
+                            break;
+                        case Core.WriteDocument.PossibleErrors.FileDoesNotExist:
+                            await new MessageDialog("Could not locate the file you're trying to edit! Please file a bug report.", "Unexpected Error!").ShowAsync();
+                            break;
+                    }
+                    break;
             }
         }
 
@@ -483,10 +629,26 @@ namespace lockbook {
         DateTime prev;
         private void Pasted(object sender, TextControlPasteEventArgs e) {
             var now = DateTime.Now;
-            if (now - prev < TimeSpan.FromMilliseconds(10)) {
+            if (now - prev < TimeSpan.FromMilliseconds(50)) {
                 e.Handled = true;
             } else {
                 prev = now;
+            }
+        }
+
+        private void Undo(object sender, RoutedEventArgs e) {
+            // todo
+        }
+
+        private void Redo(object sender, RoutedEventArgs e) {
+            // todo
+        }
+
+        private void ToggleTouchDrawing(object sender, RoutedEventArgs e) {
+            if (toggleButton.IsChecked == true) {
+                inkCanvas.InkPresenter.InputDeviceTypes |= CoreInputDeviceTypes.Touch;
+            } else {
+                inkCanvas.InkPresenter.InputDeviceTypes &= ~CoreInputDeviceTypes.Touch;
             }
         }
     }
