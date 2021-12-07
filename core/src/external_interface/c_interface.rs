@@ -53,7 +53,7 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
     if s.is_null() {
         return;
     }
-    CString::from_raw(s);
+    let _ = CString::from_raw(s);
 }
 
 #[no_mangle]
