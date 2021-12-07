@@ -143,7 +143,7 @@ pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>
     let new = local
         .iter()
         .filter(|l| !base.iter().any(|r| r.id == l.id))
-        .map(|l| FileMetadataDiff::new(l));
+        .map(FileMetadataDiff::new);
     let changed = local
         .iter()
         .filter_map(|l| base.iter().find(|r| r.id == l.id).map(|r| (l, r)))
