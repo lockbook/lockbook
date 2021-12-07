@@ -1,4 +1,6 @@
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
 
@@ -100,9 +102,70 @@ namespace Core {
 
     public class WorkUnit {
         [JsonProperty("content", Required = Required.Always)]
-        public DecryptedFileMetadata content;
+        public WorkUnitStructVariant content;
         [JsonProperty("tag", Required = Required.Always)]
         public string tag;
+    }
+
+    public class WorkUnitStructVariant {
+        [JsonProperty("metadata", Required = Required.Always)]
+        public DecryptedFileMetadata content;
+    }
+
+    public class Drawing {
+        [JsonProperty("scale", Required = Required.Always)]
+        public float scale;
+        [JsonProperty("translation_x", Required = Required.Always)]
+        public float translationX;
+        [JsonProperty("translation_y", Required = Required.Always)]
+        public float translationY;
+        [JsonProperty("strokes", Required = Required.Always)]
+        public List<Stroke> strokes;
+        [JsonProperty("theme", Required = Required.Default)]
+        public Dictionary<ColorAlias, ColorRGB> theme;
+    }
+
+    public class Stroke {
+        [JsonProperty("points_x", Required = Required.Always)]
+        public List<float> pointsX;
+        [JsonProperty("points_y", Required = Required.Always)]
+        public List<float> pointsY;
+        [JsonProperty("points_girth", Required = Required.Always)]
+        public List<float> pointsGirth;
+        [JsonProperty("color", Required = Required.Always)]
+        public ColorAlias color;
+        [JsonProperty("alpha", Required = Required.Always)]
+        public float alpha;
+    }
+
+    [JsonConverter(typeof(StringEnumConverter))]
+    public enum ColorAlias {
+        Black,
+        Red,
+        Green,
+        Yellow,
+        Blue,
+        Magenta,
+        Cyan,
+        White,
+    }
+
+    public class ColorRGB {
+        public byte r;
+        public byte g;
+        public byte b;
+
+
+        public override bool Equals(object obj) {
+            if(obj is ColorRGB other) {
+                return r == other.r && g == other.g && b == other.b;
+            }
+            return false;
+        }
+
+        public override int GetHashCode() {
+            return r << 16 | g << 8 | b;
+        }
     }
 
     namespace GetDbState {
