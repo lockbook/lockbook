@@ -21,7 +21,7 @@ use lockbook_models::crypto::DecryptedDocument;
 use crate::error::{LbErrTarget, LbError, LbResult};
 use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
-use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
+use lockbook_core::service::usage_service::UsageMetrics;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
 use lockbook_models::work_unit::ClientWorkUnit;
 
@@ -285,6 +285,7 @@ impl LbCore {
 
         let sync =
             sync_all(&self.config, Some(Box::new(closure))).map_err(map_core_err!(SyncAllError,
+                OutOfSpace => uerr_status_panel!("Out of space."),
                 CouldNotReachServer => uerr_status_panel!("Offline."),
                 ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
                 NoAccount => uerr_dialog!("No account found."),
@@ -360,33 +361,8 @@ impl LbCore {
             }
         }
     }
-
-    pub fn usage_status(&self) -> LbResult<(Option<String>, Option<String>)> {
-        let usage = self.get_usage()?;
-
-        Ok(if usage.server_usage.exact >= usage.data_cap.exact {
-            (
-                Some("You're out of space!".to_string()),
-                Some("You have run out of space, go to the settings to buy more!".to_string()),
-            )
-        } else if usage.server_usage.exact as f32 / usage.data_cap.exact as f32
-            > USAGE_WARNING_THRESHOLD
-        {
-            (
-                Some(format!(
-                    "{} of {} remaining!",
-                    bytes_to_human(usage.data_cap.exact - usage.server_usage.exact),
-                    usage.data_cap.readable
-                )),
-                Some("You are running out of space, go to the settings to buy more!".to_string()),
-            )
-        } else {
-            (None, None)
-        })
-    }
 }
 
 const UNAME_REQS: &str = "letters and numbers only";
 const STATE_REQ_CLEAN_MSG: &str =
     "Your local state cannot be migrated, please re-sync with a fresh client.";
-const USAGE_WARNING_THRESHOLD: f32 = 0.9;

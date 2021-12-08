@@ -5,7 +5,7 @@ use std::sync::Arc;
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
-use gtk::Box as GtkBox;
+use gtk::{Align, Box as GtkBox, IconSize, Overlay};
 use gtk::Orientation::{Horizontal, Vertical};
 use regex::Regex;
 use sourceview::prelude::*;
@@ -21,7 +21,7 @@ use crate::util::{
     gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK, IMAGE_TARGET_INFO, TEXT_TARGET_INFO,
     URI_TARGET_INFO,
 };
-use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog};
+use crate::{closure, get_language_specs_dir, GtkLabel, progerr, uerr, uerr_dialog};
 
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::work_unit::ClientWorkUnit;
@@ -127,6 +127,7 @@ impl AccountScreen {
 
 pub struct Sidebar {
     pub tree: FileTree,
+    pub out_of_space: OutOfSpacePanel,
     status: Rc<StatusPanel>,
     cntr: GtkBox,
 }
@@ -138,20 +139,85 @@ impl Sidebar {
 
         let sync = Rc::new(StatusPanel::new(m));
 
+        let out_of_space = OutOfSpacePanel::new();
+
+        let overlay = gtk::Overlay::new();
+        overlay.add(&scroll);
+        overlay.add_overlay(&out_of_space.cntr);
+
         let cntr = GtkBox::new(Vertical, 0);
-        cntr.pack_start(&scroll, true, true, 0);
+        cntr.pack_start(&overlay, true, true, 0);
         cntr.add(&gtk::Separator::new(Horizontal));
         cntr.add(&sync.cntr);
 
         Self {
             tree,
             status: sync,
+            out_of_space,
             cntr,
         }
     }
 
     fn fill(&self, core: &LbCore) -> LbResult<()> {
         self.tree.fill(core)
+    }
+}
+
+pub struct OutOfSpacePanel {
+    progress: gtk::ProgressBar,
+    cntr: GtkBox
+}
+
+impl OutOfSpacePanel {
+    fn new() -> OutOfSpacePanel {
+        let progress = gtk::ProgressBar::new();
+
+        progress.color
+
+        let button = gtk::Button::from_icon_name(Some("window-close"), IconSize::Button);
+
+        // button.set_label("Close");
+        button.set_halign(Align::End);
+
+        let cntr = GtkBox::new(Horizontal, 0);
+        cntr.pack_start(&GtkLabel::new(Some("You are running out of space!")), false, false, 0);
+        cntr.pack_end(&button, false, false, 0);
+
+        cntr.set_halign(Align::Fill);
+        cntr.set_margin_bottom(10);
+
+        let cntr_main = GtkBox::new(Vertical, 0);
+        cntr_main.add(&cntr);
+        cntr_main.add(&progress);
+
+        cntr_main.set_margin_bottom(20);
+        cntr_main.set_margin_start(20);
+        cntr_main.set_margin_end(20);
+
+        cntr_main.set_halign(Align::Fill);
+        cntr_main.set_valign(Align::End);
+
+        cntr_main.hide();
+
+        button.connect_clicked(closure!(cntr_main => move |_| {
+            cntr_main.hide();
+        }));
+
+        OutOfSpacePanel {
+            progress,
+            cntr: cntr_main
+        }
+    }
+
+    pub fn update(&self, usage: f64, data_cap: f64) {
+        let usage_progress = usage / data_cap;
+
+        if usage_progress > 0.8 {
+            self.progress.set_fraction(usage_progress);
+            self.cntr.show()
+        } else {
+            self.cntr.hide();
+        }
     }
 }
 

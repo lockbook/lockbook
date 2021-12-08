@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 use gdk::WindowExt;
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
@@ -40,6 +39,7 @@ use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
+use lockbook_core::service::usage_service::UsageMetrics;
 use lockbook_models::work_unit::WorkUnit;
 
 macro_rules! make_glib_chan {
@@ -223,10 +223,7 @@ impl LbApp {
                 lb.messenger.send_err_dialog("showing account screen", err);
             } else {
                 lb.messenger.send(Msg::RefreshSyncStatus);
-                spawn!(lb.messenger as m => move || {
-                    thread::sleep(Duration::from_secs(5));
-                    m.send(Msg::RefreshUsageStatus);
-                });
+                lb.messenger.send(Msg::RefreshUsageStatus);
             }
             glib::Continue(true)
         });
@@ -305,10 +302,7 @@ impl LbApp {
             } else {
                 sync_ui.set_syncing(false);
                 lb.messenger.send(Msg::RefreshSyncStatus);
-                spawn!(lb.messenger as m => move || {
-                    thread::sleep(Duration::from_secs(5));
-                    m.send(Msg::RefreshUsageStatus);
-                });
+                lb.messenger.send(Msg::RefreshUsageStatus);
             }
             glib::Continue(true)
         });
@@ -341,11 +335,14 @@ impl LbApp {
     }
 
     fn refresh_usage_status(&self) -> LbResult<()> {
+        let ch = make_glib_chan!(self as lb => move |usage: UsageMetrics| {
+            lb.gui.account.sidebar.out_of_space.update(usage.server_usage.exact as f64, usage.data_cap.exact as f64);
+            glib::Continue(true)
+        });
+
         spawn!(self.core as c, self.messenger as m => move || {
-            match c.usage_status() {
-                Ok(status) => if let (Some(txt), _) = status {
-                    m.send(Msg::SetStatus(txt, status.1));
-                }
+            match c.get_usage() {
+                Ok(usage) => ch.send(usage).unwrap(),
                 Err(err) => match err.target() {
                     LbErrTarget::Dialog => m.send_err_dialog("getting usage status", err),
                     LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
@@ -365,6 +362,8 @@ impl LbApp {
         let background_work = self.state.borrow().background_work.clone();
 
         thread::spawn(move || BackgroundWork::init_background_work(background_work));
+
+        self.messenger.send(Msg::RefreshUsageStatus);
 
         Ok(())
     }
