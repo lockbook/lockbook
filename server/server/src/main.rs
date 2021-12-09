@@ -14,6 +14,7 @@ use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::*;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
+use prometheus::{register_histogram_vec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use shadow_rs::shadow;
@@ -63,6 +64,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         config,
         index_db_client,
         files_db_client,
+        prom_his: register_histogram_vec!(
+            "http_request_duration_seconds",
+            "The HTTP requests duration in seconds.",
+            &["request"]
+        )
+        .unwrap(),
     });
     let addr = format!("0.0.0.0:{}", port).parse()?;
 
@@ -104,12 +111,20 @@ macro_rules! route_handler {
         pack::<$TRequest>(match unpack(&$server_state, $hyper_request).await {
             Ok((request, public_key)) => {
                 let request_string = format!("{:?}", request);
+                let timer = $server_state
+                    .prom_his
+                    .with_label_values(&[<$TRequest>::ROUTE])
+                    .start_timer();
+
                 let result = $handler(RequestContext {
                     server_state: &$server_state,
                     request,
                     public_key,
                 })
                 .await;
+
+                timer.observe_duration();
+
                 if let Err(Err(ref e)) = result {
                     error!("Internal error! Request: {}, Error: {}", request_string, e);
                 }
@@ -168,8 +183,17 @@ async fn route(
             server_state
         ),
         route_case!(GetBuildInfoRequest) => {
-            pack::<GetBuildInfoRequest>(wrap_err::<GetBuildInfoRequest>(get_build_info()))
+            let timer = server_state
+                .prom_his
+                .with_label_values(&[GetBuildInfoRequest::ROUTE])
+                .start_timer();
+            let result =
+                pack::<GetBuildInfoRequest>(wrap_err::<GetBuildInfoRequest>(get_build_info()));
+            timer.observe_duration();
+
+            result
         }
+        route_case!(MetricsRequest) => metrics(),
         _ => {
             warn!(
                 "Request matched no endpoints: {} {}",
@@ -188,6 +212,13 @@ fn get_build_info() -> Result<GetBuildInfoResponse, Result<GetBuildInfoError, St
         build_version: env!("CARGO_PKG_VERSION"),
         git_commit_hash: build_info::COMMIT_HASH,
     })
+}
+
+fn metrics() -> Result<Response<Body>, hyper::http::Error> {
+    match TextEncoder::new().encode_to_string(prometheus::gather().as_slice()) {
+        Ok(metrics) => to_response(Bytes::from(metrics)),
+        Err(e) => to_response(Bytes::from(format!("Could not encode metrics: {:?}", e))),
+    }
 }
 
 fn wrap_err<TRequest: Request>(
