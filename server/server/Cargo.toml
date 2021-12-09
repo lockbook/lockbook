@@ -33,6 +33,7 @@ sqlx = { version = "0.5.2", features = ["macros", "postgres", "uuid", "tls", "ru
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 libsecp256k1 = "0.7.0"
 prometheus = "0.13.0"
+convert_case = "0.4.0"
 
 [build-dependencies]
 shadow-rs = "0.6.2"

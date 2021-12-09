@@ -14,28 +14,19 @@ use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::*;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
+use prometheus::{register_histogram_vec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use shadow_rs::shadow;
 use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
-use lazy_static::lazy_static;
-use prometheus::{HistogramVec, register_histogram_vec, TextEncoder};
 use tokio::runtime::Handle;
 
 static LOG_FILE: &str = "lockbook_server.log";
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 shadow!(build_info);
-
-const FILE_METADATA_UPSERTS_REQUEST_LABEL: &str = "file_metadata_upserts_requests_duration_seconds";
-const CHANGE_DOCUMENT_CONTENT_REQUEST_LABEL: &str = "change_document_content_requests_duration_seconds";
-const GET_DOCUMENT_REQUEST_LABEL: &str = "get_document_requests_duration_seconds";
-const GET_PUBLIC_KEY_REQUEST_LABEL: &str = "get_public_key_requests_duration_seconds";
-const GET_USAGE_REQUEST_LABEL: &str = "get_usage_requests_duration_seconds";
-const GET_UPDATES_REQUEST_LABEL: &str = "get_updates_requests_duration_seconds";
-const NEW_ACCOUNT_REQUEST_LABEL: &str = "new_account_requests_duration_seconds";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -50,11 +41,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         handle,
         CARGO_PKG_VERSION,
     )
-        .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str())
-        .level(log::LevelFilter::Info)
-        .level_for("lockbook_server", log::LevelFilter::Debug)
-        .apply()
-        .expect("Failed setting logger!");
+    .expect(format!("Logger failed to initialize at {}", &config.server.log_path).as_str())
+    .level(log::LevelFilter::Info)
+    .level_for("lockbook_server", log::LevelFilter::Debug)
+    .apply()
+    .expect("Failed setting logger!");
     info!("Server starting with build: {}", CARGO_PKG_VERSION);
 
     debug!("Connecting to index_db...");
@@ -74,10 +65,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         index_db_client,
         files_db_client,
         prom_his: register_histogram_vec!(
-        "http_request_duration_seconds",
-        "The HTTP requests duration in seconds.",
-        &["request"]
-    ).unwrap()
+            "http_request_duration_seconds",
+            "The HTTP requests duration in seconds.",
+            &["request"]
+        )
+        .unwrap(),
     });
     let addr = format!("0.0.0.0:{}", port).parse()?;
 
@@ -109,7 +101,7 @@ macro_rules! route_case {
 }
 
 macro_rules! route_handler {
-    ($TRequest:ty, $handler:path, $hyper_request:ident, $server_state: ident, $label: expr) => {{
+    ($TRequest:ty, $handler:path, $hyper_request:ident, $server_state: ident) => {{
         info!(
             "Request matched {}{}",
             <$TRequest>::METHOD,
@@ -119,7 +111,10 @@ macro_rules! route_handler {
         pack::<$TRequest>(match unpack(&$server_state, $hyper_request).await {
             Ok((request, public_key)) => {
                 let request_string = format!("{:?}", request);
-                let timer = $server_state.prom_his.with_label_values(&[$label]).start_timer();
+                let timer = $server_state
+                    .prom_his
+                    .with_label_values(&[<$TRequest>::ROUTE])
+                    .start_timer();
 
                 let result = $handler(RequestContext {
                     server_state: &$server_state,
@@ -149,57 +144,56 @@ async fn route(
             FileMetadataUpsertsRequest,
             file_service::upsert_file_metadata,
             hyper_request,
-            server_state,
-            FILE_METADATA_UPSERTS_REQUEST_LABEL
+            server_state
         ),
         route_case!(ChangeDocumentContentRequest) => route_handler!(
             ChangeDocumentContentRequest,
             file_service::change_document_content,
             hyper_request,
-            server_state,
-            CHANGE_DOCUMENT_CONTENT_REQUEST_LABEL
+            server_state
         ),
         route_case!(GetDocumentRequest) => route_handler!(
             GetDocumentRequest,
             file_service::get_document,
             hyper_request,
-            server_state,
-            GET_DOCUMENT_REQUEST_LABEL
+            server_state
         ),
         route_case!(GetPublicKeyRequest) => route_handler!(
             GetPublicKeyRequest,
             account_service::get_public_key,
             hyper_request,
-            server_state,
-            GET_PUBLIC_KEY_REQUEST_LABEL
+            server_state
         ),
         route_case!(GetUsageRequest) => route_handler!(
             GetUsageRequest,
             account_service::get_usage,
             hyper_request,
-            server_state,
-            GET_USAGE_REQUEST_LABEL
+            server_state
         ),
         route_case!(GetUpdatesRequest) => route_handler!(
             GetUpdatesRequest,
             file_service::get_updates,
             hyper_request,
-            server_state,
-            GET_UPDATES_REQUEST_LABEL
+            server_state
         ),
         route_case!(NewAccountRequest) => route_handler!(
             NewAccountRequest,
             account_service::new_account,
             hyper_request,
-            server_state,
-            NEW_ACCOUNT_REQUEST_LABEL
+            server_state
         ),
         route_case!(GetBuildInfoRequest) => {
-            pack::<GetBuildInfoRequest>(wrap_err::<GetBuildInfoRequest>(get_build_info()))
+            let timer = server_state
+                .prom_his
+                .with_label_values(&[GetBuildInfoRequest::ROUTE])
+                .start_timer();
+            let result =
+                pack::<GetBuildInfoRequest>(wrap_err::<GetBuildInfoRequest>(get_build_info()));
+            timer.observe_duration();
+
+            result
         }
-        route_case!(MetricsRequest) => {
-            pack::<MetricsRequest>(wrap_err::<MetricsRequest>(get_metrics()))
-        }
+        route_case!(MetricsRequest) => metrics(),
         _ => {
             warn!(
                 "Request matched no endpoints: {} {}",
@@ -220,12 +214,10 @@ fn get_build_info() -> Result<GetBuildInfoResponse, Result<GetBuildInfoError, St
     })
 }
 
-fn get_metrics() -> Result<MetricsResponse, Result<MetricsError, String>> {
-    let a = prometheus::gather();
-    println!("{:?}", a);
-    match TextEncoder::new().encode_to_string(a.as_slice()) {
-        Ok(metrics) => Ok(MetricsResponse { metrics }),
-        Err(e) => Err(Err(format!("Could not encode metrics: {:?}", e)))
+fn metrics() -> Result<Response<Body>, hyper::http::Error> {
+    match TextEncoder::new().encode_to_string(prometheus::gather().as_slice()) {
+        Ok(metrics) => to_response(Bytes::from(metrics)),
+        Err(e) => to_response(Bytes::from(format!("Could not encode metrics: {:?}", e))),
     }
 }
 
@@ -286,10 +278,10 @@ async fn unpack<TRequest: Request + Serialize + DeserializeOwned>(
 fn pack<TRequest>(
     result: Result<TRequest::Response, ErrorWrapper<TRequest::Error>>,
 ) -> Result<hyper::Response<Body>, hyper::http::Error>
-    where
-        TRequest: Request,
-        TRequest::Response: Serialize,
-        TRequest::Error: Serialize,
+where
+    TRequest: Request,
+    TRequest::Response: Serialize,
+    TRequest::Error: Serialize,
 {
     let response_bytes = match serialize_response::<TRequest>(result) {
         Ok(o) => o,
@@ -335,10 +327,10 @@ fn verify_auth<TRequest: Request + Serialize>(
 fn serialize_response<TRequest>(
     response: Result<TRequest::Response, ErrorWrapper<TRequest::Error>>,
 ) -> Result<Bytes, serde_json::error::Error>
-    where
-        TRequest: Request,
-        TRequest::Response: Serialize,
-        TRequest::Error: Serialize,
+where
+    TRequest: Request,
+    TRequest::Response: Serialize,
+    TRequest::Error: Serialize,
 {
     Ok(Bytes::from(serde_json::to_vec(&response)?))
 }
