@@ -23,7 +23,7 @@ hyper = { version = "0.14.7", features = ["server"] }
 lockbook-crypto = { path = "../../core/libs/crypto" }
 lockbook-models = { path = "../../core/libs/models" }
 log = "0.4.8"
-pagerduty-rs = { version = "0.1.1", features = ["sync"] }
+pagerduty-rs = { git = "https://github.com/Parth/pagerduty-rs", features = ["sync"] }
 rust-s3 = "0.27.0-rc3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
