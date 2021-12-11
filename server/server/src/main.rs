@@ -8,6 +8,7 @@ extern crate log;
 use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
+use lazy_static::lazy_static;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
@@ -21,7 +22,6 @@ use shadow_rs::shadow;
 use std::convert::Infallible;
 use std::path::Path;
 use std::sync::Arc;
-use lazy_static::lazy_static;
 use tokio::runtime::Handle;
 
 static LOG_FILE: &str = "lockbook_server.log";
@@ -34,7 +34,8 @@ lazy_static! {
         "lockbook_server_request_duration_seconds",
         "The lockbook server's HTTP requests duration in seconds.",
         &["request"]
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 #[tokio::main]
