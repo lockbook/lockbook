@@ -14,7 +14,7 @@ use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::*;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
-use prometheus::{register_histogram_vec, TextEncoder};
+use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use shadow_rs::shadow;
@@ -64,22 +64,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         config,
         index_db_client,
         files_db_client,
-        prom_his: register_histogram_vec!(
+    });
+    let addr = format!("0.0.0.0:{}", port).parse()?;
+    let prom_hist = Arc::new(
+        register_histogram_vec!(
             "http_request_duration_seconds",
             "The HTTP requests duration in seconds.",
             &["request"]
         )
         .unwrap(),
-    });
-    let addr = format!("0.0.0.0:{}", port).parse()?;
+    );
 
     // https://www.fpcomplete.com/blog/ownership-puzzle-rust-async-hyper/
     let make_service = make_service_fn(move |_| {
         let server_state = Arc::clone(&server_state);
+        let prom_hist = Arc::clone(&prom_hist);
         async {
             Ok::<_, Infallible>(service_fn(move |req: hyper::Request<Body>| {
                 let server_state = Arc::clone(&server_state);
-                async move { route(&server_state, req).await }
+                let prom_hist = Arc::clone(&prom_hist);
+                async move { route(&server_state, &prom_hist, req).await }
             }))
         }
     });
@@ -101,7 +105,7 @@ macro_rules! route_case {
 }
 
 macro_rules! route_handler {
-    ($TRequest:ty, $handler:path, $hyper_request:ident, $server_state: ident) => {{
+    ($TRequest:ty, $handler:path, $hyper_request:ident, $server_state: ident, $prom_hist: ident) => {{
         info!(
             "Request matched {}{}",
             <$TRequest>::METHOD,
@@ -111,8 +115,7 @@ macro_rules! route_handler {
         pack::<$TRequest>(match unpack(&$server_state, $hyper_request).await {
             Ok((request, public_key)) => {
                 let request_string = format!("{:?}", request);
-                let timer = $server_state
-                    .prom_his
+                let timer = $prom_hist
                     .with_label_values(&[<$TRequest>::ROUTE])
                     .start_timer();
 
@@ -137,6 +140,7 @@ macro_rules! route_handler {
 
 async fn route(
     server_state: &ServerState,
+    prom_hist: &HistogramVec,
     hyper_request: hyper::Request<Body>,
 ) -> Result<Response<Body>, hyper::http::Error> {
     match (hyper_request.method(), hyper_request.uri().path()) {
@@ -144,47 +148,53 @@ async fn route(
             FileMetadataUpsertsRequest,
             file_service::upsert_file_metadata,
             hyper_request,
-            server_state
+            server_state,
+            prom_hist
         ),
         route_case!(ChangeDocumentContentRequest) => route_handler!(
             ChangeDocumentContentRequest,
             file_service::change_document_content,
             hyper_request,
-            server_state
+            server_state,
+            prom_hist
         ),
         route_case!(GetDocumentRequest) => route_handler!(
             GetDocumentRequest,
             file_service::get_document,
             hyper_request,
-            server_state
+            server_state,
+            prom_hist
         ),
         route_case!(GetPublicKeyRequest) => route_handler!(
             GetPublicKeyRequest,
             account_service::get_public_key,
             hyper_request,
-            server_state
+            server_state,
+            prom_hist
         ),
         route_case!(GetUsageRequest) => route_handler!(
             GetUsageRequest,
             account_service::get_usage,
             hyper_request,
-            server_state
+            server_state,
+            prom_hist
         ),
         route_case!(GetUpdatesRequest) => route_handler!(
             GetUpdatesRequest,
             file_service::get_updates,
             hyper_request,
-            server_state
+            server_state,
+            prom_hist
         ),
         route_case!(NewAccountRequest) => route_handler!(
             NewAccountRequest,
             account_service::new_account,
             hyper_request,
-            server_state
+            server_state,
+            prom_hist
         ),
         route_case!(GetBuildInfoRequest) => {
-            let timer = server_state
-                .prom_his
+            let timer = prom_hist
                 .with_label_values(&[GetBuildInfoRequest::ROUTE])
                 .start_timer();
             let result =
