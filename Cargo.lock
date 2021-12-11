@@ -2115,6 +2115,7 @@ dependencies = [
  "futures",
  "hyper",
  "indicatif 0.16.2",
+ "lazy_static",
  "libsecp256k1",
  "lockbook-core",
  "lockbook-crypto",
