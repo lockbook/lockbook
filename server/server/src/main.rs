@@ -8,13 +8,14 @@ extern crate log;
 use hyper::body::Bytes;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{body, Body, Response, StatusCode};
+use lazy_static::lazy_static;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::*;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
-use prometheus::{register_histogram_vec, TextEncoder};
+use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use shadow_rs::shadow;
@@ -27,6 +28,15 @@ static LOG_FILE: &str = "lockbook_server.log";
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 shadow!(build_info);
+
+lazy_static! {
+    static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
+        "lockbook_server_request_duration_seconds",
+        "The lockbook server's HTTP requests duration in seconds.",
+        &["request"]
+    )
+    .unwrap();
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -64,12 +74,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         config,
         index_db_client,
         files_db_client,
-        prom_his: register_histogram_vec!(
-            "http_request_duration_seconds",
-            "The HTTP requests duration in seconds.",
-            &["request"]
-        )
-        .unwrap(),
     });
     let addr = format!("0.0.0.0:{}", port).parse()?;
 
@@ -111,8 +115,7 @@ macro_rules! route_handler {
         pack::<$TRequest>(match unpack(&$server_state, $hyper_request).await {
             Ok((request, public_key)) => {
                 let request_string = format!("{:?}", request);
-                let timer = $server_state
-                    .prom_his
+                let timer = HTTP_REQUEST_DURATION_HISTOGRAM
                     .with_label_values(&[<$TRequest>::ROUTE])
                     .start_timer();
 
@@ -183,8 +186,7 @@ async fn route(
             server_state
         ),
         route_case!(GetBuildInfoRequest) => {
-            let timer = server_state
-                .prom_his
+            let timer = HTTP_REQUEST_DURATION_HISTOGRAM
                 .with_label_values(&[GetBuildInfoRequest::ROUTE])
                 .start_timer();
             let result =
