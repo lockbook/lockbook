@@ -2517,8 +2517,7 @@ dependencies = [
 [[package]]
 name = "pagerduty-rs"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "969eeb5ffb41f3edfe20d3618d6e15aedd604ffa645e734bc30195a8d5207483"
+source = "git+https://github.com/Parth/pagerduty-rs#ae66278c0fb41352f682d006aef3ea34c8fce703"
 dependencies = [
  "reqwest",
  "serde",

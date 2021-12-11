@@ -123,11 +123,7 @@ impl Log for PDLogger {
                 Event::AlertTrigger(AlertTrigger {
                     payload: AlertTriggerPayload {
                         severity: level_to_severity(record.level()),
-                        summary: {
-                            let mut s = String::from(&record.args().to_string()[..1021]);
-                            s.push_str("...");
-                            s
-                        },
+                        summary: record.args().to_string(),
                         source: "localhost".to_string(), // TODO: Hostname
                         timestamp: Some(SystemTime::now().into()),
                         component: None,
