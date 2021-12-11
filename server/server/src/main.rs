@@ -68,8 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = format!("0.0.0.0:{}", port).parse()?;
     let prom_hist = Arc::new(
         register_histogram_vec!(
-            "http_request_duration_seconds",
-            "The HTTP requests duration in seconds.",
+            "lockbook_server_request_duration_seconds",
+            "The lockbook server's HTTP requests duration in seconds.",
             &["request"]
         )
         .unwrap(),
