@@ -14,18 +14,12 @@ name = "lockbook-server"
 path = "src/main.rs"
 
 [dependencies]
+warp = { version = "0.3.2", features = ["tls"]}
 base64 = "0.13.0"
 bincode = "1.2.1"
 chrono = "0.4.15"
 fern = { version = "0.6.0", features = ["colored"]}
 futures = "0.3.13"
-hyper = { version = "0.14.7", features = ["full"] }
-hyper-rustls = "0.23.0"
-rustls = { version = "0.20.1", default-features = false, features = ["tls12"] }
-tokio-rustls = { version = "0.23", default-features = false }
-async-stream = "0.3.0"
-rustls-pemfile = "0.2.1"
-futures-util = { version = "0.3.1", default-features = false }
 lockbook-crypto = { path = "../../core/libs/crypto" }
 lockbook-models = { path = "../../core/libs/models" }
 log = "0.4.8"

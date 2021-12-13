@@ -6,6 +6,7 @@ pub mod file_service;
 pub mod loggers;
 pub mod router_service;
 pub mod utils;
+pub mod https_service;
 
 extern crate log;
 use std::{env, fs, io};
