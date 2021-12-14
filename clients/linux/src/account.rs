@@ -5,7 +5,7 @@ use std::sync::Arc;
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
-use gtk::{Align, Box as GtkBox, IconSize, Overlay};
+use gtk::{Align, Box as GtkBox, IconSize, Overlay, StateFlags};
 use gtk::Orientation::{Horizontal, Vertical};
 use regex::Regex;
 use sourceview::prelude::*;
@@ -139,11 +139,11 @@ impl Sidebar {
 
         let sync = Rc::new(StatusPanel::new(m));
 
-        let out_of_space = OutOfSpacePanel::new();
+        let out_of_space = OutOfSpacePanel::new(m);
 
         let overlay = gtk::Overlay::new();
         overlay.add(&scroll);
-        overlay.add_overlay(&out_of_space.cntr);
+        overlay.add_overlay(&out_of_space.event);
 
         let cntr = GtkBox::new(Vertical, 0);
         cntr.pack_start(&overlay, true, true, 0);
@@ -165,18 +165,19 @@ impl Sidebar {
 
 pub struct OutOfSpacePanel {
     progress: gtk::ProgressBar,
-    cntr: GtkBox
+    event: gtk::EventBox
 }
 
 impl OutOfSpacePanel {
-    fn new() -> OutOfSpacePanel {
+    fn new(m: &Messenger) -> OutOfSpacePanel {
         let progress = gtk::ProgressBar::new();
-
-        progress.color
+        progress.set_margin_end(10);
+        progress.set_margin_start(10);
+        progress.set_margin_bottom(5);
 
         let button = gtk::Button::from_icon_name(Some("window-close"), IconSize::Button);
+        button.set_margin_top(5);
 
-        // button.set_label("Close");
         button.set_halign(Align::End);
 
         let cntr = GtkBox::new(Horizontal, 0);
@@ -185,27 +186,39 @@ impl OutOfSpacePanel {
 
         cntr.set_halign(Align::Fill);
         cntr.set_margin_bottom(10);
+        cntr.set_margin_end(10);
+        cntr.set_margin_start(10);
 
         let cntr_main = GtkBox::new(Vertical, 0);
-        cntr_main.add(&cntr);
-        cntr_main.add(&progress);
 
-        cntr_main.set_margin_bottom(20);
-        cntr_main.set_margin_start(20);
-        cntr_main.set_margin_end(20);
+        let event = gtk::EventBox::new();
 
         cntr_main.set_halign(Align::Fill);
         cntr_main.set_valign(Align::End);
 
-        cntr_main.hide();
+        cntr_main.add(&cntr);
+        cntr_main.add(&progress);
 
-        button.connect_clicked(closure!(cntr_main => move |_| {
-            cntr_main.hide();
+        event.set_halign(Align::Fill);
+        event.set_valign(Align::End);
+
+        event.hide();
+        event.add(&cntr_main);
+
+        event.connect_button_press_event(closure!(m => move |_, _| {
+            m.send(Msg::ShowDialogUsage);
+            gtk::Inhibit(false)
+        }));
+
+        WidgetExt::set_widget_name(&cntr_main, "out_of_space");
+
+        button.connect_clicked(closure!(event => move |_| {
+            event.hide();
         }));
 
         OutOfSpacePanel {
             progress,
-            cntr: cntr_main
+            event
         }
     }
 
@@ -214,9 +227,9 @@ impl OutOfSpacePanel {
 
         if usage_progress > 0.8 {
             self.progress.set_fraction(usage_progress);
-            self.cntr.show()
+            self.event.show()
         } else {
-            self.cntr.hide();
+            self.event.hide();
         }
     }
 }

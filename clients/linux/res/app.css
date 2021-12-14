@@ -18,3 +18,9 @@
 #intro_doing_caption {
     font-size: 20px;
 }
+
+#out_of_space {
+    background-color: @theme_bg_color;
+}
+
+
