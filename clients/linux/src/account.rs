@@ -5,8 +5,8 @@ use std::sync::Arc;
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gspell::TextViewExt as GtkTextViewExt;
 use gtk::prelude::*;
-use gtk::{Align, Box as GtkBox, IconSize, Overlay, StateFlags};
 use gtk::Orientation::{Horizontal, Vertical};
+use gtk::{Align, Box as GtkBox, IconSize, Overlay, StateFlags};
 use regex::Regex;
 use sourceview::prelude::*;
 use sourceview::{Buffer as GtkSourceViewBuffer, LanguageManager, View as GtkSourceView};
@@ -21,7 +21,7 @@ use crate::util::{
     gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK, IMAGE_TARGET_INFO, TEXT_TARGET_INFO,
     URI_TARGET_INFO,
 };
-use crate::{closure, get_language_specs_dir, GtkLabel, progerr, uerr, uerr_dialog};
+use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog, GtkLabel};
 
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::work_unit::ClientWorkUnit;
@@ -129,6 +129,7 @@ pub struct Sidebar {
     pub tree: FileTree,
     pub out_of_space: OutOfSpacePanel,
     status: Rc<StatusPanel>,
+    overlay: Overlay,
     cntr: GtkBox,
 }
 
@@ -143,7 +144,6 @@ impl Sidebar {
 
         let overlay = gtk::Overlay::new();
         overlay.add(&scroll);
-        overlay.add_overlay(&out_of_space.event);
 
         let cntr = GtkBox::new(Vertical, 0);
         cntr.pack_start(&overlay, true, true, 0);
@@ -154,6 +154,7 @@ impl Sidebar {
             tree,
             status: sync,
             out_of_space,
+            overlay,
             cntr,
         }
     }
@@ -161,11 +162,39 @@ impl Sidebar {
     fn fill(&self, core: &LbCore) -> LbResult<()> {
         self.tree.fill(core)
     }
+
+    pub fn toggle_out_of_space_view(&self, s: &Rc<RefCell<Settings>>, usage: f64, data_cap: f64) {
+        let usage_progress = usage / data_cap;
+
+        if usage_progress > 0.8 {
+            if self.out_of_space.update(s, usage_progress) {
+                self.out_of_space.dismiss.connect_clicked(closure!(self.overlay as overlay, self.out_of_space.event as event, s => move |_| {
+                    if usage_progress > 0.95 {
+                        s.borrow_mut().show_over_95_usage_view = false;
+                        s.borrow_mut().show_over_80_usage_view = false;
+                    }
+
+                    if usage_progress > 0.8 {
+                        s.borrow_mut().show_over_80_usage_view = false;
+                    }
+
+                    overlay.remove(&event);
+                }));
+
+                if !self.out_of_space.event.get_realized() {
+                    self.overlay.add_overlay(&self.out_of_space.event);
+                }
+            }
+        } else if self.out_of_space.event.get_realized() {
+            self.overlay.remove(&self.out_of_space.event);
+        }
+    }
 }
 
 pub struct OutOfSpacePanel {
     progress: gtk::ProgressBar,
-    event: gtk::EventBox
+    dismiss: gtk::Button,
+    event: gtk::EventBox,
 }
 
 impl OutOfSpacePanel {
@@ -175,14 +204,19 @@ impl OutOfSpacePanel {
         progress.set_margin_start(10);
         progress.set_margin_bottom(5);
 
-        let button = gtk::Button::from_icon_name(Some("window-close"), IconSize::Button);
-        button.set_margin_top(5);
+        let dismiss = gtk::Button::from_icon_name(Some("window-close"), IconSize::Button);
+        dismiss.set_margin_top(5);
 
-        button.set_halign(Align::End);
+        dismiss.set_halign(Align::End);
 
         let cntr = GtkBox::new(Horizontal, 0);
-        cntr.pack_start(&GtkLabel::new(Some("You are running out of space!")), false, false, 0);
-        cntr.pack_end(&button, false, false, 0);
+        cntr.pack_start(
+            &GtkLabel::new(Some("You are running out of space!")),
+            false,
+            false,
+            0,
+        );
+        cntr.pack_end(&dismiss, false, false, 0);
 
         cntr.set_halign(Align::Fill);
         cntr.set_margin_bottom(10);
@@ -202,7 +236,6 @@ impl OutOfSpacePanel {
         event.set_halign(Align::Fill);
         event.set_valign(Align::End);
 
-        event.hide();
         event.add(&cntr_main);
 
         event.connect_button_press_event(closure!(m => move |_, _| {
@@ -212,24 +245,39 @@ impl OutOfSpacePanel {
 
         WidgetExt::set_widget_name(&cntr_main, "out_of_space");
 
-        button.connect_clicked(closure!(event => move |_| {
-            event.hide();
-        }));
+        event.show_all();
 
         OutOfSpacePanel {
             progress,
-            event
+            dismiss,
+            event,
         }
     }
 
-    pub fn update(&self, usage: f64, data_cap: f64) {
-        let usage_progress = usage / data_cap;
+    pub fn update(&self, s: &Rc<RefCell<Settings>>, usage_progress: f64) -> bool {
+        let show_over_80_usage_view = s.borrow().show_over_80_usage_view;
+        let show_over_95_usage_view = s.borrow().show_over_95_usage_view;
 
-        if usage_progress > 0.8 {
+        if usage_progress > 0.95 && show_over_95_usage_view {
             self.progress.set_fraction(usage_progress);
-            self.event.show()
+            WidgetExt::set_widget_name(&self.progress, "out_of_space_progressbar_over_95");
+            true
+        } else if usage_progress > 0.8 && show_over_80_usage_view {
+            self.progress.set_fraction(usage_progress);
+            WidgetExt::set_widget_name(&self.progress, "out_of_space_progressbar_over_80");
+            true
+        } else if usage_progress <= 0.7 {
+            if !show_over_95_usage_view {
+                s.borrow_mut().show_over_95_usage_view = true;
+            }
+
+            if !show_over_80_usage_view {
+                s.borrow_mut().show_over_80_usage_view = true;
+            }
+
+            false
         } else {
-            self.event.hide();
+            false
         }
     }
 }

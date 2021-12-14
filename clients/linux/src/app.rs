@@ -336,7 +336,7 @@ impl LbApp {
 
     fn refresh_usage_status(&self) -> LbResult<()> {
         let ch = make_glib_chan!(self as lb => move |usage: UsageMetrics| {
-            lb.gui.account.sidebar.out_of_space.update(usage.server_usage.exact as f64, usage.data_cap.exact as f64);
+            lb.gui.account.sidebar.toggle_out_of_space_view(&lb.settings, usage.server_usage.exact as f64, usage.data_cap.exact as f64);
             glib::Continue(true)
         });
 

@@ -12,6 +12,8 @@ pub struct Settings {
     pub window_maximize: bool,
     pub auto_save: bool,
     pub auto_sync: bool,
+    pub show_over_95_usage_view: bool,
+    pub show_over_80_usage_view: bool,
     #[serde(skip_serializing, skip_deserializing)]
     path: String,
 }
@@ -52,6 +54,8 @@ impl Default for Settings {
             window_maximize: false,
             auto_save: true,
             auto_sync: true,
+            show_over_95_usage_view: true,
+            show_over_80_usage_view: true,
             path: "".to_string(),
         }
     }
