@@ -17,6 +17,7 @@ path = "src/main.rs"
 warp = { version = "0.3.2", features = ["tls"]}
 base64 = "0.13.0"
 bincode = "1.2.1"
+pretty_env_logger = "0.4"
 chrono = "0.4.15"
 fern = { version = "0.6.0", features = ["colored"]}
 futures = "0.3.13"
