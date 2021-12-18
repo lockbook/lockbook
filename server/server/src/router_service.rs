@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::{verify_auth, verify_client_version, ServerState};
 use lazy_static::lazy_static;
 use lockbook_crypto::pubkey::ECVerifyError;
@@ -9,6 +10,10 @@ use serde::Serialize;
 use warp::http::Method;
 use warp::hyper::body::Bytes;
 use warp::{reject, Filter, Rejection};
+use lockbook_models::api::*;
+use crate::account_service::new_account;
+use crate::file_service::*;
+
 
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
@@ -22,10 +27,11 @@ lazy_static! {
 #[macro_export]
 macro_rules! core_request {
     ($Req: ty, $handler: path, $state: ident) => {{
+        use crate::{RequestContext, ServerError};
         use lockbook_models::api::{ErrorWrapper, Request};
         use log::error;
-        use prometheus::{register_histogram_vec, HistogramVec};
-        use router_service::{deserialize_and_check, method};
+        use crate::router_service::{deserialize_and_check, method};
+        use crate::router_service;
 
         let cloned_state = Arc::clone(&$state);
 
@@ -68,9 +74,19 @@ macro_rules! core_request {
     }};
 }
 
-#[derive(Debug)]
-struct MethodError;
-impl reject::Reject for MethodError {}
+pub fn core_routes(server_state: &Arc<ServerState>) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    core_request!(NewAccountRequest, new_account, server_state)
+        .or(core_request!(
+            FileMetadataUpsertsRequest,
+            upsert_file_metadata,
+            server_state
+        ))
+        .or(core_request!(
+            ChangeDocumentContentRequest,
+            change_document_content,
+            server_state
+        ))
+}
 
 pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {
     warp::method()

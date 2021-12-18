@@ -2,16 +2,17 @@ extern crate chrono;
 extern crate log;
 extern crate tokio;
 
-use lockbook_models::api::{FileMetadataUpsertsRequest, NewAccountRequest, RequestWrapper};
-use lockbook_server_lib::account_service::new_account;
+
+
 use lockbook_server_lib::config::Config;
-use lockbook_server_lib::file_service::upsert_file_metadata;
+
 use lockbook_server_lib::*;
 
 use std::sync::Arc;
 
-use warp::hyper::body::Bytes;
-use warp::Filter;
+
+
+use lockbook_server_lib::router_service::core_routes;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -31,12 +32,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         files_db_client,
     });
 
-    let route = core_request!(NewAccountRequest, new_account, server_state).or(core_request!(
-        FileMetadataUpsertsRequest,
-        upsert_file_metadata,
-        server_state
-    ));
-
-    warp::serve(route).run(([127, 0, 0, 1], 3030)).await;
+    warp::serve(core_routes(&server_state)).run(([127, 0, 0, 1], 3030)).await;
     Ok(())
 }
