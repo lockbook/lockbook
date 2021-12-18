@@ -1,19 +1,18 @@
-use std::sync::Arc;
+use crate::account_service::*;
+use crate::file_service::*;
 use crate::{verify_auth, verify_client_version, ServerState};
 use lazy_static::lazy_static;
 use lockbook_crypto::pubkey::ECVerifyError;
+use lockbook_models::api::*;
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
 use log::warn;
 use prometheus::{register_histogram_vec, HistogramVec};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::sync::Arc;
 use warp::http::Method;
 use warp::hyper::body::Bytes;
 use warp::{reject, Filter, Rejection};
-use lockbook_models::api::*;
-use crate::account_service::new_account;
-use crate::file_service::*;
-
 
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
@@ -25,13 +24,13 @@ lazy_static! {
 }
 
 #[macro_export]
-macro_rules! core_request {
+macro_rules! core_req {
     ($Req: ty, $handler: path, $state: ident) => {{
+        use crate::router_service;
+        use crate::router_service::{deserialize_and_check, method};
         use crate::{RequestContext, ServerError};
         use lockbook_models::api::{ErrorWrapper, Request};
         use log::error;
-        use crate::router_service::{deserialize_and_check, method};
-        use crate::router_service;
 
         let cloned_state = Arc::clone(&$state);
 
@@ -74,18 +73,29 @@ macro_rules! core_request {
     }};
 }
 
-pub fn core_routes(server_state: &Arc<ServerState>) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    core_request!(NewAccountRequest, new_account, server_state)
-        .or(core_request!(
-            FileMetadataUpsertsRequest,
-            upsert_file_metadata,
-            server_state
-        ))
-        .or(core_request!(
+pub fn core_routes(
+    server_state: &Arc<ServerState>,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    core_req!(NewAccountRequest, new_account, server_state)
+        .or(core_req!(
             ChangeDocumentContentRequest,
             change_document_content,
             server_state
         ))
+        .or(core_req!(
+            FileMetadataUpsertsRequest,
+            upsert_file_metadata,
+            server_state
+        ))
+        .or(core_req!(
+            ChangeDocumentContentRequest,
+            change_document_content,
+            server_state
+        ))
+        .or(core_req!(GetDocumentRequest, get_document, server_state))
+        .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
+        .or(core_req!(GetUsageRequest, get_usage, server_state))
+        .or(core_req!(GetUpdatesRequest, get_updates, server_state))
 }
 
 pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {
@@ -122,7 +132,7 @@ where
 
     verify_auth(server_state, &request).map_err(|err| match err {
         ECVerifyError::SignatureExpired(_) | ECVerifyError::SignatureInTheFuture(_) => {
-            ErrorWrapper::<Req::Error>::ClientUpdateRequired
+            ErrorWrapper::<Req::Error>::ExpiredAuth
         }
         _ => ErrorWrapper::<Req::Error>::InvalidAuth,
     })?;

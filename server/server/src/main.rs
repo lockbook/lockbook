@@ -2,15 +2,11 @@ extern crate chrono;
 extern crate log;
 extern crate tokio;
 
-
-
 use lockbook_server_lib::config::Config;
 
 use lockbook_server_lib::*;
 
 use std::sync::Arc;
-
-
 
 use lockbook_server_lib::router_service::core_routes;
 
@@ -32,6 +28,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         files_db_client,
     });
 
-    warp::serve(core_routes(&server_state)).run(([127, 0, 0, 1], 3030)).await;
+    warp::serve(core_routes(&server_state))
+        .run(([127, 0, 0, 1], 8000))
+        .await;
     Ok(())
 }
