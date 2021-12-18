@@ -8,8 +8,8 @@ pub mod router_service;
 pub mod utils;
 
 extern crate log;
+use std::env;
 use std::fmt::Debug;
-use std::{env, fs, io};
 
 use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
@@ -17,17 +17,11 @@ use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::{GetBuildInfoError, GetBuildInfoResponse, Request, RequestWrapper};
 use serde::{Deserialize, Serialize};
 
-use prometheus::TextEncoder;
 use shadow_rs::shadow;
 
 shadow!(build_info);
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// TODO this must go
-fn error(err: String) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, err)
-}
 
 pub struct ServerState {
     pub config: config::Config,

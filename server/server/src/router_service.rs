@@ -6,7 +6,10 @@ use log::warn;
 use prometheus::{register_histogram_vec, HistogramVec};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use warp::http::Method;
 use warp::hyper::body::Bytes;
+use warp::{reject, Filter, Rejection};
+
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
         "lockbook_server_request_duration_seconds",
@@ -18,17 +21,17 @@ lazy_static! {
 
 #[macro_export]
 macro_rules! core_request {
-    ($Req: ty, $handler: path, $server_state: ident) => {{
+    ($Req: ty, $handler: path, $state: ident) => {{
         use lockbook_models::api::{ErrorWrapper, Request};
         use log::error;
         use prometheus::{register_histogram_vec, HistogramVec};
-        use router_service::deserialize_and_check;
+        use router_service::{deserialize_and_check, method};
 
-        let server_state = $server_state.clone();
+        let cloned_state = Arc::clone(&$state);
 
         method(<$Req>::METHOD)
             .and(warp::path(&<$Req>::ROUTE[1..]))
-            .and(warp::any().map(move || $server_state.clone()))
+            .and(warp::any().map(move || Arc::clone(&cloned_state)))
             .and(warp::body::bytes())
             .then(|state: Arc<ServerState>, request: Bytes| async move {
                 let state = state.as_ref();
@@ -37,7 +40,7 @@ macro_rules! core_request {
                     .with_label_values(&[<$Req>::ROUTE])
                     .start_timer();
 
-                let request: RequestWrapper<$Req> = match deserialize_and_check(&state, request) {
+                let request: RequestWrapper<$Req> = match deserialize_and_check(state, request) {
                     Ok(req) => req,
                     Err(err) => {
                         return warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(err));
@@ -45,7 +48,7 @@ macro_rules! core_request {
                 };
 
                 let rc: RequestContext<$Req> = RequestContext {
-                    server_state: &state,
+                    server_state: state,
                     request: request.signed_request.timestamped_value.value,
                     public_key: request.signed_request.public_key,
                 };
@@ -63,6 +66,23 @@ macro_rules! core_request {
                 response
             })
     }};
+}
+
+#[derive(Debug)]
+struct MethodError;
+impl reject::Reject for MethodError {}
+
+pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {
+    warp::method()
+        .and(warp::any().map(move || name.clone()))
+        .and_then(|request: Method, intention: Method| async move {
+            if request == intention {
+                Ok(())
+            } else {
+                Err(reject::not_found())
+            }
+        })
+        .untuple_one()
 }
 
 pub fn deserialize_and_check<Req>(

@@ -2,20 +2,16 @@ extern crate chrono;
 extern crate log;
 extern crate tokio;
 
-use lockbook_models::api::{
-    NewAccountError, NewAccountRequest, NewAccountResponse, Request, RequestWrapper,
-};
+use lockbook_models::api::{FileMetadataUpsertsRequest, NewAccountRequest, RequestWrapper};
 use lockbook_server_lib::account_service::new_account;
 use lockbook_server_lib::config::Config;
+use lockbook_server_lib::file_service::upsert_file_metadata;
 use lockbook_server_lib::*;
-use serde::de::DeserializeOwned;
-use std::fmt::Debug;
-use std::future::Future;
-use std::io;
+
 use std::sync::Arc;
-use warp::http::Method;
+
 use warp::hyper::body::Bytes;
-use warp::{reject, Filter, Rejection};
+use warp::Filter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -35,25 +31,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         files_db_client,
     });
 
-    let route = core_request!(NewAccountRequest, new_account, server_state);
+    let route = core_request!(NewAccountRequest, new_account, server_state).or(core_request!(
+        FileMetadataUpsertsRequest,
+        upsert_file_metadata,
+        server_state
+    ));
 
     warp::serve(route).run(([127, 0, 0, 1], 3030)).await;
     Ok(())
-}
-
-#[derive(Debug)]
-struct MethodError;
-impl reject::Reject for MethodError {}
-
-fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {
-    warp::method()
-        .and(warp::any().map(move || name.clone()))
-        .and_then(|request: Method, intention: Method| async move {
-            if request == intention {
-                Ok(())
-            } else {
-                Err(reject::custom(MethodError))
-            }
-        })
-        .untuple_one()
 }
