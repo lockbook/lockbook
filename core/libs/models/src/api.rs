@@ -30,6 +30,7 @@ pub enum ErrorWrapper<E> {
     InternalError,
     BadRequest,
 }
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileMetadataUpsertsRequest {
     pub updates: Vec<FileMetadataDiff>,
