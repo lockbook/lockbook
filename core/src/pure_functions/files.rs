@@ -259,7 +259,7 @@ pub fn get_path_conflicts(
     let mut result = Vec::new();
 
     for file in files {
-        let children = find_children(files, file.id);
+        let children = filter_not_deleted(&find_children(files, file.id));
         let mut child_ids_by_name: HashMap<String, Uuid> = HashMap::new();
         for child in children {
             if let Some(conflicting_child_id) = child_ids_by_name.get(&child.decrypted_name) {

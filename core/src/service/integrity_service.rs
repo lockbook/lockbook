@@ -63,28 +63,28 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         return Err(TestRepoError::CycleDetected(self_descendant));
     }
 
-    let files =
+    let all_files =
         file_service::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
-    let maybe_doc_with_children = files::filter_documents(&files)
+    let maybe_doc_with_children = files::filter_documents(&all_files)
         .into_iter()
-        .find(|d| !files::find_children(&files, d.id).is_empty());
+        .find(|d| !files::find_children(&all_files, d.id).is_empty());
     if let Some(doc) = maybe_doc_with_children {
         return Err(TestRepoError::DocumentTreatedAsFolder(doc.id));
     }
 
-    let maybe_file_with_empty_name = files.iter().find(|f| f.decrypted_name.is_empty());
+    let maybe_file_with_empty_name = all_files.iter().find(|f| f.decrypted_name.is_empty());
     if let Some(file_with_empty_name) = maybe_file_with_empty_name {
         return Err(TestRepoError::FileNameEmpty(file_with_empty_name.id));
     }
 
-    let maybe_file_with_name_with_slash = files.iter().find(|f| f.decrypted_name.contains('/'));
+    let maybe_file_with_name_with_slash = all_files.iter().find(|f| f.decrypted_name.contains('/'));
     if let Some(file_with_name_with_slash) = maybe_file_with_name_with_slash {
         return Err(TestRepoError::FileNameContainsSlash(
             file_with_name_with_slash.id,
         ));
     }
 
-    let maybe_path_conflict = files::get_path_conflicts(&files, &[])
+    let maybe_path_conflict = files::get_path_conflicts(&all_files, &[])
         .map_err(TestRepoError::Core)?
         .into_iter()
         .next();
@@ -93,7 +93,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     }
 
     let mut warnings = Vec::new();
-    for file in files {
+    for file in files::filter_not_deleted(&all_files) {
         if file.file_type == FileType::Document {
             let file_content = file_service::get_document(config, RepoSource::Local, &file)
                 .map_err(|err| DocumentReadError(file.id, err))?;
