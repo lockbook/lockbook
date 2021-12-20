@@ -32,18 +32,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let server = warp::serve(core_routes(&server_state));
 
     // *** How people can connect to this server ***
-    match (config.server.ssl_cert_location, config.server.ssl_private_key_location) {
+    match (
+        config.server.ssl_cert_location,
+        config.server.ssl_private_key_location,
+    ) {
         (Some(cert), Some(key)) => {
-            server.tls()
+            server
+                .tls()
                 .cert_path(&cert)
                 .key_path(&key)
                 .run(([0, 0, 0, 0], config.server.port))
                 .await
-        },
+        }
         _ => {
             println!("binding to localhost (not 0) without tls for local development");
-            server.run(([127, 0, 0, 1], config.server.port))
-                .await
+            server.run(([127, 0, 0, 1], config.server.port)).await
         }
     };
 

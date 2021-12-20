@@ -14,12 +14,8 @@ use std::fmt::Debug;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
-use lockbook_models::api::{GetBuildInfoError, GetBuildInfoResponse, Request, RequestWrapper};
+use lockbook_models::api::{Request, RequestWrapper};
 use serde::{Deserialize, Serialize};
-
-use shadow_rs::shadow;
-
-shadow!(build_info);
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -39,12 +35,6 @@ pub struct RequestContext<'a, TRequest> {
 pub enum ServerError<U: Debug> {
     ClientError(U),
     InternalError(String),
-}
-pub fn get_build_info() -> Result<GetBuildInfoResponse, ServerError<GetBuildInfoError>> {
-    Ok(GetBuildInfoResponse {
-        build_version: env!("CARGO_PKG_VERSION"),
-        git_commit_hash: build_info::COMMIT_HASH,
-    })
 }
 
 // pub fn metrics() -> Result<Response<Body>, hyper::http::Error> {

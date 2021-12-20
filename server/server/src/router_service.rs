@@ -13,6 +13,7 @@ use std::sync::Arc;
 use warp::http::Method;
 use warp::hyper::body::Bytes;
 use warp::{reject, Filter, Rejection};
+use crate::utils::get_build_info;
 
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
@@ -96,6 +97,13 @@ pub fn core_routes(
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
+}
+
+pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::get()
+        .and(warp::path(&GetBuildInfoRequest::ROUTE[1..]))
+        .then(get_build_info)
+        .map(|resp| warp::reply::json(&resp))
 }
 
 pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {
