@@ -1,19 +1,19 @@
 use crate::account_service::*;
 use crate::file_service::*;
+use crate::utils::get_build_info;
 use crate::{verify_auth, verify_client_version, ServerState};
 use lazy_static::lazy_static;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_models::api::*;
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
-use log::warn;
-use prometheus::{register_histogram_vec, HistogramVec};
+use log::{error, warn};
+use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::Arc;
 use warp::http::Method;
 use warp::hyper::body::Bytes;
 use warp::{reject, Filter, Rejection};
-use crate::utils::get_build_info;
 
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
@@ -104,6 +104,18 @@ pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rej
         .and(warp::path(&GetBuildInfoRequest::ROUTE[1..]))
         .then(get_build_info)
         .map(|resp| warp::reply::json(&resp))
+}
+
+pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::get().and(warp::path("metrics")).map(|| {
+        match TextEncoder::new().encode_to_string(prometheus::gather().as_slice()) {
+            Ok(metrics) => metrics,
+            Err(err) => {
+                error!("Error preparing response for prometheus: {:?}", err);
+                String::new()
+            }
+        }
+    })
 }
 
 pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {

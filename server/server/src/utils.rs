@@ -1,5 +1,5 @@
-use lockbook_models::api::{GetBuildInfoError, GetBuildInfoResponse};
 use crate::ServerError;
+use lockbook_models::api::{GetBuildInfoError, GetBuildInfoResponse};
 
 use shadow_rs::shadow;
 shadow!(build_info);

@@ -7,8 +7,9 @@ use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
 
 use std::sync::Arc;
+use warp::Filter;
 
-use lockbook_server_lib::router_service::core_routes;
+use lockbook_server_lib::router_service::{build_info, core_routes, get_metrics};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -29,7 +30,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         files_db_client,
     });
 
-    let server = warp::serve(core_routes(&server_state));
+    let routes = core_routes(&server_state)
+        .or(build_info())
+        .or(get_metrics());
+
+    let server = warp::serve(routes);
 
     // *** How people can connect to this server ***
     match (

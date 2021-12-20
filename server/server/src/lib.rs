@@ -37,15 +37,6 @@ pub enum ServerError<U: Debug> {
     InternalError(String),
 }
 
-// pub fn metrics() -> Result<Response<Body>, hyper::http::Error> {
-//     match TextEncoder::new().encode_to_string(prometheus::gather().as_slice()) {
-//         Ok(metrics) => router_service::to_response(Bytes::from(metrics)),
-//         Err(e) => {
-//             router_service::to_response(Bytes::from(format!("Could not encode metrics: {:?}", e)))
-//         }
-//     }
-// }
-
 pub fn verify_client_version<TRequest: Request>(
     request: &RequestWrapper<TRequest>,
 ) -> Result<(), ()> {
