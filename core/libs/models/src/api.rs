@@ -30,6 +30,7 @@ pub enum ErrorWrapper<E> {
     InternalError,
     BadRequest,
 }
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileMetadataUpsertsRequest {
     pub updates: Vec<FileMetadataDiff>,
@@ -268,22 +269,4 @@ impl Request for GetBuildInfoRequest {
     type Error = GetBuildInfoError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-build-info";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum MetricsRequest {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum MetricsError {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct MetricsResponse {
-    pub metrics: String,
-}
-
-impl Request for MetricsRequest {
-    type Response = MetricsResponse;
-    type Error = MetricsError;
-    const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/metrics";
 }
