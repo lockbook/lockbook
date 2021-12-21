@@ -98,7 +98,7 @@ fn pd_logger(build: &str, pd_api_key: &str, handle: Handle) -> Dispatch {
 
     let pdl = PDLogger {
         key: String::from(pd_api_key),
-        handle: handle,
+        handle,
         build: String::from(build),
     };
 
@@ -116,8 +116,12 @@ struct PDLogger {
 }
 
 impl Log for PDLogger {
+    /// This is where you decide what getss sent to pagerduty
+    /// Currently only errors are sent, and rustls::session is explicitly black-holed
+    /// Logs from rustls::session will still be logged to the file and standard streams, but they're
+    /// incredibly noisy and clients can cause them to "fatal log" quite easily (ex: attempt to connect via TLS 1.0)
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= Level::Error
+        metadata.level() == Level::Error && metadata.target() != "rustls::session"
     }
 
     fn log(&self, record: &Record) {

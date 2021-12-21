@@ -6,6 +6,7 @@ use lockbook_server_lib::config::Config;
 
 use lockbook_server_lib::*;
 
+use log::info;
 use std::sync::Arc;
 use warp::Filter;
 
@@ -42,6 +43,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         config.server.ssl_private_key_location,
     ) {
         (Some(cert), Some(key)) => {
+            info!(
+                "binding to https://0.0.0.0:{} without tls for local development",
+                config.server.port
+            );
             server
                 .tls()
                 .cert_path(&cert)
@@ -50,7 +55,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .await
         }
         _ => {
-            println!("binding to localhost without tls for local development");
+            info!(
+                "binding to http://0.0.0.0:{} without tls for local development",
+                config.server.port
+            );
             server.run(([0, 0, 0, 0], config.server.port)).await
         }
     };
