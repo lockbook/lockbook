@@ -145,10 +145,7 @@ where
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
-    verify_client_version(&request).map_err(|_| {
-        warn!("Client connected with unsupported client version");
-        ErrorWrapper::<Req::Error>::ClientUpdateRequired
-    })?;
+    verify_client_version(&request)?;
 
     verify_auth(server_state, &request).map_err(|err| match err {
         ECVerifyError::SignatureExpired(_) | ECVerifyError::SignatureInTheFuture(_) => {

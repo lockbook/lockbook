@@ -14,7 +14,7 @@ use lockbook_server_lib::router_service::{build_info, core_routes, get_metrics};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = Config::from_env_vars();
-    pretty_env_logger::init();
+    loggers::init(&config);
 
     // *** Things this server connects to ***
     let index_db_client = file_index_repo::connect(&config.index_db)

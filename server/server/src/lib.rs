@@ -14,7 +14,7 @@ use std::fmt::Debug;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
-use lockbook_models::api::{Request, RequestWrapper};
+use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
 use serde::{Deserialize, Serialize};
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -37,12 +37,12 @@ pub enum ServerError<U: Debug> {
     InternalError(String),
 }
 
-pub fn verify_client_version<TRequest: Request>(
-    request: &RequestWrapper<TRequest>,
-) -> Result<(), ()> {
+pub fn verify_client_version<Req: Request>(
+    request: &RequestWrapper<Req>,
+) -> Result<(), ErrorWrapper<Req::Error>> {
     match &request.client_version as &str {
         "0.1.5" => Ok(()),
-        _ => Err(()),
+        _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }
 
