@@ -389,26 +389,21 @@ impl FileTree {
         self.populate_tree(metadatas.as_slice(), root, &root_iter);
     }
 
-    pub fn refresh(&self, core: &LbCore) -> LbResult<()> {
+    pub fn refresh(&self, root: &DecryptedFileMetadata, metadatas: &Vec<DecryptedFileMetadata>) {
         let mut expanded_paths = Vec::<GtkTreePath>::new();
         self.search_expanded(&self.iter(), &mut expanded_paths);
 
         let sel = self.tree.get_selection();
         let (selected_paths, _) = sel.get_selected_rows();
 
-        let root = core.root()?;
-        let metadatas = core.get_all_files()?;
-        self.fill(&root, &metadatas);
+        self.fill(root, metadatas);
 
         for path in expanded_paths {
             self.tree.expand_row(&path, false);
         }
-
         for path in selected_paths {
             sel.select_path(&path);
         }
-
-        Ok(())
     }
 
     pub fn add(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {

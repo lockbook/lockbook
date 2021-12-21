@@ -801,7 +801,10 @@ impl LbApp {
     }
 
     fn refresh_tree(&self) -> LbResult<()> {
-        self.gui.account.sidebar.tree.refresh(&self.core)
+        let root = self.core.root()?;
+        let metadatas = self.core.get_all_files()?;
+        self.gui.account.sidebar.tree.refresh(&root, &metadatas);
+        Ok(())
     }
 
     fn prompt_search(&self) -> LbResult<()> {
