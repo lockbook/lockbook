@@ -18,3 +18,18 @@
 #intro_doing_caption {
     font-size: 20px;
 }
+
+#out_of_space {
+    background-color: @theme_bg_color;
+}
+
+#out_of_space_progressbar_over_95 > trough > progress {
+    background: #EB4237;
+}
+
+#out_of_space_progressbar_over_80 > trough > progress {
+    background: #F9C83F;
+}
+/*#F9C83F*/
+
+

@@ -8,7 +8,6 @@
     android:paddingHorizontal="25dp"
     tools:context=".screen.WelcomeActivity">
 
-
     <TextView
         style="@style/Main.Text.Headline"
         android:layout_width="match_parent"

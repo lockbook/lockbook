@@ -39,12 +39,9 @@ class SyncModel(
     }
 
     private fun sync(resources: Resources) {
-        val upToDateMsg =
-            resources.getString(R.string.list_files_sync_finished_snackbar)
-
         when (val workCalculatedResult = CoreModel.calculateWork(config)) {
             is Ok -> if (workCalculatedResult.value.workUnits.isEmpty()) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(upToDateMsg))
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.SyncSuccessfullyFinished)
                 return
             }
             is Err -> {
@@ -57,7 +54,7 @@ class SyncModel(
         _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowSyncSnackBar)
 
         when (val syncResult = CoreModel.sync(config, this)) {
-            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(upToDateMsg))
+            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.SyncSuccessfullyFinished)
             is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(syncResult.error.toLbError(resources)))
         }
     }
