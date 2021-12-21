@@ -383,12 +383,6 @@ impl FileTree {
             .insert_with_values(iter, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype])
     }
 
-    pub fn fill(&self, root: &DecryptedFileMetadata, metadatas: &Vec<DecryptedFileMetadata>) {
-        self.model.clear();
-        let root_iter = self.shallow_append(None, root);
-        self.populate_tree(metadatas.as_slice(), root, &root_iter);
-    }
-
     pub fn refresh(&self, root: &DecryptedFileMetadata, metadatas: &Vec<DecryptedFileMetadata>) {
         let mut expanded_paths = Vec::<GtkTreePath>::new();
         if let Some(iter) = self.model.get_iter_first() {
@@ -398,7 +392,9 @@ impl FileTree {
         let sel = self.tree.get_selection();
         let (selected_paths, _) = sel.get_selected_rows();
 
-        self.fill(root, metadatas);
+        self.model.clear();
+        let root_iter = self.shallow_append(None, root);
+        self.populate_tree(metadatas.as_slice(), root, &root_iter);
 
         for path in expanded_paths {
             self.tree.expand_row(&path, false);
