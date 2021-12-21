@@ -50,8 +50,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .await
         }
         _ => {
-            println!("binding to localhost (not 0) without tls for local development");
-            server.run(([127, 0, 0, 1], config.server.port)).await
+            println!("binding to localhost without tls for local development");
+            server.run(([0, 0, 0, 0], config.server.port)).await
         }
     };
 
