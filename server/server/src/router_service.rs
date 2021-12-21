@@ -1,7 +1,7 @@
 use crate::account_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
-use crate::{verify_auth, verify_client_version, ServerState};
+use crate::{router_service, verify_auth, verify_client_version, ServerState};
 use lazy_static::lazy_static;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_models::api::*;
@@ -102,8 +102,15 @@ pub fn core_routes(
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::get()
         .and(warp::path(&GetBuildInfoRequest::ROUTE[1..]))
-        .then(get_build_info)
-        .map(|resp| warp::reply::json(&resp))
+        .map(|| {
+            let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
+                .with_label_values(&[GetBuildInfoRequest::ROUTE])
+                .start_timer();
+            let resp = get_build_info();
+            let resp = warp::reply::json(&resp);
+            timer.observe_duration();
+            resp
+        })
 }
 
 pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
