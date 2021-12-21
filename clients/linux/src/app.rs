@@ -1346,7 +1346,12 @@ impl Gui {
     fn show_account_screen(&self, core: &LbCore) -> LbResult<()> {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
-        self.account.fill(core, &self.messenger)?;
+
+        let root = core.root()?;
+        let metadatas = core.get_all_files()?;
+        self.account.sidebar.tree.fill(&root, &metadatas);
+        self.messenger.send(Msg::RefreshSyncStatus);
+
         self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
         self.messenger.send(Msg::AccountScreenShown);

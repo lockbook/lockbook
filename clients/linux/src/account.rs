@@ -49,14 +49,6 @@ impl AccountScreen {
         }
     }
 
-    pub fn fill(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
-        let root = core.root()?;
-        let metadatas = core.get_all_files()?;
-        self.sidebar.tree.fill(&root, &metadatas);
-        m.send(Msg::RefreshSyncStatus);
-        Ok(())
-    }
-
     pub fn add_file(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
         self.sidebar.tree.add(b, f)
     }
