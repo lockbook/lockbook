@@ -171,11 +171,7 @@ impl LbApp {
 
         let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
             match result {
-                Ok(_) => {
-                    if let Err(err) = lb.gui.show_account_screen(&lb.core) {
-                        lb.messenger.send_err_dialog("showing account screen", err);
-                    }
-                }
+                Ok(_) => lb.gui.show_account_screen(),
                 Err(err) => match err.kind() {
                     UserErr => lb.gui.intro.error_create(err.msg()),
                     ProgErr => lb.messenger.send_err_dialog("creating account", err),
@@ -214,15 +210,12 @@ impl LbApp {
     fn import_account_sync(&self) {
         // Create a channel to receive and process any account sync progress updates.
         let sync_chan = make_glib_chan!(self as lb => move |msgopt: Option<LbSyncMsg>| {
-            // If there is some message, show it. If not, syncing is done, so try to show the
-            // account screen. If the account screen is successfully shown, get the account's
-            // sync status.
+            // If there is some message, show it. If not, syncing is done, so the
+            // account screen is shown.
             if let Some(msg) = msgopt {
                 lb.gui.intro.sync_progress(&msg)
-            } else if let Err(err) = lb.gui.show_account_screen(&lb.core) {
-                lb.messenger.send_err_dialog("showing account screen", err);
             } else {
-                lb.messenger.send(Msg::RefreshSyncStatus);
+                lb.gui.show_account_screen();
                 spawn!(lb.messenger as m => move || {
                     thread::sleep(Duration::from_secs(5));
                     m.send(Msg::RefreshUsageStatus);
@@ -1330,32 +1323,29 @@ impl Gui {
     fn show(&self, core: &LbCore) -> LbResult<()> {
         self.win.show_all();
         if core.has_account()? {
-            self.show_account_screen(core)
+            self.show_account_screen();
         } else {
-            self.show_intro_screen()
+            self.show_intro_screen();
         }
-    }
-
-    fn show_intro_screen(&self) -> LbResult<()> {
-        self.menubar.for_intro_screen();
-        self.intro.cntr.show_all();
-        self.screens.set_visible_child_name("intro");
         Ok(())
     }
 
-    fn show_account_screen(&self, core: &LbCore) -> LbResult<()> {
+    fn show_intro_screen(&self) {
+        self.menubar.for_intro_screen();
+        self.intro.cntr.show_all();
+        self.screens.set_visible_child_name("intro");
+    }
+
+    fn show_account_screen(&self) {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
 
-        let root = core.root()?;
-        let metadatas = core.get_all_files()?;
-        self.account.sidebar.tree.fill(&root, &metadatas);
+        self.messenger.send(Msg::RefreshTree);
         self.messenger.send(Msg::RefreshSyncStatus);
 
         self.account.sidebar.tree.focus();
         self.screens.set_visible_child_name("account");
         self.messenger.send(Msg::AccountScreenShown);
-        Ok(())
     }
 
     fn new_dialog(&self, title: &str) -> GtkDialog {

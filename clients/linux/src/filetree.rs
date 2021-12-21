@@ -391,7 +391,9 @@ impl FileTree {
 
     pub fn refresh(&self, root: &DecryptedFileMetadata, metadatas: &Vec<DecryptedFileMetadata>) {
         let mut expanded_paths = Vec::<GtkTreePath>::new();
-        self.search_expanded(&self.iter(), &mut expanded_paths);
+        if let Some(iter) = self.model.get_iter_first() {
+            self.search_expanded(&iter, &mut expanded_paths);
+        }
 
         let sel = self.tree.get_selection();
         let (selected_paths, _) = sel.get_selected_rows();
