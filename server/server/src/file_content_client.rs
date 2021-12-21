@@ -1,5 +1,6 @@
 use crate::config::FilesDbConfig;
 use lockbook_models::crypto::EncryptedDocument;
+use log::debug;
 use s3::bucket::Bucket as S3Client;
 use s3::creds::Credentials;
 use s3::region::Region;
@@ -40,6 +41,8 @@ impl From<Vec<u8>> for Error {
 }
 
 pub fn create_client(config: &FilesDbConfig) -> Result<S3Client, Error> {
+    debug!("Creating files_db client...");
+
     let credentials = Credentials {
         access_key: Some(config.access_key.clone()),
         secret_key: Some(config.secret_key.clone()),
