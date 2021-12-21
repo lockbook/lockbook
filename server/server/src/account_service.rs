@@ -1,6 +1,7 @@
 use crate::utils::username_is_valid;
-use crate::{file_index_repo, RequestContext};
+use crate::{file_index_repo, RequestContext, ServerError};
 
+use crate::ServerError::{ClientError, InternalError};
 use lockbook_models::api::{
     GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
     GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
@@ -9,16 +10,16 @@ use lockbook_models::file_metadata::FileType;
 
 pub async fn new_account(
     context: RequestContext<'_, NewAccountRequest>,
-) -> Result<NewAccountResponse, Result<NewAccountError, String>> {
+) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
     let (request, server_state) = (&context.request, context.server_state);
     if !username_is_valid(&request.username) {
-        return Err(Ok(NewAccountError::InvalidUsername));
+        return Err(ClientError(NewAccountError::InvalidUsername));
     }
 
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -26,9 +27,13 @@ pub async fn new_account(
         file_index_repo::new_account(&mut transaction, &request.username, &request.public_key)
             .await;
     new_account_result.map_err(|e| match e {
-        file_index_repo::NewAccountError::UsernameTaken => Ok(NewAccountError::UsernameTaken),
-        file_index_repo::NewAccountError::PublicKeyTaken => Ok(NewAccountError::PublicKeyTaken),
-        _ => Err(format!("Cannot create account in Postgres: {:?}", e)),
+        file_index_repo::NewAccountError::UsernameTaken => {
+            ClientError(NewAccountError::UsernameTaken)
+        }
+        file_index_repo::NewAccountError::PublicKeyTaken => {
+            ClientError(NewAccountError::PublicKeyTaken)
+        }
+        _ => InternalError(format!("Cannot create account in Postgres: {:?}", e)),
     })?;
 
     let create_folder_result = file_index_repo::create_file(
@@ -43,8 +48,8 @@ pub async fn new_account(
     )
     .await;
     let new_version = create_folder_result.map_err(|e| match e {
-        file_index_repo::CreateFileError::IdTaken => Ok(NewAccountError::FileIdTaken),
-        _ => Err(format!(
+        file_index_repo::CreateFileError::IdTaken => ClientError(NewAccountError::FileIdTaken),
+        _ => InternalError(format!(
             "Cannot create account root folder in Postgres: {:?}",
             e
         )),
@@ -57,7 +62,7 @@ pub async fn new_account(
     )
     .await;
     new_user_access_key_result.map_err(|e| {
-        Err(format!(
+        InternalError(format!(
             "Cannot create access keys for user in Postgres: {:?}",
             e
         ))
@@ -68,56 +73,58 @@ pub async fn new_account(
             folder_metadata_version: new_version,
         }),
         Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("uk_name") => Err(Ok(NewAccountError::UsernameTaken)),
-            _ => Err(Err(format!(
+            Some("uk_name") => Err(ClientError(NewAccountError::UsernameTaken)),
+            _ => Err(InternalError(format!(
                 "Cannot commit transaction due to constraint violation: {:?}",
                 db_err
             ))),
         },
-        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
+        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn get_public_key(
     context: RequestContext<'_, GetPublicKeyRequest>,
-) -> Result<GetPublicKeyResponse, Result<GetPublicKeyError, String>> {
+) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
         }
     };
     let result = file_index_repo::get_public_key(&mut transaction, &request.username).await;
     let key = result.map_err(|e| match e {
-        file_index_repo::PublicKeyError::UserNotFound => Ok(GetPublicKeyError::UserNotFound),
-        _ => Err(format!("Cannot get public key from Postgres: {:?}", e)),
+        file_index_repo::PublicKeyError::UserNotFound => {
+            ClientError(GetPublicKeyError::UserNotFound)
+        }
+        _ => InternalError(format!("Cannot get public key from Postgres: {:?}", e)),
     })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(GetPublicKeyResponse { key: key }),
-        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
+        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn get_usage(
     context: RequestContext<'_, GetUsageRequest>,
-) -> Result<GetUsageResponse, Result<GetUsageError, String>> {
+) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
     let (_, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!("Cannot begin transaction: {:#?}", e)));
+            return Err(InternalError(format!("Cannot begin transaction: {:#?}", e)));
         }
     };
 
     let usages = file_index_repo::get_file_usages(&mut transaction, &context.public_key)
         .await
-        .map_err(|e| Err(format!("Usage calculation error: {:#?}", e)))?;
+        .map_err(|e| InternalError(format!("Usage calculation error: {:#?}", e)))?;
 
     let cap = file_index_repo::get_account_data_cap(&mut transaction, &context.public_key)
         .await
-        .map_err(|e| Err(format!("Data cap calculation error: {:#?}", e)))?;
+        .map_err(|e| InternalError(format!("Data cap calculation error: {:#?}", e)))?;
 
     Ok(GetUsageResponse { usages, cap })
 }
