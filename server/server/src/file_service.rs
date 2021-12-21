@@ -1,19 +1,20 @@
-use crate::file_content_client;
 use crate::file_index_repo;
 use crate::file_index_repo::CheckCyclesError;
 use crate::file_index_repo::UpsertFileMetadataError;
 use crate::RequestContext;
+use crate::ServerError::{ClientError, InternalError};
+use crate::{file_content_client, ServerError};
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
-) -> Result<(), Result<FileMetadataUpsertsError, String>> {
+) -> Result<(), ServerError<FileMetadataUpsertsError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -21,11 +22,13 @@ pub async fn upsert_file_metadata(
         if let Some((old_parent, _)) = upsert.old_parent_and_name {
             // prevent all updates to root
             if upsert.id == old_parent {
-                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)); // todo: better error
+                return Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired));
+                // todo: better error
             }
             // prevent turning existing folder into root
             if upsert.id == upsert.new_parent {
-                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)); // todo: better error
+                return Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired));
+                // todo: better error
             }
         }
 
@@ -43,15 +46,15 @@ pub async fn upsert_file_metadata(
                     )
                     .await;
                     if let Err(e) = files_result {
-                        return Err(Err(format!("Cannot create file in S3: {:?}", e)));
+                        return Err(InternalError(format!("Cannot create file in S3: {:?}", e)));
                     }
                 }
             }
             Err(UpsertFileMetadataError::FailedPreconditions) => {
-                return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
+                return Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired))
             }
             Err(e) => {
-                return Err(Err(format!("Cannot upsert metadata: {:?}", e)));
+                return Err(InternalError(format!("Cannot upsert metadata: {:?}", e)));
             }
         }
     }
@@ -60,10 +63,10 @@ pub async fn upsert_file_metadata(
     match cycles_result {
         Ok(()) => {}
         Err(CheckCyclesError::CyclesDetected) => {
-            return Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
+            return Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired))
         }
         Err(e) => {
-            return Err(Err(format!("Cannot check cycles: {:?}", e)));
+            return Err(InternalError(format!("Cannot check cycles: {:?}", e)));
         }
     }
 
@@ -72,35 +75,40 @@ pub async fn upsert_file_metadata(
     let deleted_file_ids = match deletions_result {
         Ok(ids) => ids,
         Err(e) => {
-            return Err(Err(format!("Cannot apply recursive deletions: {:?}", e)));
+            return Err(InternalError(format!(
+                "Cannot apply recursive deletions: {:?}",
+                e
+            )));
         }
     };
 
     match transaction.commit().await {
         Ok(()) => Ok(()),
         Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("uk_files_name_parent") => Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired)),
-            Some("fk_files_parent_files_id") => {
-                Err(Ok(FileMetadataUpsertsError::GetUpdatesRequired))
+            Some("uk_files_name_parent") => {
+                Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired))
             }
-            _ => Err(Err(format!(
+            Some("fk_files_parent_files_id") => {
+                Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired))
+            }
+            _ => Err(InternalError(format!(
                 "Cannot commit transaction due to constraint violation: {:?}",
                 db_err
             ))),
         },
-        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
+        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
     }?;
 
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
     let files = file_index_repo::get_files(&mut transaction, &context.public_key)
         .await
-        .map_err(|e| Err(format!("Cannot get files: {:?}", e)))?;
+        .map_err(|e| InternalError(format!("Cannot get files: {:?}", e)))?;
     for deleted_id in request
         .updates
         .iter()
@@ -116,7 +124,7 @@ pub async fn upsert_file_metadata(
             file_content_client::delete(&server_state.files_db_client, deleted_id, content_version)
                 .await;
         if delete_result.is_err() {
-            return Err(Err(format!(
+            return Err(InternalError(format!(
                 "Cannot delete file in S3: {:?}",
                 delete_result
             )));
@@ -125,18 +133,18 @@ pub async fn upsert_file_metadata(
 
     match transaction.commit().await {
         Ok(()) => Ok(()),
-        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
+        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn change_document_content(
     context: RequestContext<'_, ChangeDocumentContentRequest>,
-) -> Result<ChangeDocumentContentResponse, Result<ChangeDocumentContentError, String>> {
+) -> Result<ChangeDocumentContentResponse, ServerError<ChangeDocumentContentError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
         }
     };
 
@@ -150,19 +158,21 @@ pub async fn change_document_content(
 
     let (old_content_version, new_version) = result.map_err(|e| match e {
         file_index_repo::ChangeDocumentVersionAndSizeError::DoesNotExist => {
-            Ok(ChangeDocumentContentError::DocumentNotFound)
+            ClientError(ChangeDocumentContentError::DocumentNotFound)
         }
         file_index_repo::ChangeDocumentVersionAndSizeError::IncorrectOldVersion => {
-            Ok(ChangeDocumentContentError::EditConflict)
+            ClientError(ChangeDocumentContentError::EditConflict)
         }
         file_index_repo::ChangeDocumentVersionAndSizeError::Deleted => {
-            Ok(ChangeDocumentContentError::DocumentDeleted)
+            ClientError(ChangeDocumentContentError::DocumentDeleted)
         }
         file_index_repo::ChangeDocumentVersionAndSizeError::Postgres(_)
-        | file_index_repo::ChangeDocumentVersionAndSizeError::Deserialize(_) => Err(format!(
-            "Cannot change document content version in Postgres: {:?}",
-            e
-        )),
+        | file_index_repo::ChangeDocumentVersionAndSizeError::Deserialize(_) => {
+            InternalError(format!(
+                "Cannot change document content version in Postgres: {:?}",
+                e
+            ))
+        }
     })?;
 
     let create_result = file_content_client::create(
@@ -173,7 +183,7 @@ pub async fn change_document_content(
     )
     .await;
     if create_result.is_err() {
-        return Err(Err(format!(
+        return Err(InternalError(format!(
             "Cannot create file in S3: {:?}",
             create_result
         )));
@@ -186,7 +196,7 @@ pub async fn change_document_content(
     )
     .await;
     if delete_result.is_err() {
-        return Err(Err(format!(
+        return Err(InternalError(format!(
             "Cannot delete file in S3: {:?}",
             delete_result
         )));
@@ -196,13 +206,13 @@ pub async fn change_document_content(
         Ok(()) => Ok(ChangeDocumentContentResponse {
             new_content_version: new_version,
         }),
-        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
+        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
     }
 }
 
 pub async fn get_document(
     context: RequestContext<'_, GetDocumentRequest>,
-) -> Result<GetDocumentResponse, Result<GetDocumentError, String>> {
+) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let files_result = file_content_client::get(
         &server_state.files_db_client,
@@ -213,20 +223,20 @@ pub async fn get_document(
     match files_result {
         Ok(c) => Ok(GetDocumentResponse { content: c }),
         Err(file_content_client::Error::NoSuchKey(_)) => {
-            Err(Ok(GetDocumentError::DocumentNotFound))
+            Err(ClientError(GetDocumentError::DocumentNotFound))
         }
-        Err(e) => Err(Err(format!("Cannot get file from S3: {:?}", e))),
+        Err(e) => Err(InternalError(format!("Cannot get file from S3: {:?}", e))),
     }
 }
 
 pub async fn get_updates(
     context: RequestContext<'_, GetUpdatesRequest>,
-) -> Result<GetUpdatesResponse, Result<GetUpdatesError, String>> {
+) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let mut transaction = match server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
-            return Err(Err(format!("Cannot begin transaction: {:?}", e)));
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
         }
     };
     let result = file_index_repo::get_updates(
@@ -235,12 +245,12 @@ pub async fn get_updates(
         request.since_metadata_version,
     )
     .await;
-    let updates = result.map_err(|e| Err(format!("Cannot get updates from Postgres: {:?}", e)))?;
-
+    let updates =
+        result.map_err(|e| InternalError(format!("Cannot get updates from Postgres: {:?}", e)))?;
     match transaction.commit().await {
         Ok(()) => Ok(GetUpdatesResponse {
             file_metadata: updates,
         }),
-        Err(e) => Err(Err(format!("Cannot commit transaction: {:?}", e))),
+        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
     }
 }
