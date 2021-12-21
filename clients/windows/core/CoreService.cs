@@ -18,6 +18,7 @@ namespace lockbook {
 
     public class CoreService {
         public IntPtr path;
+        private JsonSerializerSettings jsonSettings = new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Error };
 
         public CoreService(string path) {
             this.path = Utils.ToFFI(path);
@@ -87,9 +88,6 @@ namespace lockbook {
 
         [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr calculate_work(IntPtr writeable_path);
-
-        [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr execute_work(IntPtr writeable_path, IntPtr work_unit);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr sync_all(IntPtr writeable_path);
@@ -222,14 +220,14 @@ namespace lockbook {
         public async Task<Core.GetAccount.IResult> GetAccount() {
             return await FFICommon<Core.GetAccount.IResult, Core.GetAccount.ExpectedError, Core.GetAccount.PossibleErrors, Core.GetAccount.UnexpectedError>(
                 () => get_account(path),
-                s => new Core.GetAccount.Success { account = JsonConvert.DeserializeObject<Account>(s) });
+                s => new Core.GetAccount.Success { account = JsonConvert.DeserializeObject<Account>(s, jsonSettings) });
         }
 
         public async Task<Core.CreateFileAtPath.IResult> CreateFileAtPath(string pathWithName) {
             var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.CreateFileAtPath.IResult, Core.CreateFileAtPath.ExpectedError, Core.CreateFileAtPath.PossibleErrors, Core.CreateFileAtPath.UnexpectedError>(
                 () => create_file_at_path(path, pathWithNamePtr),
-                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<ClientFileMetadata>(s) });
+                s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
             Marshal.FreeHGlobal(pathWithNamePtr);
             return result;
         }
@@ -251,7 +249,7 @@ namespace lockbook {
             var fileTypePtr = Utils.ToFFI(ft == FileType.Folder ? "Folder" : "Document");
             var result = await FFICommon<Core.CreateFile.IResult, Core.CreateFile.ExpectedError, Core.CreateFile.PossibleErrors, Core.CreateFile.UnexpectedError>(
                 () => create_file(path, namePtr, parentPtr, fileTypePtr),
-                s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<ClientFileMetadata>(s) });
+                s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
             Marshal.FreeHGlobal(namePtr);
             Marshal.FreeHGlobal(parentPtr);
             Marshal.FreeHGlobal(fileTypePtr);
@@ -261,14 +259,14 @@ namespace lockbook {
         public async Task<Core.GetRoot.IResult> GetRoot() {
             return await FFICommon<Core.GetRoot.IResult, Core.GetRoot.ExpectedError, Core.GetRoot.PossibleErrors, Core.GetRoot.UnexpectedError>(
                 () => get_root(path),
-                s => new Core.GetRoot.Success { root = JsonConvert.DeserializeObject<ClientFileMetadata>(s) });
+                s => new Core.GetRoot.Success { root = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
         }
 
         public async Task<Core.GetChildren.IResult> GetChildren(string id) {
             var idPtr = Utils.ToFFI(id);
             var result = await FFICommon<Core.GetChildren.IResult, Core.GetChildren.ExpectedError, Core.GetChildren.PossibleErrors, Core.GetChildren.UnexpectedError>(
                 () => get_children(path, idPtr),
-                s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<ClientFileMetadata>>(s) });
+                s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<DecryptedFileMetadata>>(s, jsonSettings) });
             Marshal.FreeHGlobal(idPtr);
             return result;
         }
@@ -286,7 +284,7 @@ namespace lockbook {
             var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.GetFileByPath.IResult, Core.GetFileByPath.ExpectedError, Core.GetFileByPath.PossibleErrors, Core.GetFileByPath.UnexpectedError>(
                 () => get_file_by_path(path, pathWithNamePtr),
-                s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<ClientFileMetadata>(s) });
+                s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
             Marshal.FreeHGlobal(pathWithNamePtr);
             return result;
         }
@@ -304,7 +302,7 @@ namespace lockbook {
             var filterPtr = Utils.ToFFI(filter);
             var result = await FFICommon<Core.ListPaths.IResult, Core.ListPaths.ExpectedError, Core.ListPaths.PossibleErrors, Core.ListPaths.UnexpectedError>(
                 () => list_paths(path, filterPtr),
-                s => new Core.ListPaths.Success { paths = JsonConvert.DeserializeObject<List<string>>(s) });
+                s => new Core.ListPaths.Success { paths = JsonConvert.DeserializeObject<List<string>>(s, jsonSettings) });
             Marshal.FreeHGlobal(filterPtr);
             return result;
         }
@@ -312,7 +310,7 @@ namespace lockbook {
         public async Task<Core.ListMetadatas.IResult> ListMetadatas() {
             return await FFICommon<Core.ListMetadatas.IResult, Core.ListMetadatas.ExpectedError, Core.ListMetadatas.PossibleErrors, Core.ListMetadatas.UnexpectedError>(
                 () => list_metadatas(path),
-                s => new Core.ListMetadatas.Success { files = JsonConvert.DeserializeObject<List<ClientFileMetadata>>(s) });
+                s => new Core.ListMetadatas.Success { files = JsonConvert.DeserializeObject<List<DecryptedFileMetadata>>(s, jsonSettings) });
         }
 
         public async Task<Core.RenameFile.IResult> RenameFile(string id, string newName) {
@@ -346,13 +344,13 @@ namespace lockbook {
         public async Task<Core.CalculateWork.IResult> CalculateWork() {
             return await FFICommon<Core.CalculateWork.IResult, Core.CalculateWork.ExpectedError, Core.CalculateWork.PossibleErrors, Core.CalculateWork.UnexpectedError>(
                 () => calculate_work(path),
-                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<ClientWorkCalculated>(s) });
+                s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<WorkCalculated>(s, jsonSettings) });
         }
 
         public async Task<Core.GetLastSynced.IResult> GetLastSynced() {
             return await FFICommon<Core.GetLastSynced.IResult, Core.GetLastSynced.ExpectedError, Core.GetLastSynced.PossibleErrors, Core.GetLastSynced.UnexpectedError>(
                 () => get_last_synced(path),
-                s => new Core.GetLastSynced.Success { timestamp = JsonConvert.DeserializeObject<ulong>(s) });
+                s => new Core.GetLastSynced.Success { timestamp = JsonConvert.DeserializeObject<ulong>(s, jsonSettings) });
         }
 
         public async Task<Core.GetLastSyncedHumanString.IResult> GetLastSyncedHumanString() {
@@ -364,12 +362,12 @@ namespace lockbook {
         public async Task<Core.GetUsage.IResult> GetUsage() {
             return await FFICommon<Core.GetUsage.IResult, Core.GetUsage.ExpectedError, Core.GetUsage.PossibleErrors, Core.GetUsage.UnexpectedError>(
                 () => get_usage(path),
-                s => new Core.GetUsage.Success { usage = JsonConvert.DeserializeObject<UsageMetrics>(s) });
+                s => new Core.GetUsage.Success { usage = JsonConvert.DeserializeObject<UsageMetrics>(s, jsonSettings) });
         }
 
         public async Task<Dictionary<string, List<string>>> GetVariants() {
             var result = await RunAsyncWithMutex(get_variants);
-            return JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(result);
+            return JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(result, jsonSettings);
         }
     }
 }

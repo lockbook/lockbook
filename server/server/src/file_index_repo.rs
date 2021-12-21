@@ -6,6 +6,7 @@ use lockbook_models::crypto::{
     EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
 };
 use lockbook_models::file_metadata::{FileMetadata, FileMetadataDiff, FileType};
+use log::debug;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
 use std::array::IntoIter;
@@ -23,6 +24,7 @@ pub enum ConnectError {
 }
 
 pub async fn connect(config: &IndexDbConfig) -> Result<PgPool, ConnectError> {
+    debug!("Connecting to index_db...");
     let mut pool_options = PgConnectOptions::new()
         .username(&config.user)
         .host(&config.host)
@@ -36,11 +38,14 @@ pub async fn connect(config: &IndexDbConfig) -> Result<PgPool, ConnectError> {
         pool_options = pool_options.ssl_root_cert_from_pem(config.cert.clone().into_bytes());
     }
 
-    PgPoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(config.pool_size)
         .connect_with(pool_options)
         .await
-        .map_err(ConnectError::Postgres)
+        .map_err(ConnectError::Postgres);
+    debug!("Connected to index_db");
+
+    pool
 }
 
 #[derive(Debug)]

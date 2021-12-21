@@ -1,3 +1,5 @@
+use crate::config::Config;
+use crate::CARGO_PKG_VERSION;
 use fern::colors::{Color, ColoredLevelConfig};
 use fern::Dispatch;
 use log::{Level, Log, Metadata, Record};
@@ -6,19 +8,18 @@ use pagerduty_rs::types::{
     AlertTrigger, AlertTriggerPayload, Change, ChangePayload, Event, Severity,
 };
 use serde::Serialize;
+use std::fs;
 use std::path::Path;
 use std::time::SystemTime;
-use std::{fs, io};
 use tokio::runtime::Handle;
 
-pub fn init(
-    log_path: &Path,
-    log_name: &str,
-    std_colors: bool,
-    pd_api_key: &Option<String>,
-    handle: Handle,
-    build: &str,
-) -> Result<Dispatch, io::Error> {
+static LOG_FILE: &str = "lockbook_server.log";
+
+pub fn init(config: &Config) {
+    let log_path = Path::new(&config.server.log_path);
+    let handle = Handle::current();
+    let std_colors = true;
+
     let colors_level = ColoredLevelConfig::new()
         .error(Color::Red)
         .warn(Color::Yellow)
@@ -49,8 +50,8 @@ pub fn init(
         .chain(std::io::stdout())
         .level(log::LevelFilter::Warn);
 
-    fs::create_dir_all(log_path)?;
-    let log_file = fern::log_file(log_path.join(log_name))?;
+    fs::create_dir_all(log_path).expect("unable to create directory for logger");
+    let log_file = fern::log_file(log_path.join(LOG_FILE)).expect("unable to create log file");
 
     let file_logger = fern::Dispatch::new()
         .format(move |out, message, record| {
@@ -68,10 +69,14 @@ pub fn init(
         .chain(stdout_logger)
         .chain(file_logger);
 
-    Ok(match pd_api_key {
+    match config.server.pd_api_key.as_ref() {
         None => base_logger,
-        Some(api_key) => base_logger.chain(pd_logger(build, api_key, handle)),
-    })
+        Some(api_key) => base_logger.chain(pd_logger(CARGO_PKG_VERSION, api_key, handle)),
+    }
+    .level(log::LevelFilter::Info)
+    .level_for("lockbook_server", log::LevelFilter::Debug)
+    .apply()
+    .expect("Failed setting logger!");
 }
 
 fn pd_logger(build: &str, pd_api_key: &str, handle: Handle) -> Dispatch {
@@ -93,7 +98,7 @@ fn pd_logger(build: &str, pd_api_key: &str, handle: Handle) -> Dispatch {
 
     let pdl = PDLogger {
         key: String::from(pd_api_key),
-        handle: handle,
+        handle,
         build: String::from(build),
     };
 
@@ -111,8 +116,12 @@ struct PDLogger {
 }
 
 impl Log for PDLogger {
+    /// This is where you decide what getss sent to pagerduty
+    /// Currently only errors are sent, and rustls::session is explicitly black-holed
+    /// Logs from rustls::session will still be logged to the file and standard streams, but they're
+    /// incredibly noisy and clients can cause them to "fatal log" quite easily (ex: attempt to connect via TLS 1.0)
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= Level::Error
+        metadata.level() == Level::Error && metadata.target() != "rustls::session"
     }
 
     fn log(&self, record: &Record) {
@@ -123,11 +132,7 @@ impl Log for PDLogger {
                 Event::AlertTrigger(AlertTrigger {
                     payload: AlertTriggerPayload {
                         severity: level_to_severity(record.level()),
-                        summary: {
-                            let mut s = String::from(&record.args().to_string()[..1021]);
-                            s.push_str("...");
-                            s
-                        },
+                        summary: record.args().to_string(),
                         source: "localhost".to_string(), // TODO: Hostname
                         timestamp: Some(SystemTime::now().into()),
                         component: None,

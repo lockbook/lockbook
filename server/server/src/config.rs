@@ -56,15 +56,33 @@ pub struct ServerConfig {
     pub max_auth_delay: u128,
     pub log_path: String,
     pub pd_api_key: Option<String>,
+    pub ssl_cert_location: Option<String>,
+    pub ssl_private_key_location: Option<String>,
 }
 
 impl ServerConfig {
     pub fn from_env_vars() -> ServerConfig {
+        let port = env_or_panic("SERVER_PORT").parse().unwrap();
+        let max_auth_delay = env_or_panic("MAX_AUTH_DELAY").parse().unwrap();
+        let log_path = env_or_panic("LOG_PATH").parse().unwrap();
+        let pd_api_key = env_or_empty("PD_KEY");
+        let ssl_cert_location = env_or_empty("SSL_CERT_LOCATION");
+        let ssl_private_key_location = env_or_empty("SSL_PRIVATE_KEY_LOCATION");
+
+        match (&pd_api_key, &ssl_cert_location, &ssl_private_key_location) {
+            (Some(_), Some(_), Some(_)) | (None, None, None) => {}
+            _ => panic!(
+                "Invalid config, pd & ssl must all be Some (production) or all be None (local)"
+            ),
+        }
+
         ServerConfig {
-            port: env_or_panic("SERVER_PORT").parse().unwrap(),
-            max_auth_delay: env_or_panic("MAX_AUTH_DELAY").parse().unwrap(),
-            log_path: env_or_panic("LOG_PATH").parse().unwrap(),
-            pd_api_key: env_or_empty("PD_KEY"),
+            port,
+            max_auth_delay,
+            log_path,
+            pd_api_key,
+            ssl_cert_location,
+            ssl_private_key_location,
         }
     }
 }

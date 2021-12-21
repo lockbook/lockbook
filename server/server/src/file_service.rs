@@ -4,7 +4,6 @@ use crate::file_index_repo::{CheckCyclesError, GetDataCapError};
 use crate::RequestContext;
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_content_client, ServerError};
-
 use libsecp256k1::PublicKey;
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType;
@@ -302,7 +301,6 @@ pub async fn get_updates(
     .await;
     let updates =
         result.map_err(|e| InternalError(format!("Cannot get updates from Postgres: {:?}", e)))?;
-
     match transaction.commit().await {
         Ok(()) => Ok(GetUpdatesResponse {
             file_metadata: updates,

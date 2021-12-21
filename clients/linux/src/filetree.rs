@@ -347,10 +347,50 @@ impl FileTree {
         self.tree.get_selection().get_selected_rows()
     }
 
+    pub fn populate_tree(
+        &self,
+        metadatas: &[DecryptedFileMetadata],
+        parent_metadata: &DecryptedFileMetadata,
+        parent_iter: &TreeIter,
+    ) {
+        let children: Vec<&DecryptedFileMetadata> = metadatas
+            .iter()
+            .filter(|metadata| {
+                metadata.parent == parent_metadata.id && metadata.parent != metadata.id
+            })
+            .collect();
+
+        for child in children {
+            let item_iter = self.shallow_append(Some(parent_iter), child);
+
+            if child.file_type == FileType::Folder {
+                self.populate_tree(metadatas, child, &item_iter);
+            }
+        }
+    }
+
+    fn shallow_append(
+        &self,
+        iter: Option<&TreeIter>,
+        metadata: &DecryptedFileMetadata,
+    ) -> TreeIter {
+        let icon_name = self.get_icon_name(&metadata.decrypted_name, &metadata.file_type);
+
+        let name = &metadata.decrypted_name;
+        let id = &metadata.id.to_string();
+        let ftype = &format!("{:?}", metadata.file_type);
+        self.model
+            .insert_with_values(iter, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype])
+    }
+
     pub fn fill(&self, c: &LbCore) -> LbResult<()> {
         self.model.clear();
-        let root = c.root()?;
-        self.append(c, None, &root)
+        let metadatas = c.get_all_files()?;
+        let root = &c.root()?;
+        let root_iter = self.shallow_append(None, root);
+
+        self.populate_tree(metadatas.as_slice(), root, &root_iter);
+        Ok(())
     }
 
     pub fn refresh(&self, c: &LbCore) -> LbResult<()> {
@@ -385,36 +425,13 @@ impl FileTree {
         }
 
         match parent_iter {
-            Some(iter) => self.append(b, Some(&iter), &file)?,
+            Some(iter) => {
+                self.shallow_append(Some(&iter), &file);
+            }
             None => panic!("no parent found, should have at least found root!"),
         }
 
         self.select(&f.id);
-        Ok(())
-    }
-
-    pub fn append(
-        &self,
-        b: &LbCore,
-        it: Option<&GtkTreeIter>,
-        f: &DecryptedFileMetadata,
-    ) -> LbResult<()> {
-        let icon_name = self.get_icon_name(&f.decrypted_name, &f.file_type);
-
-        let name = &f.decrypted_name;
-        let id = &f.id.to_string();
-        let ftype = &format!("{:?}", f.file_type);
-        let item_iter =
-            self.model
-                .insert_with_values(it, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype]);
-
-        if f.file_type == FileType::Folder {
-            let files = b.children(f)?;
-            for item in files {
-                self.append(b, Some(&item_iter), &item)?;
-            }
-        }
-
         Ok(())
     }
 
