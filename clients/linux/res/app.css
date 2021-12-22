@@ -1,20 +1,20 @@
-#intro_heading {
+#onboarding_heading {
     font-size: 64px;
     opacity: 0.75;
 }
 
-#intro_hr {
+#onboarding_hr {
     background: rgba(100, 100, 100, 0.35);
 }
 
-#err, #intro_error {
+#err, #onboarding_error {
     color: red;
 }
 
-#intro_error {
+#onboarding_error {
     font-weight: bold;
 }
 
-#intro_doing_caption {
+#onboarding_status_caption {
     font-size: 20px;
 }

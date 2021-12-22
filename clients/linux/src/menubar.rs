@@ -113,7 +113,7 @@ impl Menubar {
         }
     }
 
-    pub fn for_intro_screen(&self) {
+    pub fn for_onboarding_screen(&self) {
         self.mbar.foreach(|w| {
             if *w == self.file || *w == self.edit || *w == self.acct {
                 self.mbar.remove(w);
