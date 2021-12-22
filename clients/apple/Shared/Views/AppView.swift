@@ -67,7 +67,7 @@ struct AppView: View {
             case let error as ErrorWithTitle:
                 return Alert(
                     title: Text(error.title),
-                    message: Text(error.message),
+                    message: Text(error.message),   
                     dismissButton: .default(Text("Dismiss"))
                 )
             default:
