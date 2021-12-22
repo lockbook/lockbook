@@ -30,7 +30,7 @@ pub fn parse_drawing(drawing_bytes: &[u8]) -> Result<Drawing, CoreError> {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub enum SupportedImageFormats {
     Png,
     Jpeg,
