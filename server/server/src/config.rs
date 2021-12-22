@@ -51,6 +51,19 @@ impl FilesDbConfig {
 }
 
 #[derive(Clone)]
+pub struct StripeConfig {
+    pub stripe_secret: String,
+}
+
+impl StripeConfig {
+    pub fn from_env_vars() -> StripeConfig {
+        StripeConfig {
+            stripe_secret: env_or_panic("STRIPE_SECRET").parse().unwrap(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct ServerConfig {
     pub port: u16,
     pub max_auth_delay: u128,
@@ -92,6 +105,7 @@ pub struct Config {
     pub index_db: IndexDbConfig,
     pub files_db: FilesDbConfig,
     pub server: ServerConfig,
+    pub stripe: StripeConfig,
 }
 
 impl Config {
@@ -100,6 +114,7 @@ impl Config {
             index_db: IndexDbConfig::from_env_vars(),
             files_db: FilesDbConfig::from_env_vars(),
             server: ServerConfig::from_env_vars(),
+            stripe: StripeConfig::from_env_vars()
         }
     }
 }
