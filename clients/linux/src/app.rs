@@ -167,7 +167,7 @@ impl LbApp {
     }
 
     fn create_account(&self, name: String) -> LbResult<()> {
-        self.gui.onboarding.doing("Creating account...");
+        self.gui.onboarding.set_status("Creating account...");
 
         let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
             match result {
@@ -185,7 +185,7 @@ impl LbApp {
     }
 
     fn import_account(&self, privkey: String) -> LbResult<()> {
-        self.gui.onboarding.doing("Importing account...");
+        self.gui.onboarding.set_status("Importing account...");
 
         // Create a channel to receive and process the result of importing the account.
         let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {

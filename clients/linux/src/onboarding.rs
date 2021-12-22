@@ -13,7 +13,7 @@ use crate::messages::{Messenger, Msg};
 pub struct Screen {
     create: OnboardingInput,
     import: OnboardingInput,
-    doing: OnboardingDoing,
+    status: OnboardingStatus,
     bottom: GtkStack,
     pub cntr: GtkBox,
 }
@@ -22,11 +22,11 @@ impl Screen {
     pub fn new(m: &Messenger) -> Self {
         let create = OnboardingInput::new(m, Msg::CreateAccount, "Pick a username...");
         let import = OnboardingInput::new(m, Msg::ImportAccount, "Private key...");
-        let doing = OnboardingDoing::new();
+        let status = OnboardingStatus::new();
 
         let bottom = GtkStack::new();
         bottom.add_named(&Self::inputs(&create, &import), "input");
-        bottom.add_named(&doing.cntr, "doing");
+        bottom.add_named(&status.cntr, "status");
 
         let cntr = GtkBox::new(Vertical, 48);
         cntr.set_valign(GtkAlign::Center);
@@ -38,7 +38,7 @@ impl Screen {
         Self {
             create,
             import,
-            doing,
+            status,
             bottom,
             cntr,
         }
@@ -83,26 +83,26 @@ impl Screen {
         cntr
     }
 
-    pub fn doing(&self, caption: &str) {
-        self.bottom.set_visible_child_name("doing");
-        self.doing.start(caption);
+    pub fn set_status(&self, caption: &str) {
+        self.bottom.set_visible_child_name("status");
+        self.status.start(caption);
     }
 
     pub fn sync_progress(&self, s: &LbSyncMsg) {
         let status = format!("Syncing :: {} ({}/{})", s.name, s.index, s.total);
-        self.doing.status.set_text(&status);
+        self.status.status.set_text(&status);
     }
 
     pub fn error_create(&self, msg: &str) {
         self.bottom.set_visible_child_name("input");
         self.create.error(msg);
-        self.doing.stop();
+        self.status.stop();
     }
 
     pub fn error_import(&self, msg: &str) {
         self.bottom.set_visible_child_name("input");
         self.import.error(msg);
-        self.doing.stop();
+        self.status.stop();
     }
 }
 
@@ -138,20 +138,20 @@ impl OnboardingInput {
     }
 }
 
-struct OnboardingDoing {
+struct OnboardingStatus {
     spinner: GtkSpinner,
     caption: GtkLabel,
     status: GtkLabel,
     cntr: GtkBox,
 }
 
-impl OnboardingDoing {
+impl OnboardingStatus {
     fn new() -> Self {
         let spinner = GtkSpinner::new();
         spinner.set_size_request(24, 24);
 
         let caption = GtkLabel::new(None);
-        GtkWidgetExt::set_widget_name(&caption, "onboarding_doing_caption");
+        GtkWidgetExt::set_widget_name(&caption, "onboarding_status_caption");
 
         let status = GtkLabel::new(None);
 
