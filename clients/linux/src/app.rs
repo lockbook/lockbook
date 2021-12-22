@@ -91,7 +91,7 @@ impl LbApp {
         receiver.attach(None, move |msg| {
             let maybe_err = match msg {
                 Msg::CreateAccount(username) => onboarding::create(&lb, username),
-                Msg::ImportAccount(privkey) => onboarding::import(&lb, privkey),
+                Msg::ImportAccount(acct_str) => onboarding::import(&lb, acct_str),
                 Msg::ExportAccount => lb.export_account(),
                 Msg::PerformSync => lb.perform_sync(),
                 Msg::RefreshSyncStatus => lb.refresh_sync_status(),
@@ -184,9 +184,9 @@ impl LbApp {
         image_cntr.set_center_widget(Some(&placeholder));
 
         match self.core.export_account() {
-            Ok(privkey) => {
+            Ok(acct_str) => {
                 let btn_cntr = GtkBox::new(Horizontal, 0);
-                btn_cntr.set_center_widget(Some(&util::gui::clipboard_btn(&privkey)));
+                btn_cntr.set_center_widget(Some(&util::gui::clipboard_btn(&acct_str)));
                 btn_cntr.set_margin_bottom(8);
 
                 let d = self.gui.new_dialog("Lockbook Private Key");

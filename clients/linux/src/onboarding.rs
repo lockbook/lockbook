@@ -18,7 +18,7 @@ pub struct Screen {
 impl Screen {
     pub fn new(m: &Messenger) -> Self {
         let create = OnboardingInput::new(m, Msg::CreateAccount, "Pick a username...");
-        let import = OnboardingInput::new(m, Msg::ImportAccount, "Private key...");
+        let import = OnboardingInput::new(m, Msg::ImportAccount, "Account string...");
         let status = OnboardingStatus::new();
 
         let bottom = gtk::Stack::new();
@@ -206,7 +206,7 @@ pub fn create(lb: &LbApp, name: String) -> LbResult<()> {
     Ok(())
 }
 
-pub fn import(lb: &LbApp, privkey: String) -> LbResult<()> {
+pub fn import(lb: &LbApp, acct_str: String) -> LbResult<()> {
     lb.gui.onboarding.set_status("Importing account...");
 
     // Create a channel to receive and process the result of importing the account. If there is any
@@ -228,7 +228,7 @@ pub fn import(lb: &LbApp, privkey: String) -> LbResult<()> {
         @strong lb.core as c,
         @strong lb.messenger as m
         => move || {
-            if let Err(err) = tx.send(c.import_account(&privkey)) {
+            if let Err(err) = tx.send(c.import_account(&acct_str)) {
                 m.send_err_dialog("sending import result", LbError::fmt_program_err(err));
             }
         }
