@@ -111,8 +111,8 @@ impl LbCore {
         self.set_account(new_acct)
     }
 
-    pub fn import_account(&self, privkey: &str) -> LbResult<()> {
-        let new_acct = import_account(&self.config, privkey).map_err(map_core_err!(
+    pub fn import_account(&self, acct_str: &str) -> LbResult<()> {
+        let new_acct = import_account(&self.config, acct_str).map_err(map_core_err!(
             ImportError,
             AccountStringCorrupted => uerr_dialog!("Your account's private key is corrupted."),
             AccountExistsAlready => uerr_dialog!("An account already exists."),
@@ -331,10 +331,10 @@ impl LbCore {
     }
 
     pub fn account_qrcode(&self) -> LbResult<String> {
-        let privkey = self.export_account()?;
+        let acct_str = self.export_account()?;
         let path = format!("{}/account-qr.png", self.config.writeable_path);
         if !Path::new(&path).exists() {
-            let bytes = privkey.as_bytes();
+            let bytes = acct_str.as_bytes();
             qrcode_generator::to_png_to_file(bytes, QrCodeEcc::Low, 400, &path).unwrap();
         }
         Ok(path)
