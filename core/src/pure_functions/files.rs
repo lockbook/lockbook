@@ -506,11 +506,15 @@ pub fn maybe_find_root(files: &[DecryptedFileMetadata]) -> Option<DecryptedFileM
 }
 
 pub fn is_deleted(files: &[DecryptedFileMetadata], target_id: Uuid) -> Result<bool, CoreError> {
-    Ok(filter_deleted(files)?.into_iter().any(|f| f.id == target_id))
+    Ok(filter_deleted(files)?
+        .into_iter()
+        .any(|f| f.id == target_id))
 }
 
 /// Returns the files which are not deleted and have no deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
-pub fn filter_not_deleted(files: &[DecryptedFileMetadata]) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+pub fn filter_not_deleted(
+    files: &[DecryptedFileMetadata],
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let deleted = filter_deleted(files)?;
     Ok(files
         .iter()
@@ -520,7 +524,9 @@ pub fn filter_not_deleted(files: &[DecryptedFileMetadata]) -> Result<Vec<Decrypt
 }
 
 /// Returns the files which are deleted or have deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
-pub fn filter_deleted(files: &[DecryptedFileMetadata]) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+pub fn filter_deleted(
+    files: &[DecryptedFileMetadata],
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let mut result = Vec::new();
     for file in files {
         let mut ancestor = file.clone();
@@ -827,7 +833,8 @@ mod unit_tests {
         let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
         let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.username);
 
-        let path_conflicts = files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
+        let path_conflicts =
+            files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
 
         assert_eq!(path_conflicts.len(), 0);
     }
@@ -839,9 +846,16 @@ mod unit_tests {
         let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
         let folder2 = files::create(FileType::Folder, root.id, "folder", &account.username);
 
-        let path_conflicts = files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
+        let path_conflicts =
+            files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
 
         assert_eq!(path_conflicts.len(), 1);
-        assert_eq!(path_conflicts[0], PathConflict{ existing: folder1.id, staged: folder2.id });
+        assert_eq!(
+            path_conflicts[0],
+            PathConflict {
+                existing: folder1.id,
+                staged: folder2.id
+            }
+        );
     }
 }
