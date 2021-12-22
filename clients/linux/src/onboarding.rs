@@ -18,7 +18,7 @@ pub struct Screen {
 impl Screen {
     pub fn new(m: &Messenger) -> Self {
         let create = OnboardingInput::new(m, Msg::CreateAccount, "Pick a username...");
-        let import = OnboardingInput::new(m, Msg::ImportAccount, "Account string...");
+        let import = OnboardingInput::new(m, Msg::ImportAccount, "Private key...");
         let status = OnboardingStatus::new();
 
         let bottom = gtk::Stack::new();
