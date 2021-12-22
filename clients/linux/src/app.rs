@@ -756,18 +756,13 @@ impl LbApp {
             match lb.core.rename(&id, &name) {
                 Ok(_) => {
                     d.close();
-                    let acctscr = &lb.gui.account;
-                    acctscr.sidebar.tree.set_name(&id, &name);
-                    lb.gui.win.set_title(&name);
-
-                    match lb.core.file_by_id(id) {
-                        Ok(f) => {
-                            if lb.core.full_path_for(&f.id).is_ok() {
-                                lb.messenger.send(Msg::RefreshSyncStatus);
-                            }
+                    lb.gui.account.sidebar.tree.set_name(&id, &name);
+                    if let Some(meta) = &lb.state.borrow().opened_file {
+                        if meta.id == id {
+                            lb.gui.win.set_title(&name);
                         }
-                        Err(err) => lb.messenger.send_err_dialog("getting renamed file", err)
                     }
+                    lb.messenger.send(Msg::RefreshSyncStatus);
                 }
                 Err(err) => match err.kind() {
                     UserErr => {
