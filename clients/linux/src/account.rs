@@ -49,12 +49,6 @@ impl AccountScreen {
         }
     }
 
-    pub fn fill(&self, core: &LbCore, m: &Messenger) -> LbResult<()> {
-        self.sidebar.fill(core)?;
-        m.send(Msg::RefreshSyncStatus);
-        Ok(())
-    }
-
     pub fn add_file(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
         self.sidebar.tree.add(b, f)
     }
@@ -148,10 +142,6 @@ impl Sidebar {
             status: sync,
             cntr,
         }
-    }
-
-    fn fill(&self, core: &LbCore) -> LbResult<()> {
-        self.tree.fill(core)
     }
 }
 

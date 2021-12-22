@@ -383,34 +383,25 @@ impl FileTree {
             .insert_with_values(iter, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype])
     }
 
-    pub fn fill(&self, c: &LbCore) -> LbResult<()> {
-        self.model.clear();
-        let metadatas = c.get_all_files()?;
-        let root = &c.root()?;
-        let root_iter = self.shallow_append(None, root);
-
-        self.populate_tree(metadatas.as_slice(), root, &root_iter);
-        Ok(())
-    }
-
-    pub fn refresh(&self, c: &LbCore) -> LbResult<()> {
+    pub fn refresh(&self, root: &DecryptedFileMetadata, metadatas: &Vec<DecryptedFileMetadata>) {
         let mut expanded_paths = Vec::<GtkTreePath>::new();
-        self.search_expanded(&self.iter(), &mut expanded_paths);
+        if let Some(iter) = self.model.get_iter_first() {
+            self.search_expanded(&iter, &mut expanded_paths);
+        }
 
         let sel = self.tree.get_selection();
         let (selected_paths, _) = sel.get_selected_rows();
 
-        self.fill(c)?;
+        self.model.clear();
+        let root_iter = self.shallow_append(None, root);
+        self.populate_tree(metadatas.as_slice(), root, &root_iter);
 
         for path in expanded_paths {
             self.tree.expand_row(&path, false);
         }
-
         for path in selected_paths {
             sel.select_path(&path);
         }
-
-        Ok(())
     }
 
     pub fn add(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
