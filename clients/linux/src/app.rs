@@ -762,15 +762,7 @@ impl LbApp {
                             lb.gui.win.set_title(&name);
                         }
                     }
-
-                    match lb.core.file_by_id(id) {
-                        Ok(f) => {
-                            if lb.core.full_path_for(&f.id).is_ok() {
-                                lb.messenger.send(Msg::RefreshSyncStatus);
-                            }
-                        }
-                        Err(err) => lb.messenger.send_err_dialog("getting renamed file", err)
-                    }
+                    lb.messenger.send(Msg::RefreshSyncStatus);
                 }
                 Err(err) => match err.kind() {
                     UserErr => {
