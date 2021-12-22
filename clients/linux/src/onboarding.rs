@@ -2,7 +2,9 @@ use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 
+use crate::app::LbApp;
 use crate::backend::LbSyncMsg;
+use crate::error::{LbErrKind, LbErrTarget, LbError, LbResult};
 use crate::messages::{Messenger, Msg};
 
 pub struct Screen {
@@ -177,6 +179,99 @@ impl OnboardingStatus {
     fn stop(&self) {
         self.spinner.stop();
     }
+}
+
+pub fn create(lb: &LbApp, name: String) -> LbResult<()> {
+    lb.gui.onboarding.set_status("Creating account...");
+
+    let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    rx.attach(
+        None,
+        glib::clone!(@strong lb => move |result: LbResult<()>| {
+            match result {
+                Ok(_) => lb.gui.show_account_screen(),
+                Err(err) => match err.kind() {
+                    LbErrKind::User => lb.gui.onboarding.error_create(err.msg()),
+                    LbErrKind::Program => lb.messenger.send_err_dialog("creating account", err),
+                },
+            }
+            glib::Continue(false)
+        }),
+    );
+
+    std::thread::spawn(glib::clone!(@strong lb.core as c => move || {
+        tx.send(c.create_account(&name)).unwrap();
+    }));
+
+    Ok(())
+}
+
+pub fn import(lb: &LbApp, privkey: String) -> LbResult<()> {
+    lb.gui.onboarding.set_status("Importing account...");
+
+    // Create a channel to receive and process the result of importing the account. If there is any
+    // error, it's shown on the import screen. Otherwise, account syncing will start.
+    let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    rx.attach(
+        None,
+        glib::clone!(@strong lb => move |result: LbResult<()>| {
+            match result {
+                Ok(_) => import_account_sync(&lb),
+                Err(err) => lb.gui.onboarding.error_import(err.msg()),
+            }
+            glib::Continue(false)
+        }),
+    );
+
+    // In a separate thread, import the account and send the result down the channel.
+    std::thread::spawn(glib::clone!(
+        @strong lb.core as c,
+        @strong lb.messenger as m
+        => move || {
+            if let Err(err) = tx.send(c.import_account(&privkey)) {
+                m.send_err_dialog("sending import result", LbError::fmt_program_err(err));
+            }
+        }
+    ));
+
+    Ok(())
+}
+
+fn import_account_sync(lb: &LbApp) {
+    // Create a channel to receive and process any account sync progress updates.
+    let (sync_chan, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    rx.attach(
+        None,
+        glib::clone!(@strong lb => move |msgopt: Option<LbSyncMsg>| {
+            // If there is some message, show it. If not, syncing is done, so the
+            // account screen is shown.
+            if let Some(msg) = msgopt {
+                lb.gui.onboarding.sync_progress(&msg)
+            } else {
+                lb.gui.show_account_screen();
+                std::thread::spawn(glib::clone!(@strong lb.messenger as m => move || {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    m.send(Msg::RefreshUsageStatus);
+                }));
+            }
+            glib::Continue(true)
+        }),
+    );
+
+    // In a separate thread, start syncing the account. Pass the sync channel which will be
+    // used to receive progress updates as indicated above.
+    std::thread::spawn(glib::clone!(
+        @strong lb.core as c,
+        @strong lb.messenger as m
+        => move || {
+            if let Err(err) = c.sync(sync_chan) {
+                match err.target() {
+                    LbErrTarget::Dialog => m.send_err_dialog("syncing", err),
+                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
+                }
+            }
+        }
+    ));
 }
 
 pub const LOGO: &[u8] = include_bytes!("../res/lockbook-onboarding-pixdata");

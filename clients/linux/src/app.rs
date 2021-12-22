@@ -58,11 +58,11 @@ macro_rules! spawn {
 
 #[derive(Clone)]
 pub struct LbApp {
-    core: Arc<LbCore>,
+    pub core: Arc<LbCore>,
     settings: Rc<RefCell<Settings>>,
     state: Rc<RefCell<LbState>>,
-    gui: Rc<Gui>,
-    messenger: Messenger,
+    pub gui: Rc<Gui>,
+    pub messenger: Messenger,
 }
 
 impl LbApp {
@@ -90,8 +90,8 @@ impl LbApp {
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
             let maybe_err = match msg {
-                Msg::CreateAccount(username) => lb.create_account(username),
-                Msg::ImportAccount(privkey) => lb.import_account(privkey),
+                Msg::CreateAccount(username) => onboarding::create(&lb, username),
+                Msg::ImportAccount(privkey) => onboarding::import(&lb, privkey),
                 Msg::ExportAccount => lb.export_account(),
                 Msg::PerformSync => lb.perform_sync(),
                 Msg::RefreshSyncStatus => lb.refresh_sync_status(),
@@ -164,76 +164,6 @@ impl LbApp {
 
     pub fn show(&self) -> LbResult<()> {
         self.gui.show(&self.core)
-    }
-
-    fn create_account(&self, name: String) -> LbResult<()> {
-        self.gui.onboarding.set_status("Creating account...");
-
-        let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
-            match result {
-                Ok(_) => lb.gui.show_account_screen(),
-                Err(err) => match err.kind() {
-                    UserErr => lb.gui.onboarding.error_create(err.msg()),
-                    ProgErr => lb.messenger.send_err_dialog("creating account", err),
-                },
-            }
-            glib::Continue(false)
-        });
-
-        spawn!(self.core as c => move || ch.send(c.create_account(&name)).unwrap());
-        Ok(())
-    }
-
-    fn import_account(&self, privkey: String) -> LbResult<()> {
-        self.gui.onboarding.set_status("Importing account...");
-
-        // Create a channel to receive and process the result of importing the account.
-        let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
-            // Show any error on the import screen. Otherwise, account syncing will start.
-            match result {
-                Ok(_) => lb.import_account_sync(),
-                Err(err) => lb.gui.onboarding.error_import(err.msg()),
-            }
-            glib::Continue(false)
-        });
-
-        // In a separate thread, import the account and send the result down the channel.
-        spawn!(self.core as c, self.messenger as m => move || {
-            if let Err(err) = ch.send(c.import_account(&privkey)) {
-                m.send_err_dialog("sending import result", LbError::fmt_program_err(err));
-            }
-        });
-
-        Ok(())
-    }
-
-    fn import_account_sync(&self) {
-        // Create a channel to receive and process any account sync progress updates.
-        let sync_chan = make_glib_chan!(self as lb => move |msgopt: Option<LbSyncMsg>| {
-            // If there is some message, show it. If not, syncing is done, so the
-            // account screen is shown.
-            if let Some(msg) = msgopt {
-                lb.gui.onboarding.sync_progress(&msg)
-            } else {
-                lb.gui.show_account_screen();
-                spawn!(lb.messenger as m => move || {
-                    thread::sleep(Duration::from_secs(5));
-                    m.send(Msg::RefreshUsageStatus);
-                });
-            }
-            glib::Continue(true)
-        });
-
-        // In a separate thread, start syncing the account. Pass the sync channel which will be
-        // used to receive progress updates as indicated above.
-        spawn!(self.core as c, self.messenger as m => move || {
-            if let Err(err) = c.sync(sync_chan) {
-                match err.target() {
-                    LbErrTarget::Dialog => m.send_err_dialog("syncing", err),
-                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
-                }
-            }
-        });
     }
 
     fn export_account(&self) -> LbResult<()> {
@@ -1266,11 +1196,11 @@ impl LbState {
     }
 }
 
-struct Gui {
+pub struct Gui {
     win: GtkAppWindow,
     menubar: Menubar,
     screens: GtkStack,
-    onboarding: onboarding::Screen,
+    pub onboarding: onboarding::Screen,
     account: Rc<AccountScreen>,
     messenger: Messenger,
 }
@@ -1333,7 +1263,7 @@ impl Gui {
         self.screens.set_visible_child_name("onboarding");
     }
 
-    fn show_account_screen(&self) {
+    pub fn show_account_screen(&self) {
         self.menubar.for_account_screen();
         self.account.cntr.show_all();
 
