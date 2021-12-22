@@ -80,23 +80,23 @@ impl Screen {
         cntr
     }
 
-    pub fn set_status(&self, caption: &str) {
+    fn set_status(&self, caption: &str) {
         self.bottom.set_visible_child_name("status");
         self.status.start(caption);
     }
 
-    pub fn sync_progress(&self, s: &LbSyncMsg) {
+    fn sync_progress(&self, s: &LbSyncMsg) {
         let status = format!("Syncing :: {} ({}/{})", s.name, s.index, s.total);
         self.status.status.set_text(&status);
     }
 
-    pub fn error_create(&self, msg: &str) {
+    fn error_create(&self, msg: &str) {
         self.bottom.set_visible_child_name("input");
         self.create.error(msg);
         self.status.stop();
     }
 
-    pub fn error_import(&self, msg: &str) {
+    fn error_import(&self, msg: &str) {
         self.bottom.set_visible_child_name("input");
         self.import.error(msg);
         self.status.stop();
