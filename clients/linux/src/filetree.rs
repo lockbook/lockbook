@@ -504,7 +504,7 @@ impl FileTree {
 
     pub fn set_name(&self, id: &Uuid, name: &str) {
         if let Some(iter) = self.search(&self.iter(), id) {
-            self.model.set(&iter, &[0], &[&name.to_string()]);
+            self.model.set(&iter, &[1], &[&name.to_string()]);
         }
     }
 
