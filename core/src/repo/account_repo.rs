@@ -26,7 +26,6 @@ pub fn maybe_get(config: &Config) -> Result<Option<Account>, CoreError> {
 }
 
 pub fn get(config: &Config) -> Result<Account, CoreError> {
-    info!("getting account");
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, ACCOUNT, ACCOUNT)?;
     match maybe_value {
         None => Err(CoreError::AccountNonexistent),
