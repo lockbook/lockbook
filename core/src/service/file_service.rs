@@ -60,7 +60,7 @@ pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, CoreError> {
 
 pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = files::filter_not_deleted(&files);
+    let files = files::filter_not_deleted(&files)?;
     Ok(files::find_children(&files, id))
 }
 
@@ -69,7 +69,7 @@ pub fn get_and_get_children_recursively(
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, CoreError> {
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = files::filter_not_deleted(&files);
+    let files = files::filter_not_deleted(&files)?;
     let file_and_descendants = files::find_with_descendants(&files, id)?;
 
     // convert from decryptedfilemetadata to filemetadata because that's what this function needs to return for some reason
@@ -114,7 +114,7 @@ pub fn save_document_to_disk(config: &Config, id: Uuid, location: &str) -> Resul
 pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
     info!("renaming {} to {}", id, new_name);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = files::filter_not_deleted(&files);
+    let files = files::filter_not_deleted(&files)?;
     let file = files::apply_rename(&files, id, new_name)?;
     file_service::insert_metadatum(config, RepoSource::Local, &file)
 }
@@ -122,7 +122,7 @@ pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), Core
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
     info!("moving {} to {}", id, new_parent);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = files::filter_not_deleted(&files);
+    let files = files::filter_not_deleted(&files)?;
     let file = files::apply_move(&files, id, new_parent)?;
     file_service::insert_metadatum(config, RepoSource::Local, &file)
 }
@@ -154,7 +154,7 @@ pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>
 
 pub fn get_all_with_document_changes(config: &Config) -> Result<Vec<Uuid>, CoreError> {
     let all = get_all_metadata(config, RepoSource::Local)?;
-    let not_deleted = files::filter_not_deleted(&all);
+    let not_deleted = files::filter_not_deleted(&all)?;
     let not_deleted_with_document_changes = not_deleted
         .into_iter()
         .map(|f| document_repo::maybe_get(config, RepoSource::Local, f.id).map(|r| r.map(|_| f.id)))
@@ -280,7 +280,7 @@ pub fn get_all_not_deleted_metadata(
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     Ok(files::filter_not_deleted(&get_all_metadata(
         config, source,
-    )?))
+    )?)?)
 }
 
 pub fn get_all_metadata(
@@ -449,7 +449,7 @@ pub fn maybe_get_not_deleted_document(
     metadata: &[DecryptedFileMetadata],
     id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
-    if let Some(metadata) = files::maybe_find(&files::filter_not_deleted(metadata), id) {
+    if let Some(metadata) = files::maybe_find(&files::filter_not_deleted(metadata)?, id) {
         maybe_get_document(config, source, &metadata)
     } else {
         Ok(None)
@@ -610,9 +610,9 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
 
     // find files deleted on base and local
     let all_base_metadata = get_all_metadata(config, RepoSource::Base)?;
-    let deleted_base_metadata = files::filter_deleted(&all_base_metadata);
+    let deleted_base_metadata = files::filter_deleted(&all_base_metadata)?;
     let all_local_metadata = get_all_metadata(config, RepoSource::Local)?;
-    let deleted_local_metadata = files::filter_deleted(&all_local_metadata);
+    let deleted_local_metadata = files::filter_deleted(&all_local_metadata)?;
     let deleted_both_metadata = deleted_base_metadata
         .into_iter()
         .filter(|f| files::maybe_find(&deleted_local_metadata, f.id).is_some())

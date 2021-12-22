@@ -93,7 +93,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     }
 
     let mut warnings = Vec::new();
-    for file in files::filter_not_deleted(&all_files) {
+    for file in files::filter_not_deleted(&all_files).map_err(TestRepoError::Core)? {
         if file.file_type == FileType::Document {
             let file_content = file_service::get_document(config, RepoSource::Local, &file)
                 .map_err(|err| DocumentReadError(file.id, err))?;
