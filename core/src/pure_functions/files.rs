@@ -242,6 +242,7 @@ pub fn get_invalid_cycles(
     Ok(result)
 }
 
+#[derive(Debug, PartialEq)]
 pub struct PathConflict {
     pub existing: Uuid,
     pub staged: Uuid,
@@ -256,10 +257,11 @@ pub fn get_path_conflicts(
         .iter()
         .map(|(f, _)| f.clone())
         .collect::<Vec<DecryptedFileMetadata>>();
+    let files = filter_not_deleted(files)?;
     let mut result = Vec::new();
 
-    for file in files {
-        let children = find_children(files, file.id);
+    for file in &files {
+        let children = find_children(&files, file.id);
         let mut child_ids_by_name: HashMap<String, Uuid> = HashMap::new();
         for child in children {
             if let Some(conflicting_child_id) = child_ids_by_name.get(&child.decrypted_name) {
@@ -503,22 +505,28 @@ pub fn maybe_find_root(files: &[DecryptedFileMetadata]) -> Option<DecryptedFileM
     files.iter().find(|&f| f.id == f.parent).cloned()
 }
 
-pub fn is_deleted(files: &[DecryptedFileMetadata], target_id: Uuid) -> bool {
-    filter_deleted(files).into_iter().any(|f| f.id == target_id)
+pub fn is_deleted(files: &[DecryptedFileMetadata], target_id: Uuid) -> Result<bool, CoreError> {
+    Ok(filter_deleted(files)?
+        .into_iter()
+        .any(|f| f.id == target_id))
 }
 
-/// Returns the files which are not deleted and have no deleted ancestors. Files with parents not present in the argument are considered deleted.
-pub fn filter_not_deleted(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMetadata> {
-    let deleted = filter_deleted(files);
-    files
+/// Returns the files which are not deleted and have no deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
+pub fn filter_not_deleted(
+    files: &[DecryptedFileMetadata],
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+    let deleted = filter_deleted(files)?;
+    Ok(files
         .iter()
         .filter(|f| !deleted.iter().any(|nd| nd.id == f.id))
         .cloned()
-        .collect()
+        .collect())
 }
 
-/// Returns the files which are deleted or have deleted ancestors. Files with parents not present in the argument are considered deleted.
-pub fn filter_deleted(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMetadata> {
+/// Returns the files which are deleted or have deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
+pub fn filter_deleted(
+    files: &[DecryptedFileMetadata],
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let mut result = Vec::new();
     for file in files {
         let mut ancestor = file.clone();
@@ -527,21 +535,18 @@ pub fn filter_deleted(files: &[DecryptedFileMetadata]) -> Vec<DecryptedFileMetad
                 result.push(file.clone());
                 break;
             }
-            match maybe_find(files, ancestor.parent) {
-                Some(parent) => {
-                    if ancestor.id == parent.id {
-                        break;
-                    }
-                    ancestor = parent;
-                }
-                None => {
-                    result.push(file.clone());
-                    break;
-                }
+
+            let parent = find(files, ancestor.parent)?;
+            if ancestor.id == parent.id {
+                break;
+            }
+            ancestor = parent;
+            if ancestor.id == file.id {
+                break; // this is a cycle but not our problem
             }
         }
     }
-    result
+    Ok(result)
 }
 
 /// Returns the files which are documents.
@@ -602,7 +607,7 @@ pub fn stage_encrypted(
 mod unit_tests {
     use lockbook_models::file_metadata::FileType;
 
-    use crate::pure_functions::files;
+    use crate::pure_functions::files::{self, PathConflict};
     use crate::{service::test_utils, CoreError};
 
     #[test]
@@ -818,6 +823,39 @@ mod unit_tests {
             files::suggest_non_conflicting_filename(folder1.id, &[root, folder1, folder2], &[])
                 .unwrap(),
             "folder-2"
+        );
+    }
+
+    #[test]
+    fn get_path_conflicts_no_conflicts() {
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.username);
+
+        let path_conflicts =
+            files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
+
+        assert_eq!(path_conflicts.len(), 0);
+    }
+
+    #[test]
+    fn get_path_conflicts_one_conflict() {
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let folder2 = files::create(FileType::Folder, root.id, "folder", &account.username);
+
+        let path_conflicts =
+            files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
+
+        assert_eq!(path_conflicts.len(), 1);
+        assert_eq!(
+            path_conflicts[0],
+            PathConflict {
+                existing: folder1.id,
+                staged: folder2.id
+            }
         );
     }
 }
