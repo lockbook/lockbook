@@ -756,8 +756,7 @@ impl LbApp {
             match lb.core.rename(&id, &name) {
                 Ok(_) => {
                     d.close();
-                    let acctscr = &lb.gui.account;
-                    acctscr.sidebar.tree.set_name(&id, &name);
+                    lb.gui.account.sidebar.tree.set_name(&id, &name);
                     lb.gui.win.set_title(&name);
 
                     match lb.core.file_by_id(id) {
