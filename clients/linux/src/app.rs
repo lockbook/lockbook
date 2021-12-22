@@ -31,10 +31,10 @@ use crate::error::{
     LbErrTarget, LbError, LbResult,
 };
 use crate::filetree::FileTreeCol;
-use crate::intro::{IntroScreen, LOGO_INTRO};
 use crate::lbsearch::LbSearch;
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
+use crate::onboarding;
 use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
@@ -167,13 +167,13 @@ impl LbApp {
     }
 
     fn create_account(&self, name: String) -> LbResult<()> {
-        self.gui.intro.doing("Creating account...");
+        self.gui.onboarding.doing("Creating account...");
 
         let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
             match result {
                 Ok(_) => lb.gui.show_account_screen(),
                 Err(err) => match err.kind() {
-                    UserErr => lb.gui.intro.error_create(err.msg()),
+                    UserErr => lb.gui.onboarding.error_create(err.msg()),
                     ProgErr => lb.messenger.send_err_dialog("creating account", err),
                 },
             }
@@ -185,14 +185,14 @@ impl LbApp {
     }
 
     fn import_account(&self, privkey: String) -> LbResult<()> {
-        self.gui.intro.doing("Importing account...");
+        self.gui.onboarding.doing("Importing account...");
 
         // Create a channel to receive and process the result of importing the account.
         let ch = make_glib_chan!(self as lb => move |result: LbResult<()>| {
             // Show any error on the import screen. Otherwise, account syncing will start.
             match result {
                 Ok(_) => lb.import_account_sync(),
-                Err(err) => lb.gui.intro.error_import(err.msg()),
+                Err(err) => lb.gui.onboarding.error_import(err.msg()),
             }
             glib::Continue(false)
         });
@@ -213,7 +213,7 @@ impl LbApp {
             // If there is some message, show it. If not, syncing is done, so the
             // account screen is shown.
             if let Some(msg) = msgopt {
-                lb.gui.intro.sync_progress(&msg)
+                lb.gui.onboarding.sync_progress(&msg)
             } else {
                 lb.gui.show_account_screen();
                 spawn!(lb.messenger as m => move || {
@@ -918,7 +918,9 @@ impl LbApp {
     fn show_dialog_about(&self) -> LbResult<()> {
         let d = gtk::AboutDialog::new();
         d.set_transient_for(Some(&self.gui.win));
-        d.set_logo(Some(&GdkPixbuf::from_inline(LOGO_INTRO, false).unwrap()));
+        d.set_logo(Some(
+            &GdkPixbuf::from_inline(onboarding::LOGO, false).unwrap(),
+        ));
         d.set_program_name("Lockbook");
         d.set_version(Some(VERSION));
         d.set_website(Some("https://lockbook.net"));
@@ -1268,7 +1270,7 @@ struct Gui {
     win: GtkAppWindow,
     menubar: Menubar,
     screens: GtkStack,
-    intro: IntroScreen,
+    onboarding: onboarding::Screen,
     account: Rc<AccountScreen>,
     messenger: Messenger,
 }
@@ -1281,10 +1283,10 @@ impl Gui {
         menubar.set(&EditMode::None);
 
         // Screens.
-        let intro = IntroScreen::new(m);
+        let onboarding = onboarding::Screen::new(m);
         let account = AccountScreen::new(m, s, c);
         let screens = GtkStack::new();
-        screens.add_named(&intro.cntr, "intro");
+        screens.add_named(&onboarding.cntr, "onboarding");
         screens.add_named(&account.cntr, "account");
 
         let icon = GdkPixbuf::from_inline(WINDOW_ICON, false).unwrap();
@@ -1309,7 +1311,7 @@ impl Gui {
             win,
             menubar,
             screens,
-            intro,
+            onboarding,
             account: Rc::new(account),
             messenger: m.clone(),
         }
@@ -1320,15 +1322,15 @@ impl Gui {
         if core.has_account()? {
             self.show_account_screen();
         } else {
-            self.show_intro_screen();
+            self.show_onboarding_screen();
         }
         Ok(())
     }
 
-    fn show_intro_screen(&self) {
-        self.menubar.for_intro_screen();
-        self.intro.cntr.show_all();
-        self.screens.set_visible_child_name("intro");
+    fn show_onboarding_screen(&self) {
+        self.menubar.for_onboarding_screen();
+        self.onboarding.cntr.show_all();
+        self.screens.set_visible_child_name("onboarding");
     }
 
     fn show_account_screen(&self) {

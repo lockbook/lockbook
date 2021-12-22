@@ -10,19 +10,19 @@ use gtk::{
 use crate::backend::LbSyncMsg;
 use crate::messages::{Messenger, Msg};
 
-pub struct IntroScreen {
-    create: IntroInput,
-    import: IntroInput,
-    doing: IntroDoing,
+pub struct Screen {
+    create: OnboardingInput,
+    import: OnboardingInput,
+    doing: OnboardingDoing,
     bottom: GtkStack,
     pub cntr: GtkBox,
 }
 
-impl IntroScreen {
+impl Screen {
     pub fn new(m: &Messenger) -> Self {
-        let create = IntroInput::new(m, Msg::CreateAccount, "Pick a username...");
-        let import = IntroInput::new(m, Msg::ImportAccount, "Private key...");
-        let doing = IntroDoing::new();
+        let create = OnboardingInput::new(m, Msg::CreateAccount, "Pick a username...");
+        let import = OnboardingInput::new(m, Msg::ImportAccount, "Private key...");
+        let doing = OnboardingDoing::new();
 
         let bottom = GtkStack::new();
         bottom.add_named(&Self::inputs(&create, &import), "input");
@@ -46,12 +46,12 @@ impl IntroScreen {
 
     fn top() -> GtkBox {
         let heading = GtkLabel::new(Some("Lockbook"));
-        GtkWidgetExt::set_widget_name(&heading, "intro_heading");
+        GtkWidgetExt::set_widget_name(&heading, "onboarding_heading");
 
         let cntr = GtkBox::new(Horizontal, 32);
         cntr.set_halign(GtkAlign::Center);
         cntr.add(&GtkImage::from_pixbuf(Some(
-            &GdkPixbuf::from_inline(LOGO_INTRO, false).unwrap(),
+            &GdkPixbuf::from_inline(LOGO, false).unwrap(),
         )));
         cntr.add(&heading);
         cntr
@@ -60,14 +60,14 @@ impl IntroScreen {
     fn sep() -> GtkBox {
         let hr = GtkSeparator::new(Horizontal);
         hr.set_size_request(512, -1);
-        GtkWidgetExt::set_widget_name(&hr, "intro_hr");
+        GtkWidgetExt::set_widget_name(&hr, "onboarding_hr");
 
         let sep = GtkBox::new(Horizontal, 0);
         sep.set_center_widget(Some(&hr));
         sep
     }
 
-    fn inputs(create: &IntroInput, import: &IntroInput) -> GtkBox {
+    fn inputs(create: &OnboardingInput, import: &OnboardingInput) -> GtkBox {
         let stack = GtkStack::new();
         stack.add_titled(&create.cntr, "create", "Create Account");
         stack.add_titled(&import.cntr, "import", "Import Account");
@@ -106,12 +106,12 @@ impl IntroScreen {
     }
 }
 
-struct IntroInput {
+struct OnboardingInput {
     error: GtkLabel,
     cntr: GtkBox,
 }
 
-impl IntroInput {
+impl OnboardingInput {
     fn new(m: &Messenger, msg: fn(String) -> Msg, desc: &str) -> Self {
         let m = m.clone();
         let entry = GtkEntry::new();
@@ -123,7 +123,7 @@ impl IntroInput {
 
         let error = GtkLabel::new(None);
         error.set_margin_top(16);
-        GtkWidgetExt::set_widget_name(&error, "intro_error");
+        GtkWidgetExt::set_widget_name(&error, "onboarding_error");
 
         let cntr = GtkBox::new(Vertical, 0);
         cntr.add(&entry);
@@ -138,20 +138,20 @@ impl IntroInput {
     }
 }
 
-struct IntroDoing {
+struct OnboardingDoing {
     spinner: GtkSpinner,
     caption: GtkLabel,
     status: GtkLabel,
     cntr: GtkBox,
 }
 
-impl IntroDoing {
+impl OnboardingDoing {
     fn new() -> Self {
         let spinner = GtkSpinner::new();
         spinner.set_size_request(24, 24);
 
         let caption = GtkLabel::new(None);
-        GtkWidgetExt::set_widget_name(&caption, "intro_doing_caption");
+        GtkWidgetExt::set_widget_name(&caption, "onboarding_doing_caption");
 
         let status = GtkLabel::new(None);
 
@@ -184,4 +184,4 @@ impl IntroDoing {
     }
 }
 
-pub const LOGO_INTRO: &[u8] = include_bytes!("../res/lockbook-intro-pixdata");
+pub const LOGO: &[u8] = include_bytes!("../res/lockbook-onboarding-pixdata");

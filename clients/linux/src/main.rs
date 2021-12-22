@@ -14,10 +14,10 @@ mod background_work;
 mod editmode;
 mod error;
 mod filetree;
-mod intro;
 mod lbsearch;
 mod menubar;
 mod messages;
+mod onboarding;
 mod settings;
 mod util;
 
