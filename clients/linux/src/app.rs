@@ -757,7 +757,11 @@ impl LbApp {
                 Ok(_) => {
                     d.close();
                     lb.gui.account.sidebar.tree.set_name(&id, &name);
-                    lb.gui.win.set_title(&name);
+                    if let Some(meta) = &lb.state.borrow().opened_file {
+                        if meta.id == id {
+                            lb.gui.win.set_title(&name);
+                        }
+                    }
 
                     match lb.core.file_by_id(id) {
                         Ok(f) => {
