@@ -38,6 +38,7 @@ struct OnboardingView: View {
                     TextField("Choose a username: a-z, 0-9", text: self.$onboardingState.username, onCommit: self.onboardingState.attemptCreate)
                         .disableAutocorrection(true)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .disabled(self.onboardingState.working)
                     Text(onboardingState.createAccountError)
                         .foregroundColor(.red)
                         .bold()
