@@ -1,11 +1,6 @@
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
 use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
-use gtk::{
-    Align as GtkAlign, Box as GtkBox, Entry as GtkEntry, Image as GtkImage, Label as GtkLabel,
-    Separator as GtkSeparator, Spinner as GtkSpinner, Stack as GtkStack,
-    StackSwitcher as GtkStackSwitcher, WidgetExt as GtkWidgetExt,
-};
 
 use crate::backend::LbSyncMsg;
 use crate::messages::{Messenger, Msg};
@@ -14,8 +9,8 @@ pub struct Screen {
     create: OnboardingInput,
     import: OnboardingInput,
     status: OnboardingStatus,
-    bottom: GtkStack,
-    pub cntr: GtkBox,
+    bottom: gtk::Stack,
+    pub cntr: gtk::Box,
 }
 
 impl Screen {
@@ -24,13 +19,13 @@ impl Screen {
         let import = OnboardingInput::new(m, Msg::ImportAccount, "Private key...");
         let status = OnboardingStatus::new();
 
-        let bottom = GtkStack::new();
+        let bottom = gtk::Stack::new();
         bottom.add_named(&Self::inputs(&create, &import), "input");
         bottom.add_named(&status.cntr, "status");
 
-        let cntr = GtkBox::new(Vertical, 48);
-        cntr.set_valign(GtkAlign::Center);
-        cntr.set_halign(GtkAlign::Center);
+        let cntr = gtk::Box::new(Vertical, 48);
+        cntr.set_valign(gtk::Align::Center);
+        cntr.set_halign(gtk::Align::Center);
         cntr.add(&Self::top());
         cntr.add(&Self::sep());
         cntr.add(&bottom);
@@ -44,40 +39,40 @@ impl Screen {
         }
     }
 
-    fn top() -> GtkBox {
-        let heading = GtkLabel::new(Some("Lockbook"));
-        GtkWidgetExt::set_widget_name(&heading, "onboarding_heading");
+    fn top() -> gtk::Box {
+        let heading = gtk::Label::new(Some("Lockbook"));
+        gtk::WidgetExt::set_widget_name(&heading, "onboarding_heading");
 
-        let cntr = GtkBox::new(Horizontal, 32);
-        cntr.set_halign(GtkAlign::Center);
-        cntr.add(&GtkImage::from_pixbuf(Some(
+        let cntr = gtk::Box::new(Horizontal, 32);
+        cntr.set_halign(gtk::Align::Center);
+        cntr.add(&gtk::Image::from_pixbuf(Some(
             &GdkPixbuf::from_inline(LOGO, false).unwrap(),
         )));
         cntr.add(&heading);
         cntr
     }
 
-    fn sep() -> GtkBox {
-        let hr = GtkSeparator::new(Horizontal);
+    fn sep() -> gtk::Box {
+        let hr = gtk::Separator::new(Horizontal);
         hr.set_size_request(512, -1);
-        GtkWidgetExt::set_widget_name(&hr, "onboarding_hr");
+        gtk::WidgetExt::set_widget_name(&hr, "onboarding_hr");
 
-        let sep = GtkBox::new(Horizontal, 0);
+        let sep = gtk::Box::new(Horizontal, 0);
         sep.set_center_widget(Some(&hr));
         sep
     }
 
-    fn inputs(create: &OnboardingInput, import: &OnboardingInput) -> GtkBox {
-        let stack = GtkStack::new();
+    fn inputs(create: &OnboardingInput, import: &OnboardingInput) -> gtk::Box {
+        let stack = gtk::Stack::new();
         stack.add_titled(&create.cntr, "create", "Create Account");
         stack.add_titled(&import.cntr, "import", "Import Account");
 
-        let switcher = GtkStackSwitcher::new();
+        let switcher = gtk::StackSwitcher::new();
         switcher.set_stack(Some(&stack));
         switcher.set_margin_bottom(32);
 
-        let cntr = GtkBox::new(Vertical, 0);
-        cntr.set_halign(GtkAlign::Center);
+        let cntr = gtk::Box::new(Vertical, 0);
+        cntr.set_halign(gtk::Align::Center);
         cntr.add(&switcher);
         cntr.add(&stack);
         cntr
@@ -107,25 +102,25 @@ impl Screen {
 }
 
 struct OnboardingInput {
-    error: GtkLabel,
-    cntr: GtkBox,
+    error: gtk::Label,
+    cntr: gtk::Box,
 }
 
 impl OnboardingInput {
     fn new(m: &Messenger, msg: fn(String) -> Msg, desc: &str) -> Self {
         let m = m.clone();
-        let entry = GtkEntry::new();
+        let entry = gtk::Entry::new();
         entry.set_placeholder_text(Some(desc));
         entry.connect_activate(move |entry| {
             let value = entry.get_buffer().get_text();
             m.send(msg(value));
         });
 
-        let error = GtkLabel::new(None);
+        let error = gtk::Label::new(None);
         error.set_margin_top(16);
-        GtkWidgetExt::set_widget_name(&error, "onboarding_error");
+        gtk::WidgetExt::set_widget_name(&error, "onboarding_error");
 
-        let cntr = GtkBox::new(Vertical, 0);
+        let cntr = gtk::Box::new(Vertical, 0);
         cntr.add(&entry);
         cntr.add(&error);
 
@@ -139,26 +134,26 @@ impl OnboardingInput {
 }
 
 struct OnboardingStatus {
-    spinner: GtkSpinner,
-    caption: GtkLabel,
-    status: GtkLabel,
-    cntr: GtkBox,
+    spinner: gtk::Spinner,
+    caption: gtk::Label,
+    status: gtk::Label,
+    cntr: gtk::Box,
 }
 
 impl OnboardingStatus {
     fn new() -> Self {
-        let spinner = GtkSpinner::new();
+        let spinner = gtk::Spinner::new();
         spinner.set_size_request(24, 24);
 
-        let caption = GtkLabel::new(None);
-        GtkWidgetExt::set_widget_name(&caption, "onboarding_status_caption");
+        let caption = gtk::Label::new(None);
+        gtk::WidgetExt::set_widget_name(&caption, "onboarding_status_caption");
 
-        let status = GtkLabel::new(None);
+        let status = gtk::Label::new(None);
 
-        let cntr = GtkBox::new(Vertical, 32);
+        let cntr = gtk::Box::new(Vertical, 32);
         cntr.add(&{
-            let bx = GtkBox::new(Horizontal, 16);
-            bx.set_halign(GtkAlign::Center);
+            let bx = gtk::Box::new(Horizontal, 16);
+            bx.set_halign(gtk::Align::Center);
             bx.add(&spinner);
             bx.add(&caption);
             bx
