@@ -31,7 +31,7 @@ pub fn create_account(
     let keys = pubkey::generate_key();
 
     let account = Account {
-        username: String::from(username),
+        username,
         api_url: api_url.to_string(),
         private_key: keys,
     };
