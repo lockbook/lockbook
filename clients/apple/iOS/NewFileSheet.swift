@@ -52,7 +52,7 @@ struct NewFileSheet: View {
             }).pickerStyle(SegmentedPickerStyle())
                 .onChange(of: selected, perform: selectionChanged)
             
-            TextField("Choose a username", text: $name, onCommit: onCommit)
+            TextField("Choose a filename", text: $name, onCommit: onCommit)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .autocapitalization(.none)
                 .tag("FileNameView")

@@ -12,7 +12,7 @@ struct FileCell: View {
             HStack {
                 Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
                     .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
-                Text(intEpochToString(epoch: meta.contentVersion))
+                Text(intEpochToString(epoch: max(meta.metadataVersion, meta.contentVersion)))
                     .foregroundColor(.secondary)
                 
             }.font(.footnote)
