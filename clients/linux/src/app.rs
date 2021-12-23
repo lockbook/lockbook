@@ -12,11 +12,11 @@ use gtk::prelude::*;
 use gtk::Orientation::{Horizontal, Vertical};
 use gtk::{
     Align as GtkAlign, Application as GtkApp, ApplicationWindow as GtkAppWindow, Box as GtkBox,
-    CellRendererText as GtkCellRendererText, CheckButton as GtkCheckBox, Dialog as GtkDialog,
-    Image as GtkImage, Label as GtkLabel, Notebook as GtkNotebook, ProgressBar as GtkProgressBar,
-    ResponseType as GtkResponseType, SelectionMode as GtkSelectionMode, Spinner as GtkSpinner,
-    Stack as GtkStack, TreeStore as GtkTreeStore, TreeView as GtkTreeView,
-    TreeViewColumn as GtkTreeViewColumn, Widget as GtkWidget, WindowPosition as GtkWindowPosition,
+    CellRendererText as GtkCellRendererText, Dialog as GtkDialog, Image as GtkImage,
+    Label as GtkLabel, ProgressBar as GtkProgressBar, ResponseType as GtkResponseType,
+    SelectionMode as GtkSelectionMode, Spinner as GtkSpinner, Stack as GtkStack,
+    TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
+    WindowPosition as GtkWindowPosition,
 };
 
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
@@ -35,9 +35,9 @@ use crate::lbsearch::LbSearch;
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::onboarding;
-use crate::settings::Settings;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
+use crate::{settings, settings::Settings};
 
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use lockbook_models::work_unit::WorkUnit;
@@ -59,7 +59,7 @@ macro_rules! spawn {
 #[derive(Clone)]
 pub struct LbApp {
     pub core: Arc<LbCore>,
-    settings: Rc<RefCell<Settings>>,
+    pub settings: Rc<RefCell<Settings>>,
     state: Rc<RefCell<LbState>>,
     pub gui: Rc<Gui>,
     pub messenger: Messenger,
@@ -116,7 +116,7 @@ impl LbApp {
                 Msg::SearchFieldExec(vopt) => lb.search_field_exec(vopt),
 
                 Msg::ShowDialogSyncDetails => lb.show_dialog_sync_details(),
-                Msg::ShowDialogPreferences => lb.show_dialog_preferences(),
+                Msg::ShowDialogPreferences => settings::show_dialog(&lb),
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
                 Msg::ShowDialogImportFile(parent, uris, finish_ch) => {
@@ -833,18 +833,6 @@ impl LbApp {
         Ok(())
     }
 
-    fn show_dialog_preferences(&self) -> LbResult<()> {
-        let tabs = SettingsUi::create(&self.settings, &self.messenger);
-
-        let d = self.gui.new_dialog("Lockbook Settings");
-        d.set_default_size(300, 400);
-        d.get_content_area().add(&tabs);
-        d.add_button("Ok", GtkResponseType::Ok);
-        d.connect_response(|d, _| d.close());
-        d.show_all();
-        Ok(())
-    }
-
     fn show_dialog_about(&self) -> LbResult<()> {
         let d = gtk::AboutDialog::new();
         d.set_transient_for(Some(&self.gui.win));
@@ -1275,7 +1263,7 @@ impl Gui {
         self.messenger.send(Msg::AccountScreenShown);
     }
 
-    fn new_dialog(&self, title: &str) -> GtkDialog {
+    pub fn new_dialog(&self, title: &str) -> GtkDialog {
         let d = GtkDialog::new();
         d.set_transient_for(Some(&self.win));
         d.set_position(GtkWindowPosition::CenterOnParent);
@@ -1322,75 +1310,6 @@ impl Gui {
         load_d.get_content_area().add(&prog_lbl);
 
         (load_d, path_lbl_1, path_lbl_2, prog_lbl, pbar)
-    }
-}
-
-struct SettingsUi;
-
-impl SettingsUi {
-    fn create(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkNotebook {
-        let tabs = GtkNotebook::new();
-        for tab_data in vec![
-            ("File Tree", Self::filetree(s, m)),
-            ("Window", Self::window(s)),
-            ("Editor", Self::editor(s, m)),
-        ] {
-            let (title, content) = tab_data;
-            let tab_btn = GtkLabel::new(Some(title));
-            let tab_page = content.upcast::<GtkWidget>();
-            tabs.append_page(&tab_page, Some(&tab_btn));
-        }
-        tabs
-    }
-
-    fn filetree(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkBox {
-        let chbxs = GtkBox::new(Vertical, 0);
-
-        for col in FileTreeCol::removable() {
-            let ch = GtkCheckBox::with_label(&col.name());
-            ch.set_active(!s.borrow().hidden_tree_cols.contains(&col.name()));
-            ch.connect_toggled(closure!(m => move |_| m.send(Msg::ToggleTreeCol(col))));
-            chbxs.add(&ch);
-        }
-
-        chbxs
-    }
-
-    fn window(s: &Rc<RefCell<Settings>>) -> GtkBox {
-        let ch = GtkCheckBox::with_label("Maximize on startup");
-        ch.set_active(s.borrow().window_maximize);
-        ch.connect_toggled(closure!(s => move |chbox| {
-            s.borrow_mut().window_maximize = chbox.get_active();
-        }));
-
-        let chbxs = GtkBox::new(Vertical, 0);
-        chbxs.add(&ch);
-        chbxs
-    }
-
-    fn editor(s: &Rc<RefCell<Settings>>, m: &Messenger) -> GtkBox {
-        let auto_save_ch = GtkCheckBox::with_label("Auto-save ");
-        auto_save_ch.set_active(s.borrow().auto_save);
-        auto_save_ch.connect_toggled(closure!(s, m => move |chbox| {
-            let auto_save = chbox.get_active();
-
-            s.borrow_mut().auto_save = auto_save;
-            m.send(Msg::ToggleAutoSave(auto_save))
-        }));
-
-        let auto_sync_ch = GtkCheckBox::with_label("Auto-sync ");
-        auto_sync_ch.set_active(s.borrow().auto_sync);
-        auto_sync_ch.connect_toggled(closure!(s, m => move |chbox| {
-            let auto_sync = chbox.get_active();
-
-            s.borrow_mut().auto_sync = auto_sync;
-            m.send(Msg::ToggleAutoSync(auto_sync))
-        }));
-
-        let chbxs = GtkBox::new(Vertical, 0);
-        chbxs.add(&auto_save_ch);
-        chbxs.add(&auto_sync_ch);
-        chbxs
     }
 }
 
