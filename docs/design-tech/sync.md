@@ -25,10 +25,10 @@ This data model lends itself to three operations, which correspond to modificati
 * `move`: change the file's parent
 * `delete`: delete the file (cannot be undone)
 
-With that data model in mind, these are the three main invariants that must be true of a user's file tree on all devices at all times:
+With that data model in mind, these are the four main invariants that must be true of a user's file tree on all devices at all times:
 * Root Invariant: there must always be exactly one `root` and all modifications to `root`s are invalid. This is straightforward to enforce.
 * Path Conflict Invariant: no two files may have the same name and parent. An example challenge is when a user creates a new file on each of two clients with the same name and parent, then syncs them both.
-* Cycle Invariant: every non-root file must not have itself as an ancestor.  An example challenge is when on one client the user moves folder A into folder B and on the other client moves folder B into folder A, then syncs them both.
+* Cycle Invariant: every non-root file must not have itself as an ancestor. An example challenge is when on one client the user moves folder A into folder B and on the other client moves folder B into folder A, then syncs them both.
 * Orphan Invariant: every non-root file must have its parent in the file tree. To keep client storage from growing unboundedly, clients eventually prune deleted files (remove all mentions of them from durable storage). If the design does not pay careful attention to the disctinctions between explictly deleted, implicitly deleted, and pruned files, a client may prune a file without pruning one of its children.
 
 _Concern: does the server check that a user's root folder is named after the username?_
@@ -36,7 +36,7 @@ _Concern: does the server check that a user's root folder is named after the use
 ### Privacy
 Files, file names, and encryption keys never leave the client unencrypted. In order to support sharing, we give every document a symmetric key (used to encrypt its contents) and every folder a symmetric key (used to encrypt the keys of child folders and documents). This allows users to recursively share folder contents performantly and consistently. It also creates an encryption chain for each document: the document is encrypted with the document's key, which is encrypted with its parent folder's key, which is encrypted with it's parent folders key, all the way up to the root folder whose key is encrypted with the user's account key which is stored on the user's devices and trasferred directly between them as a string or QR code.
 
-This encryption chain, and its interaction with the invariants, creates programming challenges. Our general pattern is to decrypt keys, names, and files as we read them from disk or as responses from the server so that we can write logic without worrying about encryption. However, most invariant violations (e.g. orphans and cycles) will cause us to fail to be able to decrypt files, which in turn makes it difficult to detect and appropriately resolve invariant violations.
+This encryption chain, and its interaction with the invariants, creates programming challenges. Our general pattern is to decrypt keys, names, and files as we read them from disk or receive them as responses from the server so that we can write logic without worrying about encryption. However, most invariant violations (e.g. orphans and cycles) will cause us to fail to be able to decrypt files, which in turn makes it difficult to detect and appropriately resolve invariant violations.
 
 _Todo: write and link the sharing design doc_
 
@@ -86,7 +86,7 @@ Even if clients individually enfoce invariants, violations can still occur in th
 
 First, we have to be concerned about the Cycle Invariant. A cycle can occur if a user has two folders, moves the first folder into the second on one client and moves the second folder into the first on another, then syncs them both. A cycle can also involve more folders, if a first folder is moved into a subfolder of a third folder and the third folder is moved into the first folder concurrently.
 
-We also have to be concerned about the Path Conflict Invariant. A path conflict can occur if two clients create files with the same name in the same folder and then sync. Occurances can also involve a client renaming an existing file that folder, moving a file into a folder, or after a file edit conflict is resolved by saving a copy of the local version with a new name. Additionally, it must be valid for a two files to share a name and parent if one or both of them are deleted.
+We also have to be concerned about the Path Conflict Invariant. A path conflict can occur if two clients create files with the same name in the same folder and then sync. Occurrences can also involve a client renaming an existing file in that folder, moving a file into a folder, or after a file edit conflict is resolved by saving a copy of the local version with a new name. Additionally, it must be valid for two files to share a name and parent if one or both of them are deleted.
 
 Finally, we have to be concerned about the Orphan Invariant. An orphan can occur if a client deletes a folder and syncs, then another client moves a file into that folder and syncs, then the initial client syncs again. The initial client will prune the folder after pushing its deletion, then the second client will push the move and the server will mark it as deleted, then the initial client will receive an update to a file for which it does not have the parent. In this situation the client needs to resolve the invariant violation without decrypting the update because the encryption key to decrypt that update lives in the folder's metadata which was already pruned.
 
