@@ -117,7 +117,11 @@ mod account_tests {
             ),
             "This action should have failed with AccountAlreadyExists!",
         );
-        println!("{} {}", &generated_account.username, &(generated_account.username.to_uppercase()))
+        println!(
+            "{} {}",
+            &generated_account.username,
+            &(generated_account.username.to_uppercase())
+        )
     }
 
     #[test]
