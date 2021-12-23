@@ -22,7 +22,9 @@ use crate::CoreError;
 
 pub fn parse_drawing(drawing_bytes: &[u8]) -> Result<Drawing, CoreError> {
     // represent an empty string as an empty drawing, rather than returning an error
-    if drawing_bytes.is_empty() { return Ok(Drawing::default()); }
+    if drawing_bytes.is_empty() {
+        return Ok(Drawing::default());
+    }
     match serde_json::from_slice::<Drawing>(drawing_bytes) {
         Ok(d) => Ok(d),
         Err(e) => match e.classify() {
@@ -256,7 +258,7 @@ pub fn export_drawing(
             ColorType::Rgba8,
         ),
     }
-        .map_err(core_err_unexpected)?;
+    .map_err(core_err_unexpected)?;
 
     std::mem::drop(buf_writer);
 
