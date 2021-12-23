@@ -6,7 +6,7 @@ use lockbook_models::crypto::{
     EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
 };
 use lockbook_models::file_metadata::{FileMetadata, FileMetadataDiff, FileType};
-use log::{debug, info};
+use log::{debug};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
 use std::array::IntoIter;
