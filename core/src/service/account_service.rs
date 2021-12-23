@@ -19,6 +19,7 @@ pub fn create_account(
     username: &str,
     api_url: &str,
 ) -> Result<Account, CoreError> {
+    let username = String::from(username).to_lowercase();
     info!(
         "creating with username {} against server {}",
         username, api_url

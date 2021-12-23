@@ -94,6 +94,33 @@ mod account_tests {
     }
 
     #[test]
+    fn create_account_account_exists_case() {
+        let db = test_config();
+        let generated_account = generate_account();
+
+        account_service::create_account(
+            &db,
+            &generated_account.username,
+            &generated_account.api_url,
+        )
+        .unwrap();
+
+        let db = test_config();
+        assert!(
+            matches!(
+                account_service::create_account(
+                    &db,
+                    &(generated_account.username.to_uppercase()),
+                    &generated_account.api_url,
+                ),
+                Err(CoreError::UsernameTaken)
+            ),
+            "This action should have failed with AccountAlreadyExists!",
+        );
+        println!("{} {}", &generated_account.username, &(generated_account.username.to_uppercase()))
+    }
+
+    #[test]
     fn import_account_account_exists() {
         let cfg1 = test_config();
         let generated_account = generate_account();

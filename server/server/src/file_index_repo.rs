@@ -622,7 +622,7 @@ WITH i1 AS (
 )
 INSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, (SELECT id FROM i1))
         "#,
-        &username,
+        &(username.to_uppercase()),
         &serde_json::to_string(&public_key).map_err(NewAccountError::Serialization)?,
     )
     .execute(transaction)
