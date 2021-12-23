@@ -114,8 +114,10 @@ pub fn decrypt_metadata(
     files: &[FileMetadata],
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let mut result = Vec::new();
+    let mut key_cache = HashMap::new();
+
     for target in files {
-        let parent_key = decrypt_file_key(account, target.parent, files)?;
+        let parent_key = decrypt_file_key(account, target.parent, files, &mut key_cache)?;
         result.push(decrypt_metadatum(&parent_key, target)?);
     }
     Ok(result)
@@ -126,7 +128,12 @@ fn decrypt_file_key(
     account: &Account,
     target_id: Uuid,
     target_with_ancestors: &[FileMetadata],
+    key_cache: &mut HashMap<Uuid, AESKey>,
 ) -> Result<AESKey, CoreError> {
+    if let Some(key) = key_cache.get(&target_id) {
+        return Ok(*key);
+    }
+
     let target = target_with_ancestors
         .iter()
         .find(|&m| m.id == target_id)
@@ -135,22 +142,25 @@ fn decrypt_file_key(
                 "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
             ))
         })?;
-    match target.user_access_keys.get(&account.username) {
+
+    let key = match target.user_access_keys.get(&account.username) {
         Some(user_access) => {
             let user_access_key =
                 pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by)
                     .map_err(core_err_unexpected)?;
-            let key = symkey::decrypt(&user_access_key, &user_access.access_key)
-                .map_err(core_err_unexpected)?;
-            Ok(key)
+            symkey::decrypt(&user_access_key, &user_access.access_key)
+                .map_err(core_err_unexpected)?
         }
         None => {
-            let parent_key = decrypt_file_key(account, target.parent, target_with_ancestors)?;
-            let key = symkey::decrypt(&parent_key, &target.folder_access_keys)
-                .map_err(core_err_unexpected)?;
-            Ok(key)
+            let parent_key =
+                decrypt_file_key(account, target.parent, target_with_ancestors, key_cache)?;
+            symkey::decrypt(&parent_key, &target.folder_access_keys).map_err(core_err_unexpected)?
         }
-    }
+    };
+
+    key_cache.insert(target_id, key);
+
+    Ok(key)
 }
 
 fn decrypt_file_name(
