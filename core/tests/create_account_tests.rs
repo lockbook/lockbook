@@ -19,14 +19,16 @@ mod change_document_content_tests {
     fn create_account_username_case() {
         // new account
         let mut account = generate_account();
-        let (mut root, _root_key) = generate_root_metadata(&account);
+        let (root, _root_key) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
-        let old_username = account.username.clone();
-        account.username = account.username.to_uppercase();
-        root.user_access_keys.insert(account.username.to_uppercase(), root.user_access_keys.get(&old_username).unwrap().clone());
-        match api_service::request(&account, NewAccountRequest::new(&account, &root)) {
+        let old_username  = account.username;
+        let mut account = generate_account();
+        account.username = old_username.to_uppercase();
+        let (root, _root_key) = generate_root_metadata(&account);
+        let operation = api_service::request(&account, NewAccountRequest::new(&account, &root));
+        match operation {
             Err(ApiError::Endpoint(NewAccountError::UsernameTaken)) => {} // Test pass
-            _ => panic!("Usernames must be case sensitive")
+            _ => panic!("Usernames must be case sensitive {:?}", operation)
         }
     }
 }

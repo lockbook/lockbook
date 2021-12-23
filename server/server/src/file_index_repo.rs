@@ -6,7 +6,7 @@ use lockbook_models::crypto::{
     EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
 };
 use lockbook_models::file_metadata::{FileMetadata, FileMetadataDiff, FileType};
-use log::debug;
+use log::{debug, info};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
 use std::array::IntoIter;
@@ -622,7 +622,7 @@ WITH i1 AS (
 )
 INSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, (SELECT id FROM i1))
         "#,
-        &(username.to_uppercase()),
+        &(username.to_lowercase()),
         &serde_json::to_string(&public_key).map_err(NewAccountError::Serialization)?,
     )
     .execute(transaction)
