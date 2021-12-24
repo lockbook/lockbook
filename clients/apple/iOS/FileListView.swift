@@ -19,6 +19,7 @@ struct FileListView: View {
     @Binding var moving: DecryptedFileMetadata?
     @State var renaming: DecryptedFileMetadata?
     @State private var selection: DecryptedFileMetadata?
+    @State private var newFile: DecryptedFileMetadata?
     
     var files: [DecryptedFileMetadata] {
         fileService.files.filter {
@@ -27,53 +28,81 @@ struct FileListView: View {
     }
     
     var body: some View {
-        VStack {
-            List (files) { meta in
-                renderCell(meta: meta)
-                    .popover(item: $moving, content: renderMoveDialog)
-                    .contextMenu(menuItems: {
-                        Button(action: {
-                            handleDelete(meta: meta)
-                        }) {
-                            Label("Delete", systemImage: "trash.fill")
-                        }
-                        Button(action: {
-                            moving = meta
-                        }, label: {
-                            Label("Move", systemImage: "folder")
-                        })
-                        Button(action: {
-                            renaming = meta
-                            creatingName = meta.decryptedName
-                        }, label: {
-                            Label("Rename", systemImage: "pencil")
-                        })
-                    })
+        ZStack {
+            // The whole active selection concept doesn't handle links that don't exist yet properly
+            // This is a workaround for that scenario.
+            // This doesn't highlight properly on iPad, maybe yet another reason to roll our own navigation on ipad.
+            if let newDoc = newFile, newDoc.fileType == .Document {
+                NavigationLink(destination: DocumentView(meta: newDoc), isActive: Binding.constant(true)) {
+                    EmptyView()
+                }.hidden()
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(
-                        destination: SettingsView(account: account).equatable(), isActive: $onboarding.theyChoseToBackup) {
-                            Image(systemName: "gearshape.fill")
-                                .foregroundColor(.blue)
-                        }
+            
+            if let newFolder = newFile, newFolder.fileType == .Folder {
+                NavigationLink(
+                    destination: FileListView(currentFolder: newFolder, account: account, moving: $moving), isActive: Binding.constant(true)) {
+                        EmptyView()
+                    }.isDetailLink(false)
+                    .hidden()
+            }
+            
+            VStack {
+                List (files) { meta in
+                    renderCell(meta: meta)
+                        .popover(item: $moving, content: renderMoveDialog)
+                        .contextMenu(menuItems: {
+                            Button(action: {
+                                handleDelete(meta: meta)
+                            }) {
+                                Label("Delete", systemImage: "trash.fill")
+                            }
+                            Button(action: {
+                                moving = meta
+                            }, label: {
+                                Label("Move", systemImage: "folder")
+                            })
+                            Button(action: {
+                                renaming = meta
+                                creatingName = meta.decryptedName
+                            }, label: {
+                                Label("Rename", systemImage: "pencil")
+                            })
+                        })
+                }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        NavigationLink(
+                            destination: SettingsView(account: account).equatable(), isActive: $onboarding.theyChoseToBackup) {
+                                Image(systemName: "gearshape.fill")
+                                    .foregroundColor(.blue)
+                            }
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                    sync.sync()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                    sync.sync()
+                }
+                .navigationBarTitle(currentFolder.decryptedName)
+                HStack {
+                    BottomBar(onCreating: { creatingFile = true })
+                }
+                .padding(.horizontal, 10)
+                .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: { BeforeYouStart() })
+                .sheet(isPresented: $creatingFile, onDismiss: {
+                    self.selection = self.newFile
+                }, content: {
+                    NewFileSheet(parent: currentFolder, showing: $creatingFile, selection: $newFile)
+                })
+                .onChange(of: selection) {_ in
+                    // When we return back to this screen, we have to change newFile back to nil regardless
+                    // of it's present value, otherwise we won't be able to navigate to new, new files
+                    if self.selection == nil { self.newFile = nil }
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-                sync.sync()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                sync.sync()
-            }
-            .navigationBarTitle(currentFolder.decryptedName)
-            HStack {
-                BottomBar(onCreating: { creatingFile = true })
-            }
-            .padding(.horizontal, 10)
-            .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: { BeforeYouStart() })
-            .sheet(isPresented: $creatingFile, content: {NewFileSheet(parent: currentFolder, onSuccess: fileSuccessfullyCreated)})
         }
-
+        
     }
     
     func renderMoveDialog(meta: DecryptedFileMetadata) -> some View {
@@ -136,13 +165,6 @@ struct FileListView: View {
     func handleDelete(meta: DecryptedFileMetadata) {
         self.fileService.deleteFile(id: meta.id)
         selection = .none
-    }
-    
-    func fileSuccessfullyCreated(new: DecryptedFileMetadata) {
-        creatingFile = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1000)) {
-            selection = new
-        }
     }
 }
 

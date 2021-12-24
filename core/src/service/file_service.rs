@@ -50,6 +50,7 @@ pub fn create_file(
 }
 
 pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, CoreError> {
+    info!("getting root");
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
 
     match files::maybe_find_root(&files) {
@@ -59,6 +60,7 @@ pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, CoreError> {
 }
 
 pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+    info!("getting children of file: {}", id);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = files::filter_not_deleted(&files)?;
     Ok(files::find_children(&files, id))
@@ -68,6 +70,7 @@ pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
 ) -> Result<Vec<FileMetadata>, CoreError> {
+    info!("get all children of file: {}", id);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = files::filter_not_deleted(&files)?;
     let file_and_descendants = files::find_with_descendants(&files, id)?;
@@ -244,6 +247,7 @@ pub fn get_not_deleted_metadata(
     source: RepoSource,
     id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
+    info!("getting metadata of file: {}", id);
     maybe_get_not_deleted_metadata(config, source, id)
         .and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
@@ -278,6 +282,7 @@ pub fn get_all_not_deleted_metadata(
     config: &Config,
     source: RepoSource,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+    info!("getting all non-deleted metadatas");
     files::filter_not_deleted(&get_all_metadata(config, source)?)
 }
 

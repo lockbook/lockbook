@@ -23,7 +23,8 @@ struct NewFileSheet: View {
     @State var errors: String = ""
     @State var introspected = false
     
-    var onSuccess: (_: DecryptedFileMetadata) -> Void
+    @Binding var showing: Bool
+    @Binding var selection: DecryptedFileMetadata?
     
     var body: some View {
         VStack (alignment: .leading, spacing: 15){
@@ -51,7 +52,7 @@ struct NewFileSheet: View {
             }).pickerStyle(SegmentedPickerStyle())
                 .onChange(of: selected, perform: selectionChanged)
             
-            TextField("Choose a username", text: $name, onCommit: onCommit)
+            TextField("Choose a filename", text: $name, onCommit: onCommit)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .autocapitalization(.none)
                 .tag("FileNameView")
@@ -104,7 +105,8 @@ struct NewFileSheet: View {
         case .success(let newMeta):
             files.refresh()
             status.checkForLocalWork()
-            onSuccess(newMeta)
+            self.selection = newMeta
+            self.showing = false
         case .failure(let err):
             switch err.kind {
             case .UiError(let uiError):

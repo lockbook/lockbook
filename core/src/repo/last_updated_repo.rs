@@ -15,6 +15,7 @@ pub fn set(config: &Config, last_updated: i64) -> Result<(), CoreError> {
 }
 
 pub fn get(config: &Config) -> Result<i64, CoreError> {
+    info!("getting last synced");
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, LAST_UPDATED, LAST_UPDATED)?;
     match maybe_value {
         None => Ok(0),
