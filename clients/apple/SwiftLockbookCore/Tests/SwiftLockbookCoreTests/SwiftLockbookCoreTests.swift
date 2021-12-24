@@ -65,7 +65,7 @@ extension SLCTest {
     /// - Returns: A random username
     func randomUsername() -> String {
         let validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        return "SwiftIntegrationTest" + String((0..<10).compactMap { _ in validChars.randomElement() })
+        return "swiftintegrationtest" + String((0..<10).compactMap { _ in validChars.randomElement() })
     }
     
     /// Generates a random filename
