@@ -21,6 +21,7 @@ class DocumentLoader: ObservableObject {
     @Published var deleted: Bool = false
     @Published var loading: Bool = true
     @Published var reloadContent: Bool = false
+    @Published var error: String = ""
     
     @Published var textDocument: String?
     @Published var drawing: PKDrawing?
@@ -45,6 +46,7 @@ class DocumentLoader: ObservableObject {
         self.textDocument = nil
         self.drawing = nil
         self.image = nil
+        self.error = ""
         
         if self.type == .Unknown {
             self.loading = false
@@ -136,10 +138,10 @@ class DocumentLoader: ObservableObject {
                     switch operation {
                     case .success(let txt):
                         self.textDocument = txt
-                        self.loading = false
                     case .failure(let err):
-                        print(err)
+                        self.error = err.description
                     }
+                    self.loading = false
                 }
             }
         }
@@ -172,13 +174,13 @@ class DocumentLoader: ObservableObject {
                     case .success(let data):
                         if let image = self.getImage(from: data) {
                             self.image = image
-                            self.loading = false
                         } else {
-                            print("Could not make NSImage from Data!")
+                            self.error = "Could not make NSImage from Data!"
                         }
                     case .failure(let error):
-                        DI.errors.handleError(error)
+                        self.error = error.description
                     }
+                    self.loading = false
                 }
             }
         }
@@ -208,10 +210,10 @@ class DocumentLoader: ObservableObject {
                     switch operation {
                     case .success(let drawing):
                         self.drawing = PKDrawing(from: drawing)
-                        self.loading = false
                     case .failure(let error):
-                        DI.errors.handleError(error)
+                        self.error = error.description
                     }
+                    self.loading = false
                 }
             }
         }

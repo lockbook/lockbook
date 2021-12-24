@@ -19,10 +19,11 @@ pub enum State {
 pub fn get_state(config: &Config) -> Result<State, CoreError> {
     if account_repo::maybe_get(config)?.is_none() {
         db_version_repo::set(config, get_code_version())?;
+        info!("db_state: empty");
         return Ok(State::Empty);
     }
 
-    match db_version_repo::maybe_get(config)? {
+    let state = match db_version_repo::maybe_get(config)? {
         None => Ok(State::StateRequiresClearing),
         Some(state_version) => {
             if state_version == get_code_version() {
@@ -34,7 +35,10 @@ pub fn get_state(config: &Config) -> Result<State, CoreError> {
                 }
             }
         }
-    }
+    };
+
+    info!("db_state: {:?}", state);
+    state
 }
 
 pub fn perform_migration(config: &Config) -> Result<(), CoreError> {
