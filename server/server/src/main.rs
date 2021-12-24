@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     ) {
         (Some(cert), Some(key)) => {
             info!(
-                "binding to https://0.0.0.0:{} without tls for local development",
+                "binding to https://0.0.0.0:{}",
                 config.server.port
             );
             server
