@@ -12,7 +12,7 @@ struct FileCell: View {
             HStack {
                 Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
                     .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
-                Text(intEpochToString(epoch: meta.contentVersion))
+                Text(intEpochToString(epoch: max(meta.metadataVersion, meta.contentVersion)))
                     .foregroundColor(.secondary)
                 
             }.font(.footnote)
@@ -42,15 +42,13 @@ struct SyntheticFileCell: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 5) {
-//                ZStack {
-                    TextField(type == .Folder ? "folder name" : "document name", text: $name, onCommit: onCommit)
-                        .autocapitalization(.none)
-                        .font(.title3)
-                        .introspectTextField(customize: { textField in
-                            textField.becomeFirstResponder()
-                            textField.selectedTextRange = textField.textRange(from: textField.beginningOfDocument, to: textField.endOfDocument)
-                        })
-//                }
+                TextField(type == .Folder ? "folder name" : "document name", text: $name, onCommit: onCommit)
+                    .autocapitalization(.none)
+                    .font(.title3)
+                    .introspectTextField(customize: { textField in
+                        textField.becomeFirstResponder()
+                        textField.selectedTextRange = textField.textRange(from: textField.beginningOfDocument, to: textField.endOfDocument)
+                    })
                 HStack {
                     Image(systemName: type == .Folder ? "folder" : "doc")
                         .foregroundColor(type == .Folder ? .blue : .secondary)
