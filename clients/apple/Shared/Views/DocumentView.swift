@@ -18,6 +18,8 @@ struct DocumentView: View {
                     model.startLoading(meta)
                 }
                 .navigationTitle(meta.decryptedName)
+        } else if model.error != "" {
+            Text("errors while loading: \(model.error)")
         } else if model.deleted {
             Text("\(meta.decryptedName) was deleted.")
         } else {

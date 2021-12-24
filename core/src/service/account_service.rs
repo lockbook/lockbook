@@ -84,11 +84,12 @@ pub fn create_account(
 }
 
 pub fn import_account(config: &Config, account_string: &str) -> Result<Account, CoreError> {
+    info!("importing account.");
+
     if account_repo::maybe_get(config)?.is_some() {
+        warn!("tried to import an account, but account exists already.");
         return Err(CoreError::AccountExists);
     }
-
-    info!("Importing account.");
 
     let decoded = match base64::decode(&account_string) {
         Ok(d) => d,
@@ -96,7 +97,7 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
             return Err(CoreError::AccountStringCorrupted);
         }
     };
-    debug!("Key is valid base64 string");
+    debug!("key is valid base64 string");
 
     let account: Account = match bincode::deserialize(&decoded[..]) {
         Ok(a) => a,
@@ -104,7 +105,7 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
             return Err(CoreError::AccountStringCorrupted);
         }
     };
-    debug!("Key was valid bincode");
+    debug!("key was valid bincode");
 
     let server_public_key = match api_service::request(
         &account,

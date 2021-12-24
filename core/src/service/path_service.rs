@@ -75,6 +75,7 @@ pub fn create_at_path(
 }
 
 pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
+    info!("getting metadata at path: {}", path);
     let paths = split_path(path);
 
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
@@ -107,6 +108,7 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata,
     Ok(current)
 }
 
+#[derive(Debug)]
 pub enum Filter {
     DocumentsOnly,
     FoldersOnly,
@@ -124,6 +126,7 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, CoreError> {
 }
 
 pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
+    info!("listing all paths with filter {:?}", filter);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
 
     let mut filtered_files = files.clone();
@@ -159,6 +162,7 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
 }
 
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
+    info!("getting path by id: {}", id);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let mut current_metadata = files::find(&files, id)?;
     let mut path = String::from("");

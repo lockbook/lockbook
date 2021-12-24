@@ -35,10 +35,11 @@ struct OnboardingView: View {
                 
                 switch selectedTab {
                 case .Create:
-                    TextField("Choose a username: a-z, 0-9", text: self.$onboardingState.username, onCommit: self.onboardingState.attemptCreate)
+                    TextField("Choose a username: a-z, 0-9", text: self.$onboardingState.username)
                         .disableAutocorrection(true)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .disabled(self.onboardingState.working)
+                        .onSubmit(self.onboardingState.attemptCreate)
                     Text(onboardingState.createAccountError)
                         .foregroundColor(.red)
                         .bold()
@@ -46,11 +47,12 @@ struct OnboardingView: View {
                         .foregroundColor(.blue)
                 case .Import:
                     HStack {
-                        SecureField("Account String", text: self.$onboardingState.accountString, onCommit: self.onboardingState.handleImport)
+                        SecureField("Account String", text: self.$onboardingState.accountString)
                             .disableAutocorrection(true)
                             .autocapitalization(.none)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .disabled(self.onboardingState.working)
+                            .onSubmit(self.onboardingState.handleImport)
                         #if os(iOS)
                         Scanner()
                         #endif

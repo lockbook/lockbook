@@ -108,7 +108,6 @@ pub fn decrypt_metadatum(
 }
 
 /// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
-/// CPU optimization opportunity: this function decrypts all ancestors for each file provided, which duplicates a lot of decryption.
 pub fn decrypt_metadata(
     account: &Account,
     files: &[FileMetadata],

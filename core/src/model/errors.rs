@@ -36,16 +36,22 @@ pub enum Error<U: Serialize> {
 
 #[macro_export]
 macro_rules! unexpected {
-    ($base:literal $(, $args:tt )*) => {
+    ($base:literal $(, $args:tt )*) => {{
+        debug!($base $(, $args )*);
+        debug!("{:?}", backtrace::Backtrace::new());
+        debug!($base $(, $args )*);
         Error::Unexpected(format!($base $(, $args )*))
-    };
+    }};
 }
 
 #[macro_export]
 macro_rules! unexpected_only {
-    ($base:literal $(, $args:tt )*) => {
+    ($base:literal $(, $args:tt )*) => {{
+        debug!($base $(, $args )*);
+        debug!("{:?}", backtrace::Backtrace::new());
+        debug!($base $(, $args )*);
         UnexpectedError(format!($base $(, $args )*))
-    };
+    }};
 }
 
 #[derive(Debug, Clone, PartialEq)]

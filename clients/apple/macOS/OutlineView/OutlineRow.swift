@@ -82,13 +82,14 @@ struct SyntheticOutlineRow: View {
                 .frame(width: 16, height: 16)
                 .padding(.leading, -4)
 
-            TextField("\(fileType.rawValue.lowercased()) name", text: $nameField, onCommit: {
+            TextField("\(fileType.rawValue.lowercased()) name", text: $nameField).onSubmit {
+                print("commit")
                 if (!nameField.isEmpty) {
                     onCommit(nameField)
                 } else {
                     onCancel()
                 }
-            }).onExitCommand(perform: onCancel)
+            }.onExitCommand(perform: onCancel)
 
             Spacer()
         }

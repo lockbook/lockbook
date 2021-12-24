@@ -25,6 +25,7 @@ pub fn import_file(
     parent: Uuid,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
+    info!("importing file {:?} to {}", disk_path, parent);
     if file_service::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type
         != FileType::Folder
     {
@@ -111,6 +112,7 @@ pub fn export_file(
     edit: bool,
     export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
+    info!("exporting file {} to {:?}", id, destination);
     if destination.is_file() {
         return Err(CoreError::DiskPathInvalid);
     }
