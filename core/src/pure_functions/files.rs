@@ -115,11 +115,11 @@ pub fn apply_move(
     validate_is_folder(&parent)?;
 
     file.parent = new_parent;
-    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
-        return Err(CoreError::PathTaken);
-    }
     if !get_invalid_cycles(files, &[file.clone()])?.is_empty() {
         return Err(CoreError::FolderMovedIntoSelf);
+    }
+    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
+        return Err(CoreError::PathTaken);
     }
 
     Ok(file)
