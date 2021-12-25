@@ -1868,4 +1868,15 @@ mod sync_tests {
             sync!(&db2);
         }
     }
+
+    #[test]
+    fn fuzzer_stuck_test() {
+        let db1 = test_config();
+        let account = make_account!(db1);
+        let b = path_service::create_at_path(&db1, path!(account, "b")).unwrap();
+        let c = path_service::create_at_path(&db1, path!(account, "c/")).unwrap();
+        let d = path_service::create_at_path(&db1, path!(account, "c/d/")).unwrap();
+        move_file(&db1, b.id, d.id).unwrap();
+        move_file(&db1, c.id, d.id).unwrap_err();
+    }
 }
