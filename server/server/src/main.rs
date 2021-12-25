@@ -43,10 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         config.server.ssl_private_key_location,
     ) {
         (Some(cert), Some(key)) => {
-            info!(
-                "binding to https://0.0.0.0:{}",
-                config.server.port
-            );
+            info!("binding to https://0.0.0.0:{}", config.server.port);
             server
                 .tls()
                 .cert_path(&cert)
