@@ -125,7 +125,7 @@ impl Experiment {
                     .concluded
                     .clone()
                     .into_iter()
-                    .sorted_by_key(|t| t.end_time - t.end_time)
+                    .sorted_by_key(|t| t.end_time - t.start_time)
                     .next()
                 {
                     println!(
