@@ -126,7 +126,7 @@ impl Experiment {
                     .clone()
                     .into_iter()
                     .sorted_by_key(|t| t.end_time - t.start_time)
-                    .next()
+                    .last()
                 {
                     println!(
                         "slowest trial took {}s: {:#?}",
