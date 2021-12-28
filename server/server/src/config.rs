@@ -53,6 +53,8 @@ impl FilesDbConfig {
 #[derive(Clone)]
 pub struct StripeConfig {
     pub stripe_secret: String,
+    pub monthly_sub_price_id: String,
+    pub yearly_sub_price_id: String
 }
 
 impl StripeConfig {

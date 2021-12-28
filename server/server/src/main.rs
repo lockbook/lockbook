@@ -8,6 +8,7 @@ use lockbook_server_lib::*;
 
 use log::info;
 use std::sync::Arc;
+use reqwest::Client;
 use warp::Filter;
 
 use lockbook_server_lib::router_service::{build_info, core_routes, get_metrics};
@@ -27,6 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
+        stripe_client: Client::new(),
         index_db_client,
         files_db_client,
     });

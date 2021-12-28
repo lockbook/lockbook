@@ -34,6 +34,7 @@ uuid = { version = "0.8.1", features = ["v4", "serde"] }
 libsecp256k1 = "0.7.0"
 prometheus = "0.13.0"
 lazy_static = "1.4.0"
+reqwest = "0.11.7"
 
 [build-dependencies]
 shadow-rs = "0.6.2"

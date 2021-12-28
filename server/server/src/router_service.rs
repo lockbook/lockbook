@@ -14,7 +14,7 @@ use std::sync::Arc;
 use warp::http::Method;
 use warp::hyper::body::Bytes;
 use warp::{reject, Filter, Rejection};
-use crate::payment_service::register_for_stripe;
+use crate::payment_service::{register_credit_card, remove_credit_card, switch_user_tier};
 
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
@@ -98,7 +98,9 @@ pub fn core_routes(
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
-        .or(core_req!(RegisterCreditCardRequest, register_for_stripe, server_state))
+        .or(core_req!(RegisterCreditCardRequest, register_credit_card, server_state))
+        .or(core_req!(RemoveCreditCardRequest, remove_credit_card, server_state))
+        .or(core_req!(SwitchUserTierRequest, switch_user_tier, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

@@ -849,3 +849,78 @@ fn deserialize_hmac(s: &str) -> Result<[u8; 32], DeserializeHmacError> {
         Ok(result)
     }
 }
+
+#[derive(Debug)]
+pub enum UpdateStripePayee {
+    Postgres(sqlx::Error),
+    Serialization(serde_json::Error),
+    TierNotFound,
+}
+
+pub enum StripeId {
+    CustomerId,
+    SubscriptionId,
+}
+
+impl StripeId {
+    fn db_compliant_name(&self) -> &str {
+        match self {
+            StripeId::CustomerId => "customer_id",
+            StripeId::SubscriptionId => "subscription_id"
+        }
+    }
+}
+
+fn update_stripe_payee(id_to_update: StripeId, new_id: &str, public_key: &PublicKey) -> Result<(), UpdateStripePayee> {
+    match sqlx::query!(
+        r#"
+WITH stripe_payee_id AS (
+    SELECT payee_stripe
+    FROM account_tiers
+    WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
+)
+UPDATE stripe_payees SET $2 = '$3' WHERE id = (SELECT payee_stripe FROM stripe_payee_id);
+        "#,
+        &serde_json::to_string(public_key).map_err(UpdateStripePayee::Serialize)?,
+        id_to_update.db_compliant_name(),
+        new_id
+    )
+        .fetch_optional(transaction)
+        .await
+        .map_err(UpdateStripePayee::Postgres)?
+    {
+        Some(_) => Ok(()),
+        None => Err(UpdateStripePayee::TierNotFound),
+    }
+}
+
+#[derive(Debug)]
+pub enum RetrieveStripePayeeInfo {
+    Postgres(sqlx::Error),
+    Serialization(serde_json::Error),
+    TierNotFound,
+}
+
+fn retrieve_stripe_payee_info(id_to_retrieve: StripeId, public_key: &PublicKey) -> Result<(), RetrieveStripePayeeInfo> {
+    match sqlx::query!(
+        r#"
+WITH stripe_payee_id AS (
+    SELECT payee_stripe
+    FROM account_tiers
+    WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
+)
+SELECT $2 FROM stripe_payees WHERE id = (SELECT payee_stripe FROM stripe_payee_id)
+        "#,
+        &serde_json::to_string(public_key).map_err(RetrieveStripePayeeInfo::Serialize)?,
+        id_to_retrieve.db_compliant_name(),
+    )
+        .fetch_one(transaction)
+        .await
+        .map_err(RetrieveStripePayeeInfo::Postgres)?
+    {
+        Some(id) => Ok(id),
+        None => Err(RetrieveStripePayeeInfo::TierNotFound),
+    }
+}
+
+

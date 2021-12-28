@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
+use lockbook_models::api::CreditCardInfo;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -618,6 +619,7 @@ pub fn export_file(
 #[derive(Debug, Serialize, EnumIter)]
 pub enum AddCreditCardError {
     NoAccount,
+    InvalidCreditCard,
     CouldNotReachServer,
 }
 
@@ -627,13 +629,48 @@ pub fn add_credit_card(
     exp_month: String,
     exp_year: String,
     cvc: String,
-) -> Result<(), Error<AddCreditCardError>> {
+) -> Result<String, Error<AddCreditCardError>> {
     billing_service::add_credit_card(config, card_number, exp_month, exp_year, cvc).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(AddCreditCardError::NoAccount),
+        CoreError::InvalidCreditCard => UiError(AddCreditCardError::InvalidCreditCard),
         CoreError::ServerUnreachable => UiError(AddCreditCardError::CouldNotReachServer),
         _ => unexpected!("{:#?}", e),
     })
 }
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum RemoveCreditCardError {
+    NoAccount,
+    CouldNotReachServer,
+}
+
+pub fn remove_credit_card(
+    config: &Config,
+    payment_method_id: String
+) -> Result<(), Error<RemoveCreditCardError>> {
+    billing_service::remove_credit_card(config, payment_method_id).map_err(|e| match e {
+        CoreError::AccountNonexistent => UiError(RemoveCreditCardError::NoAccount),
+        CoreError::ServerUnreachable => UiError(RemoveCreditCardError::CouldNotReachServer),
+        _ => unexpected!("{:#?}", e),
+    })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetRegisteredCreditCardsError {
+    NoAccount,
+    CouldNotReachServer,
+}
+
+pub fn get_registered_credit_cards(
+    config: &Config
+) -> Result<List<CreditCardInfo>, Error<GetRegisteredCreditCardsError>> {
+    billing_service::get_registered_credit_cards(config).map_err(|e| match e {
+        CoreError::AccountNonexistent => UiError(GetRegisteredCreditCardsError::NoAccount),
+        CoreError::ServerUnreachable => UiError(GetRegisteredCreditCardsError::CouldNotReachServer),
+        _ => unexpected!("{:#?}", e),
+    })
+}
+
 
 // This basically generates a function called `get_all_error_variants`,
 // which will produce a big json dict of { "Error": ["Values"] }.
