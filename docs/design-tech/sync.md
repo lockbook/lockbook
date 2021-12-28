@@ -103,16 +103,24 @@ I know what you're wondering - does the order of these conflict resolutions matt
 _Concern: we don't currently respect "Any cycles need to be resolved before path conflicts because resolving cycles can move files which can cause path conflicts." A failing test case is left as an exercise for the reader_
 
 ### Consistency
-todo:
-- batch operations (unordered)
-- core crash/interrupt recovery
-- local files (embedded dbs)
-- remote dbs (2PC)
+A great amount of care needs to go into making sure that the invariants are satisfied at all times. The system needs to recover from process interruptions and failures gracefully. We'll inspect the following consistency-related concerns:
+* batch operations
+* client crash/interrupt recovery
+* server crash/interrupt recovery
+
+#### Batch Operations
+
+A key element of the design is that metadata operations are processed in batches. What this means is that all the changes that are applied to a file tree - moves, renames, and deletes - are applied with all the invariants evaluated at the end, rather than evaluated after each operation. For instance, the server has a single endpoint for uploading a set of changes which are applied atomically, with invariants checked after applying all of them rather than being checked in-between each one. In clients, all new updates from the server are applied before checking invariants and resolving conflicts. To see why this helps, let's consider what our design would look like otherwise.
+
+Consider the case where a user moves a file out of a folder, then creates a new file with the same name in that folder. If these changes are not processed together, then they need to be processed in the order in which they happened, otherwise the new file could be created first which would violate the Path Conflict invariant. Therefore, clients would need to be deliberate about the order in which changes are uploaded to the server. Rather than track the `base` and `local` states of the file tree, clients would need to track either `base` or `local` and an ordered collection of the changes made (henceforth the _changeset_) that turned `base` into `local`. This would allow the client to reproduce `base` and `local` for the sake of 3-way merging; the client could produce `local` from `base` and the changeset or could produce `base` from `local` and the changeset. The client could also still explicitly store `base` and `local` but care would need to be taken to keep them consistent with the changeset.
+
+The changeset could not be append-only. If a user renames a file, then renames it back to the original name without syncing, the changeset should be empty. This is because the app should not incur the performance cost of syncing an unnecessary pair of changes, as well as because the app should not inidicate to the user that they have outstanding changes to be synced when they do not. In this situation, the combination of renames should cancel out, with both operations being removed from the changeset. However, this can cause problems. Consider the case when the user renames file A, creates a file B in the same folder with the original name, moves file B to a different folder, then renames file A back to its original name. If the client simply removes both renames, then the changeset includes just creating and moving file B. In-between creating and moving file B, file B is still in the same folder as file A with the same name, which violates the Path Conflict invariant. While we could develop a system which cleverly maintains the changeset so that the file tree upholds the invariants in-between each change, it's easier to process operations in batches.
 
 ## Design Routines
 todo:
-- user metadata/content edits
+- local metadata/content edits
 - upsert metadata
+- change file content
 - get updates
 - sync
 - ...
