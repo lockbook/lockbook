@@ -81,6 +81,8 @@ In order to prune a file, we need it to be explictly deleted (and have no descen
 
 Revisiting the earlier example, when a client moves a document out of a folder and syncs, the server becomes aware of that move. Then when another client deletes the folder and syncs, the server marks all implicitly deleted files as explicitly deleted. This does not include the document because the server is already aware that it has been moved. If the first client hadn't synced until after the second client, then the document would have been deleted. This is one of the ways in which we resolve conflicts in favor of the first client to sync.
 
+Note: when a document is implicitly deleted on a device, the device can prune the documents' contents and just keep the metadata which is much smaller. If, after syncing, the document is no longer implicitly deleted, the device can re-pull the contents from the server.
+
 ### Invariant Violation Resolution
 Even if clients individually enfoce invariants, violations can still occur in the presence of concurrent updates. This is a complicated matter.
 
