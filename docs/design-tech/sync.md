@@ -17,7 +17,7 @@ Before discussing the invariants, it is helpful to understand the data model. Fo
 * `id`: an immutable unique identifier
 * `file_type`: an immutable flag that indicates if the file is a folder or document. A _file_ is either a _document_, which has contents, or a _folder_, which can have files as children.
 * `name`: the file's name. Clients encrypt and HMAC names before sending them to the server, so while the server cannot read file names, it can test them for equality.
-* `parent`: the file's parent folder (specified by the parent's `id`). The `root` folder is the folder which has itself as a parent (it's name is always it's owners username and it cannot be deleted).
+* `parent`: the file's parent folder (specified by the parent's `id`). The `root` folder is the folder which has itself as a parent (it's name is by convention it's owners username and it cannot be deleted).
 * `deleted`: a boolean flag which indicates whether the file is _explicitly_ deleted. A file whose ancestor is deleted need not be explictly deleted; if not, it is considered _implictly_ deleted. A file that is no longer known to a client at all is considered _pruned_ on that client.
 
 This data model lends itself to three operations, which correspond to modifications to the three mutable fields of a file:
@@ -30,8 +30,6 @@ With that data model in mind, these are the four main invariants that must be tr
 * Path Conflict Invariant: no two files may have the same name and parent. An example challenge is when a user creates a new file on each of two clients with the same name and parent, then syncs them both.
 * Cycle Invariant: every non-root file must not have itself as an ancestor. An example challenge is when on one client the user moves folder A into folder B and on the other client moves folder B into folder A, then syncs them both.
 * Orphan Invariant: every non-root file must have its parent in the file tree. To keep client storage from growing unboundedly, clients eventually prune deleted files (remove all mentions of them from durable storage). If the design does not pay careful attention to the disctinctions between explictly deleted, implicitly deleted, and pruned files, a client may prune a file without pruning one of its children.
-
-_Concern: does the server check that a user's root folder is named after the username?_
 
 ### Privacy
 Files, file names, and encryption keys never leave the client unencrypted. In order to support sharing, we give every document a symmetric key (used to encrypt its contents) and every folder a symmetric key (used to encrypt the keys of child folders and documents). This allows users to recursively share folder contents performantly and consistently. It also creates an encryption chain for each document: the document is encrypted with the document's key, which is encrypted with its parent folder's key, which is encrypted with it's parent folders key, all the way up to the root folder whose key is encrypted with the user's account key which is stored on the user's devices and trasferred directly between them as a string or QR code.
