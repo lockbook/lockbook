@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use lockbook_models::utils;
 use std::collections::HashSet;
 
 use sha2::Digest;
@@ -225,7 +226,7 @@ pub fn insert_metadata(
         if let Some(opposite) =
             metadata_repo::maybe_get(config, source.opposite(), encrypted_metadata.id)?
         {
-            if files::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
+            if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
                 && opposite.parent == metadatum.parent
                 && opposite.deleted == metadatum.deleted
             {
@@ -427,7 +428,7 @@ pub fn insert_document(
 
     // remove local if local == base
     if let Some(opposite) = digest_repo::maybe_get(config, source.opposite(), metadata.id)? {
-        if files::slices_equal(&opposite, &digest) {
+        if utils::slices_equal(&opposite, &digest) {
             document_repo::delete(config, RepoSource::Local, metadata.id)?;
             digest_repo::delete(config, RepoSource::Local, metadata.id)?;
         }

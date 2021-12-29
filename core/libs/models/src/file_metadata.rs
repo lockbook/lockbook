@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::account::Username;
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
+use crate::utils;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
@@ -26,6 +27,17 @@ impl FromStr for FileType {
     }
 }
 
+pub trait FileMetadata {
+    fn id(&self) -> Uuid;
+    fn file_type(&self) -> FileType;
+    fn parent(&self) -> Uuid;
+    fn name_eq(&self, other: &Self) -> bool;
+    fn owner(&self) -> String;
+    fn metadata_version(&self) -> u64;
+    fn content_version(&self) -> u64;
+    fn deleted(&self) -> bool;
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct EncryptedFileMetadata {
     pub id: Uuid,
@@ -38,6 +50,33 @@ pub struct EncryptedFileMetadata {
     pub deleted: bool,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
+}
+
+impl FileMetadata for EncryptedFileMetadata {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+    fn file_type(&self) -> FileType {
+        self.file_type
+    }
+    fn parent(&self) -> Uuid {
+        self.parent
+    }
+    fn name_eq(&self, other: &Self) -> bool {
+        utils::slices_equal(&self.name.hmac, &other.name.hmac)
+    }
+    fn owner(&self) -> String {
+        self.owner.clone()
+    }
+    fn metadata_version(&self) -> u64 {
+        self.metadata_version
+    }
+    fn content_version(&self) -> u64 {
+        self.content_version
+    }
+    fn deleted(&self) -> bool {
+        self.deleted
+    }
 }
 
 impl fmt::Debug for EncryptedFileMetadata {
@@ -64,6 +103,33 @@ pub struct DecryptedFileMetadata {
     pub content_version: u64,
     pub deleted: bool,
     pub decrypted_access_key: AESKey, // access key is the same whether it's decrypted for user or for folder
+}
+
+impl FileMetadata for DecryptedFileMetadata {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+    fn file_type(&self) -> FileType {
+        self.file_type
+    }
+    fn parent(&self) -> Uuid {
+        self.parent
+    }
+    fn name_eq(&self, other: &Self) -> bool {
+        self.decrypted_name == other.decrypted_name
+    }
+    fn owner(&self) -> String {
+        self.owner.clone()
+    }
+    fn metadata_version(&self) -> u64 {
+        self.metadata_version
+    }
+    fn content_version(&self) -> u64 {
+        self.content_version
+    }
+    fn deleted(&self) -> bool {
+        self.deleted
+    }
 }
 
 impl fmt::Debug for DecryptedFileMetadata {

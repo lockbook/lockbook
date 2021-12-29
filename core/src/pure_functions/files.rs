@@ -11,12 +11,6 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadat
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
 
-// https://stackoverflow.com/a/58175659/4638697
-pub fn slices_equal<T: PartialEq>(a: &[T], b: &[T]) -> bool {
-    let matching = a.iter().zip(b.iter()).filter(|&(a, b)| a == b).count();
-    matching == a.len() && matching == b.len()
-}
-
 pub fn single_or<T, E>(v: Vec<T>, e: E) -> Result<T, E> {
     let mut v = v;
     match &v[..] {
