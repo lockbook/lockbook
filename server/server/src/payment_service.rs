@@ -16,9 +16,8 @@ static SUBSCRIPTIONS_ENDPOINT: &str = "/subscriptions";
 #[derive(Serialize, Deserialize)]
 struct StripeResponse {
     id: String,
-    #[serde(flatten)]
-    extra: HashMap<String, Value>,
 }
+//  Maybe you could log the string response from request and just get rid of the hashmap
 
 pub async fn register_credit_card(
     context: RequestContext<'_, RegisterCreditCardRequest>,
@@ -165,8 +164,6 @@ pub async fn get_registered_credit_cards(
         .and_then(|resp| resp.json::<StripeResponse>().await)
         .map_err(|_| Err(InternalError("Error creating stripe subscription".to_string())))?
         .id;
-
-
 }
 
 

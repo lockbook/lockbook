@@ -1,8 +1,13 @@
 CREATE TABLE IF NOT EXISTS stripe_payees
 (
-    id                BIGSERIAL NOT NULL PRIMARY KEY,
-    customer_id       TEXT NOT NULL,
-    subscription_id   TEXT
+    subscription_id   TEXT NOT NULL PRIMARY KEY,
+    customer_id       TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS stripe_payees_payment_methods
+(
+    payment_method_id TEXT NOT NULL PRIMARY KEY,
+    customer_id       TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS apple_payees

@@ -871,7 +871,11 @@ impl StripeId {
     }
 }
 
-fn update_stripe_payee(id_to_update: StripeId, new_id: &str, public_key: &PublicKey) -> Result<(), UpdateStripePayee> {
+fn update_stripe_payee(
+    transaction: &mut Transaction<'_, Postgres>,
+    id_to_update: StripeId,
+    new_id: &str,
+    public_key: &PublicKey) -> Result<(), UpdateStripePayee> {
     match sqlx::query!(
         r#"
 WITH stripe_payee_id AS (
@@ -901,7 +905,12 @@ pub enum RetrieveStripePayeeInfo {
     TierNotFound,
 }
 
-fn retrieve_stripe_payee_info(id_to_retrieve: StripeId, public_key: &PublicKey) -> Result<(), RetrieveStripePayeeInfo> {
+fn retrieve_stripe_payee_info(
+    transaction: &mut Transaction<'_, Postgres>,
+    id_to_retrieve: StripeId,
+    public_key: &PublicKey) -> Result<(), RetrieveStripePayeeInfo> {
+    let name = id_to_retrieve.db_compliant_name();
+
     match sqlx::query!(
         r#"
 WITH stripe_payee_id AS (
@@ -912,13 +921,13 @@ WITH stripe_payee_id AS (
 SELECT $2 FROM stripe_payees WHERE id = (SELECT payee_stripe FROM stripe_payee_id)
         "#,
         &serde_json::to_string(public_key).map_err(RetrieveStripePayeeInfo::Serialize)?,
-        id_to_retrieve.db_compliant_name(),
+        name,
     )
         .fetch_one(transaction)
         .await
         .map_err(RetrieveStripePayeeInfo::Postgres)?
     {
-        Some(id) => Ok(id),
+        Some(row) => Ok(id),
         None => Err(RetrieveStripePayeeInfo::TierNotFound),
     }
 }
