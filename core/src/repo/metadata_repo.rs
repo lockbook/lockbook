@@ -18,7 +18,11 @@ fn namespace(source: RepoSource) -> &'static str {
     }
 }
 
-pub fn insert(config: &Config, source: RepoSource, file: &EncryptedFileMetadata) -> Result<(), CoreError> {
+pub fn insert(
+    config: &Config,
+    source: RepoSource,
+    file: &EncryptedFileMetadata,
+) -> Result<(), CoreError> {
     local_storage::write(
         config,
         namespace(source),
@@ -27,7 +31,11 @@ pub fn insert(config: &Config, source: RepoSource, file: &EncryptedFileMetadata)
     )
 }
 
-pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedFileMetadata, CoreError> {
+pub fn get(
+    config: &Config,
+    source: RepoSource,
+    id: Uuid,
+) -> Result<EncryptedFileMetadata, CoreError> {
     maybe_get(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
@@ -44,7 +52,10 @@ pub fn maybe_get(
     })
 }
 
-pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
+pub fn get_all(
+    config: &Config,
+    source: RepoSource,
+) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
     Ok(
         local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
             .into_iter()

@@ -584,7 +584,14 @@ pub fn promote_documents(config: &Config) -> Result<(), CoreError> {
                 },
             ))
         })
-        .collect::<Result<Vec<(EncryptedFileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>, CoreError>>()?;
+        .collect::<Result<
+            Vec<(
+                EncryptedFileMetadata,
+                Option<EncryptedDocument>,
+                Option<Vec<u8>>,
+            )>,
+            CoreError,
+        >>()?;
 
     document_repo::delete_all(config, RepoSource::Base)?;
     digest_repo::delete_all(config, RepoSource::Base)?;

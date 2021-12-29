@@ -177,8 +177,7 @@ pub fn get_invalid_cycles<Fm: FileMetadata>(
         let mut ancestor_double = find_parent(files, ancestor_single.id())?;
         while ancestor_single.id() != ancestor_double.id() {
             ancestor_single = find_parent(files, ancestor_single.id())?;
-            ancestor_double =
-                find_parent(files, find_parent(files, ancestor_double.id())?.id())?;
+            ancestor_double = find_parent(files, find_parent(files, ancestor_double.id())?.id())?;
         }
         if ancestor_single.id() == file.id() {
             // root in files -> non-root cycles invalid
@@ -225,10 +224,10 @@ pub fn get_path_conflicts<Fm: FileMetadata>(
                     .iter()
                     .find(|(f, _)| f.id() == child.id())
                     .ok_or_else(|| {
-                    CoreError::Unexpected(String::from(
-                        "get_path_conflicts: could not find child by id",
-                    ))
-                })?;
+                        CoreError::Unexpected(String::from(
+                            "get_path_conflicts: could not find child by id",
+                        ))
+                    })?;
                 match child_source {
                     StageSource::Base => result.push(PathConflict {
                         existing: child.id(),
@@ -284,31 +283,19 @@ pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), Co
     Ok(())
 }
 
-pub fn find<Fm: FileMetadata>(
-    files: &[Fm],
-    target_id: Uuid,
-) -> Result<Fm, CoreError> {
+pub fn find<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<Fm, CoreError> {
     maybe_find(files, target_id).ok_or(CoreError::FileNonexistent)
 }
 
-pub fn maybe_find<Fm: FileMetadata>(
-    files: &[Fm],
-    target_id: Uuid,
-) -> Option<Fm> {
+pub fn maybe_find<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Option<Fm> {
     files.iter().find(|f| f.id() == target_id).cloned()
 }
 
-pub fn find_mut<Fm: FileMetadata>(
-    files: &mut [Fm],
-    target_id: Uuid,
-) -> Result<&mut Fm, CoreError> {
+pub fn find_mut<Fm: FileMetadata>(files: &mut [Fm], target_id: Uuid) -> Result<&mut Fm, CoreError> {
     maybe_find_mut(files, target_id).ok_or(CoreError::FileNonexistent)
 }
 
-pub fn maybe_find_mut<Fm: FileMetadata>(
-    files: &mut [Fm],
-    target_id: Uuid,
-) -> Option<&mut Fm> {
+pub fn maybe_find_mut<Fm: FileMetadata>(files: &mut [Fm], target_id: Uuid) -> Option<&mut Fm> {
     files.iter_mut().find(|f| f.id() == target_id)
 }
 
@@ -330,25 +317,16 @@ pub fn maybe_find_state<Fm: FileMetadata>(
     } == target_id).cloned()
 }
 
-pub fn find_parent<Fm: FileMetadata>(
-    files: &[Fm],
-    target_id: Uuid,
-) -> Result<Fm, CoreError> {
+pub fn find_parent<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<Fm, CoreError> {
     maybe_find_parent(files, target_id).ok_or(CoreError::FileParentNonexistent)
 }
 
-pub fn maybe_find_parent<Fm: FileMetadata>(
-    files: &[Fm],
-    target_id: Uuid,
-) -> Option<Fm> {
+pub fn maybe_find_parent<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Option<Fm> {
     let file = maybe_find(files, target_id)?;
     maybe_find(files, file.parent())
 }
 
-pub fn find_ancestors<Fm: FileMetadata>(
-    files: &[Fm],
-    target_id: Uuid,
-) -> Vec<Fm> {
+pub fn find_ancestors<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm> {
     let mut result = Vec::new();
     let mut current_target_id = target_id;
     while let Some(target) = maybe_find(files, current_target_id) {
@@ -361,10 +339,7 @@ pub fn find_ancestors<Fm: FileMetadata>(
     result
 }
 
-pub fn find_children<Fm: FileMetadata>(
-    files: &[Fm],
-    target_id: Uuid,
-) -> Vec<Fm> {
+pub fn find_children<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm> {
     files
         .iter()
         .filter(|f| f.parent() == target_id && f.id() != f.parent())
@@ -408,9 +383,7 @@ pub fn is_deleted<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<boo
 }
 
 /// Returns the files which are not deleted and have no deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
-pub fn filter_not_deleted<Fm: FileMetadata>(
-    files: &[Fm],
-) -> Result<Vec<Fm>, CoreError> {
+pub fn filter_not_deleted<Fm: FileMetadata>(files: &[Fm]) -> Result<Vec<Fm>, CoreError> {
     let deleted = filter_deleted(files)?;
     Ok(files
         .iter()
@@ -420,9 +393,7 @@ pub fn filter_not_deleted<Fm: FileMetadata>(
 }
 
 /// Returns the files which are deleted or have deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
-pub fn filter_deleted<Fm: FileMetadata>(
-    files: &[Fm],
-) -> Result<Vec<Fm>, CoreError> {
+pub fn filter_deleted<Fm: FileMetadata>(files: &[Fm]) -> Result<Vec<Fm>, CoreError> {
     let mut result = Vec::new();
     for file in files {
         let mut ancestor = file.clone();
@@ -459,10 +430,7 @@ pub enum StageSource {
     Staged,
 }
 
-pub fn stage<Fm: FileMetadata>(
-    files: &[Fm],
-    staged_changes: &[Fm],
-) -> Vec<(Fm, StageSource)> {
+pub fn stage<Fm: FileMetadata>(files: &[Fm], staged_changes: &[Fm]) -> Vec<(Fm, StageSource)> {
     let mut result = Vec::new();
     for file in files {
         if let Some(ref staged) = maybe_find(staged_changes, file.id()) {
