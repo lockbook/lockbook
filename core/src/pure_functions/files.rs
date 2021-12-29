@@ -6,7 +6,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_crypto::symkey;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
@@ -166,15 +166,15 @@ fn validate_file_name(name: &str) -> Result<(), CoreError> {
 }
 
 pub fn get_invalid_cycles_encrypted(
-    files: &[FileMetadata],
-    staged_changes: &[FileMetadata],
+    files: &[EncryptedFileMetadata],
+    staged_changes: &[EncryptedFileMetadata],
 ) -> Result<Vec<Uuid>, CoreError> {
     let maybe_root = maybe_find_root_encrypted(files);
     let files_with_sources = stage_encrypted(files, staged_changes);
     let files = &files_with_sources
         .iter()
         .map(|(f, _)| f.clone())
-        .collect::<Vec<FileMetadata>>();
+        .collect::<Vec<EncryptedFileMetadata>>();
     let mut result = Vec::new();
     let mut found_root = maybe_root.is_some();
 
@@ -356,11 +356,11 @@ pub fn maybe_find_mut(
     files.iter_mut().find(|f| f.id == target_id)
 }
 
-pub fn find_encrypted(files: &[FileMetadata], target_id: Uuid) -> Result<FileMetadata, CoreError> {
+pub fn find_encrypted(files: &[EncryptedFileMetadata], target_id: Uuid) -> Result<EncryptedFileMetadata, CoreError> {
     maybe_find_encrypted(files, target_id).ok_or(CoreError::FileNonexistent)
 }
 
-pub fn maybe_find_encrypted(files: &[FileMetadata], target_id: Uuid) -> Option<FileMetadata> {
+pub fn maybe_find_encrypted(files: &[EncryptedFileMetadata], target_id: Uuid) -> Option<EncryptedFileMetadata> {
     files.iter().find(|f| f.id == target_id).cloned()
 }
 
@@ -398,16 +398,16 @@ pub fn maybe_find_parent(
 }
 
 pub fn find_parent_encrypted(
-    files: &[FileMetadata],
+    files: &[EncryptedFileMetadata],
     target_id: Uuid,
-) -> Result<FileMetadata, CoreError> {
+) -> Result<EncryptedFileMetadata, CoreError> {
     maybe_find_parent_encrypted(files, target_id).ok_or(CoreError::FileParentNonexistent)
 }
 
 pub fn maybe_find_parent_encrypted(
-    files: &[FileMetadata],
+    files: &[EncryptedFileMetadata],
     target_id: Uuid,
-) -> Option<FileMetadata> {
+) -> Option<EncryptedFileMetadata> {
     let file = maybe_find_encrypted(files, target_id)?;
     maybe_find_encrypted(files, file.parent)
 }
@@ -439,7 +439,7 @@ pub fn find_children(
         .collect()
 }
 
-pub fn find_children_encrypted(files: &[FileMetadata], target_id: Uuid) -> Vec<FileMetadata> {
+pub fn find_children_encrypted(files: &[EncryptedFileMetadata], target_id: Uuid) -> Vec<EncryptedFileMetadata> {
     files
         .iter()
         .filter(|f| f.parent == target_id && f.id != f.parent)
@@ -469,9 +469,9 @@ pub fn find_with_descendants(
 }
 
 pub fn find_with_descendants_encrypted(
-    files: &[FileMetadata],
+    files: &[EncryptedFileMetadata],
     target_id: Uuid,
-) -> Result<Vec<FileMetadata>, CoreError> {
+) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
     let mut result = vec![find_encrypted(files, target_id)?];
     let mut i = 0;
     while i < result.len() {
@@ -489,11 +489,11 @@ pub fn find_with_descendants_encrypted(
     Ok(result)
 }
 
-pub fn find_root_encrypted(files: &[FileMetadata]) -> Result<FileMetadata, CoreError> {
+pub fn find_root_encrypted(files: &[EncryptedFileMetadata]) -> Result<EncryptedFileMetadata, CoreError> {
     maybe_find_root_encrypted(files).ok_or(CoreError::RootNonexistent)
 }
 
-pub fn maybe_find_root_encrypted(files: &[FileMetadata]) -> Option<FileMetadata> {
+pub fn maybe_find_root_encrypted(files: &[EncryptedFileMetadata]) -> Option<EncryptedFileMetadata> {
     files.iter().find(|&f| f.id == f.parent).cloned()
 }
 
@@ -584,9 +584,9 @@ pub fn stage(
 }
 
 pub fn stage_encrypted(
-    files: &[FileMetadata],
-    staged_changes: &[FileMetadata],
-) -> Vec<(FileMetadata, StageSource)> {
+    files: &[EncryptedFileMetadata],
+    staged_changes: &[EncryptedFileMetadata],
+) -> Vec<(EncryptedFileMetadata, StageSource)> {
     let mut result = Vec::new();
     for file in files {
         if let Some(ref staged) = maybe_find_encrypted(staged_changes, file.id) {

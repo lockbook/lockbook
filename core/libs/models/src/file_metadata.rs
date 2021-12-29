@@ -27,7 +27,7 @@ impl FromStr for FileType {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
-pub struct FileMetadata {
+pub struct EncryptedFileMetadata {
     pub id: Uuid,
     pub file_type: FileType,
     pub parent: Uuid,
@@ -40,7 +40,7 @@ pub struct FileMetadata {
     pub folder_access_keys: EncryptedFolderAccessKey,
 }
 
-impl fmt::Debug for FileMetadata {
+impl fmt::Debug for EncryptedFileMetadata {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FileMetadata")
             .field("id", &self.id)
@@ -92,7 +92,7 @@ pub struct FileMetadataDiff {
 }
 
 impl FileMetadataDiff {
-    pub fn new(metadata: &FileMetadata) -> Self {
+    pub fn new(metadata: &EncryptedFileMetadata) -> Self {
         FileMetadataDiff {
             id: metadata.id,
             file_type: metadata.file_type,
@@ -107,7 +107,7 @@ impl FileMetadataDiff {
     pub fn new_diff(
         old_parent: Uuid,
         old_name: &SecretFileName,
-        new_metadata: &FileMetadata,
+        new_metadata: &EncryptedFileMetadata,
     ) -> Self {
         FileMetadataDiff {
             id: new_metadata.id,

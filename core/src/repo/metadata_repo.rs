@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::file_metadata::EncryptedFileMetadata;
 
 use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
@@ -18,7 +18,7 @@ fn namespace(source: RepoSource) -> &'static str {
     }
 }
 
-pub fn insert(config: &Config, source: RepoSource, file: &FileMetadata) -> Result<(), CoreError> {
+pub fn insert(config: &Config, source: RepoSource, file: &EncryptedFileMetadata) -> Result<(), CoreError> {
     local_storage::write(
         config,
         namespace(source),
@@ -27,7 +27,7 @@ pub fn insert(config: &Config, source: RepoSource, file: &FileMetadata) -> Resul
     )
 }
 
-pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<FileMetadata, CoreError> {
+pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedFileMetadata, CoreError> {
     maybe_get(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
@@ -35,7 +35,7 @@ pub fn maybe_get(
     config: &Config,
     source: RepoSource,
     id: Uuid,
-) -> Result<Option<FileMetadata>, CoreError> {
+) -> Result<Option<EncryptedFileMetadata>, CoreError> {
     let maybe_bytes: Option<Vec<u8>> =
         local_storage::read(config, namespace(source), id.to_string().as_str())?;
     Ok(match maybe_bytes {
@@ -44,12 +44,12 @@ pub fn maybe_get(
     })
 }
 
-pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<FileMetadata>, CoreError> {
+pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
     Ok(
         local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
             .into_iter()
             .map(|s| serde_json::from_slice(s.as_ref()).map_err(core_err_unexpected))
-            .collect::<Result<Vec<FileMetadata>, CoreError>>()?
+            .collect::<Result<Vec<EncryptedFileMetadata>, CoreError>>()?
             .into_iter()
             .collect(),
     )

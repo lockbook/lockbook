@@ -8,7 +8,7 @@ use uuid::Uuid;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
-use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
 
@@ -69,7 +69,7 @@ pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<DecryptedFileMetada
 pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
-) -> Result<Vec<FileMetadata>, CoreError> {
+) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
     info!("get all children of file: {}", id);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = files::filter_not_deleted(&files)?;
@@ -298,7 +298,7 @@ pub fn get_all_metadata(
             let staged = files::stage_encrypted(&base, &local)
                 .into_iter()
                 .map(|(f, _)| f)
-                .collect::<Vec<FileMetadata>>();
+                .collect::<Vec<EncryptedFileMetadata>>();
             file_encryption_service::decrypt_metadata(&account, &staged)
         }
         RepoSource::Base => file_encryption_service::decrypt_metadata(&account, &base),
@@ -331,7 +331,7 @@ pub fn get_all_metadata_state(
         let staged = files::stage_encrypted(&base_encrypted, &local_encrypted)
             .into_iter()
             .map(|(f, _)| f)
-            .collect::<Vec<FileMetadata>>();
+            .collect::<Vec<EncryptedFileMetadata>>();
         let decrypted = file_encryption_service::decrypt_metadata(&account, &staged)?;
         decrypted
             .into_iter()
@@ -360,8 +360,8 @@ pub fn get_all_metadata_state(
 pub fn get_all_metadata_with_encrypted_changes(
     config: &Config,
     source: RepoSource,
-    changes: &[FileMetadata],
-) -> Result<(Vec<DecryptedFileMetadata>, Vec<FileMetadata>), CoreError> {
+    changes: &[EncryptedFileMetadata],
+) -> Result<(Vec<DecryptedFileMetadata>, Vec<EncryptedFileMetadata>), CoreError> {
     let account = account_repo::get(config)?;
     let base = metadata_repo::get_all(config, RepoSource::Base)?;
     let sourced = match source {
@@ -378,7 +378,7 @@ pub fn get_all_metadata_with_encrypted_changes(
     let staged = files::stage_encrypted(&sourced, changes)
         .into_iter()
         .map(|(f, _)| f)
-        .collect::<Vec<FileMetadata>>();
+        .collect::<Vec<EncryptedFileMetadata>>();
 
     let root = files::find_root_encrypted(&staged)?;
     let non_orphans = files::find_with_descendants_encrypted(&staged, root.id)?;
@@ -583,7 +583,7 @@ pub fn promote_documents(config: &Config) -> Result<(), CoreError> {
                 },
             ))
         })
-        .collect::<Result<Vec<(FileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>, CoreError>>()?;
+        .collect::<Result<Vec<(EncryptedFileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>, CoreError>>()?;
 
     document_repo::delete_all(config, RepoSource::Base)?;
     digest_repo::delete_all(config, RepoSource::Base)?;

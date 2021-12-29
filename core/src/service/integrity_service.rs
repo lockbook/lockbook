@@ -2,7 +2,7 @@ use std::path::Path;
 
 use uuid::Uuid;
 
-use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -47,7 +47,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     )
     .into_iter()
     .map(|(f, _)| f)
-    .collect::<Vec<FileMetadata>>();
+    .collect::<Vec<EncryptedFileMetadata>>();
 
     for file_encrypted in &files_encrypted {
         if files::maybe_find_encrypted(&files_encrypted, file_encrypted.parent).is_none() {
