@@ -1,6 +1,7 @@
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::Hash;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,6 @@ use uuid::Uuid;
 
 use crate::account::Username;
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
-use crate::utils;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
@@ -27,11 +27,13 @@ impl FromStr for FileType {
     }
 }
 
-pub trait FileMetadata {
+pub trait FileMetadata : Clone {
+    type Name : Hash + Eq;
+
     fn id(&self) -> Uuid;
     fn file_type(&self) -> FileType;
     fn parent(&self) -> Uuid;
-    fn name_eq(&self, other: &Self) -> bool;
+    fn name(&self) -> Self::Name;
     fn owner(&self) -> String;
     fn metadata_version(&self) -> u64;
     fn content_version(&self) -> u64;
@@ -53,6 +55,8 @@ pub struct EncryptedFileMetadata {
 }
 
 impl FileMetadata for EncryptedFileMetadata {
+    type Name = SecretFileName;
+
     fn id(&self) -> Uuid {
         self.id
     }
@@ -62,8 +66,8 @@ impl FileMetadata for EncryptedFileMetadata {
     fn parent(&self) -> Uuid {
         self.parent
     }
-    fn name_eq(&self, other: &Self) -> bool {
-        utils::slices_equal(&self.name.hmac, &other.name.hmac)
+    fn name(&self) -> Self::Name {
+        self.name.clone()
     }
     fn owner(&self) -> String {
         self.owner.clone()
@@ -106,6 +110,8 @@ pub struct DecryptedFileMetadata {
 }
 
 impl FileMetadata for DecryptedFileMetadata {
+    type Name = String;
+
     fn id(&self) -> Uuid {
         self.id
     }
@@ -115,8 +121,8 @@ impl FileMetadata for DecryptedFileMetadata {
     fn parent(&self) -> Uuid {
         self.parent
     }
-    fn name_eq(&self, other: &Self) -> bool {
-        self.decrypted_name == other.decrypted_name
+    fn name(&self) -> Self::Name {
+        self.decrypted_name.clone()
     }
     fn owner(&self) -> String {
         self.owner.clone()

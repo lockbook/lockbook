@@ -41,7 +41,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         .map_err(TestRepoError::Core)?
         .ok_or(TestRepoError::NoRootFolder)?;
 
-    let files_encrypted = files::stage_encrypted(
+    let files_encrypted = files::stage(
         &metadata_repo::get_all(config, RepoSource::Base).map_err(TestRepoError::Core)?,
         &metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?,
     )
@@ -50,12 +50,12 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     .collect::<Vec<EncryptedFileMetadata>>();
 
     for file_encrypted in &files_encrypted {
-        if files::maybe_find_encrypted(&files_encrypted, file_encrypted.parent).is_none() {
+        if files::maybe_find(&files_encrypted, file_encrypted.parent).is_none() {
             return Err(TestRepoError::FileOrphaned(file_encrypted.id));
         }
     }
 
-    let maybe_self_descendant = files::get_invalid_cycles_encrypted(&files_encrypted, &[])
+    let maybe_self_descendant = files::get_invalid_cycles(&files_encrypted, &[])
         .map_err(TestRepoError::Core)?
         .into_iter()
         .next();
