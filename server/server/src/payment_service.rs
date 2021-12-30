@@ -157,13 +157,8 @@ pub async fn get_registered_credit_cards(
 ) -> Result<(), ServerError<GetRegisteredCreditCardsError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
-    let subscription_id = send_stripe_request(
-        &server_state,
-        format!("{}{}", STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT),
-        StripeRequestType::Post(Some(create_subscription_form)))
-        .and_then(|resp| resp.json::<StripeResponse>().await)
-        .map_err(|_| Err(InternalError("Error creating stripe subscription".to_string())))?
-        .id;
+
+
 }
 
 

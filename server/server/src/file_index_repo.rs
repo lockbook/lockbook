@@ -851,31 +851,16 @@ fn deserialize_hmac(s: &str) -> Result<[u8; 32], DeserializeHmacError> {
 }
 
 #[derive(Debug)]
-pub enum UpdateStripePayee {
+pub enum RetrieveStripeSubscriptionIdError {
     Postgres(sqlx::Error),
     Serialization(serde_json::Error),
-    TierNotFound,
+    NoActiveSubscriptions
 }
 
-pub enum StripeId {
-    CustomerId,
-    SubscriptionId,
-}
-
-impl StripeId {
-    fn db_compliant_name(&self) -> &str {
-        match self {
-            StripeId::CustomerId => "customer_id",
-            StripeId::SubscriptionId => "subscription_id"
-        }
-    }
-}
-
-fn update_stripe_payee(
+fn retrieve_active_stripe_subscription_id(
     transaction: &mut Transaction<'_, Postgres>,
-    id_to_update: StripeId,
-    new_id: &str,
-    public_key: &PublicKey) -> Result<(), UpdateStripePayee> {
+    public_key: &PublicKey
+) -> Result<String, StripeDbError> {
     match sqlx::query!(
         r#"
 WITH stripe_payee_id AS (
@@ -883,53 +868,136 @@ WITH stripe_payee_id AS (
     FROM account_tiers
     WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
 )
-UPDATE stripe_payees SET $2 = '$3' WHERE id = (SELECT payee_stripe FROM stripe_payee_id);
+SELECT subscription_id FROM stripe_payees WHERE customer_id = (SELECT payee_stripe FROM stripe_payee_id) AND is_active = TRUE;
         "#,
-        &serde_json::to_string(public_key).map_err(UpdateStripePayee::Serialize)?,
-        id_to_update.db_compliant_name(),
-        new_id
+        &serde_json::to_string(public_key).map_err(RetrieveStripeSubscriptionIdError::Serialize)?,
     )
-        .fetch_optional(transaction)
+        .fetch_one(transaction)
         .await
-        .map_err(UpdateStripePayee::Postgres)?
+        .map_err(RetrieveStripeSubscriptionIdError::Postgres)
     {
-        Some(_) => Ok(()),
-        None => Err(UpdateStripePayee::TierNotFound),
+        Some(row) => Ok(row.subscription_id),
+        None => Err(RetrieveStripeSubscriptionIdError::NoActiveSubscriptions)
     }
 }
 
 #[derive(Debug)]
-pub enum RetrieveStripePayeeInfo {
+pub enum RetrieveStripeCustomerIdError {
     Postgres(sqlx::Error),
     Serialization(serde_json::Error),
-    TierNotFound,
+    NotAStripeCustomer,
 }
 
-fn retrieve_stripe_payee_info(
+fn retrieve_stripe_customer_id(
     transaction: &mut Transaction<'_, Postgres>,
-    id_to_retrieve: StripeId,
-    public_key: &PublicKey) -> Result<(), RetrieveStripePayeeInfo> {
-    let name = id_to_retrieve.db_compliant_name();
-
+    public_key: &PublicKey
+) -> Result<String, RetrieveStripeCustomerIdError> {
     match sqlx::query!(
+        r#"
+SELECT payee_stripe
+FROM account_tiers
+WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
+        "#,
+        &serde_json::to_string(public_key).map_err(RetrieveStripeCustomerIdError::Serialize)?
+    )
+        .fetch_one(transaction)
+        .await
+        .map_err(RetrieveStripeCustomerIdError::Postgres)
+    {
+        Some(row) => Ok(row.payee_stripe),
+        None => Err(RetrieveStripeCustomerIdError::NotAStripeCustomer)
+    }
+}
+
+#[derive(Debug)]
+pub enum RetrieveStripePaymentMethodsIdError {
+    Postgres(sqlx::Error),
+    Serialization(serde_json::Error)
+}
+
+fn retrieve_stripe_payment_methods_id(
+    transaction: &mut Transaction<'_, Postgres>,
+    public_key: &PublicKey) -> Result<List<String>, StripeDbError> {
+    sqlx::query!(
         r#"
 WITH stripe_payee_id AS (
     SELECT payee_stripe
     FROM account_tiers
     WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
 )
-SELECT $2 FROM stripe_payees WHERE id = (SELECT payee_stripe FROM stripe_payee_id)
+SELECT payment_method_id FROM stripe_payees_payment_methods WHERE customer_id = (SELECT payee_stripe FROM stripe_payee_id);
         "#,
-        &serde_json::to_string(public_key).map_err(RetrieveStripePayeeInfo::Serialize)?,
-        name,
+        &serde_json::to_string(public_key).map_err(RetrieveStripePaymentMethodsIdError::Serialize)?,
     )
-        .fetch_one(transaction)
+        .fetch_all(transaction)
         .await
-        .map_err(RetrieveStripePayeeInfo::Postgres)?
-    {
-        Some(row) => Ok(id),
-        None => Err(RetrieveStripePayeeInfo::TierNotFound),
-    }
+        .map_err(RetrieveStripePaymentMethodsIdError::Postgres)
+        .map(|row| row.payment_method_id)
 }
 
+#[derive(Debug)]
+pub enum AddStripePaymentMethodError {
+    Postgres(sqlx::Error),
+}
+
+fn add_stripe_payment_method( // don't necessarily need a customer id, but it does reduce having to make another sql query
+    transaction: &mut Transaction<'_, Postgres>,
+    payment_method_id: &str,
+    customer_id: &str,
+    public_key: &PublicKey
+) -> Result<(), StripeDbError> {
+    sqlx::query!(
+        r#"
+INSERT INTO stripe_payees_payment_methods (payment_method_id, customer_id) VALUES ($1, $2);
+        "#,
+        payment_method_id,
+        customer_id
+    )
+        .execute(transaction)
+        .await
+        .map_err(AddStripePaymentMethodError::Postgres)
+}
+
+#[derive(Debug)]
+pub enum AddStripeSubscriptionError {
+    Postgres(sqlx::Error),
+}
+
+fn add_stripe_subscription(
+    transaction: &mut Transaction<'_, Postgres>,
+    customer_id: &str,
+    subscription_id: &str,
+    public_key: &PublicKey) -> Result<(), StripeDbError> {
+    sqlx::query!(
+        r#"
+INSERT INTO stripe_payees (subscription_id, customer_id, is_active) VALUES ($1, $2, true);
+        "#,
+        subscription_id,
+        customer_id
+    )
+        .execute(transaction)
+        .await
+        .map_err(AddStripeSubscriptionError::Postgres)
+}
+
+#[derive(Debug)]
+pub enum CancelStripeSubscriptionError {
+    Postgres(sqlx::Error),
+}
+
+fn cancel_stripe_subscription(
+    transaction: &mut Transaction<'_, Postgres>,
+    subscription_id: &str,
+    public_key: &PublicKey
+) -> Result<(), StripeDbError> {
+    sqlx::query!(
+        r#"
+UPDATE stripe_payees SET is_active = false WHERE subscription_id = $1;
+        "#,
+        subscription_id,
+    )
+        .execute(transaction)
+        .await
+        .map_err(CancelStripeSubscriptionError::Postgres)
+}
 

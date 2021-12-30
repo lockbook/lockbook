@@ -1,7 +1,8 @@
 CREATE TABLE IF NOT EXISTS stripe_payees
 (
     subscription_id   TEXT NOT NULL PRIMARY KEY,
-    customer_id       TEXT NOT NULL
+    customer_id       TEXT NOT NULL,
+    is_active         BOOLEAN NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS stripe_payees_payment_methods
@@ -25,10 +26,12 @@ CREATE TABLE IF NOT EXISTS account_tiers
     id           BIGSERIAL PRIMARY KEY,
     bytes_cap    BIGINT NOT NULL,
     valid_until  TIMESTAMPTZ,
-    payee_stripe BIGINT,
+    payee_stripe TEXT,
     payee_apple  BIGINT,
     payee_google BIGINT,
-    CONSTRAINT fk_account_tiers_payee_stripe_stripe_payees_id FOREIGN KEY (payee_stripe) REFERENCES stripe_payees (id) DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT fk_account_tiers_payee_stripe_stripe_payees_id FOREIGN KEY (payee_stripe) REFERENCES stripe_payees (customer_id) DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT fk_account_tiers_payee_stripe_stripe_payees_payment_methods_id FOREIGN KEY (payee_stripe) REFERENCES stripe_payees_payment_methods (customer_id) DEFERRABLE INITIALLY DEFERRED,
+
     CONSTRAINT fk_account_tiers_payee_apple_apple_payees_id FOREIGN KEY (payee_apple) REFERENCES apple_payees (id) DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT fk_account_tiers_payee_google_google_payees_id FOREIGN KEY (payee_google) REFERENCES google_payees (id) DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT at_most_one_payment_method CHECK (
@@ -37,9 +40,9 @@ CREATE TABLE IF NOT EXISTS account_tiers
                 (payee_stripe IS NOT NULL AND payee_google IS NOT NULL) AND
                 (payee_apple IS NOT NULL AND payee_google IS NOT NULL) AND
                 (payee_stripe IS NOT NULL AND payee_apple IS NOT NULL AND payee_google IS NOT NULL
+                    )
             )
         )
-    )
 );
 
 CREATE TABLE IF NOT EXISTS accounts
