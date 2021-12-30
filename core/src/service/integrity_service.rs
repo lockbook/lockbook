@@ -41,14 +41,14 @@ pub fn test_file_tree_integrity<Fm: FileMetadata>(files: &[Fm]) -> Result<(), Te
         return Err(TestFileTreeError::CycleDetected(self_descendant));
     }
 
-    let maybe_doc_with_children = files::filter_documents(&files)
+    let maybe_doc_with_children = files::filter_documents(files)
         .into_iter()
-        .find(|doc| !files::find_children(&files, doc.id()).is_empty());
+        .find(|doc| !files::find_children(files, doc.id()).is_empty());
     if let Some(doc) = maybe_doc_with_children {
         return Err(TestFileTreeError::DocumentTreatedAsFolder(doc.id()));
     }
 
-    let maybe_path_conflict = files::get_path_conflicts(&files, &[])
+    let maybe_path_conflict = files::get_path_conflicts(files, &[])
         .map_err(TestFileTreeError::Core)?
         .into_iter()
         .next();
