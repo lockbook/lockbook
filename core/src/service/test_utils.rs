@@ -11,7 +11,7 @@ use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
-use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
 
 use crate::model::state::Config;
 use crate::repo::root_repo;
@@ -99,7 +99,7 @@ pub fn generate_account() -> Account {
     }
 }
 
-pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
+pub fn generate_root_metadata(account: &Account) -> (EncryptedFileMetadata, AESKey) {
     let id = Uuid::new_v4();
     let key = symkey::generate_key();
     let name = symkey::encrypt_and_hmac(&key, &account.username.clone()).unwrap();
@@ -116,7 +116,7 @@ pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
     user_access_keys.insert(account.username.clone(), use_access_key);
 
     (
-        FileMetadata {
+        EncryptedFileMetadata {
             file_type: Folder,
             id,
             name,
@@ -134,14 +134,14 @@ pub fn generate_root_metadata(account: &Account) -> (FileMetadata, AESKey) {
 
 pub fn generate_file_metadata(
     account: &Account,
-    parent: &FileMetadata,
+    parent: &EncryptedFileMetadata,
     parent_key: &AESKey,
     file_type: FileType,
-) -> (FileMetadata, AESKey) {
+) -> (EncryptedFileMetadata, AESKey) {
     let id = Uuid::new_v4();
     let file_key = symkey::generate_key();
     (
-        FileMetadata {
+        EncryptedFileMetadata {
             file_type,
             id,
             name: random_filename(),
