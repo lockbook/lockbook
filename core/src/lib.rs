@@ -20,7 +20,7 @@ use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
 use service::log_service;
@@ -235,7 +235,7 @@ pub enum GetAndGetChildrenError {
 pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
-) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
+) -> Result<Vec<EncryptedFileMetadata>, Error<GetAndGetChildrenError>> {
     file_service::get_and_get_children_recursively(config, id).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
         CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),

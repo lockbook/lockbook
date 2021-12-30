@@ -1,6 +1,7 @@
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::Hash;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -26,8 +27,21 @@ impl FromStr for FileType {
     }
 }
 
+pub trait FileMetadata : Clone {
+    type Name : Hash + Eq;
+
+    fn id(&self) -> Uuid;
+    fn file_type(&self) -> FileType;
+    fn parent(&self) -> Uuid;
+    fn name(&self) -> Self::Name;
+    fn owner(&self) -> String;
+    fn metadata_version(&self) -> u64;
+    fn content_version(&self) -> u64;
+    fn deleted(&self) -> bool;
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
-pub struct FileMetadata {
+pub struct EncryptedFileMetadata {
     pub id: Uuid,
     pub file_type: FileType,
     pub parent: Uuid,
@@ -40,7 +54,36 @@ pub struct FileMetadata {
     pub folder_access_keys: EncryptedFolderAccessKey,
 }
 
-impl fmt::Debug for FileMetadata {
+impl FileMetadata for EncryptedFileMetadata {
+    type Name = SecretFileName;
+
+    fn id(&self) -> Uuid {
+        self.id
+    }
+    fn file_type(&self) -> FileType {
+        self.file_type
+    }
+    fn parent(&self) -> Uuid {
+        self.parent
+    }
+    fn name(&self) -> Self::Name {
+        self.name.clone()
+    }
+    fn owner(&self) -> String {
+        self.owner.clone()
+    }
+    fn metadata_version(&self) -> u64 {
+        self.metadata_version
+    }
+    fn content_version(&self) -> u64 {
+        self.content_version
+    }
+    fn deleted(&self) -> bool {
+        self.deleted
+    }
+}
+
+impl fmt::Debug for EncryptedFileMetadata {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FileMetadata")
             .field("id", &self.id)
@@ -64,6 +107,35 @@ pub struct DecryptedFileMetadata {
     pub content_version: u64,
     pub deleted: bool,
     pub decrypted_access_key: AESKey, // access key is the same whether it's decrypted for user or for folder
+}
+
+impl FileMetadata for DecryptedFileMetadata {
+    type Name = String;
+
+    fn id(&self) -> Uuid {
+        self.id
+    }
+    fn file_type(&self) -> FileType {
+        self.file_type
+    }
+    fn parent(&self) -> Uuid {
+        self.parent
+    }
+    fn name(&self) -> Self::Name {
+        self.decrypted_name.clone()
+    }
+    fn owner(&self) -> String {
+        self.owner.clone()
+    }
+    fn metadata_version(&self) -> u64 {
+        self.metadata_version
+    }
+    fn content_version(&self) -> u64 {
+        self.content_version
+    }
+    fn deleted(&self) -> bool {
+        self.deleted
+    }
 }
 
 impl fmt::Debug for DecryptedFileMetadata {
@@ -92,7 +164,7 @@ pub struct FileMetadataDiff {
 }
 
 impl FileMetadataDiff {
-    pub fn new(metadata: &FileMetadata) -> Self {
+    pub fn new(metadata: &EncryptedFileMetadata) -> Self {
         FileMetadataDiff {
             id: metadata.id,
             file_type: metadata.file_type,
@@ -107,7 +179,7 @@ impl FileMetadataDiff {
     pub fn new_diff(
         old_parent: Uuid,
         old_name: &SecretFileName,
-        new_metadata: &FileMetadata,
+        new_metadata: &EncryptedFileMetadata,
     ) -> Self {
         FileMetadataDiff {
             id: new_metadata.id,

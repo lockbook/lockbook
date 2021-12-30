@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use lockbook_models::utils;
 use std::collections::HashSet;
 
 use sha2::Digest;
@@ -8,7 +9,7 @@ use uuid::Uuid;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
-use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
 
@@ -69,7 +70,7 @@ pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<DecryptedFileMetada
 pub fn get_and_get_children_recursively(
     config: &Config,
     id: Uuid,
-) -> Result<Vec<FileMetadata>, CoreError> {
+) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
     info!("get all children of file: {}", id);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = files::filter_not_deleted(&files)?;
@@ -196,7 +197,7 @@ pub fn insert_metadata(
         file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
 
     for metadatum in metadata {
-        let encrypted_metadata = files::find_encrypted(&all_metadata_encrypted, metadatum.id)?;
+        let encrypted_metadata = files::find(&all_metadata_encrypted, metadatum.id)?;
 
         // perform insertion
         let new_doc = source == RepoSource::Local
@@ -225,7 +226,7 @@ pub fn insert_metadata(
         if let Some(opposite) =
             metadata_repo::maybe_get(config, source.opposite(), encrypted_metadata.id)?
         {
-            if files::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
+            if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
                 && opposite.parent == metadatum.parent
                 && opposite.deleted == metadatum.deleted
             {
@@ -295,10 +296,10 @@ pub fn get_all_metadata(
     match source {
         RepoSource::Local => {
             let local = metadata_repo::get_all(config, RepoSource::Local)?;
-            let staged = files::stage_encrypted(&base, &local)
+            let staged = files::stage(&base, &local)
                 .into_iter()
                 .map(|(f, _)| f)
-                .collect::<Vec<FileMetadata>>();
+                .collect::<Vec<EncryptedFileMetadata>>();
             file_encryption_service::decrypt_metadata(&account, &staged)
         }
         RepoSource::Base => file_encryption_service::decrypt_metadata(&account, &base),
@@ -328,10 +329,10 @@ pub fn get_all_metadata_state(
     let base = file_encryption_service::decrypt_metadata(&account, &base_encrypted)?;
     let local = {
         let local_encrypted = metadata_repo::get_all(config, RepoSource::Local)?;
-        let staged = files::stage_encrypted(&base_encrypted, &local_encrypted)
+        let staged = files::stage(&base_encrypted, &local_encrypted)
             .into_iter()
             .map(|(f, _)| f)
-            .collect::<Vec<FileMetadata>>();
+            .collect::<Vec<EncryptedFileMetadata>>();
         let decrypted = file_encryption_service::decrypt_metadata(&account, &staged)?;
         decrypted
             .into_iter()
@@ -360,14 +361,14 @@ pub fn get_all_metadata_state(
 pub fn get_all_metadata_with_encrypted_changes(
     config: &Config,
     source: RepoSource,
-    changes: &[FileMetadata],
-) -> Result<(Vec<DecryptedFileMetadata>, Vec<FileMetadata>), CoreError> {
+    changes: &[EncryptedFileMetadata],
+) -> Result<(Vec<DecryptedFileMetadata>, Vec<EncryptedFileMetadata>), CoreError> {
     let account = account_repo::get(config)?;
     let base = metadata_repo::get_all(config, RepoSource::Base)?;
     let sourced = match source {
         RepoSource::Local => {
             let local = metadata_repo::get_all(config, RepoSource::Local)?;
-            files::stage_encrypted(&base, &local)
+            files::stage(&base, &local)
                 .into_iter()
                 .map(|(f, _)| f)
                 .collect()
@@ -375,17 +376,17 @@ pub fn get_all_metadata_with_encrypted_changes(
         RepoSource::Base => base,
     };
 
-    let staged = files::stage_encrypted(&sourced, changes)
+    let staged = files::stage(&sourced, changes)
         .into_iter()
         .map(|(f, _)| f)
-        .collect::<Vec<FileMetadata>>();
+        .collect::<Vec<EncryptedFileMetadata>>();
 
-    let root = files::find_root_encrypted(&staged)?;
-    let non_orphans = files::find_with_descendants_encrypted(&staged, root.id)?;
+    let root = files::find_root(&staged)?;
+    let non_orphans = files::find_with_descendants(&staged, root.id)?;
     let mut staged_non_orphans = Vec::new();
     let mut encrypted_orphans = Vec::new();
     for f in staged {
-        if files::maybe_find_encrypted(&non_orphans, f.id).is_some() {
+        if files::maybe_find(&non_orphans, f.id).is_some() {
             // only decrypt non-orphans
             staged_non_orphans.push(f)
         } else {
@@ -427,7 +428,7 @@ pub fn insert_document(
 
     // remove local if local == base
     if let Some(opposite) = digest_repo::maybe_get(config, source.opposite(), metadata.id)? {
-        if files::slices_equal(&opposite, &digest) {
+        if utils::slices_equal(&opposite, &digest) {
             document_repo::delete(config, RepoSource::Local, metadata.id)?;
             digest_repo::delete(config, RepoSource::Local, metadata.id)?;
         }
@@ -552,7 +553,7 @@ pub fn maybe_get_document_state(
 pub fn promote_metadata(config: &Config) -> Result<(), CoreError> {
     let base_metadata = metadata_repo::get_all(config, RepoSource::Base)?;
     let local_metadata = metadata_repo::get_all(config, RepoSource::Local)?;
-    let staged_metadata = files::stage_encrypted(&base_metadata, &local_metadata);
+    let staged_metadata = files::stage(&base_metadata, &local_metadata);
 
     metadata_repo::delete_all(config, RepoSource::Base)?;
 
@@ -567,7 +568,7 @@ pub fn promote_metadata(config: &Config) -> Result<(), CoreError> {
 pub fn promote_documents(config: &Config) -> Result<(), CoreError> {
     let base_metadata = metadata_repo::get_all(config, RepoSource::Base)?;
     let local_metadata = metadata_repo::get_all(config, RepoSource::Local)?;
-    let staged_metadata = files::stage_encrypted(&base_metadata, &local_metadata);
+    let staged_metadata = files::stage(&base_metadata, &local_metadata);
     let staged_everything = staged_metadata
         .into_iter()
         .map(|(f, _)| {
@@ -583,7 +584,14 @@ pub fn promote_documents(config: &Config) -> Result<(), CoreError> {
                 },
             ))
         })
-        .collect::<Result<Vec<(FileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>, CoreError>>()?;
+        .collect::<Result<
+            Vec<(
+                EncryptedFileMetadata,
+                Option<EncryptedDocument>,
+                Option<Vec<u8>>,
+            )>,
+            CoreError,
+        >>()?;
 
     document_repo::delete_all(config, RepoSource::Base)?;
     digest_repo::delete_all(config, RepoSource::Base)?;

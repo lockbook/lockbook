@@ -5,7 +5,7 @@ use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::{
     EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
 };
-use lockbook_models::file_metadata::{FileMetadata, FileMetadataDiff, FileType};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff, FileType};
 use log::debug;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool, Postgres, Transaction};
@@ -470,7 +470,7 @@ pub enum GetFilesError {
 pub async fn get_files(
     transaction: &mut Transaction<'_, Postgres>,
     public_key: &PublicKey,
-) -> Result<Vec<FileMetadata>, GetFilesError> {
+) -> Result<Vec<EncryptedFileMetadata>, GetFilesError> {
     sqlx::query!(
         r#"
 SELECT
@@ -490,7 +490,7 @@ WHERE
     .await
     .map_err(GetFilesError::Postgres)?
     .iter()
-    .map(|row| Ok(FileMetadata {
+    .map(|row| Ok(EncryptedFileMetadata {
         id: Uuid::parse_str(&row.id).map_err(GetFilesError::UuidDeserialize)?,
         file_type: if row.is_folder { FileType::Folder } else { FileType::Document },
         parent: Uuid::parse_str(&row.parent).map_err(GetFilesError::UuidDeserialize)?,
@@ -542,7 +542,7 @@ pub async fn get_updates(
     transaction: &mut Transaction<'_, Postgres>,
     public_key: &PublicKey,
     metadata_version: u64,
-) -> Result<Vec<FileMetadata>, GetUpdatesError> {
+) -> Result<Vec<EncryptedFileMetadata>, GetUpdatesError> {
     sqlx::query!(
         r#"
 SELECT
@@ -564,7 +564,7 @@ WHERE
     .await
     .map_err(GetUpdatesError::Postgres)?
     .iter()
-    .map(|row| Ok(FileMetadata {
+    .map(|row| Ok(EncryptedFileMetadata {
         id: Uuid::parse_str(&row.id).map_err(GetUpdatesError::UuidDeserialize)?,
         file_type: if row.is_folder { FileType::Folder } else { FileType::Document },
         parent: Uuid::parse_str(&row.parent).map_err(GetUpdatesError::UuidDeserialize)?,

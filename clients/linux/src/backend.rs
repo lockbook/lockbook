@@ -22,7 +22,7 @@ use crate::error::{LbErrTarget, LbError, LbResult};
 use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 use lockbook_models::work_unit::ClientWorkUnit;
 
 macro_rules! match_core_err {
@@ -172,7 +172,7 @@ impl LbCore {
         Ok(list_metadatas(&self.config)?)
     }
 
-    pub fn get_children_recursively(&self, id: Uuid) -> LbResult<Vec<FileMetadata>> {
+    pub fn get_children_recursively(&self, id: Uuid) -> LbResult<Vec<EncryptedFileMetadata>> {
         get_and_get_children_recursively(&self.config, id).map_err(map_core_err!(
             GetAndGetChildrenError,
             FileDoesNotExist => uerr_dialog!("File with id '{}' does not exist.", id),
