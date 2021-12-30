@@ -5,7 +5,7 @@ use uuid::Uuid;
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata};
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 
@@ -14,13 +14,13 @@ pub fn encrypt_metadatum(
     account: &Account,
     parent_key: &AESKey,
     target: &DecryptedFileMetadata,
-) -> Result<FileMetadata, CoreError> {
+) -> Result<EncryptedFileMetadata, CoreError> {
     let user_access_keys = if target.id == target.parent {
         encrypt_user_access_keys(account, &target.decrypted_access_key)?
     } else {
         Default::default()
     };
-    Ok(FileMetadata {
+    Ok(EncryptedFileMetadata {
         id: target.id,
         file_type: target.file_type,
         parent: target.parent,
@@ -38,7 +38,7 @@ pub fn encrypt_metadatum(
 pub fn encrypt_metadata(
     account: &Account,
     files: &[DecryptedFileMetadata],
-) -> Result<Vec<FileMetadata>, CoreError> {
+) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
     let mut result = Vec::new();
     for target in files {
         let parent_key = files
@@ -92,7 +92,7 @@ fn encrypt_folder_access_keys(
 /// Converts a FileMetadata to a DecryptedFileMetadata using its decrypted parent key. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
 pub fn decrypt_metadatum(
     parent_key: &AESKey,
-    target: &FileMetadata,
+    target: &EncryptedFileMetadata,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     Ok(DecryptedFileMetadata {
         id: target.id,
@@ -110,7 +110,7 @@ pub fn decrypt_metadatum(
 /// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
 pub fn decrypt_metadata(
     account: &Account,
-    files: &[FileMetadata],
+    files: &[EncryptedFileMetadata],
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let mut result = Vec::new();
     let mut key_cache = HashMap::new();
@@ -126,7 +126,7 @@ pub fn decrypt_metadata(
 fn decrypt_file_key(
     account: &Account,
     target_id: Uuid,
-    target_with_ancestors: &[FileMetadata],
+    target_with_ancestors: &[EncryptedFileMetadata],
     key_cache: &mut HashMap<Uuid, AESKey>,
 ) -> Result<AESKey, CoreError> {
     if let Some(key) = key_cache.get(&target_id) {

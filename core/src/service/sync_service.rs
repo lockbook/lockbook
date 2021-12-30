@@ -8,7 +8,7 @@ use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
 use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 
 use crate::model::filename::DocumentType;
@@ -60,7 +60,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
 
 fn calculate_work_from_updates(
     config: &Config,
-    server_updates: &[FileMetadata],
+    server_updates: &[EncryptedFileMetadata],
     mut last_sync: u64,
 ) -> Result<WorkCalculated, CoreError> {
     let mut work_units: Vec<WorkUnit> = vec![];

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use uuid::Uuid;
 
-use lockbook_models::file_metadata::{FileMetadata, FileType};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadata, FileType};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -15,6 +15,51 @@ use crate::CoreError;
 const UTF8_SUFFIXES: [&str; 12] = [
     "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
 ];
+
+#[derive(Debug, Clone)]
+pub enum TestFileTreeError {
+    NoRootFolder,
+    DocumentTreatedAsFolder(Uuid),
+    FileOrphaned(Uuid),
+    CycleDetected(Uuid),
+    NameConflictDetected(Uuid),
+    Core(CoreError),
+}
+
+pub fn test_file_tree_integrity<Fm: FileMetadata>(files: &[Fm]) -> Result<(), TestFileTreeError> {
+    for file in files {
+        if files::maybe_find(files, file.parent()).is_none() {
+            return Err(TestFileTreeError::FileOrphaned(file.id()));
+        }
+    }
+
+    let maybe_self_descendant = files::get_invalid_cycles(files, &[])
+        .map_err(TestFileTreeError::Core)?
+        .into_iter()
+        .next();
+    if let Some(self_descendant) = maybe_self_descendant {
+        return Err(TestFileTreeError::CycleDetected(self_descendant));
+    }
+
+    let maybe_doc_with_children = files::filter_documents(files)
+        .into_iter()
+        .find(|doc| !files::find_children(files, doc.id()).is_empty());
+    if let Some(doc) = maybe_doc_with_children {
+        return Err(TestFileTreeError::DocumentTreatedAsFolder(doc.id()));
+    }
+
+    let maybe_path_conflict = files::get_path_conflicts(files, &[])
+        .map_err(TestFileTreeError::Core)?
+        .into_iter()
+        .next();
+    if let Some(path_conflict) = maybe_path_conflict {
+        return Err(TestFileTreeError::NameConflictDetected(
+            path_conflict.existing,
+        ));
+    }
+
+    Ok(())
+}
 
 #[derive(Debug, Clone)]
 pub enum TestRepoError {
@@ -41,59 +86,40 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         .map_err(TestRepoError::Core)?
         .ok_or(TestRepoError::NoRootFolder)?;
 
-    let files_encrypted = files::stage_encrypted(
+    let files_encrypted = files::stage(
         &metadata_repo::get_all(config, RepoSource::Base).map_err(TestRepoError::Core)?,
         &metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?,
     )
     .into_iter()
     .map(|(f, _)| f)
-    .collect::<Vec<FileMetadata>>();
+    .collect::<Vec<EncryptedFileMetadata>>();
 
-    for file_encrypted in &files_encrypted {
-        if files::maybe_find_encrypted(&files_encrypted, file_encrypted.parent).is_none() {
-            return Err(TestRepoError::FileOrphaned(file_encrypted.id));
-        }
-    }
+    test_file_tree_integrity(&files_encrypted).map_err(|err| match err {
+        TestFileTreeError::NoRootFolder => TestRepoError::NoRootFolder,
+        TestFileTreeError::DocumentTreatedAsFolder(e) => TestRepoError::DocumentTreatedAsFolder(e),
+        TestFileTreeError::FileOrphaned(e) => TestRepoError::FileOrphaned(e),
+        TestFileTreeError::CycleDetected(e) => TestRepoError::CycleDetected(e),
+        TestFileTreeError::NameConflictDetected(e) => TestRepoError::NameConflictDetected(e),
+        TestFileTreeError::Core(e) => TestRepoError::Core(e),
+    })?;
 
-    let maybe_self_descendant = files::get_invalid_cycles_encrypted(&files_encrypted, &[])
-        .map_err(TestRepoError::Core)?
-        .into_iter()
-        .next();
-    if let Some(self_descendant) = maybe_self_descendant {
-        return Err(TestRepoError::CycleDetected(self_descendant));
-    }
-
-    let all_files =
+    let files =
         file_service::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
-    let maybe_doc_with_children = files::filter_documents(&all_files)
-        .into_iter()
-        .find(|d| !files::find_children(&all_files, d.id).is_empty());
-    if let Some(doc) = maybe_doc_with_children {
-        return Err(TestRepoError::DocumentTreatedAsFolder(doc.id));
-    }
 
-    let maybe_file_with_empty_name = all_files.iter().find(|f| f.decrypted_name.is_empty());
+    let maybe_file_with_empty_name = files.iter().find(|f| f.decrypted_name.is_empty());
     if let Some(file_with_empty_name) = maybe_file_with_empty_name {
         return Err(TestRepoError::FileNameEmpty(file_with_empty_name.id));
     }
 
-    let maybe_file_with_name_with_slash = all_files.iter().find(|f| f.decrypted_name.contains('/'));
+    let maybe_file_with_name_with_slash = files.iter().find(|f| f.decrypted_name.contains('/'));
     if let Some(file_with_name_with_slash) = maybe_file_with_name_with_slash {
         return Err(TestRepoError::FileNameContainsSlash(
             file_with_name_with_slash.id,
         ));
     }
 
-    let maybe_path_conflict = files::get_path_conflicts(&all_files, &[])
-        .map_err(TestRepoError::Core)?
-        .into_iter()
-        .next();
-    if let Some(path_conflict) = maybe_path_conflict {
-        return Err(TestRepoError::NameConflictDetected(path_conflict.existing));
-    }
-
     let mut warnings = Vec::new();
-    for file in files::filter_not_deleted(&all_files).map_err(TestRepoError::Core)? {
+    for file in files::filter_not_deleted(&files).map_err(TestRepoError::Core)? {
         if file.file_type == FileType::Document {
             let file_content = file_service::get_document(config, RepoSource::Local, &file)
                 .map_err(|err| DocumentReadError(file.id, err))?;
