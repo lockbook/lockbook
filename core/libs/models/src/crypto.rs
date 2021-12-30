@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::marker::PhantomData;
 
 use libsecp256k1::PublicKey;
@@ -64,5 +65,13 @@ pub struct SecretFileName {
 impl PartialEq for SecretFileName {
     fn eq(&self, other: &Self) -> bool {
         self.hmac == other.hmac
+    }
+}
+
+impl Eq for SecretFileName{}
+
+impl Hash for SecretFileName {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.hmac.hash(state);
     }
 }
