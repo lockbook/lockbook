@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::file_metadata::{FileMetadata, FileMetadataDiff};
+use crate::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
 
 pub trait Request {
     type Response;
@@ -37,7 +37,7 @@ pub struct FileMetadataUpsertsRequest {
 }
 
 impl FileMetadataUpsertsRequest {
-    pub fn new(metadata: &FileMetadata) -> Self {
+    pub fn new(metadata: &EncryptedFileMetadata) -> Self {
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new(metadata)],
         }
@@ -46,7 +46,7 @@ impl FileMetadataUpsertsRequest {
     pub fn new_diff(
         old_parent: Uuid,
         old_name: &SecretFileName,
-        new_metadata: &FileMetadata,
+        new_metadata: &EncryptedFileMetadata,
     ) -> Self {
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(
@@ -186,7 +186,7 @@ pub struct GetUpdatesRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesResponse {
-    pub file_metadata: Vec<FileMetadata>,
+    pub file_metadata: Vec<EncryptedFileMetadata>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -213,7 +213,7 @@ pub struct NewAccountRequest {
 }
 
 impl NewAccountRequest {
-    pub fn new(account: &Account, root_metadata: &FileMetadata) -> Self {
+    pub fn new(account: &Account, root_metadata: &EncryptedFileMetadata) -> Self {
         NewAccountRequest {
             username: account.username.clone(),
             public_key: account.public_key(),
