@@ -1,7 +1,7 @@
 use crate::config::IndexDbConfig;
 use base64;
 use libsecp256k1::PublicKey;
-use lockbook_models::api::FileUsage;
+use lockbook_models::api::{CreditCardInfo, FileUsage};
 use lockbook_models::crypto::{
     EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
 };
@@ -939,6 +939,36 @@ SELECT payment_method_id FROM stripe_payees_payment_methods WHERE customer_id = 
 }
 
 #[derive(Debug)]
+pub enum GetAllStripeCreditCardInfosError {
+    Postgres(sqlx::Error),
+    Serialization(serde_json::Error)
+}
+
+pub fn get_all_stripe_credit_card_infos(
+    transaction: &mut Transaction<'_, Postgres>,
+    public_key: &PublicKey,
+) -> Result<Vec<CreditCardInfo>, GetAllStripeCreditCardInfosError> {
+    sqlx::query!(
+        r#"
+WITH stripe_payee_id AS (
+    SELECT payee_stripe
+    FROM account_tiers
+    WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
+)
+SELECT payment_method_id, last_4 FROM stripe_payees_payment_methods WHERE customer_id = (SELECT payee_stripe FROM stripe_payee_id);
+        "#,
+        &serde_json::to_string(public_key).map_err(GetAllStripeCreditCardInfosError::Serialize)?,
+    )
+        .fetch_all(transaction)
+        .await
+        .map_err(GetAllStripeCreditCardInfosError::Postgres)
+        .map(|row| CreditCardInfo {
+            payment_method_id: row.payment_method_id,
+            last_4_digits: row.last_4
+        })
+}
+
+#[derive(Debug)]
 pub enum AddStripePaymentMethodError {
     Postgres(sqlx::Error),
 }
@@ -1018,7 +1048,7 @@ pub fn cancel_stripe_subscription(
 ) -> Result<(), CancelStripeSubscriptionError> {
     sqlx::query!(
         r#"
-UPDATE stripe_payees SET is_active = false WHERE subscription_id = $1 RETURNING subscription_id
+UPDATE stripe_payees SET is_active = false WHERE subscription_id = $1
         "#,
         subscription_id,
     )
@@ -1026,4 +1056,3 @@ UPDATE stripe_payees SET is_active = false WHERE subscription_id = $1 RETURNING 
         .await
         .map_err(CancelStripeSubscriptionError::Postgres)
 }
-

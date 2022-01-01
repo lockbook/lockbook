@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::CreditCardInfo;
+use lockbook_models::api::{AccountTier, CreditCardInfo};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -629,7 +629,7 @@ pub fn add_credit_card(
     exp_month: String,
     exp_year: String,
     cvc: String,
-) -> Result<String, Error<AddCreditCardError>> {
+) -> Result<CreditCardInfo, Error<AddCreditCardError>> {
     billing_service::add_credit_card(config, card_number, exp_month, exp_year, cvc).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(AddCreditCardError::NoAccount),
         CoreError::InvalidCreditCard => UiError(AddCreditCardError::InvalidCreditCard),
@@ -639,9 +639,30 @@ pub fn add_credit_card(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
+pub enum SwitchAccountTierError {
+    NoAccount,
+    CouldNotReachServer,
+    PaymentMethodDoesNotExist,
+    NewTierIsOldTier
+}
+
+pub fn switch_account_tier(
+    config: &Config,
+    new_account_tier: AccountTier
+) -> Result<(), Error<SwitchAccountTierError>> {
+    billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
+        CoreError::PaymentMethodDoesNotExist => UiError(SwitchAccountTierError::PaymentMethodDoesNotExist),
+        CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
+        CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
+        _ => unexpected!("{:#?}", e),
+    })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
 pub enum RemoveCreditCardError {
     NoAccount,
     CouldNotReachServer,
+    PaymentMethodDoesNotExist,
 }
 
 pub fn remove_credit_card(
@@ -651,6 +672,7 @@ pub fn remove_credit_card(
     billing_service::remove_credit_card(config, payment_method_id).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(RemoveCreditCardError::NoAccount),
         CoreError::ServerUnreachable => UiError(RemoveCreditCardError::CouldNotReachServer),
+        CoreError::PaymentMethodDoesNotExist => UiError(RemoveCreditCardError::PaymentMethodDoesNotExist),
         _ => unexpected!("{:#?}", e),
     })
 }

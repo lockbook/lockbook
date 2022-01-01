@@ -279,10 +279,9 @@ pub struct RegisterCreditCardRequest {
     pub cvc: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RegisterCreditCardResponse {
-    pub payment_method_id: String,
-    pub last_4: String
+    pub credit_card_info: CreditCardInfo
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -299,14 +298,14 @@ impl Request for RegisterCreditCardRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CreditCardInfo {
-    pub expiration_date: u8,
+    pub payment_method_id: String,
     pub last_4_digits: u8
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetRegisteredCreditCardsRequest {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetRegisteredCreditCardsResponse {
     pub credit_card_infos: Vec<CreditCardInfo>
 }
@@ -349,7 +348,7 @@ pub enum AccountTier {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SwitchAccountTierRequest {
-    pub tier: AccountTier
+    pub account_tier: AccountTier
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

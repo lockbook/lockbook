@@ -126,7 +126,3 @@ pub async fn get_usage(
     Ok(GetUsageResponse { usages, cap })
 }
 
-pub async fn switch_account_tier(
-    context: RequestContext<'_, GetUsageRequest>,
-    tier: AccountTier
-) -> Result<>

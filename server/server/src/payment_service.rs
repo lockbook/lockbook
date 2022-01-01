@@ -1,5 +1,5 @@
 use crate::{file_index_repo, RequestContext, ServerError, ServerState};
-use lockbook_models::api::{RegisterCreditCardRequest, RegisterCreditCardError, RegisterCreditCardResponse, RemoveCreditCardRequest, RemoveCreditCardError, SwitchAccountTierRequest, SwitchAccountTierError, AccountTier, GetRegisteredCreditCardsError};
+use lockbook_models::api::{RegisterCreditCardRequest, RegisterCreditCardError, RegisterCreditCardResponse, RemoveCreditCardRequest, RemoveCreditCardError, SwitchAccountTierRequest, SwitchAccountTierError, AccountTier, GetRegisteredCreditCardsError, CreditCardInfo};
 use log::info;
 use std::collections::HashMap;
 use reqwest::{Client, Error, Response};
@@ -121,11 +121,9 @@ pub async fn register_credit_card(
 pub async fn remove_credit_card(
     context: RequestContext<'_, RemoveCreditCardRequest>
 ) -> Result<(), ServerError<RemoveCreditCardError>> {
-    let (request, server_state) = (&context.request, context.server_state);
-
    send_stripe_request(
-        &server_state,
-        format!("{}/{}{}", STRIPE_ENDPOINT, request.payment_method_id, DETACH_ENDPOINT),
+        &context.server_state,
+        format!("{}/{}{}", STRIPE_ENDPOINT, context.request.payment_method_id, DETACH_ENDPOINT),
         StripeRequestType::Post(None))
        .map_err(|e| InternalError(format!("Cannot remove credit card: {:#?}", e)));
 
@@ -148,32 +146,8 @@ pub async fn switch_user_tier(
 
     let customer_id = file_index_repo::get_stripe_customer_id(&mut transaction, &context.public_key).map_err(|e| Err(InternalError(format!("Cannot get stripe customer id in Postgres: {:?}", e))))?;
 
-    // Check db to retrieve the current tier, and compare it to the requested.
-    // If the requested tier == current tier, return error
-
-
-    // let (price_id, payment_method_id) = match &request.tier {
-    //     AccountTier::Monthly(payment_method_id) => {
-    //         (server_state.config.stripe.monthly_sub_price_id.as_str(), payment_method_id)
-    //     }
-    //     AccountTier::Yearly(payment_method_id) => {
-    //         (server_state.config.stripe.yearly_sub_price_id.as_str(), payment_method_id)
-    //     }
-    //     AccountTier::Free => {
-    //         // Retrieve subscription id from DB or list out a customer's subscription and get the one
-    //         send_stripe_request(
-    //             &server_state,
-    //             format!("{}{}/{}", STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT, subscription_id),
-    //             StripeRequestType::Delete)
-    //             .map_err(|_| Err(InternalError("Error canceling stripe subscription".to_string())))?;
-    //
-    //
-    //         return Ok(());
-    //     }
-    // };
-
     if data_cap == FREE_TIER_SIZE {
-        if let AccountTier::Free = request.tier {
+        if let AccountTier::Free = request.account_tier {
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         }
 
@@ -189,9 +163,8 @@ pub async fn switch_user_tier(
             .map_err(|_| Err(InternalError("Error creating stripe subscription".to_string())))?
             .id;
 
-        // Commit subscription id to db (or maybe not, retrieve it every request from stripe?)
+        file_index_repo::add_stripe_subscription(&mut transaction, &customer_id, &subscription_id).map_err(|e| InternalError(format!("Cannot add stripe subscription in Postgres: {:?}", e)))?;
     } else {
-        // Retrieve subscription id from DB
         if data_cap != FREE_TIER_SIZE {
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         }
@@ -203,23 +176,24 @@ pub async fn switch_user_tier(
             format!("{}{}/{}", STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT, subscription_id),
             StripeRequestType::Delete)
             .map_err(|_| Err(InternalError("Error canceling stripe subscription".to_string())))?;
+
+        file_index_repo::cancel_stripe_subscription(&mut transaction, &subscription_id).map_err(|e| InternalError(format!("Cannot cancel stripe subscription in Postgres: {:?}", e)))?;
     }
 
     Ok(())
 }
 
-#[derive(Serialize, Deserialize)]
-struct StripeGetRegisteredCreditCardsResponse {
-    data: Vec<BasicStripeResponse>,
-}
-
 pub async fn get_registered_credit_cards(
-    context: RequestContext<'_, SwitchAccountTierRequest>
-) -> Result<(), ServerError<GetRegisteredCreditCardsError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    context: RequestContext<'_, GetRegisteredCreditCardsError>
+) -> Result<Vec<CreditCardInfo>, ServerError<GetRegisteredCreditCardsError>> {
+    let mut transaction = match context.server_state.index_db_client.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
+        }
+    };
 
-
-
+    file_index_repo::get_all_stripe_credit_card_infos(&mut transaction, &context.server_state.public_key).map_err(|e| InternalError(format!("Cannot get all stripe credit card infos: {:?}", e)))
 }
 
 pub enum StripeRequestType<'a> {
