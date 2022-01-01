@@ -281,7 +281,8 @@ pub struct RegisterCreditCardRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RegisterCreditCardResponse {
-    pub payment_method_id: String
+    pub payment_method_id: String,
+    pub last_4: String
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -341,34 +342,29 @@ impl Request for RemoveCreditCardRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum PaymentMethod {
-    Stripe(String) // payment method id
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum Tier {
-    Monthly(PaymentMethod),
-    Yearly(PaymentMethod),
+pub enum AccountTier {
+    Monthly(String), // payment method id
     Free
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SwitchUserTierRequest {
-    pub tier: Tier
+pub struct SwitchAccountTierRequest {
+    pub tier: AccountTier
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SwitchUserTierResponse {}
+pub struct SwitchAccountTierResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum SwitchUserTierError {
-    PaymentMethodDoesNotExist
+pub enum SwitchAccountTierError {
+    PaymentMethodDoesNotExist,
+    NewTierIsOldTier
 }
 
-impl Request for SwitchUserTierRequest {
+impl Request for SwitchAccountTierRequest {
     type Response = ();
-    type Error = SwitchUserTierError;
+    type Error = SwitchAccountTierError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/switch-user-tier";
+    const ROUTE: &'static str = "/switch-account-tier";
 }
 

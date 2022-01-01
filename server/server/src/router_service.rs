@@ -100,7 +100,7 @@ pub fn core_routes(
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(RegisterCreditCardRequest, register_credit_card, server_state))
         .or(core_req!(RemoveCreditCardRequest, remove_credit_card, server_state))
-        .or(core_req!(SwitchUserTierRequest, switch_user_tier, server_state))
+        .or(core_req!(SwitchAccountTierRequest, switch_user_tier, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

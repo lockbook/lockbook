@@ -1,10 +1,12 @@
-use crate::{RequestContext, ServerError, ServerState};
-use lockbook_models::api::{RegisterCreditCardRequest, RegisterCreditCardError, RegisterCreditCardResponse, RemoveCreditCardRequest, RemoveCreditCardError, SwitchUserTierRequest, SwitchUserTierError, Tier, GetRegisteredCreditCardsError};
+use crate::{file_index_repo, RequestContext, ServerError, ServerState};
+use lockbook_models::api::{RegisterCreditCardRequest, RegisterCreditCardError, RegisterCreditCardResponse, RemoveCreditCardRequest, RemoveCreditCardError, SwitchAccountTierRequest, SwitchAccountTierError, AccountTier, GetRegisteredCreditCardsError};
 use log::info;
 use std::collections::HashMap;
 use reqwest::{Client, Error, Response};
 use serde_json::Value;
-use crate::ServerError::InternalError;
+use warp::hyper::body::HttpBody;
+use crate::file_index_repo::{AttachStripeCustomerIdError, FREE_TIER_SIZE, GetStripeCustomerIdError};
+use crate::ServerError::{ClientError, InternalError};
 
 static STRIPE_ENDPOINT: &str = "https://api.stripe.com/v1";
 static PAYMENT_METHODS_ENDPOINT: &str = "/payment_methods";
@@ -12,17 +14,60 @@ static DETACH_ENDPOINT: &str = "/detach";
 static ATTACH_ENDPOINT: &str = "/attach";
 static CUSTOMER_ENDPOINT: &str = "/customers";
 static SUBSCRIPTIONS_ENDPOINT: &str = "/subscriptions";
+static SETUP_INTENTS_ENDPOINT: &str = "/setup_intents";
 
-#[derive(Serialize, Deserialize)]
-struct StripeResponse {
+#[derive(Serialize)]
+struct BasicStripeResponse {
     id: String,
 }
-//  Maybe you could log the string response from request and just get rid of the hashmap
+
+#[derive(Serialize)]
+struct SetupIntentStripeResponse {
+    status: String,
+}
+
+#[derive(Serialize)]
+struct PaymentMethodStripeResponse {
+    id: String,
+    card: PaymentMethodCard
+}
+
+#[derive(Serialize)]
+struct PaymentMethodCard {
+    last4: String
+}
 
 pub async fn register_credit_card(
     context: RequestContext<'_, RegisterCreditCardRequest>,
 ) -> Result<RegisterCreditCardResponse, ServerError<RegisterCreditCardError>> {
     let (request, server_state) = (&context.request, context.server_state);
+
+    let mut transaction = match server_state.index_db_client.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
+        }
+    };
+
+    let customer_id = match file_index_repo::get_stripe_customer_id(&mut transaction, &context.public_key).await {
+        Ok(customer_id) => customer_id,
+        Err(e) => match e {
+            GetStripeCustomerIdError::NotAStripeCustomer => {
+                let customer_id = send_stripe_request(
+                    &server_state,
+                    format!("{}{}", STRIPE_ENDPOINT, CUSTOMER_ENDPOINT),
+                    StripeRequestType::Post(None))
+                    .and_then(|resp| resp.json::<BasicStripeResponse>().await)
+                    .map_err(|e| Err(InternalError(format!("Cannot create stripe customer: {}", e))))?
+                    .id;
+
+                file_index_repo::attach_stripe_customer_id(&mut transaction, &customer_id, &context.public_key).map_err(|e| InternalError(format!("Couldn't add customer id to Postgres: {:?}", e)))?;
+
+                customer_id
+            }
+            _ => return Err(InternalError(format!("Cannot get stripe customer id in Postgres: {:?}", e)))
+        }
+    };
 
     let mut payment_method_form = HashMap::new();
     payment_method_form.insert("type", "card");
@@ -31,41 +76,46 @@ pub async fn register_credit_card(
     payment_method_form.insert("card[exp_year]", request.exp_year.as_str());
     payment_method_form.insert("card[cvc]", request.cvc.as_str());
 
-    let payment_method_id = send_stripe_request(
+    let payment_method_resp = send_stripe_request(
         &server_state,
         format!("{}{}", STRIPE_ENDPOINT, PAYMENT_METHODS_ENDPOINT),
         StripeRequestType::Post(Some(payment_method_form)))
-        .and_then(|resp| resp.json::<StripeResponse>().await)
-        .map_err(|_| Err(InternalError("Error creating stripe payment method".to_string())))?
-        .id;
-    // should never have an error, should probably log this error stuff
-
-    // TODO: Check db if user has a customer id
-
-    // assuming that this user does not have a customer id -----------------------------------------------
-
-    let customer_id = send_stripe_request(
-        &server_state,
-        format!("{}{}", STRIPE_ENDPOINT, CUSTOMER_ENDPOINT),
-        StripeRequestType::Post(None))
-        .and_then(|resp| resp.json::<StripeResponse>().await)
-        .map_err(|_| Err(InternalError("Error creating stripe customer".to_string())))?
-        .id;
-
-    // Commit this id to the db
-
-    // End of assuming -----------------------------------------------
+        .and_then(|resp| resp.json::<PaymentMethodStripeResponse>().await)
+        .map_err(|e| Err(InternalError(format!("Cannot create stripe customer: {}", e))))?;
 
     let mut attach_payment_method_form = HashMap::new();
     attach_payment_method_form.insert("customer", customer_id.as_str());
 
-    send_stripe_request(
-        &server_state,
-        format!("{}{}/{}{}", STRIPE_ENDPOINT, PAYMENT_METHODS_ENDPOINT, payment_method_id, ATTACH_ENDPOINT),
-        StripeRequestType::Post(Some(attach_payment_method_form)))
-        .map_err(|_| Err(InternalError("Error attaching stripe payment method to customer".to_string())))?;
+    file_index_repo::add_stripe_payment_method(&mut transaction, &payment_method_resp.id, &customer_id, &payment_method_resp.card.last4).map_err(|e| InternalError(format!("Couldn't add payment method to Postgres: {:?}", e)))?;
 
-    Ok(RegisterCreditCardResponse { payment_method_id })
+    let mut create_setup_intent_form = HashMap::new();
+    create_setup_intent_form.insert("customer", customer_id.as_str());
+    create_setup_intent_form.insert("payment_method", payment_method_resp.id.as_str());
+    create_setup_intent_form.insert("confirm", "true");
+    create_setup_intent_form.insert("usage", "on_session");
+
+    let setup_intent_resp = send_stripe_request(
+        &server_state,
+        format!("{}{}", STRIPE_ENDPOINT, SETUP_INTENTS_ENDPOINT),
+        StripeRequestType::Post(Some(create_setup_intent_form)))
+        .and_then(|resp| resp.json::<SetupIntentStripeResponse>().await)
+        .map_err(|e| Err(InternalError(format!("Cannot create stripe setup intent: {}", e))))?
+        .status;
+
+    if setup_intent_resp == "succeeded" {
+        send_stripe_request(
+            &server_state,
+            format!("{}{}/{}{}", STRIPE_ENDPOINT, PAYMENT_METHODS_ENDPOINT, payment_method_resp.id, ATTACH_ENDPOINT),
+            StripeRequestType::Post(Some(attach_payment_method_form)))
+            .map_err(|e| Err(InternalError(format!("Cannot attach payment method to customer: {:#?}", e))))?;
+
+        match transaction.commit().await {
+            Ok(()) => Ok(RegisterCreditCardResponse { payment_method_id: payment_method_resp.id, last_4:payment_method_resp.card.last4 }),
+            Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
+        }
+    } else {
+        Err(InternalError(format!("Unexpected confirmation of stripe setup intent: {}", setup_intent_resp)));
+    }
 }
 
 pub async fn remove_credit_card(
@@ -73,49 +123,60 @@ pub async fn remove_credit_card(
 ) -> Result<(), ServerError<RemoveCreditCardError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
-    let resp = send_stripe_request(
+   send_stripe_request(
         &server_state,
         format!("{}/{}{}", STRIPE_ENDPOINT, request.payment_method_id, DETACH_ENDPOINT),
-        StripeRequestType::Post(None));
-
-    if let Err(_) = resp {
-        return Err(InternalError("Error removing stripe payment method".to_string()));
-    }
+        StripeRequestType::Post(None))
+       .map_err(|e| InternalError(format!("Cannot remove credit card: {:#?}", e)));
 
     Ok(())
 }
 
 pub async fn switch_user_tier(
-    context: RequestContext<'_, SwitchUserTierRequest>
-) -> Result<(), ServerError<SwitchUserTierError>> {
+    context: RequestContext<'_, SwitchAccountTierRequest>
+) -> Result<(), ServerError<SwitchAccountTierError>> {
     let (request, server_state) = (&context.request, context.server_state);
+
+    let mut transaction = match server_state.index_db_client.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
+        }
+    };
+
+    let data_cap = file_index_repo::get_account_data_cap(&mut transaction, &context.public_key).map_err(|e| Err(InternalError(format!("Cannot get account data cap in Postgres: {:?}", e))))?;
+
+    let customer_id = file_index_repo::get_stripe_customer_id(&mut transaction, &context.public_key).map_err(|e| Err(InternalError(format!("Cannot get stripe customer id in Postgres: {:?}", e))))?;
 
     // Check db to retrieve the current tier, and compare it to the requested.
     // If the requested tier == current tier, return error
 
-    // If the user does not have a client (as retrieved from DB), return an error
 
-    let (price_id, payment_method_id) = match &request.tier {
-        Tier::Monthly(payment_method_id) => {
-            (server_state.config.stripe.monthly_sub_price_id.as_str(), payment_method_id)
+    // let (price_id, payment_method_id) = match &request.tier {
+    //     AccountTier::Monthly(payment_method_id) => {
+    //         (server_state.config.stripe.monthly_sub_price_id.as_str(), payment_method_id)
+    //     }
+    //     AccountTier::Yearly(payment_method_id) => {
+    //         (server_state.config.stripe.yearly_sub_price_id.as_str(), payment_method_id)
+    //     }
+    //     AccountTier::Free => {
+    //         // Retrieve subscription id from DB or list out a customer's subscription and get the one
+    //         send_stripe_request(
+    //             &server_state,
+    //             format!("{}{}/{}", STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT, subscription_id),
+    //             StripeRequestType::Delete)
+    //             .map_err(|_| Err(InternalError("Error canceling stripe subscription".to_string())))?;
+    //
+    //
+    //         return Ok(());
+    //     }
+    // };
+
+    if data_cap == FREE_TIER_SIZE {
+        if let AccountTier::Free = request.tier {
+            return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         }
-        Tier::Yearly(payment_method_id) => {
-            (server_state.config.stripe.yearly_sub_price_id.as_str(), payment_method_id)
-        }
-        Tier::Free => {
-            // Retrieve subscription id from DB or list out a customer's subscription and get the one
-            send_stripe_request(
-                &server_state,
-                format!("{}{}/{}", STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT, subcription_id),
-                StripeRequestType::Delete)
-                .map_err(|_| Err(InternalError("Error canceling stripe subscription".to_string())))?;
 
-
-            return Ok(());
-        }
-    };
-
-    if let Tier::Free = request.tier { // TODO: this is supposed to be the original tier that is retrieved from the db
         let mut create_subscription_form = HashMap::new();
         create_subscription_form.insert("customer", "CUSTOMER ID"); // TODO: customer id from db
         create_subscription_form.insert("items[0][price]", price_id);
@@ -124,22 +185,24 @@ pub async fn switch_user_tier(
             &server_state,
             format!("{}{}", STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT),
             StripeRequestType::Post(Some(create_subscription_form)))
-            .and_then(|resp| resp.json::<StripeResponse>().await)
+            .and_then(|resp| resp.json::<BasicStripeResponse>().await)
             .map_err(|_| Err(InternalError("Error creating stripe subscription".to_string())))?
             .id;
 
         // Commit subscription id to db (or maybe not, retrieve it every request from stripe?)
     } else {
         // Retrieve subscription id from DB
+        if data_cap != FREE_TIER_SIZE {
+            return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
+        }
 
-        let mut update_subscription_form = HashMap::new();
-        update_subscription_form.insert("items[price]", price_id);
+        let subscription_id = file_index_repo::get_active_stripe_subscription_id(&mut transaction, &context.public_key).map_err(|e| InternalError(format!("Cannot retrieve stripe subscription in Postgres: {:?}", e)))?;
 
         send_stripe_request(
             &server_state,
             format!("{}{}/{}", STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT, subscription_id),
-            StripeRequestType::Post(Some(update_subscription_form)))
-            .map_err(|_| Err(InternalError("Error attaching stripe payment method to customer".to_string())))?;
+            StripeRequestType::Delete)
+            .map_err(|_| Err(InternalError("Error canceling stripe subscription".to_string())))?;
     }
 
     Ok(())
@@ -147,20 +210,17 @@ pub async fn switch_user_tier(
 
 #[derive(Serialize, Deserialize)]
 struct StripeGetRegisteredCreditCardsResponse {
-    data: Vec<StripeResponse>,
-    #[serde(flatten)]
-    extra: HashMap<String, Value>,
+    data: Vec<BasicStripeResponse>,
 }
 
 pub async fn get_registered_credit_cards(
-    context: RequestContext<'_, SwitchUserTierRequest>
+    context: RequestContext<'_, SwitchAccountTierRequest>
 ) -> Result<(), ServerError<GetRegisteredCreditCardsError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
 
 
 }
-
 
 pub enum StripeRequestType<'a> {
     Post(Option<HashMap<&'a str, &'a str>>),
@@ -173,7 +233,7 @@ fn send_stripe_request(server_state: &ServerState, url: String, request_type: St
         StripeRequestType::Post(maybe_form) => {
             let request = server_state
                 .stripe_client
-                .post(url); // Subscription id from form
+                .post(url);
 
 
             if let Some(form) = maybe_form {
