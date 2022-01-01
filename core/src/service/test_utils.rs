@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::env;
+use std::hash::Hash;
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -206,4 +207,81 @@ pub fn dbs_equal(db1: &Config, db2: &Config) -> bool {
             == file_service::get_all_metadata_state(db2).unwrap()
         && file_service::get_all_document_state(db1).unwrap()
             == file_service::get_all_document_state(db2).unwrap()
+}
+
+fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {
+    let mut result = HashMap::new();
+    for element in a {
+        if let Some(count) = result.get_mut(element) {
+            *count += 1;
+        } else {
+            result.insert(element, 1);
+        }
+    }
+    result
+}
+
+pub fn slices_equal_ignore_order<T: Hash + Eq>(a: &[T], b: &[T]) -> bool {
+    get_frequencies(a) == get_frequencies(b)
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::super::test_utils;
+
+    use std::array::IntoIter;
+    use std::collections::HashMap;
+    use std::iter::FromIterator;
+
+    #[test]
+    fn test_get_frequencies() {
+        let expected = HashMap::<&i32, i32>::from_iter(IntoIter::new([(&0, 1), (&1, 3), (&2, 2)]));
+        let result = test_utils::get_frequencies(&[0, 1, 1, 1, 2, 2]);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_empty() {
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[], &[]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_single() {
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69], &[69]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_single_nonequal() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69], &[420]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_distinct() {
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69420, 69, 420]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_distinct_nonequal() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[42069, 69, 420]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_distinct_subset() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69, 420]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_repeats() {
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 420]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_different_repeats() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 69]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_repeats_subset() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69]));
+    }
 }
