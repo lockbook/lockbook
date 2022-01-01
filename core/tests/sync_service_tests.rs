@@ -7,7 +7,7 @@ mod sync_tests {
     use lockbook_core::model::repo::RepoSource;
     use lockbook_core::model::state::Config;
     use lockbook_core::pure_functions::files;
-    use lockbook_core::repo::metadata_repo;
+    use lockbook_core::repo::{metadata_repo, root_repo};
     use lockbook_core::service::integrity_service::test_repo_integrity;
     use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config, self};
     use lockbook_core::service::{account_service, file_service, path_service, sync_service};
@@ -108,9 +108,39 @@ mod sync_tests {
         let db = test_config();
         let _account = make_account!(db);
 
+        sync!(db);
+        
         assert_repo_integrity!(db);
         assert_local_work_ids!(db, []);
         assert_server_work_ids!(db, []);
+    }
+
+    #[test]
+    fn new_device() {
+        let db = test_config();
+        let _account = make_account!(db);
+
+        sync!(db);
+
+        make_new_client!(db2, db);
+
+        assert_repo_integrity!(db2);
+        assert_local_work_ids!(db2, []);
+        assert_server_work_ids!(db2, [root_repo::get(&db).unwrap()]);
+    }
+
+    #[test]
+    fn sync_new_device() {
+        let db = test_config();
+        let _account = make_account!(db);
+
+        sync!(db);
+
+        make_and_sync_new_client!(db2, db);
+
+        assert_repo_integrity!(db2);
+        assert_local_work_ids!(db2, []);
+        assert_server_work_ids!(db2, []);
     }
 
     #[test]
