@@ -7,7 +7,7 @@ use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadata, FileTy
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::{drawing, files};
-use crate::repo::{metadata_repo, last_updated_repo, account_repo};
+use crate::repo::{account_repo, last_updated_repo, metadata_repo};
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::service::{file_service, path_service};
 use crate::CoreError;
@@ -28,9 +28,9 @@ pub enum TestFileTreeError {
 
 pub fn test_file_tree_integrity<Fm: FileMetadata>(files: &[Fm]) -> Result<(), TestFileTreeError> {
     if files.len() == 0 {
-        return Ok(())
+        return Ok(());
     }
-    
+
     if files::maybe_find_root(files).is_none() {
         return Err(TestFileTreeError::NoRootFolder);
     }
@@ -91,8 +91,11 @@ pub enum Warning {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoError> {
-    if account_repo::maybe_get(config).map_err(TestRepoError::Core)?.is_none() {
-        return Err(TestRepoError::NoAccount)
+    if account_repo::maybe_get(config)
+        .map_err(TestRepoError::Core)?
+        .is_none()
+    {
+        return Err(TestRepoError::NoAccount);
     }
 
     let files_encrypted = files::stage(
@@ -103,7 +106,8 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     .map(|(f, _)| f)
     .collect::<Vec<EncryptedFileMetadata>>();
 
-    if let Ok(0) = last_updated_repo::get(config) {} else {
+    if let Ok(0) = last_updated_repo::get(config) {
+    } else {
         if files::maybe_find_root(&files_encrypted).is_none() {
             return Err(TestRepoError::NoRootFolder);
         }
@@ -181,7 +185,7 @@ mod unit_tests {
             test_utils,
         },
     };
-    use lockbook_models::file_metadata::{FileType, DecryptedFileMetadata};
+    use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
     use uuid::Uuid;
 
     #[test]

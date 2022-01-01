@@ -5,267 +5,190 @@ mod sync_tests {
     use itertools::Itertools;
 
     use lockbook_core::model::repo::RepoSource;
-    use lockbook_core::model::state::Config;
     use lockbook_core::pure_functions::files;
     use lockbook_core::repo::{metadata_repo, root_repo};
-    use lockbook_core::service::integrity_service::test_repo_integrity;
-    use lockbook_core::service::test_utils::{assert_dbs_eq, generate_account, test_config, self};
-    use lockbook_core::service::{account_service, file_service, path_service, sync_service};
-    use lockbook_core::{
-        calculate_work, create_file_at_path, delete_file, list_metadatas, make_account, move_file,
-        path, rename_file,
-    };
+    use lockbook_core::service::test_utils::{self, test_config};
+    use lockbook_core::service::{file_service, path_service, sync_service};
+    use lockbook_core::{assert_dirty_ids, path};
     use lockbook_models::work_unit::WorkUnit;
-    use uuid::Uuid;
-
-    macro_rules! assert_dirty_ids {
-        ($db:expr, $n:literal) => {
-            assert_eq!(
-                sync_service::calculate_work(&$db)
-                    .unwrap()
-                    .work_units
-                    .into_iter()
-                    .map(|wu| wu.get_metadata().id)
-                    .unique()
-                    .count(),
-                $n
-            );
-        };
-    }
-
-    fn get_dirty_ids(db: &Config, server: bool) -> Vec<Uuid> {
-        sync_service::calculate_work(db)
-            .unwrap()
-            .work_units
-            .into_iter()
-            .filter_map(|wu| match wu {
-                WorkUnit::LocalChange { metadata } if !server => Some(metadata.id),
-                WorkUnit::ServerChange { metadata } if server => Some(metadata.id),
-                _ => None,
-            })
-            .unique()
-            .collect()
-    }
-
-    macro_rules! assert_local_work_ids {
-        ($db:expr, $ids:expr) => {
-            assert!(test_utils::slices_equal_ignore_order(&get_dirty_ids(&$db, false), &$ids));
-        };
-    }
-
-    macro_rules! assert_server_work_ids {
-        ($db:expr, $ids:expr) => {
-            assert!(test_utils::slices_equal_ignore_order(&get_dirty_ids(&$db, true), &$ids));
-        };
-    }
-
-    macro_rules! assert_repo_integrity {
-        ($db:expr) => {
-            test_repo_integrity(&$db).unwrap();
-        };
-    }
-
-    macro_rules! make_new_client {
-        ($new_client:ident, $old_client:expr) => {
-            let $new_client = test_config();
-            account_service::import_account(
-                &$new_client,
-                &account_service::export_account(&$old_client).unwrap(),
-            )
-            .unwrap();
-        };
-    }
-
-    macro_rules! make_and_sync_new_client {
-        ($new_client:ident, $old_client:expr) => {
-            make_new_client!($new_client, $old_client);
-            sync!($new_client);
-        };
-    }
-
-    #[macro_export]
-    macro_rules! sync {
-        ($config:expr, $f:expr) => {
-            sync_service::sync(&$config, $f).unwrap()
-        };
-        ($config:expr) => {
-            sync_service::sync(&$config, None).unwrap()
-        };
-    }
 
     #[test]
     fn new_account() {
         let db = test_config();
-        let _account = make_account!(db);
+        let _account = test_utils::create_account(&db);
 
-        assert_repo_integrity!(db);
-        assert_local_work_ids!(db, []);
-        assert_server_work_ids!(db, []);
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
     }
 
     #[test]
     fn sync_new_account() {
         let db = test_config();
-        let _account = make_account!(db);
+        let _account = test_utils::create_account(&db);
 
-        sync!(db);
-        
-        assert_repo_integrity!(db);
-        assert_local_work_ids!(db, []);
-        assert_server_work_ids!(db, []);
+        test_utils::sync(&db);
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
     }
 
     #[test]
     fn new_device() {
         let db = test_config();
-        let _account = make_account!(db);
+        let _account = test_utils::create_account(&db);
 
-        sync!(db);
-        make_new_client!(db2, db);
+        test_utils::sync(&db);
+        let db2 = test_utils::make_new_client(&db);
 
-        assert_repo_integrity!(db2);
-        assert_local_work_ids!(db2, []);
-        assert_server_work_ids!(db2, [root_repo::get(&db).unwrap()]);
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[root_repo::get(&db).unwrap()]);
     }
 
     #[test]
     fn sync_new_device() {
         let db = test_config();
-        let _account = make_account!(db);
+        let _account = test_utils::create_account(&db);
 
-        sync!(db);
-        make_and_sync_new_client!(db2, db);
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
 
-        assert_repo_integrity!(db2);
-        assert_local_work_ids!(db2, []);
-        assert_server_work_ids!(db2, []);
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
     }
 
     #[test]
     fn new_file() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let document = path_service::create_at_path(&db, path!(account, "document")).unwrap();
+        let document = lockbook_core::create_file_at_path(&db, path!(account, "document")).unwrap();
 
-        assert_repo_integrity!(db);
-        assert_local_work_ids!(db, [document.id]);
-        assert_server_work_ids!(db, []);
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_local_work_ids(&db, &[document.id]);
+        test_utils::assert_server_work_ids(&db, &[]);
     }
 
     #[test]
     fn sync_new_file() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let _document = path_service::create_at_path(&db, path!(account, "document")).unwrap();
-        sync!(db);
+        let _document =
+            lockbook_core::create_file_at_path(&db, path!(account, "document")).unwrap();
+        test_utils::sync(&db);
 
-        assert_repo_integrity!(db);
-        assert_local_work_ids!(db, []);
-        assert_server_work_ids!(db, []);
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
     }
 
     #[test]
     fn sync_new_file_new_device() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let document = path_service::create_at_path(&db, path!(account, "document")).unwrap();
-        sync!(db);
-        make_new_client!(db2, db);
+        let document = lockbook_core::create_file_at_path(&db, path!(account, "document")).unwrap();
+        test_utils::sync(&db);
+        let db2 = test_utils::make_new_client(&db);
 
-        assert_repo_integrity!(db2);
-        assert_local_work_ids!(db2, []);
-        assert_server_work_ids!(db2, [root_repo::get(&db).unwrap(), document.id]);
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[root_repo::get(&db).unwrap(), document.id]);
     }
 
     #[test]
     fn sync_new_file_to_new_device() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let _document = path_service::create_at_path(&db, path!(account, "document")).unwrap();
-        sync!(db);
-        make_and_sync_new_client!(db2, db);
+        let _document =
+            lockbook_core::create_file_at_path(&db, path!(account, "document")).unwrap();
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
 
-        assert_repo_integrity!(db2);
-        assert_local_work_ids!(db2, []);
-        assert_server_work_ids!(db2, []);
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
     }
 
     #[test]
     fn new_files() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let a = path_service::create_at_path(&db, path!(account, "a/")).unwrap();
-        let b = path_service::create_at_path(&db, path!(account, "a/b/")).unwrap();
-        let c = path_service::create_at_path(&db, path!(account, "a/b/c/")).unwrap();
-        let d = path_service::create_at_path(&db, path!(account, "a/b/c/d")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, path!(account, "a/")).unwrap();
+        let b = lockbook_core::create_file_at_path(&db, path!(account, "a/b/")).unwrap();
+        let c = lockbook_core::create_file_at_path(&db, path!(account, "a/b/c/")).unwrap();
+        let d = lockbook_core::create_file_at_path(&db, path!(account, "a/b/c/d")).unwrap();
 
-        assert_repo_integrity!(db);
-        assert_local_work_ids!(db, [a.id, b.id, c.id, d.id]);
-        assert_server_work_ids!(db, []);
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_local_work_ids(&db, &[a.id, b.id, c.id, d.id]);
+        test_utils::assert_server_work_ids(&db, &[]);
     }
 
     #[test]
     fn sync_new_files() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let _d = path_service::create_at_path(&db, path!(account, "a/b/c/d")).unwrap();
-        sync!(db);
+        let _d = lockbook_core::create_file_at_path(&db, path!(account, "a/b/c/d")).unwrap();
+        test_utils::sync(&db);
 
-        assert_repo_integrity!(db);
-        assert_local_work_ids!(db, []);
-        assert_server_work_ids!(db, []);
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
     }
 
     #[test]
     fn sync_new_files_new_device() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let a = path_service::create_at_path(&db, path!(account, "a/")).unwrap();
-        let b = path_service::create_at_path(&db, path!(account, "a/b/")).unwrap();
-        let c = path_service::create_at_path(&db, path!(account, "a/b/c/")).unwrap();
-        let d = path_service::create_at_path(&db, path!(account, "a/b/c/d")).unwrap();
-        sync!(db);
-        make_new_client!(db2, db);
+        let a = lockbook_core::create_file_at_path(&db, path!(account, "a/")).unwrap();
+        let b = lockbook_core::create_file_at_path(&db, path!(account, "a/b/")).unwrap();
+        let c = lockbook_core::create_file_at_path(&db, path!(account, "a/b/c/")).unwrap();
+        let d = lockbook_core::create_file_at_path(&db, path!(account, "a/b/c/d")).unwrap();
+        test_utils::sync(&db);
+        let db2 = test_utils::make_new_client(&db);
 
-        assert_repo_integrity!(db2);
-        assert_local_work_ids!(db2, []);
-        assert_server_work_ids!(db2, [root_repo::get(&db).unwrap(), a.id, b.id, c.id, d.id]);
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(
+            &db2,
+            &[root_repo::get(&db).unwrap(), a.id, b.id, c.id, d.id],
+        );
     }
 
     #[test]
     fn sync_new_files_to_new_device() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let _d = path_service::create_at_path(&db, path!(account, "a/b/c/d")).unwrap();
-        sync!(db);
-        make_and_sync_new_client!(db2, db);
+        let _d = lockbook_core::create_file_at_path(&db, path!(account, "a/b/c/d")).unwrap();
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
 
-        assert_repo_integrity!(db2);
-        assert_local_work_ids!(db2, []);
-        assert_server_work_ids!(db2, []);
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
     }
 
     #[test]
     fn test_edit_document_sync() {
         let db = &test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
         assert_dirty_ids!(db, 0);
 
-        let file =
-            path_service::create_at_path(&db, path!(account, "a/b/c/test")).unwrap();
+        let file = lockbook_core::create_file_at_path(&db, path!(account, "a/b/c/test")).unwrap();
 
-        sync!(db);
+        test_utils::sync(&db);
 
-        make_and_sync_new_client!(db2, db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
 
         file_service::insert_document(
             &db,
@@ -292,7 +215,7 @@ mod sync_tests {
             }
         };
 
-        sync!(db);
+        test_utils::sync(&db);
 
         assert_dirty_ids!(db, 0);
 
@@ -313,7 +236,7 @@ mod sync_tests {
             }
         };
 
-        sync!(db2);
+        test_utils::sync(&db2);
 
         assert_dirty_ids!(db2, 0);
 
@@ -321,27 +244,26 @@ mod sync_tests {
             file_service::get_document(&db2, RepoSource::Local, &edited_file).unwrap(),
             "meaningful messages".as_bytes()
         );
-        assert_dbs_eq(&db, &db2);
+        test_utils::assert_dbs_eq(&db, &db2);
     }
 
     #[test]
     fn test_move_document_sync() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
         let file =
-            path_service::create_at_path(&db1, path!(account, "folder1/test.txt"))
-                .unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "folder1/test.txt")).unwrap();
 
         file_service::insert_document(&db1, RepoSource::Local, &file, "nice document".as_bytes())
             .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
-        assert_dbs_eq(&db1, &db2);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
+        test_utils::assert_dbs_eq(&db1, &db2);
 
         let new_folder =
-            path_service::create_at_path(&db1, path!(account, "folder2/")).unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "folder2/")).unwrap();
 
         file_service::insert_metadatum(
             &db1,
@@ -357,11 +279,11 @@ mod sync_tests {
 
         assert_dirty_ids!(db1, 2);
 
-        sync!(db1);
+        test_utils::sync(&db1);
         assert_dirty_ids!(db1, 0);
         assert_dirty_ids!(db2, 2);
 
-        sync!(db2);
+        test_utils::sync(&db2);
         assert_dirty_ids!(db2, 0);
 
         assert_eq!(
@@ -374,30 +296,29 @@ mod sync_tests {
             "nice document".as_bytes()
         );
 
-        assert_dbs_eq(&db1, &db2);
+        test_utils::assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
     fn test_move_reject() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
         let file =
-            path_service::create_at_path(&db1, path!(account, "folder1/test.txt"))
-                .unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "folder1/test.txt")).unwrap();
 
         file_service::insert_document(&db1, RepoSource::Local, &file, "Wow, what a doc".as_bytes())
             .unwrap();
 
         let new_folder1 =
-            path_service::create_at_path(&db1, path!(account, "folder2/")).unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "folder2/")).unwrap();
 
         let new_folder2 =
-            path_service::create_at_path(&db1, path!(account, "folder3/")).unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "folder3/")).unwrap();
 
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
         file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
@@ -409,7 +330,7 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db2);
+        test_utils::sync(&db2);
 
         file_service::insert_metadatum(
             &db1,
@@ -422,9 +343,9 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        assert_dbs_eq(&db1, &db2);
+        test_utils::assert_dbs_eq(&db1, &db2);
 
         assert_eq!(
             file_service::get_metadata(&db1, RepoSource::Local, file.id)
@@ -441,11 +362,10 @@ mod sync_tests {
     #[test]
     fn test_rename_sync() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
         let file =
-            path_service::create_at_path(&db1, path!(account, "folder1/test.txt"))
-                .unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "folder1/test.txt")).unwrap();
 
         file_service::insert_metadatum(
             &db1,
@@ -458,9 +378,9 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         let file_from_path =
             path_service::get_by_path(&db2, path!(account, "folder1-new")).unwrap();
@@ -472,18 +392,17 @@ mod sync_tests {
                 .decrypted_name,
             file_from_path.decrypted_name
         );
-        assert_dbs_eq(&db1, &db2);
+        test_utils::assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
     fn test_rename_reject_sync() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
         let file =
-            path_service::create_at_path(&db1, path!(account, "folder1/test.txt"))
-                .unwrap();
-        sync!(db1);
+            lockbook_core::create_file_at_path(&db1, path!(account, "folder1/test.txt")).unwrap();
+        test_utils::sync(&db1);
 
         file_service::insert_metadatum(
             &db1,
@@ -497,7 +416,7 @@ mod sync_tests {
         )
         .unwrap();
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         file_service::insert_metadatum(
             &db2,
@@ -510,8 +429,8 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db2);
-        sync!(db1);
+        test_utils::sync(&db2);
+        test_utils::sync(&db1);
 
         assert_eq!(
             &path_service::get_by_path(&db2, path!(account, "folder2-new"),)
@@ -525,17 +444,16 @@ mod sync_tests {
                 .decrypted_name,
             "folder2-new"
         );
-        assert_dbs_eq(&db1, &db2);
+        test_utils::assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
     fn move_then_edit() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file =
-            path_service::create_at_path(&db1, path!(account, "test.txt")).unwrap();
-        sync!(db1);
+        let file = lockbook_core::create_file_at_path(&db1, path!(account, "test.txt")).unwrap();
+        test_utils::sync(&db1);
 
         file_service::insert_metadatum(
             &db1,
@@ -548,24 +466,24 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
         file_service::insert_document(&db1, RepoSource::Local, &file, "noice".as_bytes()).unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
     }
 
     // #[test]
     // fn sync_fs_invalid_state_via_rename() {
     //     let db1 = test_config();
-    //     let account = make_account!(db1);
+    //     let account = test_utils::create_account(&db1);
 
     //     let file1 =
-    //         path_service::create_at_path(&db1, path!(account, "test.txt")).unwrap();
+    //         lockbook_core::create_file_at_path(&db1, path!(account, "test.txt")).unwrap();
     //     let file2 =
-    //         path_service::create_at_path(&db1, path!(account, "test2.txt")).unwrap();
-    //     sync!(db1);
+    //         lockbook_core::create_file_at_path(&db1, path!(account, "test2.txt")).unwrap();
+    //     test_utils::sync(&db1);
 
-    //     make_and_sync_new_client!(db2, db1);
+    //     test_utils::make_and_sync_new_clie&2, db1);
     //     file_repo::insert_metadata(
     //         &db2,
     //         RepoSource::Local,
@@ -577,7 +495,7 @@ mod sync_tests {
     //         .unwrap(),
     //     )
     //     .unwrap();
-    //     sync!(db2);
+    //     test_utils::sync(&db2);
 
     //     file_repo::insert_metadata(
     //         &db1,
@@ -603,32 +521,32 @@ mod sync_tests {
 
     //     assert!(integrity_service::test_repo_integrity(&db1).is_ok());
 
-    //     assert_n_work_units!(db1, 1);
+    //     test_utils::assert_n_work_units(&db1, 1);
 
-    //     sync!(db1);
-    //     sync!(db2);
+    //     test_utils::sync(&db1);
+    //     test_utils::sync(&db2);
 
     //     assert_eq!(
     //         file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
     //         file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap()
     //     );
 
-    //     assert_dbs_eq(&db1, &db2);
+    //     test_utils::assert_dbs_eq(&db1, &db2);
     // }
 
     // #[test]
     // fn sync_fs_invalid_state_via_move() {
     //     let db1 = test_config();
-    //     let account = make_account!(db1);
+    //     let account = test_utils::create_account(&db1);
 
-    //     let file1 = path_service::create_at_path(&db1, path!(account, "a/test.txt"))
+    //     let file1 = lockbook_core::create_file_at_path(&db1, path!(account, "a/test.txt"))
     //         .unwrap();
-    //     let file2 = path_service::create_at_path(&db1, path!(account, "b/test.txt"))
+    //     let file2 = lockbook_core::create_file_at_path(&db1, path!(account, "b/test.txt"))
     //         .unwrap();
 
-    //     sync!(db1);
+    //     test_utils::sync(&db1);
 
-    //     make_and_sync_new_client!(db2, db1);
+    //     test_utils::make_and_sync_new_clie&2, db1);
 
     //     file_repo::insert_metadata(
     //         &db1,
@@ -641,7 +559,7 @@ mod sync_tests {
     //         .unwrap(),
     //     )
     //     .unwrap();
-    //     sync!(db1);
+    //     test_utils::sync(&db1);
 
     //     file_repo::insert_metadata(
     //         &db2,
@@ -667,27 +585,26 @@ mod sync_tests {
 
     //     integrity_service::test_repo_integrity(&db2).unwrap();
 
-    //     assert_n_work_units!(db1, 0);
-    //     assert_n_work_units!(db2, 1);
+    //     test_utils::assert_n_work_units(&db1, 0);
+    //     test_utils::assert_n_work_units(&db2, 1);
 
-    //     sync!(db2);
-    //     sync!(db1);
+    //     test_utils::sync(&db2);
+    //     test_utils::sync(&db1);
 
     //     assert_eq!(
     //         file_repo::get_all_metadata(&db1, RepoSource::Local).unwrap(),
     //         file_repo::get_all_metadata(&db2, RepoSource::Local).unwrap()
     //     );
 
-    //     assert_dbs_eq(&db1, &db2);
+    //     test_utils::assert_dbs_eq(&db1, &db2);
     // }
 
     #[test]
     fn test_content_conflict_unmergable() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file =
-            path_service::create_at_path(&db1, path!(account, "test.bin")).unwrap();
+        let file = lockbook_core::create_file_at_path(&db1, path!(account, "test.bin")).unwrap();
 
         file_service::insert_document(
             &db1,
@@ -697,9 +614,9 @@ mod sync_tests {
         )
         .unwrap();
 
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
         file_service::insert_document(
             &db1,
             RepoSource::Local,
@@ -707,7 +624,7 @@ mod sync_tests {
             "some new content".as_bytes(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
         file_service::insert_document(
             &db2,
@@ -720,32 +637,32 @@ mod sync_tests {
 
         assert_eq!(works.work_units.len(), 2);
 
-        sync!(db2);
+        test_utils::sync(&db2);
 
         let all_metadata = file_service::get_all_metadata(&db2, RepoSource::Base).unwrap();
         assert!(all_metadata
             .into_iter()
             .any(|m| m.decrypted_name.contains("test-1.bin")));
 
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        assert_dbs_eq(&db1, &db2);
+        test_utils::assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
     fn test_path_conflict() {
         let db1 = test_config();
 
-        let account = make_account!(db1);
-        make_and_sync_new_client!(db2, db1);
+        let account = test_utils::create_account(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
-        create_file_at_path(&db1, path!(account, "new.md")).unwrap();
-        sync!(db1);
-        create_file_at_path(&db2, path!(account, "new.md")).unwrap();
-        sync!(db2);
+        lockbook_core::create_file_at_path(&db1, path!(account, "new.md")).unwrap();
+        test_utils::sync(&db1);
+        lockbook_core::create_file_at_path(&db2, path!(account, "new.md")).unwrap();
+        test_utils::sync(&db2);
 
         assert_eq!(
-            list_metadatas(&db2)
+            lockbook_core::list_metadatas(&db2)
                 .unwrap()
                 .iter()
                 .filter(|file| file.id != file.parent)
@@ -760,16 +677,16 @@ mod sync_tests {
     fn test_path_conflict2() {
         let db1 = test_config();
 
-        let account = make_account!(db1);
-        make_and_sync_new_client!(db2, db1);
+        let account = test_utils::create_account(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
-        create_file_at_path(&db1, path!(account, "new-1.md")).unwrap();
-        sync!(db1);
-        create_file_at_path(&db2, path!(account, "new-1.md")).unwrap();
-        sync!(db2);
+        lockbook_core::create_file_at_path(&db1, path!(account, "new-1.md")).unwrap();
+        test_utils::sync(&db1);
+        lockbook_core::create_file_at_path(&db2, path!(account, "new-1.md")).unwrap();
+        test_utils::sync(&db2);
 
         assert_eq!(
-            list_metadatas(&db2)
+            lockbook_core::list_metadatas(&db2)
                 .unwrap()
                 .iter()
                 .filter(|file| file.id != file.parent)
@@ -783,18 +700,17 @@ mod sync_tests {
     #[test]
     fn test_content_conflict_mergable() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
         let file =
-            path_service::create_at_path(&db1, path!(account, "mergable_file.md"))
-                .unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "mergable_file.md")).unwrap();
 
         file_service::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes())
             .unwrap();
 
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         file_service::insert_document(
             &db1,
@@ -803,7 +719,7 @@ mod sync_tests {
             "Line 1\nLine 2\n".as_bytes(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
         file_service::insert_document(
             &db2,
             RepoSource::Local,
@@ -812,8 +728,8 @@ mod sync_tests {
         )
         .unwrap();
 
-        sync!(db2);
-        sync!(db1);
+        test_utils::sync(&db2);
+        test_utils::sync(&db1);
 
         assert!(String::from_utf8_lossy(
             &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
@@ -827,23 +743,22 @@ mod sync_tests {
             &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
-        assert_dbs_eq(&db1, &db2);
+        test_utils::assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
     fn test_content_conflict_local_move_before_mergable() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
         let file =
-            path_service::create_at_path(&db1, path!(account, "mergable_file.md"))
-                .unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "mergable_file.md")).unwrap();
 
         file_service::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes())
             .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         file_service::insert_document(
             &db1,
@@ -852,9 +767,8 @@ mod sync_tests {
             "Line 1\nLine 2\n".as_bytes(),
         )
         .unwrap();
-        sync!(db1);
-        let folder =
-            path_service::create_at_path(&db2, path!(account, "folder1/")).unwrap();
+        test_utils::sync(&db1);
+        let folder = lockbook_core::create_file_at_path(&db2, path!(account, "folder1/")).unwrap();
         file_service::insert_metadatum(
             &db2,
             RepoSource::Local,
@@ -874,8 +788,8 @@ mod sync_tests {
         )
         .unwrap();
 
-        sync!(db2);
-        sync!(db1);
+        test_utils::sync(&db2);
+        test_utils::sync(&db1);
 
         assert!(String::from_utf8_lossy(
             &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
@@ -889,23 +803,22 @@ mod sync_tests {
             &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
-        assert_dbs_eq(&db1, &db2);
+        test_utils::assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
     fn test_content_conflict_local_after_before_mergable() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
         let file =
-            path_service::create_at_path(&db1, path!(account, "mergable_file.md"))
-                .unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "mergable_file.md")).unwrap();
 
         file_service::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes())
             .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         file_service::insert_document(
             &db1,
@@ -914,9 +827,8 @@ mod sync_tests {
             "Line 1\nLine 2\n".as_bytes(),
         )
         .unwrap();
-        sync!(db1);
-        let folder =
-            path_service::create_at_path(&db2, path!(account, "folder1/")).unwrap();
+        test_utils::sync(&db1);
+        let folder = lockbook_core::create_file_at_path(&db2, path!(account, "folder1/")).unwrap();
         file_service::insert_document(
             &db2,
             RepoSource::Local,
@@ -936,8 +848,8 @@ mod sync_tests {
         )
         .unwrap();
 
-        sync!(db2);
-        sync!(db1);
+        test_utils::sync(&db2);
+        test_utils::sync(&db1);
 
         assert!(String::from_utf8_lossy(
             &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
@@ -951,23 +863,22 @@ mod sync_tests {
             &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
-        assert_dbs_eq(&db1, &db2);
+        test_utils::assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
     fn test_content_conflict_server_after_before_mergable() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
         let file =
-            path_service::create_at_path(&db1, path!(account, "mergable_file.md"))
-                .unwrap();
+            lockbook_core::create_file_at_path(&db1, path!(account, "mergable_file.md")).unwrap();
 
         file_service::insert_document(&db1, RepoSource::Local, &file, "Line 1\n".as_bytes())
             .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         file_service::insert_document(
             &db1,
@@ -976,8 +887,7 @@ mod sync_tests {
             "Line 1\nLine 2\n".as_bytes(),
         )
         .unwrap();
-        let folder =
-            path_service::create_at_path(&db1, path!(account, "folder1/")).unwrap();
+        let folder = lockbook_core::create_file_at_path(&db1, path!(account, "folder1/")).unwrap();
         file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
@@ -989,7 +899,7 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
         file_service::insert_document(
             &db2,
             RepoSource::Local,
@@ -998,8 +908,8 @@ mod sync_tests {
         )
         .unwrap();
 
-        sync!(db2);
-        sync!(db1);
+        test_utils::sync(&db2);
+        test_utils::sync(&db1);
 
         assert!(String::from_utf8_lossy(
             &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
@@ -1013,20 +923,19 @@ mod sync_tests {
             &file_service::get_document(&db1, RepoSource::Local, &file).unwrap()
         )
         .contains("Offline Line"));
-        assert_dbs_eq(&db1, &db2);
+        test_utils::assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
     fn test_not_really_editing_should_not_cause_work() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let file =
-            path_service::create_at_path(&db, path!(account, "file.md")).unwrap();
+        let file = lockbook_core::create_file_at_path(&db, path!(account, "file.md")).unwrap();
 
         file_service::insert_document(&db, RepoSource::Local, &file, "original".as_bytes())
             .unwrap();
-        sync!(db);
+        test_utils::sync(&db);
         assert_dirty_ids!(db, 0);
 
         file_service::insert_document(&db, RepoSource::Local, &file, "original".as_bytes())
@@ -1037,26 +946,24 @@ mod sync_tests {
     #[test]
     fn test_not_really_renaming_should_not_cause_work() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let file =
-            path_service::create_at_path(&db, path!(account, "file.md")).unwrap();
+        let file = lockbook_core::create_file_at_path(&db, path!(account, "file.md")).unwrap();
 
-        sync!(db);
+        test_utils::sync(&db);
         assert_dirty_ids!(db, 0);
-        rename_file(&db, file.id, "file.md").unwrap();
+        lockbook_core::rename_file(&db, file.id, "file.md").unwrap();
         assert_dirty_ids!(db, 0);
     }
 
     #[test]
     fn test_not_really_moving_should_not_cause_work() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = test_utils::create_account(&db);
 
-        let file =
-            path_service::create_at_path(&db, path!(account, "file.md")).unwrap();
+        let file = lockbook_core::create_file_at_path(&db, path!(account, "file.md")).unwrap();
 
-        sync!(db);
+        test_utils::sync(&db);
         assert_dirty_ids!(db, 0);
 
         file_service::insert_metadatum(
@@ -1076,12 +983,11 @@ mod sync_tests {
     // Test that documents are deleted when a fresh sync happens
     fn delete_document_test_sync() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file =
-            path_service::create_at_path(&db1, path!(account, "file.md")).unwrap();
+        let file = lockbook_core::create_file_at_path(&db1, path!(account, "file.md")).unwrap();
 
-        sync!(db1);
+        test_utils::sync(&db1);
         file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
@@ -1097,16 +1003,16 @@ mod sync_tests {
                 .unwrap()
                 .deleted
         );
-        sync!(db1);
+        test_utils::sync(&db1);
         assert!(metadata_repo::maybe_get(&db1, RepoSource::Local, file.id)
             .unwrap()
             .is_none());
 
-        make_new_client!(db2, db1);
+        let db2 = test_utils::make_new_client(&db1);
         assert!(metadata_repo::maybe_get(&db2, RepoSource::Local, file.id)
             .unwrap()
             .is_none());
-        sync!(db2);
+        test_utils::sync(&db2);
         assert!(metadata_repo::maybe_get(&db2, RepoSource::Local, file.id)
             .unwrap()
             .is_none());
@@ -1117,10 +1023,9 @@ mod sync_tests {
     #[test]
     fn delete_new_document_never_synced() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file =
-            path_service::create_at_path(&db1, path!(account, "file.md")).unwrap();
+        let file = lockbook_core::create_file_at_path(&db1, path!(account, "file.md")).unwrap();
 
         file_service::insert_metadatum(
             &db1,
@@ -1152,13 +1057,12 @@ mod sync_tests {
     // Test that documents are deleted after a sync
     fn delete_document_test_after_sync() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file =
-            path_service::create_at_path(&db1, path!(account, "file.md")).unwrap();
-        sync!(db1);
+        let file = lockbook_core::create_file_at_path(&db1, path!(account, "file.md")).unwrap();
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         file_service::insert_metadatum(
             &db1,
@@ -1170,8 +1074,8 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db1);
-        sync!(db2);
+        test_utils::sync(&db1);
+        test_utils::sync(&db2);
 
         assert!(metadata_repo::maybe_get(&db1, RepoSource::Local, file.id)
             .unwrap()
@@ -1214,18 +1118,24 @@ mod sync_tests {
         // Make sure all the contents for the stay files are there in both dbs
 
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file1_delete = path_service::create_at_path(&db1, path!(account, "delete/file1.md")).unwrap();
-        let file2_delete = path_service::create_at_path(&db1, path!(account, "delete/file2.md")).unwrap();
-        let file3_delete = path_service::create_at_path(&db1, path!(account, "delete/file3.md")).unwrap();
+        let file1_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "delete/file1.md")).unwrap();
+        let file2_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "delete/file2.md")).unwrap();
+        let file3_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "delete/file3.md")).unwrap();
 
-        let file1_stay = path_service::create_at_path(&db1, path!(account, "stay/file1.md")).unwrap();
-        let file2_stay = path_service::create_at_path(&db1, path!(account, "stay/file2.md")).unwrap();
-        let file3_stay = path_service::create_at_path(&db1, path!(account, "stay/file3.md")).unwrap();
-        sync!(db1);
+        let file1_stay =
+            lockbook_core::create_file_at_path(&db1, path!(account, "stay/file1.md")).unwrap();
+        let file2_stay =
+            lockbook_core::create_file_at_path(&db1, path!(account, "stay/file2.md")).unwrap();
+        let file3_stay =
+            lockbook_core::create_file_at_path(&db1, path!(account, "stay/file3.md")).unwrap();
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
         let to_delete = path_service::get_by_path(&db2, path!(account, "delete")).unwrap();
         file_service::insert_metadatum(
             &db2,
@@ -1289,7 +1199,7 @@ mod sync_tests {
 
         // Only the folder should show up as the sync instruction
         assert_dirty_ids!(db2, 1);
-        sync!(db2);
+        test_utils::sync(&db2);
 
         // deleted files and their descendents are purged after sync
         assert!(
@@ -1314,7 +1224,7 @@ mod sync_tests {
         );
 
         assert_dirty_ids!(db1, 4);
-        sync!(db1);
+        test_utils::sync(&db1);
 
         assert!(
             file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.parent)
@@ -1376,18 +1286,24 @@ mod sync_tests {
         // Make sure all the contents for the stay files are there in both dbs
 
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file1_delete = path_service::create_at_path(&db1, path!(account, "delete/file1.md")).unwrap();
-        let file2_delete = path_service::create_at_path(&db1, path!(account, "delete/file2A.md")).unwrap();
-        let file3_delete = path_service::create_at_path(&db1, path!(account, "delete/file3.md")).unwrap();
+        let file1_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "delete/file1.md")).unwrap();
+        let file2_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "delete/file2A.md")).unwrap();
+        let file3_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "delete/file3.md")).unwrap();
 
-        let file1_stay = path_service::create_at_path(&db1, path!(account, "stay/file1.md")).unwrap();
-        let file2_stay = path_service::create_at_path(&db1, path!(account, "stay/file2.md")).unwrap();
-        let file3_stay = path_service::create_at_path(&db1, path!(account, "stay/file3.md")).unwrap();
-        sync!(db1);
+        let file1_stay =
+            lockbook_core::create_file_at_path(&db1, path!(account, "stay/file1.md")).unwrap();
+        let file2_stay =
+            lockbook_core::create_file_at_path(&db1, path!(account, "stay/file2.md")).unwrap();
+        let file3_stay =
+            lockbook_core::create_file_at_path(&db1, path!(account, "stay/file3.md")).unwrap();
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         file_service::insert_metadatum(
             &db2,
@@ -1463,7 +1379,7 @@ mod sync_tests {
 
         // Only the folder + moved document should show up as the sync instructions
         assert_dirty_ids!(db2, 2);
-        sync!(db2);
+        test_utils::sync(&db2);
 
         // deleted files and their ancestors purged after sync
         assert!(
@@ -1489,7 +1405,7 @@ mod sync_tests {
         );
 
         assert_dirty_ids!(db1, 4);
-        sync!(db1);
+        test_utils::sync(&db1);
 
         assert!(
             file_service::maybe_get_metadata(&db1, RepoSource::Local, file1_delete.parent)
@@ -1541,16 +1457,20 @@ mod sync_tests {
     #[test]
     fn create_new_folder_and_move_old_files_into_it_then_delete_that_folder() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file1_delete = path_service::create_at_path(&db1, path!(account, "old/file1.md")).unwrap();
-        let file2_delete = path_service::create_at_path(&db1, path!(account, "old/file2.md")).unwrap();
-        let file3_delete = path_service::create_at_path(&db1, path!(account, "old/file3.md")).unwrap();
-        let file4_delete = path_service::create_at_path(&db1, path!(account, "old/file4.md")).unwrap();
+        let file1_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "old/file1.md")).unwrap();
+        let file2_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "old/file2.md")).unwrap();
+        let file3_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "old/file3.md")).unwrap();
+        let file4_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "old/file4.md")).unwrap();
 
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        let new_folder = path_service::create_at_path(&db1, path!(account, "new/")).unwrap();
+        let new_folder = lockbook_core::create_file_at_path(&db1, path!(account, "new/")).unwrap();
         file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
@@ -1615,9 +1535,9 @@ mod sync_tests {
                 .deleted
         );
 
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         assert!(
             !file_service::maybe_get_metadata(&db2, RepoSource::Local, file1_delete.id)
@@ -1651,11 +1571,11 @@ mod sync_tests {
     #[test]
     fn create_document_sync_delete_document_sync() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file1 = path_service::create_at_path(&db1, path!(account, "file1.md")).unwrap();
+        let file1 = lockbook_core::create_file_at_path(&db1, path!(account, "file1.md")).unwrap();
 
-        sync!(db1);
+        test_utils::sync(&db1);
         file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
@@ -1666,17 +1586,17 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
         assert_dirty_ids!(db1, 0);
     }
 
     #[test]
     fn deleted_path_is_released() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        let file1 = path_service::create_at_path(&db1, path!(account, "file1.md")).unwrap();
-        sync!(db1);
+        let file1 = lockbook_core::create_file_at_path(&db1, path!(account, "file1.md")).unwrap();
+        test_utils::sync(&db1);
 
         file_service::insert_metadatum(
             &db1,
@@ -1688,20 +1608,21 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        path_service::create_at_path(&db1, path!(account, "file1.md")).unwrap();
-        sync!(db1);
+        lockbook_core::create_file_at_path(&db1, path!(account, "file1.md")).unwrap();
+        test_utils::sync(&db1);
     }
 
     #[test]
     fn folder_delete_bug() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        path_service::create_at_path(&db1, path!(account, "test/folder/document.md")).unwrap();
-        sync!(db1);
-        make_and_sync_new_client!(db2, db1);
+        lockbook_core::create_file_at_path(&db1, path!(account, "test/folder/document.md"))
+            .unwrap();
+        test_utils::sync(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         let folder_to_delete = path_service::get_by_path(&db1, path!(account, "test")).unwrap();
         file_service::insert_metadatum(
@@ -1714,19 +1635,20 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
-        sync!(db2); // There was an error here
+        test_utils::sync(&db2); // There was an error here
     }
 
     #[test]
     fn ensure_that_deleting_a_file_doesnt_make_it_show_up_in_work_calculated() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
         let file =
-            path_service::create_at_path(&db1, path!(account, "test/folder/document.md")).unwrap();
-        sync!(db1);
+            lockbook_core::create_file_at_path(&db1, path!(account, "test/folder/document.md"))
+                .unwrap();
+        test_utils::sync(&db1);
 
         file_service::insert_metadatum(
             &db1,
@@ -1741,7 +1663,7 @@ mod sync_tests {
 
         assert_dirty_ids!(db1, 1);
 
-        sync!(db1);
+        test_utils::sync(&db1);
 
         assert_dirty_ids!(db1, 0);
     }
@@ -1754,17 +1676,17 @@ mod sync_tests {
     #[test]
     fn recreate_smail_bug() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        make_and_sync_new_client!(db2, db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
         for i in 1..10 {
-            path_service::create_at_path(&db1, path!(account, format!("tmp/{}/", i)))
+            lockbook_core::create_file_at_path(&db1, path!(account, format!("tmp/{}/", i)))
                 .unwrap();
         }
 
-        sync!(db1);
-        sync!(db2);
+        test_utils::sync(&db1);
+        test_utils::sync(&db2);
 
         let file_to_break = path_service::get_by_path(&db1, path!(account, "tmp")).unwrap();
 
@@ -1780,7 +1702,7 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db1);
+        test_utils::sync(&db1);
 
         // Other deletes and syncs
         file_service::insert_metadatum(
@@ -1793,15 +1715,15 @@ mod sync_tests {
             .unwrap(),
         )
         .unwrap();
-        sync!(db2);
+        test_utils::sync(&db2);
     }
 
     // #[test]
     // fn recreate_smail_bug_attempt_3() {
     //     let db1 = test_config();
-    //     let account = make_account!(db1);
+    //     let account = test_utils::create_account(&db1);
 
-    //     let parent = path_service::create_at_path(&db1, path!(account, "tmp/")).unwrap();
+    //     let parent = lockbook_core::create_file_at_path(&db1, path!(account, "tmp/")).unwrap();
     //     file_repo::insert_metadata(
     //         &db1,
     //         RepoSource::Local,
@@ -1809,9 +1731,9 @@ mod sync_tests {
     //     )
     //     .unwrap();
 
-    //     sync!(db1);
+    //     test_utils::sync(&db1);
 
-    //     make_and_sync_new_client!(db2, db1);
+    //     test_utils::make_and_sync_new_clie&2, db1);
 
     //     file_repo::insert_metadata(
     //         &db2,
@@ -1820,7 +1742,7 @@ mod sync_tests {
     //     )
     //     .unwrap();
     //     let work = sync_service::calculate_work(&db2).unwrap().work_units; // 1 piece of work, the new child
-    //     assert_n_work_units!(db2, 1);
+    //     test_utils::assert_n_work_units(&db2, 1);
 
     //     file_repo::insert_metadata(
     //         &db1,
@@ -1832,7 +1754,7 @@ mod sync_tests {
     //         .unwrap(),
     //     )
     //     .unwrap();
-    //     sync!(db1);
+    //     test_utils::sync(&db1);
 
     //     for wu in work {
     //         sync_service::execute_work(&db2, &account, wu).unwrap_err();
@@ -1844,183 +1766,192 @@ mod sync_tests {
     //         .unwrap();
 
     //     sync_service::sync(&db3, None).unwrap();
-    //     assert_no_metadata_problems!(db3);
+    //     test_utils::assert_no_metadata_problems(&db3);
     // }
 
     #[test]
     fn issue_734_bug() {
         let db1 = test_config();
-        let account = make_account!(db1);
+        let account = test_utils::create_account(&db1);
 
-        path_service::create_at_path(&db1, path!(account, account.username))
-            .unwrap();
+        lockbook_core::create_file_at_path(&db1, path!(account, account.username)).unwrap();
 
-        sync!(db1);
+        test_utils::sync(&db1);
     }
 
     #[test]
     fn cycle_in_a_sync() {
         let db1 = test_config();
-        let account = make_account!(db1);
-        let a = path_service::create_at_path(&db1, path!(account, "a/")).unwrap();
-        let b = path_service::create_at_path(&db1, path!(account, "b/")).unwrap();
-        sync!(db1);
-        make_and_sync_new_client!(db2, db1);
+        let account = test_utils::create_account(&db1);
+        let a = lockbook_core::create_file_at_path(&db1, path!(account, "a/")).unwrap();
+        let b = lockbook_core::create_file_at_path(&db1, path!(account, "b/")).unwrap();
+        test_utils::sync(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
-        move_file(&db1, b.id, a.id).unwrap();
-        move_file(&db2, a.id, b.id).unwrap();
+        lockbook_core::move_file(&db1, b.id, a.id).unwrap();
+        lockbook_core::move_file(&db2, a.id, b.id).unwrap();
 
-        sync!(db1);
-        sync!(db2);
+        test_utils::sync(&db1);
+        test_utils::sync(&db2);
     }
 
     #[test]
     fn cycle_in_a_sync_with_a_rename() {
         let db1 = test_config();
-        let account = make_account!(db1);
-        let a = path_service::create_at_path(&db1, path!(account, "a/")).unwrap();
-        let b = path_service::create_at_path(&db1, path!(account, "b/")).unwrap();
-        sync!(db1);
-        make_and_sync_new_client!(db2, db1);
+        let account = test_utils::create_account(&db1);
+        let a = lockbook_core::create_file_at_path(&db1, path!(account, "a/")).unwrap();
+        let b = lockbook_core::create_file_at_path(&db1, path!(account, "b/")).unwrap();
+        test_utils::sync(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
-        move_file(&db1, b.id, a.id).unwrap();
-        rename_file(&db1, a.id, "new_name").unwrap();
-        sync!(db1);
+        lockbook_core::move_file(&db1, b.id, a.id).unwrap();
+        lockbook_core::rename_file(&db1, a.id, "new_name").unwrap();
+        test_utils::sync(&db1);
 
-        move_file(&db2, a.id, b.id).unwrap();
-        sync!(db2);
+        lockbook_core::move_file(&db2, a.id, b.id).unwrap();
+        test_utils::sync(&db2);
     }
 
     #[test]
     fn cycle_in_a_sync_with_a_delete() {
         let db1 = test_config();
-        let account = make_account!(db1);
-        let a = path_service::create_at_path(&db1, path!(account, "a/")).unwrap();
-        let b = path_service::create_at_path(&db1, path!(account, "b/")).unwrap();
-        sync!(db1);
-        make_and_sync_new_client!(db2, db1);
+        let account = test_utils::create_account(&db1);
+        let a = lockbook_core::create_file_at_path(&db1, path!(account, "a/")).unwrap();
+        let b = lockbook_core::create_file_at_path(&db1, path!(account, "b/")).unwrap();
+        test_utils::sync(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
-        move_file(&db1, b.id, a.id).unwrap();
-        delete_file(&db1, b.id).unwrap();
-        sync!(db1);
+        lockbook_core::move_file(&db1, b.id, a.id).unwrap();
+        lockbook_core::delete_file(&db1, b.id).unwrap();
+        test_utils::sync(&db1);
 
-        move_file(&db2, a.id, b.id).unwrap();
-        delete_file(&db2, b.id).unwrap();
-        sync!(db2);
+        lockbook_core::move_file(&db2, a.id, b.id).unwrap();
+        lockbook_core::delete_file(&db2, b.id).unwrap();
+        test_utils::sync(&db2);
     }
 
     #[test]
     fn cycle_in_a_sync_with_a_delete_2() {
         let db1 = test_config();
-        let account = make_account!(db1);
-        let a = path_service::create_at_path(&db1, path!(account, "a/")).unwrap();
-        let b = path_service::create_at_path(&db1, path!(account, "b/")).unwrap();
-        sync!(db1);
-        make_and_sync_new_client!(db2, db1);
+        let account = test_utils::create_account(&db1);
+        let a = lockbook_core::create_file_at_path(&db1, path!(account, "a/")).unwrap();
+        let b = lockbook_core::create_file_at_path(&db1, path!(account, "b/")).unwrap();
+        test_utils::sync(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
-        move_file(&db1, b.id, a.id).unwrap();
-        delete_file(&db1, a.id).unwrap();
-        sync!(db1);
+        lockbook_core::move_file(&db1, b.id, a.id).unwrap();
+        lockbook_core::delete_file(&db1, a.id).unwrap();
+        test_utils::sync(&db1);
 
-        move_file(&db2, a.id, b.id).unwrap();
-        delete_file(&db2, a.id).unwrap();
-        sync!(db2);
+        lockbook_core::move_file(&db2, a.id, b.id).unwrap();
+        lockbook_core::delete_file(&db2, a.id).unwrap();
+        test_utils::sync(&db2);
     }
 
     #[test]
     fn delete_folder_with_document() {
         let db = test_config();
-        let account = make_account!(db);
-        sync!(db);
-        let f = path_service::create_at_path(&db, path!(account, "f/")).unwrap();
-        let _d = path_service::create_at_path(&db, path!(account, "f/d")).unwrap();
-        delete_file(&db, f.id).unwrap();
+        let account = test_utils::create_account(&db);
+        test_utils::sync(&db);
+        let f = lockbook_core::create_file_at_path(&db, path!(account, "f/")).unwrap();
+        let _d = lockbook_core::create_file_at_path(&db, path!(account, "f/d")).unwrap();
+        lockbook_core::delete_file(&db, f.id).unwrap();
         for _ in 0..2 {
-            sync!(db);
+            test_utils::sync(&db);
         }
-        assert_repo_integrity!(db);
-        assert!(calculate_work(&db).unwrap().work_units.is_empty());
+        test_utils::assert_repo_integrity(&db);
+        assert!(lockbook_core::calculate_work(&db)
+            .unwrap()
+            .work_units
+            .is_empty());
     }
 
     #[test]
     fn delete_folder_with_folder() {
         let db = test_config();
-        let account = make_account!(db);
-        sync!(db);
-        let f1 = path_service::create_at_path(&db, path!(account, "f/")).unwrap();
-        let _f2 = path_service::create_at_path(&db, path!(account, "f/f2/")).unwrap();
-        delete_file(&db, f1.id).unwrap();
+        let account = test_utils::create_account(&db);
+        test_utils::sync(&db);
+        let f1 = lockbook_core::create_file_at_path(&db, path!(account, "f/")).unwrap();
+        let _f2 = lockbook_core::create_file_at_path(&db, path!(account, "f/f2/")).unwrap();
+        lockbook_core::delete_file(&db, f1.id).unwrap();
         for _ in 0..2 {
-            sync!(db);
+            test_utils::sync(&db);
         }
-        assert_repo_integrity!(db);
-        assert!(calculate_work(&db).unwrap().work_units.is_empty());
+        test_utils::assert_repo_integrity(&db);
+        assert!(lockbook_core::calculate_work(&db)
+            .unwrap()
+            .work_units
+            .is_empty());
     }
 
     #[test]
     fn move_into_new_folder_and_delete_folder() {
         let db1 = test_config();
-        let account = make_account!(db1);
-        let to_move = path_service::create_at_path(&db1, path!(account, "to_move/")).unwrap();
-        let to_delete = path_service::create_at_path(&db1, path!(account, "to_delete/")).unwrap();
-        sync!(db1);
-        make_and_sync_new_client!(db2, db1);
+        let account = test_utils::create_account(&db1);
+        let to_move = lockbook_core::create_file_at_path(&db1, path!(account, "to_move/")).unwrap();
+        let to_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "to_delete/")).unwrap();
+        test_utils::sync(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
-        move_file(&db1, to_move.id, to_delete.id).unwrap();
-        delete_file(&db1, to_delete.id).unwrap();
-        sync!(db1);
+        lockbook_core::move_file(&db1, to_move.id, to_delete.id).unwrap();
+        lockbook_core::delete_file(&db1, to_delete.id).unwrap();
+        test_utils::sync(&db1);
 
-        sync!(db2);
+        test_utils::sync(&db2);
     }
 
     #[test]
     fn move_into_new_folder_and_delete_folders_parent() {
         let db1 = test_config();
-        let account = make_account!(db1);
-        let to_move = path_service::create_at_path(&db1, path!(account, "to_move/")).unwrap();
-        let to_delete = path_service::create_at_path(&db1, path!(account, "to_delete/")).unwrap();
-        sync!(db1);
-        make_and_sync_new_client!(db2, db1);
+        let account = test_utils::create_account(&db1);
+        let to_move = lockbook_core::create_file_at_path(&db1, path!(account, "to_move/")).unwrap();
+        let to_delete =
+            lockbook_core::create_file_at_path(&db1, path!(account, "to_delete/")).unwrap();
+        test_utils::sync(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
-        let intermediate_folder =
-            path_service::create_at_path(&db1, path!(account, "to_delete/intermediate_folder/"))
-                .unwrap();
-        move_file(&db1, to_move.id, intermediate_folder.id).unwrap();
-        delete_file(&db1, to_delete.id).unwrap();
-        sync!(db1);
+        let intermediate_folder = lockbook_core::create_file_at_path(
+            &db1,
+            path!(account, "to_delete/intermediate_folder/"),
+        )
+        .unwrap();
+        lockbook_core::move_file(&db1, to_move.id, intermediate_folder.id).unwrap();
+        lockbook_core::delete_file(&db1, to_delete.id).unwrap();
+        test_utils::sync(&db1);
 
-        sync!(db2);
+        test_utils::sync(&db2);
     }
 
     #[test]
     fn new_file_in_folder_deleted_by_other_client() {
         let db1 = test_config();
-        let account = make_account!(db1);
-        let b = path_service::create_at_path(&db1, path!(account, "a/b/")).unwrap();
-        let d = path_service::create_at_path(&db1, path!(account, "a/c/d/")).unwrap();
-        let e = path_service::create_at_path(&db1, path!(account, "a/c/d/e/")).unwrap();
-        sync!(db1);
-        make_and_sync_new_client!(db2, db1);
+        let account = test_utils::create_account(&db1);
+        let b = lockbook_core::create_file_at_path(&db1, path!(account, "a/b/")).unwrap();
+        let d = lockbook_core::create_file_at_path(&db1, path!(account, "a/c/d/")).unwrap();
+        let e = lockbook_core::create_file_at_path(&db1, path!(account, "a/c/d/e/")).unwrap();
+        test_utils::sync(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
 
-        move_file(&db2, b.id, e.id).unwrap();
-        delete_file(&db1, d.id).unwrap();
-        delete_file(&db2, d.id).unwrap();
-        let _f = path_service::create_at_path(&db1, path!(account, "f")).unwrap();
+        lockbook_core::move_file(&db2, b.id, e.id).unwrap();
+        lockbook_core::delete_file(&db1, d.id).unwrap();
+        lockbook_core::delete_file(&db2, d.id).unwrap();
+        let _f = lockbook_core::create_file_at_path(&db1, path!(account, "f")).unwrap();
 
         for _ in 0..2 {
-            sync!(db1);
-            sync!(db2);
+            test_utils::sync(&db1);
+            test_utils::sync(&db2);
         }
     }
 
     #[test]
     fn fuzzer_stuck_test() {
         let db1 = test_config();
-        let account = make_account!(db1);
-        let b = path_service::create_at_path(&db1, path!(account, "b")).unwrap();
-        let c = path_service::create_at_path(&db1, path!(account, "c/")).unwrap();
-        let d = path_service::create_at_path(&db1, path!(account, "c/d/")).unwrap();
-        move_file(&db1, b.id, d.id).unwrap();
-        move_file(&db1, c.id, d.id).unwrap_err();
+        let account = test_utils::create_account(&db1);
+        let b = lockbook_core::create_file_at_path(&db1, path!(account, "b")).unwrap();
+        let c = lockbook_core::create_file_at_path(&db1, path!(account, "c/")).unwrap();
+        let d = lockbook_core::create_file_at_path(&db1, path!(account, "c/d/")).unwrap();
+        lockbook_core::move_file(&db1, b.id, d.id).unwrap();
+        lockbook_core::move_file(&db1, c.id, d.id).unwrap_err();
     }
 }

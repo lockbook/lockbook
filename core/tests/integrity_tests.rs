@@ -32,21 +32,15 @@ mod integrity_tests {
     fn test_ok() {
         let cfg = test_config();
         let _account = create_account(&cfg, &random_username(), &url()).unwrap();
-        
-        assert_matches!(
-            integrity_service::test_repo_integrity(&cfg),
-            Ok(_)
-        );
+
+        assert_matches!(integrity_service::test_repo_integrity(&cfg), Ok(_));
     }
 
     #[test]
     fn test_no_account() {
         let cfg = test_config();
-        
-        assert_matches!(
-            integrity_service::test_repo_integrity(&cfg),
-            Err(NoAccount)
-        );
+
+        assert_matches!(integrity_service::test_repo_integrity(&cfg), Err(NoAccount));
     }
 
     #[test]
@@ -54,7 +48,7 @@ mod integrity_tests {
         let cfg = test_config();
         let _account = create_account(&cfg, &random_username(), &url()).unwrap();
         metadata_repo::delete_all(&cfg, RepoSource::Base).unwrap();
-        
+
         assert_matches!(
             integrity_service::test_repo_integrity(&cfg),
             Err(NoRootFolder)

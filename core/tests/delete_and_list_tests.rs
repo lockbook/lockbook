@@ -3,22 +3,21 @@ mod integration_test;
 #[cfg(test)]
 mod delete_and_list_tests {
     use lockbook_core::service::path_service::Filter;
-    use lockbook_core::service::test_utils::generate_account;
+    use lockbook_core::service::test_utils::create_account;
     use lockbook_core::service::test_utils::test_config;
-    use lockbook_core::service::{account_service, path_service};
     use lockbook_core::Error::UiError;
     use lockbook_core::{
         assert_matches, create_file, create_file_at_path, delete_file, get_root, list_metadatas,
-        list_paths, make_account, move_file, path, read_document, rename_file,
-        save_document_to_disk, write_document, CreateFileError, FileDeleteError, MoveFileError,
-        ReadDocumentError, RenameFileError, SaveDocumentToDiskError, WriteToDocumentError,
+        list_paths, move_file, path, read_document, rename_file, save_document_to_disk,
+        write_document, CreateFileError, FileDeleteError, MoveFileError, ReadDocumentError,
+        RenameFileError, SaveDocumentToDiskError, WriteToDocumentError,
     };
     use lockbook_models::file_metadata::FileType;
 
     #[test]
     fn test_create_delete_list() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "doc.md")).unwrap();
         assert_eq!(
             list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
@@ -36,7 +35,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_create_delete_read() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "doc.md")).unwrap();
         assert_eq!(
             list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
@@ -54,7 +53,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_create_delete_write() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "doc.md")).unwrap();
         assert_eq!(
             list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
@@ -72,7 +71,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_create_parent_delete_create_in_parent() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let folder = create_file_at_path(&db, path!(account, "folder/")).unwrap();
 
         assert_eq!(
@@ -91,7 +90,7 @@ mod delete_and_list_tests {
     #[test]
     fn try_to_delete_root() {
         let db = test_config();
-        let _account = make_account!(db);
+        let _account = create_account(&db);
 
         assert_matches!(
             delete_file(&db, get_root(&db).unwrap().id),
@@ -102,7 +101,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_create_parent_delete_parent_read_doc() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "folder/test.md")).unwrap();
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
@@ -116,7 +115,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_create_parent_delete_parent_save_doc() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "folder/test.md")).unwrap();
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
@@ -130,7 +129,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_create_parent_delete_parent_rename_doc() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "folder/test.md")).unwrap();
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
@@ -144,7 +143,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_create_parent_delete_parent_rename_parent() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "folder/test.md")).unwrap();
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
@@ -158,7 +157,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_folder_move_delete_source_parent() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "folder1/test.md")).unwrap();
         let folder2 = create_file_at_path(&db, path!(account, "folder2")).unwrap();
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
@@ -173,7 +172,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_folder_move_delete_source_doc() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "folder1/test.md")).unwrap();
         let folder2 = create_file_at_path(&db, path!(account, "folder2")).unwrap();
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
@@ -188,7 +187,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_folder_move_delete_destination_parent() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "folder1/test.md")).unwrap();
         let folder2 = create_file_at_path(&db, path!(account, "folder2")).unwrap();
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
@@ -203,7 +202,7 @@ mod delete_and_list_tests {
     #[test]
     fn test_folder_move_delete_destination_doc() {
         let db = test_config();
-        let account = make_account!(db);
+        let account = create_account(&db);
         let doc = create_file_at_path(&db, path!(account, "folder1/test.md")).unwrap();
         let folder2 = create_file_at_path(&db, path!(account, "folder2")).unwrap();
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
@@ -218,10 +217,10 @@ mod delete_and_list_tests {
     #[test]
     fn test_delete_list_files() {
         let db = test_config();
-        let account = make_account!(db);
-        let f1 = path_service::create_at_path(&db, path!(account, "f1/")).unwrap();
-        let _f2 = path_service::create_at_path(&db, path!(account, "f1/f2/")).unwrap();
-        let d1 = path_service::create_at_path(&db, path!(account, "f1/f2/d1.md")).unwrap();
+        let account = create_account(&db);
+        let f1 = create_file_at_path(&db, path!(account, "f1/")).unwrap();
+        let _f2 = create_file_at_path(&db, path!(account, "f1/f2/")).unwrap();
+        let d1 = create_file_at_path(&db, path!(account, "f1/f2/d1.md")).unwrap();
         delete_file(&db, f1.id).unwrap();
 
         let mut files = list_metadatas(&db).unwrap();

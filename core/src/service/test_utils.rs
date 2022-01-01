@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::env;
 use std::hash::Hash;
 
+use itertools::Itertools;
+use lockbook_models::work_unit::WorkUnit;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
@@ -17,7 +19,71 @@ use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
 use crate::model::state::Config;
 use crate::repo::root_repo;
 use crate::repo::{account_repo, db_version_repo};
-use crate::service::file_service;
+use crate::service::sync_service::SyncProgress;
+use crate::service::{file_service, integrity_service, sync_service};
+
+#[macro_export]
+macro_rules! assert_dirty_ids {
+    ($db:expr, $n:literal) => {
+        assert_eq!(
+            sync_service::calculate_work(&$db)
+                .unwrap()
+                .work_units
+                .into_iter()
+                .map(|wu| wu.get_metadata().id)
+                .unique()
+                .count(),
+            $n
+        );
+    };
+}
+
+pub fn get_dirty_ids(db: &Config, server: bool) -> Vec<Uuid> {
+    sync_service::calculate_work(db)
+        .unwrap()
+        .work_units
+        .into_iter()
+        .filter_map(|wu| match wu {
+            WorkUnit::LocalChange { metadata } if !server => Some(metadata.id),
+            WorkUnit::ServerChange { metadata } if server => Some(metadata.id),
+            _ => None,
+        })
+        .unique()
+        .collect()
+}
+
+pub fn assert_local_work_ids(db: &Config, ids: &[Uuid]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
+}
+
+pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
+}
+
+pub fn assert_repo_integrity(db: &Config) {
+    integrity_service::test_repo_integrity(db).unwrap();
+}
+
+pub fn make_new_client(db: &Config) -> Config {
+    let new_client = test_config();
+    crate::import_account(&new_client, &crate::export_account(db).unwrap()).unwrap();
+    new_client
+}
+
+pub fn make_and_sync_new_client(db: &Config) -> Config {
+    let new_client = test_config();
+    crate::import_account(&new_client, &crate::export_account(db).unwrap()).unwrap();
+    sync(&new_client);
+    new_client
+}
+
+pub fn sync(db: &Config) {
+    sync_service::sync(db, None).unwrap()
+}
+
+pub fn sync_with_progress(db: &Config, f: Box<dyn Fn(SyncProgress)>) {
+    sync_service::sync(db, Some(f)).unwrap()
+}
 
 #[macro_export]
 macro_rules! assert_matches (
@@ -50,18 +116,12 @@ macro_rules! path {
     }};
 }
 
-#[macro_export]
-macro_rules! make_account {
-    ($db:expr) => {{
-        let generated_account = generate_account();
-        let account = account_service::create_account(
-            &$db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
-        account
-    }};
+pub fn create_account(db: &Config) -> Account {
+    let generated_account = generate_account();
+    let account =
+        crate::create_account(&db, &generated_account.username, &generated_account.api_url)
+            .unwrap();
+    account
 }
 
 pub fn test_config() -> Config {
@@ -257,31 +317,49 @@ mod unit_tests {
 
     #[test]
     fn slices_equal_ignore_order_distinct() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69420, 69, 420]));
+        assert!(test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 69420],
+            &[69420, 69, 420]
+        ));
     }
 
     #[test]
     fn slices_equal_ignore_order_distinct_nonequal() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[42069, 69, 420]));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 69420],
+            &[42069, 69, 420]
+        ));
     }
 
     #[test]
     fn slices_equal_ignore_order_distinct_subset() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69, 420]));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 69420],
+            &[69, 420]
+        ));
     }
 
     #[test]
     fn slices_equal_ignore_order_repeats() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 420]));
+        assert!(test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 420],
+            &[420, 69, 420]
+        ));
     }
 
     #[test]
     fn slices_equal_ignore_order_different_repeats() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 69]));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 420],
+            &[420, 69, 69]
+        ));
     }
 
     #[test]
     fn slices_equal_ignore_order_repeats_subset() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69]));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 420],
+            &[420, 69]
+        ));
     }
 }
