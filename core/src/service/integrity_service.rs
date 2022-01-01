@@ -16,7 +16,7 @@ const UTF8_SUFFIXES: [&str; 12] = [
     "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TestFileTreeError {
     NoRootFolder,
     DocumentTreatedAsFolder(Uuid),
@@ -27,6 +27,10 @@ pub enum TestFileTreeError {
 }
 
 pub fn test_file_tree_integrity<Fm: FileMetadata>(files: &[Fm]) -> Result<(), TestFileTreeError> {
+    if files::maybe_find_root(files).is_none() {
+        return Err(TestFileTreeError::NoRootFolder);
+    }
+
     for file in files {
         if files::maybe_find(files, file.parent()).is_none() {
             return Err(TestFileTreeError::FileOrphaned(file.id()));
@@ -154,4 +158,117 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     }
 
     Ok(warnings)
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use crate::assert_matches;
+    use crate::{
+        pure_functions::files,
+        service::{
+            integrity_service::{self, TestFileTreeError},
+            test_utils,
+        },
+    };
+    use lockbook_models::file_metadata::FileType;
+    use uuid::Uuid;
+
+    #[test]
+    fn test_file_tree_integrity_ok() {
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let document = files::create(FileType::Document, folder.id, "document", &account.username);
+
+        let result = integrity_service::test_file_tree_integrity(&[root, folder, document]);
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn test_file_tree_integrity_no_root() {
+        let account = test_utils::generate_account();
+        let mut root = files::create_root(&account.username);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let document = files::create(FileType::Document, folder.id, "document", &account.username);
+        root.parent = folder.id;
+
+        let result = integrity_service::test_file_tree_integrity(&[root, folder, document]);
+
+        assert_eq!(result, Err(TestFileTreeError::NoRootFolder));
+    }
+
+    #[test]
+    fn test_file_tree_integrity_orphan() {
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let mut document =
+            files::create(FileType::Document, folder.id, "document", &account.username);
+        document.parent = Uuid::new_v4();
+        let document_id = document.id;
+
+        let result = integrity_service::test_file_tree_integrity(&[root, folder, document]);
+
+        assert_eq!(result, Err(TestFileTreeError::FileOrphaned(document_id)));
+    }
+
+    #[test]
+    fn test_file_tree_integrity_1cycle() {
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        folder.parent = folder.id;
+
+        let result = integrity_service::test_file_tree_integrity(&[root, folder]);
+
+        assert_matches!(result, Err(TestFileTreeError::CycleDetected(_)));
+    }
+
+    #[test]
+    fn test_file_tree_integrity_2cycle() {
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let mut folder1 = files::create(FileType::Folder, root.id, "folder1", &account.username);
+        let mut folder2 = files::create(FileType::Folder, root.id, "folder2", &account.username);
+        folder1.parent = folder2.id;
+        folder2.parent = folder1.id;
+
+        let result = integrity_service::test_file_tree_integrity(&[root, folder1, folder2]);
+
+        assert_matches!(result, Err(TestFileTreeError::CycleDetected(_)));
+    }
+
+    #[test]
+    fn test_file_tree_integrity_document_treated_as_folder() {
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let document1 = files::create(FileType::Document, root.id, "document1", &account.username);
+        let document2 = files::create(
+            FileType::Document,
+            document1.id,
+            "document2",
+            &account.username,
+        );
+        let document1_id = document1.id;
+
+        let result = integrity_service::test_file_tree_integrity(&[root, document1, document2]);
+
+        assert_eq!(
+            result,
+            Err(TestFileTreeError::DocumentTreatedAsFolder(document1_id))
+        );
+    }
+
+    #[test]
+    fn test_file_tree_integrity_path_conflict() {
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let folder = files::create(FileType::Folder, root.id, "file", &account.username);
+        let document = files::create(FileType::Document, root.id, "file", &account.username);
+
+        let result = integrity_service::test_file_tree_integrity(&[root, folder, document]);
+
+        assert_matches!(result, Err(TestFileTreeError::NameConflictDetected(_)));
+    }
 }
