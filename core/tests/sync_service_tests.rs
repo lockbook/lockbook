@@ -121,7 +121,6 @@ mod sync_tests {
         let _account = make_account!(db);
 
         sync!(db);
-
         make_new_client!(db2, db);
 
         assert_repo_integrity!(db2);
@@ -135,7 +134,6 @@ mod sync_tests {
         let _account = make_account!(db);
 
         sync!(db);
-
         make_and_sync_new_client!(db2, db);
 
         assert_repo_integrity!(db2);
@@ -169,6 +167,34 @@ mod sync_tests {
     }
 
     #[test]
+    fn sync_new_file_new_device() {
+        let db = test_config();
+        let account = make_account!(db);
+
+        let document = path_service::create_at_path(&db, path!(account, "document")).unwrap();
+        sync!(db);
+        make_new_client!(db2, db);
+
+        assert_repo_integrity!(db2);
+        assert_local_work_ids!(db2, []);
+        assert_server_work_ids!(db2, [root_repo::get(&db).unwrap(), document.id]);
+    }
+
+    #[test]
+    fn sync_new_file_to_new_device() {
+        let db = test_config();
+        let account = make_account!(db);
+
+        let _document = path_service::create_at_path(&db, path!(account, "document")).unwrap();
+        sync!(db);
+        make_and_sync_new_client!(db2, db);
+
+        assert_repo_integrity!(db2);
+        assert_local_work_ids!(db2, []);
+        assert_server_work_ids!(db2, []);
+    }
+
+    #[test]
     fn new_files() {
         let db = test_config();
         let account = make_account!(db);
@@ -197,26 +223,34 @@ mod sync_tests {
     }
 
     #[test]
-    fn test_create_files_and_folders_sync() {
+    fn sync_new_files_new_device() {
         let db = test_config();
         let account = make_account!(db);
 
-        assert_dirty_ids!(db, 0);
-
-        path_service::create_at_path(&db, path!(account, "a/b/c/test")).unwrap();
-        assert_dirty_ids!(db, 4);
-
+        let a = path_service::create_at_path(&db, path!(account, "a/")).unwrap();
+        let b = path_service::create_at_path(&db, path!(account, "a/b/")).unwrap();
+        let c = path_service::create_at_path(&db, path!(account, "a/b/c/")).unwrap();
+        let d = path_service::create_at_path(&db, path!(account, "a/b/c/d")).unwrap();
         sync!(db);
-
         make_new_client!(db2, db);
-        assert_dirty_ids!(db2, 5);
 
-        sync!(db2);
-        assert_eq!(
-            file_service::get_all_metadata(&db, RepoSource::Local).unwrap(),
-            file_service::get_all_metadata(&db2, RepoSource::Local).unwrap()
-        );
-        assert_dirty_ids!(db2, 0);
+        assert_repo_integrity!(db2);
+        assert_local_work_ids!(db2, []);
+        assert_server_work_ids!(db2, [root_repo::get(&db).unwrap(), a.id, b.id, c.id, d.id]);
+    }
+
+    #[test]
+    fn sync_new_files_to_new_device() {
+        let db = test_config();
+        let account = make_account!(db);
+
+        let _d = path_service::create_at_path(&db, path!(account, "a/b/c/d")).unwrap();
+        sync!(db);
+        make_and_sync_new_client!(db2, db);
+
+        assert_repo_integrity!(db2);
+        assert_local_work_ids!(db2, []);
+        assert_server_work_ids!(db2, []);
     }
 
     #[test]
