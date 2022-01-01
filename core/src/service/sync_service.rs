@@ -780,7 +780,7 @@ pub fn sync(
 }
 
 #[cfg(test)]
-mod unit_test_sync_service {
+mod unit_tests {
     use std::str::FromStr;
 
     use uuid::Uuid;

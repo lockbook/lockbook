@@ -2,7 +2,7 @@ mod integration_test;
 
 /// We should figure out a way to not just copy-paste these tests!
 #[cfg(test)]
-mod unit_tests_file {
+mod unit_tests {
     use lockbook_core::model::state::temp_config;
     use lockbook_core::repo::local_storage;
 
