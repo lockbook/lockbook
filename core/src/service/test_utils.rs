@@ -118,10 +118,7 @@ macro_rules! path {
 
 pub fn create_account(db: &Config) -> Account {
     let generated_account = generate_account();
-    let account =
-        crate::create_account(&db, &generated_account.username, &generated_account.api_url)
-            .unwrap();
-    account
+    crate::create_account(db, &generated_account.username, &generated_account.api_url).unwrap()
 }
 
 pub fn test_config() -> Config {

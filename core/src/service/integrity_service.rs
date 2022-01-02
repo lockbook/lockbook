@@ -27,7 +27,7 @@ pub enum TestFileTreeError {
 }
 
 pub fn test_file_tree_integrity<Fm: FileMetadata>(files: &[Fm]) -> Result<(), TestFileTreeError> {
-    if files.len() == 0 {
+    if files.is_empty() {
         return Ok(());
     }
 
