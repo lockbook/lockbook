@@ -685,7 +685,7 @@ pub enum GetRegisteredCreditCardsError {
 
 pub fn get_registered_credit_cards(
     config: &Config
-) -> Result<List<CreditCardInfo>, Error<GetRegisteredCreditCardsError>> {
+) -> Result<Vec<CreditCardInfo>, Error<GetRegisteredCreditCardsError>> {
     billing_service::get_registered_credit_cards(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetRegisteredCreditCardsError::NoAccount),
         CoreError::ServerUnreachable => UiError(GetRegisteredCreditCardsError::CouldNotReachServer),

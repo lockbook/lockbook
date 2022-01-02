@@ -866,16 +866,16 @@ pub fn get_active_stripe_subscription_id(
 ) -> Result<String, GetStripeSubscriptionIdError> {
     match sqlx::query!(
         r#"
-WITH stripe_payee_id AS (
-    SELECT payee_stripe
+WITH stripe_customer_id AS (
+    SELECT stripe_customer_id
     FROM account_tiers
     WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
 )
-SELECT subscription_id FROM stripe_payees WHERE customer_id = (SELECT payee_stripe FROM stripe_payee_id) AND is_active = TRUE;
+SELECT subscription_id FROM stripe_subscriptions WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id) AND active = TRUE
         "#,
         &serde_json::to_string(public_key).map_err(RetrieveStripeSubscriptionIdError::Serialize)?,
     )
-        .fetch_one(transaction)
+        .fetch_optional(transaction)
         .await
         .map_err(GetStripeSubscriptionIdError::Postgres)
     {
@@ -897,7 +897,7 @@ pub fn get_stripe_customer_id(
 ) -> Result<String, GetStripeCustomerIdError> {
     match sqlx::query!(
         r#"
-SELECT payee_stripe
+SELECT stripe_customer_id
 FROM account_tiers
 WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
         "#,
@@ -923,12 +923,12 @@ pub fn get_stripe_payment_methods_id(
     public_key: &PublicKey) -> Result<Vec<String>, GetStripePaymentMethodsIdError> {
     sqlx::query!(
         r#"
-WITH stripe_payee_id AS (
-    SELECT payee_stripe
+WITH stripe_customer_id AS (
+    SELECT stripe_customer_id
     FROM account_tiers
     WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
 )
-SELECT payment_method_id FROM stripe_payees_payment_methods WHERE customer_id = (SELECT payee_stripe FROM stripe_payee_id);
+SELECT payment_method_id FROM stripe_payment_methods WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id);
         "#,
         &serde_json::to_string(public_key).map_err(RetrieveStripePaymentMethodsIdError::Serialize)?,
     )
@@ -950,12 +950,12 @@ pub fn get_all_stripe_credit_card_infos(
 ) -> Result<Vec<CreditCardInfo>, GetAllStripeCreditCardInfosError> {
     sqlx::query!(
         r#"
-WITH stripe_payee_id AS (
-    SELECT payee_stripe
+WITH stripe_customer_id AS (
+    SELECT stripe_customer_id
     FROM account_tiers
     WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
 )
-SELECT payment_method_id, last_4 FROM stripe_payees_payment_methods WHERE customer_id = (SELECT payee_stripe FROM stripe_payee_id);
+SELECT payment_method_id, last_4 FROM stripe_payment_methods WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id) AND deleted = FALSE;
         "#,
         &serde_json::to_string(public_key).map_err(GetAllStripeCreditCardInfosError::Serialize)?,
     )
@@ -973,7 +973,7 @@ pub enum AddStripePaymentMethodError {
     Postgres(sqlx::Error),
 }
 
-pub fn add_stripe_payment_method( // don't necessarily need a customer id, but it does reduce having to make another sql query
+pub fn add_stripe_payment_method(
     transaction: &mut Transaction<'_, Postgres>,
     payment_method_id: &str,
     customer_id: &str,
@@ -981,7 +981,7 @@ pub fn add_stripe_payment_method( // don't necessarily need a customer id, but i
 ) -> Result<(), AddStripePaymentMethodError> {
     sqlx::query!(
         r#"
-INSERT INTO stripe_payees_payment_methods (payment_method_id, customer_id, last_4) VALUES ($1, $2, $3);
+INSERT INTO stripe_payment_methods (payment_method_id, customer_id, last_4, deleted, is_default) VALUES ($1, $2, $3, FALSE, FALSE);
         "#,
         payment_method_id,
         customer_id,
@@ -1004,7 +1004,7 @@ pub fn add_stripe_subscription(
 ) -> Result<(), AddStripeSubscriptionError> {
     sqlx::query!(
         r#"
-INSERT INTO stripe_payees (subscription_id, customer_id, is_active) VALUES ($1, $2, true);
+INSERT INTO stripe_subscriptions (subscription_id, customer_id, active) VALUES ($1, $2, TRUE);
         "#,
         subscription_id,
         customer_id
@@ -1027,7 +1027,10 @@ pub fn attach_stripe_customer_id(
 ) -> Result<String, AttachStripeCustomerIdError> {
     sqlx::query!(
         r#"
-UPDATE account_tiers SET payee_stripe = $1 WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $2)
+WITH nu AS (
+    INSERT INTO stripe_customers (customer_id) VALUES ($1)
+)
+UPDATE account_tiers SET stripe_customer_id = $1 WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $2);
         "#,
         customer_id,
         &serde_json::to_string(public_key).map_err(RetrieveStripeCustomerIdError::Serialize)?
@@ -1048,7 +1051,7 @@ pub fn cancel_stripe_subscription(
 ) -> Result<(), CancelStripeSubscriptionError> {
     sqlx::query!(
         r#"
-UPDATE stripe_payees SET is_active = false WHERE subscription_id = $1
+UPDATE stripe_subscriptions SET active = FALSE WHERE subscription_id = $1
         "#,
         subscription_id,
     )

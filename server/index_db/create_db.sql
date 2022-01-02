@@ -1,15 +1,24 @@
-CREATE TABLE IF NOT EXISTS stripe_payees
+CREATE TABLE IF NOT EXISTS stripe_customers
+(
+    customer_id       TEXT NOT NULL PRIMARY KEY
+);
+
+CREATE TABLE IF NOT EXISTS stripe_subscriptions
 (
     subscription_id   TEXT PRIMARY KEY,
     customer_id       TEXT NOT NULL,
-    is_active         BOOLEAN NOT NULL
+    active            BOOLEAN NOT NULL,
+    CONSTRAINT fk_stripe_subscriptions_customer_id FOREIGN KEY (customer_id) REFERENCES stripe_customers (customer_id) DEFERRABLE INITIALLY DEFERRED
 );
 
-CREATE TABLE IF NOT EXISTS stripe_payees_payment_methods
+CREATE TABLE IF NOT EXISTS stripe_payment_methods
 (
     payment_method_id TEXT PRIMARY KEY,
     customer_id       TEXT NOT NULL,
-    last_4            TEXT NOT NULL
+    last_4            TEXT NOT NULL,
+    deleted           BOOLEAN NOT NULL,
+    is_default        BOOLEAN NOT NULL,  --- TODO: Add check constraint
+    CONSTRAINT fk_stripe_payment_methods_customer_id FOREIGN KEY (customer_id) REFERENCES stripe_customers (customer_id) DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE IF NOT EXISTS apple_payees
@@ -24,23 +33,22 @@ CREATE TABLE IF NOT EXISTS google_payees
 
 CREATE TABLE IF NOT EXISTS account_tiers
 (
-    id           BIGSERIAL PRIMARY KEY,
-    tier         BIGINT NOT NULL,
-    valid_until  TIMESTAMPTZ,
-    payee_stripe TEXT,
-    payee_apple  BIGINT,
-    payee_google BIGINT,
-    CONSTRAINT fk_account_tiers_payee_stripe_stripe_payees_id FOREIGN KEY (payee_stripe) REFERENCES stripe_payees (customer_id) DEFERRABLE INITIALLY DEFERRED,
-    CONSTRAINT fk_account_tiers_payee_stripe_stripe_payees_payment_methods_id FOREIGN KEY (payee_stripe) REFERENCES stripe_payees_payment_methods (customer_id) DEFERRABLE INITIALLY DEFERRED,
+    id                 BIGSERIAL PRIMARY KEY,
+    bytes_cap          BIGINT NOT NULL,
+    valid_until        TIMESTAMPTZ,
+    stripe_customer_id TEXT,
+    payee_apple        BIGINT,
+    payee_google       BIGINT,
+    CONSTRAINT fk_account_tiers_payee_stripe_stripe_customer_id FOREIGN KEY (stripe_customer_id) REFERENCES stripe_customers (customer_id) DEFERRABLE INITIALLY DEFERRED,
 
     CONSTRAINT fk_account_tiers_payee_apple_apple_payees_id FOREIGN KEY (payee_apple) REFERENCES apple_payees (id) DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT fk_account_tiers_payee_google_google_payees_id FOREIGN KEY (payee_google) REFERENCES google_payees (id) DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT at_most_one_payment_method CHECK (
         NOT (
-                (payee_stripe IS NOT NULL AND payee_apple IS NOT NULL) AND
-                (payee_stripe IS NOT NULL AND payee_google IS NOT NULL) AND
+                (stripe_customer_id IS NOT NULL AND payee_apple IS NOT NULL) AND
+                (stripe_customer_id IS NOT NULL AND payee_google IS NOT NULL) AND
                 (payee_apple IS NOT NULL AND payee_google IS NOT NULL) AND
-                (payee_stripe IS NOT NULL AND payee_apple IS NOT NULL AND payee_google IS NOT NULL
+                (stripe_customer_id IS NOT NULL AND payee_apple IS NOT NULL AND payee_google IS NOT NULL
                     )
             )
         )

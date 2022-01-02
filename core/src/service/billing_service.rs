@@ -1,6 +1,6 @@
 use crate::service::api_service;
 use crate::{account_repo, Config, CoreError};
-use lockbook_models::api::{AccountTier, CreditCardInfo, GetRegisteredCreditCardsRequest, RegisterCreditCardError, RegisterCreditCardRequest, RegisterCreditCardResponse, RemoveCreditCardError, RemoveCreditCardRequest, SwitchAccountTierError, SwitchAccountTierRequest};
+use lockbook_models::api::{AccountTier, CreditCardInfo, GetRegisteredCreditCardsRequest, RegisterCreditCardError, RegisterCreditCardRequest, RemoveCreditCardError, RemoveCreditCardRequest, SwitchAccountTierError, SwitchAccountTierRequest};
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
 
@@ -68,7 +68,7 @@ pub fn remove_credit_card(
 
 pub fn get_registered_credit_cards(
     config: &Config,
-) -> Result<List<CreditCardInfo>, CoreError> {
+) -> Result<Vec<CreditCardInfo>, CoreError> {
     let account = account_repo::get(config)?;
 
     api_service::request(
