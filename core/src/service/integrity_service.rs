@@ -107,10 +107,8 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     .collect::<Vec<EncryptedFileMetadata>>();
 
     if let Ok(0) = last_updated_repo::get(config) {
-    } else {
-        if files::maybe_find_root(&files_encrypted).is_none() {
-            return Err(TestRepoError::NoRootFolder);
-        }
+    } else if files::maybe_find_root(&files_encrypted).is_none() {
+        return Err(TestRepoError::NoRootFolder);
     }
 
     test_file_tree_integrity(&files_encrypted).map_err(|err| match err {
