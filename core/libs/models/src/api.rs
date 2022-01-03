@@ -281,12 +281,12 @@ pub struct RegisterCreditCardRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RegisterCreditCardResponse {
-    pub credit_card_info: CreditCardInfo
+    pub credit_card_info: CreditCardInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum RegisterCreditCardError {
-    InvalidCreditCardFormat
+    InvalidCreditCardFormat,
 }
 
 impl Request for RegisterCreditCardRequest {
@@ -299,7 +299,7 @@ impl Request for RegisterCreditCardRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CreditCardInfo {
     pub payment_method_id: String,
-    pub last_4_digits: u8
+    pub last_4_digits: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -307,7 +307,7 @@ pub struct GetRegisteredCreditCardsRequest {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetRegisteredCreditCardsResponse {
-    pub credit_card_infos: Vec<CreditCardInfo>
+    pub credit_card_infos: Vec<CreditCardInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -322,7 +322,7 @@ impl Request for GetRegisteredCreditCardsRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RemoveCreditCardRequest {
-    pub payment_method_id: String
+    pub payment_method_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -330,7 +330,7 @@ pub struct RemoveCreditCardResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum RemoveCreditCardError {
-    PaymentMethodDoesNotExist
+    PaymentMethodDoesNotExist,
 }
 
 impl Request for RemoveCreditCardRequest {
@@ -343,12 +343,12 @@ impl Request for RemoveCreditCardRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum AccountTier {
     Monthly(String), // payment method id
-    Free
+    Free,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SwitchAccountTierRequest {
-    pub account_tier: AccountTier
+    pub account_tier: AccountTier,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -357,7 +357,7 @@ pub struct SwitchAccountTierResponse {}
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum SwitchAccountTierError {
     PaymentMethodDoesNotExist,
-    NewTierIsOldTier
+    NewTierIsOldTier,
 }
 
 impl Request for SwitchAccountTierRequest {
@@ -366,4 +366,3 @@ impl Request for SwitchAccountTierRequest {
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/switch-account-tier";
 }
-

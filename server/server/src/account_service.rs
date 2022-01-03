@@ -2,7 +2,10 @@ use crate::utils::username_is_valid;
 use crate::{file_index_repo, RequestContext, ServerError};
 
 use crate::ServerError::{ClientError, InternalError};
-use lockbook_models::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse, AccountTier};
+use lockbook_models::api::{
+    GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
+    GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
+};
 use lockbook_models::file_metadata::FileType;
 
 pub async fn new_account(
@@ -125,4 +128,3 @@ pub async fn get_usage(
 
     Ok(GetUsageResponse { usages, cap })
 }
-

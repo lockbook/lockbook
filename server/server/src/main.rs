@@ -7,8 +7,8 @@ use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
 
 use log::info;
-use std::sync::Arc;
 use reqwest::Client;
+use std::sync::Arc;
 use warp::Filter;
 
 use lockbook_server_lib::router_service::{build_info, core_routes, get_metrics};

@@ -2,6 +2,7 @@ mod delete_account;
 
 use crate::delete_account::delete_account;
 use crate::Subcommands::DeleteAccount;
+use reqwest::Client;
 
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::{file_content_client, file_index_repo, ServerState};
@@ -30,6 +31,7 @@ async fn main() {
     let (index_db_client, files_db_client) = connect_to_state(&config).await;
     let server_state = ServerState {
         config,
+        stripe_client: Client::new(),
         index_db_client,
         files_db_client,
     };

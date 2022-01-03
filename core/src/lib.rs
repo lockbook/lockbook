@@ -34,7 +34,10 @@ use crate::service::db_state_service::State;
 use crate::service::import_export_service::{self, ImportExportFileInfo};
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
-use crate::service::{account_service, billing_service, db_state_service, drawing_service, file_service, path_service, sync_service, usage_service};
+use crate::service::{
+    account_service, billing_service, db_state_service, drawing_service, file_service,
+    path_service, sync_service, usage_service,
+};
 use crate::sync_service::WorkCalculated;
 
 pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
@@ -630,11 +633,13 @@ pub fn add_credit_card(
     exp_year: String,
     cvc: String,
 ) -> Result<CreditCardInfo, Error<AddCreditCardError>> {
-    billing_service::add_credit_card(config, card_number, exp_month, exp_year, cvc).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(AddCreditCardError::NoAccount),
-        CoreError::InvalidCreditCard => UiError(AddCreditCardError::InvalidCreditCard),
-        CoreError::ServerUnreachable => UiError(AddCreditCardError::CouldNotReachServer),
-        _ => unexpected!("{:#?}", e),
+    billing_service::add_credit_card(config, card_number, exp_month, exp_year, cvc).map_err(|e| {
+        match e {
+            CoreError::AccountNonexistent => UiError(AddCreditCardError::NoAccount),
+            CoreError::InvalidCreditCard => UiError(AddCreditCardError::InvalidCreditCard),
+            CoreError::ServerUnreachable => UiError(AddCreditCardError::CouldNotReachServer),
+            _ => unexpected!("{:#?}", e),
+        }
     })
 }
 
@@ -643,15 +648,17 @@ pub enum SwitchAccountTierError {
     NoAccount,
     CouldNotReachServer,
     PaymentMethodDoesNotExist,
-    NewTierIsOldTier
+    NewTierIsOldTier,
 }
 
 pub fn switch_account_tier(
     config: &Config,
-    new_account_tier: AccountTier
+    new_account_tier: AccountTier,
 ) -> Result<(), Error<SwitchAccountTierError>> {
     billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
-        CoreError::PaymentMethodDoesNotExist => UiError(SwitchAccountTierError::PaymentMethodDoesNotExist),
+        CoreError::PaymentMethodDoesNotExist => {
+            UiError(SwitchAccountTierError::PaymentMethodDoesNotExist)
+        }
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
         _ => unexpected!("{:#?}", e),
@@ -667,12 +674,14 @@ pub enum RemoveCreditCardError {
 
 pub fn remove_credit_card(
     config: &Config,
-    payment_method_id: String
+    payment_method_id: String,
 ) -> Result<(), Error<RemoveCreditCardError>> {
     billing_service::remove_credit_card(config, payment_method_id).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(RemoveCreditCardError::NoAccount),
         CoreError::ServerUnreachable => UiError(RemoveCreditCardError::CouldNotReachServer),
-        CoreError::PaymentMethodDoesNotExist => UiError(RemoveCreditCardError::PaymentMethodDoesNotExist),
+        CoreError::PaymentMethodDoesNotExist => {
+            UiError(RemoveCreditCardError::PaymentMethodDoesNotExist)
+        }
         _ => unexpected!("{:#?}", e),
     })
 }
@@ -684,7 +693,7 @@ pub enum GetRegisteredCreditCardsError {
 }
 
 pub fn get_registered_credit_cards(
-    config: &Config
+    config: &Config,
 ) -> Result<Vec<CreditCardInfo>, Error<GetRegisteredCreditCardsError>> {
     billing_service::get_registered_credit_cards(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetRegisteredCreditCardsError::NoAccount),
@@ -692,7 +701,6 @@ pub fn get_registered_credit_cards(
         _ => unexpected!("{:#?}", e),
     })
 }
-
 
 // This basically generates a function called `get_all_error_variants`,
 // which will produce a big json dict of { "Error": ["Values"] }.

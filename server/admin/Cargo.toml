@@ -11,3 +11,4 @@ tokio = { version = "1.5.0", features = ["full"] }
 sqlx = { version = "0.5.2", features = ["macros", "postgres", "uuid", "tls", "runtime-tokio-native-tls", "offline"] }
 rust-s3 = "0.27.0-rc3"
 lockbook-models = { path = "../../core/libs/models" }
+reqwest = "0.11.7"

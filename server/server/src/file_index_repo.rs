@@ -13,7 +13,7 @@ use std::array::IntoIter;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-pub const FREE_TIER_SIZE: u64 = 1000000;
+pub const FREE_TIER_SIZE: i64 = 1000000;
 
 // TODO:
 // * check ownership
@@ -856,13 +856,13 @@ fn deserialize_hmac(s: &str) -> Result<[u8; 32], DeserializeHmacError> {
 #[derive(Debug)]
 pub enum GetStripeSubscriptionIdError {
     Postgres(sqlx::Error),
-    Serialization(serde_json::Error),
-    NoActiveSubscriptions
+    Serialize(serde_json::Error),
+    NoActiveSubscriptions,
 }
 
-pub fn get_active_stripe_subscription_id(
+pub async fn get_active_stripe_subscription_id(
     transaction: &mut Transaction<'_, Postgres>,
-    public_key: &PublicKey
+    public_key: &PublicKey,
 ) -> Result<String, GetStripeSubscriptionIdError> {
     match sqlx::query!(
         r#"
@@ -873,11 +873,11 @@ WITH stripe_customer_id AS (
 )
 SELECT subscription_id FROM stripe_subscriptions WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id) AND active = TRUE
         "#,
-        &serde_json::to_string(public_key).map_err(RetrieveStripeSubscriptionIdError::Serialize)?,
+        &serde_json::to_string(public_key).map_err(GetStripeSubscriptionIdError::Serialize)?,
     )
         .fetch_optional(transaction)
         .await
-        .map_err(GetStripeSubscriptionIdError::Postgres)
+        .map_err(GetStripeSubscriptionIdError::Postgres)?
     {
         Some(row) => Ok(row.subscription_id),
         None => Err(GetStripeSubscriptionIdError::NoActiveSubscriptions)
@@ -887,40 +887,42 @@ SELECT subscription_id FROM stripe_subscriptions WHERE customer_id = (SELECT str
 #[derive(Debug)]
 pub enum GetStripeCustomerIdError {
     Postgres(sqlx::Error),
-    Serialization(serde_json::Error),
+    Serialize(serde_json::Error),
     NotAStripeCustomer,
 }
 
-pub fn get_stripe_customer_id(
+pub async fn get_stripe_customer_id(
     transaction: &mut Transaction<'_, Postgres>,
-    public_key: &PublicKey
+    public_key: &PublicKey,
 ) -> Result<String, GetStripeCustomerIdError> {
     match sqlx::query!(
         r#"
 SELECT stripe_customer_id
 FROM account_tiers
-WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
+WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1);
         "#,
-        &serde_json::to_string(public_key).map_err(RetrieveStripeCustomerIdError::Serialize)?
+        &serde_json::to_string(public_key).map_err(GetStripeCustomerIdError::Serialize)?
     )
-        .fetch_one(transaction)
-        .await
-        .map_err(GetStripeCustomerIdError::Postgres)
+    .fetch_one(transaction)
+    .await
+    .map(|row| row.stripe_customer_id)
+    .map_err(GetStripeCustomerIdError::Postgres)?
     {
-        Some(row) => Ok(row.payee_stripe),
-        None => Err(GetStripeCustomerIdError::NotAStripeCustomer)
+        Some(customer_id) => Ok(customer_id),
+        None => Err(GetStripeCustomerIdError::NotAStripeCustomer),
     }
 }
 
 #[derive(Debug)]
 pub enum GetStripePaymentMethodsIdError {
     Postgres(sqlx::Error),
-    Serialization(serde_json::Error)
+    Serialize(serde_json::Error),
 }
 
-pub fn get_stripe_payment_methods_id(
+pub async fn get_stripe_payment_methods_id(
     transaction: &mut Transaction<'_, Postgres>,
-    public_key: &PublicKey) -> Result<Vec<String>, GetStripePaymentMethodsIdError> {
+    public_key: &PublicKey,
+) -> Result<Vec<String>, GetStripePaymentMethodsIdError> {
     sqlx::query!(
         r#"
 WITH stripe_customer_id AS (
@@ -930,21 +932,21 @@ WITH stripe_customer_id AS (
 )
 SELECT payment_method_id FROM stripe_payment_methods WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id);
         "#,
-        &serde_json::to_string(public_key).map_err(RetrieveStripePaymentMethodsIdError::Serialize)?,
+        &serde_json::to_string(public_key).map_err(GetStripePaymentMethodsIdError::Serialize)?,
     )
         .fetch_all(transaction)
         .await
         .map_err(GetStripePaymentMethodsIdError::Postgres)
-        .map(|row| row.payment_method_id)
+        .map(|rows| rows.into_iter().map(|row| row.payment_method_id).collect())
 }
 
 #[derive(Debug)]
 pub enum GetAllStripeCreditCardInfosError {
     Postgres(sqlx::Error),
-    Serialization(serde_json::Error)
+    Serialize(serde_json::Error),
 }
 
-pub fn get_all_stripe_credit_card_infos(
+pub async fn get_all_stripe_credit_card_infos(
     transaction: &mut Transaction<'_, Postgres>,
     public_key: &PublicKey,
 ) -> Result<Vec<CreditCardInfo>, GetAllStripeCreditCardInfosError> {
@@ -962,10 +964,10 @@ SELECT payment_method_id, last_4 FROM stripe_payment_methods WHERE customer_id =
         .fetch_all(transaction)
         .await
         .map_err(GetAllStripeCreditCardInfosError::Postgres)
-        .map(|row| CreditCardInfo {
+        .map(|rows| rows.into_iter().map(|row| CreditCardInfo {
             payment_method_id: row.payment_method_id,
             last_4_digits: row.last_4
-        })
+        }).collect())
 }
 
 #[derive(Debug)]
@@ -973,11 +975,11 @@ pub enum AddStripePaymentMethodError {
     Postgres(sqlx::Error),
 }
 
-pub fn add_stripe_payment_method(
+pub async fn add_stripe_payment_method(
     transaction: &mut Transaction<'_, Postgres>,
     payment_method_id: &str,
     customer_id: &str,
-    last_4: &str
+    last_4: &str,
 ) -> Result<(), AddStripePaymentMethodError> {
     sqlx::query!(
         r#"
@@ -989,7 +991,9 @@ INSERT INTO stripe_payment_methods (payment_method_id, customer_id, last_4, dele
     )
         .execute(transaction)
         .await
-        .map_err(AddStripePaymentMethodError::Postgres)
+        .map_err(AddStripePaymentMethodError::Postgres)?;
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -997,10 +1001,10 @@ pub enum AddStripeSubscriptionError {
     Postgres(sqlx::Error),
 }
 
-pub fn add_stripe_subscription(
+pub async fn add_stripe_subscription(
     transaction: &mut Transaction<'_, Postgres>,
     customer_id: &str,
-    subscription_id: &str
+    subscription_id: &str,
 ) -> Result<(), AddStripeSubscriptionError> {
     sqlx::query!(
         r#"
@@ -1009,22 +1013,24 @@ INSERT INTO stripe_subscriptions (subscription_id, customer_id, active) VALUES (
         subscription_id,
         customer_id
     )
-        .execute(transaction)
-        .await
-        .map_err(AddStripeSubscriptionError::Postgres)
+    .execute(transaction)
+    .await
+    .map_err(AddStripeSubscriptionError::Postgres)?;
+
+    Ok(())
 }
 
 #[derive(Debug)]
 pub enum AttachStripeCustomerIdError {
     Postgres(sqlx::Error),
-    Serialization(serde_json::Error)
+    Serialize(serde_json::Error),
 }
 
-pub fn attach_stripe_customer_id(
+pub async fn attach_stripe_customer_id(
     transaction: &mut Transaction<'_, Postgres>,
     customer_id: &str,
-    public_key: &PublicKey
-) -> Result<String, AttachStripeCustomerIdError> {
+    public_key: &PublicKey,
+) -> Result<(), AttachStripeCustomerIdError> {
     sqlx::query!(
         r#"
 WITH nu AS (
@@ -1033,11 +1039,13 @@ WITH nu AS (
 UPDATE account_tiers SET stripe_customer_id = $1 WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $2);
         "#,
         customer_id,
-        &serde_json::to_string(public_key).map_err(RetrieveStripeCustomerIdError::Serialize)?
+        &serde_json::to_string(public_key).map_err(AttachStripeCustomerIdError::Serialize)?
     )
         .execute(transaction)
         .await
-        .map_err(GetStripeCustomerIdError::Postgres)
+        .map_err(AttachStripeCustomerIdError::Postgres)?;
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -1045,9 +1053,9 @@ pub enum CancelStripeSubscriptionError {
     Postgres(sqlx::Error),
 }
 
-pub fn cancel_stripe_subscription(
+pub async fn cancel_stripe_subscription(
     transaction: &mut Transaction<'_, Postgres>,
-    subscription_id: &str
+    subscription_id: &str,
 ) -> Result<(), CancelStripeSubscriptionError> {
     sqlx::query!(
         r#"
@@ -1055,7 +1063,9 @@ UPDATE stripe_subscriptions SET active = FALSE WHERE subscription_id = $1
         "#,
         subscription_id,
     )
-        .execute(transaction)
-        .await
-        .map_err(CancelStripeSubscriptionError::Postgres)
+    .execute(transaction)
+    .await
+    .map_err(CancelStripeSubscriptionError::Postgres)?;
+
+    Ok(())
 }
