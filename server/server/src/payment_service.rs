@@ -1,11 +1,7 @@
 use crate::file_index_repo::{GetStripeCustomerIdError, FREE_TIER_SIZE};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_index_repo, RequestContext, ServerError};
-use lockbook_models::api::{
-    AccountTier, CreditCardInfo, GetRegisteredCreditCardsError, RegisterCreditCardError,
-    RegisterCreditCardRequest, RegisterCreditCardResponse, RemoveCreditCardError,
-    RemoveCreditCardRequest, SwitchAccountTierError, SwitchAccountTierRequest,
-};
+use lockbook_models::api::{AccountTier, CreditCardInfo, GetRegisteredCreditCardsError, GetRegisteredCreditCardsResponse, RegisterCreditCardError, RegisterCreditCardRequest, RegisterCreditCardResponse, RemoveCreditCardError, RemoveCreditCardRequest, RemoveCreditCardResponse, SwitchAccountTierError, SwitchAccountTierRequest, SwitchAccountTierResponse};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -194,7 +190,7 @@ pub async fn register_credit_card(
 
 pub async fn remove_credit_card(
     context: RequestContext<'_, RemoveCreditCardRequest>,
-) -> Result<(), ServerError<RemoveCreditCardError>> {
+) -> Result<RemoveCreditCardResponse, ServerError<RemoveCreditCardError>> {
     let server_state = context.server_state;
 
     server_state
@@ -208,12 +204,12 @@ pub async fn remove_credit_card(
         .await
         .map_err(|e| InternalError(format!("Cannot remove credit card: {:#?}", e)))?;
 
-    Ok(())
+    Ok(RemoveCreditCardResponse { })
 }
 
-pub async fn switch_user_tier(
+pub async fn switch_account_tier(
     context: RequestContext<'_, SwitchAccountTierRequest>,
-) -> Result<(), ServerError<SwitchAccountTierError>> {
+) -> Result<SwitchAccountTierResponse, ServerError<SwitchAccountTierError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
     let mut transaction = match server_state.index_db_client.begin().await {
@@ -313,12 +309,15 @@ pub async fn switch_user_tier(
             })?;
     }
 
-    Ok(())
+    match transaction.commit().await {
+        Ok(()) => Ok(SwitchAccountTierResponse { }),
+        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
+    }
 }
 
 pub async fn get_registered_credit_cards(
     context: RequestContext<'_, GetRegisteredCreditCardsError>,
-) -> Result<Vec<CreditCardInfo>, ServerError<GetRegisteredCreditCardsError>> {
+) -> Result<GetRegisteredCreditCardsResponse, ServerError<GetRegisteredCreditCardsError>> {
     let mut transaction = match context.server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -326,7 +325,9 @@ pub async fn get_registered_credit_cards(
         }
     };
 
-    file_index_repo::get_all_stripe_credit_card_infos(&mut transaction, &context.public_key)
+    let credit_card_infos = file_index_repo::get_all_stripe_credit_card_infos(&mut transaction, &context.public_key)
         .await
-        .map_err(|e| InternalError(format!("Cannot get all stripe credit card infos: {:?}", e)))
+        .map_err(|e| InternalError(format!("Cannot get all stripe credit card infos: {:?}", e)))?;
+
+    Ok(GetRegisteredCreditCardsResponse { credit_card_infos })
 }

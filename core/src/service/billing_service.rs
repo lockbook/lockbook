@@ -54,7 +54,9 @@ pub fn switch_account_tier(
         ApiError::Endpoint(SwitchAccountTierError::NewTierIsOldTier) => CoreError::NewTierIsOldTier,
         ApiError::SendFailed(_) => CoreError::ServerUnreachable,
         _ => core_err_unexpected(e),
-    })
+    })?;
+
+    Ok(())
 }
 
 pub fn remove_credit_card(config: &Config, payment_method_id: String) -> Result<(), CoreError> {
@@ -68,7 +70,9 @@ pub fn remove_credit_card(config: &Config, payment_method_id: String) -> Result<
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             _ => core_err_unexpected(e),
         }
-    })
+    })?;
+
+    Ok(())
 }
 
 pub fn get_registered_credit_cards(config: &Config) -> Result<Vec<CreditCardInfo>, CoreError> {

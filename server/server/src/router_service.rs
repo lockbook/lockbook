@@ -1,6 +1,6 @@
 use crate::account_service::*;
 use crate::file_service::*;
-use crate::payment_service::{register_credit_card, remove_credit_card, switch_user_tier};
+use crate::payment_service::*;
 use crate::utils::get_build_info;
 use crate::{router_service, verify_auth, verify_client_version, ServerState};
 use lazy_static::lazy_static;
@@ -109,10 +109,16 @@ pub fn core_routes(
             server_state
         ))
         .or(core_req!(
-            SwitchAccountTierRequest,
-            switch_user_tier,
+            GetRegisteredCreditCardsRequest,
+            get_registered_credit_cards,
             server_state
         ))
+        .or(core_req!(
+            SwitchAccountTierRequest,
+            switch_account_tier,
+            server_state
+        ))
+
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

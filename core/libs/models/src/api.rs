@@ -334,7 +334,7 @@ pub enum RemoveCreditCardError {
 }
 
 impl Request for RemoveCreditCardRequest {
-    type Response = ();
+    type Response = RemoveCreditCardResponse;
     type Error = RemoveCreditCardError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/remove-credit-card";
@@ -361,7 +361,7 @@ pub enum SwitchAccountTierError {
 }
 
 impl Request for SwitchAccountTierRequest {
-    type Response = ();
+    type Response = SwitchAccountTierResponse;
     type Error = SwitchAccountTierError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/switch-account-tier";
