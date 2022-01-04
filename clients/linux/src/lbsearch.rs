@@ -84,7 +84,7 @@ impl LbSearch {
     }
 }
 
-pub fn prompt_search(lb: &LbApp) -> LbResult<()> {
+pub fn prompt(lb: &LbApp) -> LbResult<()> {
     let possibs = lb.core.list_paths().unwrap_or_default();
     let search = LbSearch::new(possibs);
     let d = lb.gui.new_dialog("Search");
@@ -154,7 +154,7 @@ pub fn prompt_search(lb: &LbApp) -> LbResult<()> {
     Ok(())
 }
 
-pub fn search_field_exec(lb: &LbApp, maybe_input: Option<String>) -> LbResult<()> {
+pub fn process_input(lb: &LbApp, maybe_input: Option<String>) -> LbResult<()> {
     if let Some(path) = maybe_input.or_else(|| lb.state.borrow().get_first_search_match()) {
         match lb.core.file_by_path(&path) {
             Ok(meta) => lb.messenger.send(Msg::OpenFile(Some(meta.id))),

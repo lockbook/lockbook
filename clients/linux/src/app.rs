@@ -111,8 +111,8 @@ impl LbApp {
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
                 Msg::RefreshTree => lb.refresh_tree(),
 
-                Msg::PromptSearch => lbsearch::prompt_search(&lb),
-                Msg::SearchFieldExec(vopt) => lbsearch::search_field_exec(&lb, vopt),
+                Msg::PromptSearch => lbsearch::prompt(&lb),
+                Msg::SearchFieldExec(vopt) => lbsearch::process_input(&lb, vopt),
 
                 Msg::ShowDialogSyncDetails => syncing::show_details_dialog(&lb),
                 Msg::ShowDialogPreferences => settings::show_dialog(&lb),
@@ -151,7 +151,7 @@ impl LbApp {
 
         let prompt_search = gio::SimpleAction::new("prompt_search", None);
         prompt_search.connect_activate(glib::clone!(@strong lb_app => move |_, _| {
-            if let Err(err) = lbsearch::prompt_search(&lb_app) {
+            if let Err(err) = lbsearch::prompt(&lb_app) {
                 lb_app.err_dialog("opening search", &err)
             }
         }));
