@@ -1,3 +1,4 @@
+use crate::billing::stripe::SetupIntentStatus;
 use crate::billing::stripe_repo;
 use crate::file_index_repo::{GetStripeCustomerIdError, FREE_TIER_SIZE};
 use crate::ServerError::{ClientError, InternalError};
@@ -79,7 +80,7 @@ pub async fn register_credit_card(
         stripe_repo::create_setup_intent(&server_state, &customer_id, &payment_method_resp.id)
             .await?;
 
-    if setup_intent_status == "succeeded" {
+    if let SetupIntentStatus::Succeeded = setup_intent_status {
         stripe_repo::attach_payment_method_to_customer(
             &server_state,
             &customer_id,
@@ -98,7 +99,7 @@ pub async fn register_credit_card(
         }
     } else {
         Err(InternalError(format!(
-            "Unexpected confirmation of stripe setup intent: {}",
+            "Unexpected confirmation of stripe setup intent: {:?}",
             setup_intent_status
         )))
     }
@@ -107,13 +108,32 @@ pub async fn register_credit_card(
 pub async fn remove_credit_card(
     context: RequestContext<'_, RemoveCreditCardRequest>,
 ) -> Result<RemoveCreditCardResponse, ServerError<RemoveCreditCardError>> {
+    let mut transaction = match context.server_state.index_db_client.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
+        }
+    };
+
     stripe_repo::detach_payment_method_from_customer(
         &context.server_state,
         &context.request.payment_method_id,
     )
     .await?;
 
-    Ok(RemoveCreditCardResponse {})
+    file_index_repo::delete_stripe_payment_method(&mut transaction, &context.request.payment_method_id)
+        .await
+        .map_err(|e| {
+            InternalError(format!(
+                "Couldn't delete payment method from Postgres: {:?}",
+                e
+            ))
+        })?;
+
+    match transaction.commit().await {
+        Ok(()) => Ok(RemoveCreditCardResponse {}),
+        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
+    }
 }
 
 pub async fn switch_account_tier(
@@ -143,20 +163,20 @@ pub async fn switch_account_tier(
             })?;
 
     if data_cap == FREE_TIER_SIZE as u64 {
-        if let AccountTier::Free = request.account_tier {
+        if let AccountTier::Free = &request.account_tier {
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
+        } else if let AccountTier::Monthly(payment_method_id) = &request.account_tier {
+            let subscription_id = stripe_repo::create_subscription(&server_state, &customer_id, payment_method_id).await?;
+
+            file_index_repo::add_stripe_subscription(&mut transaction, &customer_id, &subscription_id)
+                .await
+                .map_err(|e| {
+                    InternalError(format!(
+                        "Cannot add stripe subscription in Postgres: {:?}",
+                        e
+                    ))
+                })?;
         }
-
-        let subscription_id = stripe_repo::create_subscription(&server_state, &customer_id).await?;
-
-        file_index_repo::add_stripe_subscription(&mut transaction, &customer_id, &subscription_id)
-            .await
-            .map_err(|e| {
-                InternalError(format!(
-                    "Cannot add stripe subscription in Postgres: {:?}",
-                    e
-                ))
-            })?;
     } else {
         if data_cap != FREE_TIER_SIZE as u64 {
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));

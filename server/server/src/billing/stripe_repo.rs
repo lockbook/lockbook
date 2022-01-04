@@ -1,6 +1,6 @@
 use crate::billing::stripe::{
-    BasicStripeResponse, PaymentMethodStripeResponse, SetupIntentStripeResponse, StripeErrorType,
-    StripeResult,
+    BasicStripeResponse, PaymentMethodStripeResponse, SetupIntentStatus, SetupIntentStripeResponse,
+    StripeErrorType, StripeResult,
 };
 use crate::ServerError::{ClientError, InternalError};
 use crate::{ServerError, ServerState};
@@ -78,7 +78,7 @@ pub async fn create_setup_intent(
     server_state: &ServerState,
     customer_id: &str,
     payment_method_id: &str,
-) -> Result<String, ServerError<RegisterCreditCardError>> {
+) -> Result<SetupIntentStatus, ServerError<RegisterCreditCardError>> {
     let mut create_setup_intent_form = HashMap::new();
     create_setup_intent_form.insert("customer", customer_id);
     create_setup_intent_form.insert("payment_method", payment_method_id);
@@ -154,6 +154,7 @@ pub async fn detach_payment_method_from_customer(
 pub async fn create_subscription(
     server_state: &ServerState,
     customer_id: &str,
+    payment_method_id: &str
 ) -> Result<String, ServerError<SwitchAccountTierError>> {
     let mut create_subscription_form = HashMap::new();
     create_subscription_form.insert("customer", customer_id);
@@ -161,6 +162,7 @@ pub async fn create_subscription(
         "items[0][price]",
         server_state.config.stripe.premium_price_id.as_str(),
     );
+    create_subscription_form.insert("default_payment_method", payment_method_id);
 
     match send_stripe_request::<BasicStripeResponse, SwitchAccountTierError>(
         server_state,

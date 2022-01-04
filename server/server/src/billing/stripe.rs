@@ -65,7 +65,15 @@ pub struct BasicStripeResponse {
 
 #[derive(Serialize, Deserialize)]
 pub struct SetupIntentStripeResponse {
-    pub status: String,
+    pub status: SetupIntentStatus,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum SetupIntentStatus {
+    Succeeded,
+    RequiresAction,
+    RequiresPaymentMethod,
 }
 
 #[derive(Serialize, Deserialize)]

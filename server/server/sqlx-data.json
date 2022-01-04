@@ -489,6 +489,18 @@
       ]
     }
   },
+  "9258ff35ac45cbcddfa38692c307c0f6901f0c8f5ac958296d603487de56f49d": {
+    "query": "\nUPDATE stripe_payment_methods SET deleted = TRUE WHERE payment_method_id = $1\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
   "88a3b8b4f839d31f47c47d46cd4617f48973a7abe8a116fdb9dbade43df8bf22": {
     "query": "\n    WITH RECURSIVE file_ancestors AS (\n        SELECT id, id AS ancestor FROM files\n            UNION DISTINCT\n        SELECT file_ancestors.id, files.parent AS ancestor FROM files\n        JOIN file_ancestors ON files.id = file_ancestors.ancestor\n    ),\n    files_with_deleted_ancestors AS (\n        SELECT id FROM files WHERE EXISTS(\n            SELECT * FROM file_ancestors\n            JOIN files AS ancestor_files ON file_ancestors.ancestor = ancestor_files.id\n            WHERE files.id = file_ancestors.id AND ancestor_files.deleted\n        )\n    )\n    SELECT\n        files.id,\n        CASE WHEN EXISTS(SELECT * FROM files_with_deleted_ancestors WHERE files_with_deleted_ancestors.id = files.id) THEN 0 ELSE files.document_size END AS \"document_size!\"\n    FROM files\n    WHERE\n        files.owner = $1 AND\n        NOT files.is_folder;\n        ",
     "describe": {

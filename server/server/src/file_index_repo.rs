@@ -1069,3 +1069,25 @@ UPDATE stripe_subscriptions SET active = FALSE WHERE subscription_id = $1
 
     Ok(())
 }
+
+#[derive(Debug)]
+pub enum DeleteStripePaymentMethodError {
+    Postgres(sqlx::Error),
+}
+
+pub async fn delete_stripe_payment_method(
+    transaction: &mut Transaction<'_, Postgres>,
+    payment_method_id: &str,
+) -> Result<(), CancelStripeSubscriptionError> {
+    sqlx::query!(
+        r#"
+UPDATE stripe_payment_methods SET deleted = TRUE WHERE payment_method_id = $1
+        "#,
+        payment_method_id,
+    )
+    .execute(transaction)
+    .await
+    .map_err(CancelStripeSubscriptionError::Postgres)?;
+
+    Ok(())
+}
