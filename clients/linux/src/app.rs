@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 use gdk::WindowExt;
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
@@ -23,7 +22,7 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use uuid::Uuid;
 
 use crate::account::{AccountScreen, TextAreaDropPasteInfo};
-use crate::backend::{LbCore, LbSyncMsg};
+use crate::backend::LbCore;
 use crate::background_work::BackgroundWork;
 use crate::editmode::EditMode;
 use crate::error::{
@@ -35,12 +34,12 @@ use crate::lbsearch::LbSearch;
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::onboarding;
+use crate::syncing;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 use crate::{settings, settings::Settings};
 
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
-use lockbook_models::work_unit::WorkUnit;
 
 macro_rules! make_glib_chan {
     ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
@@ -60,7 +59,7 @@ macro_rules! spawn {
 pub struct LbApp {
     pub core: Arc<LbCore>,
     pub settings: Rc<RefCell<Settings>>,
-    state: Rc<RefCell<LbState>>,
+    pub state: Rc<RefCell<LbState>>,
     pub gui: Rc<Gui>,
     pub messenger: Messenger,
 }
@@ -93,8 +92,8 @@ impl LbApp {
                 Msg::CreateAccount(username) => onboarding::create(&lb, username),
                 Msg::ImportAccount(acct_str) => onboarding::import(&lb, acct_str),
                 Msg::ExportAccount => lb.export_account(),
-                Msg::PerformSync => lb.perform_sync(),
-                Msg::RefreshSyncStatus => lb.refresh_sync_status(),
+                Msg::PerformSync => syncing::perform_sync(&lb),
+                Msg::RefreshSyncStatus => syncing::refresh_status(&lb),
                 Msg::RefreshUsageStatus => lb.refresh_usage_status(),
                 Msg::Quit => lb.quit(),
 
@@ -115,7 +114,7 @@ impl LbApp {
                 Msg::PromptSearch => lb.prompt_search(),
                 Msg::SearchFieldExec(vopt) => lb.search_field_exec(vopt),
 
-                Msg::ShowDialogSyncDetails => lb.show_dialog_sync_details(),
+                Msg::ShowDialogSyncDetails => syncing::show_details_dialog(&lb),
                 Msg::ShowDialogPreferences => settings::show_dialog(&lb),
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
@@ -211,55 +210,6 @@ impl LbApp {
         });
 
         spawn!(self.core as c => move || ch.send(c.account_qrcode()).unwrap());
-        Ok(())
-    }
-
-    fn perform_sync(&self) -> LbResult<()> {
-        if let Ok(mut background_work) = self.state.borrow().background_work.try_lock() {
-            background_work.auto_sync_state.last_sync = BackgroundWork::current_time();
-        }
-
-        let sync_ui = self.gui.account.status().clone();
-        sync_ui.set_syncing(true);
-
-        let ch = make_glib_chan!(self as lb => move |msgopt: Option<LbSyncMsg>| {
-            if let Some(msg) = msgopt {
-                sync_ui.set_sync_progress(&msg);
-            } else {
-                sync_ui.set_syncing(false);
-                lb.messenger.send(Msg::RefreshSyncStatus);
-                spawn!(lb.messenger as m => move || {
-                    thread::sleep(Duration::from_secs(5));
-                    m.send(Msg::RefreshUsageStatus);
-                });
-            }
-            glib::Continue(true)
-        });
-
-        spawn!(self.core as c, self.messenger as m => move || {
-            if let Err(err) = c.sync(ch) {
-                match err.target() {
-                    LbErrTarget::Dialog => m.send_err_dialog("syncing", err),
-                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg())
-                }
-            }
-            m.send(Msg::RefreshTree)
-        });
-
-        Ok(())
-    }
-
-    fn refresh_sync_status(&self) -> LbResult<()> {
-        spawn!(self.core as c, self.messenger as m => move || {
-            match c.sync_status() {
-                Ok(txt) => m.send(Msg::SetStatus(txt, None)),
-                Err(err) => match err.target() {
-                    LbErrTarget::Dialog => m.send_err_dialog("getting sync status", err),
-                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
-                }
-            }
-        });
-
         Ok(())
     }
 
@@ -635,7 +585,8 @@ impl LbApp {
         }
 
         d.close();
-        self.refresh_sync_status()
+        self.messenger.send(Msg::RefreshSyncStatus);
+        Ok(())
     }
 
     fn rename_file(&self) -> LbResult<()> {
@@ -804,32 +755,6 @@ impl LbApp {
                     .send_err_dialog("opening file from search field", err),
             }
         }
-        Ok(())
-    }
-
-    fn show_dialog_sync_details(&self) -> LbResult<()> {
-        const RESP_REFRESH: u16 = 1;
-
-        let details = sync_details(&self.core)?;
-
-        let d = self.gui.new_dialog("Sync Details");
-        d.get_content_area().set_center_widget(Some(&details));
-        d.add_button("Refresh", GtkResponseType::Other(RESP_REFRESH));
-        d.add_button("Close", GtkResponseType::Close);
-        d.connect_response(closure!(self as lb => move |d, r| match r {
-            GtkResponseType::Other(RESP_REFRESH) => match sync_details(&lb.core) {
-                Ok(details) => {
-                    lb.messenger.send(Msg::RefreshSyncStatus);
-                    d.get_content_area().set_center_widget(Some(&details));
-                    d.get_content_area().show_all();
-                    d.set_position(GtkWindowPosition::CenterAlways);
-                }
-                Err(err) => lb.messenger.send_err_dialog("building sync details ui", err),
-            },
-            _ => d.close(),
-        }));
-        d.show_all();
-
         Ok(())
     }
 
@@ -1149,11 +1074,11 @@ impl LbApp {
     }
 }
 
-struct LbState {
+pub struct LbState {
     search: Option<LbSearch>,
     opened_file: Option<DecryptedFileMetadata>,
     open_file_dirty: bool,
-    background_work: Arc<Mutex<BackgroundWork>>,
+    pub background_work: Arc<Mutex<BackgroundWork>>,
 }
 
 impl LbState {
@@ -1189,7 +1114,7 @@ pub struct Gui {
     menubar: Menubar,
     screens: GtkStack,
     pub onboarding: onboarding::Screen,
-    account: Rc<AccountScreen>,
+    pub account: Rc<AccountScreen>,
     messenger: Messenger,
 }
 
@@ -1311,72 +1236,6 @@ impl Gui {
 
         (load_d, path_lbl_1, path_lbl_2, prog_lbl, pbar)
     }
-}
-
-fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
-    let work = c.calculate_work()?;
-    let n_units = work.work_units.len();
-
-    let cntr = GtkBox::new(Vertical, 0);
-    cntr.set_hexpand(true);
-    if n_units == 0 {
-        let lbl = GtkLabel::new(Some("All synced up!"));
-        lbl.set_margin_top(12);
-        lbl.set_margin_bottom(16);
-        cntr.add(&lbl);
-    } else {
-        let desc = util::gui::text_left(&format!(
-            "The following {} to sync:",
-            if n_units > 1 {
-                format!("{} changes need", n_units)
-            } else {
-                "change needs".to_string()
-            }
-        ));
-        desc.set_margin_start(12);
-        desc.set_margin_top(12);
-
-        let tree_add_col = |tree: &GtkTreeView, name: &str, id| {
-            let cell = GtkCellRendererText::new();
-            cell.set_padding(12, 4);
-
-            let c = GtkTreeViewColumn::new();
-            c.set_title(name);
-            c.pack_start(&cell, true);
-            c.add_attribute(&cell, "text", id);
-            tree.append_column(&c);
-        };
-
-        let model = GtkTreeStore::new(&[glib::Type::String, glib::Type::String]);
-        let tree = GtkTreeView::with_model(&model);
-        tree.get_selection().set_mode(GtkSelectionMode::None);
-        tree.set_enable_search(false);
-        tree.set_can_focus(false);
-        tree_add_col(&tree, "Name", 0);
-        tree_add_col(&tree, "Origin", 1);
-
-        work.work_units.into_iter().for_each(|work_unit| {
-            let action = match work_unit {
-                WorkUnit::LocalChange { .. } => "Local",
-                WorkUnit::ServerChange { .. } => "Server",
-            };
-
-            model.insert_with_values(
-                None,
-                None,
-                &[0, 1],
-                &[&work_unit.get_metadata().decrypted_name, &action],
-            );
-        });
-
-        let scrolled = util::gui::scrollable(&tree);
-        util::gui::set_margin(&scrolled, 16);
-        scrolled.set_size_request(450, 300);
-
-        cntr.add(&desc);
-        cntr.pack_start(&scrolled, true, true, 0);
-    }
-    Ok(cntr)
 }
 
 fn usage_dialog(c: &Arc<LbCore>) -> LbResult<GtkBox> {
