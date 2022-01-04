@@ -19,6 +19,7 @@ mod menubar;
 mod messages;
 mod onboarding;
 mod settings;
+mod syncing;
 mod util;
 
 use std::cell::RefCell;
