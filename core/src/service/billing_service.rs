@@ -27,7 +27,7 @@ pub fn add_credit_card(
         },
     ) {
         Ok(response) => Ok(response.credit_card_info),
-        Err(ApiError::Endpoint(RegisterCreditCardError::InvalidCreditCardFormat)) => {
+        Err(ApiError::Endpoint(RegisterCreditCardError::InvalidCreditCard)) => {
             Err(CoreError::InvalidCreditCard)
         }
         Err(ApiError::SendFailed(_)) => Err(CoreError::ServerUnreachable),

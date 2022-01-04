@@ -1,3 +1,3 @@
 pub mod payment_service;
 mod stripe;
-mod stripe_repo;
+mod stripe_client;

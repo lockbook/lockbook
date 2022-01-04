@@ -64,7 +64,7 @@ pub async fn create_payment_method(
         StripeResult::Ok(resp) => Ok(resp),
         StripeResult::Err(e) => match e.error.error_type {
             StripeErrorType::CardError => Err(ClientError(
-                RegisterCreditCardError::InvalidCreditCardFormat,
+                RegisterCreditCardError::InvalidCreditCard,
             )),
             _ => Err(InternalError(format!(
                 "Stripe returned an error whilst creating a payment method: {:?}",
@@ -154,7 +154,7 @@ pub async fn detach_payment_method_from_customer(
 pub async fn create_subscription(
     server_state: &ServerState,
     customer_id: &str,
-    payment_method_id: &str
+    payment_method_id: &str,
 ) -> Result<String, ServerError<SwitchAccountTierError>> {
     let mut create_subscription_form = HashMap::new();
     create_subscription_form.insert("customer", customer_id);

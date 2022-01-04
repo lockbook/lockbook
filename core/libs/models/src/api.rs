@@ -286,7 +286,7 @@ pub struct RegisterCreditCardResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum RegisterCreditCardError {
-    InvalidCreditCardFormat,
+    InvalidCreditCard,
 }
 
 impl Request for RegisterCreditCardRequest {

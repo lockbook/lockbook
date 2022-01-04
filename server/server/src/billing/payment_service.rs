@@ -1,5 +1,5 @@
 use crate::billing::stripe::SetupIntentStatus;
-use crate::billing::stripe_repo;
+use crate::billing::stripe_client;
 use crate::file_index_repo::{GetStripeCustomerIdError, FREE_TIER_SIZE};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_index_repo, RequestContext, ServerError};
@@ -23,29 +23,38 @@ pub async fn register_credit_card(
         }
     };
 
+    let payment_method_resp = stripe_client::create_payment_method(
+        &server_state,
+        &request.card_number,
+        &request.exp_month,
+        &request.exp_year,
+        &request.cvc,
+    )
+    .await?;
+
     let customer_id = match file_index_repo::get_stripe_customer_id(
         &mut transaction,
         &context.public_key,
     )
-    .await
+        .await
     {
         Ok(customer_id) => customer_id,
         Err(e) => match e {
             GetStripeCustomerIdError::NotAStripeCustomer => {
-                let customer_id = stripe_repo::create_customer(&server_state).await?;
+                let customer_id = stripe_client::create_customer(&server_state).await?;
 
                 file_index_repo::attach_stripe_customer_id(
                     &mut transaction,
                     &customer_id,
                     &context.public_key,
                 )
-                .await
-                .map_err(|e| {
-                    InternalError(format!(
-                        "Couldn't insert payment method into Postgres: {:?}",
-                        e
-                    ))
-                })?;
+                    .await
+                    .map_err(|e| {
+                        InternalError(format!(
+                            "Couldn't insert payment method into Postgres: {:?}",
+                            e
+                        ))
+                    })?;
 
                 customer_id
             }
@@ -58,15 +67,6 @@ pub async fn register_credit_card(
         },
     };
 
-    let payment_method_resp = stripe_repo::create_payment_method(
-        &server_state,
-        &request.card_number,
-        &request.exp_month,
-        &request.exp_year,
-        &request.cvc,
-    )
-    .await?;
-
     file_index_repo::add_stripe_payment_method(
         &mut transaction,
         &payment_method_resp.id,
@@ -77,11 +77,11 @@ pub async fn register_credit_card(
     .map_err(|e| InternalError(format!("Couldn't add payment method to Postgres: {:?}", e)))?;
 
     let setup_intent_status =
-        stripe_repo::create_setup_intent(&server_state, &customer_id, &payment_method_resp.id)
+        stripe_client::create_setup_intent(&server_state, &customer_id, &payment_method_resp.id)
             .await?;
 
     if let SetupIntentStatus::Succeeded = setup_intent_status {
-        stripe_repo::attach_payment_method_to_customer(
+        stripe_client::attach_payment_method_to_customer(
             &server_state,
             &customer_id,
             &payment_method_resp.id,
@@ -115,20 +115,23 @@ pub async fn remove_credit_card(
         }
     };
 
-    stripe_repo::detach_payment_method_from_customer(
+    stripe_client::detach_payment_method_from_customer(
         &context.server_state,
         &context.request.payment_method_id,
     )
     .await?;
 
-    file_index_repo::delete_stripe_payment_method(&mut transaction, &context.request.payment_method_id)
-        .await
-        .map_err(|e| {
-            InternalError(format!(
-                "Couldn't delete payment method from Postgres: {:?}",
-                e
-            ))
-        })?;
+    file_index_repo::delete_stripe_payment_method(
+        &mut transaction,
+        &context.request.payment_method_id,
+    )
+    .await
+    .map_err(|e| {
+        InternalError(format!(
+            "Couldn't delete payment method from Postgres: {:?}",
+            e
+        ))
+    })?;
 
     match transaction.commit().await {
         Ok(()) => Ok(RemoveCreditCardResponse {}),
@@ -166,16 +169,22 @@ pub async fn switch_account_tier(
         if let AccountTier::Free = &request.account_tier {
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         } else if let AccountTier::Monthly(payment_method_id) = &request.account_tier {
-            let subscription_id = stripe_repo::create_subscription(&server_state, &customer_id, payment_method_id).await?;
+            let subscription_id =
+                stripe_client::create_subscription(&server_state, &customer_id, payment_method_id)
+                    .await?;
 
-            file_index_repo::add_stripe_subscription(&mut transaction, &customer_id, &subscription_id)
-                .await
-                .map_err(|e| {
-                    InternalError(format!(
-                        "Cannot add stripe subscription in Postgres: {:?}",
-                        e
-                    ))
-                })?;
+            file_index_repo::add_stripe_subscription(
+                &mut transaction,
+                &customer_id,
+                &subscription_id,
+            )
+            .await
+            .map_err(|e| {
+                InternalError(format!(
+                    "Cannot add stripe subscription in Postgres: {:?}",
+                    e
+                ))
+            })?;
         }
     } else {
         if data_cap != FREE_TIER_SIZE as u64 {
@@ -194,7 +203,7 @@ pub async fn switch_account_tier(
             ))
         })?;
 
-        stripe_repo::delete_subscription(&server_state, &subscription_id).await?;
+        stripe_client::delete_subscription(&server_state, &subscription_id).await?;
 
         file_index_repo::cancel_stripe_subscription(&mut transaction, &subscription_id)
             .await
