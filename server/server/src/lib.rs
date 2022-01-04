@@ -1,10 +1,10 @@
 pub mod account_service;
+pub mod billing;
 pub mod config;
 pub mod file_content_client;
 pub mod file_index_repo;
 pub mod file_service;
 pub mod loggers;
-pub mod payment_service;
 pub mod router_service;
 pub mod utils;
 

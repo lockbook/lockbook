@@ -1,9 +1,16 @@
-use crate::file_index_repo::{GetStripeCustomerIdError, FREE_TIER_SIZE};
+use crate::file_index_repo::{FREE_TIER_SIZE, GetStripeCustomerIdError};
 use crate::ServerError::{ClientError, InternalError};
-use crate::{file_index_repo, RequestContext, ServerError};
-use lockbook_models::api::{AccountTier, CreditCardInfo, GetRegisteredCreditCardsError, GetRegisteredCreditCardsResponse, RegisterCreditCardError, RegisterCreditCardRequest, RegisterCreditCardResponse, RemoveCreditCardError, RemoveCreditCardRequest, RemoveCreditCardResponse, SwitchAccountTierError, SwitchAccountTierRequest, SwitchAccountTierResponse};
+use crate::{file_index_repo, RequestContext, ServerError, ServerState};
+use lockbook_models::api::{AccountTier, CreditCardInfo, GetRegisteredCreditCardsError, GetRegisteredCreditCardsRequest, GetRegisteredCreditCardsResponse, RegisterCreditCardError, RegisterCreditCardRequest, RegisterCreditCardResponse, RemoveCreditCardError, RemoveCreditCardRequest, RemoveCreditCardResponse, SwitchAccountTierError, SwitchAccountTierRequest, SwitchAccountTierResponse};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt::Debug;
+use std::future::Future;
+use log::error;
+use reqwest::{Client, Method};
+use serde::de::DeserializeOwned;
+use warp::hyper::body::HttpBody;
+use crate::billing::stripe::{BasicStripeResponse, PaymentMethodStripeResponse, SetupIntentStripeResponse, StripeResult};
 
 static STRIPE_ENDPOINT: &str = "https://api.stripe.com/v1";
 static PAYMENT_METHODS_ENDPOINT: &str = "/payment_methods";
@@ -13,25 +20,60 @@ static CUSTOMER_ENDPOINT: &str = "/customers";
 static SUBSCRIPTIONS_ENDPOINT: &str = "/subscriptions";
 static SETUP_INTENTS_ENDPOINT: &str = "/setup_intents";
 
-#[derive(Serialize, Deserialize)]
-struct BasicStripeResponse {
-    id: String,
-}
+macro_rules! make_stripe_request {
+    ($server_state:expr, $url:expr, $method:expr, $okay_res:ty $(, $err_handler:path)?) => {
+        match $server_state
+            .stripe_client
+            .request($method, &$url)
+            .basic_auth::<&str, &str>(&$server_state.config.stripe.stripe_secret, None)
+            .send()
+            .await {
+            Ok(resp) => match resp.json::<StripeResult<$okay_res>>().await {
+                Ok(ok) => ok,
+                Err(e) => {
+                    $(if let Err(e) =  $err_handler(&$server_state).await {
+                        error!("Cannot cleanup stripe after error: {:?}", e);
+                    })?
 
-#[derive(Serialize, Deserialize)]
-struct SetupIntentStripeResponse {
-    status: String,
-}
+                    return Err(InternalError(format!("Cannot parse stripe request at '{}': {:?}", $url, e)));
+                }
+            }
+            Err(e) => {
+                $(if let Err(e) =  $err_handler(&$server_state).await {
+                    error!("Cannot cleanup stripe after error: {:?}", e);
+                })?
 
-#[derive(Serialize, Deserialize)]
-struct PaymentMethodStripeResponse {
-    id: String,
-    card: PaymentMethodCard,
-}
+                return Err(InternalError(format!("Cannot make stripe request at '{}' due to reqwest error: {:?}", $url, e)));
+            }
+        }
+    };
+    ($server_state:expr, $url:expr, $method:pat, $okay_res:ty, $form: expr $(, $err_handler:path)?) => {
+        match $server_state
+            .stripe_client
+            .request($method, &$url)
+            .basic_auth::<&str, &str>(&$server_state.config.stripe.stripe_secret, None)
+            .form($form)
+            .send()
+            .await {
+            Ok(resp) => match resp.json::<StripeResult<$okay_res>>().await {
+                Ok(ok) => ok,
+                Err(e) => {
+                    $(if let Err(e) =  $err_handler(&$server_state).await {
+                        error!("Cannot cleanup stripe after error: {:?}", e);
+                    })?
 
-#[derive(Serialize, Deserialize)]
-struct PaymentMethodCard {
-    last4: String,
+                    return Err(InternalError(format!("Cannot parse stripe request at '{}': {:?}", $url, e)));
+                }
+            }
+            Err(e) => {
+                $(if let Err(e) =  $err_handler(&$server_state).await {
+                    error!("Cannot cleanup stripe after error: {:?}", e);
+                })?
+
+                return Err(InternalError(format!("Cannot make stripe request at '{}' due to reqwest error: {:?}", $url, e)));
+            }
+        }
+    };
 }
 
 pub async fn register_credit_card(
@@ -55,32 +97,28 @@ pub async fn register_credit_card(
         Ok(customer_id) => customer_id,
         Err(e) => match e {
             GetStripeCustomerIdError::NotAStripeCustomer => {
-                let customer_id = server_state
-                    .stripe_client
-                    .post(format!("{}{}", STRIPE_ENDPOINT, CUSTOMER_ENDPOINT))
-                    .basic_auth::<&str, &str>(&server_state.config.stripe.stripe_secret, None)
-                    .send()
-                    .await
-                    .map_err(|e| InternalError(format!("Cannot create stripe customer: {}", e)))?
-                    .json::<BasicStripeResponse>()
-                    .await
-                    .map_err(|e| {
-                        InternalError(format!(
-                            "Cannot parse create stripe customer response: {}",
-                            e
-                        ))
-                    })?
-                    .id;
+                let customer_id = match make_stripe_request!(server_state,
+                    format!("{}{}",STRIPE_ENDPOINT, CUSTOMER_ENDPOINT),
+                    Method::POST,
+                    BasicStripeResponse,
+                    cleanup_customer
+                ) {
+                    StripeResult::Ok(resp) => resp.id,
+                    StripeResult::Err(e) => return Err(InternalError(format!("Cannot parse create stripe customer response: {:?}", e)))
+                };
 
-                file_index_repo::attach_stripe_customer_id(
+                if let Err(e) = file_index_repo::attach_stripe_customer_id(
                     &mut transaction,
                     &customer_id,
                     &context.public_key,
                 )
-                .await
-                .map_err(|e| {
-                    InternalError(format!("Couldn't add customer id to Postgres: {:?}", e))
-                })?;
+                .await {
+                    if let Err(e) = cleanup_customer(&server_state).await {
+                        error!("Cannot cleanup stripe after error: {:?}", e);
+                    }
+
+                    return Err(InternalError(format!("Couldn't add customer id to Postgres: {:?}", e)));
+                }
 
                 customer_id
             }
@@ -316,7 +354,7 @@ pub async fn switch_account_tier(
 }
 
 pub async fn get_registered_credit_cards(
-    context: RequestContext<'_, GetRegisteredCreditCardsError>,
+    context: RequestContext<'_, GetRegisteredCreditCardsRequest>,
 ) -> Result<GetRegisteredCreditCardsResponse, ServerError<GetRegisteredCreditCardsError>> {
     let mut transaction = match context.server_state.index_db_client.begin().await {
         Ok(t) => t,
@@ -331,3 +369,15 @@ pub async fn get_registered_credit_cards(
 
     Ok(GetRegisteredCreditCardsResponse { credit_card_infos })
 }
+
+
+async fn cleanup_customer<U>(server_state: &ServerState) -> Result<(), ServerError<U>> {
+    make_stripe_request!(server_state,
+        format!("{}{}",STRIPE_ENDPOINT, CUSTOMER_ENDPOINT),
+        Method::DELETE,
+        BasicStripeResponse
+    );
+
+    Ok(())
+}
+

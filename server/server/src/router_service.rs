@@ -1,6 +1,6 @@
 use crate::account_service::*;
 use crate::file_service::*;
-use crate::payment_service::*;
+use crate::billing::payment_service::*;
 use crate::utils::get_build_info;
 use crate::{router_service, verify_auth, verify_client_version, ServerState};
 use lazy_static::lazy_static;
@@ -118,7 +118,6 @@ pub fn core_routes(
             switch_account_tier,
             server_state
         ))
-
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
