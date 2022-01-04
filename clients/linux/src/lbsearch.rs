@@ -3,7 +3,11 @@ use std::cmp;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use gtk::prelude::*;
 
+use crate::app::LbApp;
+use crate::error::LbResult;
+use crate::messages::Msg;
 use crate::tree_iter_value;
+use crate::util;
 
 pub struct LbSearch {
     possibs: Vec<String>,
@@ -75,8 +79,93 @@ impl LbSearch {
             if let Some(score) = self.matcher.fuzzy_match(p, pattern) {
                 let values: [&dyn ToValue; 2] = [&score, &p];
                 list.set(&list.append(), &[0, 1], &values);
-                //list.set(&list.append(), &[(0, &score), (1, &p)]);
             }
         }
     }
+}
+
+pub fn prompt(lb: &LbApp) -> LbResult<()> {
+    let possibs = lb.core.list_paths().unwrap_or_default();
+    let search = LbSearch::new(possibs);
+    let d = lb.gui.new_dialog("Search");
+
+    let comp = gtk::EntryCompletion::new();
+    comp.set_model(Some(&search.sort_model));
+    comp.set_popup_completion(true);
+    comp.set_inline_selection(true);
+    comp.set_text_column(1);
+    comp.set_match_func(|_, _, _| true);
+    comp.connect_match_selected(glib::clone!(
+        @strong lb.messenger as m,
+        @strong d
+        => move |_, model, iter| {
+            d.close();
+            let iter_val = tree_iter_value!(model, iter, 1, String);
+            m.send(Msg::SearchFieldExec(Some(iter_val)));
+            gtk::Inhibit(false)
+        }
+    ));
+
+    lb.state.borrow_mut().search = Some(search);
+
+    let search_entry = gtk::Entry::new();
+    entry_set_icon(&search_entry, "edit-find-symbolic");
+    util::gui::set_marginx(&search_entry, 16);
+    search_entry.set_margin_top(16);
+    search_entry.set_placeholder_text(Some("Start typing..."));
+    search_entry.set_completion(Some(&comp));
+
+    search_entry.connect_key_release_event(glib::clone!(@strong lb => move |entry, key| {
+        let k = key.get_hardware_keycode();
+        if k != util::gui::KEY_ARROW_UP && k != util::gui::KEY_ARROW_DOWN {
+            if let Some(search) = lb.state.borrow().search.as_ref() {
+                let input = entry.get_text().to_string();
+                search.update_for(&input);
+            }
+        }
+        gtk::Inhibit(false)
+    }));
+
+    search_entry.connect_changed(move |entry| {
+        let input = entry.get_text().to_string();
+        let icon_name = if input.ends_with(".md") || input.ends_with(".txt") {
+            "text-x-generic-symbolic"
+        } else if input.ends_with('/') {
+            "folder-symbolic"
+        } else {
+            "edit-find-symbolic"
+        };
+        entry_set_icon(entry, icon_name);
+    });
+
+    search_entry.connect_activate(
+        glib::clone!(@strong lb.messenger as m, @strong d => move |entry| {
+            d.close();
+            if !entry.get_text().eq("") {
+                m.send(Msg::SearchFieldExec(None));
+            }
+        }),
+    );
+
+    d.set_size_request(400, -1);
+    d.get_content_area().add(&search_entry);
+    d.get_content_area().set_margin_bottom(16);
+    d.show_all();
+    Ok(())
+}
+
+pub fn process_input(lb: &LbApp, maybe_input: Option<String>) -> LbResult<()> {
+    if let Some(path) = maybe_input.or_else(|| lb.state.borrow().get_first_search_match()) {
+        match lb.core.file_by_path(&path) {
+            Ok(meta) => lb.messenger.send(Msg::OpenFile(Some(meta.id))),
+            Err(err) => lb
+                .messenger
+                .send_err_dialog("opening file from search field", err),
+        }
+    }
+    Ok(())
+}
+
+fn entry_set_icon(entry: &gtk::Entry, name: &str) {
+    entry.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, Some(name));
 }
