@@ -30,13 +30,13 @@ use crate::error::{
     LbErrTarget, LbError, LbResult,
 };
 use crate::filetree::FileTreeCol;
-use crate::lbsearch::LbSearch;
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::onboarding;
 use crate::syncing;
 use crate::util;
 use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
+use crate::{lbsearch, lbsearch::LbSearch};
 use crate::{settings, settings::Settings};
 
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
@@ -111,8 +111,8 @@ impl LbApp {
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
                 Msg::RefreshTree => lb.refresh_tree(),
 
-                Msg::PromptSearch => lb.prompt_search(),
-                Msg::SearchFieldExec(vopt) => lb.search_field_exec(vopt),
+                Msg::PromptSearch => lbsearch::prompt(&lb),
+                Msg::SearchFieldExec(vopt) => lbsearch::process_input(&lb, vopt),
 
                 Msg::ShowDialogSyncDetails => syncing::show_details_dialog(&lb),
                 Msg::ShowDialogPreferences => settings::show_dialog(&lb),
@@ -151,7 +151,7 @@ impl LbApp {
 
         let prompt_search = gio::SimpleAction::new("prompt_search", None);
         prompt_search.connect_activate(glib::clone!(@strong lb_app => move |_, _| {
-            if let Err(err) = lb_app.prompt_search() {
+            if let Err(err) = lbsearch::prompt(&lb_app) {
                 lb_app.err_dialog("opening search", &err)
             }
         }));
@@ -676,88 +676,6 @@ impl LbApp {
         Ok(())
     }
 
-    fn prompt_search(&self) -> LbResult<()> {
-        let possibs = self.core.list_paths().unwrap_or_default();
-        let search = LbSearch::new(possibs);
-        let d = self.gui.new_dialog("Search");
-
-        let comp = gtk::EntryCompletion::new();
-        comp.set_model(Some(&search.sort_model));
-        comp.set_popup_completion(true);
-        comp.set_inline_selection(true);
-        comp.set_text_column(1);
-        comp.set_match_func(|_, _, _| true);
-        comp.connect_match_selected(glib::clone!(
-            @strong self.messenger as m,
-            @strong d
-            => move |_, model, iter| {
-                d.close();
-                let iter_val = tree_iter_value!(model, iter, 1, String);
-                m.send(Msg::SearchFieldExec(Some(iter_val)));
-                gtk::Inhibit(false)
-            }
-        ));
-
-        self.state.borrow_mut().search = Some(search);
-
-        let search_entry = gtk::Entry::new();
-        util::gui::set_entry_icon(&search_entry, "edit-find-symbolic");
-        util::gui::set_marginx(&search_entry, 16);
-        search_entry.set_margin_top(16);
-        search_entry.set_placeholder_text(Some("Start typing..."));
-        search_entry.set_completion(Some(&comp));
-
-        search_entry.connect_key_release_event(closure!(self as lb => move |entry, key| {
-            let k = key.get_hardware_keycode();
-            if k != util::gui::KEY_ARROW_UP && k != util::gui::KEY_ARROW_DOWN {
-                if let Some(search) = lb.state.borrow().search.as_ref() {
-                    let input = entry.get_text().to_string();
-                    search.update_for(&input);
-                }
-            }
-            gtk::Inhibit(false)
-        }));
-
-        search_entry.connect_changed(move |entry| {
-            let input = entry.get_text().to_string();
-            let icon_name = if input.ends_with(".md") || input.ends_with(".txt") {
-                "text-x-generic-symbolic"
-            } else if input.ends_with('/') {
-                "folder-symbolic"
-            } else {
-                "edit-find-symbolic"
-            };
-            util::gui::set_entry_icon(entry, icon_name);
-        });
-
-        search_entry.connect_activate(
-            glib::clone!(@strong self.messenger as m, @strong d => move |entry| {
-                d.close();
-                if !entry.get_text().eq("") {
-                    m.send(Msg::SearchFieldExec(None));
-                }
-            }),
-        );
-
-        d.set_size_request(400, -1);
-        d.get_content_area().add(&search_entry);
-        d.get_content_area().set_margin_bottom(16);
-        d.show_all();
-        Ok(())
-    }
-
-    fn search_field_exec(&self, maybe_input: Option<String>) -> LbResult<()> {
-        if let Some(path) = maybe_input.or_else(|| self.state.borrow().get_first_search_match()) {
-            match self.core.file_by_path(&path) {
-                Ok(meta) => self.messenger.send(Msg::OpenFile(Some(meta.id))),
-                Err(err) => self
-                    .messenger
-                    .send_err_dialog("opening file from search field", err),
-            }
-        }
-        Ok(())
-    }
-
     fn show_dialog_about(&self) -> LbResult<()> {
         let d = gtk::AboutDialog::new();
         d.set_transient_for(Some(&self.gui.win));
@@ -1075,7 +993,7 @@ impl LbApp {
 }
 
 pub struct LbState {
-    search: Option<LbSearch>,
+    pub search: Option<LbSearch>,
     opened_file: Option<DecryptedFileMetadata>,
     open_file_dirty: bool,
     pub background_work: Arc<Mutex<BackgroundWork>>,
@@ -1091,7 +1009,7 @@ impl LbState {
         }
     }
 
-    fn get_first_search_match(&self) -> Option<String> {
+    pub fn get_first_search_match(&self) -> Option<String> {
         if let Some(search) = self.search.as_ref() {
             let model = &search.sort_model;
             if let Some(iter) = model.get_iter_first() {

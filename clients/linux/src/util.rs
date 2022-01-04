@@ -19,7 +19,6 @@ macro_rules! closure {
 pub mod gui {
     use gtk::prelude::ButtonExt;
     use gtk::prelude::ContainerExt;
-    use gtk::prelude::EntryExt;
     use gtk::prelude::IsA;
     use gtk::prelude::WidgetExt;
     use gtk::Adjustment as GtkAdjustment;
@@ -90,10 +89,6 @@ pub mod gui {
         l.set_halign(GtkAlign::Start);
         l.set_margin_start(4);
         l
-    }
-
-    pub fn set_entry_icon(entry: &gtk::Entry, name: &str) {
-        entry.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, Some(name));
     }
 
     pub const KEY_ARROW_UP: u16 = 111;
