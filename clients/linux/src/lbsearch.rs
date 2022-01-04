@@ -109,7 +109,7 @@ pub fn prompt(lb: &LbApp) -> LbResult<()> {
     lb.state.borrow_mut().search = Some(search);
 
     let search_entry = gtk::Entry::new();
-    util::gui::set_entry_icon(&search_entry, "edit-find-symbolic");
+    entry_set_icon(&search_entry, "edit-find-symbolic");
     util::gui::set_marginx(&search_entry, 16);
     search_entry.set_margin_top(16);
     search_entry.set_placeholder_text(Some("Start typing..."));
@@ -135,7 +135,7 @@ pub fn prompt(lb: &LbApp) -> LbResult<()> {
         } else {
             "edit-find-symbolic"
         };
-        util::gui::set_entry_icon(entry, icon_name);
+        entry_set_icon(entry, icon_name);
     });
 
     search_entry.connect_activate(
@@ -164,4 +164,8 @@ pub fn process_input(lb: &LbApp, maybe_input: Option<String>) -> LbResult<()> {
         }
     }
     Ok(())
+}
+
+fn entry_set_icon(entry: &gtk::Entry, name: &str) {
+    entry.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, Some(name));
 }
