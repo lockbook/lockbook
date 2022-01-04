@@ -1,28 +1,28 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum StripeResult<U> {
     Ok(U),
-    Err(StripeErrorContainer)
+    Err(StripeErrorContainer),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StripeErrorContainer {
-    error: StripeError
+    pub error: StripeError,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StripeError {
     #[serde(rename = "type")]
-    error_type: StripeErrorType,
-    code: StripeErrorCode,
-    doc_url: String,
-    message: String,
-    param: String,
-    payment_method_type: Option<String>,
-    charge: Option<String>,
-    decline_code: Option<String>,
+    pub error_type: StripeErrorType,
+    pub code: StripeErrorCode,
+    pub doc_url: String,
+    pub message: String,
+    pub param: String,
+    pub payment_method_type: Option<String>,
+    pub charge: Option<String>,
+    pub decline_code: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,14 +34,14 @@ pub enum StripeErrorType {
     #[serde(rename = "idempotency_error")]
     IdempotencyError,
     #[serde(rename = "invalid_request_error")]
-    InvalidRequestError
+    InvalidRequestError,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum StripeErrorCode {
     Known(StripeKnownErrorCode),
-    Unknown(String)
+    Unknown(String),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -55,7 +55,7 @@ pub enum StripeKnownErrorCode {
     CardDeclined,
     DebitNotAuthorized,
     ExpiredCard,
-    IncorrectNumber
+    IncorrectNumber,
 }
 
 #[derive(Serialize, Deserialize)]

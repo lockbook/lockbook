@@ -1,80 +1,14 @@
-use crate::file_index_repo::{FREE_TIER_SIZE, GetStripeCustomerIdError};
+use crate::billing::stripe_repo;
+use crate::file_index_repo::{GetStripeCustomerIdError, FREE_TIER_SIZE};
 use crate::ServerError::{ClientError, InternalError};
-use crate::{file_index_repo, RequestContext, ServerError, ServerState};
-use lockbook_models::api::{AccountTier, CreditCardInfo, GetRegisteredCreditCardsError, GetRegisteredCreditCardsRequest, GetRegisteredCreditCardsResponse, RegisterCreditCardError, RegisterCreditCardRequest, RegisterCreditCardResponse, RemoveCreditCardError, RemoveCreditCardRequest, RemoveCreditCardResponse, SwitchAccountTierError, SwitchAccountTierRequest, SwitchAccountTierResponse};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::future::Future;
-use log::error;
-use reqwest::{Client, Method};
-use serde::de::DeserializeOwned;
-use warp::hyper::body::HttpBody;
-use crate::billing::stripe::{BasicStripeResponse, PaymentMethodStripeResponse, SetupIntentStripeResponse, StripeResult};
-
-static STRIPE_ENDPOINT: &str = "https://api.stripe.com/v1";
-static PAYMENT_METHODS_ENDPOINT: &str = "/payment_methods";
-static DETACH_ENDPOINT: &str = "/detach";
-static ATTACH_ENDPOINT: &str = "/attach";
-static CUSTOMER_ENDPOINT: &str = "/customers";
-static SUBSCRIPTIONS_ENDPOINT: &str = "/subscriptions";
-static SETUP_INTENTS_ENDPOINT: &str = "/setup_intents";
-
-macro_rules! make_stripe_request {
-    ($server_state:expr, $url:expr, $method:expr, $okay_res:ty $(, $err_handler:path)?) => {
-        match $server_state
-            .stripe_client
-            .request($method, &$url)
-            .basic_auth::<&str, &str>(&$server_state.config.stripe.stripe_secret, None)
-            .send()
-            .await {
-            Ok(resp) => match resp.json::<StripeResult<$okay_res>>().await {
-                Ok(ok) => ok,
-                Err(e) => {
-                    $(if let Err(e) =  $err_handler(&$server_state).await {
-                        error!("Cannot cleanup stripe after error: {:?}", e);
-                    })?
-
-                    return Err(InternalError(format!("Cannot parse stripe request at '{}': {:?}", $url, e)));
-                }
-            }
-            Err(e) => {
-                $(if let Err(e) =  $err_handler(&$server_state).await {
-                    error!("Cannot cleanup stripe after error: {:?}", e);
-                })?
-
-                return Err(InternalError(format!("Cannot make stripe request at '{}' due to reqwest error: {:?}", $url, e)));
-            }
-        }
-    };
-    ($server_state:expr, $url:expr, $method:pat, $okay_res:ty, $form: expr $(, $err_handler:path)?) => {
-        match $server_state
-            .stripe_client
-            .request($method, &$url)
-            .basic_auth::<&str, &str>(&$server_state.config.stripe.stripe_secret, None)
-            .form($form)
-            .send()
-            .await {
-            Ok(resp) => match resp.json::<StripeResult<$okay_res>>().await {
-                Ok(ok) => ok,
-                Err(e) => {
-                    $(if let Err(e) =  $err_handler(&$server_state).await {
-                        error!("Cannot cleanup stripe after error: {:?}", e);
-                    })?
-
-                    return Err(InternalError(format!("Cannot parse stripe request at '{}': {:?}", $url, e)));
-                }
-            }
-            Err(e) => {
-                $(if let Err(e) =  $err_handler(&$server_state).await {
-                    error!("Cannot cleanup stripe after error: {:?}", e);
-                })?
-
-                return Err(InternalError(format!("Cannot make stripe request at '{}' due to reqwest error: {:?}", $url, e)));
-            }
-        }
-    };
-}
+use crate::{file_index_repo, RequestContext, ServerError};
+use lockbook_models::api::{
+    AccountTier, CreditCardInfo, GetRegisteredCreditCardsError, GetRegisteredCreditCardsRequest,
+    GetRegisteredCreditCardsResponse, RegisterCreditCardError, RegisterCreditCardRequest,
+    RegisterCreditCardResponse, RemoveCreditCardError, RemoveCreditCardRequest,
+    RemoveCreditCardResponse, SwitchAccountTierError, SwitchAccountTierRequest,
+    SwitchAccountTierResponse,
+};
 
 pub async fn register_credit_card(
     context: RequestContext<'_, RegisterCreditCardRequest>,
@@ -97,28 +31,20 @@ pub async fn register_credit_card(
         Ok(customer_id) => customer_id,
         Err(e) => match e {
             GetStripeCustomerIdError::NotAStripeCustomer => {
-                let customer_id = match make_stripe_request!(server_state,
-                    format!("{}{}",STRIPE_ENDPOINT, CUSTOMER_ENDPOINT),
-                    Method::POST,
-                    BasicStripeResponse,
-                    cleanup_customer
-                ) {
-                    StripeResult::Ok(resp) => resp.id,
-                    StripeResult::Err(e) => return Err(InternalError(format!("Cannot parse create stripe customer response: {:?}", e)))
-                };
+                let customer_id = stripe_repo::create_customer(&server_state).await?;
 
-                if let Err(e) = file_index_repo::attach_stripe_customer_id(
+                file_index_repo::attach_stripe_customer_id(
                     &mut transaction,
                     &customer_id,
                     &context.public_key,
                 )
-                .await {
-                    if let Err(e) = cleanup_customer(&server_state).await {
-                        error!("Cannot cleanup stripe after error: {:?}", e);
-                    }
-
-                    return Err(InternalError(format!("Couldn't add customer id to Postgres: {:?}", e)));
-                }
+                .await
+                .map_err(|e| {
+                    InternalError(format!(
+                        "Couldn't insert payment method into Postgres: {:?}",
+                        e
+                    ))
+                })?;
 
                 customer_id
             }
@@ -131,32 +57,14 @@ pub async fn register_credit_card(
         },
     };
 
-    let mut payment_method_form = HashMap::new();
-    payment_method_form.insert("type", "card");
-    payment_method_form.insert("card[number]", request.card_number.as_str());
-    payment_method_form.insert("card[exp_month]", request.exp_month.as_str());
-    payment_method_form.insert("card[exp_year]", request.exp_year.as_str());
-    payment_method_form.insert("card[cvc]", request.cvc.as_str());
-
-    let payment_method_resp = server_state
-        .stripe_client
-        .post(format!("{}{}", STRIPE_ENDPOINT, PAYMENT_METHODS_ENDPOINT))
-        .form(&payment_method_form)
-        .basic_auth::<&str, &str>(&server_state.config.stripe.stripe_secret, None)
-        .send()
-        .await
-        .map_err(|e| InternalError(format!("Cannot create stripe payment method: {}", e)))?
-        .json::<PaymentMethodStripeResponse>()
-        .await
-        .map_err(|e| {
-            InternalError(format!(
-                "Cannot parse create stripe payment method response: {}",
-                e
-            ))
-        })?;
-
-    let mut attach_payment_method_form = HashMap::new();
-    attach_payment_method_form.insert("customer", customer_id.as_str());
+    let payment_method_resp = stripe_repo::create_payment_method(
+        &server_state,
+        &request.card_number,
+        &request.exp_month,
+        &request.exp_year,
+        &request.cvc,
+    )
+    .await?;
 
     file_index_repo::add_stripe_payment_method(
         &mut transaction,
@@ -167,47 +75,17 @@ pub async fn register_credit_card(
     .await
     .map_err(|e| InternalError(format!("Couldn't add payment method to Postgres: {:?}", e)))?;
 
-    let mut create_setup_intent_form = HashMap::new();
-    create_setup_intent_form.insert("customer", customer_id.as_str());
-    create_setup_intent_form.insert("payment_method", payment_method_resp.id.as_str());
-    create_setup_intent_form.insert("confirm", "true");
-    create_setup_intent_form.insert("usage", "on_session");
+    let setup_intent_status =
+        stripe_repo::create_setup_intent(&server_state, &customer_id, &payment_method_resp.id)
+            .await?;
 
-    let setup_intent_resp = server_state
-        .stripe_client
-        .post(format!("{}{}", STRIPE_ENDPOINT, SETUP_INTENTS_ENDPOINT))
-        .form(&create_setup_intent_form)
-        .basic_auth::<&str, &str>(&server_state.config.stripe.stripe_secret, None)
-        .send()
-        .await
-        .map_err(|e| InternalError(format!("Cannot create stripe setup intent: {}", e)))?
-        .json::<SetupIntentStripeResponse>()
-        .await
-        .map_err(|e| {
-            InternalError(format!(
-                "Cannot parse create stripe setup intent response: {}",
-                e
-            ))
-        })?
-        .status;
-
-    if setup_intent_resp == "succeeded" {
-        server_state
-            .stripe_client
-            .post(format!(
-                "{}{}/{}{}",
-                STRIPE_ENDPOINT, PAYMENT_METHODS_ENDPOINT, payment_method_resp.id, ATTACH_ENDPOINT
-            ))
-            .form(&attach_payment_method_form)
-            .basic_auth::<&str, &str>(&server_state.config.stripe.stripe_secret, None)
-            .send()
-            .await
-            .map_err(|e| {
-                InternalError(format!(
-                    "Cannot attach payment method to customer: {:#?}",
-                    e
-                ))
-            })?;
+    if setup_intent_status == "succeeded" {
+        stripe_repo::attach_payment_method_to_customer(
+            &server_state,
+            &customer_id,
+            &payment_method_resp.id,
+        )
+        .await?;
 
         match transaction.commit().await {
             Ok(()) => Ok(RegisterCreditCardResponse {
@@ -221,7 +99,7 @@ pub async fn register_credit_card(
     } else {
         Err(InternalError(format!(
             "Unexpected confirmation of stripe setup intent: {}",
-            setup_intent_resp
+            setup_intent_status
         )))
     }
 }
@@ -229,20 +107,13 @@ pub async fn register_credit_card(
 pub async fn remove_credit_card(
     context: RequestContext<'_, RemoveCreditCardRequest>,
 ) -> Result<RemoveCreditCardResponse, ServerError<RemoveCreditCardError>> {
-    let server_state = context.server_state;
+    stripe_repo::detach_payment_method_from_customer(
+        &context.server_state,
+        &context.request.payment_method_id,
+    )
+    .await?;
 
-    server_state
-        .stripe_client
-        .post(format!(
-            "{}/{}{}",
-            STRIPE_ENDPOINT, context.request.payment_method_id, DETACH_ENDPOINT
-        ))
-        .basic_auth::<&str, &str>(&server_state.config.stripe.stripe_secret, None)
-        .send()
-        .await
-        .map_err(|e| InternalError(format!("Cannot remove credit card: {:#?}", e)))?;
-
-    Ok(RemoveCreditCardResponse { })
+    Ok(RemoveCreditCardResponse {})
 }
 
 pub async fn switch_account_tier(
@@ -276,30 +147,7 @@ pub async fn switch_account_tier(
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         }
 
-        let mut create_subscription_form = HashMap::new();
-        create_subscription_form.insert("customer", customer_id.as_str()); // TODO: customer id from db
-        create_subscription_form.insert(
-            "items[0][price]",
-            server_state.config.stripe.premium_price_id.as_str(),
-        );
-
-        let subscription_id = server_state
-            .stripe_client
-            .post(format!("{}{}", STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT))
-            .form(&create_subscription_form)
-            .basic_auth::<&str, &str>(&server_state.config.stripe.stripe_secret, None)
-            .send()
-            .await
-            .map_err(|e| InternalError(format!("Cannot create stripe subscription: {:?}", e)))?
-            .json::<BasicStripeResponse>()
-            .await
-            .map_err(|e| {
-                InternalError(format!(
-                    "Cannot parse create stripe subscription response: {:?}",
-                    e
-                ))
-            })?
-            .id;
+        let subscription_id = stripe_repo::create_subscription(&server_state, &customer_id).await?;
 
         file_index_repo::add_stripe_subscription(&mut transaction, &customer_id, &subscription_id)
             .await
@@ -326,16 +174,7 @@ pub async fn switch_account_tier(
             ))
         })?;
 
-        server_state
-            .stripe_client
-            .delete(format!(
-                "{}{}/{}",
-                STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT, subscription_id
-            ))
-            .basic_auth::<&str, &str>(&server_state.config.stripe.stripe_secret, None)
-            .send()
-            .await
-            .map_err(|e| InternalError(format!("Cannot cancel stripe subscription: {:?}", e)))?;
+        stripe_repo::delete_subscription(&server_state, &subscription_id).await?;
 
         file_index_repo::cancel_stripe_subscription(&mut transaction, &subscription_id)
             .await
@@ -348,7 +187,7 @@ pub async fn switch_account_tier(
     }
 
     match transaction.commit().await {
-        Ok(()) => Ok(SwitchAccountTierResponse { }),
+        Ok(()) => Ok(SwitchAccountTierResponse {}),
         Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
     }
 }
@@ -363,21 +202,12 @@ pub async fn get_registered_credit_cards(
         }
     };
 
-    let credit_card_infos = file_index_repo::get_all_stripe_credit_card_infos(&mut transaction, &context.public_key)
-        .await
-        .map_err(|e| InternalError(format!("Cannot get all stripe credit card infos: {:?}", e)))?;
+    let credit_card_infos =
+        file_index_repo::get_all_stripe_credit_card_infos(&mut transaction, &context.public_key)
+            .await
+            .map_err(|e| {
+                InternalError(format!("Cannot get all stripe credit card infos: {:?}", e))
+            })?;
 
     Ok(GetRegisteredCreditCardsResponse { credit_card_infos })
 }
-
-
-async fn cleanup_customer<U>(server_state: &ServerState) -> Result<(), ServerError<U>> {
-    make_stripe_request!(server_state,
-        format!("{}{}",STRIPE_ENDPOINT, CUSTOMER_ENDPOINT),
-        Method::DELETE,
-        BasicStripeResponse
-    );
-
-    Ok(())
-}
-
