@@ -36,8 +36,8 @@ use crate::messages::{Messenger, Msg};
 use crate::onboarding;
 use crate::syncing;
 use crate::util;
-use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
 use crate::{lbsearch, lbsearch::LbSearch};
+use crate::{progerr, tree_iter_value, uerr, uerr_dialog};
 use crate::{settings, settings::Settings};
 
 #[derive(Clone)]
@@ -291,7 +291,7 @@ impl LbApp {
             None => Err(uerr_dialog!("No destination is selected to create from!")),
         }?;
 
-        d.connect_response(closure!(self as lb => move |d, resp| {
+        d.connect_response(glib::clone!(@strong self as lb => move |d, resp| {
             if resp != GtkResponseType::Ok {
                 d.close();
                 return;
@@ -369,15 +369,14 @@ impl LbApp {
         let d = self.gui.new_dialog(&open_file.decrypted_name);
 
         let save = gtk::Button::with_label("Save");
-        save.connect_clicked(closure!(
-            self.core as core, // to save
-            self.gui.account as account, // to get text
-            self.messenger as m, // to propagate errors
-            save, // to keep the user informed about the operation
-            d, // to dismiss the dialog
-            file_dealt_with, // to detect if the operation is cancelled
-            open_file // what file are we saving
-
+        save.connect_clicked(glib::clone!(
+            @strong self.core as core, // to save
+            @strong self.gui.account as account, // to get text
+            @strong self.messenger as m, // to propagate errors
+            @strong save, // to keep the user informed about the operation
+            @strong d, // to dismiss the dialog
+            @strong file_dealt_with, // to detect if the operation is cancelled
+            @strong open_file // what file are we saving
             => move |_| {
                 save.set_label("Saving...");
                 save.set_sensitive(true);
@@ -400,10 +399,12 @@ impl LbApp {
         ));
 
         let discard = gtk::Button::with_label("Discard");
-        discard.connect_clicked(closure!(d, file_dealt_with => move |_| {
-            file_dealt_with.replace(true);
-            d.close();
-        }));
+        discard.connect_clicked(
+            glib::clone!(@strong d, @strong file_dealt_with => move |_| {
+                file_dealt_with.replace(true);
+                d.close();
+            }),
+        );
 
         let buttons = GtkBox::new(Horizontal, 16);
         buttons.set_halign(GtkAlign::Center);
@@ -629,7 +630,7 @@ impl LbApp {
         d.add_button("Ok", GtkResponseType::Ok);
         d.set_default_response(GtkResponseType::Ok);
 
-        d.connect_response(closure!(self as lb => move |d, resp| {
+        d.connect_response(glib::clone!(@strong self as lb => move |d, resp| {
             if resp != GtkResponseType::Ok {
                 d.close();
                 return;
@@ -752,7 +753,7 @@ impl LbApp {
             ),
         );
 
-        let import_progress = closure!(tx => move |progress: ImportExportFileInfo| {
+        let import_progress = glib::clone!(@strong tx => move |progress: ImportExportFileInfo| {
             tx.send(Some(progress)).unwrap();
         });
 
@@ -872,7 +873,7 @@ impl LbApp {
                 ),
             );
 
-            let export_progress = closure!(tx => move |progress: ImportExportFileInfo| {
+            let export_progress = glib::clone!(@strong tx => move |progress: ImportExportFileInfo| {
                 tx.send(Some(progress)).unwrap();
             });
 

@@ -26,9 +26,9 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use crate::backend::LbCore;
 use crate::error::{LbError, LbResult};
 use crate::messages::{Messenger, Msg, MsgFn};
+use crate::progerr;
 use crate::util::gui::RIGHT_CLICK;
 use crate::util::{LOCKBOOK_FILES_TARGET_INFO, URI_TARGET_INFO};
-use crate::{closure, progerr};
 use glib::timeout_add_local;
 use std::cell::RefCell;
 
@@ -118,7 +118,7 @@ impl FileTree {
     }
 
     fn on_selection_change(popup: &Rc<FileTreePopup>) -> impl Fn(&GtkTreeSelection) {
-        closure!(popup => move |tsel| {
+        glib::clone!(@strong popup => move |tsel| {
             let tree = tsel.get_tree_view().unwrap();
             popup.update(&tree);
         })
@@ -127,7 +127,7 @@ impl FileTree {
     fn on_button_press(
         popup: &Rc<FileTreePopup>,
     ) -> impl Fn(&GtkTreeView, &GdkEventButton) -> GtkInhibit {
-        closure!(popup => move |tree, event| {
+        glib::clone!(@strong popup => move |tree, event| {
             if event.get_button() != RIGHT_CLICK {
                 return GtkInhibit(false);
             }
@@ -139,7 +139,7 @@ impl FileTree {
     }
 
     fn on_key_press(m: &Messenger) -> impl Fn(&GtkTreeView, &GdkEventKey) -> GtkInhibit {
-        closure!(m => move |_, key| {
+        glib::clone!(@strong m => move |_, key| {
             if key.get_hardware_keycode() == DELETE_KEY {
                 m.send(Msg::DeleteFiles);
             }
@@ -148,7 +148,7 @@ impl FileTree {
     }
 
     fn on_row_activated(m: &Messenger) -> impl Fn(&GtkTreeView, &GtkTreePath, &GtkTreeViewColumn) {
-        closure!(m => move |t, path, _| {
+        glib::clone!(@strong m => move |t, path, _| {
             if t.row_expanded(path) {
                 t.collapse_row(path);
                 return;
@@ -169,7 +169,7 @@ impl FileTree {
     fn on_drag_data_get(
         m: &Messenger,
     ) -> impl Fn(&TreeView, &DragContext, &SelectionData, u32, u32) {
-        closure!(m => move |_, _, s, info, _| match info {
+        glib::clone!(@strong m => move |_, _, s, info, _| match info {
             LOCKBOOK_FILES_TARGET_INFO => {
                 s.set(&s.get_target(), 8, &[]);
             }
@@ -181,7 +181,7 @@ impl FileTree {
         m: &Messenger,
         c: &Arc<LbCore>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, &SelectionData, u32, u32) {
-        closure!(m, c => move |w, d, x, y, s, info, time| {
+        glib::clone!(@strong m, @strong c => move |w, d, x, y, s, info, time| {
             if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
                 let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
 
@@ -236,7 +236,7 @@ impl FileTree {
         drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
         drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
     ) -> impl Fn(&TreeView, &DragContext) {
-        closure!(drag_hover_last_occurred, drag_ends_last_occurred => move |_, _| {
+        glib::clone!(@strong drag_hover_last_occurred, @strong drag_ends_last_occurred => move |_, _| {
             *drag_hover_last_occurred.borrow_mut() = None;
             *drag_ends_last_occurred.borrow_mut() = None;
         })
@@ -246,15 +246,18 @@ impl FileTree {
         drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
         drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
     ) -> impl Fn(&TreeView, &DragContext, i32, i32, u32) -> GtkInhibit {
-        closure!(drag_hover_last_occurred, drag_ends_last_occurred => move |w, d, x, y, time| {
+        glib::clone!(@strong drag_hover_last_occurred, @strong drag_ends_last_occurred => move |w, d, x, y, time| {
             let vadj = w.get_vadjustment().unwrap();
             let height = w.get_allocated_height();
 
             if y > height - 50 || y < 50 { // is the drag cursor 50 pixels from the top or bottom
                 *drag_ends_last_occurred.borrow_mut() = Some(time);
-                timeout_add_local( // call a closure every 10 ms that will move the filetree up or down
-                    10,
-                    closure!(drag_ends_last_occurred, height, y => move || {
+                // call a closure every 10 ms that will move the filetree up or down
+                timeout_add_local( 10, glib::clone!(
+                    @strong drag_ends_last_occurred,
+                    @strong height,
+                    @strong y
+                    => move || {
                         if let Some(t) = *drag_ends_last_occurred.borrow() {
                             if t == time {
                                 if y > height - 50 { // move the filtree by an amount in respect to how close it is to the top or bottom
@@ -269,7 +272,8 @@ impl FileTree {
                             }
                         }
                         Continue(false)
-                    }));
+                    }
+                ));
             } else {
                 *drag_ends_last_occurred.borrow_mut() = None;
             }
@@ -293,7 +297,7 @@ impl FileTree {
                             | TreeViewDropPosition::IntoOrAfter => {
                                 timeout_add_local(
                                     400,
-                                    closure!(drag_hover_last_occurred, w, path => move || {
+                                    glib::clone!(@strong drag_hover_last_occurred, @strong w, @strong path => move || {
                                     if let Some(t) = *drag_hover_last_occurred.borrow() {
                                         if t == time {
                                             w.expand_row(&path, false);
@@ -660,7 +664,7 @@ impl PopupItem {
 
             let mi = GtkMenuItem::with_label(&name);
 
-            mi.connect_activate(closure!(m => move |_| m.send(action())));
+            mi.connect_activate(glib::clone!(@strong m => move |_| m.send(action())));
             items.insert(item_key, mi);
         }
         items
