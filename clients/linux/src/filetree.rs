@@ -31,7 +31,7 @@ macro_rules! tree_iter_value {
 pub struct FileTree {
     cols: Vec<FileTreeCol>,
     model: gtk::TreeStore,
-    tree: gtk::TreeView,
+    pub tree: gtk::TreeView,
 }
 
 impl FileTree {
@@ -91,10 +91,6 @@ impl FileTree {
         tree_connect_drag_end(&tree, &drag_hover_last_occurred, &drag_ends_last_occurred);
 
         Self { cols, model, tree }
-    }
-
-    pub fn widget(&self) -> &gtk::TreeView {
-        &self.tree
     }
 
     pub fn selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) {
