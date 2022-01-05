@@ -4,17 +4,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
-use gtk::SelectionMode as GtkSelectionMode;
-use gtk::TreeIter as GtkTreeIter;
-use gtk::TreeModel as GtkTreeModel;
-use gtk::TreePath as GtkTreePath;
-use gtk::TreeStore as GtkTreeStore;
-use gtk::TreeView as GtkTreeView;
-use gtk::TreeViewColumn as GtkTreeViewColumn;
-use gtk::{CellRendererPixbuf, Menu as GtkMenu};
-use gtk::{CellRendererText as GtkCellRendererText, TargetEntry, TargetFlags};
-use gtk::{MenuItem as GtkMenuItem, TargetList};
-use gtk::{TreeIter, TreeStore, TreeViewDropPosition};
 use uuid::Uuid;
 
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
@@ -23,8 +12,7 @@ use crate::backend::LbCore;
 use crate::error::{LbError, LbResult};
 use crate::messages::{Messenger, Msg, MsgFn};
 use crate::progerr;
-use crate::util::gui::RIGHT_CLICK;
-use crate::util::{LOCKBOOK_FILES_TARGET_INFO, URI_TARGET_INFO};
+use crate::util::{gui::RIGHT_CLICK, LOCKBOOK_FILES_TARGET_INFO, URI_TARGET_INFO};
 
 #[macro_export]
 macro_rules! tree_iter_value {
@@ -42,8 +30,8 @@ macro_rules! tree_iter_value {
 
 pub struct FileTree {
     cols: Vec<FileTreeCol>,
-    model: GtkTreeStore,
-    tree: GtkTreeView,
+    model: gtk::TreeStore,
+    tree: gtk::TreeView,
 }
 
 impl FileTree {
@@ -57,8 +45,8 @@ impl FileTree {
 
         column_types.insert(0, glib::Type::String);
 
-        let model = GtkTreeStore::new(&column_types);
-        let tree = GtkTreeView::with_model(&model);
+        let model = gtk::TreeStore::new(&column_types);
+        let tree = gtk::TreeView::with_model(&model);
         tree.set_enable_search(false);
         tree.connect_columns_changed(|t| t.set_headers_visible(t.get_columns().len() > 1));
         tree_connect_button_press_event(&tree, &popup);
@@ -66,7 +54,7 @@ impl FileTree {
         tree_connect_row_activated(&tree, m);
 
         let sel = tree.get_selection();
-        sel.set_mode(GtkSelectionMode::Multiple);
+        sel.set_mode(gtk::SelectionMode::Multiple);
         sel_connect_changed(&sel, &popup);
 
         let cols = FileTreeCol::all();
@@ -79,16 +67,20 @@ impl FileTree {
         let drag_hover_last_occurred = Rc::new(RefCell::new(None));
         let drag_ends_last_occurred = Rc::new(RefCell::new(None));
 
-        let targets = [TargetEntry::new(
+        let targets = [gtk::TargetEntry::new(
             "lockbook/files",
-            TargetFlags::SAME_WIDGET,
+            gtk::TargetFlags::SAME_WIDGET,
             LOCKBOOK_FILES_TARGET_INFO,
         )];
 
         tree.drag_dest_set(gtk::DestDefaults::ALL, &targets, gdk::DragAction::COPY);
-        tree.drag_source_set(gdk::ModifierType::BUTTON1_MASK, &targets, gdk::DragAction::MOVE);
+        tree.drag_source_set(
+            gdk::ModifierType::BUTTON1_MASK,
+            &targets,
+            gdk::DragAction::MOVE,
+        );
 
-        let target_list = TargetList::new(&targets);
+        let target_list = gtk::TargetList::new(&targets);
         target_list.add_uri_targets(URI_TARGET_INFO);
 
         tree.drag_dest_set_target_list(Some(&target_list));
@@ -101,11 +93,11 @@ impl FileTree {
         Self { cols, model, tree }
     }
 
-    pub fn widget(&self) -> &GtkTreeView {
+    pub fn widget(&self) -> &gtk::TreeView {
         &self.tree
     }
 
-    pub fn selected_rows(&self) -> (Vec<GtkTreePath>, GtkTreeModel) {
+    pub fn selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) {
         self.tree.get_selection().get_selected_rows()
     }
 
@@ -113,7 +105,7 @@ impl FileTree {
         &self,
         metadatas: &[DecryptedFileMetadata],
         parent_metadata: &DecryptedFileMetadata,
-        parent_iter: &TreeIter,
+        parent_iter: &gtk::TreeIter,
     ) {
         let children: Vec<&DecryptedFileMetadata> = metadatas
             .iter()
@@ -133,9 +125,9 @@ impl FileTree {
 
     fn shallow_append(
         &self,
-        iter: Option<&TreeIter>,
+        iter: Option<&gtk::TreeIter>,
         metadata: &DecryptedFileMetadata,
-    ) -> TreeIter {
+    ) -> gtk::TreeIter {
         let icon_name = self.get_icon_name(&metadata.decrypted_name, &metadata.file_type);
 
         let name = &metadata.decrypted_name;
@@ -146,7 +138,7 @@ impl FileTree {
     }
 
     pub fn refresh(&self, root: &DecryptedFileMetadata, metadatas: &Vec<DecryptedFileMetadata>) {
-        let mut expanded_paths = Vec::<GtkTreePath>::new();
+        let mut expanded_paths = Vec::<gtk::TreePath>::new();
         if let Some(iter) = self.model.get_iter_first() {
             self.search_expanded(&iter, &mut expanded_paths);
         }
@@ -168,7 +160,7 @@ impl FileTree {
 
     pub fn add(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
         let mut file = f.clone();
-        let mut parent_iter: Option<GtkTreeIter>;
+        let mut parent_iter: Option<gtk::TreeIter>;
         loop {
             parent_iter = self.search(&self.iter(), &file.parent);
             if parent_iter.is_some() {
@@ -216,7 +208,7 @@ impl FileTree {
         .to_string()
     }
 
-    pub fn search(&self, iter: &GtkTreeIter, id: &Uuid) -> Option<GtkTreeIter> {
+    pub fn search(&self, iter: &gtk::TreeIter, id: &Uuid) -> Option<gtk::TreeIter> {
         let iter_id = tree_iter_value!(self.model, iter, 2, String);
 
         if iter_id.eq(&id.to_string()) {
@@ -235,7 +227,7 @@ impl FileTree {
         None
     }
 
-    pub fn search_expanded(&self, iter: &GtkTreeIter, expanded_paths: &mut Vec<GtkTreePath>) {
+    pub fn search_expanded(&self, iter: &gtk::TreeIter, expanded_paths: &mut Vec<gtk::TreePath>) {
         let maybe_path = self.model.get_path(iter);
 
         if let Some(path) = maybe_path {
@@ -309,7 +301,7 @@ impl FileTree {
         false
     }
 
-    fn iter(&self) -> GtkTreeIter {
+    fn iter(&self) -> gtk::TreeIter {
         self.model.get_iter_first().unwrap()
     }
 
@@ -342,7 +334,7 @@ fn tree_connect_button_press_event(t: &gtk::TreeView, popup: &Rc<FileTreePopup>)
     }));
 }
 
-fn inhibit_right_click(t: &GtkTreeView, e: &gdk::EventButton) -> bool {
+fn inhibit_right_click(t: &gtk::TreeView, e: &gdk::EventButton) -> bool {
     let (x, y) = e.get_position();
     if let Some((Some(right_clicked_tpath), _, _, _)) = t.get_path_at_pos(x as i32, y as i32) {
         let (selected_tpaths, _) = t.get_selection().get_selected_rows();
@@ -397,10 +389,10 @@ fn sel_connect_changed(sel: &gtk::TreeSelection, popup: &Rc<FileTreePopup>) {
 fn tree_connect_drag_data_received(t: &gtk::TreeView, m: &Messenger, c: &Arc<LbCore>) {
     t.connect_drag_data_received(glib::clone!(@strong m, @strong c => move |w, d, x, y, s, info, time| {
         if let Some((Some(mut path), pos)) = w.get_dest_row_at_pos(x, y) {
-            let model = w.get_model().unwrap().downcast::<TreeStore>().unwrap();
+            let model = w.get_model().unwrap().downcast::<gtk::TreeStore>().unwrap();
 
             let mut parent = model.get_iter(&path).unwrap();
-            if (pos == TreeViewDropPosition::Before || pos == TreeViewDropPosition::After) || tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document) {
+            if (pos == gtk::TreeViewDropPosition::Before || pos == gtk::TreeViewDropPosition::After) || tree_iter_value!(model, &parent, 3, String) == format!("{:?}", FileType::Document) {
                 path.up();
                 parent = model.get_iter(&path).unwrap();
             }
@@ -546,14 +538,14 @@ fn tree_connect_drag_motion(
                         == format!("{:?}", FileType::Document)
                     {
                         match pos {
-                            TreeViewDropPosition::IntoOrBefore => TreeViewDropPosition::Before,
-                            TreeViewDropPosition::IntoOrAfter => TreeViewDropPosition::After,
+                            gtk::TreeViewDropPosition::IntoOrBefore => gtk::TreeViewDropPosition::Before,
+                            gtk::TreeViewDropPosition::IntoOrAfter => gtk::TreeViewDropPosition::After,
                             _ => pos,
                         }
                     } else {
                         match pos {
-                            TreeViewDropPosition::IntoOrBefore
-                            | TreeViewDropPosition::IntoOrAfter => {
+                            gtk::TreeViewDropPosition::IntoOrBefore
+                            | gtk::TreeViewDropPosition::IntoOrAfter => {
                                 glib::timeout_add_local(
                                     400,
                                     glib::clone!(@strong drag_hover_last_occurred, @strong w, @strong path => move || {
@@ -606,14 +598,14 @@ impl FileTreeCol {
         }
     }
 
-    fn as_tree_view_col(&self) -> GtkTreeViewColumn {
-        let c = GtkTreeViewColumn::new();
+    fn as_tree_view_col(&self) -> gtk::TreeViewColumn {
+        let c = gtk::TreeViewColumn::new();
 
         c.set_title(&self.name());
 
-        let (cell, attr) = (GtkCellRendererText::new(), "text");
+        let (cell, attr) = (gtk::CellRendererText::new(), "text");
         if let FileTreeCol::IconAndName = self {
-            let (renderer_cell, renderer_icon) = (CellRendererPixbuf::new(), "icon-name");
+            let (renderer_cell, renderer_icon) = (gtk::CellRendererPixbuf::new(), "icon-name");
             renderer_cell.set_padding(4, 0);
 
             c.pack_start(&renderer_cell, false);
@@ -642,7 +634,7 @@ enum PopupItem {
 }
 
 impl PopupItem {
-    fn hashmap(m: &Messenger) -> HashMap<Self, GtkMenuItem> {
+    fn hashmap(m: &Messenger) -> HashMap<Self, gtk::MenuItem> {
         let mut items = HashMap::new();
         for (item_key, action) in Self::data() {
             let name = if let PopupItem::NewFolder = item_key {
@@ -653,7 +645,7 @@ impl PopupItem {
                 format!("{:?}", item_key)
             };
 
-            let mi = GtkMenuItem::with_label(&name);
+            let mi = gtk::MenuItem::with_label(&name);
 
             mi.connect_activate(glib::clone!(@strong m => move |_| m.send(action())));
             items.insert(item_key, mi);
@@ -675,14 +667,14 @@ impl PopupItem {
 }
 
 struct FileTreePopup {
-    items: HashMap<PopupItem, GtkMenuItem>,
-    menu: GtkMenu,
+    items: HashMap<PopupItem, gtk::MenuItem>,
+    menu: gtk::Menu,
 }
 
 impl FileTreePopup {
     fn new(m: &Messenger) -> Self {
         let items = PopupItem::hashmap(m);
-        let menu = GtkMenu::new();
+        let menu = gtk::Menu::new();
         for (key, _) in &PopupItem::data() {
             menu.append(items.get(key).unwrap());
         }
@@ -690,7 +682,7 @@ impl FileTreePopup {
         Self { items, menu }
     }
 
-    fn update(&self, t: &GtkTreeView) {
+    fn update(&self, t: &gtk::TreeView) {
         let tsel = t.get_selection();
         let tmodel = t.get_model().unwrap();
 
