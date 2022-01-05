@@ -19,7 +19,7 @@ use lockbook_models::account::Account;
 use lockbook_models::crypto::DecryptedDocument;
 
 use crate::error::{LbErrTarget, LbError, LbResult};
-use crate::{closure, progerr, uerr, uerr_dialog, uerr_status_panel};
+use crate::{progerr, uerr, uerr_dialog, uerr_status_panel};
 use lockbook_core::service::import_export_service::ImportExportFileInfo;
 use lockbook_core::service::usage_service::{bytes_to_human, UsageMetrics};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -269,7 +269,7 @@ impl LbCore {
     }
 
     pub fn sync(&self, ch: glib::Sender<Option<LbSyncMsg>>) -> LbResult<()> {
-        let closure = closure!(ch => move |sync_progress: SyncProgress| {
+        let closure = glib::clone!(@strong ch => move |sync_progress: SyncProgress| {
             let name = match sync_progress.current_work_unit {
                 ClientWorkUnit::PullMetadata => String::from("file tree updates"),
                 ClientWorkUnit::PushMetadata => String::from("file tree updates"),

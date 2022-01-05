@@ -10,37 +10,6 @@ use gtk::SeparatorMenuItem as GtkSeparatorMenuItem;
 use crate::editmode::EditMode;
 use crate::messages::{Messenger, Msg};
 
-// menu_set! clears out the existing submenu (or creates and sets a new one if none exists) and
-// appends the given items.
-//
-// There are two more concise methods that did not work:
-// 1) Simply creating and setting a new submenu does not work because the widgets in the existing
-//    submenu cannot belong to two parents at the same time.
-// 2) Setting the submenu to None, then creating and setting a new submenu resulted in a segfault
-//    that I could not get to the bottom of.
-macro_rules! menu_set {
-    ($menu:expr, $item_map:expr, $( $items:ident ),*) => {
-        let submenu = {
-            if let Some(m) = $menu.get_submenu() {
-                let m = m.downcast::<GtkMenu>().unwrap();
-                m.foreach(|child| m.remove(child));
-                m
-            } else {
-                let m = GtkMenu::new();
-                $menu.set_submenu(Some(&m));
-                m
-            }
-        };
-        $(
-            match Item::$items {
-                Item::Separator => submenu.append(&GtkSeparatorMenuItem::new()),
-                _ => submenu.append($item_map.get(&Item::$items).unwrap()),
-            }
-        )*
-        $menu.show_all();
-    };
-}
-
 pub struct Menubar {
     items: HashMap<Item, GtkMenuItem>,
     file: GtkMenuItem,
@@ -64,16 +33,16 @@ impl Menubar {
             mbar.append(*menu);
         }
 
-        menu_set!(help, items, HelpAbout);
-
-        Self {
+        let lb_mbar = Self {
             items,
             file,
             edit,
             acct,
             help,
             mbar,
-        }
+        };
+        lb_mbar.set_menu(&lb_mbar.help, &[Item::HelpAbout]);
+        lb_mbar
     }
 
     pub fn widget(&self) -> &GtkMenuBar {
@@ -86,28 +55,39 @@ impl Menubar {
                 meta: _,
                 n_children: _,
             } => {
-                menu_set!(
-                    self.file, self.items, FileOpen, Separator, FileClose, Separator, FileQuit
+                self.set_menu(
+                    &self.file,
+                    &[
+                        Item::FileOpen,
+                        Item::Separator,
+                        Item::FileClose,
+                        Item::Separator,
+                        Item::FileQuit,
+                    ],
                 );
             }
             EditMode::PlainText {
                 meta: _,
                 content: _,
             } => {
-                menu_set!(
-                    self.file, self.items, FileOpen, Separator, FileSave, FileClose, Separator,
-                    FileQuit
+                self.set_menu(
+                    &self.file,
+                    &[
+                        Item::FileOpen,
+                        Item::Separator,
+                        Item::FileSave,
+                        Item::FileClose,
+                        Item::Separator,
+                        Item::FileQuit,
+                    ],
                 );
             }
             EditMode::None => {
-                menu_set!(self.file, self.items, FileOpen, FileQuit);
-                menu_set!(self.edit, self.items, EditPreferences);
-                menu_set!(
-                    self.acct,
-                    self.items,
-                    AccountSync,
-                    AccountUsage,
-                    AccountExport
+                self.set_menu(&self.file, &[Item::FileOpen, Item::FileQuit]);
+                self.set_menu(&self.edit, &[Item::EditPreferences]);
+                self.set_menu(
+                    &self.acct,
+                    &[Item::AccountSync, Item::AccountUsage, Item::AccountExport],
                 );
             }
         }
@@ -126,6 +106,35 @@ impl Menubar {
         for menu in &[&self.file, &self.edit, &self.acct, &self.help] {
             self.mbar.append(*menu);
         }
+    }
+
+    // set_menu clears out the existing submenu (or creates and sets a new one if none exists) and
+    // appends the given items.
+    //
+    // There are two more concise methods that did not work:
+    // 1) Simply creating and setting a new submenu does not work because the widgets in the existing
+    //    submenu cannot belong to two parents at the same time.
+    // 2) Setting the submenu to None, then creating and setting a new submenu resulted in a segfault
+    //    that I could not get to the bottom of.
+    fn set_menu(&self, menu: &GtkMenuItem, items: &[Item]) {
+        let submenu = {
+            if let Some(m) = menu.get_submenu() {
+                let m = m.downcast::<GtkMenu>().unwrap();
+                m.foreach(|child| m.remove(child));
+                m
+            } else {
+                let m = GtkMenu::new();
+                menu.set_submenu(Some(&m));
+                m
+            }
+        };
+        for item in items {
+            match item {
+                Item::Separator => submenu.append(&GtkSeparatorMenuItem::new()),
+                _ => submenu.append(self.items.get(item).unwrap()),
+            }
+        }
+        menu.show_all();
     }
 }
 

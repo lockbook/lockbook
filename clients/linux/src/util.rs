@@ -1,21 +1,3 @@
-#[macro_export]
-macro_rules! cloned_var_name {
-    ($v:ident) => {
-        $v
-    };
-    ($v:ident $( $_:ident )+) => {
-        $v
-    };
-}
-
-#[macro_export]
-macro_rules! closure {
-    ($( $( $vars:ident ).+ $( as $aliases:ident )? ),+ => $fn:expr) => {{
-        $( let $crate::cloned_var_name!($( $aliases )? $( $vars )+)  = $( $vars ).+.clone(); )+
-        $fn
-    }};
-}
-
 pub mod gui {
     use gtk::prelude::ButtonExt;
     use gtk::prelude::ContainerExt;
