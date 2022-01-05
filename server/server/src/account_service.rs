@@ -1,17 +1,15 @@
-use redis_utils::{tx, TxError};
 use crate::utils::username_is_valid;
 use crate::{file_index_repo, pipe, RequestContext, ServerError};
-use deadpool_redis::redis::{
-    AsyncCommands, FromRedisValue, Pipeline, RedisError, RedisResult, Value,
-};
+use deadpool_redis::redis::{AsyncCommands, Pipeline};
+use redis_utils::{tx, TxError};
 
-use redis_utils::TxError::{Abort, DbError};
 use crate::ServerError::{ClientError, InternalError};
 use lockbook_models::api::NewAccountError::UsernameTaken;
 use lockbook_models::api::{
     GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
     GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
 };
+use redis_utils::TxError::{Abort, DbError};
 
 pub async fn new_account(
     context: RequestContext<'_, NewAccountRequest>,
@@ -25,7 +23,7 @@ pub async fn new_account(
         .map_err(|e| internal!("Could not serialize public key: {}", e))?;
     let pk_key = &format!("account:{}:public_key", request.username);
 
-    let success: Result<(), _> = tx!(&mut con, pipe_name, &[pk_key], {
+    let _success: Result<(), _> = tx!(&mut con, pipe_name, &[pk_key], {
         if con.exists("&pk_key.clone()").await.unwrap() {
             Err(Abort(ClientError(UsernameTaken)))
         } else {
