@@ -1,12 +1,17 @@
+use redis_utils::{tx, TxError};
 use crate::utils::username_is_valid;
-use crate::{file_index_repo, RequestContext, ServerError};
+use crate::{file_index_repo, pipe, RequestContext, ServerError};
+use deadpool_redis::redis::{
+    AsyncCommands, FromRedisValue, Pipeline, RedisError, RedisResult, Value,
+};
 
+use redis_utils::TxError::{Abort, DbError};
 use crate::ServerError::{ClientError, InternalError};
+use lockbook_models::api::NewAccountError::UsernameTaken;
 use lockbook_models::api::{
     GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
     GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
 };
-use lockbook_models::file_metadata::FileType;
 
 pub async fn new_account(
     context: RequestContext<'_, NewAccountRequest>,
@@ -15,72 +20,19 @@ pub async fn new_account(
     if !username_is_valid(&request.username) {
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
+    let mut con = server_state.index_db2_connection.get().await.unwrap();
+    let pk = serde_json::to_string(&request.public_key)
+        .map_err(|e| internal!("Could not serialize public key: {}", e))?;
+    let pk_key = &format!("account:{}:public_key", request.username);
 
-    let mut transaction = match server_state.index_db_client.begin().await {
-        Ok(t) => t,
-        Err(e) => {
-            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
+    let success: Result<(), _> = tx!(&mut con, pipe_name, &[pk_key], {
+        if con.exists("&pk_key.clone()").await.unwrap() {
+            Err(Abort(ClientError(UsernameTaken)))
+        } else {
+            Ok(pipe_name.set(pk_key, &pk))
         }
-    };
-
-    let new_account_result =
-        file_index_repo::new_account(&mut transaction, &request.username, &request.public_key)
-            .await;
-    new_account_result.map_err(|e| match e {
-        file_index_repo::NewAccountError::UsernameTaken => {
-            ClientError(NewAccountError::UsernameTaken)
-        }
-        file_index_repo::NewAccountError::PublicKeyTaken => {
-            ClientError(NewAccountError::PublicKeyTaken)
-        }
-        _ => InternalError(format!("Cannot create account in Postgres: {:?}", e)),
-    })?;
-
-    let create_folder_result = file_index_repo::create_file(
-        &mut transaction,
-        request.folder_id,
-        request.folder_id,
-        FileType::Folder,
-        &request.folder_name,
-        &context.public_key,
-        &request.parent_access_key,
-        None,
-    )
-    .await;
-    let new_version = create_folder_result.map_err(|e| match e {
-        file_index_repo::CreateFileError::IdTaken => ClientError(NewAccountError::FileIdTaken),
-        _ => InternalError(format!(
-            "Cannot create account root folder in Postgres: {:?}",
-            e
-        )),
-    })?;
-    let new_user_access_key_result = file_index_repo::create_user_access_key(
-        &mut transaction,
-        &request.public_key,
-        request.folder_id,
-        &request.user_access_key,
-    )
-    .await;
-    new_user_access_key_result.map_err(|e| {
-        InternalError(format!(
-            "Cannot create access keys for user in Postgres: {:?}",
-            e
-        ))
-    })?;
-
-    match transaction.commit().await {
-        Ok(()) => Ok(NewAccountResponse {
-            folder_metadata_version: new_version,
-        }),
-        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("uk_name") => Err(ClientError(NewAccountError::UsernameTaken)),
-            _ => Err(InternalError(format!(
-                "Cannot commit transaction due to constraint violation: {:?}",
-                db_err
-            ))),
-        },
-        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
-    }
+    });
+    Err(internal!(""))
 }
 
 pub async fn get_public_key(

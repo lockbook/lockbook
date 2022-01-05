@@ -6,6 +6,7 @@ use lockbook_server_lib::config::Config;
 
 use lockbook_server_lib::*;
 
+use deadpool_redis::Runtime;
 use log::info;
 use std::sync::Arc;
 use warp::Filter;
@@ -25,9 +26,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let files_db_client = file_content_client::create_client(&config.files_db)
         .expect("Failed to create files_db client");
 
+    let index_db2_connection = deadpool_redis::Config::from_url("redis://127.0.0.1/")
+        .create_pool(Some(Runtime::Tokio1))
+        .unwrap();
+
     let server_state = Arc::new(ServerState {
         config: config.clone(),
         index_db_client,
+        index_db2_connection,
         files_db_client,
     });
 

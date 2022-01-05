@@ -542,6 +542,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "combine"
+version = "4.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2b2f5d0ee456f3928812dfc8c6d9a1d592b98678f6d56db9b0cd2b7bc6c8db5"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "memchr",
+ "pin-project-lite",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "console"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -790,6 +804,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "049bb91fb4aaf0e3c7efa6cd5ef877dbbbd15b39dad06d9948de4ec8a75761ea"
 dependencies = [
  "cipher",
+]
+
+[[package]]
+name = "deadpool"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bf0c5365c0925c80a838a6810a1bf38d3304ca6b4eb25829e29e33da12de786"
+dependencies = [
+ "async-trait",
+ "deadpool-runtime",
+ "num_cpus",
+ "tokio",
+]
+
+[[package]]
+name = "deadpool-redis"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1684b82a86e4777d846836ed667fede4ce02da8877071ce2a7787dc42c0a1c92"
+dependencies = [
+ "deadpool",
+ "redis",
+]
+
+[[package]]
+name = "deadpool-runtime"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eaa37046cc0f6c3cc6090fbdbf73ef0b8ef4cfcc37f6befc0020f63e8cf121e1"
+dependencies = [
+ "tokio",
 ]
 
 [[package]]
@@ -1867,7 +1912,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e00f1fd30a82a801f8bf38bcb0895088a0013cde111acb713c0824edc372aa4"
 dependencies = [
  "cesu8",
- "combine",
+ "combine 3.8.1",
  "error-chain",
  "jni-sys",
  "log",
@@ -2147,6 +2192,7 @@ dependencies = [
  "base64 0.13.0",
  "bincode",
  "chrono",
+ "deadpool-redis",
  "fern",
  "futures",
  "indicatif 0.16.2",
@@ -2159,6 +2205,7 @@ dependencies = [
  "num_cpus",
  "pagerduty-rs",
  "prometheus",
+ "redis_utils",
  "rust-s3",
  "serde",
  "serde_json",
@@ -2960,6 +3007,32 @@ dependencies = [
  "crossbeam-utils",
  "lazy_static",
  "num_cpus",
+]
+
+[[package]]
+name = "redis"
+version = "0.21.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f23ceed4c0e76b322657c2c3352ea116f9ec60a1a1aefeb3c84ed062c50865b"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "combine 4.6.2",
+ "dtoa",
+ "futures-util",
+ "itoa",
+ "percent-encoding",
+ "pin-project-lite",
+ "tokio",
+ "tokio-util",
+ "url",
+]
+
+[[package]]
+name = "redis_utils"
+version = "0.1.0"
+dependencies = [
+ "redis",
 ]
 
 [[package]]

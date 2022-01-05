@@ -11,6 +11,19 @@ pub struct IndexDbConfig {
     pub pool_size: u32,
 }
 
+#[derive(Clone)]
+pub struct IndexDb2Config {
+    pub redis_url: String,
+}
+
+impl IndexDb2Config {
+    pub fn from_env_vars() -> Self {
+        Self {
+            redis_url: env_or_panic("INDEX_DB_HOST"),
+        }
+    }
+}
+
 impl IndexDbConfig {
     pub fn from_env_vars() -> IndexDbConfig {
         IndexDbConfig {
@@ -90,14 +103,16 @@ impl ServerConfig {
 #[derive(Clone)]
 pub struct Config {
     pub index_db: IndexDbConfig,
+    pub index_db2: IndexDb2Config,
     pub files_db: FilesDbConfig,
     pub server: ServerConfig,
 }
 
 impl Config {
-    pub fn from_env_vars() -> Config {
-        Config {
+    pub fn from_env_vars() -> Self {
+        Self {
             index_db: IndexDbConfig::from_env_vars(),
+            index_db2: IndexDb2Config::from_env_vars(),
             files_db: FilesDbConfig::from_env_vars(),
             server: ServerConfig::from_env_vars(),
         }
