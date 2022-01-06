@@ -153,26 +153,15 @@ impl FileTree {
         }
     }
 
-    pub fn add(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
-        let mut file = f.clone();
-        let mut parent_iter: Option<gtk::TreeIter>;
-        loop {
-            parent_iter = self.search(&self.iter(), &file.parent);
-            if parent_iter.is_some() {
-                break;
+    pub fn add(&self, f: &DecryptedFileMetadata) -> LbResult<()> {
+        match self.search(&self.iter(), &f.parent) {
+            Some(parent_iter) => {
+                self.shallow_append(Some(&parent_iter), &f);
+                self.select(&f.id);
+                Ok(())
             }
-            file = b.file_by_id(file.parent)?;
+            None => Err(progerr!("no parent found for file with id '{}'", f.id)),
         }
-
-        match parent_iter {
-            Some(iter) => {
-                self.shallow_append(Some(&iter), &file);
-            }
-            None => panic!("no parent found, should have at least found root!"),
-        }
-
-        self.select(&f.id);
-        Ok(())
     }
 
     pub fn search(&self, iter: &gtk::TreeIter, id: &Uuid) -> Option<gtk::TreeIter> {
