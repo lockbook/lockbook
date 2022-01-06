@@ -1,19 +1,23 @@
 use crate::utils::username_is_valid;
-use crate::{file_index_repo, pipe, RequestContext, ServerError};
+use crate::{FREE_TIER, keys, pipe, RequestContext, ServerError};
 use deadpool_redis::redis::{AsyncCommands, Pipeline};
 use lockbook_crypto::clock_service::get_time;
+use log::error;
 use redis_utils::converters::{JsonGet, JsonSet};
 
 use redis_utils::{tx, TxError};
+use uuid::Uuid;
 
-use crate::keys::{file, meta, owned_files, public_key};
-use crate::ServerError::{ClientError, InternalError};
-use lockbook_models::api::NewAccountError::UsernameTaken;
-use lockbook_models::api::{
-    GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest,
-    GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
-};
+use crate::keys::{file, meta, owned_files, public_key, username, data_cap};
+use crate::ServerError::ClientError;
+use lockbook_models::api::GetUsageError::UserNotFound;
+use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
+use lockbook_models::api::{FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse};
+use lockbook_models::file_metadata::{FileMetadata};
 
+/// Create a new account given a username, public_key, and root folder.
+/// Checks that username is valid, and that username, public_key and root_folder are new.
+/// Inserts all of these values into their respective keys along with the default free account tier size
 pub async fn new_account(
     context: RequestContext<'_, NewAccountRequest>,
 ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
@@ -29,7 +33,8 @@ pub async fn new_account(
 
     let watched_keys = &[
         public_key(&request.username),
-        owned_files(&request.username),
+        username(&request.public_key),
+        owned_files(&request.public_key),
         file(request.root_folder.id),
     ];
 
@@ -38,18 +43,30 @@ pub async fn new_account(
             return Err(Abort(ClientError(UsernameTaken)));
         }
 
+        if con.exists(username(&request.public_key)).await? {
+            error!(
+                "{} tried to use a public key that exists {}",
+                &request.username,
+                username(&request.public_key)
+            );
+            return Err(Abort(ClientError(PublicKeyTaken)));
+        }
+
         if con.exists(meta(&root)).await? {
-            return Err(Abort(internal!(
-                "{} tried to create a new account with existing root {}",
-                request.username,
-                root.id
-            )));
+            error!(
+                "{} tried to use a root that exists {}",
+                &request.username,
+                username(&request.public_key)
+            );
+            return Err(Abort(ClientError(FileIdTaken)));
         }
 
         pipe_name
-            .set_json(public_key(&request.username), request.public_key)?
-            .set_json(owned_files(&request.username), [request.root_folder.id])?
-            .set_json(meta(&root), &root)
+            .json_set(public_key(&request.username), request.public_key)?
+            .json_set(username(&request.public_key), &request.username)?
+            .json_set(owned_files(&request.public_key), [request.root_folder.id])?
+            .set(data_cap(&request.public_key), FREE_TIER)
+            .json_set(meta(&root), &root)
     });
     return_if_error!(tx_result);
 
@@ -64,7 +81,7 @@ pub async fn get_public_key(
     let (request, server_state) = (&context.request, context.server_state);
     let mut con = server_state.index_db2_connection.get().await?;
 
-    match con.maybe_get(public_key(&request.username)).await {
+    match con.maybe_json_get(public_key(&request.username)).await {
         Ok(Some(key)) => Ok(GetPublicKeyResponse { key }),
         Ok(None) => Err(ClientError(GetPublicKeyError::UserNotFound)),
         Err(err) => Err(internal!(
@@ -78,21 +95,22 @@ pub async fn get_public_key(
 pub async fn get_usage(
     context: RequestContext<'_, GetUsageRequest>,
 ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
-    let (_, server_state) = (&context.request, context.server_state);
-    let mut transaction = match server_state.index_db_client.begin().await {
-        Ok(t) => t,
-        Err(e) => {
-            return Err(InternalError(format!("Cannot begin transaction: {:#?}", e)));
-        }
-    };
+    let (_request, server_state) = (&context.request, context.server_state);
+    let mut con = server_state.index_db2_connection.get().await?;
 
-    let usages = file_index_repo::get_file_usages(&mut transaction, &context.public_key)
-        .await
-        .map_err(|e| InternalError(format!("Usage calculation error: {:#?}", e)))?;
+    let files: Vec<Uuid> = con
+        .maybe_json_get(owned_files(&context.public_key))
+        .await?
+        .ok_or(ClientError(UserNotFound))?;
 
-    let cap = file_index_repo::get_account_data_cap(&mut transaction, &context.public_key)
-        .await
-        .map_err(|e| InternalError(format!("Data cap calculation error: {:#?}", e)))?;
+    let cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
-    Ok(GetUsageResponse { usages, cap })
+    let keys: Vec<String> = files.into_iter().map(keys::size).collect();
+
+    let usages: Vec<FileUsage> = con.json_mget(keys).await?;
+
+    Ok(GetUsageResponse {
+        usages,
+        cap
+    })
 }

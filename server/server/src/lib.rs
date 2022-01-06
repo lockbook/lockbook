@@ -1,6 +1,6 @@
 extern crate log;
 
-use deadpool_redis::redis::pipe;
+use deadpool_redis::redis::{pipe, RedisError};
 
 use deadpool_redis::PoolError;
 use std::env;
@@ -10,6 +10,8 @@ use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
+
+use redis_utils::converters::JsonGetError;
 
 use serde::{Deserialize, Serialize};
 
@@ -34,9 +36,24 @@ pub enum ServerError<U: Debug> {
     InternalError(String),
 }
 
+// TODO these should probably have backtraces on them
 impl<T: Debug> From<PoolError> for ServerError<T> {
     fn from(err: PoolError) -> Self {
         internal!("Could not get conenction for pool: {:?}", err)
+    }
+}
+
+// TODO these should probably have backtraces on them
+impl<T: Debug> From<RedisError> for ServerError<T> {
+    fn from(err: RedisError) -> Self {
+        internal!("Redis Error: {:?}", err)
+    }
+}
+
+// TODO these should probably have backtraces on them
+impl<T: Debug> From<JsonGetError> for ServerError<T> {
+    fn from(err: JsonGetError) -> Self {
+        internal!("Redis Error: {:?}", err)
     }
 }
 
@@ -82,6 +99,8 @@ pub fn verify_auth<TRequest: Request + Serialize>(
         clock_service::get_time,
     )
 }
+
+const FREE_TIER: u64 = 1000000;
 
 pub mod account_service;
 pub mod config;

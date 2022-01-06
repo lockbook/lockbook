@@ -168,7 +168,6 @@ pub struct FileUsage {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetUsageError {
-    InvalidUsername,
     UserNotFound,
 }
 
@@ -229,8 +228,6 @@ pub struct NewAccountResponse {
 pub enum NewAccountError {
     UsernameTaken,
     PublicKeyTaken,
-    InvalidPublicKey,
-    InvalidUserAccessKey,
     InvalidUsername,
     FileIdTaken,
 }

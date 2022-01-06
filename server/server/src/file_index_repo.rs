@@ -480,33 +480,6 @@ WHERE
 }
 
 #[derive(Debug)]
-pub enum CreateUserAccessKeyError {
-    Postgres(sqlx::Error),
-    Serialization(serde_json::Error),
-}
-
-pub async fn create_user_access_key(
-    transaction: &mut Transaction<'_, Postgres>,
-    public_key: &PublicKey,
-    folder_id: Uuid,
-    user_access_key: &EncryptedUserAccessKey,
-) -> Result<(), CreateUserAccessKeyError> {
-    sqlx::query!(
-        r#"
-INSERT INTO user_access_keys (file_id, sharee, encrypted_key) VALUES ($1, $2, $3);
-        "#,
-        &format!("{}", folder_id),
-        &serde_json::to_string(&public_key).map_err(CreateUserAccessKeyError::Serialization)?,
-        &serde_json::to_string(&user_access_key)
-            .map_err(CreateUserAccessKeyError::Serialization)?,
-    )
-    .execute(transaction)
-    .await
-    .map_err(CreateUserAccessKeyError::Postgres)?;
-    Ok(())
-}
-
-#[derive(Debug)]
 pub enum DeleteAccountAccessKeysError {
     Postgres(sqlx::Error),
     Serialize(serde_json::Error),
@@ -594,85 +567,6 @@ DELETE FROM accounts where name = $1
     .await
     .map_err(DeleteAccountError::Postgres)?;
     Ok(())
-}
-
-#[derive(Debug)]
-pub enum GetDataCapError {
-    TierNotFound,
-    Serialize(serde_json::Error),
-    Postgres(sqlx::Error),
-    Unknown(String),
-}
-
-pub async fn get_account_data_cap(
-    transaction: &mut Transaction<'_, Postgres>,
-    public_key: &PublicKey,
-) -> Result<u64, GetDataCapError> {
-    match sqlx::query!(
-        r#"
-SELECT bytes_cap
-FROM account_tiers
-WHERE id =
-    (SELECT account_tier FROM accounts WHERE public_key = $1);
-        "#,
-        &serde_json::to_string(public_key).map_err(GetDataCapError::Serialize)?
-    )
-    .fetch_optional(transaction)
-    .await
-    .map_err(GetDataCapError::Postgres)?
-    {
-        Some(row) => Ok(row.bytes_cap as u64),
-        None => Err(GetDataCapError::TierNotFound),
-    }
-}
-
-#[derive(Debug)]
-pub enum GetFileUsageError {
-    Postgres(sqlx::Error),
-    Serialize(serde_json::Error),
-    UuidDeserialize(uuid::Error),
-}
-
-pub async fn get_file_usages(
-    transaction: &mut Transaction<'_, Postgres>,
-    public_key: &PublicKey,
-) -> Result<Vec<FileUsage>, GetFileUsageError> {
-    sqlx::query!(
-        r#"
-    WITH RECURSIVE file_ancestors AS (
-        SELECT id, id AS ancestor FROM files
-            UNION DISTINCT
-        SELECT file_ancestors.id, files.parent AS ancestor FROM files
-        JOIN file_ancestors ON files.id = file_ancestors.ancestor
-    ),
-    files_with_deleted_ancestors AS (
-        SELECT id FROM files WHERE EXISTS(
-            SELECT * FROM file_ancestors
-            JOIN files AS ancestor_files ON file_ancestors.ancestor = ancestor_files.id
-            WHERE files.id = file_ancestors.id AND ancestor_files.deleted
-        )
-    )
-    SELECT
-        files.id,
-        CASE WHEN EXISTS(SELECT * FROM files_with_deleted_ancestors WHERE files_with_deleted_ancestors.id = files.id) THEN 0 ELSE files.document_size END AS "document_size!"
-    FROM files
-    WHERE
-        files.owner = $1 AND
-        NOT files.is_folder;
-        "#,
-        &serde_json::to_string(public_key).map_err(GetFileUsageError::Serialize)?
-    )
-    .fetch_all(transaction)
-    .await
-    .map_err(GetFileUsageError::Postgres)?
-    .into_iter()
-    .map(|row| {
-        Ok(FileUsage {
-            file_id: Uuid::parse_str(&row.id).map_err(GetFileUsageError::UuidDeserialize)?,
-            size_bytes: row.document_size as u64,
-        })
-    })
-    .collect()
 }
 
 #[derive(Debug)]
