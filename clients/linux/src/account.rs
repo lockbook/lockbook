@@ -49,10 +49,6 @@ impl AccountScreen {
         }
     }
 
-    pub fn add_file(&self, f: &DecryptedFileMetadata) -> LbResult<()> {
-        self.sidebar.tree.add(f)
-    }
-
     pub fn show(&self, mode: &EditMode) {
         match mode {
             EditMode::PlainText { meta, content } => {

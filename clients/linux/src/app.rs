@@ -303,7 +303,7 @@ impl LbApp {
                 Ok(file) => {
                     d.close();
 
-                    match lb.gui.account.add_file(&file) {
+                    match lb.gui.account.sidebar.tree.add_file(&file) {
                         Ok(_) => {
                             lb.messenger.send(Msg::RefreshSyncStatus);
                             lb.messenger.send(Msg::OpenFile(Some(file.id)));

@@ -153,10 +153,10 @@ impl FileTree {
         }
     }
 
-    pub fn add(&self, f: &DecryptedFileMetadata) -> LbResult<()> {
+    pub fn add_file(&self, f: &DecryptedFileMetadata) -> LbResult<()> {
         match self.search(&self.iter(), &f.parent) {
             Some(parent_iter) => {
-                self.shallow_append(Some(&parent_iter), &f);
+                self.shallow_append(Some(&parent_iter), f);
                 self.select(&f.id);
                 Ok(())
             }
