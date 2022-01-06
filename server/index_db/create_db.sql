@@ -16,8 +16,7 @@ CREATE TABLE IF NOT EXISTS stripe_payment_methods
     payment_method_id TEXT PRIMARY KEY,
     customer_id       TEXT NOT NULL,
     last_4            TEXT NOT NULL,
-    deleted           BOOLEAN NOT NULL,
-    is_default        BOOLEAN NOT NULL,  --- TODO: Add check constraint
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT fk_stripe_payment_methods_customer_id FOREIGN KEY (customer_id) REFERENCES stripe_customers (customer_id) DEFERRABLE INITIALLY DEFERRED
 );
 

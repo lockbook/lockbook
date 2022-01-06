@@ -99,18 +99,8 @@ pub fn core_routes(
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(
-            RegisterCreditCardRequest,
-            register_credit_card,
-            server_state
-        ))
-        .or(core_req!(
-            RemoveCreditCardRequest,
-            remove_credit_card,
-            server_state
-        ))
-        .or(core_req!(
-            GetRegisteredCreditCardsRequest,
-            get_registered_credit_cards,
+            GetLastRegisteredCreditCardRequest,
+            get_last_registered_credit_card,
             server_state
         ))
         .or(core_req!(

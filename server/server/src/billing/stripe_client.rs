@@ -1,12 +1,7 @@
-use crate::billing::stripe::{
-    BasicStripeResponse, PaymentMethodStripeResponse, SetupIntentStatus, SetupIntentStripeResponse,
-    StripeErrorType, StripeResult,
-};
+use crate::billing::stripe::{BasicStripeResponse, StripePaymentMethodResponse, SetupIntentStatus, StripeSetupIntentResponse, StripeErrorCode, StripeErrorType, StripeKnownErrorCode, StripeResult, StripeSubscriptionResponse};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{ServerError, ServerState};
-use lockbook_models::api::{
-    RegisterCreditCardError, RemoveCreditCardError, SwitchAccountTierError,
-};
+use lockbook_models::api::{InvalidCreditCardField, SwitchAccountTierError};
 use reqwest::Method;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
@@ -14,7 +9,6 @@ use std::fmt::Debug;
 
 static STRIPE_ENDPOINT: &str = "https://api.stripe.com/v1";
 static PAYMENT_METHODS_ENDPOINT: &str = "/payment_methods";
-static DETACH_ENDPOINT: &str = "/detach";
 static ATTACH_ENDPOINT: &str = "/attach";
 static CUSTOMER_ENDPOINT: &str = "/customers";
 static SUBSCRIPTIONS_ENDPOINT: &str = "/subscriptions";
@@ -22,8 +16,8 @@ static SETUP_INTENTS_ENDPOINT: &str = "/setup_intents";
 
 pub async fn create_customer(
     server_state: &ServerState,
-) -> Result<String, ServerError<RegisterCreditCardError>> {
-    match send_stripe_request::<BasicStripeResponse, RegisterCreditCardError>(
+) -> Result<String, ServerError<SwitchAccountTierError>> {
+    match send_stripe_request::<BasicStripeResponse, SwitchAccountTierError>(
         server_state,
         format!("{}{}", STRIPE_ENDPOINT, CUSTOMER_ENDPOINT),
         Method::POST,
@@ -42,18 +36,18 @@ pub async fn create_customer(
 pub async fn create_payment_method(
     server_state: &ServerState,
     card_number: &str,
-    card_exp_month: &str,
     card_exp_year: &str,
-    card_cvc: &str,
-) -> Result<PaymentMethodStripeResponse, ServerError<RegisterCreditCardError>> {
+    card_exp_month: &str,
+    card_cvc: &str
+) -> Result<StripePaymentMethodResponse, ServerError<SwitchAccountTierError>> {
     let mut payment_method_form = HashMap::new();
     payment_method_form.insert("type", "card");
     payment_method_form.insert("card[number]", card_number);
-    payment_method_form.insert("card[exp_month]", card_exp_month);
-    payment_method_form.insert("card[exp_year]", card_exp_year);
+    payment_method_form.insert("card[exp_month]", card_exp_year);
+    payment_method_form.insert("card[exp_year]", card_exp_month);
     payment_method_form.insert("card[cvc]", card_cvc);
 
-    match send_stripe_request::<PaymentMethodStripeResponse, RegisterCreditCardError>(
+    match send_stripe_request::<StripePaymentMethodResponse, SwitchAccountTierError>(
         server_state,
         format!("{}{}", STRIPE_ENDPOINT, PAYMENT_METHODS_ENDPOINT),
         Method::POST,
@@ -63,9 +57,22 @@ pub async fn create_payment_method(
     {
         StripeResult::Ok(resp) => Ok(resp),
         StripeResult::Err(e) => match e.error.error_type {
-            StripeErrorType::CardError => Err(ClientError(
-                RegisterCreditCardError::InvalidCreditCard,
-            )),
+            StripeErrorType::CardError => {
+                let error_field = match &e.error.code {
+                    StripeErrorCode::Known(code) => match code {
+                        StripeKnownErrorCode::InvalidCVC => InvalidCreditCardField::CVC,
+                        StripeKnownErrorCode::InvalidExpiryMonth => InvalidCreditCardField::ExpMonth,
+                        StripeKnownErrorCode::InvalidExpiryYear => InvalidCreditCardField::ExpYear,
+                        StripeKnownErrorCode::InvalidNumber => InvalidCreditCardField::Number,
+                        _ => return Err(InternalError(format!("Unexpected stripe card error: {:?}", e)))
+                    }
+                    StripeErrorCode::Unknown(_) => return Err(InternalError(format!("Unexpected stripe card error: {:?}", e)))
+                };
+
+                Err(ClientError(
+                    SwitchAccountTierError::InvalidCreditCard(error_field),
+                ))
+            },
             _ => Err(InternalError(format!(
                 "Stripe returned an error whilst creating a payment method: {:?}",
                 e
@@ -78,14 +85,14 @@ pub async fn create_setup_intent(
     server_state: &ServerState,
     customer_id: &str,
     payment_method_id: &str,
-) -> Result<SetupIntentStatus, ServerError<RegisterCreditCardError>> {
+) -> Result<SetupIntentStatus, ServerError<SwitchAccountTierError>> {
     let mut create_setup_intent_form = HashMap::new();
     create_setup_intent_form.insert("customer", customer_id);
     create_setup_intent_form.insert("payment_method", payment_method_id);
     create_setup_intent_form.insert("confirm", "true");
     create_setup_intent_form.insert("usage", "on_session");
 
-    match send_stripe_request::<SetupIntentStripeResponse, RegisterCreditCardError>(
+    match send_stripe_request::<StripeSetupIntentResponse, SwitchAccountTierError>(
         server_state,
         format!("{}{}", STRIPE_ENDPOINT, SETUP_INTENTS_ENDPOINT),
         Method::POST,
@@ -94,10 +101,13 @@ pub async fn create_setup_intent(
     .await?
     {
         StripeResult::Ok(resp) => Ok(resp.status),
-        StripeResult::Err(e) => Err(InternalError(format!(
-            "Stripe returned an error whilst creating a setup intent: {:?}",
-            e
-        ))),
+        StripeResult::Err(e) => match e.error.code {
+            StripeErrorCode::Known(StripeKnownErrorCode::CardDeclined) => Err(ClientError(SwitchAccountTierError::CardDeclined)),
+            _ => Err(InternalError(format!(
+                "Stripe returned an error whilst creating a setup intent: {:?}",
+                e
+            )))
+        },
     }
 }
 
@@ -105,11 +115,11 @@ pub async fn attach_payment_method_to_customer(
     server_state: &ServerState,
     customer_id: &str,
     payment_method_id: &str,
-) -> Result<(), ServerError<RegisterCreditCardError>> {
+) -> Result<(), ServerError<SwitchAccountTierError>> {
     let mut attach_payment_method_form = HashMap::new();
     attach_payment_method_form.insert("customer", customer_id);
 
-    match send_stripe_request::<BasicStripeResponse, RegisterCreditCardError>(
+    match send_stripe_request::<BasicStripeResponse, SwitchAccountTierError>(
         server_state,
         format!(
             "{}{}/{}{}",
@@ -128,29 +138,6 @@ pub async fn attach_payment_method_to_customer(
     }
 }
 
-pub async fn detach_payment_method_from_customer(
-    server_state: &ServerState,
-    payment_method_id: &str,
-) -> Result<(), ServerError<RemoveCreditCardError>> {
-    match send_stripe_request::<BasicStripeResponse, RemoveCreditCardError>(
-        server_state,
-        format!(
-            "{}/{}{}",
-            STRIPE_ENDPOINT, payment_method_id, DETACH_ENDPOINT
-        ),
-        Method::POST,
-        None,
-    )
-    .await?
-    {
-        StripeResult::Ok(_) => Ok(()),
-        StripeResult::Err(e) => Err(InternalError(format!(
-            "Stripe returned an error whilst detaching a payment method from a customer: {:?}",
-            e
-        ))),
-    }
-}
-
 pub async fn create_subscription(
     server_state: &ServerState,
     customer_id: &str,
@@ -164,7 +151,7 @@ pub async fn create_subscription(
     );
     create_subscription_form.insert("default_payment_method", payment_method_id);
 
-    match send_stripe_request::<BasicStripeResponse, SwitchAccountTierError>(
+    match send_stripe_request::<StripeSubscriptionResponse, SwitchAccountTierError>(
         server_state,
         format!("{}{}", STRIPE_ENDPOINT, SUBSCRIPTIONS_ENDPOINT),
         Method::POST,
@@ -172,11 +159,16 @@ pub async fn create_subscription(
     )
     .await?
     {
-        StripeResult::Ok(resp) => Ok(resp.id),
-        StripeResult::Err(e) => Err(InternalError(format!(
-            "Stripe returned an error whilst creating a subscription: {:?}",
-            e
-        ))),
+        StripeResult::Ok(resp) => match resp.id {
+
+        },
+        StripeResult::Err(e) => match e.error.code {
+            StripeErrorCode::Known(StripeKnownErrorCode::CardDeclined) => Err(ClientError(SwitchAccountTierError::CardDeclined)),
+            _ => Err(InternalError(format!(
+                "Stripe returned an error whilst creating a subscription: {:?}",
+                e
+            )))
+        },
     }
 }
 

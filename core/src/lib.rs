@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{AccountTier, CreditCardInfo};
+use lockbook_models::api::{AccountTier, CreditCardInfo, InvalidCreditCardField};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -620,35 +620,15 @@ pub fn export_file(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum AddCreditCardError {
-    NoAccount,
-    InvalidCreditCard,
-    CouldNotReachServer,
-}
-
-pub fn add_credit_card(
-    config: &Config,
-    card_number: String,
-    exp_month: String,
-    exp_year: String,
-    cvc: String,
-) -> Result<CreditCardInfo, Error<AddCreditCardError>> {
-    billing_service::add_credit_card(config, card_number, exp_month, exp_year, cvc).map_err(|e| {
-        match e {
-            CoreError::AccountNonexistent => UiError(AddCreditCardError::NoAccount),
-            CoreError::InvalidCreditCard => UiError(AddCreditCardError::InvalidCreditCard),
-            CoreError::ServerUnreachable => UiError(AddCreditCardError::CouldNotReachServer),
-            _ => unexpected!("{:#?}", e),
-        }
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
 pub enum SwitchAccountTierError {
     NoAccount,
     CouldNotReachServer,
-    PaymentMethodDoesNotExist,
+    PreexistingCardDoesNotExist,
     NewTierIsOldTier,
+    InvalidCreditCardNumber,
+    InvalidCreditCardCVC,
+    InvalidCreditCardExpYear,
+    InvalidCreditCardExpMonth
 }
 
 pub fn switch_account_tier(
@@ -656,8 +636,12 @@ pub fn switch_account_tier(
     new_account_tier: AccountTier,
 ) -> Result<(), Error<SwitchAccountTierError>> {
     billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
-        CoreError::PaymentMethodDoesNotExist => {
-            UiError(SwitchAccountTierError::PaymentMethodDoesNotExist)
+        CoreError::PreexistingCardDoesNotExist => UiError(SwitchAccountTierError::PreexistingCardDoesNotExist),
+        CoreError::InvalidCreditCard(field) => match field {
+            InvalidCreditCardField::Number => UiError(SwitchAccountTierError::InvalidCreditCardNumber),
+            InvalidCreditCardField::ExpYear => UiError(SwitchAccountTierError::InvalidCreditCardExpYear),
+            InvalidCreditCardField::ExpMonth => UiError(SwitchAccountTierError::InvalidCreditCardExpMonth),
+            InvalidCreditCardField::CVC => UiError(SwitchAccountTierError::InvalidCreditCardCVC)
         }
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
@@ -666,38 +650,17 @@ pub fn switch_account_tier(
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum RemoveCreditCardError {
-    NoAccount,
-    CouldNotReachServer,
-    PaymentMethodDoesNotExist,
-}
-
-pub fn remove_credit_card(
-    config: &Config,
-    payment_method_id: String,
-) -> Result<(), Error<RemoveCreditCardError>> {
-    billing_service::remove_credit_card(config, payment_method_id).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(RemoveCreditCardError::NoAccount),
-        CoreError::ServerUnreachable => UiError(RemoveCreditCardError::CouldNotReachServer),
-        CoreError::PaymentMethodDoesNotExist => {
-            UiError(RemoveCreditCardError::PaymentMethodDoesNotExist)
-        }
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetRegisteredCreditCardsError {
+pub enum GetLastRegisteredCardError {
     NoAccount,
     CouldNotReachServer,
 }
 
-pub fn get_registered_credit_cards(
+pub fn get_last_registered_card(
     config: &Config,
-) -> Result<Vec<CreditCardInfo>, Error<GetRegisteredCreditCardsError>> {
-    billing_service::get_registered_credit_cards(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(GetRegisteredCreditCardsError::NoAccount),
-        CoreError::ServerUnreachable => UiError(GetRegisteredCreditCardsError::CouldNotReachServer),
+) -> Result<CreditCardInfo, Error<GetLastRegisteredCardError>> {
+    billing_service::get_last_registered_card(config).map_err(|e| match e {
+        CoreError::AccountNonexistent => UiError(GetLastRegisteredCardError::NoAccount),
+        CoreError::ServerUnreachable => UiError(GetLastRegisteredCardError::CouldNotReachServer),
         _ => unexpected!("{:#?}", e),
     })
 }

@@ -919,7 +919,7 @@ pub enum GetStripePaymentMethodsIdError {
     Serialize(serde_json::Error),
 }
 
-pub async fn get_stripe_payment_methods_id(
+pub async fn get_last_stripe_payment_methods_id(
     transaction: &mut Transaction<'_, Postgres>,
     public_key: &PublicKey,
 ) -> Result<Vec<String>, GetStripePaymentMethodsIdError> {
@@ -941,33 +941,36 @@ SELECT payment_method_id FROM stripe_payment_methods WHERE customer_id = (SELECT
 }
 
 #[derive(Debug)]
-pub enum GetAllStripeCreditCardInfosError {
+pub enum GetLastStripeCreditCardInfoError {
     Postgres(sqlx::Error),
     Serialize(serde_json::Error),
+    NoPaymentInfo
 }
 
-pub async fn get_all_stripe_credit_card_infos(
+pub async fn get_last_stripe_credit_card_info(
     transaction: &mut Transaction<'_, Postgres>,
     public_key: &PublicKey,
-) -> Result<Vec<CreditCardInfo>, GetAllStripeCreditCardInfosError> {
-    sqlx::query!(
+) -> Result<CreditCardInfo, GetLastStripeCreditCardInfoError> {
+    match sqlx::query!(
         r#"
 WITH stripe_customer_id AS (
     SELECT stripe_customer_id
     FROM account_tiers
     WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)
 )
-SELECT payment_method_id, last_4 FROM stripe_payment_methods WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id) AND deleted = FALSE;
+SELECT payment_method_id, last_4 FROM stripe_payment_methods WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id) AND created_at = (SELECT MAX(created_at) FROM stripe_payment_methods WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id));
         "#,
-        &serde_json::to_string(public_key).map_err(GetAllStripeCreditCardInfosError::Serialize)?,
+        &serde_json::to_string(public_key).map_err(GetLastStripeCreditCardInfoError::Serialize)?,
     )
-        .fetch_all(transaction)
+        .fetch_optional(transaction)
         .await
-        .map_err(GetAllStripeCreditCardInfosError::Postgres)
-        .map(|rows| rows.into_iter().map(|row| CreditCardInfo {
+        .map_err(GetLastStripeCreditCardInfoError::Postgres)? {
+        Some(row) => Ok(CreditCardInfo {
             payment_method_id: row.payment_method_id,
             last_4_digits: row.last_4
-        }).collect())
+        }),
+        None => Err(GetLastStripeCreditCardInfoError::NoPaymentInfo)
+    }
 }
 
 #[derive(Debug)]
@@ -983,7 +986,7 @@ pub async fn add_stripe_payment_method(
 ) -> Result<(), AddStripePaymentMethodError> {
     sqlx::query!(
         r#"
-INSERT INTO stripe_payment_methods (payment_method_id, customer_id, last_4, deleted, is_default) VALUES ($1, $2, $3, FALSE, FALSE);
+INSERT INTO stripe_payment_methods (payment_method_id, customer_id, last_4) VALUES ($1, $2, $3);
         "#,
         payment_method_id,
         customer_id,
@@ -1062,28 +1065,6 @@ pub async fn cancel_stripe_subscription(
 UPDATE stripe_subscriptions SET active = FALSE WHERE subscription_id = $1
         "#,
         subscription_id,
-    )
-    .execute(transaction)
-    .await
-    .map_err(CancelStripeSubscriptionError::Postgres)?;
-
-    Ok(())
-}
-
-#[derive(Debug)]
-pub enum DeleteStripePaymentMethodError {
-    Postgres(sqlx::Error),
-}
-
-pub async fn delete_stripe_payment_method(
-    transaction: &mut Transaction<'_, Postgres>,
-    payment_method_id: &str,
-) -> Result<(), CancelStripeSubscriptionError> {
-    sqlx::query!(
-        r#"
-UPDATE stripe_payment_methods SET deleted = TRUE WHERE payment_method_id = $1
-        "#,
-        payment_method_id,
     )
     .execute(transaction)
     .await

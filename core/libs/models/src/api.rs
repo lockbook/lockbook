@@ -271,31 +271,6 @@ impl Request for GetBuildInfoRequest {
     const ROUTE: &'static str = "/get-build-info";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RegisterCreditCardRequest {
-    pub card_number: String,
-    pub exp_month: String,
-    pub exp_year: String,
-    pub cvc: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RegisterCreditCardResponse {
-    pub credit_card_info: CreditCardInfo,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum RegisterCreditCardError {
-    InvalidCreditCard,
-}
-
-impl Request for RegisterCreditCardRequest {
-    type Response = RegisterCreditCardResponse;
-    type Error = RegisterCreditCardError;
-    const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/register-credit-card";
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CreditCardInfo {
     pub payment_method_id: String,
@@ -303,47 +278,38 @@ pub struct CreditCardInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetRegisteredCreditCardsRequest {}
+pub struct GetLastRegisteredCreditCardRequest {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GetRegisteredCreditCardsResponse {
-    pub credit_card_infos: Vec<CreditCardInfo>,
+pub struct GetLastRegisteredCreditCardResponse {
+    pub credit_card: CreditCardInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetRegisteredCreditCardsError {}
+pub enum GetLastRegisteredCreditCardError {}
 
-impl Request for GetRegisteredCreditCardsRequest {
-    type Response = GetRegisteredCreditCardsResponse;
-    type Error = GetRegisteredCreditCardsError;
+impl Request for GetLastRegisteredCreditCardRequest {
+    type Response = GetLastRegisteredCreditCardResponse;
+    type Error = GetLastRegisteredCreditCardError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/get-registered-credit-cards";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RemoveCreditCardRequest {
-    pub payment_method_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct RemoveCreditCardResponse {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum RemoveCreditCardError {
-    PaymentMethodDoesNotExist,
-}
-
-impl Request for RemoveCreditCardRequest {
-    type Response = RemoveCreditCardResponse;
-    type Error = RemoveCreditCardError;
-    const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/remove-credit-card";
+pub enum CardChoice {
+    NewCard {
+        number: String,
+        exp_year: String,
+        exp_month: String,
+        cvc: String
+    },
+    OldCard
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum AccountTier {
-    Monthly(String), // payment method id
-    Free,
+    Monthly(CardChoice),
+    Free
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -355,9 +321,19 @@ pub struct SwitchAccountTierRequest {
 pub struct SwitchAccountTierResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum InvalidCreditCardField {
+    Number,
+    ExpYear,
+    ExpMonth,
+    CVC
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum SwitchAccountTierError {
-    PaymentMethodDoesNotExist,
+    PreexistingCardDoesNotExist,
+    InvalidCreditCard(InvalidCreditCardField),
     NewTierIsOldTier,
+    CardDeclined
 }
 
 impl Request for SwitchAccountTierRequest {

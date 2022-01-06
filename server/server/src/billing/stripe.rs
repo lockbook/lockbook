@@ -59,12 +59,31 @@ pub enum StripeKnownErrorCode {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct StripeSubscriptionResponse {
+    pub id: String,
+    pub status: SubscriptionStatus
+}
+
+// incomplete, incomplete_expired, trialing, active, past_due, canceled, or unpaid
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SubscriptionStatus {
+    Incomplete,
+    IncompleteExpired,
+    Trialing,
+    Active,
+    PastDue,
+    Canceled,
+    Unpaid
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct BasicStripeResponse {
     pub id: String,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct SetupIntentStripeResponse {
+pub struct StripeSetupIntentResponse {
     pub status: SetupIntentStatus,
 }
 
@@ -77,7 +96,7 @@ pub enum SetupIntentStatus {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct PaymentMethodStripeResponse {
+pub struct StripePaymentMethodResponse {
     pub id: String,
     pub card: PaymentMethodCard,
 }

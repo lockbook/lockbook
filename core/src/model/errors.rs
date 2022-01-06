@@ -3,6 +3,7 @@ use std::io::ErrorKind;
 
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
+use lockbook_models::api::InvalidCreditCardField;
 
 use crate::service::api_service::ApiError;
 
@@ -73,14 +74,14 @@ pub enum CoreError {
     FileParentNonexistent,
     FolderMovedIntoSelf,
     ImportCollision(String),
-    InvalidCreditCard,
+    InvalidCreditCard(InvalidCreditCardField),
     NewTierIsOldTier,
     OutOfSpace,
     PathContainsEmptyFileName,
     PathNonexistent,
     PathStartsWithNonRoot,
     PathTaken,
-    PaymentMethodDoesNotExist,
+    PreexistingCardDoesNotExist,
     RootModificationInvalid,
     RootNonexistent,
     ServerUnreachable,
