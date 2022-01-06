@@ -503,10 +503,10 @@ fn tree_connect_drag_motion(
                                     panic!("impossible")
                                 }
 
-                                return Continue(true);
+                                return glib::Continue(true);
                             }
                         }
-                        Continue(false)
+                        glib::Continue(false)
                     }
                 ));
             } else {
@@ -539,7 +539,7 @@ fn tree_connect_drag_motion(
                                         }
                                     }
 
-                                    Continue(false)
+                                    glib::Continue(false)
                                 }));
                             },
                             _ => {}
@@ -584,7 +584,6 @@ impl FileTreeCol {
 
     fn as_tree_view_col(&self) -> gtk::TreeViewColumn {
         let c = gtk::TreeViewColumn::new();
-
         c.set_title(&self.name());
 
         let (cell, attr) = (gtk::CellRendererText::new(), "text");
@@ -598,7 +597,6 @@ impl FileTreeCol {
 
         c.pack_start(&cell, false);
         c.add_attribute(&cell, attr, self.as_tree_store_index());
-
         c
     }
 
