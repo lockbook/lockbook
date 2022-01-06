@@ -2,7 +2,7 @@ use crate::utils::username_is_valid;
 use crate::{file_index_repo, pipe, RequestContext, ServerError};
 use deadpool_redis::redis::{AsyncCommands, Pipeline};
 use lockbook_crypto::clock_service::get_time;
-use redis_utils::converters::JsonSet;
+use redis_utils::converters::{JsonGet, JsonSet};
 
 use redis_utils::{tx, TxError};
 
@@ -14,7 +14,6 @@ use lockbook_models::api::{
     GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
 };
 
-
 pub async fn new_account(
     context: RequestContext<'_, NewAccountRequest>,
 ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
@@ -22,16 +21,17 @@ pub async fn new_account(
     if !username_is_valid(&request.username) {
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
-    let mut con = server_state.index_db2_connection.get().await.unwrap();
+    let mut con = server_state.index_db2_connection.get().await?;
+
+    let mut root = request.root_folder.clone();
+    let now = get_time().0 as u64;
+    root.metadata_version = now;
+
     let watched_keys = &[
         public_key(&request.username),
         owned_files(&request.username),
         file(request.root_folder.id),
     ];
-
-    let mut root = request.root_folder.clone();
-    let now = get_time().0 as u64;
-    root.metadata_version = now;
 
     let tx_result = tx!(&mut con, pipe_name, watched_keys, {
         if con.exists(public_key(&request.username)).await? {
@@ -62,23 +62,16 @@ pub async fn get_public_key(
     context: RequestContext<'_, GetPublicKeyRequest>,
 ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let mut transaction = match server_state.index_db_client.begin().await {
-        Ok(t) => t,
-        Err(e) => {
-            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
-        }
-    };
-    let result = file_index_repo::get_public_key(&mut transaction, &request.username).await;
-    let key = result.map_err(|e| match e {
-        file_index_repo::PublicKeyError::UserNotFound => {
-            ClientError(GetPublicKeyError::UserNotFound)
-        }
-        _ => InternalError(format!("Cannot get public key from Postgres: {:?}", e)),
-    })?;
+    let mut con = server_state.index_db2_connection.get().await?;
 
-    match transaction.commit().await {
-        Ok(()) => Ok(GetPublicKeyResponse { key: key }),
-        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
+    match con.maybe_get(public_key(&request.username)).await {
+        Ok(Some(key)) => Ok(GetPublicKeyResponse { key }),
+        Ok(None) => Err(ClientError(GetPublicKeyError::UserNotFound)),
+        Err(err) => Err(internal!(
+            "Error while getting public key for user: {}, err: {:?}",
+            request.username,
+            err
+        )),
     }
 }
 

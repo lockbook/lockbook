@@ -1,7 +1,8 @@
 extern crate log;
 
-use deadpool_redis::redis::{pipe};
+use deadpool_redis::redis::pipe;
 
+use deadpool_redis::PoolError;
 use std::env;
 use std::fmt::Debug;
 
@@ -31,6 +32,12 @@ pub struct RequestContext<'a, TRequest> {
 pub enum ServerError<U: Debug> {
     ClientError(U),
     InternalError(String),
+}
+
+impl<T: Debug> From<PoolError> for ServerError<T> {
+    fn from(err: PoolError) -> Self {
+        internal!("Could not get conenction for pool: {:?}", err)
+    }
 }
 
 #[macro_export]

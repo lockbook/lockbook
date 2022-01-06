@@ -2,9 +2,7 @@ use crate::config::IndexDbConfig;
 use base64;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
-use lockbook_models::crypto::{
-    EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
-};
+use lockbook_models::crypto::{EncryptedUserAccessKey, SecretFileName, UserAccessInfo};
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff, FileType};
 use log::debug;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -335,34 +333,6 @@ pub struct FileDeleteResponse {
     pub old_content_version: u64,
     pub new_metadata_version: u64,
     pub is_folder: bool,
-}
-
-#[derive(Debug)]
-pub enum PublicKeyError {
-    Postgres(sqlx::Error),
-    Deserialization(serde_json::Error),
-    UserNotFound,
-}
-
-pub async fn get_public_key(
-    transaction: &mut Transaction<'_, Postgres>,
-    username: &str,
-) -> Result<PublicKey, PublicKeyError> {
-    match sqlx::query!(
-        r#"
-SELECT public_key FROM accounts WHERE name = $1;
-        "#,
-        &username
-    )
-    .fetch_optional(transaction)
-    .await
-    .map_err(PublicKeyError::Postgres)?
-    {
-        Some(row) => {
-            Ok(serde_json::from_str(&row.public_key).map_err(PublicKeyError::Deserialization)?)
-        }
-        None => Err(PublicKeyError::UserNotFound),
-    }
 }
 
 #[derive(Debug)]
