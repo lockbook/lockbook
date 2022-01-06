@@ -1,6 +1,6 @@
 extern crate log;
 
-use deadpool_redis::redis::pipe;
+use deadpool_redis::redis::{pipe};
 
 use std::env;
 use std::fmt::Debug;
@@ -9,6 +9,7 @@ use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
+
 use serde::{Deserialize, Serialize};
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -33,9 +34,23 @@ pub enum ServerError<U: Debug> {
 }
 
 #[macro_export]
+macro_rules! return_if_error {
+    ($tx:expr) => {
+        match $tx {
+            Ok(success) => success,
+            Err(TxError::Abort(val)) => return Err(val),
+            Err(TxError::Serialization(t)) => {
+                return Err(internal!("Failed to serialize value: {:?}", t))
+            }
+            Err(TxError::DbError(t)) => return Err(internal!("Redis error: {:?}", t)),
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! internal {
-    ($base:literal $(, $args:tt )*) => {
-        crate::ServerError::InternalError(format!($base $(, $args )*))
+    ($($arg:tt)*) => {
+        crate::ServerError::InternalError(format!($($arg)*))
     };
 }
 
@@ -66,6 +81,7 @@ pub mod config;
 pub mod file_content_client;
 pub mod file_index_repo;
 pub mod file_service;
+pub mod keys;
 pub mod loggers;
 pub mod router_service;
 pub mod utils;

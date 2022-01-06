@@ -3,7 +3,7 @@ use base64;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::{
-    EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
+    EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
 };
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff, FileType};
 use log::debug;
@@ -330,99 +330,6 @@ RETURNING
 }
 
 #[derive(Debug)]
-pub enum CreateFileError {
-    Postgres(sqlx::Error),
-    Serialize(serde_json::Error),
-    IdTaken,
-    PathTaken,
-    OwnerDoesNotExist,
-    ParentDoesNotExist,
-    AncestorDeleted,
-}
-
-pub async fn create_file(
-    transaction: &mut Transaction<'_, Postgres>,
-    id: Uuid,
-    parent: Uuid,
-    file_type: FileType,
-    name: &SecretFileName,
-    public_key: &PublicKey,
-    access_key: &EncryptedFolderAccessKey,
-    maybe_document_bytes: Option<u64>,
-) -> Result<u64, CreateFileError> {
-    match sqlx::query!(
-        r#"
-WITH RECURSIVE file_ancestors AS (
-    SELECT * FROM files AS new_file_parent
-    WHERE new_file_parent.id = $2
-        UNION DISTINCT
-    SELECT ancestors.* FROM files AS ancestors
-    JOIN file_ancestors ON file_ancestors.parent = ancestors.id
-),
-insert_cte AS (
-    INSERT INTO files (
-        id,
-        parent,
-        parent_access_key,
-        is_folder,
-        name_encrypted,
-        name_hmac,
-        owner,
-        deleted,
-        metadata_version,
-        content_version,
-        document_size
-    )
-    SELECT
-        $1,
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        $7,
-        FALSE,
-        CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
-        CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT),
-        $8
-    WHERE NOT EXISTS(SELECT * FROM file_ancestors WHERE deleted)
-    RETURNING NULL
-)
-SELECT
-    CAST(EXTRACT(EPOCH FROM NOW()) * 1000 AS BIGINT) AS "metadata_version!",
-    EXISTS(SELECT * FROM file_ancestors WHERE deleted) AS "ancestor_deleted!";
-        "#,
-        &format!("{}", id),
-        &format!("{}", parent),
-        &serde_json::to_string(&access_key).map_err(CreateFileError::Serialize)?,
-        &(file_type == FileType::Folder),
-        &serde_json::to_string(&name.encrypted_value).map_err(CreateFileError::Serialize)?,
-        &base64::encode(name.hmac),
-        &serde_json::to_string(public_key).map_err(CreateFileError::Serialize)?,
-        (maybe_document_bytes.map(|bytes_u64| bytes_u64 as i64))
-    )
-    .fetch_one(transaction)
-    .await
-    {
-        Ok(row) => {
-            if !row.ancestor_deleted {
-                Ok(row.metadata_version as u64)
-            } else {
-                Err(CreateFileError::AncestorDeleted)
-            }
-        }
-        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("pk_files") => Err(CreateFileError::IdTaken),
-            Some("uk_files_name_parent") => Err(CreateFileError::PathTaken),
-            Some("fk_files_parent_files_id") => Err(CreateFileError::ParentDoesNotExist),
-            Some("fk_files_owner_accounts_name") => Err(CreateFileError::OwnerDoesNotExist),
-            _ => Err(CreateFileError::Postgres(sqlx::Error::Database(db_err))),
-        },
-        Err(db_err) => Err(CreateFileError::Postgres(db_err)),
-    }
-}
-
-#[derive(Debug)]
 pub struct FileDeleteResponse {
     pub id: Uuid,
     pub old_content_version: u64,
@@ -600,41 +507,6 @@ WHERE
         .map_err(GetUpdatesError::Deserialize)?,
     }))
     .collect()
-}
-
-#[derive(Debug)]
-pub enum NewAccountError {
-    Postgres(sqlx::Error),
-    Serialization(serde_json::Error),
-    UsernameTaken,
-    PublicKeyTaken,
-}
-
-pub async fn new_account(
-    transaction: &mut Transaction<'_, Postgres>,
-    username: &str,
-    public_key: &PublicKey,
-) -> Result<(), NewAccountError> {
-    match sqlx::query!(
-        r#"
-WITH i1 AS (
-    INSERT INTO account_tiers (bytes_cap) VALUES (1000000) RETURNING id
-)
-INSERT INTO accounts (name, public_key, account_tier) VALUES ($1, $2, (SELECT id FROM i1))
-        "#,
-        &(username.to_lowercase()),
-        &serde_json::to_string(&public_key).map_err(NewAccountError::Serialization)?,
-    )
-    .execute(transaction)
-    .await
-    {
-        Ok(_) => Ok(()),
-        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("accounts_pkey") => Err(NewAccountError::PublicKeyTaken),
-            _ => Err(NewAccountError::Postgres(sqlx::Error::Database(db_err))),
-        },
-        Err(db_err) => Err(NewAccountError::Postgres(db_err)),
-    }
 }
 
 #[derive(Debug)]

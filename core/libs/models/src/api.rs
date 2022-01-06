@@ -206,26 +206,16 @@ impl Request for GetUpdatesRequest {
 pub struct NewAccountRequest {
     pub username: Username,
     pub public_key: PublicKey,
-    pub folder_id: Uuid,
-    pub folder_name: SecretFileName,
-    pub parent_access_key: EncryptedFolderAccessKey,
-    pub user_access_key: EncryptedUserAccessKey,
+    pub root_folder: EncryptedFileMetadata
 }
 
 impl NewAccountRequest {
-    pub fn new(account: &Account, root_metadata: &EncryptedFileMetadata) -> Self {
+    pub fn new(account: &Account, root_folder: &EncryptedFileMetadata) -> Self {
+        let root_folder = root_folder.clone();
         NewAccountRequest {
             username: account.username.clone(),
             public_key: account.public_key(),
-            folder_id: root_metadata.id,
-            folder_name: root_metadata.name.clone(),
-            parent_access_key: root_metadata.folder_access_keys.clone(),
-            user_access_key: root_metadata
-                .user_access_keys
-                .get(&account.username)
-                .expect("file metadata for new account request must have user access key") // TODO: handle better
-                .access_key
-                .clone(),
+            root_folder
         }
     }
 }
