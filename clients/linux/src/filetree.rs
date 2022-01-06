@@ -124,9 +124,8 @@ impl FileTree {
         iter: Option<&gtk::TreeIter>,
         metadata: &DecryptedFileMetadata,
     ) -> gtk::TreeIter {
-        let icon_name = self.get_icon_name(&metadata.decrypted_name, &metadata.file_type);
-
         let name = &metadata.decrypted_name;
+        let icon_name = get_icon_name(name, &metadata.file_type);
         let id = &metadata.id.to_string();
         let ftype = &format!("{:?}", metadata.file_type);
         self.model
@@ -174,34 +173,6 @@ impl FileTree {
 
         self.select(&f.id);
         Ok(())
-    }
-
-    fn get_icon_name(&self, fname: &String, ftype: &FileType) -> String {
-        let image_suffixes = vec![
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".pnm",
-            ".tga",
-            ".farbfeld",
-            ".bmp",
-            ".draw",
-        ];
-        let script_suffixes = vec![".sh", ".bash", ".zsh"];
-
-        match ftype {
-            FileType::Document => {
-                if image_suffixes.iter().any(|suffix| fname.ends_with(suffix)) {
-                    "image-x-generic"
-                } else if script_suffixes.iter().any(|suffix| fname.ends_with(suffix)) {
-                    "text-x-script"
-                } else {
-                    "text-x-generic"
-                }
-            }
-            FileType::Folder => "folder",
-        }
-        .to_string()
     }
 
     pub fn search(&self, iter: &gtk::TreeIter, id: &Uuid) -> Option<gtk::TreeIter> {
@@ -316,6 +287,34 @@ impl FileTree {
             None => None,
         }
     }
+}
+
+fn get_icon_name(fname: &String, ftype: &FileType) -> String {
+    let image_suffixes = vec![
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".pnm",
+        ".tga",
+        ".farbfeld",
+        ".bmp",
+        ".draw",
+    ];
+    let script_suffixes = vec![".sh", ".bash", ".zsh"];
+
+    match ftype {
+        FileType::Document => {
+            if image_suffixes.iter().any(|suffix| fname.ends_with(suffix)) {
+                "image-x-generic"
+            } else if script_suffixes.iter().any(|suffix| fname.ends_with(suffix)) {
+                "text-x-script"
+            } else {
+                "text-x-generic"
+            }
+        }
+        FileType::Folder => "folder",
+    }
+    .to_string()
 }
 
 fn tree_connect_button_press_event(t: &gtk::TreeView, popup: &Rc<FileTreePopup>) {
