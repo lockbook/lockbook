@@ -517,36 +517,33 @@ fn tree_connect_drag_motion(
                 let model = w.get_model().unwrap();
                 *drag_hover_last_occurred.borrow_mut() = Some(time);
 
-                let pos_corrected =
-                    if tree_iter_value!(model, &model.get_iter(&path).unwrap(), 3, String)
-                        == format!("{:?}", FileType::Document)
-                    {
-                        match pos {
-                            gtk::TreeViewDropPosition::IntoOrBefore => gtk::TreeViewDropPosition::Before,
-                            gtk::TreeViewDropPosition::IntoOrAfter => gtk::TreeViewDropPosition::After,
-                            _ => pos,
-                        }
-                    } else {
-                        match pos {
-                            gtk::TreeViewDropPosition::IntoOrBefore
-                            | gtk::TreeViewDropPosition::IntoOrAfter => {
-                                glib::timeout_add_local(
-                                    400,
-                                    glib::clone!(@strong drag_hover_last_occurred, @strong w, @strong path => move || {
-                                    if let Some(t) = *drag_hover_last_occurred.borrow() {
-                                        if t == time {
-                                            w.expand_row(&path, false);
-                                        }
+                let pos_corrected = if iter_is_document(&model, &model.get_iter(&path).unwrap()) {
+                    match pos {
+                        gtk::TreeViewDropPosition::IntoOrBefore => gtk::TreeViewDropPosition::Before,
+                        gtk::TreeViewDropPosition::IntoOrAfter => gtk::TreeViewDropPosition::After,
+                        _ => pos,
+                    }
+                } else {
+                    match pos {
+                        gtk::TreeViewDropPosition::IntoOrBefore
+                        | gtk::TreeViewDropPosition::IntoOrAfter => {
+                            glib::timeout_add_local(
+                                400,
+                                glib::clone!(@strong drag_hover_last_occurred, @strong w, @strong path => move || {
+                                if let Some(t) = *drag_hover_last_occurred.borrow() {
+                                    if t == time {
+                                        w.expand_row(&path, false);
                                     }
+                                }
 
-                                    glib::Continue(false)
-                                }));
-                            },
-                            _ => {}
-                        }
+                                glib::Continue(false)
+                            }));
+                        },
+                        _ => {}
+                    }
 
-                        pos
-                    };
+                    pos
+                };
 
                 w.set_drag_dest_row(Some(&path), pos_corrected);
                 d.drag_status(d.get_suggested_action(), time);
