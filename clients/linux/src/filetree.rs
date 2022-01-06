@@ -527,17 +527,19 @@ fn tree_connect_drag_motion(
                     match pos {
                         gtk::TreeViewDropPosition::IntoOrBefore
                         | gtk::TreeViewDropPosition::IntoOrAfter => {
-                            glib::timeout_add_local(
-                                400,
-                                glib::clone!(@strong drag_hover_last_occurred, @strong w, @strong path => move || {
-                                if let Some(t) = *drag_hover_last_occurred.borrow() {
-                                    if t == time {
-                                        w.expand_row(&path, false);
+                            glib::timeout_add_local(400, glib::clone!(
+                                @strong drag_hover_last_occurred,
+                                @strong w,
+                                @strong path
+                                => move || {
+                                    if let Some(t) = *drag_hover_last_occurred.borrow() {
+                                        if t == time {
+                                            w.expand_row(&path, false);
+                                        }
                                     }
+                                    glib::Continue(false)
                                 }
-
-                                glib::Continue(false)
-                            }));
+                            ));
                         },
                         _ => {}
                     }
