@@ -1173,13 +1173,6 @@ mod sync_tests {
         test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &["/", "/folder/", "/folder/document"]);
-        test_utils::assert_all_document_contents(&db2, &root, &[("/folder/document", b"")]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[]);
-
         test_utils::assert_dbs_eq(&db, &db2);
     }
 
@@ -1215,17 +1208,6 @@ mod sync_tests {
         test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(
-            &db2,
-            &root,
-            &["/", "/folder/", "/folder2/", "/folder/document"],
-        );
-        test_utils::assert_all_document_contents(&db2, &root, &[("/folder/document", b"")]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[]);
-
         test_utils::assert_dbs_eq(&db, &db2);
     }
 
@@ -1253,13 +1235,6 @@ mod sync_tests {
         test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &["/", "/document2"]);
-        test_utils::assert_all_document_contents(&db2, &root, &[("/document2", b"")]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[]);
-
         test_utils::assert_dbs_eq(&db, &db2);
     }
 
@@ -1287,18 +1262,158 @@ mod sync_tests {
         test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &["/", "/document2"]);
-        test_utils::assert_all_document_contents(&db2, &root, &[("/document2", b"")]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[]);
-
         test_utils::assert_dbs_eq(&db, &db2);
     }
 
     #[test]
-    fn concurrent_change_move_rename() {
+    fn concurrent_change_identical_delete() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::delete_file(&db, document.id).unwrap();
+        lockbook_core::delete_file(&db2, document.id).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_delete_parent_then_direct() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let parent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::delete_file(&db, parent.id).unwrap();
+        lockbook_core::delete_file(&db2, document.id).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_delete_direct_then_parent() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let parent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::delete_file(&db, parent.id).unwrap();
+        lockbook_core::delete_file(&db2, document.id).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_delete_grandparent_then_parent() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let grandparent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/")).unwrap();
+        let parent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/")).unwrap();
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::delete_file(&db, grandparent.id).unwrap();
+        lockbook_core::delete_file(&db2, parent.id).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_delete_parent_then_grandparent() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let grandparent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/")).unwrap();
+        let parent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/")).unwrap();
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::delete_file(&db, grandparent.id).unwrap();
+        lockbook_core::delete_file(&db2, parent.id).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_move_then_rename() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -1323,13 +1438,319 @@ mod sync_tests {
         test_utils::assert_all_document_contents(&db, &root, &[("/folder/document2", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
 
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &["/", "/folder/", "/folder/document2"]);
-        test_utils::assert_all_document_contents(&db2, &root, &[("/folder/document2", b"")]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[]);
+    #[test]
+    fn concurrent_change_rename_then_move() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
 
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
+        lockbook_core::rename_file(&db2, document.id, "document2").unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document2"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/folder/document2", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_move_then_delete() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
+        lockbook_core::delete_file(&db2, document.id).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_delete_then_move() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
+        lockbook_core::delete_file(&db2, document.id).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_rename_then_delete() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
+        lockbook_core::delete_file(&db2, document.id).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_delete_then_rename() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
+        lockbook_core::delete_file(&db2, document.id).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_create_then_move_parent() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let parent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/")).unwrap();
+        let parent2 =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent2/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+        lockbook_core::move_file(&db2, parent.id, parent2.id).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/parent2/parent/document", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_move_parent_then_create() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let parent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/")).unwrap();
+        let parent2 =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent2/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+        lockbook_core::move_file(&db2, parent.id, parent2.id).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/parent2/parent/document", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_create_then_rename_parent() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let parent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+        lockbook_core::rename_file(&db2, parent.id, "parent2").unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/parent2/", "/parent2/document"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/parent2/document", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_rename_parent_then_create() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let parent =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+        lockbook_core::rename_file(&db2, parent.id, "parent2").unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/parent2/", "/parent2/document"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/parent2/document", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_create_then_delete_parent() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+        lockbook_core::delete_file(&db2, folder.id).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+    }
+
+    #[test]
+    fn concurrent_change_delete_parent_then_create() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+        lockbook_core::delete_file(&db2, folder.id).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
     }
 
