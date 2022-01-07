@@ -14,7 +14,7 @@ use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType, DecryptedFileMetadata};
 
 use crate::model::state::Config;
 use crate::repo::root_repo;
@@ -62,6 +62,14 @@ pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
 
 pub fn assert_repo_integrity(db: &Config) {
     integrity_service::test_repo_integrity(db).unwrap();
+}
+
+pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
+    let expected_paths = expected_paths.into_iter().map(|&s| String::from(root.decrypted_name.clone() + s)).collect::<Vec<String>>();
+    let actual_paths = crate::list_paths(db, None).unwrap();
+    if !slices_equal_ignore_order(&actual_paths, &expected_paths) {
+        assert!(false, "paths did not match expectation. expected={:?}; actual={:?}", expected_paths, actual_paths);
+    }
 }
 
 pub fn make_new_client(db: &Config) -> Config {
@@ -116,9 +124,13 @@ macro_rules! path {
     }};
 }
 
-pub fn create_account(db: &Config) -> Account {
+pub fn path(root: &DecryptedFileMetadata, path: &str) -> String {
+    String::from(root.decrypted_name.clone() + path)
+}
+
+pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
     let generated_account = generate_account();
-    crate::create_account(db, &generated_account.username, &generated_account.api_url).unwrap()
+    (crate::create_account(db, &generated_account.username, &generated_account.api_url).unwrap(), crate::get_root(db).unwrap())
 }
 
 pub fn test_config() -> Config {
