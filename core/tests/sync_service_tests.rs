@@ -1300,7 +1300,8 @@ mod sync_tests {
         let parent =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/")).unwrap();
         let document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document"))
+                .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
@@ -1329,7 +1330,8 @@ mod sync_tests {
         let parent =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/")).unwrap();
         let document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document"))
+                .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
@@ -1356,11 +1358,18 @@ mod sync_tests {
         let (_account, root) = test_utils::create_account(&db);
 
         let grandparent =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/")).unwrap();
-        let parent =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/")).unwrap();
-        let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/"))
+                .unwrap();
+        let parent = lockbook_core::create_file_at_path(
+            &db,
+            &test_utils::path(&root, "/grandparent/parent/"),
+        )
+        .unwrap();
+        let _document = lockbook_core::create_file_at_path(
+            &db,
+            &test_utils::path(&root, "/grandparent/parent/document"),
+        )
+        .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
@@ -1387,11 +1396,18 @@ mod sync_tests {
         let (_account, root) = test_utils::create_account(&db);
 
         let grandparent =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/")).unwrap();
-        let parent =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/")).unwrap();
-        let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/"))
+                .unwrap();
+        let parent = lockbook_core::create_file_at_path(
+            &db,
+            &test_utils::path(&root, "/grandparent/parent/"),
+        )
+        .unwrap();
+        let _document = lockbook_core::create_file_at_path(
+            &db,
+            &test_utils::path(&root, "/grandparent/parent/document"),
+        )
+        .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
@@ -1596,7 +1612,8 @@ mod sync_tests {
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document"))
+                .unwrap();
         lockbook_core::move_file(&db2, parent.id, parent2.id).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
@@ -1605,7 +1622,16 @@ mod sync_tests {
         lockbook_core::sync_all(&db2, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"]);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/parent2/",
+                "/parent2/parent/",
+                "/parent2/parent/document",
+            ],
+        );
         test_utils::assert_all_document_contents(&db, &root, &[("/parent2/parent/document", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -1626,7 +1652,8 @@ mod sync_tests {
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document"))
+                .unwrap();
         lockbook_core::move_file(&db2, parent.id, parent2.id).unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
@@ -1635,7 +1662,16 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"]);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/parent2/",
+                "/parent2/parent/",
+                "/parent2/parent/document",
+            ],
+        );
         test_utils::assert_all_document_contents(&db, &root, &[("/parent2/parent/document", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -1654,7 +1690,8 @@ mod sync_tests {
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document"))
+                .unwrap();
         lockbook_core::rename_file(&db2, parent.id, "parent2").unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
@@ -1682,7 +1719,8 @@ mod sync_tests {
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document"))
+                .unwrap();
         lockbook_core::rename_file(&db2, parent.id, "parent2").unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
@@ -1710,7 +1748,8 @@ mod sync_tests {
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document"))
+                .unwrap();
         lockbook_core::delete_file(&db2, folder.id).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
@@ -1738,7 +1777,8 @@ mod sync_tests {
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document"))
+                .unwrap();
         lockbook_core::delete_file(&db2, folder.id).unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
