@@ -3,6 +3,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::utils::maybe_find;
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -28,7 +29,7 @@ pub enum TestFileTreeError {
 
 pub fn test_file_tree_integrity<Fm: FileMetadata>(files: &[Fm]) -> Result<(), TestFileTreeError> {
     for file in files {
-        if files::maybe_find(files, file.parent()).is_none() {
+        if maybe_find(files, file.parent()).is_none() {
             return Err(TestFileTreeError::FileOrphaned(file.id()));
         }
     }

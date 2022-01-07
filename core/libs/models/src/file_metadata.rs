@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::account::Username;
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
+use crate::utils::maybe_find;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
@@ -52,6 +53,16 @@ pub struct EncryptedFileMetadata {
     pub deleted: bool,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
+}
+
+trait EncryptedFileMetadataExt {
+    fn find(&self, id: Uuid) -> Option<EncryptedFileMetadata>;
+}
+
+impl EncryptedFileMetadataExt for Vec<EncryptedFileMetadata> {
+    fn find(&self, id: Uuid) -> Option<EncryptedFileMetadata> {
+        maybe_find(&self, id)
+    }
 }
 
 impl FileMetadata for EncryptedFileMetadata {

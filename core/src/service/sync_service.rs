@@ -9,6 +9,7 @@ use lockbook_models::api::{
 };
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
+use lockbook_models::utils::maybe_find;
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 
 use crate::model::filename::DocumentType;
@@ -20,6 +21,7 @@ use crate::repo::account_repo;
 use crate::repo::last_updated_repo;
 use crate::service::{api_service, file_encryption_service, file_service};
 use crate::CoreError;
+use crate::pure_functions::files::maybe_find_mut;
 
 use super::file_compression_service;
 
@@ -71,7 +73,7 @@ fn calculate_work_from_updates(
     )?;
     for metadata in server_updates {
         // skip filtered changes
-        if files::maybe_find(&all_metadata, metadata.id).is_none() {
+        if maybe_find(&all_metadata, metadata.id).is_none() {
             continue;
         }
 
@@ -511,9 +513,9 @@ where
     let num_documents_to_pull = remote_metadata_changes
         .iter()
         .filter(|&f| {
-            let maybe_remote_metadatum = files::maybe_find(&remote_metadata, f.id);
-            let maybe_base_metadatum = files::maybe_find(&base_metadata, f.id);
-            let maybe_local_metadatum = files::maybe_find(&local_metadata, f.id);
+            let maybe_remote_metadatum = maybe_find(&remote_metadata, f.id);
+            let maybe_base_metadatum = maybe_find(&base_metadata, f.id);
+            let maybe_local_metadatum = maybe_find(&local_metadata, f.id);
             should_pull_document(
                 &maybe_base_metadatum,
                 &maybe_local_metadatum,
@@ -533,15 +535,15 @@ where
     // iterate changes
     for encrypted_remote_metadatum in remote_metadata_changes {
         // skip filtered changes
-        if files::maybe_find(&remote_metadata, encrypted_remote_metadatum.id).is_none() {
+        if maybe_find(&remote_metadata, encrypted_remote_metadatum.id).is_none() {
             continue;
         }
 
         // merge metadata
         let remote_metadatum = files::find(&remote_metadata, encrypted_remote_metadatum.id)?;
-        let maybe_base_metadatum = files::maybe_find(&base_metadata, encrypted_remote_metadatum.id);
+        let maybe_base_metadatum = maybe_find(&base_metadata, encrypted_remote_metadatum.id);
         let maybe_local_metadatum =
-            files::maybe_find(&local_metadata, encrypted_remote_metadatum.id);
+            maybe_find(&local_metadata, encrypted_remote_metadatum.id);
 
         let merged_metadatum = merge_maybe_metadata(
             maybe_base_metadatum.clone(),
@@ -600,9 +602,9 @@ where
 
     // deleted orphaned updates
     for orphan in remote_orphans {
-        if let Some(mut metadatum) = files::maybe_find(&base_metadata, orphan.id) {
+        if let Some(mut metadatum) = maybe_find(&base_metadata, orphan.id) {
             if let Some(mut metadatum_update) =
-                files::maybe_find_mut(&mut base_metadata_updates, orphan.id)
+                maybe_find_mut(&mut base_metadata_updates, orphan.id)
             {
                 metadatum_update.deleted = true;
             } else {
@@ -610,9 +612,9 @@ where
                 base_metadata_updates.push(metadatum);
             }
         }
-        if let Some(mut metadatum) = files::maybe_find(&local_metadata, orphan.id) {
+        if let Some(mut metadatum) = maybe_find(&local_metadata, orphan.id) {
             if let Some(mut metadatum_update) =
-                files::maybe_find_mut(&mut local_metadata_updates, orphan.id)
+                maybe_find_mut(&mut local_metadata_updates, orphan.id)
             {
                 metadatum_update.deleted = true;
             } else {
@@ -640,7 +642,7 @@ where
             file_service::maybe_get_metadata_state(config, self_descendant)?
         {
             if let Some(existing_update) =
-                files::maybe_find_mut(&mut local_metadata_updates, self_descendant)
+                maybe_find_mut(&mut local_metadata_updates, self_descendant)
             {
                 existing_update.parent = base.parent;
             }

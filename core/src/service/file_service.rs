@@ -12,6 +12,7 @@ use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
+use lockbook_models::utils::maybe_find;
 
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
@@ -25,6 +26,7 @@ use crate::service::file_encryption_service;
 use crate::service::{file_compression_service, file_service};
 use crate::CoreError;
 use crate::CoreError::RootNonexistent;
+use crate::pure_functions::files::{maybe_find_root, maybe_find_state};
 
 use crate::repo::root_repo;
 
@@ -54,7 +56,7 @@ pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, CoreError> {
     info!("getting root");
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
 
-    match files::maybe_find_root(&files) {
+    match maybe_find_root(&files) {
         None => Err(RootNonexistent),
         Some(file_metadata) => Ok(file_metadata),
     }
@@ -259,7 +261,7 @@ pub fn maybe_get_not_deleted_metadata(
     id: Uuid,
 ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
     let all_not_deleted_metadata = get_all_not_deleted_metadata(config, source)?;
-    Ok(files::maybe_find(&all_not_deleted_metadata, id))
+    Ok(maybe_find(&all_not_deleted_metadata, id))
 }
 
 pub fn get_metadata(
@@ -276,7 +278,7 @@ pub fn maybe_get_metadata(
     id: Uuid,
 ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
     let all_metadata = get_all_metadata(config, source)?;
-    Ok(files::maybe_find(&all_metadata, id))
+    Ok(maybe_find(&all_metadata, id))
 }
 
 pub fn get_all_not_deleted_metadata(
@@ -318,7 +320,7 @@ pub fn maybe_get_metadata_state(
     id: Uuid,
 ) -> Result<Option<RepoState<DecryptedFileMetadata>>, CoreError> {
     let all_metadata = get_all_metadata_state(config)?;
-    Ok(files::maybe_find_state(&all_metadata, id))
+    Ok(maybe_find_state(&all_metadata, id))
 }
 
 pub fn get_all_metadata_state(
@@ -349,7 +351,7 @@ pub fn get_all_metadata_state(
         .filter(|&b| !local.iter().any(|l| l.id == b.id))
         .map(|b| RepoState::Unmodified(b.clone()));
     let modified = base.iter().filter_map(|b| {
-        files::maybe_find(&local, b.id).map(|l| RepoState::Modified {
+        maybe_find(&local, b.id).map(|l| RepoState::Modified {
             base: b.clone(),
             local: l,
         })
@@ -386,7 +388,7 @@ pub fn get_all_metadata_with_encrypted_changes(
     let mut staged_non_orphans = Vec::new();
     let mut encrypted_orphans = Vec::new();
     for f in staged {
-        if files::maybe_find(&non_orphans, f.id).is_some() {
+        if maybe_find(&non_orphans, f.id).is_some() {
             // only decrypt non-orphans
             staged_non_orphans.push(f)
         } else {
@@ -453,7 +455,7 @@ pub fn maybe_get_not_deleted_document(
     metadata: &[DecryptedFileMetadata],
     id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
-    if let Some(metadata) = files::maybe_find(&files::filter_not_deleted(metadata)?, id) {
+    if let Some(metadata) = maybe_find(&files::filter_not_deleted(metadata)?, id) {
         maybe_get_document(config, source, &metadata)
     } else {
         Ok(None)
@@ -626,7 +628,7 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
     let deleted_local_metadata = files::filter_deleted(&all_local_metadata)?;
     let deleted_both_metadata = deleted_base_metadata
         .into_iter()
-        .filter(|f| files::maybe_find(&deleted_local_metadata, f.id).is_some())
+        .filter(|f| maybe_find(&deleted_local_metadata, f.id).is_some())
         .collect::<Vec<DecryptedFileMetadata>>();
 
     // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
@@ -637,7 +639,7 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
         .collect::<HashSet<Uuid>>();
     let not_deleted_either_ids = all_ids
         .into_iter()
-        .filter(|&id| files::maybe_find(&deleted_both_metadata, id).is_none())
+        .filter(|&id| maybe_find(&deleted_both_metadata, id).is_none())
         .collect::<HashSet<Uuid>>();
     let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
         .iter()

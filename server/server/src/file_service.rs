@@ -1,10 +1,10 @@
-use crate::file_index_repo::CheckCyclesError;
-use crate::file_index_repo::UpsertFileMetadataError;
+
+
 use crate::keys::{file, owned_files, size};
-use crate::RequestContext;
+use crate::{keys, RequestContext};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_content_client, ServerError};
-use crate::{file_index_repo, keys};
+
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
@@ -16,130 +16,26 @@ pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
 ) -> Result<(), ServerError<FileMetadataUpsertsError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let mut transaction = match server_state.index_db_client.begin().await {
-        Ok(t) => t,
-        Err(e) => {
-            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
-        }
-    };
+    let mut con = server_state.index_db2_connection.get().await?;
+    let tx = tx!(&mut con, pipe, &[owned_files(&context.public_key)], {
+        let files: Vec<Uuid> = con
+        .maybe_json_get(owned_files(&context.public_key))
+        .await?
+        .ok_or(Abort(ClientError(FileMetadataUpsertsError::UserNotFound)))?;
+        let keys: Vec<String> = files.into_iter().map(keys::file).collect();
+        let mut files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
 
-    for upsert in &request.updates {
-        if let Some((old_parent, _)) = upsert.old_parent_and_name {
-            // prevent all updates to root
-            if upsert.id == old_parent {
-                return Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired));
-                // todo: better error
-            }
-            // prevent turning existing folder into root
-            if upsert.id == upsert.new_parent {
-                return Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired));
-                // todo: better error
-            }
+        for change in request.updates {
+            if change.id 
         }
 
-        let index_result =
-            file_index_repo::upsert_file_metadata(&mut transaction, &context.public_key, upsert)
-                .await;
-        match index_result {
-            Ok(new_version) => {
-                // create empty files for new document
-                if upsert.old_parent_and_name.is_none() && upsert.file_type == FileType::Document {
-                    let files_result = file_content_client::create_empty(
-                        &server_state.files_db_client,
-                        upsert.id,
-                        new_version,
-                    )
-                    .await;
-                    if let Err(e) = files_result {
-                        return Err(InternalError(format!("Cannot create file in S3: {:?}", e)));
-                    }
-                }
-            }
-            Err(UpsertFileMetadataError::FailedPreconditions) => {
-                return Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired))
-            }
-            Err(e) => {
-                return Err(InternalError(format!("Cannot upsert metadata: {:?}", e)));
-            }
+        for the_file in files {
+            pipe.json_set(file(the_file.id), the_file)?;
         }
-    }
-
-    let cycles_result = file_index_repo::check_cycles(&mut transaction, &context.public_key).await;
-    match cycles_result {
-        Ok(()) => {}
-        Err(CheckCyclesError::CyclesDetected) => {
-            return Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired))
-        }
-        Err(e) => {
-            return Err(InternalError(format!("Cannot check cycles: {:?}", e)));
-        }
-    }
-
-    let deletions_result =
-        file_index_repo::apply_recursive_deletions(&mut transaction, &context.public_key).await;
-    let deleted_file_ids = match deletions_result {
-        Ok(ids) => ids,
-        Err(e) => {
-            return Err(InternalError(format!(
-                "Cannot apply recursive deletions: {:?}",
-                e
-            )));
-        }
-    };
-
-    match transaction.commit().await {
-        Ok(()) => Ok(()),
-        Err(sqlx::Error::Database(db_err)) => match db_err.constraint() {
-            Some("uk_files_name_parent") => {
-                Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired))
-            }
-            Some("fk_files_parent_files_id") => {
-                Err(ClientError(FileMetadataUpsertsError::GetUpdatesRequired))
-            }
-            _ => Err(InternalError(format!(
-                "Cannot commit transaction due to constraint violation: {:?}",
-                db_err
-            ))),
-        },
-        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
-    }?;
-
-    let mut transaction = match server_state.index_db_client.begin().await {
-        Ok(t) => t,
-        Err(e) => {
-            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
-        }
-    };
-
-    let files = file_index_repo::get_files(&mut transaction, &context.public_key)
-        .await
-        .map_err(|e| InternalError(format!("Cannot get files: {:?}", e)))?;
-    for deleted_id in request
-        .updates
-        .iter()
-        .filter(|upsert| upsert.new_deleted)
-        .map(|upsert| upsert.id)
-        .chain(deleted_file_ids.into_iter())
-    {
-        let content_version = files
-            .iter()
-            .find(|&f| f.id == deleted_id)
-            .map_or(0, |f| f.content_version);
-        let delete_result =
-            file_content_client::delete(&server_state.files_db_client, deleted_id, content_version)
-                .await;
-        if delete_result.is_err() {
-            return Err(InternalError(format!(
-                "Cannot delete file in S3: {:?}",
-                delete_result
-            )));
-        };
-    }
-
-    match transaction.commit().await {
-        Ok(()) => Ok(()),
-        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
-    }
+        Ok(&mut pipe)
+    });
+    return_if_error!(tx);
+    Err(internal!(""))
 }
 
 /// Changes the content and size of a document

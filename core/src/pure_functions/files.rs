@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use lockbook_crypto::symkey;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::utils::maybe_find;
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
@@ -285,10 +286,6 @@ pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), Co
 
 pub fn find<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<Fm, CoreError> {
     maybe_find(files, target_id).ok_or(CoreError::FileNonexistent)
-}
-
-pub fn maybe_find<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Option<Fm> {
-    files.iter().find(|f| f.id() == target_id).cloned()
 }
 
 pub fn find_mut<Fm: FileMetadata>(files: &mut [Fm], target_id: Uuid) -> Result<&mut Fm, CoreError> {
