@@ -1,11 +1,14 @@
-use crate::file_index_repo;
 use crate::file_index_repo::CheckCyclesError;
 use crate::file_index_repo::UpsertFileMetadataError;
+use crate::keys::owned_files;
 use crate::RequestContext;
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_content_client, ServerError};
+use crate::{file_index_repo, keys};
 use lockbook_models::api::*;
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use redis_utils::converters::JsonGet;
+use uuid::Uuid;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
@@ -232,25 +235,19 @@ pub async fn get_document(
 pub async fn get_updates(
     context: RequestContext<'_, GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
-    let (request, server_state) = (&context.request, context.server_state);
-    let mut transaction = match server_state.index_db_client.begin().await {
-        Ok(t) => t,
-        Err(e) => {
-            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
-        }
-    };
-    let result = file_index_repo::get_updates(
-        &mut transaction,
-        &context.public_key,
-        request.since_metadata_version,
-    )
-    .await;
-    let updates =
-        result.map_err(|e| InternalError(format!("Cannot get updates from Postgres: {:?}", e)))?;
-    match transaction.commit().await {
-        Ok(()) => Ok(GetUpdatesResponse {
-            file_metadata: updates,
-        }),
-        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
-    }
+    let (request, _server_state) = (&context.request, context.server_state);
+    let mut con = context.server_state.index_db2_connection.get().await?;
+    let files: Vec<Uuid> = con
+        .maybe_json_get(owned_files(&context.public_key))
+        .await?
+        .ok_or(ClientError(GetUpdatesError::UserNotFound))?;
+    let keys: Vec<String> = files.into_iter().map(keys::file).collect();
+    let files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
+
+    let file_metadata = files
+        .into_iter()
+        .filter(|meta| meta.metadata_version > request.since_metadata_version)
+        .collect();
+
+    Ok(GetUpdatesResponse { file_metadata })
 }

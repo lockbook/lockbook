@@ -1,8 +1,8 @@
 use crate::config::IndexDbConfig;
 use base64;
 use libsecp256k1::PublicKey;
-use lockbook_models::api::FileUsage;
-use lockbook_models::crypto::{EncryptedUserAccessKey, SecretFileName, UserAccessInfo};
+
+use lockbook_models::crypto::{SecretFileName, UserAccessInfo};
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff, FileType};
 use log::debug;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -402,79 +402,6 @@ WHERE
         },
         folder_access_keys: serde_json::from_str(&row.parent_access_key)
         .map_err(GetFilesError::Deserialize)?,
-    }))
-    .collect()
-}
-
-#[derive(Debug)]
-pub enum GetUpdatesError {
-    Postgres(sqlx::Error),
-    Serialize(serde_json::Error),
-    Deserialize(serde_json::Error),
-    UuidDeserialize(uuid::Error),
-    HmacDeserialize(DeserializeHmacError),
-}
-
-pub async fn get_updates(
-    transaction: &mut Transaction<'_, Postgres>,
-    public_key: &PublicKey,
-    metadata_version: u64,
-) -> Result<Vec<EncryptedFileMetadata>, GetUpdatesError> {
-    sqlx::query!(
-        r#"
-SELECT
-    files.*,
-    user_access_keys.encrypted_key AS "encrypted_key?",
-    accounts.public_key,
-    accounts.name AS username
-FROM files
-JOIN accounts ON files.owner = accounts.public_key
-LEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee
-WHERE
-    accounts.public_key = $1 AND
-    metadata_version > $2;
-        "#,
-        &serde_json::to_string(public_key).map_err(GetUpdatesError::Serialize)?,
-        &(metadata_version as i64),
-    )
-    .fetch_all(transaction)
-    .await
-    .map_err(GetUpdatesError::Postgres)?
-    .iter()
-    .map(|row| Ok(EncryptedFileMetadata {
-        id: Uuid::parse_str(&row.id).map_err(GetUpdatesError::UuidDeserialize)?,
-        file_type: if row.is_folder { FileType::Folder } else { FileType::Document },
-        parent: Uuid::parse_str(&row.parent).map_err(GetUpdatesError::UuidDeserialize)?,
-        name: SecretFileName{
-            encrypted_value: serde_json::from_str(&row.name_encrypted).map_err(GetUpdatesError::Deserialize)?,
-            hmac: deserialize_hmac(&row.name_hmac).map_err(GetUpdatesError::HmacDeserialize)?,
-        },
-        owner: row.username.clone(),
-        metadata_version: row.metadata_version as u64,
-        content_version: row.content_version as u64,
-        deleted: row.deleted,
-        user_access_keys: {
-            if let Some(encrypted_key) = &row.encrypted_key {
-                    IntoIter::new(
-                        [
-                            (
-                                row.username.clone(),
-                                UserAccessInfo {
-                                    username: row.username.clone(),
-                                    encrypted_by: serde_json::from_str(&row.public_key)
-                                        .map_err(GetUpdatesError::Deserialize)?,
-                                    access_key: serde_json::from_str(encrypted_key)
-                                        .map_err(GetUpdatesError::Deserialize)?,
-                                }
-                            )
-                        ]
-                    ).collect()
-            } else {
-                HashMap::new()
-            }
-        },
-        folder_access_keys: serde_json::from_str(&row.parent_access_key)
-        .map_err(GetUpdatesError::Deserialize)?,
     }))
     .collect()
 }

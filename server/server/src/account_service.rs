@@ -1,5 +1,5 @@
 use crate::utils::username_is_valid;
-use crate::{FREE_TIER, keys, pipe, RequestContext, ServerError};
+use crate::{keys, pipe, RequestContext, ServerError, FREE_TIER};
 use deadpool_redis::redis::{AsyncCommands, Pipeline};
 use lockbook_crypto::clock_service::get_time;
 use log::error;
@@ -8,12 +8,14 @@ use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::{tx, TxError};
 use uuid::Uuid;
 
-use crate::keys::{file, meta, owned_files, public_key, username, data_cap};
+use crate::keys::{data_cap, file, meta, owned_files, public_key, username};
 use crate::ServerError::ClientError;
 use lockbook_models::api::GetUsageError::UserNotFound;
 use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
-use lockbook_models::api::{FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse};
-use lockbook_models::file_metadata::{FileMetadata};
+use lockbook_models::api::{
+    FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError,
+    GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
+};
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -109,8 +111,5 @@ pub async fn get_usage(
 
     let usages: Vec<FileUsage> = con.json_mget(keys).await?;
 
-    Ok(GetUsageResponse {
-        usages,
-        cap
-    })
+    Ok(GetUsageResponse { usages, cap })
 }
