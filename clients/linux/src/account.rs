@@ -49,10 +49,6 @@ impl AccountScreen {
         }
     }
 
-    pub fn add_file(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
-        self.sidebar.tree.add(b, f)
-    }
-
     pub fn show(&self, mode: &EditMode) {
         match mode {
             EditMode::PlainText { meta, content } => {
@@ -128,7 +124,7 @@ pub struct Sidebar {
 impl Sidebar {
     fn new(m: &Messenger, c: &Arc<LbCore>, s: &Settings) -> Self {
         let tree = FileTree::new(m, c, &s.hidden_tree_cols);
-        let scroll = gui_util::scrollable(tree.widget());
+        let scroll = gui_util::scrollable(&tree.tree);
 
         let sync = Rc::new(StatusPanel::new(m));
 
