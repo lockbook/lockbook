@@ -134,7 +134,8 @@ mod sync_tests {
         let folder =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
         let document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document"))
+                .unwrap();
         lockbook_core::delete_file(&db, folder.id).unwrap();
 
         test_utils::assert_repo_integrity(&db);
@@ -279,7 +280,8 @@ mod sync_tests {
         let folder =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document"))
+                .unwrap();
         lockbook_core::delete_file(&db, folder.id).unwrap();
 
         test_utils::sync(&db);
@@ -461,7 +463,8 @@ mod sync_tests {
         let folder =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document"))
+                .unwrap();
 
         test_utils::sync(&db);
 
@@ -620,7 +623,8 @@ mod sync_tests {
         let folder =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document"))
+                .unwrap();
         lockbook_core::delete_file(&db, folder.id).unwrap();
 
         test_utils::sync(&db);
@@ -748,7 +752,7 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db2);
         test_utils::assert_dbs_eq(&db, &db2);
-        test_utils::assert_all_paths(&db2, &root, &["/","/document2"]);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/document2"]);
         test_utils::assert_all_document_contents(&db2, &root, &[("/document2", b"")]);
         test_utils::assert_local_work_ids(&db2, &[]);
         test_utils::assert_server_work_ids(&db2, &[]);
@@ -782,7 +786,8 @@ mod sync_tests {
         let folder =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
         let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document"))
+                .unwrap();
         lockbook_core::delete_file(&db, folder.id).unwrap();
 
         test_utils::sync(&db);
@@ -958,7 +963,8 @@ mod sync_tests {
         let folder =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
         let document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document")).unwrap();
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/document"))
+                .unwrap();
 
         test_utils::sync(&db);
         let db2 = test_utils::make_and_sync_new_client(&db);
@@ -1201,13 +1207,21 @@ mod sync_tests {
         test_utils::sync(&db2);
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder2/", "/folder/document"]);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &["/", "/folder/", "/folder2/", "/folder/document"],
+        );
         test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
 
         test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &["/", "/folder/", "/folder2/", "/folder/document"]);
+        test_utils::assert_all_paths(
+            &db2,
+            &root,
+            &["/", "/folder/", "/folder2/", "/folder/document"],
+        );
         test_utils::assert_all_document_contents(&db2, &root, &[("/folder/document", b"")]);
         test_utils::assert_local_work_ids(&db2, &[]);
         test_utils::assert_server_work_ids(&db2, &[]);

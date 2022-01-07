@@ -65,16 +65,15 @@ pub fn assert_repo_integrity(db: &Config) {
 }
 
 pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
-    if expected_paths.iter().any(|&path| !path.starts_with("/")) {
-        assert!(
-            false,
+    if expected_paths.iter().any(|&path| !path.starts_with('/')) {
+        panic!(
             "improper call to test_utils::assert_all_paths; all paths in expected_paths must begin with '/'. expected_paths={:?}",
             expected_paths
         );
     }
     let expected_paths = expected_paths
-        .into_iter()
-        .map(|&s| String::from(root.decrypted_name.clone() + s))
+        .iter()
+        .map(|&s| root.decrypted_name.clone() + s)
         .collect::<Vec<String>>();
     let actual_paths = crate::list_paths(db, None).unwrap();
     if !slices_equal_ignore_order(&actual_paths, &expected_paths) {
@@ -92,7 +91,7 @@ pub fn assert_all_document_contents(
     expected_contents_by_path: &[(&str, &[u8])],
 ) {
     let expected_contents_by_path = expected_contents_by_path
-        .into_iter()
+        .iter()
         .map(|&(path, contents)| {
             (
                 String::from(root.decrypted_name.clone() + path),
@@ -102,7 +101,7 @@ pub fn assert_all_document_contents(
         .collect::<Vec<(String, Vec<u8>)>>();
     let actual_content_by_path = crate::list_paths(db, Some(path_service::Filter::DocumentsOnly))
         .unwrap()
-        .into_iter()
+        .iter()
         .map(|path| {
             (
                 path.clone(),
@@ -111,8 +110,7 @@ pub fn assert_all_document_contents(
         })
         .collect::<Vec<(String, Vec<u8>)>>();
     if !slices_equal_ignore_order(&actual_content_by_path, &expected_contents_by_path) {
-        assert!(
-            false,
+        panic!(
             "document contents did not match expectation. expected={:?}; actual={:?}", // todo: print as utf-8 (depending on extension) for easier debugging
             expected_contents_by_path, actual_content_by_path
         );
@@ -172,7 +170,7 @@ macro_rules! path {
 }
 
 pub fn path(root: &DecryptedFileMetadata, path: &str) -> String {
-    String::from(root.decrypted_name.clone() + path)
+    root.decrypted_name.clone() + path
 }
 
 pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
