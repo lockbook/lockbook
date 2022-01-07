@@ -94,6 +94,22 @@ mod sync_tests {
         test_utils::assert_server_work_ids(&db, &[]);
     }
 
+    #[test]
+    fn unsynced_device_rename() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+        test_utils::assert_local_work_ids(&db, &[document.id]);
+        test_utils::assert_server_work_ids(&db, &[]);
+    }
+
     /*  ---------------------------------------------------------------------------------------------------------------
      *  Tests that operate on one device and sync
      *  (work should be none)
@@ -185,6 +201,24 @@ mod sync_tests {
         test_utils::assert_server_work_ids(&db, &[]);
     }
 
+    #[test]
+    fn synced_device_rename() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
+
+        test_utils::sync(&db);
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+    }
+
     /*  ---------------------------------------------------------------------------------------------------------------
      *  Tests that operate on one device after syncing
      *  ------------------------------------------------------------------------------------------------------------ */
@@ -263,6 +297,25 @@ mod sync_tests {
         test_utils::assert_repo_integrity(&db);
         test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
         test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
+        test_utils::assert_local_work_ids(&db, &[document.id]);
+        test_utils::assert_server_work_ids(&db, &[]);
+    }
+
+    #[test]
+    fn unsynced_change_synced_device_rename() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        test_utils::sync(&db);
+
+        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
         test_utils::assert_local_work_ids(&db, &[document.id]);
         test_utils::assert_server_work_ids(&db, &[]);
     }
@@ -367,6 +420,25 @@ mod sync_tests {
         test_utils::assert_server_work_ids(&db2, &[root.id, folder.id, document.id]);
     }
 
+    #[test]
+    fn new_unsynced_device_rename() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_new_client(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &[]);
+        test_utils::assert_all_document_contents(&db2, &root, &[]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[root.id, document.id]);
+    }
+
     /*  ---------------------------------------------------------------------------------------------------------------
      *  Tests that operate on one device, sync it, then create and sync a new device
      *  (work should be none, devices dbs should be equal)
@@ -464,6 +536,26 @@ mod sync_tests {
         test_utils::assert_dbs_eq(&db, &db2);
         test_utils::assert_all_paths(&db2, &root, &["/", "/folder/", "/folder/document"]);
         test_utils::assert_all_document_contents(&db2, &root, &[("/folder/document", b"")]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
+    #[test]
+    fn new_synced_device_rename() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_all_paths(&db2, &root, &["/","/document2"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[("/document2", b"")]);
         test_utils::assert_local_work_ids(&db2, &[]);
         test_utils::assert_server_work_ids(&db2, &[]);
     }
@@ -573,6 +665,28 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db2);
         test_utils::assert_all_paths(&db2, &root, &["/", "/folder/", "/document"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[("/document", b"")]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[document.id]);
+    }
+
+    #[test]
+    fn unsynced_change_new_synced_device_rename() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
+
+        test_utils::sync(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/document"]);
         test_utils::assert_all_document_contents(&db2, &root, &[("/document", b"")]);
         test_utils::assert_local_work_ids(&db2, &[]);
         test_utils::assert_server_work_ids(&db2, &[document.id]);
@@ -690,6 +804,29 @@ mod sync_tests {
         test_utils::assert_repo_integrity(&db2);
         test_utils::assert_all_paths(&db2, &root, &["/", "/folder/", "/folder/document"]);
         test_utils::assert_all_document_contents(&db2, &root, &[("/folder/document", b"")]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
+    #[test]
+    fn synced_change_new_synced_device_rename() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
+
+        test_utils::sync(&db);
+        test_utils::sync(&db2);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/document2"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[("/document2", b"")]);
         test_utils::assert_local_work_ids(&db2, &[]);
         test_utils::assert_server_work_ids(&db2, &[]);
     }
