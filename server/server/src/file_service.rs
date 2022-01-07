@@ -1,13 +1,15 @@
 use crate::file_index_repo::CheckCyclesError;
 use crate::file_index_repo::UpsertFileMetadataError;
-use crate::keys::owned_files;
+use crate::keys::{file, owned_files, size};
 use crate::RequestContext;
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_content_client, ServerError};
 use crate::{file_index_repo, keys};
+use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
-use redis_utils::converters::JsonGet;
+use redis_utils::converters::{JsonGet, JsonSet};
+use redis_utils::tx;
 use uuid::Uuid;
 
 pub async fn upsert_file_metadata(
@@ -140,77 +142,85 @@ pub async fn upsert_file_metadata(
     }
 }
 
+/// Changes the content and size of a document
+/// Grabs the file out of redis and does some preliminary checks regarding ownership and version
+/// TODO After #949 do actual ownership checks
+/// TODO After billing, do actual space checks
 pub async fn change_document_content(
     context: RequestContext<'_, ChangeDocumentContentRequest>,
 ) -> Result<ChangeDocumentContentResponse, ServerError<ChangeDocumentContentError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let mut transaction = match server_state.index_db_client.begin().await {
-        Ok(t) => t,
-        Err(e) => {
-            return Err(InternalError(format!("Cannot begin transaction: {:?}", e)));
-        }
-    };
+    let mut con = server_state.index_db2_connection.get().await?;
 
-    let result = file_index_repo::change_document_version_and_size(
-        &mut transaction,
-        request.id,
-        request.new_content.value.len() as u64,
-        request.old_metadata_version,
-    )
-    .await;
+    let watched_keys = &[file(request.id), size(request.id)];
+    let mut new_version = 0;
+    let new_size = request.new_content.value.len() as u64;
 
-    let (old_content_version, new_version) = result.map_err(|e| match e {
-        file_index_repo::ChangeDocumentVersionAndSizeError::DoesNotExist => {
-            ClientError(ChangeDocumentContentError::DocumentNotFound)
-        }
-        file_index_repo::ChangeDocumentVersionAndSizeError::IncorrectOldVersion => {
-            ClientError(ChangeDocumentContentError::EditConflict)
-        }
-        file_index_repo::ChangeDocumentVersionAndSizeError::Deleted => {
-            ClientError(ChangeDocumentContentError::DocumentDeleted)
-        }
-        file_index_repo::ChangeDocumentVersionAndSizeError::Postgres(_)
-        | file_index_repo::ChangeDocumentVersionAndSizeError::Deserialize(_) => {
-            InternalError(format!(
-                "Cannot change document content version in Postgres: {:?}",
-                e
-            ))
-        }
-    })?;
+    let tx = tx!(&mut con, pipe, watched_keys, {
+        new_version = get_time().0 as u64;
+        let mut meta: EncryptedFileMetadata =
+            con.maybe_json_get(file(request.id))
+                .await?
+                .ok_or(Abort(ClientError(
+                    ChangeDocumentContentError::DocumentNotFound,
+                )))?;
 
-    let create_result = file_content_client::create(
+        if meta.deleted {
+            return Err(Abort(ClientError(
+                ChangeDocumentContentError::DocumentDeleted,
+            )));
+        }
+
+        if !meta.owner.is_empty() {
+            return Err(Abort(ClientError(
+                ChangeDocumentContentError::NotPermissioned,
+            )));
+        }
+
+        if request.old_metadata_version != meta.content_version {
+            return Err(Abort(ClientError(ChangeDocumentContentError::EditConflict)));
+        }
+
+        meta.content_version = new_version;
+
+        pipe.set(size(request.id), new_size)
+            .json_set(file(request.id), meta)
+    });
+    return_if_error!(tx);
+
+    file_content_client::create(
         &server_state.files_db_client,
         request.id,
         new_version,
         &request.new_content,
     )
-    .await;
-    if create_result.is_err() {
-        return Err(InternalError(format!(
-            "Cannot create file in S3: {:?}",
-            create_result
-        )));
-    };
-
-    let delete_result = file_content_client::delete(
+    .await
+    .map_err(|err| {
+        internal!(
+            "Cannot create file: {}:{}:{} in S3: {:?}",
+            request.id,
+            request.old_metadata_version,
+            new_version,
+            err
+        )
+    })?;
+    file_content_client::delete(
         &server_state.files_db_client,
         request.id,
-        old_content_version,
+        request.old_metadata_version,
     )
-    .await;
-    if delete_result.is_err() {
-        return Err(InternalError(format!(
-            "Cannot delete file in S3: {:?}",
-            delete_result
-        )));
-    };
+    .await
+    .map_err(|err| {
+        internal!(
+            "Cannot delete file: {}:{}:{} in S3: {:?}",
+            request.id,
+            request.old_metadata_version,
+            new_version,
+            err
+        )
+    })?;
 
-    match transaction.commit().await {
-        Ok(()) => Ok(ChangeDocumentContentResponse {
-            new_content_version: new_version,
-        }),
-        Err(e) => Err(InternalError(format!("Cannot commit transaction: {:?}", e))),
-    }
+    Err(internal!(""))
 }
 
 pub async fn get_document(

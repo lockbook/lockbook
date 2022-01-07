@@ -1,6 +1,6 @@
 extern crate log;
 
-use deadpool_redis::redis::{pipe, RedisError};
+use deadpool_redis::redis::RedisError;
 
 use deadpool_redis::PoolError;
 use std::env;
@@ -62,11 +62,11 @@ macro_rules! return_if_error {
     ($tx:expr) => {
         match $tx {
             Ok(success) => success,
-            Err(TxError::Abort(val)) => return Err(val),
-            Err(TxError::Serialization(t)) => {
+            Err(redis_utils::TxError::Abort(val)) => return Err(val),
+            Err(redis_utils::TxError::Serialization(t)) => {
                 return Err(internal!("Failed to serialize value: {:?}", t))
             }
-            Err(TxError::DbError(t)) => return Err(internal!("Redis error: {:?}", t)),
+            Err(redis_utils::TxError::DbError(t)) => return Err(internal!("Redis error: {:?}", t)),
         }
     };
 }

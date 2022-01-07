@@ -84,12 +84,10 @@ pub struct ChangeDocumentContentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum ChangeDocumentContentError {
-    InvalidUsername,
-    NotPermissioned,
-    UserNotFound,
     DocumentNotFound,
-    EditConflict,
     DocumentDeleted,
+    NotPermissioned,
+    EditConflict,
 }
 
 impl Request for ChangeDocumentContentRequest {
@@ -191,7 +189,6 @@ pub struct GetUpdatesResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetUpdatesError {
     UserNotFound,
-    InvalidUsername,
 }
 
 impl Request for GetUpdatesRequest {

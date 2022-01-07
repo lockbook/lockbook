@@ -35,6 +35,7 @@ libsecp256k1 = "0.7.0"
 prometheus = "0.13.0"
 lazy_static = "1.4.0"
 deadpool-redis = "0.10.1"
+redis = { version = "0.21", default-features = false, features = ["tokio-comp"] }
 redis_utils = { path = "../../../../redis_utils"}
 
 [build-dependencies]

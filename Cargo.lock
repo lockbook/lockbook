@@ -2205,6 +2205,7 @@ dependencies = [
  "num_cpus",
  "pagerduty-rs",
  "prometheus",
+ "redis",
  "redis_utils",
  "rust-s3",
  "serde",

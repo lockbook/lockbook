@@ -1,11 +1,11 @@
 use crate::utils::username_is_valid;
-use crate::{keys, pipe, RequestContext, ServerError, FREE_TIER};
-use deadpool_redis::redis::{AsyncCommands, Pipeline};
+use crate::{keys, RequestContext, ServerError, FREE_TIER};
+use deadpool_redis::redis::AsyncCommands;
 use lockbook_crypto::clock_service::get_time;
 use log::error;
 use redis_utils::converters::{JsonGet, JsonSet};
 
-use redis_utils::{tx, TxError};
+use redis_utils::tx;
 use uuid::Uuid;
 
 use crate::keys::{data_cap, file, meta, owned_files, public_key, username};
