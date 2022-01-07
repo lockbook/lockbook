@@ -583,6 +583,117 @@ mod sync_tests {
      *  (work should be none, devices dbs should be equal)
      *  ------------------------------------------------------------------------------------------------------------ */
 
+    #[test]
+    fn synced_change_new_synced_device_unmodified() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+        test_utils::sync(&db);
+        test_utils::sync(&db2);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
+    #[test]
+    fn synced_change_new_synced_device_new_file() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        test_utils::sync(&db);
+        test_utils::sync(&db2);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/document"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[("/document", b"")]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
+    #[test]
+    fn synced_change_new_synced_device_new_files() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _d =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/d")).unwrap();
+
+        test_utils::sync(&db);
+        test_utils::sync(&db2);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[("/a/b/c/d", b"")]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
+    #[test]
+    fn synced_change_new_synced_device_edited_document() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::write_document(&db, document.id, b"document content").unwrap();
+
+        test_utils::sync(&db);
+        test_utils::sync(&db2);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/document"]);
+        test_utils::assert_all_document_contents(
+            &db2,
+            &root,
+            &[("/document", b"document content")],
+        );
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
+    #[test]
+    fn synced_change_new_synced_device_move() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
+
+        test_utils::sync(&db);
+        test_utils::sync(&db2);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/folder/", "/folder/document"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[("/folder/document", b"")]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
     /*  ---------------------------------------------------------------------------------------------------------------
      *  Uncategorized tests
      *  ------------------------------------------------------------------------------------------------------------ */

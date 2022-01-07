@@ -65,6 +65,13 @@ pub fn assert_repo_integrity(db: &Config) {
 }
 
 pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
+    if expected_paths.iter().any(|&path| !path.starts_with("/")) {
+        assert!(
+            false,
+            "improper call to test_utils::assert_all_paths; all paths in expected_paths must begin with '/'. expected_paths={:?}",
+            expected_paths
+        );
+    }
     let expected_paths = expected_paths
         .into_iter()
         .map(|&s| String::from(root.decrypted_name.clone() + s))
