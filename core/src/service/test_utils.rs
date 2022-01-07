@@ -19,7 +19,6 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadat
 use crate::model::state::Config;
 use crate::repo::root_repo;
 use crate::repo::{account_repo, db_version_repo};
-use crate::service::sync_service::SyncProgress;
 use crate::service::{file_service, integrity_service, path_service, sync_service};
 
 #[macro_export]
@@ -126,16 +125,8 @@ pub fn make_new_client(db: &Config) -> Config {
 pub fn make_and_sync_new_client(db: &Config) -> Config {
     let new_client = test_config();
     crate::import_account(&new_client, &crate::export_account(db).unwrap()).unwrap();
-    sync(&new_client);
+    crate::sync_all(&new_client, None).unwrap();
     new_client
-}
-
-pub fn sync(db: &Config) {
-    sync_service::sync(db, None).unwrap()
-}
-
-pub fn sync_with_progress(db: &Config, f: Box<dyn Fn(SyncProgress)>) {
-    sync_service::sync(db, Some(f)).unwrap()
 }
 
 #[macro_export]
