@@ -7,12 +7,15 @@ mod sync_tests {
     use lockbook_core::assert_dirty_ids; // todo: remove
     use lockbook_core::model::repo::RepoSource;
     use lockbook_core::pure_functions::files;
-    use lockbook_core::repo::{metadata_repo, root_repo};
+    use lockbook_core::repo::metadata_repo; // todo: remove?
     use lockbook_core::service::{file_service, path_service, sync_service, test_utils};
-    use lockbook_models::work_unit::WorkUnit;
+
+    /*  ---------------------------------------------------------------------------------------------------------------
+     *  Tests that operate on one device without syncing
+     *  ------------------------------------------------------------------------------------------------------------ */
 
     #[test]
-    fn new_account() {
+    fn unsynced_device_unmodified() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -24,51 +27,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn sync_new_account() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        test_utils::sync(&db);
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
-        test_utils::assert_local_work_ids(&db, &[]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn new_device() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        test_utils::sync(&db);
-        let db2 = test_utils::make_new_client(&db);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &[]);
-        test_utils::assert_all_document_contents(&db2, &root, &[]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[root_repo::get(&db).unwrap()]);
-    }
-
-    #[test]
-    fn sync_new_device() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        test_utils::sync(&db);
-        let db2 = test_utils::make_and_sync_new_client(&db);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &["/"]);
-        test_utils::assert_all_document_contents(&db2, &root, &[]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[]);
-    }
-
-    #[test]
-    fn new_file() {
+    fn unsynced_device_new_file() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -83,57 +42,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn sync_new_file() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-        test_utils::sync(&db);
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-        test_utils::assert_local_work_ids(&db, &[]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn sync_new_file_new_device() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-        test_utils::sync(&db);
-        let db2 = test_utils::make_new_client(&db);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &[]);
-        test_utils::assert_all_document_contents(&db2, &root, &[]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[root_repo::get(&db).unwrap(), document.id]);
-    }
-
-    #[test]
-    fn sync_new_file_to_new_device() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-        test_utils::sync(&db);
-        let db2 = test_utils::make_and_sync_new_client(&db);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &["/", "/document"]);
-        test_utils::assert_all_document_contents(&db2, &root, &[("/document", b"")]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[]);
-    }
-
-    #[test]
-    fn new_files() {
+    fn unsynced_device_new_files() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -152,64 +61,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn sync_new_files() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let _d =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/d")).unwrap();
-        test_utils::sync(&db);
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
-        test_utils::assert_local_work_ids(&db, &[]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn sync_new_files_new_device() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/")).unwrap();
-        let b = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/")).unwrap();
-        let c =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/")).unwrap();
-        let d =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/d")).unwrap();
-        test_utils::sync(&db);
-        let db2 = test_utils::make_new_client(&db);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &[]);
-        test_utils::assert_all_document_contents(&db2, &root, &[]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(
-            &db2,
-            &[root_repo::get(&db).unwrap(), a.id, b.id, c.id, d.id],
-        );
-    }
-
-    #[test]
-    fn sync_new_files_to_new_device() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let _d =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/d")).unwrap();
-        test_utils::sync(&db);
-        let db2 = test_utils::make_and_sync_new_client(&db);
-
-        test_utils::assert_repo_integrity(&db2);
-        test_utils::assert_all_paths(&db2, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
-        test_utils::assert_all_document_contents(&db2, &root, &[("/a/b/c/d", b"")]);
-        test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[]);
-    }
-
-    #[test]
-    fn edited_document() {
+    fn unsynced_device_edited_document() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -225,13 +77,85 @@ mod sync_tests {
     }
 
     #[test]
-    fn sync_edited_document() {
+    fn unsynced_device_move() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
+        test_utils::assert_local_work_ids(&db, &[folder.id, document.id]);
+        test_utils::assert_server_work_ids(&db, &[]);
+    }
+
+    /*  ---------------------------------------------------------------------------------------------------------------
+     *  Tests that operate on one device and sync
+     *  (work should be none)
+     *  ------------------------------------------------------------------------------------------------------------ */
+
+    #[test]
+    fn synced_device_unmodified() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        test_utils::sync(&db);
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+    }
+
+    #[test]
+    fn synced_device_new_file() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        test_utils::sync(&db);
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+    }
+
+    #[test]
+    fn synced_device_new_files() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let _d =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/d")).unwrap();
+
+        test_utils::sync(&db);
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+    }
+
+    #[test]
+    fn synced_device_edited_document() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
         let document =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
         lockbook_core::write_document(&db, document.id, b"document content").unwrap();
+
         test_utils::sync(&db);
 
         test_utils::assert_repo_integrity(&db);
@@ -242,13 +166,35 @@ mod sync_tests {
     }
 
     #[test]
-    fn sync_edited_document_new_device() {
+    fn synced_device_move() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
         let document =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-        lockbook_core::write_document(&db, document.id, b"document content").unwrap();
+        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
+
+        test_utils::sync(&db);
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+    }
+
+    /*  ---------------------------------------------------------------------------------------------------------------
+     *  Tests that operate on one device, sync it, then create a new device without syncing
+     *  (new device should have no files, local work should be empty, server work should include root)
+     *  ------------------------------------------------------------------------------------------------------------ */
+
+    #[test]
+    fn new_unsynced_device_unmodified() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
         test_utils::sync(&db);
         let db2 = test_utils::make_new_client(&db);
 
@@ -256,21 +202,164 @@ mod sync_tests {
         test_utils::assert_all_paths(&db2, &root, &[]);
         test_utils::assert_all_document_contents(&db2, &root, &[]);
         test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(&db2, &[root_repo::get(&db).unwrap(), document.id]);
+        test_utils::assert_server_work_ids(&db2, &[root.id]);
     }
 
     #[test]
-    fn sync_edited_document_to_new_device() {
+    fn new_unsynced_device_new_file() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_new_client(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &[]);
+        test_utils::assert_all_document_contents(&db2, &root, &[]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[root.id, document.id]);
+    }
+
+    #[test]
+    fn new_unsynced_device_new_files() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/")).unwrap();
+        let b = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/")).unwrap();
+        let c =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/")).unwrap();
+        let d =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/d")).unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_new_client(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &[]);
+        test_utils::assert_all_document_contents(&db2, &root, &[]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(
+            &db2,
+            &[root.id, a.id, b.id, c.id, d.id],
+        );
+    }
+
+    #[test]
+    fn new_unsynced_device_edited_document() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
         let document =
             lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
         lockbook_core::write_document(&db, document.id, b"document content").unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_new_client(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &[]);
+        test_utils::assert_all_document_contents(&db2, &root, &[]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[root.id, document.id]);
+    }
+
+    #[test]
+    fn new_unsynced_device_move() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_new_client(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &[]);
+        test_utils::assert_all_document_contents(&db2, &root, &[]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[root.id, folder.id, document.id]);
+    }
+
+    /*  ---------------------------------------------------------------------------------------------------------------
+     *  Tests that operate on one device, sync it, then create and sync a new device
+     *  (work should be none, devices dbs should be equal)
+     *  ------------------------------------------------------------------------------------------------------------ */
+
+    #[test]
+    fn new_synced_device_unmodified() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
         test_utils::sync(&db);
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_all_paths(&db2, &root, &["/"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
+    #[test]
+    fn new_synced_device_new_file() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let _document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/document"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[("/document", b"")]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
+    #[test]
+    fn new_synced_device_new_files() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let _d =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/d")).unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[("/a/b/c/d", b"")]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
+    }
+
+    #[test]
+    fn new_synced_device_edited_document() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+        lockbook_core::write_document(&db, document.id, b"document content").unwrap();
+
+        test_utils::sync(&db);
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_dbs_eq(&db, &db2);
         test_utils::assert_all_paths(&db2, &root, &["/", "/document"]);
         test_utils::assert_all_document_contents(&db, &root, &[("/document", b"document content")]);
         test_utils::assert_local_work_ids(&db2, &[]);
@@ -278,75 +367,38 @@ mod sync_tests {
     }
 
     #[test]
-    fn test_edit_document_sync() {
-        let db = &test_utils::test_config();
+    fn new_synced_device_move() {
+        let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        assert_dirty_ids!(db, 0);
-
-        let file = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/test"))
-            .unwrap();
+        let folder =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
+        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
 
         test_utils::sync(&db);
-
         let db2 = test_utils::make_and_sync_new_client(&db);
 
-        file_service::insert_document(
-            &db,
-            RepoSource::Local,
-            &file,
-            "meaningful messages".as_bytes(),
-        )
-        .unwrap();
-
-        assert_dirty_ids!(db, 1);
-
-        match sync_service::calculate_work(&db)
-            .unwrap()
-            .work_units
-            .get(0)
-            .unwrap()
-            .clone()
-        {
-            WorkUnit::LocalChange { metadata } => {
-                assert_eq!(metadata.decrypted_name, file.decrypted_name)
-            }
-            WorkUnit::ServerChange { .. } => {
-                panic!("This should have been a local change with no server changes!")
-            }
-        };
-
-        test_utils::sync(&db);
-
-        assert_dirty_ids!(db, 0);
-
-        assert_dirty_ids!(db2, 1);
-
-        let edited_file = file_service::get_metadata(&db, RepoSource::Local, file.id).unwrap();
-
-        match sync_service::calculate_work(&db2)
-            .unwrap()
-            .work_units
-            .get(0)
-            .unwrap()
-            .clone()
-        {
-            WorkUnit::ServerChange { metadata } => assert_eq!(metadata, edited_file),
-            WorkUnit::LocalChange { .. } => {
-                panic!("This should have been a ServerChange with no LocalChange!")
-            }
-        };
-
-        test_utils::sync(&db2);
-
-        assert_dirty_ids!(db2, 0);
-
-        assert_eq!(
-            file_service::get_document(&db2, RepoSource::Local, &edited_file).unwrap(),
-            "meaningful messages".as_bytes()
-        );
-        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_repo_integrity(&db2);
+        test_utils::assert_all_paths(&db2, &root, &["/", "/folder/", "/folder/document"]);
+        test_utils::assert_all_document_contents(&db2, &root, &[("/folder/document", b"")]);
+        test_utils::assert_local_work_ids(&db2, &[]);
+        test_utils::assert_server_work_ids(&db2, &[]);
     }
+
+    /*  ---------------------------------------------------------------------------------------------------------------
+     *  Tests that setup two synced devices, operate on one device, and sync it without syncing the other device
+     *  ------------------------------------------------------------------------------------------------------------ */
+
+    /*  ---------------------------------------------------------------------------------------------------------------
+     *  Tests that setup two synced devices, operate on one device, and sync both
+     *  (work should be none, devices dbs should be equal)
+     *  ------------------------------------------------------------------------------------------------------------ */
+
+    /*  ---------------------------------------------------------------------------------------------------------------
+     *  Uncategorized tests
+     *  ------------------------------------------------------------------------------------------------------------ */
 
     #[test]
     fn test_move_document_sync() {
