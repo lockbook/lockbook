@@ -324,10 +324,7 @@ mod sync_tests {
         test_utils::assert_all_paths(&db2, &root, &[]);
         test_utils::assert_all_document_contents(&db2, &root, &[]);
         test_utils::assert_local_work_ids(&db2, &[]);
-        test_utils::assert_server_work_ids(
-            &db2,
-            &[root.id, a.id, b.id, c.id, d.id],
-        );
+        test_utils::assert_server_work_ids(&db2, &[root.id, a.id, b.id, c.id, d.id]);
     }
 
     #[test]
@@ -379,7 +376,7 @@ mod sync_tests {
     fn new_synced_device_unmodified() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
-        
+
         test_utils::sync(&db);
         let db2 = test_utils::make_and_sync_new_client(&db);
 
