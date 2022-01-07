@@ -6,10 +6,10 @@ mod delete_and_list_tests {
     use lockbook_core::service::test_utils;
     use lockbook_core::Error::UiError;
     use lockbook_core::{
-        assert_matches, create_file, create_file_at_path, delete_file, list_metadatas,
-        list_paths, move_file, read_document, rename_file, save_document_to_disk,
-        write_document, CreateFileError, FileDeleteError, MoveFileError, ReadDocumentError,
-        RenameFileError, SaveDocumentToDiskError, WriteToDocumentError,
+        assert_matches, create_file, create_file_at_path, delete_file, list_metadatas, list_paths,
+        move_file, read_document, rename_file, save_document_to_disk, write_document,
+        CreateFileError, FileDeleteError, MoveFileError, ReadDocumentError, RenameFileError,
+        SaveDocumentToDiskError, WriteToDocumentError,
     };
     use lockbook_models::file_metadata::FileType;
 

@@ -9,7 +9,7 @@ mod integrity_tests {
     use lockbook_core::service::integrity_service;
     use lockbook_core::service::integrity_service::TestRepoError::*;
     use lockbook_core::service::integrity_service::Warning;
-    use lockbook_core::{assert_matches, get_file_by_path, create_file_at_path};
+    use lockbook_core::{assert_matches, create_file_at_path, get_file_by_path};
     use lockbook_models::file_metadata::FileType::Document;
 
     #[test]
@@ -58,7 +58,11 @@ mod integrity_tests {
     fn test_orphaned_children() {
         let cfg = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&cfg);
-        create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/document1.md")).unwrap();
+        create_file_at_path(
+            &cfg,
+            &test_utils::path(&root, "/folder1/folder2/document1.md"),
+        )
+        .unwrap();
 
         integrity_service::test_repo_integrity(&cfg).unwrap();
 
@@ -111,7 +115,11 @@ mod integrity_tests {
     fn test_cycle() {
         let cfg = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&cfg);
-        create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/document1.md")).unwrap();
+        create_file_at_path(
+            &cfg,
+            &test_utils::path(&root, "/folder1/folder2/document1.md"),
+        )
+        .unwrap();
         let mut parent = metadata_repo::get(
             &cfg,
             RepoSource::Local,
@@ -136,9 +144,11 @@ mod integrity_tests {
         let (_account, root) = test_utils::create_account(&cfg);
 
         let _folder1 = create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/")).unwrap();
-        let _folder2 = create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/")).unwrap();
+        let _folder2 =
+            create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/")).unwrap();
         let folder3 =
-            create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/folder3/")).unwrap();
+            create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/folder3/"))
+                .unwrap();
 
         let mut parent = metadata_repo::get(
             &cfg,
@@ -161,7 +171,11 @@ mod integrity_tests {
     fn test_documents_treated_as_folders() {
         let cfg = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&cfg);
-        create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/document1.md")).unwrap();
+        create_file_at_path(
+            &cfg,
+            &test_utils::path(&root, "/folder1/folder2/document1.md"),
+        )
+        .unwrap();
         let mut parent = metadata_repo::get(
             &cfg,
             RepoSource::Local,

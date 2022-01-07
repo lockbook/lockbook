@@ -14,13 +14,13 @@ use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType, DecryptedFileMetadata};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 
 use crate::model::state::Config;
 use crate::repo::root_repo;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::sync_service::SyncProgress;
-use crate::service::{file_service, integrity_service, sync_service};
+use crate::service::{file_service, integrity_service, path_service, sync_service};
 
 #[macro_export]
 macro_rules! assert_dirty_ids {
@@ -65,10 +65,50 @@ pub fn assert_repo_integrity(db: &Config) {
 }
 
 pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
-    let expected_paths = expected_paths.into_iter().map(|&s| String::from(root.decrypted_name.clone() + s)).collect::<Vec<String>>();
+    let expected_paths = expected_paths
+        .into_iter()
+        .map(|&s| String::from(root.decrypted_name.clone() + s))
+        .collect::<Vec<String>>();
     let actual_paths = crate::list_paths(db, None).unwrap();
     if !slices_equal_ignore_order(&actual_paths, &expected_paths) {
-        assert!(false, "paths did not match expectation. expected={:?}; actual={:?}", expected_paths, actual_paths);
+        assert!(
+            false,
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
+}
+
+pub fn assert_all_document_contents(
+    db: &Config,
+    root: &DecryptedFileMetadata,
+    expected_contents_by_path: &[(&str, &[u8])],
+) {
+    let expected_contents_by_path = expected_contents_by_path
+        .into_iter()
+        .map(|&(path, contents)| {
+            (
+                String::from(root.decrypted_name.clone() + path),
+                contents.to_vec(),
+            )
+        })
+        .collect::<Vec<(String, Vec<u8>)>>();
+    let actual_content_by_path = crate::list_paths(db, Some(path_service::Filter::DocumentsOnly))
+        .unwrap()
+        .into_iter()
+        .map(|path| {
+            (
+                path.clone(),
+                crate::read_document(db, crate::get_file_by_path(db, &path).unwrap().id).unwrap(),
+            )
+        })
+        .collect::<Vec<(String, Vec<u8>)>>();
+    if !slices_equal_ignore_order(&actual_content_by_path, &expected_contents_by_path) {
+        assert!(
+            false,
+            "document contents did not match expectation. expected={:?}; actual={:?}", // todo: print as utf-8 (depending on extension) for easier debugging
+            expected_contents_by_path, actual_content_by_path
+        );
     }
 }
 
@@ -130,7 +170,10 @@ pub fn path(root: &DecryptedFileMetadata, path: &str) -> String {
 
 pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
     let generated_account = generate_account();
-    (crate::create_account(db, &generated_account.username, &generated_account.api_url).unwrap(), crate::get_root(db).unwrap())
+    (
+        crate::create_account(db, &generated_account.username, &generated_account.api_url).unwrap(),
+        crate::get_root(db).unwrap(),
+    )
 }
 
 pub fn test_config() -> Config {
