@@ -27,8 +27,8 @@ impl FromStr for FileType {
     }
 }
 
-pub trait FileMetadata : Clone {
-    type Name : Hash + Eq;
+pub trait FileMetadata: Clone {
+    type Name: Hash + Eq;
 
     fn id(&self) -> Uuid;
     fn file_type(&self) -> FileType;
