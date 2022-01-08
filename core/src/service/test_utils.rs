@@ -16,6 +16,7 @@ use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::root_repo;
 use crate::repo::{account_repo, db_version_repo};
@@ -90,12 +91,7 @@ pub fn assert_all_document_contents(
 ) {
     let expected_contents_by_path = expected_contents_by_path
         .iter()
-        .map(|&(path, contents)| {
-            (
-                root.decrypted_name.clone() + path,
-                contents.to_vec(),
-            )
-        })
+        .map(|&(path, contents)| (root.decrypted_name.clone() + path, contents.to_vec()))
         .collect::<Vec<(String, Vec<u8>)>>();
     let actual_contents_by_path = crate::list_paths(db, Some(path_service::Filter::DocumentsOnly))
         .unwrap()
@@ -110,9 +106,28 @@ pub fn assert_all_document_contents(
     if !slices_equal_ignore_order(&actual_contents_by_path, &expected_contents_by_path) {
         panic!(
             "document contents did not match expectation. expected={:?}; actual={:?}",
-            expected_contents_by_path.into_iter().map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string())).collect::<Vec<(String, String)>>(),
-            actual_contents_by_path.into_iter().map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string())).collect::<Vec<(String, String)>>(),
+            expected_contents_by_path
+                .into_iter()
+                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
+                .collect::<Vec<(String, String)>>(),
+            actual_contents_by_path
+                .into_iter()
+                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
+                .collect::<Vec<(String, String)>>(),
         );
+    }
+}
+
+pub fn assert_deleted_files_pruned(db: &Config) {
+    for source in [RepoSource::Local, RepoSource::Base] {
+        let all_metadata = file_service::get_all_metadata(db, source).unwrap();
+        let not_deleted_metadata = file_service::get_all_not_deleted_metadata(db, source).unwrap();
+        if !slices_equal_ignore_order(&all_metadata, &not_deleted_metadata) {
+            panic!(
+                "some deleted files are not pruned. not_deleted_metadata={:?}; all_metadata={:?}",
+                not_deleted_metadata, all_metadata
+            );
+        }
     }
 }
 
@@ -127,6 +142,12 @@ pub fn make_and_sync_new_client(db: &Config) -> Config {
     crate::import_account(&new_client, &crate::export_account(db).unwrap()).unwrap();
     crate::sync_all(&new_client, None).unwrap();
     new_client
+}
+
+pub fn assert_new_synced_client_dbs_eq(db: &Config) {
+    let new_client = make_and_sync_new_client(db);
+    assert_repo_integrity(&new_client);
+    assert_dbs_eq(db, &new_client);
 }
 
 #[macro_export]
