@@ -5427,6 +5427,548 @@ mod sync_tests {
         test_utils::assert_new_synced_client_dbs_eq(&db);
     }
 
+    #[test]
+    fn path_conflict_resolution_concurrent_move_then_create_documents() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md",
+                "/a-1.md",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b""), ("/a-1.md", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    fn path_conflict_resolution_concurrent_create_then_move_documents() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md",
+                "/a-1.md",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b""), ("/a-1.md", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    fn path_conflict_resolution_concurrent_move_then_create_folders() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md/",
+                "/a-1.md/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    fn path_conflict_resolution_concurrent_create_then_move_folders() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md/",
+                "/a-1.md/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    fn path_conflict_resolution_concurrent_move_then_create_folders_with_children() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md/",
+                "/a-1.md/",
+                "/a.md/child/",
+                "/a-1.md/child/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    fn path_conflict_resolution_concurrent_create_then_move_folders_with_children() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md/",
+                "/a-1.md/",
+                "/a.md/child/",
+                "/a-1.md/child/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_move_document_then_create_folder() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md",
+                "/a-1.md/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_create_folder_then_move_document() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a-1.md",
+                "/a.md/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_move_folder_then_create_document() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a-1.md",
+                "/a.md/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_create_document_then_move_folder() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md",
+                "/a-1.md/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_move_document_then_create_folder_with_child() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md",
+                "/a-1.md/",
+                "/a-1.md/child/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_create_folder_with_child_then_move_document() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a-1.md",
+                "/a.md/",
+                "/a.md/child/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_move_folder_with_child_then_create_document() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a-1.md",
+                "/a.md/",
+                "/a.md/child/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_create_document_then_move_folder_with_child() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        lockbook_core::move_file(&db, a.id, root.id).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/folder/",
+                "/a.md",
+                "/a-1.md/",
+                "/a-1.md/child/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
     /*  ---------------------------------------------------------------------------------------------------------------
         Uncategorized tests
     ---------------------------------------------------------------------------------------------------------------  */
@@ -5514,5 +6056,26 @@ mod sync_tests {
             lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/c/d/")).unwrap();
         lockbook_core::move_file(&db1, b.id, d.id).unwrap();
         lockbook_core::move_file(&db1, c.id, d.id).unwrap_err();
+    }
+
+    #[test]
+    #[ignore] // todo: fix a bug that probably has to do with computing last synced time after files are pruned or in the middle of a sync while pulling documents
+    fn fuzzer_get_updates_required_test() {
+        let db1 = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db1);
+
+        let document = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/document")).unwrap();
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db1);
+
+        lockbook_core::write_document(&db1, document.id, b"document content").unwrap();
+        lockbook_core::write_document(&db2, document.id, b"content document").unwrap();
+        lockbook_core::delete_file(&db2, document.id).unwrap();
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
     }
 }
