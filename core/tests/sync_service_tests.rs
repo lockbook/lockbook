@@ -3053,7 +3053,7 @@ mod sync_tests {
     ---------------------------------------------------------------------------------------------------------------  */
 
     #[test]
-    fn invariant_challenge_concurrent_move_two_cycle() {
+    fn cycle_resolution_concurrent_move_two_cycle() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3082,7 +3082,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_one_move_reverted() {
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3113,7 +3113,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_two_moves_reverted() {
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3144,7 +3144,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_one_move_reverted() {
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3177,7 +3177,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_adjacent() {
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3210,7 +3210,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_alternating() {
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3243,7 +3243,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_three_moves_reverted() {
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3276,7 +3276,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_two_cycle_with_renames_first_device() {
+    fn cycle_resolution_concurrent_move_two_cycle_with_renames_first_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3307,7 +3307,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_one_move_reverted_with_renames_first_device()
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_renames_first_device()
     {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3342,7 +3342,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_two_moves_reverted_with_renames_first_device(
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_renames_first_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3377,7 +3377,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_one_move_reverted_with_renames_first_device()
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_renames_first_device()
     {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3419,7 +3419,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_renames_first_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_renames_first_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3457,7 +3457,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_alternating_with_renames_first_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_renames_first_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3495,7 +3495,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_three_moves_reverted_with_renames_first_device(
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_renames_first_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3534,7 +3534,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn invariant_challenge_concurrent_move_two_cycle_with_renames_second_device() {
+    fn cycle_resolution_concurrent_move_two_cycle_with_renames_second_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3566,7 +3566,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn invariant_challenge_concurrent_move_three_cycle_one_move_reverted_with_renames_second_device(
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_renames_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3602,7 +3602,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn invariant_challenge_concurrent_move_three_cycle_two_moves_reverted_with_renames_second_device(
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_renames_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3638,7 +3638,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn invariant_challenge_concurrent_move_four_cycle_one_move_reverted_with_renames_second_device()
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_renames_second_device()
     {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3681,7 +3681,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_renames_second_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_renames_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3720,7 +3720,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_alternating_with_renames_second_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_renames_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3759,7 +3759,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn invariant_challenge_concurrent_move_four_cycle_three_moves_reverted_with_renames_second_device(
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_renames_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3797,7 +3797,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_two_cycle_with_deletes_first_device() {
+    fn cycle_resolution_concurrent_move_two_cycle_with_deletes_first_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3828,7 +3828,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_one_move_reverted_with_deletes_first_device()
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_first_device()
     {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3863,7 +3863,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_two_moves_reverted_with_deletes_first_device(
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_first_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3898,7 +3898,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_one_move_reverted_with_deletes_first_device()
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_first_device()
     {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3936,7 +3936,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_deletes_first_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_deletes_first_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3974,7 +3974,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_alternating_with_deletes_first_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_deletes_first_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4012,7 +4012,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_three_moves_reverted_with_deletes_first_device(
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_first_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4050,7 +4050,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_two_cycle_with_deletes_second_device() {
+    fn cycle_resolution_concurrent_move_two_cycle_with_deletes_second_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4081,7 +4081,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_one_move_reverted_with_deletes_second_device(
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4116,7 +4116,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_two_moves_reverted_with_deletes_second_device(
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4151,7 +4151,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_one_move_reverted_with_deletes_second_device()
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_second_device()
     {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4189,7 +4189,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_deletes_second_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_deletes_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4227,7 +4227,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_alternating_with_deletes_second_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_deletes_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4265,7 +4265,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_three_moves_reverted_with_deletes_second_device(
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_second_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4303,7 +4303,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_two_cycle_with_deletes_moving_device() {
+    fn cycle_resolution_concurrent_move_two_cycle_with_deletes_moving_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4334,7 +4334,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_one_move_reverted_with_deletes_moving_device(
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4369,7 +4369,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_two_moves_reverted_with_deletes_moving_device(
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4404,7 +4404,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_one_move_reverted_with_deletes_moving_device()
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_moving_device()
     {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4442,7 +4442,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_deletes_moving_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_deletes_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4480,7 +4480,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_alternating_with_deletes_moving_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_deletes_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4518,7 +4518,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_three_moves_reverted_with_deletes_moving_device(
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4556,7 +4556,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_two_cycle_with_deletes_non_moving_device() {
+    fn cycle_resolution_concurrent_move_two_cycle_with_deletes_non_moving_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4587,7 +4587,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_one_move_reverted_with_deletes_non_moving_device(
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_non_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4622,7 +4622,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_three_cycle_two_moves_reverted_with_deletes_non_moving_device(
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_non_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4657,7 +4657,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_one_move_reverted_with_deletes_non_moving_device(
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_non_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4695,7 +4695,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_deletes_non_moving_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_deletes_non_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4733,7 +4733,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_alternating_with_deletes_non_moving_device(
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_deletes_non_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4771,7 +4771,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn invariant_challenge_concurrent_move_four_cycle_three_moves_reverted_with_deletes_non_moving_device(
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_non_moving_device(
     ) {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4810,7 +4810,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix infinite loop
-    fn invariant_challenge_concurrent_move_two_cycle_with_children() {
+    fn cycle_resolution_concurrent_move_two_cycle_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4848,7 +4848,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix infinite loop
-    fn invariant_challenge_concurrent_move_three_cycle_one_move_reverted_with_children() {
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4898,7 +4898,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix infinite loop
-    fn invariant_challenge_concurrent_move_three_cycle_two_moves_reverted_with_children() {
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4948,7 +4948,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix infinite loop
-    fn invariant_challenge_concurrent_move_four_cycle_one_move_reverted_with_children() {
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -5004,7 +5004,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix infinite loop
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_children() {
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -5060,7 +5060,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix infinite loop
-    fn invariant_challenge_concurrent_move_four_cycle_two_moves_reverted_alternating_with_children()
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_children()
     {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5117,7 +5117,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix infinite loop
-    fn invariant_challenge_concurrent_move_four_cycle_three_moves_reverted_with_children() {
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -5161,6 +5161,262 @@ mod sync_tests {
                 "/b/a/child/",
                 "/c/child/",
                 "/d/child/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    /*  ---------------------------------------------------------------------------------------------------------------
+        Tests which are constructed to test path conflict resolution
+        Like those above, these are tests that setup two synced devices, operate on both devices, then sync both twice
+        (work should be none, devices dbs should be equal, deleted files should be pruned)
+    ---------------------------------------------------------------------------------------------------------------  */
+
+    #[test]
+    fn path_conflict_resolution_concurrent_create_documents() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/a.md",
+                "/a-1.md",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b""), ("/a-1.md", b"")]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    fn path_conflict_resolution_concurrent_create_folders() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/a.md/",
+                "/a-1.md/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    fn path_conflict_resolution_concurrent_create_folders_with_children() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md/child/")).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/a.md/",
+                "/a-1.md/",
+                "/a.md/child/",
+                "/a-1.md/child/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_create_document_then_folder() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/a.md",
+                "/a-1.md/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_create_folder_then_document() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap();// note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/a-1.md",
+                "/a.md/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_create_document_then_folder_with_child() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/a.md",
+                "/a-1.md/",
+                "/a-1.md/child/",
+            ],
+        );
+        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_local_work_ids(&db, &[]);
+        test_utils::assert_server_work_ids(&db, &[]);
+        test_utils::assert_dbs_eq(&db, &db2);
+        test_utils::assert_deleted_files_pruned(&db);
+        test_utils::assert_new_synced_client_dbs_eq(&db);
+    }
+
+    #[test]
+    #[ignore] // todo: first file to be synced should be renamed, not the second
+    fn path_conflict_resolution_concurrent_create_folder_with_child_then_document() {
+        let db = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db);
+
+        lockbook_core::sync_all(&db, None).unwrap();
+        let db2 = test_utils::make_and_sync_new_client(&db);
+
+        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+
+        lockbook_core::sync_all(&db2, None).unwrap();// note: order reversed
+        lockbook_core::sync_all(&db, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db, None).unwrap();
+
+        test_utils::assert_repo_integrity(&db);
+        test_utils::assert_all_paths(
+            &db,
+            &root,
+            &[
+                "/",
+                "/a-1.md",
+                "/a.md/",
+                "/a.md/child/",
             ],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
