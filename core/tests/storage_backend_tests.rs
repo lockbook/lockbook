@@ -1,5 +1,3 @@
-mod integration_test;
-
 /// We should figure out a way to not just copy-paste these tests!
 #[cfg(test)]
 mod unit_tests {

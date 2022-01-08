@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod delete_and_list_tests {
     use lockbook_core::service::path_service::Filter;

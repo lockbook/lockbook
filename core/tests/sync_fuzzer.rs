@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod sync_fuzzer {
     use std::cmp::Ordering;

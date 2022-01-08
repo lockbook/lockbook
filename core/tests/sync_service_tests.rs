@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod sync_tests {
     use itertools::Itertools;
@@ -109,7 +107,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: instantly prune deleted unsynced files
     fn unsynced_device_delete() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -126,7 +123,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: instantly prune deleted unsynced files
     fn unsynced_device_delete_parent() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -146,7 +142,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: instantly prune deleted unsynced files
     fn unsynced_device_delete_grandparent() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);

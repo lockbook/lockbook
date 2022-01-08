@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod get_public_key_tests {
     use lockbook_core::assert_matches;
