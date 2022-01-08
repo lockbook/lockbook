@@ -437,13 +437,30 @@ fn get_resolved_document(
     match maybe_remote_document {
         Some(remote_document) => {
             // merge document content for documents with updated content
-            let merged_document = merge_maybe_documents(
+            let mut merged_document = merge_maybe_documents(
                 merged_metadatum,
                 remote_metadatum,
                 maybe_base_document,
                 maybe_local_document,
                 remote_document,
             )?;
+
+            if let ResolvedDocument::Copied {
+                remote_metadata: _,
+                remote_document: _,
+                ref mut copied_local_metadata,
+                copied_local_document: _,
+            } = merged_document
+            {
+                copied_local_metadata.decrypted_name = files::suggest_non_conflicting_filename(
+                    copied_local_metadata.id,
+                    &all_metadata_state
+                        .iter()
+                        .map(|rs| rs.clone().local())
+                        .collect::<Vec<DecryptedFileMetadata>>(),
+                    &[copied_local_metadata.clone()],
+                )?;
+            }
 
             Ok(Some(merged_document))
         }
