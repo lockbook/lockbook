@@ -3307,8 +3307,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_renames_first_device()
-    {
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_renames_first_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3342,8 +3341,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_renames_first_device(
-    ) {
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_renames_first_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3377,8 +3375,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_renames_first_device()
-    {
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_renames_first_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3495,8 +3492,8 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_renames_first_device(
-    ) {
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_renames_first_device()
+    {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3566,8 +3563,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_renames_second_device(
-    ) {
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_renames_second_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3602,8 +3598,8 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_renames_second_device(
-    ) {
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_renames_second_device()
+    {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3638,8 +3634,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_renames_second_device()
-    {
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_renames_second_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3759,8 +3754,8 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix merge so that renames are preserved
-    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_renames_second_device(
-    ) {
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_renames_second_device()
+    {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3828,8 +3823,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_first_device()
-    {
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_first_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3863,8 +3857,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_first_device(
-    ) {
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_first_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -3898,8 +3891,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_first_device()
-    {
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_first_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4012,8 +4004,8 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_first_device(
-    ) {
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_first_device()
+    {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4081,8 +4073,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_second_device(
-    ) {
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_second_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4116,8 +4107,8 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_second_device(
-    ) {
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_second_device()
+    {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4151,8 +4142,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_second_device()
-    {
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_second_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4265,8 +4255,8 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_second_device(
-    ) {
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_second_device()
+    {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4334,8 +4324,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_moving_device(
-    ) {
+    fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_deletes_moving_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4369,8 +4358,8 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_moving_device(
-    ) {
+    fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_deletes_moving_device()
+    {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4404,8 +4393,7 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_moving_device()
-    {
+    fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_deletes_moving_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -4518,8 +4506,8 @@ mod sync_tests {
     }
 
     #[test]
-    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_moving_device(
-    ) {
+    fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_deletes_moving_device()
+    {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -5060,8 +5048,7 @@ mod sync_tests {
 
     #[test]
     #[ignore] // todo: fix infinite loop
-    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_children()
-    {
+    fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
@@ -5185,8 +5172,10 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
-        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5194,15 +5183,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db2, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/a.md",
-                "/a-1.md",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/a.md", "/a-1.md"]);
         test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b""), ("/a-1.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5219,8 +5200,10 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
-        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md/")).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5228,15 +5211,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db2, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/a.md/",
-                "/a-1.md/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/a.md/", "/a-1.md/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5253,10 +5228,16 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
-        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md/")).unwrap();
-        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md/child/")).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
-        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+        let _a =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a_child =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md/child/"))
+                .unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/"))
+                .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5267,13 +5248,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/a.md/",
-                "/a-1.md/",
-                "/a.md/child/",
-                "/a-1.md/child/",
-            ],
+            &["/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -5292,8 +5267,10 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
-        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5301,15 +5278,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db2, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/a.md",
-                "/a-1.md/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/a.md", "/a-1.md/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5327,24 +5296,18 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
-        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
 
-        lockbook_core::sync_all(&db2, None).unwrap();// note: order reversed
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
         lockbook_core::sync_all(&db, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/a-1.md",
-                "/a.md/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/a-1.md", "/a.md/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5362,9 +5325,13 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
-        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
-        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+        let _a =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/"))
+                .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5372,16 +5339,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db2, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/a.md",
-                "/a-1.md/",
-                "/a-1.md/child/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5399,26 +5357,21 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
-        let _a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
-        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+        let _a =
+            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/"))
+                .unwrap();
 
-        lockbook_core::sync_all(&db2, None).unwrap();// note: order reversed
+        lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
         lockbook_core::sync_all(&db, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/a-1.md",
-                "/a.md/",
-                "/a.md/child/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/a-1.md", "/a.md/", "/a.md/child/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5432,13 +5385,15 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5446,16 +5401,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db2, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md",
-                "/a-1.md",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md", "/a-1.md"]);
         test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b""), ("/a-1.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5469,13 +5415,15 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
         lockbook_core::sync_all(&db, None).unwrap();
@@ -5483,16 +5431,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md",
-                "/a-1.md",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md", "/a-1.md"]);
         test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b""), ("/a-1.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5506,13 +5445,15 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5520,16 +5461,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db2, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md/",
-                "/a-1.md/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5543,13 +5475,15 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
         lockbook_core::sync_all(&db, None).unwrap();
@@ -5557,16 +5491,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md/",
-                "/a-1.md/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5580,15 +5505,23 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
-        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/child/")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/"))
+            .unwrap();
+        let _a_child = lockbook_core::create_file_at_path(
+            &db,
+            &test_utils::path(&root, "/folder/a.md/child/"),
+        )
+        .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
-        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/"))
+                .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5621,15 +5554,23 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
-        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/child/")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/"))
+            .unwrap();
+        let _a_child = lockbook_core::create_file_at_path(
+            &db,
+            &test_utils::path(&root, "/folder/a.md/child/"),
+        )
+        .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
-        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/"))
+                .unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
         lockbook_core::sync_all(&db, None).unwrap();
@@ -5663,13 +5604,15 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5677,16 +5620,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db2, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md",
-                "/a-1.md/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md", "/a-1.md/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5701,13 +5635,15 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
         lockbook_core::sync_all(&db, None).unwrap();
@@ -5715,16 +5651,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/folder/",
-                "/a-1.md",
-                "/a.md/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a-1.md", "/a.md/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5739,13 +5666,15 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5753,16 +5682,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db2, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/folder/",
-                "/a-1.md",
-                "/a.md/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a-1.md", "/a.md/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5777,13 +5697,15 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
         lockbook_core::sync_all(&db, None).unwrap();
@@ -5791,16 +5713,7 @@ mod sync_tests {
         lockbook_core::sync_all(&db, None).unwrap();
 
         test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(
-            &db,
-            &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md",
-                "/a-1.md/",
-            ],
-        );
+        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md", "/a-1.md/"]);
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
@@ -5815,14 +5728,18 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
-        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/"))
+                .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5833,13 +5750,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md",
-                "/a-1.md/",
-                "/a-1.md/child/",
-            ],
+            &["/", "/folder/", "/a.md", "/a-1.md/", "/a-1.md/child/"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -5855,14 +5766,18 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md"))
+            .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
-        let _a2_child = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/")).unwrap();
+        let _a2_child =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md/child/"))
+                .unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
         lockbook_core::sync_all(&db, None).unwrap();
@@ -5873,13 +5788,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/folder/",
-                "/a-1.md",
-                "/a.md/",
-                "/a.md/child/",
-            ],
+            &["/", "/folder/", "/a-1.md", "/a.md/", "/a.md/child/"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -5895,14 +5804,20 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
-        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/child/")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/"))
+            .unwrap();
+        let _a_child = lockbook_core::create_file_at_path(
+            &db,
+            &test_utils::path(&root, "/folder/a.md/child/"),
+        )
+        .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         lockbook_core::sync_all(&db2, None).unwrap();
@@ -5913,13 +5828,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/folder/",
-                "/a-1.md",
-                "/a.md/",
-                "/a.md/child/",
-            ],
+            &["/", "/folder/", "/a-1.md", "/a.md/", "/a.md/child/"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -5935,14 +5844,20 @@ mod sync_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/")).unwrap();
-        let _a_child = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/child/")).unwrap();
+        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/a.md/"))
+            .unwrap();
+        let _a_child = lockbook_core::create_file_at_path(
+            &db,
+            &test_utils::path(&root, "/folder/a.md/child/"),
+        )
+        .unwrap();
 
         lockbook_core::sync_all(&db, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db);
 
         lockbook_core::move_file(&db, a.id, root.id).unwrap();
-        let _a2 = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
+        let _a2 =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a.md")).unwrap();
 
         lockbook_core::sync_all(&db2, None).unwrap(); // note: order reversed
         lockbook_core::sync_all(&db, None).unwrap();
@@ -5953,13 +5868,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md",
-                "/a-1.md/",
-                "/a-1.md/child/",
-            ],
+            &["/", "/folder/", "/a.md", "/a-1.md/", "/a-1.md/child/"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -6064,7 +5973,9 @@ mod sync_tests {
         let db1 = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db1);
 
-        let document = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/document")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/document"))
+                .unwrap();
 
         lockbook_core::sync_all(&db1, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db1);
