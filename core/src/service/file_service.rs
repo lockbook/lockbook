@@ -630,7 +630,13 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
         .filter(|f| files::maybe_find(&deleted_local_metadata, f.id).is_some());
     let prune_eligible_metadata = deleted_local_metadata
         .iter()
-        .filter_map(|f| if !files::maybe_find(&all_base_metadata, f.id).is_some() { Some(f.clone()) } else { None })
+        .filter_map(|f| {
+            if !files::maybe_find(&all_base_metadata, f.id).is_some() {
+                Some(f.clone())
+            } else {
+                None
+            }
+        })
         .chain(deleted_both_metadata)
         .collect::<Vec<DecryptedFileMetadata>>();
 
@@ -655,7 +661,7 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
         .map(|f| f.id)
         .collect::<HashSet<Uuid>>();
     let deleted_both_without_deleted_descendants_ids =
-    prune_eligible_metadata.into_iter().filter(|f| {
+        prune_eligible_metadata.into_iter().filter(|f| {
             !ancestors_of_not_deleted_base_ids.contains(&f.id)
                 && !ancestors_of_not_deleted_local_ids.contains(&f.id)
         });
@@ -1828,7 +1834,8 @@ mod unit_tests {
         assert_document_count!(config, RepoSource::Base, 0);
         assert_document_count!(config, RepoSource::Local, 0);
 
-        let mut deleted_folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let mut deleted_folder =
+            files::create(FileType::Folder, root.id, "folder", &account.username);
         deleted_folder.deleted = true;
         file_service::insert_metadatum(config, RepoSource::Local, &deleted_folder).unwrap();
         file_service::prune_deleted(config).unwrap();
@@ -1861,7 +1868,8 @@ mod unit_tests {
         assert_document_count!(config, RepoSource::Base, 1);
         assert_document_count!(config, RepoSource::Local, 1);
 
-        let mut deleted_folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let mut deleted_folder =
+            files::create(FileType::Folder, root.id, "folder", &account.username);
         deleted_folder.deleted = true;
         let mut document_moved = document.clone();
         document_moved.parent = deleted_folder.id;
@@ -1899,13 +1907,15 @@ mod unit_tests {
         assert_document_count!(config, RepoSource::Base, 1);
         assert_document_count!(config, RepoSource::Local, 1);
 
-        let mut deleted_folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let mut deleted_folder =
+            files::create(FileType::Folder, root.id, "folder", &account.username);
         deleted_folder.deleted = true;
         let mut document_moved_and_deleted = document.clone();
         document_moved_and_deleted.parent = deleted_folder.id;
         document_moved_and_deleted.deleted = true;
         file_service::insert_metadatum(config, RepoSource::Local, &deleted_folder).unwrap();
-        file_service::insert_metadatum(config, RepoSource::Local, &document_moved_and_deleted).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Local, &document_moved_and_deleted)
+            .unwrap();
         file_service::prune_deleted(config).unwrap();
 
         assert_metadata_changes_count!(config, 1);
