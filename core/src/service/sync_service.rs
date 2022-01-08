@@ -625,13 +625,21 @@ where
     // resolve path conflicts
     for path_conflict in files::get_path_conflicts(&local_metadata, &local_metadata_updates)? {
         let local_meta_updates_copy = local_metadata_updates.clone();
-        let to_rename = files::find_mut(&mut local_metadata_updates, path_conflict.staged)?;
+
         let conflict_name = files::suggest_non_conflicting_filename(
-            to_rename.id,
+            path_conflict.existing,
             &local_metadata,
             &local_meta_updates_copy,
         )?;
-        to_rename.decrypted_name = conflict_name;
+        if let Some(mut metadatum_update) =
+            files::maybe_find_mut(&mut local_metadata_updates, path_conflict.existing)
+        {
+            metadatum_update.decrypted_name = conflict_name;
+        } else {
+            let mut new_metadatum_update = files::find(&local_metadata, path_conflict.existing)?;
+            new_metadatum_update.decrypted_name = conflict_name;
+            local_metadata_updates.push(new_metadatum_update);
+        }
     }
 
     // resolve cycles

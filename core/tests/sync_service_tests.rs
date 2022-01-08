@@ -5254,7 +5254,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_create_document_then_folder() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5274,7 +5273,7 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db);
         test_utils::assert_all_paths(&db, &root, &["/", "/a.md", "/a-1.md/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5283,7 +5282,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_create_folder_then_document() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5303,7 +5301,7 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db);
         test_utils::assert_all_paths(&db, &root, &["/", "/a-1.md", "/a.md/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5312,7 +5310,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_create_document_then_folder_with_child() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5335,7 +5332,7 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db);
         test_utils::assert_all_paths(&db, &root, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5344,7 +5341,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_create_folder_with_child_then_document() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5367,7 +5363,7 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db);
         test_utils::assert_all_paths(&db, &root, &["/", "/a-1.md", "/a.md/", "/a.md/child/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5594,7 +5590,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_move_document_then_create_folder() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5616,7 +5611,7 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db);
         test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md", "/a-1.md/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5625,7 +5620,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_create_folder_then_move_document() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5647,7 +5641,7 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db);
         test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a-1.md", "/a.md/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5656,7 +5650,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_move_folder_then_create_document() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5678,7 +5671,7 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db);
         test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a-1.md", "/a.md/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5687,7 +5680,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_create_document_then_move_folder() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5709,7 +5701,7 @@ mod sync_tests {
 
         test_utils::assert_repo_integrity(&db);
         test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md", "/a-1.md/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5718,7 +5710,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_move_document_then_create_folder_with_child() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5747,7 +5738,7 @@ mod sync_tests {
             &root,
             &["/", "/folder/", "/a.md", "/a-1.md/", "/a-1.md/child/"],
         );
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5756,7 +5747,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_create_folder_with_child_then_move_document() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5785,7 +5775,7 @@ mod sync_tests {
             &root,
             &["/", "/folder/", "/a-1.md", "/a.md/", "/a.md/child/"],
         );
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5794,7 +5784,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_move_folder_with_child_then_create_document() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5825,7 +5814,7 @@ mod sync_tests {
             &root,
             &["/", "/folder/", "/a-1.md", "/a.md/", "/a.md/child/"],
         );
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
@@ -5834,7 +5823,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: first file to be synced should be renamed, not the second
     fn path_conflict_resolution_concurrent_create_document_then_move_folder_with_child() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5865,7 +5853,7 @@ mod sync_tests {
             &root,
             &["/", "/folder/", "/a.md", "/a-1.md/", "/a-1.md/child/"],
         );
-        test_utils::assert_all_document_contents(&db, &root, &[]);
+        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
         test_utils::assert_server_work_ids(&db, &[]);
         test_utils::assert_dbs_eq(&db, &db2);
