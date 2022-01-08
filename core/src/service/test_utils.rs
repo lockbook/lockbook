@@ -76,8 +76,7 @@ pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_path
         .collect::<Vec<String>>();
     let actual_paths = crate::list_paths(db, None).unwrap();
     if !slices_equal_ignore_order(&actual_paths, &expected_paths) {
-        assert!(
-            false,
+        panic!(
             "paths did not match expectation. expected={:?}; actual={:?}",
             expected_paths, actual_paths
         );
@@ -93,25 +92,26 @@ pub fn assert_all_document_contents(
         .iter()
         .map(|&(path, contents)| {
             (
-                String::from(root.decrypted_name.clone() + path),
+                root.decrypted_name.clone() + path,
                 contents.to_vec(),
             )
         })
         .collect::<Vec<(String, Vec<u8>)>>();
-    let actual_content_by_path = crate::list_paths(db, Some(path_service::Filter::DocumentsOnly))
+    let actual_contents_by_path = crate::list_paths(db, Some(path_service::Filter::DocumentsOnly))
         .unwrap()
         .iter()
         .map(|path| {
             (
                 path.clone(),
-                crate::read_document(db, crate::get_file_by_path(db, &path).unwrap().id).unwrap(),
+                crate::read_document(db, crate::get_file_by_path(db, path).unwrap().id).unwrap(),
             )
         })
         .collect::<Vec<(String, Vec<u8>)>>();
-    if !slices_equal_ignore_order(&actual_content_by_path, &expected_contents_by_path) {
+    if !slices_equal_ignore_order(&actual_contents_by_path, &expected_contents_by_path) {
         panic!(
-            "document contents did not match expectation. expected={:?}; actual={:?}", // todo: print as utf-8 (depending on extension) for easier debugging
-            expected_contents_by_path, actual_content_by_path
+            "document contents did not match expectation. expected={:?}; actual={:?}",
+            expected_contents_by_path.into_iter().map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string())).collect::<Vec<(String, String)>>(),
+            actual_contents_by_path.into_iter().map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string())).collect::<Vec<(String, String)>>(),
         );
     }
 }
