@@ -20,7 +20,8 @@ Before discussing the invariants, it is helpful to understand the data model. Fo
 * `parent`: the file's parent folder (specified by the parent's `id`). The `root` folder is the folder which has itself as a parent (it's name is by convention it's owners username and it cannot be deleted).
 * `deleted`: a boolean flag which indicates whether the file is _explicitly_ deleted. A file whose ancestor is deleted need not be explictly deleted; if not, it is considered _implictly_ deleted. A file that is no longer known to a client at all is considered _pruned_ on that client.
 
-This data model lends itself to three operations, which correspond to modifications to the three mutable fields of a file:
+This data model lends itself to four operations, which (aside from `create`) correspond to modifications to the three mutable fields of a file:
+* `create`: create a file
 * `rename`: change the file's name
 * `move`: change the file's parent
 * `delete`: delete the file (cannot be undone)
@@ -173,10 +174,42 @@ If the maintainer is not willing to take server downtime, they need to be carefu
 However, this is tricky, as one cannot atomically query the state of metadata and object storage (committing the object cleanup can happen separately because once an object is safe to delete, it is forever safe to delete). **Further investigation is required to understand whether there is an appropriate way to perform object cleanup in a safe way with zero downtime.** For now, downtime is recommended.
 
 ## Design Routines
-todo:
-- local metadata/content edits
-- upsert metadata
-- change file content
-- get updates
-- get document
+With the designs around some of our concerns worked out, we now turn to the specific routines involved in Sync v3 to see what each routine must do to address all concerns. We'll examine the following routines:
+- local metadata edits
+- local content edits
+- push metadata to server (upsert metadata endpoint)
+- push file content to server (change file content endpoint)
+- pull metadata updates from server (get updates endpoint)
+- pull document contents from server (get document endpoint)
 - sync
+
+### Local Metadata Edits
+When a user creates, renames, moves, or deletes a file, the client validates the operation, then updates the `local` version of the file tree to reflect the operation.
+
+For `create`, the client validates that:
+- the file is not its own parent
+- the file's name conforms to some rules (e.g. it cannot be empty or contain a slash)
+- the file's parent exists and is a folder
+- there are no files of the same name in its parent folder
+
+For `rename`, the client validates that:
+- the file is not the root folder
+- the file's new name conforms to some rules (e.g. it cannot be empty or contain a slash)
+- there are no files of the same name in its parent folder
+
+For `move`, the client validates that:
+- the file's new parent is not itself
+- the file's parent exists and is a folder
+- there are no files of the same name in its parent folder
+- the file is not being moved into one of its subfolders
+
+For `delete`, the client validates that:
+- the file is not the root folder
+
+_Concerns: `create` unnecessarily checks for invalid cycles_
+
+### Local Content Edits
+When a user modifies a document's contents, the client checks that the file exists and is not deleted, the updates the `local` version of the file's contents.
+
+### Push Metadata
+The server exposes an endpoint, `UpsertFileMetadata`, which accepts a batch of file metadata updates.
