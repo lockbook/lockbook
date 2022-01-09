@@ -2,7 +2,10 @@ use crate::model::errors::core_err_unexpected;
 use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{account_repo, Config, CoreError};
-use lockbook_models::api::{AccountTier, CreditCardInfo, GetLastRegisteredCreditCardRequest, SwitchAccountTierError, SwitchAccountTierRequest};
+use lockbook_models::api::{
+    AccountTier, CreditCardInfo, GetLastRegisteredCreditCardRequest, SwitchAccountTierError,
+    SwitchAccountTierRequest,
+};
 
 pub fn switch_account_tier(
     config: &Config,
@@ -17,9 +20,13 @@ pub fn switch_account_tier(
         },
     )
     .map_err(|e| match e {
-        ApiError::Endpoint(SwitchAccountTierError::PreexistingCardDoesNotExist) => CoreError::PreexistingCardDoesNotExist,
+        ApiError::Endpoint(SwitchAccountTierError::PreexistingCardDoesNotExist) => {
+            CoreError::PreexistingCardDoesNotExist
+        }
         ApiError::Endpoint(SwitchAccountTierError::NewTierIsOldTier) => CoreError::NewTierIsOldTier,
-        ApiError::Endpoint(SwitchAccountTierError::InvalidCreditCard(field)) => CoreError::InvalidCreditCard(field),
+        ApiError::Endpoint(SwitchAccountTierError::InvalidCreditCard(field)) => {
+            CoreError::InvalidCreditCard(field)
+        }
         ApiError::SendFailed(_) => CoreError::ServerUnreachable,
         _ => core_err_unexpected(e),
     })?;

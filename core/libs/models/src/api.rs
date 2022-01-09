@@ -301,15 +301,15 @@ pub enum CardChoice {
         number: String,
         exp_year: String,
         exp_month: String,
-        cvc: String
+        cvc: String,
     },
-    OldCard
+    OldCard,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum AccountTier {
     Monthly(CardChoice),
-    Free
+    Free,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -321,19 +321,34 @@ pub struct SwitchAccountTierRequest {
 pub struct SwitchAccountTierResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum InvalidCreditCardField {
+pub enum InvalidCreditCardType {
     Number,
     ExpYear,
     ExpMonth,
-    CVC
+    CVC,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum CardDeclinedType {
+    Generic,
+    BalanceOrCreditExceeded,
+    TooManyTries,
+    Unknown,
+    TryAgain,
+    NotSupported,
+    ExpiredCard,
+    IncorrectNumber,
+    IncorrectCVC,
+    IncorrectExpiryMonth,
+    IncorrectExpiryYear,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum SwitchAccountTierError {
     PreexistingCardDoesNotExist,
-    InvalidCreditCard(InvalidCreditCardField),
     NewTierIsOldTier,
-    CardDeclined
+    CardDeclined(CardDeclinedType),
+    InvalidCreditCard(InvalidCreditCardType),
 }
 
 impl Request for SwitchAccountTierRequest {

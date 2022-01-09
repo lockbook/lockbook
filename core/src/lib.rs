@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{AccountTier, CreditCardInfo, InvalidCreditCardField};
+use lockbook_models::api::{AccountTier, CreditCardInfo, InvalidCreditCardType};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -628,7 +628,7 @@ pub enum SwitchAccountTierError {
     InvalidCreditCardNumber,
     InvalidCreditCardCVC,
     InvalidCreditCardExpYear,
-    InvalidCreditCardExpMonth
+    InvalidCreditCardExpMonth,
 }
 
 pub fn switch_account_tier(
@@ -636,13 +636,21 @@ pub fn switch_account_tier(
     new_account_tier: AccountTier,
 ) -> Result<(), Error<SwitchAccountTierError>> {
     billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
-        CoreError::PreexistingCardDoesNotExist => UiError(SwitchAccountTierError::PreexistingCardDoesNotExist),
-        CoreError::InvalidCreditCard(field) => match field {
-            InvalidCreditCardField::Number => UiError(SwitchAccountTierError::InvalidCreditCardNumber),
-            InvalidCreditCardField::ExpYear => UiError(SwitchAccountTierError::InvalidCreditCardExpYear),
-            InvalidCreditCardField::ExpMonth => UiError(SwitchAccountTierError::InvalidCreditCardExpMonth),
-            InvalidCreditCardField::CVC => UiError(SwitchAccountTierError::InvalidCreditCardCVC)
+        CoreError::PreexistingCardDoesNotExist => {
+            UiError(SwitchAccountTierError::PreexistingCardDoesNotExist)
         }
+        CoreError::InvalidCreditCard(field) => match field {
+            InvalidCreditCardType::Number => {
+                UiError(SwitchAccountTierError::InvalidCreditCardNumber)
+            }
+            InvalidCreditCardType::ExpYear => {
+                UiError(SwitchAccountTierError::InvalidCreditCardExpYear)
+            }
+            InvalidCreditCardType::ExpMonth => {
+                UiError(SwitchAccountTierError::InvalidCreditCardExpMonth)
+            }
+            InvalidCreditCardType::CVC => UiError(SwitchAccountTierError::InvalidCreditCardCVC),
+        },
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
         _ => unexpected!("{:#?}", e),

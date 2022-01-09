@@ -16,13 +16,13 @@ pub struct StripeErrorContainer {
 pub struct StripeError {
     #[serde(rename = "type")]
     pub error_type: StripeErrorType,
-    pub code: StripeErrorCode,
+    pub code: StripeErrorCode<StripeKnownErrorCode>,
+    pub decline_code: Option<StripeErrorCode<StripeKnownErrorDeclineCode>>,
     pub doc_url: String,
     pub message: String,
     pub param: String,
     pub payment_method_type: Option<String>,
     pub charge: Option<String>,
-    pub decline_code: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -37,35 +37,98 @@ pub enum StripeErrorType {
     InvalidRequestError,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-pub enum StripeErrorCode {
-    Known(StripeKnownErrorCode),
+pub enum StripeErrorCode<E> {
+    Known(E),
     Unknown(String),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StripeKnownErrorCode {
-    InvalidCVC,
+    CardDeclineRateLimitExceeded,
+    CardDeclined,
+    ExpiredCard,
+    IncorrectCvc,
+    IncorrectNumber,
+    InsufficientFunds,
+    InvalidCvc,
     InvalidExpiryMonth,
     InvalidExpiryYear,
     InvalidNumber,
-    CardDeclineRateLimitExceeded,
-    CardDeclined,
-    DebitNotAuthorized,
+    PaymentIntentAuthenticationFailure,
+    ProcessingError,
+    SetupIntentAuthenticationFailure,
+}
+// customer_max_payment_methods
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StripeKnownErrorDeclineCode {
+    // AuthenticationRequired,
+    ApproveWithId,
+    CallIssuer,
+    CardNotSupported,
+    CardVelocityExceeded,
+    CurrencyNotSupported,
+    DoNotHonor,
+    DoNotTryAgain,
+    // DuplicateTransaction,
     ExpiredCard,
+    Fraudulent,
+    GenericDecline,
     IncorrectNumber,
+    IncorrectCvc,
+    // IncorrectPin,
+    InsufficientFunds,
+    // InvalidAccount,
+    // InvalidAmount,
+    InvalidCvc,
+    InvalidExpiryMonth,
+    InvalidExpiryYear,
+    InvalidNumber,
+    IssuerNotAvailable,
+    LostCard,
+    MerchantBlacklist,
+    NewAccountInformationAvailable,
+    NoActionTaken,
+    NotPermitted,
+    PickupCard,
+    ProcessingError,
+    ReenterTransaction,
+    RestrictedCard,
+    RevocationOfAllAuthorizations,
+    RevocationOfAuthorization,
+    SecurityViolation,
+    ServiceNotAllowed,
+    StolenCard,
+    StopPaymentOrder,
+    // TestmodeDecline,
+    TransactionNotAllowed,
+    TryAgainLater,
+    WithdrawalCountLimitExceeded,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StripeSubscriptionResponse {
     pub id: String,
-    pub status: SubscriptionStatus
+    pub status: SubscriptionStatus,
+    pub latest_invoice: StripeInvoice,
 }
 
-// incomplete, incomplete_expired, trialing, active, past_due, canceled, or unpaid
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StripeInvoice {
+    pub payment_intent: StripePaymentIntent,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StripePaymentIntent {
+    pub status: SetupPaymentIntentStatus,
+    pub last_payment_error: Option<StripeError>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SubscriptionStatus {
     Incomplete,
@@ -74,7 +137,7 @@ pub enum SubscriptionStatus {
     Active,
     PastDue,
     Canceled,
-    Unpaid
+    Unpaid,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -82,14 +145,9 @@ pub struct BasicStripeResponse {
     pub id: String,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct StripeSetupIntentResponse {
-    pub status: SetupIntentStatus,
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum SetupIntentStatus {
+pub enum SetupPaymentIntentStatus {
     Succeeded,
     RequiresAction,
     RequiresPaymentMethod,
@@ -104,4 +162,10 @@ pub struct StripePaymentMethodResponse {
 #[derive(Serialize, Deserialize)]
 pub struct PaymentMethodCard {
     pub last4: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StripeSetupIntentResponse {
+    pub status: SetupPaymentIntentStatus,
+    pub last_setup_error: Option<StripeError>,
 }

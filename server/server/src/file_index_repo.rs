@@ -944,7 +944,7 @@ SELECT payment_method_id FROM stripe_payment_methods WHERE customer_id = (SELECT
 pub enum GetLastStripeCreditCardInfoError {
     Postgres(sqlx::Error),
     Serialize(serde_json::Error),
-    NoPaymentInfo
+    NoPaymentInfo,
 }
 
 pub async fn get_last_stripe_credit_card_info(
@@ -992,9 +992,9 @@ INSERT INTO stripe_payment_methods (payment_method_id, customer_id, last_4) VALU
         customer_id,
         last_4
     )
-        .execute(transaction)
-        .await
-        .map_err(AddStripePaymentMethodError::Postgres)?;
+    .execute(transaction)
+    .await
+    .map_err(AddStripePaymentMethodError::Postgres)?;
 
     Ok(())
 }

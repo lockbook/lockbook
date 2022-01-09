@@ -1,9 +1,9 @@
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
+use lockbook_models::api::InvalidCreditCardType;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
-use lockbook_models::api::InvalidCreditCardField;
 
 use crate::service::api_service::ApiError;
 
@@ -74,7 +74,7 @@ pub enum CoreError {
     FileParentNonexistent,
     FolderMovedIntoSelf,
     ImportCollision(String),
-    InvalidCreditCard(InvalidCreditCardField),
+    InvalidCreditCard(InvalidCreditCardType),
     NewTierIsOldTier,
     OutOfSpace,
     PathContainsEmptyFileName,
