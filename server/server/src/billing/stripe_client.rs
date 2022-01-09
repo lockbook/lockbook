@@ -14,6 +14,7 @@ use std::fmt::Debug;
 
 static STRIPE_ENDPOINT: &str = "https://api.stripe.com/v1";
 static PAYMENT_METHODS_ENDPOINT: &str = "/payment_methods";
+static DETACH_ENDPOINT: &str = "/detach";
 static ATTACH_ENDPOINT: &str = "/attach";
 static CUSTOMER_ENDPOINT: &str = "/customers";
 static SUBSCRIPTIONS_ENDPOINT: &str = "/subscriptions";
@@ -33,6 +34,26 @@ pub async fn create_customer(
         StripeResult::Ok(resp) => Ok(resp.id),
         StripeResult::Err(e) => Err(InternalError(format!(
             "Stripe returned an error whilst creating an account: {:?}",
+            e
+        ))),
+    }
+}
+
+pub async fn delete_customer(
+    server_state: &ServerState,
+    customer_id: &str,
+) -> Result<(), ServerError<SwitchAccountTierError>> {
+    match send_stripe_request::<BasicStripeResponse, SwitchAccountTierError>(
+        server_state,
+        format!("{}{}/{}", STRIPE_ENDPOINT, CUSTOMER_ENDPOINT, customer_id),
+        Method::DELETE,
+        None,
+    )
+    .await?
+    {
+        StripeResult::Ok(_) => Ok(()),
+        StripeResult::Err(e) => Err(InternalError(format!(
+            "Stripe returned an error whilst deleting an account: {:?}",
             e
         ))),
     }
@@ -94,10 +115,22 @@ pub async fn create_setup_intent(
                     "Cannot view stripe's setup intent error despite having a related status: {:?}",
                     resp
                 ))),
-                Some(e) => Err(match_stripe_error(e).await),
+                Some(e) => match match_stripe_error(e).await {
+                    ClientError(e) => {
+                        delete_customer(server_state, customer_id).await?;
+                        Err(ClientError(e))
+                    }
+                    e => Err(e),
+                },
             },
         },
-        StripeResult::Err(e) => Err(match_stripe_error(e.error).await),
+        StripeResult::Err(e) => match match_stripe_error(e.error).await {
+            ClientError(e) => {
+                delete_customer(server_state, customer_id).await?;
+                Err(ClientError(e))
+            }
+            e => Err(e),
+        },
     }
 }
 
@@ -161,6 +194,29 @@ pub async fn create_subscription(
             _ => Err(InternalError(format!("Unexpected subscription status (considering payment method has already been checked): {:?}", resp)))
         },
         StripeResult::Err(e) => Err(match_stripe_error(e.error).await)
+    }
+}
+
+pub async fn detach_payment_method_from_customer(
+    server_state: &ServerState,
+    payment_method_id: &str,
+) -> Result<(), ServerError<SwitchAccountTierError>> {
+    match send_stripe_request::<BasicStripeResponse, SwitchAccountTierError>(
+        server_state,
+        format!(
+            "{}/{}{}",
+            STRIPE_ENDPOINT, payment_method_id, DETACH_ENDPOINT
+        ),
+        Method::POST,
+        None,
+    )
+    .await?
+    {
+        StripeResult::Ok(_) => Ok(()),
+        StripeResult::Err(e) => Err(InternalError(format!(
+            "Stripe returned an error whilst detaching a payment method from a customer: {:?}",
+            e
+        ))),
     }
 }
 

@@ -89,6 +89,25 @@ async fn create_subscription(
 
             let customer_id = stripe_client::create_customer(&server_state).await?;
 
+            match file_index_repo::get_last_stripe_credit_card_info(&mut transaction, &public_key)
+                .await
+            {
+                Ok(credit_card_info) => {
+                    stripe_client::detach_payment_method_from_customer(
+                        &server_state,
+                        &credit_card_info.payment_method_id,
+                    )
+                    .await?;
+                }
+                Err(GetLastStripeCreditCardInfoError::NoPaymentInfo) => {}
+                Err(e) => {
+                    return Err(InternalError(format!(
+                        "Cannot get stripe payment method info from Postgres: {:?}",
+                        e
+                    )))
+                }
+            }
+
             stripe_client::attach_payment_method_to_customer(
                 &server_state,
                 &customer_id,
@@ -154,7 +173,21 @@ async fn create_subscription(
     };
 
     let subscription_id =
-        stripe_client::create_subscription(&server_state, &customer_id, &payment_method_id).await?;
+        match stripe_client::create_subscription(&server_state, &customer_id, &payment_method_id)
+            .await
+        {
+            Ok(id) => id,
+            Err(ClientError(e)) => {
+                match card {
+                    CardChoice::NewCard { .. } => {
+                        stripe_client::delete_customer(&server_state, &customer_id).await?;
+                    }
+                    CardChoice::OldCard => {}
+                }
+                return Err(ClientError(e));
+            }
+            Err(InternalError(e)) => return Err(InternalError(e)),
+        };
 
     file_index_repo::add_stripe_subscription(&mut transaction, &customer_id, &subscription_id)
         .await
