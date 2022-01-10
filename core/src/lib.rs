@@ -629,6 +629,7 @@ pub enum SwitchAccountTierError {
     InvalidCreditCardCVC,
     InvalidCreditCardExpYear,
     InvalidCreditCardExpMonth,
+    CardDecline
 }
 
 pub fn switch_account_tier(
@@ -653,6 +654,7 @@ pub fn switch_account_tier(
         },
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
+        CoreError::CardDecline(_) => UiError(SwitchAccountTierError::CardDecline),
         _ => unexpected!("{:#?}", e),
     })
 }

@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 pub const FREE_TIER_SIZE: i64 = 1000000;
+pub const PAID_TIER_SIZE: i64 = 50000000000;
 
 // TODO:
 // * check ownership
@@ -785,6 +786,31 @@ WHERE id =
         Some(row) => Ok(row.bytes_cap as u64),
         None => Err(GetDataCapError::TierNotFound),
     }
+}
+
+#[derive(Debug)]
+pub enum SetDataCapError {
+    Serialize(serde_json::Error),
+    Postgres(sqlx::Error),
+}
+
+pub async fn set_account_data_cap(
+    transaction: &mut Transaction<'_, Postgres>,
+    public_key: &PublicKey,
+    data_cap: i64
+) -> Result<(), SetDataCapError> {
+    sqlx::query!(
+        r#"
+UPDATE account_tiers SET bytes_cap = $2 WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1);
+        "#,
+        &serde_json::to_string(public_key).map_err(SetDataCapError::Serialize)?,
+        data_cap
+    )
+        .execute(transaction)
+        .await
+        .map_err(SetDataCapError::Postgres)?;
+
+    Ok(())
 }
 
 #[derive(Debug)]

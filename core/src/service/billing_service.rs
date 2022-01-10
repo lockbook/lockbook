@@ -27,6 +27,9 @@ pub fn switch_account_tier(
         ApiError::Endpoint(SwitchAccountTierError::InvalidCreditCard(field)) => {
             CoreError::InvalidCreditCard(field)
         }
+        ApiError::Endpoint(SwitchAccountTierError::CardDeclined(decline_type)) => {
+            CoreError::CardDecline(decline_type)
+        }
         ApiError::SendFailed(_) => CoreError::ServerUnreachable,
         _ => core_err_unexpected(e),
     })?;

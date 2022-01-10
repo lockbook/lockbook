@@ -245,6 +245,19 @@
       ]
     }
   },
+  "643c0bae49c6884bb0321226520a817ad342be0329381bfa4586f27ed8f5f986": {
+    "query": "\nUPDATE account_tiers SET bytes_cap = $2 WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1);\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8"
+        ]
+      },
+      "nullable": []
+    }
+  },
   "65d57d7f9e7f5c969fdbb3285a37bb21a27bea539b58f4e1cebc9912bef23a11": {
     "query": "\nSELECT\n    files.*,\n    user_access_keys.encrypted_key AS \"encrypted_key?\",\n    accounts.public_key,\n    accounts.name AS username\nFROM files\nJOIN accounts ON files.owner = accounts.public_key\nLEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee\nWHERE\n    accounts.public_key = $1;\n        ",
     "describe": {

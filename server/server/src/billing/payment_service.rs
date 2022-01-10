@@ -1,5 +1,5 @@
 use crate::billing::stripe_client;
-use crate::file_index_repo::{GetLastStripeCreditCardInfoError, FREE_TIER_SIZE};
+use crate::file_index_repo::{GetLastStripeCreditCardInfoError, FREE_TIER_SIZE, PAID_TIER_SIZE};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_index_repo, RequestContext, ServerError, ServerState};
 use libsecp256k1::PublicKey;
@@ -53,6 +53,15 @@ pub async fn switch_account_tier(
                 .map_err(|e| {
                     InternalError(format!(
                         "Cannot cancel stripe subscription in Postgres: {:?}",
+                        e
+                    ))
+                })?;
+
+            file_index_repo::set_account_data_cap(&mut transaction, &context.public_key, FREE_TIER_SIZE)
+                .await
+                .map_err(|e| {
+                    InternalError(format!(
+                        "Cannot change user data cap to free data cap: {:?}",
                         e
                     ))
                 })?;
@@ -194,6 +203,15 @@ async fn create_subscription(
         .map_err(|e| {
             InternalError(format!(
                 "Cannot add stripe subscription in Postgres: {:?}",
+                e
+            ))
+        })?;
+
+    file_index_repo::set_account_data_cap(&mut transaction, &public_key, PAID_TIER_SIZE)
+        .await
+        .map_err(|e| {
+            InternalError(format!(
+                "Cannot change user data cap to premium data cap: {:?}",
                 e
             ))
         })

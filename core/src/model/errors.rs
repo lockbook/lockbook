@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
-use lockbook_models::api::InvalidCreditCardType;
+use lockbook_models::api::{CardDeclinedType, InvalidCreditCardType};
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
@@ -60,6 +60,7 @@ pub enum CoreError {
     AccountExists,
     AccountNonexistent,
     AccountStringCorrupted,
+    CardDecline(CardDeclinedType),
     ClientUpdateRequired,
     ClientWipeRequired,
     DiskPathInvalid,
