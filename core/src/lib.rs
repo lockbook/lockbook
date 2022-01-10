@@ -16,9 +16,10 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
+use crate::billing_service::CreditCardLast4Digits;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{AccountTier, CreditCardInfo, InvalidCreditCardType};
+use lockbook_models::api::{AccountTier, InvalidCreditCardType};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -629,7 +630,7 @@ pub enum SwitchAccountTierError {
     InvalidCreditCardCVC,
     InvalidCreditCardExpYear,
     InvalidCreditCardExpMonth,
-    CardDecline
+    CardDecline,
 }
 
 pub fn switch_account_tier(
@@ -637,7 +638,7 @@ pub fn switch_account_tier(
     new_account_tier: AccountTier,
 ) -> Result<(), Error<SwitchAccountTierError>> {
     billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
-        CoreError::PreexistingCardDoesNotExist => {
+        CoreError::OldCardDoesNotExist => {
             UiError(SwitchAccountTierError::PreexistingCardDoesNotExist)
         }
         CoreError::InvalidCreditCard(field) => match field {
@@ -663,12 +664,14 @@ pub fn switch_account_tier(
 pub enum GetLastRegisteredCardError {
     NoAccount,
     CouldNotReachServer,
+    OldCardDoesNotExist,
 }
 
-pub fn get_last_registered_card(
+pub fn get_last_registered_credit_card(
     config: &Config,
-) -> Result<CreditCardInfo, Error<GetLastRegisteredCardError>> {
-    billing_service::get_last_registered_card(config).map_err(|e| match e {
+) -> Result<CreditCardLast4Digits, Error<GetLastRegisteredCardError>> {
+    billing_service::get_last_registered_credit_card(config).map_err(|e| match e {
+        CoreError::OldCardDoesNotExist => UiError(GetLastRegisteredCardError::OldCardDoesNotExist),
         CoreError::AccountNonexistent => UiError(GetLastRegisteredCardError::NoAccount),
         CoreError::ServerUnreachable => UiError(GetLastRegisteredCardError::CouldNotReachServer),
         _ => unexpected!("{:#?}", e),

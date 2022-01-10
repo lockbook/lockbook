@@ -3,9 +3,11 @@ use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{account_repo, Config, CoreError};
 use lockbook_models::api::{
-    AccountTier, CreditCardInfo, GetLastRegisteredCreditCardRequest, SwitchAccountTierError,
-    SwitchAccountTierRequest,
+    AccountTier, GetLastRegisteredCreditCardError, GetLastRegisteredCreditCardRequest,
+    SwitchAccountTierError, SwitchAccountTierRequest,
 };
+
+pub type CreditCardLast4Digits = String;
 
 pub fn switch_account_tier(
     config: &Config,
@@ -20,8 +22,8 @@ pub fn switch_account_tier(
         },
     )
     .map_err(|e| match e {
-        ApiError::Endpoint(SwitchAccountTierError::PreexistingCardDoesNotExist) => {
-            CoreError::PreexistingCardDoesNotExist
+        ApiError::Endpoint(SwitchAccountTierError::OldCardDoesNotExist) => {
+            CoreError::OldCardDoesNotExist
         }
         ApiError::Endpoint(SwitchAccountTierError::NewTierIsOldTier) => CoreError::NewTierIsOldTier,
         ApiError::Endpoint(SwitchAccountTierError::InvalidCreditCard(field)) => {
@@ -37,10 +39,17 @@ pub fn switch_account_tier(
     Ok(())
 }
 
-pub fn get_last_registered_card(config: &Config) -> Result<CreditCardInfo, CoreError> {
+pub fn get_last_registered_credit_card(
+    config: &Config,
+) -> Result<CreditCardLast4Digits, CoreError> {
     let account = account_repo::get(config)?;
 
     api_service::request(&account, GetLastRegisteredCreditCardRequest {})
-        .map_err(CoreError::from)
-        .map(|response| response.credit_card)
+        .map_err(|e| match e {
+            ApiError::Endpoint(GetLastRegisteredCreditCardError::OldCardDoesNotExist) => {
+                CoreError::OldCardDoesNotExist
+            }
+            _ => core_err_unexpected(e),
+        })
+        .map(|response| response.credit_card_last_4_digits)
 }

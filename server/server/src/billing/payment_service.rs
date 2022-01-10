@@ -57,14 +57,18 @@ pub async fn switch_account_tier(
                     ))
                 })?;
 
-            file_index_repo::set_account_data_cap(&mut transaction, &context.public_key, FREE_TIER_SIZE)
-                .await
-                .map_err(|e| {
-                    InternalError(format!(
-                        "Cannot change user data cap to free data cap: {:?}",
-                        e
-                    ))
-                })?;
+            file_index_repo::set_account_data_cap(
+                &mut transaction,
+                &context.public_key,
+                FREE_TIER_SIZE,
+            )
+            .await
+            .map_err(|e| {
+                InternalError(format!(
+                    "Cannot change user data cap to free data cap: {:?}",
+                    e
+                ))
+            })?;
         }
     }
 
@@ -159,7 +163,7 @@ async fn create_subscription(
                     .await
                     .map_err(|e| match e {
                         GetLastStripeCreditCardInfoError::NoPaymentInfo => {
-                            ClientError(SwitchAccountTierError::PreexistingCardDoesNotExist)
+                            ClientError(SwitchAccountTierError::OldCardDoesNotExist)
                         }
                         _ => InternalError(format!(
                             "Cannot get stripe payment method info from Postgres: {:?}",
@@ -230,9 +234,14 @@ pub async fn get_last_registered_credit_card(
     let credit_card =
         file_index_repo::get_last_stripe_credit_card_info(&mut transaction, &context.public_key)
             .await
-            .map_err(|e| {
-                InternalError(format!("Cannot get all stripe credit card infos: {:?}", e))
+            .map_err(|e| match e {
+                GetLastStripeCreditCardInfoError::NoPaymentInfo => {
+                    ClientError(GetLastRegisteredCreditCardError::OldCardDoesNotExist)
+                }
+                _ => InternalError(format!("Cannot get all stripe credit card infos: {:?}", e)),
             })?;
 
-    Ok(GetLastRegisteredCreditCardResponse { credit_card })
+    Ok(GetLastRegisteredCreditCardResponse {
+        credit_card_last_4_digits: credit_card.last_4_digits,
+    })
 }

@@ -271,22 +271,18 @@ impl Request for GetBuildInfoRequest {
     const ROUTE: &'static str = "/get-build-info";
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CreditCardInfo {
-    pub payment_method_id: String,
-    pub last_4_digits: String,
-}
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetLastRegisteredCreditCardRequest {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetLastRegisteredCreditCardResponse {
-    pub credit_card: CreditCardInfo,
+    pub credit_card_last_4_digits: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetLastRegisteredCreditCardError {}
+pub enum GetLastRegisteredCreditCardError {
+    OldCardDoesNotExist,
+}
 
 impl Request for GetLastRegisteredCreditCardRequest {
     type Response = GetLastRegisteredCreditCardResponse;
@@ -345,7 +341,7 @@ pub enum CardDeclinedType {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum SwitchAccountTierError {
-    PreexistingCardDoesNotExist,
+    OldCardDoesNotExist,
     NewTierIsOldTier,
     CardDeclined(CardDeclinedType),
     InvalidCreditCard(InvalidCreditCardType),

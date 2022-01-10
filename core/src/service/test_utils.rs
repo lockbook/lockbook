@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use chrono::Datelike;
 use std::collections::HashMap;
 use std::env;
 use std::hash::Hash;
@@ -12,6 +13,7 @@ use uuid::Uuid;
 
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
+use lockbook_models::api::{AccountTier, CardChoice};
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -154,6 +156,28 @@ pub fn assert_new_synced_client_dbs_eq(db: &Config) {
     let new_client = make_and_sync_new_client(db);
     assert_repo_integrity(&new_client);
     assert_dbs_eq(db, &new_client);
+}
+
+pub mod test_credit_cards {
+    pub const NO_AUTHENTICATION: &str = "4242424242424242";
+    pub const NO_AUTHENTICATION_LAST_4: &str = "4242";
+
+    pub const INVALID_NUMBER: &str = "11111";
+
+    pub mod decline {
+        pub const GENERIC: &str = "4000000000000002";
+        pub const INSUFFICIENT_FUNDS: &str = "4000000000009995";
+        pub const LOST_CARD: &str = "4000000000009987";
+        pub const EXPIRED_CARD: &str = "4000000000000069";
+        pub const INCORRECT_CVC: &str = "4000000000000127"; // incorrect cvc for card resulting in decline
+        pub const PROCESSING_ERROR: &str = "4000000000000119";
+        pub const INCORRECT_NUMBER: &str = "4242424242424241";
+    }
+}
+
+pub mod test_card_info {
+    pub const GENERIC_CVC: &str = "314";
+    pub const GENERIC_EXP_MONTH: &str = "8";
 }
 
 #[macro_export]
@@ -342,6 +366,35 @@ pub fn dbs_equal(db1: &Config, db2: &Config) -> bool {
             == file_service::get_all_metadata_state(db2).unwrap()
         && file_service::get_all_document_state(db1).unwrap()
             == file_service::get_all_document_state(db2).unwrap()
+}
+
+pub fn get_next_year() -> String {
+    (chrono::Utc::now().year() + 1).to_string()
+}
+
+pub fn generate_monthly_account_tier(
+    card_number: &str,
+    maybe_exp_year: Option<&str>,
+    maybe_exp_month: Option<&str>,
+    maybe_cvc: Option<&str>,
+) -> AccountTier {
+    AccountTier::Monthly(CardChoice::NewCard {
+        number: card_number.to_string(),
+        exp_year: match maybe_exp_year {
+            None => get_next_year(),
+            Some(exp_year) => exp_year.to_string(),
+        },
+        exp_month: match maybe_exp_month {
+            None => test_card_info::GENERIC_EXP_MONTH,
+            Some(exp_month) => exp_month,
+        }
+        .to_string(),
+        cvc: match maybe_cvc {
+            None => test_card_info::GENERIC_CVC,
+            Some(cvc) => cvc,
+        }
+        .to_string(),
+    })
 }
 
 fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {

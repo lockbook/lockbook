@@ -1,4 +1,8 @@
-use crate::billing::stripe::{BasicStripeResponse, SetupPaymentIntentStatus, StripeError, StripeErrorCode, StripeErrorType, StripeKnownErrorCode, StripeKnownErrorDeclineCode, StripePaymentMethodResponse, StripeResult, StripeSetupIntentResponse, StripeSubscriptionResponse, SubscriptionStatus};
+use crate::billing::stripe::{
+    BasicStripeResponse, SetupPaymentIntentStatus, StripeError, StripeErrorCode, StripeErrorType,
+    StripeKnownErrorCode, StripeKnownErrorDeclineCode, StripePaymentMethodResponse, StripeResult,
+    StripeSetupIntentResponse, StripeSubscriptionResponse, SubscriptionStatus,
+};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{ServerError, ServerState};
 use lockbook_models::api::{CardDeclinedType, InvalidCreditCardType, SwitchAccountTierError};
@@ -269,7 +273,7 @@ async fn send_stripe_request<U: DeserializeOwned, E: Debug>(
 }
 
 async fn match_stripe_error(error: StripeError) -> ServerError<SwitchAccountTierError> {
-    if let StripeErrorType::CardError =  error.error_type {
+    if let StripeErrorType::CardError = error.error_type {
         match error.code {
             StripeErrorCode::Known(ref error_code) => match error_code {
                 StripeKnownErrorCode::CardDeclineRateLimitExceeded => ClientError(
@@ -284,112 +288,130 @@ async fn match_stripe_error(error: StripeError) -> ServerError<SwitchAccountTier
                         ))
                     }
                     Some(ref decline_code) => match decline_code {
-                        StripeErrorCode::Known(ref known_decline_code) => match known_decline_code {
-                            // Try again
-                            StripeKnownErrorDeclineCode::ApproveWithId
-                            | StripeKnownErrorDeclineCode::IssuerNotAvailable
-                            | StripeKnownErrorDeclineCode::ProcessingError
-                            | StripeKnownErrorDeclineCode::ReenterTransaction
-                            | StripeKnownErrorDeclineCode::TryAgainLater => ClientError(
-                                SwitchAccountTierError::CardDeclined(CardDeclinedType::TryAgain),
-                            ),
+                        StripeErrorCode::Known(ref known_decline_code) => {
+                            match known_decline_code {
+                                // Try again
+                                StripeKnownErrorDeclineCode::ApproveWithId
+                                | StripeKnownErrorDeclineCode::IssuerNotAvailable
+                                | StripeKnownErrorDeclineCode::ProcessingError
+                                | StripeKnownErrorDeclineCode::ReenterTransaction
+                                | StripeKnownErrorDeclineCode::TryAgainLater => {
+                                    ClientError(SwitchAccountTierError::CardDeclined(
+                                        CardDeclinedType::TryAgain,
+                                    ))
+                                }
 
-                            //Unknown
-                            StripeKnownErrorDeclineCode::CallIssuer
-                            | StripeKnownErrorDeclineCode::DoNotTryAgain
-                            | StripeKnownErrorDeclineCode::DoNotHonor
-                            | StripeKnownErrorDeclineCode::NewAccountInformationAvailable
-                            | StripeKnownErrorDeclineCode::RestrictedCard
-                            | StripeKnownErrorDeclineCode::RevocationOfAllAuthorizations
-                            | StripeKnownErrorDeclineCode::RevocationOfAuthorization
-                            | StripeKnownErrorDeclineCode::SecurityViolation
-                            | StripeKnownErrorDeclineCode::ServiceNotAllowed
-                            | StripeKnownErrorDeclineCode::StopPaymentOrder
-                            | StripeKnownErrorDeclineCode::TransactionNotAllowed => ClientError(
-                                SwitchAccountTierError::CardDeclined(CardDeclinedType::Unknown),
-                            ),
+                                //Unknown
+                                StripeKnownErrorDeclineCode::CallIssuer
+                                | StripeKnownErrorDeclineCode::DoNotTryAgain
+                                | StripeKnownErrorDeclineCode::DoNotHonor
+                                | StripeKnownErrorDeclineCode::NewAccountInformationAvailable
+                                | StripeKnownErrorDeclineCode::RestrictedCard
+                                | StripeKnownErrorDeclineCode::RevocationOfAllAuthorizations
+                                | StripeKnownErrorDeclineCode::RevocationOfAuthorization
+                                | StripeKnownErrorDeclineCode::SecurityViolation
+                                | StripeKnownErrorDeclineCode::ServiceNotAllowed
+                                | StripeKnownErrorDeclineCode::StopPaymentOrder
+                                | StripeKnownErrorDeclineCode::TransactionNotAllowed => {
+                                    ClientError(SwitchAccountTierError::CardDeclined(
+                                        CardDeclinedType::Unknown,
+                                    ))
+                                }
 
-                            // Not supported
-                            StripeKnownErrorDeclineCode::CardNotSupported
-                            | StripeKnownErrorDeclineCode::CurrencyNotSupported => ClientError(
-                                SwitchAccountTierError::CardDeclined(CardDeclinedType::NotSupported),
-                            ),
+                                // Not supported
+                                StripeKnownErrorDeclineCode::CardNotSupported
+                                | StripeKnownErrorDeclineCode::CurrencyNotSupported => {
+                                    ClientError(SwitchAccountTierError::CardDeclined(
+                                        CardDeclinedType::NotSupported,
+                                    ))
+                                }
 
-                            // Balance or credit exceeded
-                            StripeKnownErrorDeclineCode::CardVelocityExceeded
-                            | StripeKnownErrorDeclineCode::InsufficientFunds
-                            | StripeKnownErrorDeclineCode::WithdrawalCountLimitExceeded => {
-                                ClientError(SwitchAccountTierError::CardDeclined(
-                                    CardDeclinedType::BalanceOrCreditExceeded,
-                                ))
+                                // Balance or credit exceeded
+                                StripeKnownErrorDeclineCode::CardVelocityExceeded
+                                | StripeKnownErrorDeclineCode::InsufficientFunds
+                                | StripeKnownErrorDeclineCode::WithdrawalCountLimitExceeded => {
+                                    ClientError(SwitchAccountTierError::CardDeclined(
+                                        CardDeclinedType::BalanceOrCreditExceeded,
+                                    ))
+                                }
+
+                                // Expired card
+                                StripeKnownErrorDeclineCode::ExpiredCard => {
+                                    ClientError(SwitchAccountTierError::CardDeclined(
+                                        CardDeclinedType::ExpiredCard,
+                                    ))
+                                }
+
+                                // Generic
+                                StripeKnownErrorDeclineCode::Fraudulent
+                                | StripeKnownErrorDeclineCode::GenericDecline
+                                | StripeKnownErrorDeclineCode::LostCard
+                                | StripeKnownErrorDeclineCode::MerchantBlacklist
+                                | StripeKnownErrorDeclineCode::NoActionTaken
+                                | StripeKnownErrorDeclineCode::NotPermitted
+                                | StripeKnownErrorDeclineCode::PickupCard
+                                | StripeKnownErrorDeclineCode::StolenCard => ClientError(
+                                    SwitchAccountTierError::CardDeclined(CardDeclinedType::Generic),
+                                ),
+
+                                // Incorrect number
+                                StripeKnownErrorDeclineCode::IncorrectNumber
+                                | StripeKnownErrorDeclineCode::InvalidNumber => {
+                                    ClientError(SwitchAccountTierError::CardDeclined(
+                                        CardDeclinedType::IncorrectNumber,
+                                    ))
+                                }
+
+                                // Incorrect cvc
+                                StripeKnownErrorDeclineCode::IncorrectCvc
+                                | StripeKnownErrorDeclineCode::InvalidCvc => {
+                                    ClientError(SwitchAccountTierError::CardDeclined(
+                                        CardDeclinedType::IncorrectCVC,
+                                    ))
+                                }
+
+                                // Incorrect expiry month
+                                StripeKnownErrorDeclineCode::InvalidExpiryMonth => {
+                                    ClientError(SwitchAccountTierError::CardDeclined(
+                                        CardDeclinedType::IncorrectExpiryMonth,
+                                    ))
+                                }
+
+                                // Incorrect expiry year
+                                StripeKnownErrorDeclineCode::InvalidExpiryYear => {
+                                    ClientError(SwitchAccountTierError::CardDeclined(
+                                        CardDeclinedType::IncorrectExpiryYear,
+                                    ))
+                                }
                             }
-
-                            // Expired card
-                            StripeKnownErrorDeclineCode::ExpiredCard => ClientError(
-                                SwitchAccountTierError::CardDeclined(CardDeclinedType::ExpiredCard),
-                            ),
-
-                            // Generic
-                            StripeKnownErrorDeclineCode::Fraudulent
-                            | StripeKnownErrorDeclineCode::GenericDecline
-                            | StripeKnownErrorDeclineCode::LostCard
-                            | StripeKnownErrorDeclineCode::MerchantBlacklist
-                            | StripeKnownErrorDeclineCode::NoActionTaken
-                            | StripeKnownErrorDeclineCode::NotPermitted
-                            | StripeKnownErrorDeclineCode::PickupCard
-                            | StripeKnownErrorDeclineCode::StolenCard => ClientError(
-                                SwitchAccountTierError::CardDeclined(CardDeclinedType::Generic),
-                            ),
-
-                            // Incorrect number
-                            StripeKnownErrorDeclineCode::IncorrectNumber
-                            | StripeKnownErrorDeclineCode::InvalidNumber => ClientError(
-                                SwitchAccountTierError::CardDeclined(CardDeclinedType::IncorrectNumber),
-                            ),
-
-                            // Incorrect cvc
-                            StripeKnownErrorDeclineCode::IncorrectCvc
-                            | StripeKnownErrorDeclineCode::InvalidCvc => ClientError(
-                                SwitchAccountTierError::CardDeclined(CardDeclinedType::IncorrectCVC),
-                            ),
-
-                            // Incorrect expiry month
-                            StripeKnownErrorDeclineCode::InvalidExpiryMonth => {
-                                ClientError(SwitchAccountTierError::CardDeclined(
-                                    CardDeclinedType::IncorrectExpiryMonth,
-                                ))
-                            }
-
-                            // Incorrect expiry year
-                            StripeKnownErrorDeclineCode::InvalidExpiryYear => {
-                                ClientError(SwitchAccountTierError::CardDeclined(
-                                    CardDeclinedType::IncorrectExpiryYear,
-                                ))
-                            }
-                        },
+                        }
                         StripeErrorCode::Unknown(_) => InternalError(format!(
                             "Unexpected stripe decline error code encountered: {:?}",
                             error
                         )),
                     },
                 },
-                StripeKnownErrorCode::ExpiredCard => ClientError(SwitchAccountTierError::CardDeclined(
-                    CardDeclinedType::ExpiredCard,
-                )),
-                StripeKnownErrorCode::IncorrectCvc | StripeKnownErrorCode::InvalidCvc => ClientError(
-                    SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::CVC),
+                StripeKnownErrorCode::ExpiredCard => ClientError(
+                    SwitchAccountTierError::CardDeclined(CardDeclinedType::ExpiredCard),
                 ),
+                StripeKnownErrorCode::IncorrectCvc | StripeKnownErrorCode::InvalidCvc => {
+                    ClientError(SwitchAccountTierError::InvalidCreditCard(
+                        InvalidCreditCardType::CVC,
+                    ))
+                }
                 StripeKnownErrorCode::IncorrectNumber | StripeKnownErrorCode::InvalidNumber => {
-                    ClientError(SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::Number))
+                    ClientError(SwitchAccountTierError::InvalidCreditCard(
+                        InvalidCreditCardType::Number,
+                    ))
                 }
                 StripeKnownErrorCode::InsufficientFunds => ClientError(
                     SwitchAccountTierError::CardDeclined(CardDeclinedType::BalanceOrCreditExceeded),
                 ),
                 StripeKnownErrorCode::InvalidExpiryMonth => ClientError(
-                    SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::ExpMonth)
+                    SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::ExpMonth),
                 ),
                 StripeKnownErrorCode::InvalidExpiryYear => ClientError(
-                    SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::ExpYear)
+                    SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::ExpYear),
                 ),
                 StripeKnownErrorCode::ProcessingError => ClientError(
                     SwitchAccountTierError::CardDeclined(CardDeclinedType::TryAgain),
@@ -410,6 +432,4 @@ async fn match_stripe_error(error: StripeError) -> ServerError<SwitchAccountTier
             error
         ))
     }
-
-
 }

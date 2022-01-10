@@ -1,7 +1,7 @@
 use crate::config::IndexDbConfig;
 use base64;
 use libsecp256k1::PublicKey;
-use lockbook_models::api::{CreditCardInfo, FileUsage};
+use lockbook_models::api::FileUsage;
 use lockbook_models::crypto::{
     EncryptedFolderAccessKey, EncryptedUserAccessKey, SecretFileName, UserAccessInfo,
 };
@@ -797,7 +797,7 @@ pub enum SetDataCapError {
 pub async fn set_account_data_cap(
     transaction: &mut Transaction<'_, Postgres>,
     public_key: &PublicKey,
-    data_cap: i64
+    data_cap: i64,
 ) -> Result<(), SetDataCapError> {
     sqlx::query!(
         r#"
@@ -971,6 +971,11 @@ pub enum GetLastStripeCreditCardInfoError {
     Postgres(sqlx::Error),
     Serialize(serde_json::Error),
     NoPaymentInfo,
+}
+
+pub struct CreditCardInfo {
+    pub payment_method_id: String,
+    pub last_4_digits: String,
 }
 
 pub async fn get_last_stripe_credit_card_info(

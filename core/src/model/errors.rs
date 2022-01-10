@@ -82,7 +82,7 @@ pub enum CoreError {
     PathNonexistent,
     PathStartsWithNonRoot,
     PathTaken,
-    PreexistingCardDoesNotExist,
+    OldCardDoesNotExist,
     RootModificationInvalid,
     RootNonexistent,
     ServerUnreachable,
