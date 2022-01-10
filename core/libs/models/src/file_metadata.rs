@@ -55,13 +55,13 @@ pub struct EncryptedFileMetadata {
     pub folder_access_keys: EncryptedFolderAccessKey,
 }
 
-trait EncryptedFileMetadataExt {
+pub trait EncryptedFileMetadataExt {
     fn find(&self, id: Uuid) -> Option<EncryptedFileMetadata>;
 }
 
 impl EncryptedFileMetadataExt for Vec<EncryptedFileMetadata> {
     fn find(&self, id: Uuid) -> Option<EncryptedFileMetadata> {
-        maybe_find(&self, id)
+        maybe_find(self, id)
     }
 }
 

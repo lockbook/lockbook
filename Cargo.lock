@@ -2211,7 +2211,6 @@ dependencies = [
  "serde",
  "serde_json",
  "shadow-rs",
- "sqlx",
  "tokio",
  "tokio-test",
  "uuid",

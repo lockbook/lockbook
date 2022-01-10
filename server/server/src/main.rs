@@ -19,10 +19,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loggers::init(&config);
 
     // *** Things this server connects to ***
-    let index_db_client = file_index_repo::connect(&config.index_db)
-        .await
-        .expect("Failed to connect to index_db");
-
     let files_db_client = file_content_client::create_client(&config.files_db)
         .expect("Failed to create files_db client");
 
@@ -32,7 +28,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
-        index_db_client,
         index_db2_connection,
         files_db_client,
     });

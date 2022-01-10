@@ -19,7 +19,6 @@ static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub struct ServerState {
     pub config: config::Config,
-    pub index_db_client: sqlx::PgPool,
     pub index_db2_connection: deadpool_redis::Pool,
     pub files_db_client: s3::bucket::Bucket,
 }
@@ -105,7 +104,6 @@ const FREE_TIER: u64 = 1000000;
 pub mod account_service;
 pub mod config;
 pub mod file_content_client;
-pub mod file_index_repo;
 pub mod file_service;
 pub mod keys;
 pub mod loggers;

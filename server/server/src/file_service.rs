@@ -7,10 +7,12 @@ use crate::{file_content_client, ServerError};
 
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::*;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFileMetadataExt, FileMetadataDiff};
 use redis_utils::converters::{JsonGet, JsonSet};
-use redis_utils::tx;
+use redis_utils::{tx, TxError};
+use redis_utils::TxError::Abort;
 use uuid::Uuid;
+use lockbook_models::api::FileMetadataUpsertsError::RootImmutable;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
@@ -25,10 +27,6 @@ pub async fn upsert_file_metadata(
         let keys: Vec<String> = files.into_iter().map(keys::file).collect();
         let mut files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
 
-        for change in request.updates {
-            if change.id 
-        }
-
         for the_file in files {
             pipe.json_set(file(the_file.id), the_file)?;
         }
@@ -36,6 +34,17 @@ pub async fn upsert_file_metadata(
     });
     return_if_error!(tx);
     Err(internal!(""))
+}
+
+fn check_for_changed_root(changes: &[FileMetadataDiff]) -> Result<(), TxError<FileMetadataUpsertsError>> {
+    for change in changes {
+        if let Some((old_parent, _)) = change.old_parent_and_name {
+            if change.id == old_parent {
+                return Err(Abort(RootImmutable))
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Changes the content and size of a document
