@@ -4,15 +4,18 @@ use crate::{file_content_client, ServerError};
 use crate::{keys, RequestContext};
 
 use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::FileMetadataUpsertsError::{CannotMoveFolderIntoItself, RootImmutable};
+use lockbook_models::api::FileMetadataUpsertsError::{
+    CannotMoveFolderIntoItself, GetUpdatesRequired, RootImmutable,
+};
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::{
-    EncryptedFileMetadata, EncryptedFileMetadataExt, FileMetadataDiff,
+    EncryptedFileMetadata, FileMetadataDiff,
 };
 use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::TxError::Abort;
 use redis_utils::{tx, TxError};
 use uuid::Uuid;
+use lockbook_models::tree::FileMetaExt;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
@@ -28,6 +31,8 @@ pub async fn upsert_file_metadata(
             .ok_or(Abort(ClientError(FileMetadataUpsertsError::UserNotFound)))?;
         let keys: Vec<String> = files.into_iter().map(keys::file).collect();
         let mut files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
+
+        apply_changes(&request.updates, &mut files)?;
 
         for the_file in files {
             pipe.json_set(file(the_file.id), the_file)?;
@@ -47,35 +52,54 @@ fn check_for_changed_root(
                 return Err(ClientError(RootImmutable));
             }
             if change.id == change.new_parent {
-                return Err(ClientError(CannotMoveFolderIntoItself))
+                return Err(ClientError(CannotMoveFolderIntoItself));
             }
         }
     }
     Ok(())
 }
 
-fn apply_changes(changes: &mut [FileMetadataDiff], metas: &mut Vec<EncryptedFileMetadata>) -> Result<(), TxError<FileMetadataUpsertsError>> {
+fn apply_changes(
+    changes: &[FileMetadataDiff],
+    metas: &mut Vec<EncryptedFileMetadata>,
+) -> Result<(), TxError<ServerError<FileMetadataUpsertsError>>> {
     for change in changes {
-        match metas.find_mut(change.id) {
-            Some(meta) => {}
-            None => metas.push(EncryptedFileMetadata::new)
+        match metas.maybe_find_mut(change.id) {
+            Some(meta) => {
+                let now = get_time().0 as u64;
+                if change.new_deleted {
+                    meta.deleted = true;
+                }
+
+                if let Some((old_parent, old_name)) = &change.old_parent_and_name {
+                    if meta.parent != *old_parent || meta.name != *old_name {
+                        return Err(Abort(ClientError(GetUpdatesRequired)));
+                    }
+                }
+                meta.parent = change.new_parent;
+                meta.name = change.new_name.clone();
+                meta.folder_access_keys = change.new_folder_access_keys.clone();
+                meta.metadata_version = now;
+            }
+            None => metas.push(new_meta(change)),
         }
     }
     Ok(())
 }
 
-fn new_meta(diff: FileMetadataDiff) -> EncryptedFileMetadata {
+fn new_meta(diff: &FileMetadataDiff) -> EncryptedFileMetadata {
+    let now = get_time().0 as u64;
     EncryptedFileMetadata {
         id: diff.id,
         file_type: diff.file_type,
         parent: diff.new_parent,
-        name: diff.new_name,
-        owner: diff.owner,
-        metadata_version: (get_time().0 as u64),
-        content_version: 0, // TODO what should this be
+        name: diff.new_name.clone(),
+        owner: diff.owner.clone(),
+        metadata_version: now,
+        content_version: now,
         deleted: diff.new_deleted,
         user_access_keys: Default::default(),
-        folder_access_keys: diff.new_folder_access_keys
+        folder_access_keys: diff.new_folder_access_keys.clone(),
     }
 }
 

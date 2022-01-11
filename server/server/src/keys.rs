@@ -1,5 +1,5 @@
 use libsecp256k1::PublicKey;
-use lockbook_models::file_metadata::FileMetadata;
+use lockbook_models::tree::FileMetadata;
 use uuid::Uuid;
 
 pub fn public_key(username: &str) -> String {

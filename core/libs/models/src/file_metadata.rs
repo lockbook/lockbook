@@ -1,7 +1,6 @@
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt;
-use std::hash::Hash;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -9,7 +8,7 @@ use uuid::Uuid;
 
 use crate::account::Username;
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
-use crate::utils::{maybe_find, maybe_find_mut};
+use crate::tree::FileMetadata;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
@@ -28,19 +27,6 @@ impl FromStr for FileType {
     }
 }
 
-pub trait FileMetadata : Clone {
-    type Name : Hash + Eq;
-
-    fn id(&self) -> Uuid;
-    fn file_type(&self) -> FileType;
-    fn parent(&self) -> Uuid;
-    fn name(&self) -> Self::Name;
-    fn owner(&self) -> String;
-    fn metadata_version(&self) -> u64;
-    fn content_version(&self) -> u64;
-    fn deleted(&self) -> bool;
-}
-
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct EncryptedFileMetadata {
     pub id: Uuid,
@@ -53,20 +39,6 @@ pub struct EncryptedFileMetadata {
     pub deleted: bool,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
-}
-
-pub trait EncryptedFileMetadataExt {
-    fn find(&self, id: Uuid) -> Option<EncryptedFileMetadata>;
-    fn find_mut(&mut self, id: Uuid) -> Option<&mut EncryptedFileMetadata>;
-}
-
-impl EncryptedFileMetadataExt for [EncryptedFileMetadata] {
-    fn find(&self, id: Uuid) -> Option<EncryptedFileMetadata> {
-        maybe_find(self, id)
-    }
-    fn find_mut(&mut self, id: Uuid) -> Option<&mut EncryptedFileMetadata> {
-        maybe_find_mut(self, id)
-    }
 }
 
 impl FileMetadata for EncryptedFileMetadata {

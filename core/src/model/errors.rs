@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
+use lockbook_models::tree::TreeError;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
@@ -88,6 +89,16 @@ pub enum CoreError {
 
 pub fn core_err_unexpected<T: std::fmt::Debug>(err: T) -> CoreError {
     CoreError::Unexpected(format!("{:#?}", err))
+}
+
+impl From<TreeError> for CoreError {
+    fn from(tree: TreeError) -> Self {
+        match tree {
+            TreeError::FileNonexistent => CoreError::FileNonexistent,
+            TreeError::FileParentNonexistent => CoreError::FileParentNonexistent,
+            TreeError::RootNonexistent => CoreError::RootNonexistent,
+        }
+    }
 }
 
 impl From<std::io::Error> for CoreError {

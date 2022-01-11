@@ -2,8 +2,8 @@ use std::path::Path;
 
 use uuid::Uuid;
 
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadata, FileType};
-use lockbook_models::utils::maybe_find;
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use lockbook_models::tree::{FileMetaExt, FileMetadata, TreeError};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -24,18 +24,20 @@ pub enum TestFileTreeError {
     FileOrphaned(Uuid),
     CycleDetected(Uuid),
     NameConflictDetected(Uuid),
+    Tree(TreeError),
     Core(CoreError),
 }
 
 pub fn test_file_tree_integrity<Fm: FileMetadata>(files: &[Fm]) -> Result<(), TestFileTreeError> {
     for file in files {
-        if maybe_find(files, file.parent()).is_none() {
+        if files.maybe_find(file.parent()).is_none() {
             return Err(TestFileTreeError::FileOrphaned(file.id()));
         }
     }
 
-    let maybe_self_descendant = files::get_invalid_cycles(files, &[])
-        .map_err(TestFileTreeError::Core)?
+    let maybe_self_descendant = files
+        .get_invalid_cycles(&[])
+        .map_err(TestFileTreeError::Tree)?
         .into_iter()
         .next();
     if let Some(self_descendant) = maybe_self_descendant {
@@ -72,6 +74,7 @@ pub enum TestRepoError {
     FileNameContainsSlash(Uuid),
     NameConflictDetected(Uuid),
     DocumentReadError(Uuid, CoreError),
+    Tree(TreeError),
     Core(CoreError),
 }
 
@@ -87,13 +90,12 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         .map_err(TestRepoError::Core)?
         .ok_or(TestRepoError::NoRootFolder)?;
 
-    let files_encrypted = files::stage(
-        &metadata_repo::get_all(config, RepoSource::Base).map_err(TestRepoError::Core)?,
-        &metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?,
-    )
-    .into_iter()
-    .map(|(f, _)| f)
-    .collect::<Vec<EncryptedFileMetadata>>();
+    let files_encrypted = &metadata_repo::get_all(config, RepoSource::Base)
+        .map_err(TestRepoError::Core)?
+        .stage(&metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?)
+        .into_iter()
+        .map(|(f, _)| f)
+        .collect::<Vec<EncryptedFileMetadata>>();
 
     test_file_tree_integrity(&files_encrypted).map_err(|err| match err {
         TestFileTreeError::NoRootFolder => TestRepoError::NoRootFolder,
@@ -102,6 +104,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         TestFileTreeError::CycleDetected(e) => TestRepoError::CycleDetected(e),
         TestFileTreeError::NameConflictDetected(e) => TestRepoError::NameConflictDetected(e),
         TestFileTreeError::Core(e) => TestRepoError::Core(e),
+        TestFileTreeError::Tree(e) => TestRepoError::Tree(e),
     })?;
 
     let files =

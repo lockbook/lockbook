@@ -61,7 +61,7 @@ pub fn validate() -> CliResult<()> {
                     format!("{:#?}", err)
                 ))
             }
-            TestRepoError::Core(err) => {
+            TestRepoError::Core(err) | TestRepoError::Tree(err) => {
                 err_unexpected!("an unexpected error occurred: {:#?}", err)
             }
         },
