@@ -9,7 +9,7 @@ use lockbook_models::api::{
 };
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
-use lockbook_models::utils::maybe_find;
+use lockbook_models::utils::{maybe_find, maybe_find_mut};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 
 use crate::model::filename::DocumentType;
@@ -21,7 +21,6 @@ use crate::repo::account_repo;
 use crate::repo::last_updated_repo;
 use crate::service::{api_service, file_encryption_service, file_service};
 use crate::CoreError;
-use crate::pure_functions::files::maybe_find_mut;
 
 use super::file_compression_service;
 

@@ -10,3 +10,7 @@ pub fn slices_equal<T: PartialEq>(a: &[T], b: &[T]) -> bool {
 pub fn maybe_find<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Option<Fm> {
     files.iter().find(|f| f.id() == target_id).cloned()
 }
+
+pub fn maybe_find_mut<Fm: FileMetadata>(files: &mut [Fm], target_id: Uuid) -> Option<&mut Fm> {
+    files.iter_mut().find(|f| f.id() == target_id)
+}

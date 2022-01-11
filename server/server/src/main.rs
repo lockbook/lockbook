@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
-        index_db2_connection,
+        index_db_pool: index_db2_connection,
         files_db_client,
     });
 

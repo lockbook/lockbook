@@ -1,29 +1,31 @@
-
-
 use crate::keys::{file, owned_files, size};
-use crate::{keys, RequestContext};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_content_client, ServerError};
+use crate::{keys, RequestContext};
 
 use lockbook_crypto::clock_service::get_time;
+use lockbook_models::api::FileMetadataUpsertsError::{CannotMoveFolderIntoItself, RootImmutable};
 use lockbook_models::api::*;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFileMetadataExt, FileMetadataDiff};
+use lockbook_models::file_metadata::{
+    EncryptedFileMetadata, EncryptedFileMetadataExt, FileMetadataDiff,
+};
 use redis_utils::converters::{JsonGet, JsonSet};
-use redis_utils::{tx, TxError};
 use redis_utils::TxError::Abort;
+use redis_utils::{tx, TxError};
 use uuid::Uuid;
-use lockbook_models::api::FileMetadataUpsertsError::RootImmutable;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
 ) -> Result<(), ServerError<FileMetadataUpsertsError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let mut con = server_state.index_db2_connection.get().await?;
+    check_for_changed_root(&request.updates)?;
+
+    let mut con = server_state.index_db_pool.get().await?;
     let tx = tx!(&mut con, pipe, &[owned_files(&context.public_key)], {
         let files: Vec<Uuid> = con
-        .maybe_json_get(owned_files(&context.public_key))
-        .await?
-        .ok_or(Abort(ClientError(FileMetadataUpsertsError::UserNotFound)))?;
+            .maybe_json_get(owned_files(&context.public_key))
+            .await?
+            .ok_or(Abort(ClientError(FileMetadataUpsertsError::UserNotFound)))?;
         let keys: Vec<String> = files.into_iter().map(keys::file).collect();
         let mut files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
 
@@ -36,15 +38,45 @@ pub async fn upsert_file_metadata(
     Err(internal!(""))
 }
 
-fn check_for_changed_root(changes: &[FileMetadataDiff]) -> Result<(), TxError<FileMetadataUpsertsError>> {
+fn check_for_changed_root(
+    changes: &[FileMetadataDiff],
+) -> Result<(), ServerError<FileMetadataUpsertsError>> {
     for change in changes {
         if let Some((old_parent, _)) = change.old_parent_and_name {
             if change.id == old_parent {
-                return Err(Abort(RootImmutable))
+                return Err(ClientError(RootImmutable));
+            }
+            if change.id == change.new_parent {
+                return Err(ClientError(CannotMoveFolderIntoItself))
             }
         }
     }
     Ok(())
+}
+
+fn apply_changes(changes: &mut [FileMetadataDiff], metas: &mut Vec<EncryptedFileMetadata>) -> Result<(), TxError<FileMetadataUpsertsError>> {
+    for change in changes {
+        match metas.find_mut(change.id) {
+            Some(meta) => {}
+            None => metas.push(EncryptedFileMetadata::new)
+        }
+    }
+    Ok(())
+}
+
+fn new_meta(diff: FileMetadataDiff) -> EncryptedFileMetadata {
+    EncryptedFileMetadata {
+        id: diff.id,
+        file_type: diff.file_type,
+        parent: diff.new_parent,
+        name: diff.new_name,
+        owner: diff.owner,
+        metadata_version: (get_time().0 as u64),
+        content_version: 0, // TODO what should this be
+        deleted: diff.new_deleted,
+        user_access_keys: Default::default(),
+        folder_access_keys: diff.new_folder_access_keys
+    }
 }
 
 /// Changes the content and size of a document
@@ -55,7 +87,7 @@ pub async fn change_document_content(
     context: RequestContext<'_, ChangeDocumentContentRequest>,
 ) -> Result<ChangeDocumentContentResponse, ServerError<ChangeDocumentContentError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let mut con = server_state.index_db2_connection.get().await?;
+    let mut con = server_state.index_db_pool.get().await?;
 
     let watched_keys = &[file(request.id), size(request.id)];
     let mut new_version = 0;
@@ -151,7 +183,7 @@ pub async fn get_updates(
     context: RequestContext<'_, GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
     let (request, _server_state) = (&context.request, context.server_state);
-    let mut con = context.server_state.index_db2_connection.get().await?;
+    let mut con = context.server_state.index_db_pool.get().await?;
     let files: Vec<Uuid> = con
         .maybe_json_get(owned_files(&context.public_key))
         .await?

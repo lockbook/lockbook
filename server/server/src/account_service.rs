@@ -27,7 +27,7 @@ pub async fn new_account(
     if !username_is_valid(&request.username) {
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
-    let mut con = server_state.index_db2_connection.get().await?;
+    let mut con = server_state.index_db_pool.get().await?;
 
     let mut root = request.root_folder.clone();
     let now = get_time().0 as u64;
@@ -81,7 +81,7 @@ pub async fn get_public_key(
     context: RequestContext<'_, GetPublicKeyRequest>,
 ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let mut con = server_state.index_db2_connection.get().await?;
+    let mut con = server_state.index_db_pool.get().await?;
 
     match con.maybe_json_get(public_key(&request.username)).await {
         Ok(Some(key)) => Ok(GetPublicKeyResponse { key }),
@@ -98,7 +98,7 @@ pub async fn get_usage(
     context: RequestContext<'_, GetUsageRequest>,
 ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
     let (_request, server_state) = (&context.request, context.server_state);
-    let mut con = server_state.index_db2_connection.get().await?;
+    let mut con = server_state.index_db_pool.get().await?;
 
     let files: Vec<Uuid> = con
         .maybe_json_get(owned_files(&context.public_key))

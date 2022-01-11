@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::account::Username;
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
-use crate::utils::maybe_find;
+use crate::utils::{maybe_find, maybe_find_mut};
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
@@ -57,11 +57,15 @@ pub struct EncryptedFileMetadata {
 
 pub trait EncryptedFileMetadataExt {
     fn find(&self, id: Uuid) -> Option<EncryptedFileMetadata>;
+    fn find_mut(&mut self, id: Uuid) -> Option<&mut EncryptedFileMetadata>;
 }
 
-impl EncryptedFileMetadataExt for Vec<EncryptedFileMetadata> {
+impl EncryptedFileMetadataExt for [EncryptedFileMetadata] {
     fn find(&self, id: Uuid) -> Option<EncryptedFileMetadata> {
         maybe_find(self, id)
+    }
+    fn find_mut(&mut self, id: Uuid) -> Option<&mut EncryptedFileMetadata> {
+        maybe_find_mut(self, id)
     }
 }
 
@@ -172,6 +176,7 @@ pub struct FileMetadataDiff {
     pub new_name: SecretFileName,
     pub new_deleted: bool,
     pub new_folder_access_keys: EncryptedFolderAccessKey,
+    pub owner: String
 }
 
 impl FileMetadataDiff {
@@ -184,6 +189,7 @@ impl FileMetadataDiff {
             new_name: metadata.name.clone(),
             new_deleted: metadata.deleted,
             new_folder_access_keys: metadata.folder_access_keys.clone(),
+            owner: metadata.owner.clone()
         }
     }
 
@@ -200,6 +206,7 @@ impl FileMetadataDiff {
             new_name: new_metadata.name.clone(),
             new_deleted: new_metadata.deleted,
             new_folder_access_keys: new_metadata.folder_access_keys.clone(),
+            owner: new_metadata.owner.clone()
         }
     }
 }

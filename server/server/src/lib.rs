@@ -19,7 +19,7 @@ static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub struct ServerState {
     pub config: config::Config,
-    pub index_db2_connection: deadpool_redis::Pool,
+    pub index_db_pool: deadpool_redis::Pool,
     pub files_db_client: s3::bucket::Bucket,
 }
 

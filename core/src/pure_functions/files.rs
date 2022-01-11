@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use lockbook_crypto::symkey;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
-use lockbook_models::utils::maybe_find;
+use lockbook_models::utils::{maybe_find, maybe_find_mut};
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
@@ -290,10 +290,6 @@ pub fn find<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<Fm, CoreE
 
 pub fn find_mut<Fm: FileMetadata>(files: &mut [Fm], target_id: Uuid) -> Result<&mut Fm, CoreError> {
     maybe_find_mut(files, target_id).ok_or(CoreError::FileNonexistent)
-}
-
-pub fn maybe_find_mut<Fm: FileMetadata>(files: &mut [Fm], target_id: Uuid) -> Option<&mut Fm> {
-    files.iter_mut().find(|f| f.id() == target_id)
 }
 
 pub fn find_state<Fm: FileMetadata>(
