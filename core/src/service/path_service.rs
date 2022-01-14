@@ -40,7 +40,7 @@ pub fn create_at_path(
 
     // We're going to look ahead, and find or create the right child
     'path: for index in 0..path_components.len() - 1 {
-        let children = files::find_children(&files, current.id);
+        let children = files.find_children(current.id);
 
         let next_name = path_components[index + 1];
 
@@ -91,7 +91,7 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata,
             return Ok(current);
         }
 
-        let children = files::find_children(&files, current.id);
+        let children = files.find_children(current.id);
         let mut found_child = false;
 
         for child in children {

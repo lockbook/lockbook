@@ -21,7 +21,8 @@ pub trait FileMetadata : Clone {
 pub enum TreeError {
     RootNonexistent,
     FileNonexistent,
-    FileParentNonexistent
+    FileParentNonexistent,
+    Unexpected(String)
 }
 
 pub enum StageSource {
@@ -45,6 +46,9 @@ pub trait FileMetaExt<T: FileMetadata> {
     fn maybe_find_mut(&mut self, id: Uuid) -> Option<&mut T>;
     fn find_parent(&self, id: Uuid) -> Result<T, TreeError>;
     fn maybe_find_parent(&self, id: Uuid) -> Option<T>;
+    fn find_children(&self, id: Uuid) -> Vec<T>;
+    fn filter_deleted(&self) -> Result<Vec<T>, TreeError>;
+    fn filter_not_deleted(&self) -> Result<Vec<T>, TreeError>;
     fn get_invalid_cycles(&self, staged_changes: &[T]) -> Result<Vec<Uuid>, TreeError>;
     fn get_path_conflicts(&self, staged_changes: &[T]) -> Result<Vec<PathConflict>, TreeError>;
 }
@@ -98,6 +102,50 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
         self.maybe_find(self.maybe_find(id)?.parent())
     }
 
+    fn find_children(&self, id: Uuid) -> Vec<Fm> {
+        self
+            .iter()
+            .filter(|f| f.parent() == id && f.id() != f.parent())
+            .cloned()
+            .collect()
+    }
+
+    /// Returns the files which are deleted or have deleted ancestors. It is an error for the parent
+    /// of a file argument not to also be included in the arguments.
+    fn filter_deleted(&self) -> Result<Vec<Fm>, TreeError> {
+        let mut result = Vec::new();
+        for file in self {
+            let mut ancestor = file.clone();
+            loop {
+                if ancestor.deleted() {
+                    result.push(file.clone());
+                    break;
+                }
+
+                let parent = self.find(ancestor.parent())?;
+                if ancestor.id() == parent.id() {
+                    break;
+                }
+                ancestor = parent;
+                if ancestor.id() == file.id() {
+                    break; // this is a cycle but not our problem
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    /// Returns the files which are not deleted and have no deleted ancestors. It is an error for
+    /// the parent of a file argument not to also be included in the arguments.
+    fn filter_not_deleted(&self) -> Result<Vec<Fm>, TreeError> {
+        let deleted = self.filter_deleted()?;
+        Ok(self
+            .iter()
+            .filter(|f| !deleted.iter().any(|nd| nd.id() == f.id()))
+            .cloned()
+            .collect())
+    }
+
     fn get_invalid_cycles(&self, staged_changes: &[Fm]) -> Result<Vec<Uuid>, TreeError> {
         let maybe_root = self.maybe_find_root();
         let files_with_sources = self.stage(staged_changes);
@@ -139,11 +187,11 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
             .iter()
             .map(|(f, _)| f.clone())
             .collect::<Vec<Fm>>();
-        let files = filter_not_deleted(files)?;
+        let files = files.filter_not_deleted()?;
         let mut result = Vec::new();
 
         for file in &files {
-            let children = find_children(&files, file.id());
+            let children = files.find_children(file.id());
             let mut child_ids_by_name: HashMap<Fm::Name, Uuid> = HashMap::new();
             for child in children {
                 if let Some(conflicting_child_id) = child_ids_by_name.get(&child.name()) {
@@ -151,7 +199,7 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
                         .iter()
                         .find(|(f, _)| f.id() == child.id())
                         .ok_or_else(|| {
-                            CoreError::Unexpected(String::from(
+                            TreeError::Unexpected(String::from(
                                 "get_path_conflicts: could not find child by id",
                             ))
                         })?;

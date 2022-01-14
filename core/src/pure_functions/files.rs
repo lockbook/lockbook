@@ -157,55 +157,6 @@ fn validate_file_name(name: &str) -> Result<(), CoreError> {
     Ok(())
 }
 
-#[derive(Debug, PartialEq)]
-pub struct PathConflict {
-    pub existing: Uuid,
-    pub staged: Uuid,
-}
-
-pub fn get_path_conflicts<Fm: FileMetadata>(
-    files: &[Fm],
-    staged_changes: &[Fm],
-) -> Result<Vec<PathConflict>, CoreError> {
-    let files_with_sources = files.stage(staged_changes);
-    let files = &files_with_sources
-        .iter()
-        .map(|(f, _)| f.clone())
-        .collect::<Vec<Fm>>();
-    let files = filter_not_deleted(files)?;
-    let mut result = Vec::new();
-
-    for file in &files {
-        let children = find_children(&files, file.id());
-        let mut child_ids_by_name: HashMap<Fm::Name, Uuid> = HashMap::new();
-        for child in children {
-            if let Some(conflicting_child_id) = child_ids_by_name.get(&child.name()) {
-                let (_, child_source) = files_with_sources
-                    .iter()
-                    .find(|(f, _)| f.id() == child.id())
-                    .ok_or_else(|| {
-                        CoreError::Unexpected(String::from(
-                            "get_path_conflicts: could not find child by id",
-                        ))
-                    })?;
-                match child_source {
-                    StageSource::Base => result.push(PathConflict {
-                        existing: child.id(),
-                        staged: conflicting_child_id.to_owned(),
-                    }),
-                    StageSource::Staged => result.push(PathConflict {
-                        existing: conflicting_child_id.to_owned(),
-                        staged: child.id(),
-                    }),
-                }
-            }
-            child_ids_by_name.insert(child.name(), child.id());
-        }
-    }
-
-    Ok(result)
-}
-
 pub fn suggest_non_conflicting_filename(
     id: Uuid,
     files: &[DecryptedFileMetadata],
@@ -218,7 +169,7 @@ pub fn suggest_non_conflicting_filename(
         .collect();
 
     let file = files.find(id)?;
-    let sibblings = find_children(&files, file.parent);
+    let sibblings = files.find_children(file.parent);
 
     let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
     loop {
@@ -293,7 +244,7 @@ pub fn find_with_descendants<Fm: FileMetadata>(
         let target = result.get(i).ok_or_else(|| {
             CoreError::Unexpected(String::from("find_with_descendants: missing target"))
         })?;
-        let children = find_children(files, target.id());
+        let children = files.find_children(target.id());
         for child in children {
             if child.id() != target_id {
                 result.push(child);
@@ -305,43 +256,9 @@ pub fn find_with_descendants<Fm: FileMetadata>(
 }
 
 pub fn is_deleted<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<bool, CoreError> {
-    Ok(filter_deleted(files)?
+    Ok(files.filter_deleted()?
         .into_iter()
         .any(|f| f.id() == target_id))
-}
-
-/// Returns the files which are not deleted and have no deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
-pub fn filter_not_deleted<Fm: FileMetadata>(files: &[Fm]) -> Result<Vec<Fm>, CoreError> {
-    let deleted = filter_deleted(files)?;
-    Ok(files
-        .iter()
-        .filter(|f| !deleted.iter().any(|nd| nd.id() == f.id()))
-        .cloned()
-        .collect())
-}
-
-/// Returns the files which are deleted or have deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
-pub fn filter_deleted<Fm: FileMetadata>(files: &[Fm]) -> Result<Vec<Fm>, CoreError> {
-    let mut result = Vec::new();
-    for file in files {
-        let mut ancestor = file.clone();
-        loop {
-            if ancestor.deleted() {
-                result.push(file.clone());
-                break;
-            }
-
-            let parent = files.find(ancestor.parent())?;
-            if ancestor.id() == parent.id() {
-                break;
-            }
-            ancestor = parent;
-            if ancestor.id() == file.id() {
-                break; // this is a cycle but not our problem
-            }
-        }
-    }
-    Ok(result)
 }
 
 /// Returns the files which are documents.

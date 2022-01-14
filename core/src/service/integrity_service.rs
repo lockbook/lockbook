@@ -46,7 +46,7 @@ pub fn test_file_tree_integrity<Fm: FileMetadata>(files: &[Fm]) -> Result<(), Te
 
     let maybe_doc_with_children = files::filter_documents(files)
         .into_iter()
-        .find(|doc| !files::find_children(files, doc.id()).is_empty());
+        .find(|doc| !files.find_children(doc.id()).is_empty());
     if let Some(doc) = maybe_doc_with_children {
         return Err(TestFileTreeError::DocumentTreatedAsFolder(doc.id()));
     }
@@ -123,7 +123,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     }
 
     let mut warnings = Vec::new();
-    for file in files::filter_not_deleted(&files).map_err(TestRepoError::Core)? {
+    for file in files.filter_not_deleted().map_err(TestRepoError::Core)? {
         if file.file_type == FileType::Document {
             let file_content = file_service::get_document(config, RepoSource::Local, &file)
                 .map_err(|err| DocumentReadError(file.id, err))?;
