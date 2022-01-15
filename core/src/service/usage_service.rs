@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
+use lockbook_models::tree::FileMetaExt;
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -80,7 +81,7 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
 pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreError> {
     info!("getting uncompressed usage");
     let files = file_service::get_all_metadata(config, RepoSource::Local)?;
-    let docs = files::filter_documents(&files);
+    let docs = files.filter_documents();
 
     let mut local_usage: u64 = 0;
     for doc in docs {

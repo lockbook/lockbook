@@ -1,3 +1,4 @@
+use crate::internal;
 use crate::keys::{file, owned_files, size};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_content_client, ServerError};
@@ -8,14 +9,12 @@ use lockbook_models::api::FileMetadataUpsertsError::{
     CannotMoveFolderIntoItself, GetUpdatesRequired, RootImmutable,
 };
 use lockbook_models::api::*;
-use lockbook_models::file_metadata::{
-    EncryptedFileMetadata, FileMetadataDiff,
-};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
+use lockbook_models::tree::FileMetaExt;
 use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::TxError::Abort;
 use redis_utils::{tx, TxError};
 use uuid::Uuid;
-use lockbook_models::tree::FileMetaExt;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
@@ -33,6 +32,10 @@ pub async fn upsert_file_metadata(
         let mut files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
 
         apply_changes(&request.updates, &mut files)?;
+
+        files
+            .verify_integrity()
+            .map_err(|_| Abort(ClientError(GetUpdatesRequired)))?;
 
         for the_file in files {
             pipe.json_set(file(the_file.id), the_file)?;
@@ -67,9 +70,7 @@ fn apply_changes(
         match metas.maybe_find_mut(change.id) {
             Some(meta) => {
                 let now = get_time().0 as u64;
-                if change.new_deleted {
-                    meta.deleted = true;
-                }
+                meta.deleted = change.new_deleted;
 
                 if let Some((old_parent, old_name)) = &change.old_parent_and_name {
                     if meta.parent != *old_parent || meta.name != *old_name {

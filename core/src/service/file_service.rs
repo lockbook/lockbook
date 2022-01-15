@@ -287,7 +287,7 @@ pub fn get_all_not_deleted_metadata(
     source: RepoSource,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     info!("getting all non-deleted metadatas");
-    get_all_metadata(config, source)?.filter_not_deleted()
+    Ok(get_all_metadata(config, source)?.filter_not_deleted()?)
 }
 
 pub fn get_all_metadata(

@@ -36,6 +36,16 @@ pub struct PathConflict {
     pub staged: Uuid,
 }
 
+#[derive(Debug, Clone)]
+pub enum TestFileTreeError {
+    NoRootFolder,
+    DocumentTreatedAsFolder(Uuid),
+    FileOrphaned(Uuid),
+    CycleDetected(Uuid),
+    NameConflictDetected(Uuid),
+    Tree(TreeError),
+}
+
 pub trait FileMetaExt<T: FileMetadata> {
     fn stage(&self, staged: &[T]) -> Vec<(T, StageSource)>;
     fn find(&self, id: Uuid) -> Result<T, TreeError>;
@@ -49,8 +59,11 @@ pub trait FileMetaExt<T: FileMetadata> {
     fn find_children(&self, id: Uuid) -> Vec<T>;
     fn filter_deleted(&self) -> Result<Vec<T>, TreeError>;
     fn filter_not_deleted(&self) -> Result<Vec<T>, TreeError>;
+    fn filter_documents(&self) -> Vec<T>;
+    fn filter_not_explicitly_deleted(&self) -> Vec<T>;
     fn get_invalid_cycles(&self, staged_changes: &[T]) -> Result<Vec<Uuid>, TreeError>;
     fn get_path_conflicts(&self, staged_changes: &[T]) -> Result<Vec<PathConflict>, TreeError>;
+    fn verify_integrity(&self) -> Result<(), TestFileTreeError>;
 }
 
 impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
@@ -146,6 +159,23 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
             .collect())
     }
 
+    /// Returns the files which are documents.
+    fn filter_documents(&self) -> Vec<Fm> {
+        self
+            .iter()
+            .filter(|f| f.file_type() == FileType::Document)
+            .cloned()
+            .collect()
+    }
+
+    fn filter_not_explicitly_deleted(&self) -> Vec<Fm> {
+        self
+            .iter()
+            .filter(|f| !f.deleted())
+            .cloned()
+            .collect()
+    }
+
     fn get_invalid_cycles(&self, staged_changes: &[Fm]) -> Result<Vec<Uuid>, TreeError> {
         let maybe_root = self.maybe_find_root();
         let files_with_sources = self.stage(staged_changes);
@@ -219,5 +249,41 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
         }
 
         Ok(result)
+    }
+
+    fn verify_integrity(&self) -> Result<(), TestFileTreeError> {
+        for file in self {
+            if self.maybe_find(file.parent()).is_none() {
+                return Err(TestFileTreeError::FileOrphaned(file.id()));
+            }
+        }
+
+        let maybe_self_descendant = self
+            .get_invalid_cycles(&[])
+            .map_err(TestFileTreeError::Tree)?
+            .into_iter()
+            .next();
+        if let Some(self_descendant) = maybe_self_descendant {
+            return Err(TestFileTreeError::CycleDetected(self_descendant));
+        }
+
+        let maybe_doc_with_children = self.filter_documents()
+            .into_iter()
+            .find(|doc| !self.find_children(doc.id()).is_empty());
+        if let Some(doc) = maybe_doc_with_children {
+            return Err(TestFileTreeError::DocumentTreatedAsFolder(doc.id()));
+        }
+
+        let maybe_path_conflict = self.get_path_conflicts(&[])
+            .map_err(TestFileTreeError::Tree)?
+            .into_iter()
+            .next();
+        if let Some(path_conflict) = maybe_path_conflict {
+            return Err(TestFileTreeError::NameConflictDetected(
+                path_conflict.existing,
+            ));
+        }
+
+        Ok(())
     }
 }

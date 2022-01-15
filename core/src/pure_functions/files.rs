@@ -67,7 +67,7 @@ pub fn apply_create(
         .ok_or(CoreError::FileParentNonexistent)?;
     validate_is_folder(&parent)?;
 
-    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
+    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
         return Err(CoreError::PathTaken);
     }
     if !files.get_invalid_cycles(&[file.clone()])?.is_empty() {
@@ -88,7 +88,7 @@ pub fn apply_rename(
     validate_file_name(new_name)?;
 
     file.decrypted_name = String::from(new_name);
-    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
+    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
         return Err(CoreError::PathTaken);
     }
 
@@ -110,7 +110,7 @@ pub fn apply_move(
     if !files.get_invalid_cycles(&[file.clone()])?.is_empty() {
         return Err(CoreError::FolderMovedIntoSelf);
     }
-    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
+    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
         return Err(CoreError::PathTaken);
     }
 
@@ -261,20 +261,12 @@ pub fn is_deleted<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<boo
         .any(|f| f.id() == target_id))
 }
 
-/// Returns the files which are documents.
-pub fn filter_documents<Fm: FileMetadata>(files: &[Fm]) -> Vec<Fm> {
-    files
-        .iter()
-        .filter(|f| f.file_type() == FileType::Document)
-        .cloned()
-        .collect()
-}
-
 #[cfg(test)]
 mod unit_tests {
     use lockbook_models::file_metadata::FileType;
+    use lockbook_models::tree::{FileMetaExt, PathConflict};
 
-    use crate::pure_functions::files::{self, PathConflict};
+    use crate::pure_functions::files::{self};
     use crate::{service::test_utils, CoreError};
 
     #[test]
@@ -501,7 +493,7 @@ mod unit_tests {
         let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.username);
 
         let path_conflicts =
-            files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
+            &[root, folder1.clone()].get_path_conflicts(&[folder2.clone()]).unwrap();
 
         assert_eq!(path_conflicts.len(), 0);
     }
@@ -514,7 +506,7 @@ mod unit_tests {
         let folder2 = files::create(FileType::Folder, root.id, "folder", &account.username);
 
         let path_conflicts =
-            files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
+            &[root, folder1.clone()].get_path_conflicts(&[folder2.clone()]).unwrap();
 
         assert_eq!(path_conflicts.len(), 1);
         assert_eq!(

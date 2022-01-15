@@ -623,7 +623,7 @@ where
     }
 
     // resolve path conflicts
-    for path_conflict in files::get_path_conflicts(&local_metadata, &local_metadata_updates)? {
+    for path_conflict in local_metadata.get_path_conflicts(&local_metadata_updates)? {
         let local_meta_updates_copy = local_metadata_updates.clone();
         let to_rename = local_metadata_updates.find_mut(path_conflict.staged)?;
         let conflict_name = files::suggest_non_conflicting_filename(
