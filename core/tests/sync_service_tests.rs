@@ -3525,7 +3525,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix merge so that renames are preserved
     fn cycle_resolution_concurrent_move_two_cycle_with_renames_second_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3557,7 +3556,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix merge so that renames are preserved
     fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_renames_second_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3592,7 +3590,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix merge so that renames are preserved
     fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_renames_second_device()
     {
         let db = test_utils::test_config();
@@ -3628,7 +3625,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix merge so that renames are preserved
     fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_renames_second_device() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -3670,7 +3666,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix merge so that renames are preserved
     fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_renames_second_device(
     ) {
         let db = test_utils::test_config();
@@ -3709,7 +3704,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix merge so that renames are preserved
     fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_renames_second_device(
     ) {
         let db = test_utils::test_config();
@@ -3748,7 +3742,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix merge so that renames are preserved
     fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_renames_second_device()
     {
         let db = test_utils::test_config();

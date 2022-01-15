@@ -644,13 +644,15 @@ where
         if let Some(RepoState::Modified { mut local, base }) =
             file_service::maybe_get_metadata_state(config, self_descendant)?
         {
-            if let Some(existing_update) =
-                files::maybe_find_mut(&mut local_metadata_updates, self_descendant)
-            {
-                existing_update.parent = base.parent;
-            } else {
-                local.parent = base.parent;
-                local_metadata_updates.push(local);
+            if local.parent != base.parent {
+                if let Some(existing_update) =
+                    files::maybe_find_mut(&mut local_metadata_updates, self_descendant)
+                {
+                    existing_update.parent = base.parent;
+                } else {
+                    local.parent = base.parent;
+                    local_metadata_updates.push(local);
+                }
             }
         }
     }
@@ -664,10 +666,10 @@ where
             &local_metadata,
             &local_meta_updates_copy,
         )?;
-        if let Some(mut metadatum_update) =
+        if let Some(existing_update) =
             files::maybe_find_mut(&mut local_metadata_updates, path_conflict.existing)
         {
-            metadatum_update.decrypted_name = conflict_name;
+            existing_update.decrypted_name = conflict_name;
         } else {
             let mut new_metadatum_update = files::find(&local_metadata, path_conflict.existing)?;
             new_metadatum_update.decrypted_name = conflict_name;
