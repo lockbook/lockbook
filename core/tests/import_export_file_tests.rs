@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod import_export_file_tests {
     use rand::Rng;

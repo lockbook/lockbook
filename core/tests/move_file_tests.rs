@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod move_document_tests {
     use lockbook_core::service::api_service;

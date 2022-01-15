@@ -2,7 +2,10 @@
 
 use std::collections::HashMap;
 use std::env;
+use std::hash::Hash;
 
+use itertools::Itertools;
+use lockbook_models::work_unit::WorkUnit;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
@@ -11,12 +14,147 @@ use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 
+use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::root_repo;
 use crate::repo::{account_repo, db_version_repo};
-use crate::service::file_service;
+use crate::service::{file_service, integrity_service, path_service, sync_service};
+
+#[macro_export]
+macro_rules! assert_dirty_ids {
+    ($db:expr, $n:literal) => {
+        assert_eq!(
+            sync_service::calculate_work(&$db)
+                .unwrap()
+                .work_units
+                .into_iter()
+                .map(|wu| wu.get_metadata().id)
+                .unique()
+                .count(),
+            $n
+        );
+    };
+}
+
+pub fn get_dirty_ids(db: &Config, server: bool) -> Vec<Uuid> {
+    sync_service::calculate_work(db)
+        .unwrap()
+        .work_units
+        .into_iter()
+        .filter_map(|wu| match wu {
+            WorkUnit::LocalChange { metadata } if !server => Some(metadata.id),
+            WorkUnit::ServerChange { metadata } if server => Some(metadata.id),
+            _ => None,
+        })
+        .unique()
+        .collect()
+}
+
+pub fn assert_local_work_ids(db: &Config, ids: &[Uuid]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
+}
+
+pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
+}
+
+pub fn assert_repo_integrity(db: &Config) {
+    integrity_service::test_repo_integrity(db).unwrap();
+}
+
+pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
+    if expected_paths.iter().any(|&path| !path.starts_with('/')) {
+        panic!(
+            "improper call to test_utils::assert_all_paths; all paths in expected_paths must begin with '/'. expected_paths={:?}",
+            expected_paths
+        );
+    }
+    let mut expected_paths: Vec<String> = expected_paths
+        .iter()
+        .map(|&path| String::from(path))
+        .collect();
+    let mut actual_paths: Vec<String> = crate::list_paths(db, None)
+        .unwrap()
+        .iter()
+        .map(|path| String::from(&path[root.decrypted_name.len()..]))
+        .collect();
+    actual_paths.sort();
+    expected_paths.sort();
+    if actual_paths != expected_paths {
+        panic!(
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
+}
+
+pub fn assert_all_document_contents(
+    db: &Config,
+    root: &DecryptedFileMetadata,
+    expected_contents_by_path: &[(&str, &[u8])],
+) {
+    let expected_contents_by_path = expected_contents_by_path
+        .iter()
+        .map(|&(path, contents)| (root.decrypted_name.clone() + path, contents.to_vec()))
+        .collect::<Vec<(String, Vec<u8>)>>();
+    let actual_contents_by_path = crate::list_paths(db, Some(path_service::Filter::DocumentsOnly))
+        .unwrap()
+        .iter()
+        .map(|path| {
+            (
+                path.clone(),
+                crate::read_document(db, crate::get_file_by_path(db, path).unwrap().id).unwrap(),
+            )
+        })
+        .collect::<Vec<(String, Vec<u8>)>>();
+    if !slices_equal_ignore_order(&actual_contents_by_path, &expected_contents_by_path) {
+        panic!(
+            "document contents did not match expectation. expected={:?}; actual={:?}",
+            expected_contents_by_path
+                .into_iter()
+                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
+                .collect::<Vec<(String, String)>>(),
+            actual_contents_by_path
+                .into_iter()
+                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
+                .collect::<Vec<(String, String)>>(),
+        );
+    }
+}
+
+pub fn assert_deleted_files_pruned(db: &Config) {
+    for source in [RepoSource::Local, RepoSource::Base] {
+        let all_metadata = file_service::get_all_metadata(db, source).unwrap();
+        let not_deleted_metadata = file_service::get_all_not_deleted_metadata(db, source).unwrap();
+        if !slices_equal_ignore_order(&all_metadata, &not_deleted_metadata) {
+            panic!(
+                "some deleted files are not pruned. not_deleted_metadata={:?}; all_metadata={:?}",
+                not_deleted_metadata, all_metadata
+            );
+        }
+    }
+}
+
+pub fn make_new_client(db: &Config) -> Config {
+    let new_client = test_config();
+    crate::import_account(&new_client, &crate::export_account(db).unwrap()).unwrap();
+    new_client
+}
+
+pub fn make_and_sync_new_client(db: &Config) -> Config {
+    let new_client = test_config();
+    crate::import_account(&new_client, &crate::export_account(db).unwrap()).unwrap();
+    crate::sync_all(&new_client, None).unwrap();
+    new_client
+}
+
+pub fn assert_new_synced_client_dbs_eq(db: &Config) {
+    let new_client = make_and_sync_new_client(db);
+    assert_repo_integrity(&new_client);
+    assert_dbs_eq(db, &new_client);
+}
 
 #[macro_export]
 macro_rules! assert_matches (
@@ -49,18 +187,16 @@ macro_rules! path {
     }};
 }
 
-#[macro_export]
-macro_rules! make_account {
-    ($db:expr) => {{
-        let generated_account = generate_account();
-        let account = account_service::create_account(
-            &$db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
-        account
-    }};
+pub fn path(root: &DecryptedFileMetadata, path: &str) -> String {
+    root.decrypted_name.clone() + path
+}
+
+pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
+    let generated_account = generate_account();
+    (
+        crate::create_account(db, &generated_account.username, &generated_account.api_url).unwrap(),
+        crate::get_root(db).unwrap(),
+    )
 }
 
 pub fn test_config() -> Config {
@@ -206,4 +342,99 @@ pub fn dbs_equal(db1: &Config, db2: &Config) -> bool {
             == file_service::get_all_metadata_state(db2).unwrap()
         && file_service::get_all_document_state(db1).unwrap()
             == file_service::get_all_document_state(db2).unwrap()
+}
+
+fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {
+    let mut result = HashMap::new();
+    for element in a {
+        if let Some(count) = result.get_mut(element) {
+            *count += 1;
+        } else {
+            result.insert(element, 1);
+        }
+    }
+    result
+}
+
+pub fn slices_equal_ignore_order<T: Hash + Eq>(a: &[T], b: &[T]) -> bool {
+    get_frequencies(a) == get_frequencies(b)
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::super::test_utils;
+
+    use std::array::IntoIter;
+    use std::collections::HashMap;
+    use std::iter::FromIterator;
+
+    #[test]
+    fn test_get_frequencies() {
+        let expected = HashMap::<&i32, i32>::from_iter(IntoIter::new([(&0, 1), (&1, 3), (&2, 2)]));
+        let result = test_utils::get_frequencies(&[0, 1, 1, 1, 2, 2]);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_empty() {
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[], &[]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_single() {
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69], &[69]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_single_nonequal() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69], &[420]));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_distinct() {
+        assert!(test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 69420],
+            &[69420, 69, 420]
+        ));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_distinct_nonequal() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 69420],
+            &[42069, 69, 420]
+        ));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_distinct_subset() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 69420],
+            &[69, 420]
+        ));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_repeats() {
+        assert!(test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 420],
+            &[420, 69, 420]
+        ));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_different_repeats() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 420],
+            &[420, 69, 69]
+        ));
+    }
+
+    #[test]
+    fn slices_equal_ignore_order_repeats_subset() {
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(
+            &[69, 420, 420],
+            &[420, 69]
+        ));
+    }
 }

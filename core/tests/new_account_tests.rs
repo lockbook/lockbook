@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod new_account_tests {
     use lockbook_core::assert_matches;

@@ -64,6 +64,7 @@ pub fn validate() -> CliResult<()> {
             TestRepoError::Core(err) => {
                 err_unexpected!("an unexpected error occurred: {:#?}", err)
             }
+            TestRepoError::NoAccount => err!(NoAccount),
         },
     };
 

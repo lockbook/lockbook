@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod create_document_tests {
     use uuid::Uuid;

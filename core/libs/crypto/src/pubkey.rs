@@ -105,7 +105,7 @@ pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> Result<AESKey, GetAesKeyEr
 }
 
 #[cfg(test)]
-mod unit_test_pubkey {
+mod unit_tests {
     use libsecp256k1::PublicKey;
 
     use crate::clock_service::Timestamp;

@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod get_usage_tests {
     use std::path::Path;
