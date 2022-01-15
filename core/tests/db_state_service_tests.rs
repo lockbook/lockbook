@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod db_state_service_tests {
     use lockbook_core::repo::db_version_repo;
