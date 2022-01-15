@@ -97,7 +97,7 @@ impl From<TreeError> for CoreError {
             TreeError::FileNonexistent => CoreError::FileNonexistent,
             TreeError::FileParentNonexistent => CoreError::FileParentNonexistent,
             TreeError::RootNonexistent => CoreError::RootNonexistent,
-            TreeError::Unexpected(err) => CoreError::Unexpected(err)
+            TreeError::Unexpected(err) => CoreError::Unexpected(err),
         }
     }
 }

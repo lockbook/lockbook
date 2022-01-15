@@ -3,7 +3,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
-use lockbook_models::tree::{FileMetaExt, FileMetadata, TreeError, TestFileTreeError};
+use lockbook_models::tree::{FileMetaExt, FileMetadata, TestFileTreeError, TreeError};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -50,14 +50,18 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         .map(|(f, _)| f)
         .collect::<Vec<EncryptedFileMetadata>>();
 
-    files_encrypted.verify_integrity().map_err(|err| match err {
-        TestFileTreeError::NoRootFolder => TestRepoError::NoRootFolder,
-        TestFileTreeError::DocumentTreatedAsFolder(e) => TestRepoError::DocumentTreatedAsFolder(e),
-        TestFileTreeError::FileOrphaned(e) => TestRepoError::FileOrphaned(e),
-        TestFileTreeError::CycleDetected(e) => TestRepoError::CycleDetected(e),
-        TestFileTreeError::NameConflictDetected(e) => TestRepoError::NameConflictDetected(e),
-        TestFileTreeError::Tree(e) => TestRepoError::Tree(e),
-    })?;
+    files_encrypted
+        .verify_integrity()
+        .map_err(|err| match err {
+            TestFileTreeError::NoRootFolder => TestRepoError::NoRootFolder,
+            TestFileTreeError::DocumentTreatedAsFolder(e) => {
+                TestRepoError::DocumentTreatedAsFolder(e)
+            }
+            TestFileTreeError::FileOrphaned(e) => TestRepoError::FileOrphaned(e),
+            TestFileTreeError::CycleDetected(e) => TestRepoError::CycleDetected(e),
+            TestFileTreeError::NameConflictDetected(e) => TestRepoError::NameConflictDetected(e),
+            TestFileTreeError::Tree(e) => TestRepoError::Tree(e),
+        })?;
 
     let files =
         file_service::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;

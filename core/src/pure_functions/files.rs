@@ -256,7 +256,8 @@ pub fn find_with_descendants<Fm: FileMetadata>(
 }
 
 pub fn is_deleted<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<bool, CoreError> {
-    Ok(files.filter_deleted()?
+    Ok(files
+        .filter_deleted()?
         .into_iter()
         .any(|f| f.id() == target_id))
 }
@@ -492,8 +493,9 @@ mod unit_tests {
         let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
         let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.username);
 
-        let path_conflicts =
-            &[root, folder1.clone()].get_path_conflicts(&[folder2.clone()]).unwrap();
+        let path_conflicts = &[root, folder1.clone()]
+            .get_path_conflicts(&[folder2.clone()])
+            .unwrap();
 
         assert_eq!(path_conflicts.len(), 0);
     }
@@ -505,8 +507,9 @@ mod unit_tests {
         let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
         let folder2 = files::create(FileType::Folder, root.id, "folder", &account.username);
 
-        let path_conflicts =
-            &[root, folder1.clone()].get_path_conflicts(&[folder2.clone()]).unwrap();
+        let path_conflicts = &[root, folder1.clone()]
+            .get_path_conflicts(&[folder2.clone()])
+            .unwrap();
 
         assert_eq!(path_conflicts.len(), 1);
         assert_eq!(

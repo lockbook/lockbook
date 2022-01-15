@@ -205,7 +205,7 @@ impl Request for GetUpdatesRequest {
 pub struct NewAccountRequest {
     pub username: Username,
     pub public_key: PublicKey,
-    pub root_folder: EncryptedFileMetadata
+    pub root_folder: EncryptedFileMetadata,
 }
 
 impl NewAccountRequest {
@@ -214,7 +214,7 @@ impl NewAccountRequest {
         NewAccountRequest {
             username: account.username.clone(),
             public_key: account.public_key(),
-            root_folder
+            root_folder,
         }
     }
 }

@@ -1,11 +1,11 @@
+use crate::file_metadata::FileType;
+use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
 use std::collections::HashMap;
 use std::hash::Hash;
 use uuid::Uuid;
-use crate::file_metadata::FileType;
-use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
 
-pub trait FileMetadata : Clone {
-    type Name : Hash + Eq;
+pub trait FileMetadata: Clone {
+    type Name: Hash + Eq;
 
     fn id(&self) -> Uuid;
     fn file_type(&self) -> FileType;
@@ -22,7 +22,7 @@ pub enum TreeError {
     RootNonexistent,
     FileNonexistent,
     FileParentNonexistent,
-    Unexpected(String)
+    Unexpected(String),
 }
 
 pub enum StageSource {
@@ -60,13 +60,15 @@ pub trait FileMetaExt<T: FileMetadata> {
     fn filter_deleted(&self) -> Result<Vec<T>, TreeError>;
     fn filter_not_deleted(&self) -> Result<Vec<T>, TreeError>;
     fn filter_documents(&self) -> Vec<T>;
-    fn filter_not_explicitly_deleted(&self) -> Vec<T>;
     fn get_invalid_cycles(&self, staged_changes: &[T]) -> Result<Vec<Uuid>, TreeError>;
     fn get_path_conflicts(&self, staged_changes: &[T]) -> Result<Vec<PathConflict>, TreeError>;
     fn verify_integrity(&self) -> Result<(), TestFileTreeError>;
 }
 
-impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
+impl<Fm> FileMetaExt<Fm> for [Fm]
+where
+    Fm: FileMetadata,
+{
     fn stage(&self, staged: &[Fm]) -> Vec<(Fm, StageSource)> {
         let mut result = Vec::new();
         for file in self {
@@ -108,7 +110,8 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
     }
 
     fn find_parent(&self, id: Uuid) -> Result<Fm, TreeError> {
-        self.maybe_find_parent(id).ok_or(TreeError::FileParentNonexistent)
+        self.maybe_find_parent(id)
+            .ok_or(TreeError::FileParentNonexistent)
     }
 
     fn maybe_find_parent(&self, id: Uuid) -> Option<Fm> {
@@ -116,8 +119,7 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
     }
 
     fn find_children(&self, id: Uuid) -> Vec<Fm> {
-        self
-            .iter()
+        self.iter()
             .filter(|f| f.parent() == id && f.id() != f.parent())
             .cloned()
             .collect()
@@ -161,17 +163,8 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
 
     /// Returns the files which are documents.
     fn filter_documents(&self) -> Vec<Fm> {
-        self
-            .iter()
+        self.iter()
             .filter(|f| f.file_type() == FileType::Document)
-            .cloned()
-            .collect()
-    }
-
-    fn filter_not_explicitly_deleted(&self) -> Vec<Fm> {
-        self
-            .iter()
-            .filter(|f| !f.deleted())
             .cloned()
             .collect()
     }
@@ -191,7 +184,8 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
             let mut ancestor_double = files.find_parent(ancestor_single.id())?;
             while ancestor_single.id() != ancestor_double.id() {
                 ancestor_single = files.find_parent(ancestor_single.id())?;
-                ancestor_double = files.find_parent(files.find_parent(ancestor_double.id())?.id())?;
+                ancestor_double =
+                    files.find_parent(files.find_parent(ancestor_double.id())?.id())?;
             }
             if ancestor_single.id() == file.id() {
                 // root in files -> non-root cycles invalid
@@ -267,14 +261,16 @@ impl<Fm> FileMetaExt<Fm> for [Fm] where Fm: FileMetadata {
             return Err(TestFileTreeError::CycleDetected(self_descendant));
         }
 
-        let maybe_doc_with_children = self.filter_documents()
+        let maybe_doc_with_children = self
+            .filter_documents()
             .into_iter()
             .find(|doc| !self.find_children(doc.id()).is_empty());
         if let Some(doc) = maybe_doc_with_children {
             return Err(TestFileTreeError::DocumentTreatedAsFolder(doc.id()));
         }
 
-        let maybe_path_conflict = self.get_path_conflicts(&[])
+        let maybe_path_conflict = self
+            .get_path_conflicts(&[])
             .map_err(TestFileTreeError::Tree)?
             .into_iter()
             .next();

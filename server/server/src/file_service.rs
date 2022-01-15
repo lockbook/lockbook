@@ -10,7 +10,7 @@ use lockbook_models::api::FileMetadataUpsertsError::{
 };
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::{FileMetaExt, TreeError};
 use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::TxError::Abort;
 use redis_utils::{tx, TxError};
@@ -23,12 +23,14 @@ pub async fn upsert_file_metadata(
     check_for_changed_root(&request.updates)?;
 
     let mut con = server_state.index_db_pool.get().await?;
+    let mut files_to_delete: Vec<EncryptedFileMetadata> = vec![];
     let tx = tx!(&mut con, pipe, &[owned_files(&context.public_key)], {
         let files: Vec<Uuid> = con
             .maybe_json_get(owned_files(&context.public_key))
             .await?
             .ok_or(Abort(ClientError(FileMetadataUpsertsError::UserNotFound)))?;
         let keys: Vec<String> = files.into_iter().map(keys::file).collect();
+        // TODO we need to watch these keys before we grab these values
         let mut files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
 
         apply_changes(&request.updates, &mut files)?;
@@ -37,13 +39,22 @@ pub async fn upsert_file_metadata(
             .verify_integrity()
             .map_err(|_| Abort(ClientError(GetUpdatesRequired)))?;
 
-        for the_file in files {
+        files_to_delete = apply_delete_recursively(&request.updates, &mut files)
+            .map_err(|err| Abort(internal!("Error applying delete recursively: {:?}", err)))?;
+
+        for the_file in &files {
             pipe.json_set(file(the_file.id), the_file)?;
         }
         Ok(&mut pipe)
     });
     return_if_error!(tx);
-    Err(internal!(""))
+
+    for file in files_to_delete {
+        file_content_client::delete(&server_state.files_db_client, file.id, file.content_version)
+            .await
+            .map_err(|err| internal!("Cannot delete file in S3: {:?}", err))?;
+    }
+    Ok(())
 }
 
 fn check_for_changed_root(
@@ -102,6 +113,28 @@ fn new_meta(diff: &FileMetadataDiff) -> EncryptedFileMetadata {
         user_access_keys: Default::default(),
         folder_access_keys: diff.new_folder_access_keys.clone(),
     }
+}
+
+fn apply_delete_recursively(
+    explicit: &[FileMetadataDiff],
+    files: &mut [EncryptedFileMetadata],
+) -> Result<Vec<EncryptedFileMetadata>, TreeError> {
+    let mut deleted = vec![];
+    for change in explicit {
+        if change.new_deleted {
+            if let Some(meta) = files.maybe_find(change.id) {
+                deleted.push(meta);
+            }
+        }
+    }
+
+    for mut implicitly_deleted in files.filter_deleted()?.filter_documents() {
+        if !implicitly_deleted.deleted {
+            implicitly_deleted.deleted = true;
+            deleted.push(implicitly_deleted);
+        }
+    }
+    Ok(deleted)
 }
 
 /// Changes the content and size of a document
