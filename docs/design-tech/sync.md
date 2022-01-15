@@ -217,7 +217,7 @@ The server exposes an endpoint, `UpsertFileMetadata`, which accepts a batch of f
 If the checks pass, the endpoint inserts or overwrites the metadata for each file with the metadata supplied in the request. It sets the `metadata_version` to the current timestamp. It explicitly deletes all files with deleted ancestors. Then, it removes any newly deleted files from document storage.
 
 ### Change Document Content
-The server exposes an endpoint, `ChangeDocumentContent`, which accepts the `id` of a document to modify, the expected `metadata_version`, and the new contents of the document. The server checks that the document exists and that the `metadata_version` matches (otherwise it responds with `GetUpdatesRequired`), increments the `metadata_version` and `content_version` for the document, writes the new version of the document to document storage, and deletes the old version.
+The server exposes an endpoint, `ChangeDocumentContent`, which accepts the `id` of a document to modify, the expected `metadata_version`, and the new contents of the document. The server checks that the document exists and that the `metadata_version` matches (otherwise it responds with `GetUpdatesRequired`), increments the `metadata_version` and `content_version` for the document, writes the new version of the document to document storage, and deletes the old version. The endpoint returns the new `content_version` for the document.
 
 ### Get Updates
 The server exposes an endpoint, `GetUpdates`, which accepts a timestamp representing the most recent `metadata_version` of any update the client has received. The endpoint returns the metadata for all files with a greater `metadata_version` i.e. all files which have been updated since the client last pulled updates.
@@ -226,4 +226,38 @@ The server exposes an endpoint, `GetUpdates`, which accepts a timestamp represen
 The server exposes an endpoint, `GetDocument`, which accepts an `id` and `content_version` for a document and returns that version of the document.
 
 ### Sync
+The client has a routine, `sync`, which is responsible for pulling new updates from the server, resolving conflicts, and pushing local updates. It consists of 5 steps (and additionally prunes deleted files at the end):
 
+1. _pull all updates 1_
+2. _push metadata updates_
+3. _pull all updates 2_
+4. _push content updates_
+5. _pull all updates 3_
+
+These 5 steps run 3 subroutines:
+- pull
+- push metadata
+- push content
+
+#### Pull
+The pull routine is where most of the work in `sync` happens. First, it pulls updates from the server. If applying those updates to `base` would cause any updates to apply to orphaned files, those updates are dropped.
+
+Then, each update (`remote`) is 3-way merged with the `base` and `local` version. The 3-way merge resolves conflicts to `parent` and `name` in favor of remote changes, if any, and resolves conflicts to `deleted` by preferring to delete the file. The merge is designed so that if there are no local changes, the result is `remote`, and if there are no `remote` changes (this can happen if another client renames a file then renames it back to the original name), the result is `local`. The `remote` metadata are buffered as a set of changes to apply to `base` because after the pull, `remote` will be a version which has been accounted for by both the client and server on a metadta-by-metadata basis. The metadata resulting from the merge are buffered as a set of changes to apply to `local` because they represent a version of the metadata that account for local changes that have not yet been synced to the server.
+
+If the `content_version` in a remote metadata update is greater than the `content_version` in the `base` version of that file, then the file is a document that has been updated on the server since the last pull. The client pulls the document, 3-way merges it's contents with `local` and `base`, buffers the pulled version as an update to the `base` version of the document and buffers the merged version as an update to the `local` version of the document. For file types that are not mergable (inferred by their file extension), a new file is created with the `local` contents and the `local` and `base` contents of the existing file are set to `remote` version, which is left unmodified as it was read from the server. The new file has the same parent and a file name based on but different from the existing file and all other files in that folder.
+
+Before saving the buffered updates, invariant violations need to be resolved. Cycles are resolved first - any files moved locally that would be involved in a cycle after updates are saved have their parents reset to `base`. Then, path conflicts are resolved - any locally created or modified file with the same name and parent as a pulled file is renamed. Finally, all metadata and document updates for `base` and `local` are saved.
+
+_Concern: the logic to determine whether to pull a document currently references the `local` `content_version`, which is unnecessary and may introduce unknown bugs._
+
+_Concern: cycles are currently resolved after path conflicts._
+
+_Concern: should cycle resolution not reset the parents of locally moved files which are also move remotely? is it sufficient to reset the parent of just one file per cycle?_
+
+#### Push Metadata Updates
+To push metadata, the client simply collects all metadata which has changed (or been created) since the last push and sends them to the server's `UpsertFileMetadata` endpoint. If any preconditions fail, `sync` is aborted, and can be safely retried. The server updates the `metadata_version` but does not return it; this means that the updates pushed by the client will be pulled during the next update. Then, all files have their `base` metadata set equal to their `local` metadata (which are the metadata that were sent to and accepted by the server).
+
+_todo: consider optimizing the `metadata_version` mechanics so that the client doesn't pull every update it pushes_
+
+#### Push Content Updates
+To push document content, the client collects all documents which have changed since the last push and sends them to the server's `ChangeDocumentContent` endpoint. If any preconditions fail, `sync` is aborted, and can be safely retried. The `content_version` of each document is used to update it's `base` and `local` metadata. Then, all documents have their `base` contents set equal to their `local` contents (which are the contents that were sent to and accepted by the server).
