@@ -3,7 +3,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
-use lockbook_models::tree::{FileMetaExt, FileMetadata, TestFileTreeError, TreeError};
+use lockbook_models::tree::{FileMetaExt, TestFileTreeError, TreeError};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
