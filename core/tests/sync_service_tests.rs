@@ -5937,7 +5937,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix a bug that probably has to do with computing last synced time after files are pruned or in the middle of a sync while pulling documents
     fn fuzzer_get_updates_required_test() {
         let db1 = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db1);
