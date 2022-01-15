@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -8,7 +8,7 @@ use uuid::Uuid;
 use lockbook_crypto::symkey;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetaExt;
-use lockbook_models::tree::{FileMetadata, StageSource};
+use lockbook_models::tree::{FileMetadata};
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
