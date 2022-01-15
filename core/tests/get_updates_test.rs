@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod get_updates_test {
     use lockbook_core::service::api_service;
