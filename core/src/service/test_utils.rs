@@ -65,7 +65,7 @@ macro_rules! make_account {
 
 pub fn test_config() -> Config {
     Config {
-        writeable_path: format!("/tmp/{}", Uuid::new_v4().to_string()),
+        writeable_path: format!("/tmp/{}", Uuid::new_v4()),
     }
 }
 
