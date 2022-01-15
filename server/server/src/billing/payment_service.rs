@@ -1,9 +1,6 @@
 use crate::billing::stripe::{StripeEventType, StripeObjectType, StripeWebhook};
 use crate::billing::stripe_client;
-use crate::file_index_repo::{
-    GetLastStripeCreditCardInfoError, UpdateStripeSubscriptionPeriodEnd, FREE_TIER_SIZE,
-    PAID_TIER_SIZE,
-};
+use crate::file_index_repo::{GetLastStripeCreditCardInfoError, UpdateStripeSubscriptionPeriodEnd, FREE_TIER_SIZE, PAID_TIER_SIZE, SetDataCapWithStripeCustomerIdError};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_index_repo, RequestContext, ServerError, ServerState, StripeClientError};
 use libsecp256k1::PublicKey;
@@ -285,7 +282,14 @@ pub async fn stripe_webhook(state: &Arc<ServerState>, request: Bytes) -> WithSta
     };
 
     match (webhook.event_type, webhook.data.object) {
-        (StripeEventType::InvoicePaymentFailed, StripeObjectType::Invoice(invoice)) => {}
+        (StripeEventType::InvoicePaymentFailed, StripeObjectType::Invoice(invoice)) => {
+            if let Err(e) = file_index_repo::set_data_cap_with_stripe_customer_id(&mut transaction, &invoice.customer_id).await {
+                error!(
+                    "Cannot change data cap with customer id in Postgres: {:?}",
+                    invoice
+                )
+            }
+        }
         (StripeEventType::InvoicePaid, StripeObjectType::Invoice(partial_invoice)) => {
             match stripe_client::retrieve_invoice(&state, &partial_invoice.id).await {
                 Ok(invoice) => match invoice.subscription {

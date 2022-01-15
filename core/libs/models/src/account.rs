@@ -5,11 +5,17 @@ pub type Username = String;
 pub type ApiUrl = String;
 
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
+pub enum AccountTier {
+    Free,
+    Premium
+}
+
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub struct Account {
     pub username: Username,
     pub api_url: ApiUrl,
     #[serde(with = "secret_key_serializer")]
-    pub private_key: SecretKey,
+    pub private_key: SecretKey
 }
 
 impl Account {
@@ -46,7 +52,7 @@ mod test_account_serialization {
     use libsecp256k1::SecretKey;
     use rand::rngs::OsRng;
 
-    use crate::account::Account;
+    use crate::account::{Account, AccountTier};
 
     #[test]
     fn account_serialize_deserialize() {

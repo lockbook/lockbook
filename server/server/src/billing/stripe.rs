@@ -123,6 +123,8 @@ pub struct StripeInvoice {
     pub id: String,
     pub payment_intent: Option<StripePaymentIntent>,
     pub subscription: Option<Box<StripeSubscriptionResponse>>,
+    #[serde(rename = "customer")]
+    pub customer_id: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]

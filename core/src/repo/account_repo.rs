@@ -1,4 +1,4 @@
-use lockbook_models::account::{Account, ApiUrl};
+use lockbook_models::account::{Account, AccountTier, ApiUrl};
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 use crate::model::state::Config;

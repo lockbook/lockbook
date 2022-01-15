@@ -763,7 +763,6 @@ pub enum GetDataCapError {
     TierNotFound,
     Serialize(serde_json::Error),
     Postgres(sqlx::Error),
-    Unknown(String),
 }
 
 pub async fn get_account_data_cap(
@@ -786,6 +785,31 @@ WHERE id =
         Some(row) => Ok(row.bytes_cap as u64),
         None => Err(GetDataCapError::TierNotFound),
     }
+}
+
+#[derive(Debug)]
+pub enum SetDataCapWithStripeCustomerIdError {
+    Postgres(sqlx::Error),
+}
+
+pub async fn set_data_cap_with_stripe_customer_id(
+    transaction: &mut Transaction<'_, Postgres>,
+    customer_id: &str
+) -> Result<(), SetDataCapWithStripeCustomerIdError> {
+    sqlx::query!(
+        r#"
+WITH account_tier_id AS (
+    SELECT id FROM account_tiers WHERE stripe_customer_id = $1
+)
+UPDATE account_tiers SET bytes_cap = $2 WHERE id = (SELECT id FROM account_tier_id);
+        "#,
+        subscription_id
+    )
+        .execute(transaction)
+        .await
+        .map_err(GetDataCapError::Postgres)?;
+
+    Ok(())
 }
 
 #[derive(Debug)]
