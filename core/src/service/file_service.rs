@@ -220,7 +220,7 @@ fn insert_metadata_given_decrypted_metadata(
 ) -> Result<(), CoreError> {
     // encrypt metadata
     let account = account_repo::get(config)?;
-    let all_metadata_with_changes_staged = files::stage(&all_metadata, metadata_changes)
+    let all_metadata_with_changes_staged = files::stage(all_metadata, metadata_changes)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<DecryptedFileMetadata>>();
@@ -661,7 +661,7 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
     let prune_eligible_metadata = deleted_local_metadata
         .iter()
         .filter_map(|f| {
-            if !files::maybe_find(&all_base_metadata, f.id).is_some() {
+            if files::maybe_find(&all_base_metadata, f.id).is_none() {
                 Some(f.clone())
             } else {
                 None
