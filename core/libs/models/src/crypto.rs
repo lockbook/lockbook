@@ -68,7 +68,7 @@ impl PartialEq for SecretFileName {
     }
 }
 
-impl Eq for SecretFileName{}
+impl Eq for SecretFileName {}
 
 impl Hash for SecretFileName {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
