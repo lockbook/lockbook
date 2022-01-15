@@ -179,25 +179,55 @@ pub fn insert_metadatum(
     insert_metadata(config, source, &[metadata.clone()])
 }
 
-/// Adds or updates the metadata of files on disk.
-/// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
-/// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
+pub fn insert_metadata_both_repos(
+    config: &Config,
+    base_metadata_changes: &[DecryptedFileMetadata],
+    local_metadata_changes: &[DecryptedFileMetadata],
+) -> Result<(), CoreError> {
+    let base_metadata = get_all_metadata(config, RepoSource::Base)?;
+    let local_metadata = get_all_metadata(config, RepoSource::Local)?;
+    insert_metadata_given_decrypted_metadata(
+        config,
+        RepoSource::Base,
+        &base_metadata,
+        base_metadata_changes,
+    )?;
+    insert_metadata_given_decrypted_metadata(
+        config,
+        RepoSource::Local,
+        &local_metadata,
+        local_metadata_changes,
+    )
+}
+
 pub fn insert_metadata(
     config: &Config,
     source: RepoSource,
-    metadata: &[DecryptedFileMetadata],
+    metadata_changes: &[DecryptedFileMetadata],
+) -> Result<(), CoreError> {
+    let all_metadata = get_all_metadata(config, source)?;
+    insert_metadata_given_decrypted_metadata(config, source, &all_metadata, metadata_changes)
+}
+
+/// Adds or updates the metadata of files on disk.
+/// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
+/// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
+fn insert_metadata_given_decrypted_metadata(
+    config: &Config,
+    source: RepoSource,
+    all_metadata: &[DecryptedFileMetadata],
+    metadata_changes: &[DecryptedFileMetadata],
 ) -> Result<(), CoreError> {
     // encrypt metadata
     let account = account_repo::get(config)?;
-    let all_metadata = get_all_metadata(config, source)?;
-    let all_metadata_with_changes_staged = files::stage(&all_metadata, metadata)
+    let all_metadata_with_changes_staged = files::stage(&all_metadata, metadata_changes)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<DecryptedFileMetadata>>();
     let all_metadata_encrypted =
         file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
 
-    for metadatum in metadata {
+    for metadatum in metadata_changes {
         let encrypted_metadata = files::find(&all_metadata_encrypted, metadatum.id)?;
 
         // perform insertion

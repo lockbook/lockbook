@@ -4792,7 +4792,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix infinite loop
     fn cycle_resolution_concurrent_move_two_cycle_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4830,7 +4829,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix infinite loop
     fn cycle_resolution_concurrent_move_three_cycle_one_move_reverted_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4880,7 +4878,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix infinite loop
     fn cycle_resolution_concurrent_move_three_cycle_two_moves_reverted_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4916,9 +4913,9 @@ mod sync_tests {
                 "/b/",
                 "/b/a/",
                 "/c/",
-                "/b/child",
-                "/b/a/child",
-                "/c/child",
+                "/b/child/",
+                "/b/a/child/",
+                "/c/child/",
             ],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
@@ -4930,7 +4927,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix infinite loop
     fn cycle_resolution_concurrent_move_four_cycle_one_move_reverted_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -4986,7 +4982,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix infinite loop
     fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_adjacent_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5042,7 +5037,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix infinite loop
     fn cycle_resolution_concurrent_move_four_cycle_two_moves_reverted_alternating_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
@@ -5098,7 +5092,6 @@ mod sync_tests {
     }
 
     #[test]
-    #[ignore] // todo: fix infinite loop
     fn cycle_resolution_concurrent_move_four_cycle_three_moves_reverted_with_children() {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);

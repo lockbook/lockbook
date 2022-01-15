@@ -639,6 +639,22 @@ where
         }
     }
 
+    // resolve cycles
+    for self_descendant in files::get_invalid_cycles(&local_metadata, &local_metadata_updates)? {
+        if let Some(RepoState::Modified { mut local, base }) =
+            file_service::maybe_get_metadata_state(config, self_descendant)?
+        {
+            if let Some(existing_update) =
+                files::maybe_find_mut(&mut local_metadata_updates, self_descendant)
+            {
+                existing_update.parent = base.parent;
+            } else {
+                local.parent = base.parent;
+                local_metadata_updates.push(local);
+            }
+        }
+    }
+
     // resolve path conflicts
     for path_conflict in files::get_path_conflicts(&local_metadata, &local_metadata_updates)? {
         let local_meta_updates_copy = local_metadata_updates.clone();
@@ -659,29 +675,17 @@ where
         }
     }
 
-    // resolve cycles
-    for self_descendant in files::get_invalid_cycles(&local_metadata, &local_metadata_updates)? {
-        if let Some(RepoState::Modified { mut local, base }) =
-            file_service::maybe_get_metadata_state(config, self_descendant)?
-        {
-            if let Some(existing_update) =
-                files::maybe_find_mut(&mut local_metadata_updates, self_descendant)
-            {
-                existing_update.parent = base.parent;
-            }
-            local.parent = base.parent;
-            file_service::insert_metadatum(config, RepoSource::Local, &local)?;
-        }
-    }
+    // update metadata
+    file_service::insert_metadata_both_repos(
+        config,
+        &base_metadata_updates,
+        &local_metadata_updates,
+    )?;
 
-    // update base
-    file_service::insert_metadata(config, RepoSource::Base, &base_metadata_updates)?;
+    // update document content
     for (metadata, document_update) in base_document_updates {
         file_service::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
     }
-
-    // update local
-    file_service::insert_metadata(config, RepoSource::Local, &local_metadata_updates)?;
     for (metadata, document_update) in local_document_updates {
         file_service::insert_document(config, RepoSource::Local, &metadata, &document_update)?;
     }
