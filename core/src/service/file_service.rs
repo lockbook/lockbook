@@ -98,7 +98,8 @@ pub fn delete_file(config: &Config, id: Uuid) -> Result<(), CoreError> {
     info!("deleting file {}", id);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let file = files::apply_delete(&files, id)?;
-    file_service::insert_metadatum(config, RepoSource::Local, &file)
+    file_service::insert_metadatum(config, RepoSource::Local, &file)?;
+    file_service::prune_deleted(config)
 }
 
 pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
@@ -178,25 +179,55 @@ pub fn insert_metadatum(
     insert_metadata(config, source, &[metadata.clone()])
 }
 
-/// Adds or updates the metadata of files on disk.
-/// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
-/// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
+pub fn insert_metadata_both_repos(
+    config: &Config,
+    base_metadata_changes: &[DecryptedFileMetadata],
+    local_metadata_changes: &[DecryptedFileMetadata],
+) -> Result<(), CoreError> {
+    let base_metadata = get_all_metadata(config, RepoSource::Base)?;
+    let local_metadata = get_all_metadata(config, RepoSource::Local)?;
+    insert_metadata_given_decrypted_metadata(
+        config,
+        RepoSource::Base,
+        &base_metadata,
+        base_metadata_changes,
+    )?;
+    insert_metadata_given_decrypted_metadata(
+        config,
+        RepoSource::Local,
+        &local_metadata,
+        local_metadata_changes,
+    )
+}
+
 pub fn insert_metadata(
     config: &Config,
     source: RepoSource,
-    metadata: &[DecryptedFileMetadata],
+    metadata_changes: &[DecryptedFileMetadata],
+) -> Result<(), CoreError> {
+    let all_metadata = get_all_metadata(config, source)?;
+    insert_metadata_given_decrypted_metadata(config, source, &all_metadata, metadata_changes)
+}
+
+/// Adds or updates the metadata of files on disk.
+/// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
+/// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
+fn insert_metadata_given_decrypted_metadata(
+    config: &Config,
+    source: RepoSource,
+    all_metadata: &[DecryptedFileMetadata],
+    metadata_changes: &[DecryptedFileMetadata],
 ) -> Result<(), CoreError> {
     // encrypt metadata
     let account = account_repo::get(config)?;
-    let all_metadata = get_all_metadata(config, source)?;
-    let all_metadata_with_changes_staged = files::stage(&all_metadata, metadata)
+    let all_metadata_with_changes_staged = files::stage(all_metadata, metadata_changes)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<DecryptedFileMetadata>>();
     let all_metadata_encrypted =
         file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
 
-    for metadatum in metadata {
+    for metadatum in metadata_changes {
         let encrypted_metadata = files::find(&all_metadata_encrypted, metadatum.id)?;
 
         // perform insertion
@@ -619,14 +650,24 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
     // source - otherwise, the metadata for those descendants can no longer be decrypted. For an example of a situation
     // where this is important, see the test prune_deleted_document_moved_from_deleted_folder_local_only.
 
-    // find files deleted on base and local
+    // find files deleted on base and local; new deleted local files are also eligible
     let all_base_metadata = get_all_metadata(config, RepoSource::Base)?;
     let deleted_base_metadata = files::filter_deleted(&all_base_metadata)?;
     let all_local_metadata = get_all_metadata(config, RepoSource::Local)?;
     let deleted_local_metadata = files::filter_deleted(&all_local_metadata)?;
     let deleted_both_metadata = deleted_base_metadata
         .into_iter()
-        .filter(|f| files::maybe_find(&deleted_local_metadata, f.id).is_some())
+        .filter(|f| files::maybe_find(&deleted_local_metadata, f.id).is_some());
+    let prune_eligible_metadata = deleted_local_metadata
+        .iter()
+        .filter_map(|f| {
+            if files::maybe_find(&all_base_metadata, f.id).is_none() {
+                Some(f.clone())
+            } else {
+                None
+            }
+        })
+        .chain(deleted_both_metadata)
         .collect::<Vec<DecryptedFileMetadata>>();
 
     // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
@@ -637,7 +678,7 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
         .collect::<HashSet<Uuid>>();
     let not_deleted_either_ids = all_ids
         .into_iter()
-        .filter(|&id| files::maybe_find(&deleted_both_metadata, id).is_none())
+        .filter(|&id| files::maybe_find(&prune_eligible_metadata, id).is_none())
         .collect::<HashSet<Uuid>>();
     let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
         .iter()
@@ -650,7 +691,7 @@ pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
         .map(|f| f.id)
         .collect::<HashSet<Uuid>>();
     let deleted_both_without_deleted_descendants_ids =
-        deleted_both_metadata.into_iter().filter(|f| {
+        prune_eligible_metadata.into_iter().filter(|f| {
             !ancestors_of_not_deleted_base_ids.contains(&f.id)
                 && !ancestors_of_not_deleted_local_ids.contains(&f.id)
         });
@@ -1803,6 +1844,114 @@ mod unit_tests {
         assert_metadata_eq!(config, RepoSource::Local, document.id, document_moved);
         assert_metadata_count!(config, RepoSource::Base, 3);
         assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
+    }
+
+    #[test]
+    fn prune_deleted_new_local_deleted_folder() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 1);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
+
+        let mut deleted_folder =
+            files::create(FileType::Folder, root.id, "folder", &account.username);
+        deleted_folder.deleted = true;
+        file_service::insert_metadatum(config, RepoSource::Local, &deleted_folder).unwrap();
+        file_service::prune_deleted(config).unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 1);
+        assert_metadata_count!(config, RepoSource::Local, 1);
+        assert_document_count!(config, RepoSource::Base, 0);
+        assert_document_count!(config, RepoSource::Local, 0);
+    }
+
+    #[test]
+    fn prune_deleted_new_local_deleted_folder_with_existing_moved_child() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let document = files::create(FileType::Document, root.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_service::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
+
+        let mut deleted_folder =
+            files::create(FileType::Folder, root.id, "folder", &account.username);
+        deleted_folder.deleted = true;
+        let mut document_moved = document.clone();
+        document_moved.parent = deleted_folder.id;
+        file_service::insert_metadatum(config, RepoSource::Local, &deleted_folder).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Local, &document_moved).unwrap();
+        file_service::prune_deleted(config).unwrap();
+
+        assert_metadata_changes_count!(config, 2);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_eq!(config, RepoSource::Local, document.id, document_moved);
+        assert_metadata_eq!(config, RepoSource::Local, deleted_folder.id, deleted_folder);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 3);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
+    }
+
+    #[test]
+    fn prune_deleted_new_local_deleted_folder_with_deleted_existing_moved_child() {
+        let config = &temp_config();
+        let account = test_utils::generate_account();
+        let root = files::create_root(&account.username);
+        let document = files::create(FileType::Document, root.id, "document", &account.username);
+
+        account_repo::insert(config, &account).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Base, &document).unwrap();
+        file_service::insert_document(config, RepoSource::Base, &document, b"document content")
+            .unwrap();
+
+        assert_metadata_changes_count!(config, 0);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_document_count!(config, RepoSource::Base, 1);
+        assert_document_count!(config, RepoSource::Local, 1);
+
+        let mut deleted_folder =
+            files::create(FileType::Folder, root.id, "folder", &account.username);
+        deleted_folder.deleted = true;
+        let mut document_moved_and_deleted = document.clone();
+        document_moved_and_deleted.parent = deleted_folder.id;
+        document_moved_and_deleted.deleted = true;
+        file_service::insert_metadatum(config, RepoSource::Local, &deleted_folder).unwrap();
+        file_service::insert_metadatum(config, RepoSource::Local, &document_moved_and_deleted)
+            .unwrap();
+        file_service::prune_deleted(config).unwrap();
+
+        assert_metadata_changes_count!(config, 1);
+        assert_document_changes_count!(config, 0);
+        assert_metadata_count!(config, RepoSource::Base, 2);
+        assert_metadata_count!(config, RepoSource::Local, 2);
         assert_document_count!(config, RepoSource::Base, 1);
         assert_document_count!(config, RepoSource::Local, 1);
     }
