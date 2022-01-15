@@ -177,10 +177,10 @@ However, this is tricky, as one cannot atomically query the state of metadata an
 With the designs around some of our concerns worked out, we now turn to the specific routines involved in Sync v3 to see what each routine must do to address all concerns. We'll examine the following routines:
 - local metadata edits
 - local content edits
-- push metadata to server (upsert metadata endpoint)
-- push file content to server (change file content endpoint)
-- pull metadata updates from server (get updates endpoint)
-- pull document contents from server (get document endpoint)
+- push metadata to server (`UpsertFileMetadata` endpoint)
+- push file content to server (`ChangeDocumentContent` endpoint)
+- pull metadata updates from server (`GetUpdates` endpoint)
+- pull document contents from server (`GetDocument` endpoint)
 - sync
 
 ### Local Metadata Edits
@@ -209,7 +209,21 @@ For `delete`, the client validates that:
 _Concerns: `create` unnecessarily checks for invalid cycles_
 
 ### Local Content Edits
-When a user modifies a document's contents, the client checks that the file exists and is not deleted, the updates the `local` version of the file's contents.
+When a user modifies a document's contents, the client checks that the file exists and is not deleted, then updates the `local` version of the file's contents.
 
-### Push Metadata
-The server exposes an endpoint, `UpsertFileMetadata`, which accepts a batch of file metadata updates.
+### Upsert File Metadata
+The server exposes an endpoint, `UpsertFileMetadata`, which accepts a batch of file metadata updates. The file metadata updates are just a file metadata, as well as the name and parent that the client expects the server to have. The endpoint checks the precondition that the existing name and parent are what the client expects - otherwise the server responds with `GetUpdatesRequired` indicating that the client should pull the latest changes and try again. The server also checks for cycles, path conflicts, root modifications, new roots, and orphaned files - if any of these checks fail, the update is rejected and the server returns `GetUpdatesRequired`.
+
+If the checks pass, the endpoint inserts or overwrites the metadata for each file with the metadata supplied in the request. It sets the `metadata_version` to the current timestamp. It explicitly deletes all files with deleted ancestors. Then, it removes any newly deleted files from document storage.
+
+### Change Document Content
+The server exposes an endpoint, `ChangeDocumentContent`, which accepts the `id` of a document to modify, the expected `metadata_version`, and the new contents of the document. The server checks that the document exists and that the `metadata_version` matches (otherwise it responds with `GetUpdatesRequired`), increments the `metadata_version` and `content_version` for the document, writes the new version of the document to document storage, and deletes the old version.
+
+### Get Updates
+The server exposes an endpoint, `GetUpdates`, which accepts a timestamp representing the most recent `metadata_version` of any update the client has received. The endpoint returns the metadata for all files with a greater `metadata_version` i.e. all files which have been updated since the client last pulled updates.
+
+### Get Document
+The server exposes an endpoint, `GetDocument`, which accepts an `id` and `content_version` for a document and returns that version of the document.
+
+### Sync
+
