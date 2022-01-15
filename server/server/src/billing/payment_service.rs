@@ -1,14 +1,23 @@
+use crate::billing::stripe::{StripeEventType, StripeObjectType, StripeWebhook};
 use crate::billing::stripe_client;
-use crate::file_index_repo::{GetLastStripeCreditCardInfoError, FREE_TIER_SIZE, PAID_TIER_SIZE};
+use crate::file_index_repo::{
+    GetLastStripeCreditCardInfoError, UpdateStripeSubscriptionPeriodEnd, FREE_TIER_SIZE,
+    PAID_TIER_SIZE,
+};
 use crate::ServerError::{ClientError, InternalError};
-use crate::{file_index_repo, RequestContext, ServerError, ServerState};
+use crate::{file_index_repo, RequestContext, ServerError, ServerState, StripeClientError};
 use libsecp256k1::PublicKey;
 use lockbook_models::api::{
     AccountTier, CardChoice, GetLastRegisteredCreditCardError, GetLastRegisteredCreditCardRequest,
     GetLastRegisteredCreditCardResponse, SwitchAccountTierError, SwitchAccountTierRequest,
     SwitchAccountTierResponse,
 };
+use log::error;
 use sqlx::{Postgres, Transaction};
+use std::sync::Arc;
+use warp::http::StatusCode;
+use warp::hyper::body::Bytes;
+use warp::reply::WithStatus;
 
 pub async fn switch_account_tier(
     context: RequestContext<'_, SwitchAccountTierRequest>,
@@ -46,7 +55,9 @@ pub async fn switch_account_tier(
                 ))
             })?;
 
-            stripe_client::delete_subscription(&server_state, &subscription_id).await?;
+            stripe_client::delete_subscription(&server_state, &subscription_id)
+                .await
+                .map_err(ServerError::<SwitchAccountTierError>::from)?;
 
             file_index_repo::cancel_stripe_subscription(&mut transaction, &subscription_id)
                 .await
@@ -98,9 +109,12 @@ async fn create_subscription(
                 exp_month,
                 cvc,
             )
-            .await?;
+            .await
+            .map_err(ServerError::<SwitchAccountTierError>::from)?;
 
-            let customer_id = stripe_client::create_customer(&server_state).await?;
+            let customer_id = stripe_client::create_customer(&server_state)
+                .await
+                .map_err(ServerError::<SwitchAccountTierError>::from)?;
 
             match file_index_repo::get_last_stripe_credit_card_info(&mut transaction, &public_key)
                 .await
@@ -110,7 +124,8 @@ async fn create_subscription(
                         &server_state,
                         &credit_card_info.payment_method_id,
                     )
-                    .await?;
+                    .await
+                    .map_err(ServerError::<SwitchAccountTierError>::from)?;
                 }
                 Err(GetLastStripeCreditCardInfoError::NoPaymentInfo) => {}
                 Err(e) => {
@@ -126,7 +141,8 @@ async fn create_subscription(
                 &customer_id,
                 &payment_method_resp.id,
             )
-            .await?;
+            .await
+            .map_err(ServerError::<SwitchAccountTierError>::from)?;
 
             file_index_repo::attach_stripe_customer_id(&mut transaction, &customer_id, &public_key)
                 .await
@@ -153,7 +169,8 @@ async fn create_subscription(
                 &customer_id,
                 &payment_method_resp.id,
             )
-            .await?;
+            .await
+            .map_err(ServerError::<SwitchAccountTierError>::from)?;
 
             (customer_id, payment_method_resp.id)
         }
@@ -185,31 +202,38 @@ async fn create_subscription(
         }
     };
 
-    let subscription_id =
+    let subscription_resp =
         match stripe_client::create_subscription(&server_state, &customer_id, &payment_method_id)
             .await
         {
-            Ok(id) => id,
-            Err(ClientError(e)) => {
+            Ok(resp) => resp,
+            Err(StripeClientError::Other(e)) => return Err(InternalError(e)),
+            Err(e) => {
                 match card {
                     CardChoice::NewCard { .. } => {
-                        stripe_client::delete_customer(&server_state, &customer_id).await?;
+                        stripe_client::delete_customer(&server_state, &customer_id)
+                            .await
+                            .map_err(ServerError::<SwitchAccountTierError>::from)?;
                     }
                     CardChoice::OldCard => {}
                 }
-                return Err(ClientError(e));
+                return Err(ServerError::<SwitchAccountTierError>::from(e));
             }
-            Err(InternalError(e)) => return Err(InternalError(e)),
         };
 
-    file_index_repo::add_stripe_subscription(&mut transaction, &customer_id, &subscription_id)
-        .await
-        .map_err(|e| {
-            InternalError(format!(
-                "Cannot add stripe subscription in Postgres: {:?}",
-                e
-            ))
-        })?;
+    file_index_repo::add_stripe_subscription(
+        &mut transaction,
+        &customer_id,
+        &subscription_resp.id,
+        subscription_resp.current_period_end,
+    )
+    .await
+    .map_err(|e| {
+        InternalError(format!(
+            "Cannot add stripe subscription in Postgres: {:?}",
+            e
+        ))
+    })?;
 
     file_index_repo::set_account_data_cap(&mut transaction, &public_key, PAID_TIER_SIZE)
         .await
@@ -244,4 +268,51 @@ pub async fn get_last_registered_credit_card(
     Ok(GetLastRegisteredCreditCardResponse {
         credit_card_last_4_digits: credit_card.last_4_digits,
     })
+}
+
+pub async fn stripe_webhook(state: &Arc<ServerState>, request: Bytes) -> WithStatus<String> {
+    let webhook = match serde_json::from_slice::<StripeWebhook>(request.as_ref()) {
+        Ok(webhook) => webhook,
+        Err(_) => return warp::reply::with_status("".to_string(), StatusCode::OK),
+    };
+
+    let mut transaction = match state.index_db_client.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Cannot begin transaction: {:?}", e);
+            return warp::reply::with_status("".to_string(), StatusCode::OK);
+        }
+    };
+
+    match (webhook.event_type, webhook.data.object) {
+        (StripeEventType::InvoicePaymentFailed, StripeObjectType::Invoice(invoice)) => {}
+        (StripeEventType::InvoicePaid, StripeObjectType::Invoice(partial_invoice)) => {
+            match stripe_client::retrieve_invoice(&state, &partial_invoice.id).await {
+                Ok(invoice) => match invoice.subscription {
+                    None => error!(
+                        "There should be a subscription tied to this invoice: {:?}",
+                        invoice
+                    ),
+                    Some(subscription) => {
+                        if let Err(e) = file_index_repo::update_stripe_subscription_period_end(
+                            &mut transaction,
+                            &subscription.id,
+                            subscription.current_period_end,
+                        )
+                        .await
+                        {
+                            error!("Couldn't update subscription period in Postgres: {:?}", e)
+                        }
+                    }
+                },
+                Err(e) => {}
+            }
+        }
+    };
+
+    if let Err(e) = transaction.commit().await {
+        error!("Cannot commit transaction: {:?}", e)
+    }
+
+    warp::reply::with_status("".to_string(), StatusCode::OK)
 }

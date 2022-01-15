@@ -52,8 +52,7 @@ To setup payment for the first time you need to send `Plan` info and `Payment` i
 
 1. [Create a `Customer`](https://stripe.com/docs/api/customers/create)
 2. [Create a `PaymentMethod`](https://stripe.com/docs/api/payment_methods/create)
-3. [Create a `SetUpIntent`](https://stripe.com/docs/api/setup_intents/create)
-4. [Confirm a `SetUpIntent`](https://stripe.com/docs/api/setup_intents/confirm)
+3. [Create and confirm a `SetUpIntent`](https://stripe.com/docs/api/setup_intents/create)
 5. [Create a `Subscription`](https://stripe.com/docs/api/subscriptions/create)
 
 If the `Subscription`'s `status` is `active`, then it will create an entry in the `tier_table` accordingly and return success. If it's rejected due to card details then we'll indicate the failure.

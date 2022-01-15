@@ -12,10 +12,12 @@ extern crate log;
 use std::env;
 use std::fmt::Debug;
 
+use crate::billing::stripe_client::StripeClientError;
+use crate::ServerError::{ClientError, InternalError};
 use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
-use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
+use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper, SwitchAccountTierError};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +40,20 @@ pub struct RequestContext<'a, TRequest> {
 pub enum ServerError<U: Debug> {
     ClientError(U),
     InternalError(String),
+}
+
+impl From<StripeClientError> for ServerError<SwitchAccountTierError> {
+    fn from(e: StripeClientError) -> Self {
+        match e {
+            StripeClientError::CardDeclined(decline_type) => {
+                ClientError(SwitchAccountTierError::CardDeclined(decline_type))
+            }
+            StripeClientError::InvalidCreditCard(field) => {
+                ClientError(SwitchAccountTierError::InvalidCreditCard(field))
+            }
+            StripeClientError::Other(msg) => InternalError(msg),
+        }
+    }
 }
 
 pub fn verify_client_version<Req: Request>(

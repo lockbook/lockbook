@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS stripe_subscriptions
     subscription_id   TEXT PRIMARY KEY,
     customer_id       TEXT NOT NULL,
     active            BOOLEAN NOT NULL,
+    period_end        BIGINT NOT NULL,
     CONSTRAINT fk_stripe_subscriptions_customer_id FOREIGN KEY (customer_id) REFERENCES stripe_customers (customer_id) DEFERRABLE INITIALLY DEFERRED
 );
 

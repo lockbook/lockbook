@@ -134,7 +134,7 @@ mod switch_account_tier_test {
             (
                 test_credit_cards::decline::LOST_CARD,
                 SwitchAccountTierError::CardDeclined(CardDeclinedType::Generic),
-            ), // core should not be informed a card is stolen (at least the user)
+            ), // core should not be informed a card is stolen or lost (at least the user)
             (
                 test_credit_cards::decline::INSUFFICIENT_FUNDS,
                 SwitchAccountTierError::CardDeclined(CardDeclinedType::BalanceOrCreditExceeded),

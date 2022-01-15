@@ -1039,13 +1039,15 @@ pub async fn add_stripe_subscription(
     transaction: &mut Transaction<'_, Postgres>,
     customer_id: &str,
     subscription_id: &str,
+    period_end: i64,
 ) -> Result<(), AddStripeSubscriptionError> {
     sqlx::query!(
         r#"
-INSERT INTO stripe_subscriptions (subscription_id, customer_id, active) VALUES ($1, $2, TRUE);
+INSERT INTO stripe_subscriptions (subscription_id, customer_id, period_end, active) VALUES ($1, $2, $3, TRUE);
         "#,
         subscription_id,
-        customer_id
+        customer_id,
+        period_end
     )
     .execute(transaction)
     .await
@@ -1100,6 +1102,30 @@ UPDATE stripe_subscriptions SET active = FALSE WHERE subscription_id = $1
     .execute(transaction)
     .await
     .map_err(CancelStripeSubscriptionError::Postgres)?;
+
+    Ok(())
+}
+
+#[derive(Debug)]
+pub enum UpdateStripeSubscriptionPeriodEnd {
+    Postgres(sqlx::Error),
+}
+
+pub async fn update_stripe_subscription_period_end(
+    transaction: &mut Transaction<'_, Postgres>,
+    subscription_id: &str,
+    period_end: i64,
+) -> Result<(), UpdateStripeSubscriptionPeriodEnd> {
+    sqlx::query!(
+        r#"
+UPDATE stripe_subscriptions SET period_end = $2 WHERE subscription_id = $1
+        "#,
+        subscription_id,
+        period_end
+    )
+    .execute(transaction)
+    .await
+    .map_err(UpdateStripeSubscriptionPeriodEnd::Postgres)?;
 
     Ok(())
 }

@@ -115,11 +115,14 @@ pub struct StripeSubscriptionResponse {
     pub id: String,
     pub status: SubscriptionStatus,
     pub latest_invoice: StripeInvoice,
+    pub current_period_end: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StripeInvoice {
-    pub payment_intent: StripePaymentIntent,
+    pub id: String,
+    pub payment_intent: Option<StripePaymentIntent>,
+    pub subscription: Option<Box<StripeSubscriptionResponse>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -168,4 +171,30 @@ pub struct PaymentMethodCard {
 pub struct StripeSetupIntentResponse {
     pub status: SetupPaymentIntentStatus,
     pub last_setup_error: Option<StripeError>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StripeWebhook {
+    #[serde(rename = "type")]
+    pub event_type: StripeEventType,
+    pub data: StripeEventObjectContainer,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum StripeEventType {
+    #[serde(rename = "invoice.paid")]
+    InvoicePaid,
+    #[serde(rename = "invoice.payment_failed")]
+    InvoicePaymentFailed,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StripeEventObjectContainer {
+    pub object: StripeObjectType,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum StripeObjectType {
+    Invoice(StripeInvoice),
 }
