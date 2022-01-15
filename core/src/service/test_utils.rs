@@ -71,16 +71,18 @@ pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_path
             expected_paths
         );
     }
-    let expected_paths: Vec<String> = expected_paths
+    let mut expected_paths: Vec<String> = expected_paths
         .iter()
         .map(|&path| String::from(path))
         .collect();
-    let actual_paths: Vec<String> = crate::list_paths(db, None)
+    let mut actual_paths: Vec<String> = crate::list_paths(db, None)
         .unwrap()
         .iter()
         .map(|path| String::from(&path[root.decrypted_name.len()..]))
         .collect();
-    if !slices_equal_ignore_order(&actual_paths, &expected_paths) {
+    actual_paths.sort();
+    expected_paths.sort();
+    if actual_paths != expected_paths {
         panic!(
             "paths did not match expectation. expected={:?}; actual={:?}",
             expected_paths, actual_paths
