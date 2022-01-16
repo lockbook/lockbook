@@ -9,7 +9,7 @@ use lockbook_models::api::FileMetadataUpsertsError::{GetUpdatesRequired, RootImm
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType::Document;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
-use lockbook_models::tree::{FileMetaExt, TreeError};
+use lockbook_models::tree::FileMetaExt;
 use log::info;
 use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::TxError::Abort;
@@ -23,9 +23,10 @@ pub async fn upsert_file_metadata(
     check_for_changed_root(&request.updates)?;
 
     let mut con = server_state.index_db_pool.get().await?;
-    let mut files_to_delete: Vec<EncryptedFileMetadata> = vec![];
+    let mut docs_to_delete: Vec<EncryptedFileMetadata> = vec![];
     // TODO should we further check that each metadata has the right owner?
     let tx = tx!(&mut con, pipe, &[owned_files(&context.public_key)], {
+        let now = get_time().0 as u64;
         let files: Vec<Uuid> = con
             .maybe_json_get(owned_files(&context.public_key))
             .await?
@@ -34,16 +35,13 @@ pub async fn upsert_file_metadata(
         // TODO we need to watch these keys before we grab these values
         let mut files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
 
-        apply_changes(&request.updates, &mut files)?;
+        docs_to_delete = apply_changes(now, &request.updates, &mut files)?;
 
         files
             .verify_integrity()
             .map_err(|_| Abort(ClientError(GetUpdatesRequired)))?;
 
-        files_to_delete = apply_delete_recursively(&request.updates, &mut files)
-            .map_err(|err| Abort(internal!("Error applying delete recursively: {:?}", err)))?;
-
-        for the_file in files.stage(&files_to_delete).iter().map(|(a, _)| a) {
+        for the_file in &files {
             pipe.json_set(file(the_file.id), the_file)?;
             if the_file.deleted && the_file.file_type == Document {
                 pipe.del(size(the_file.id));
@@ -54,7 +52,7 @@ pub async fn upsert_file_metadata(
     });
     return_if_error!(tx);
 
-    for file in files_to_delete {
+    for file in docs_to_delete {
         file_content_client::delete(&server_state.files_db_client, file.id, file.content_version)
             .await
             .map_err(|err| internal!("Cannot delete file in S3: {:?}", err))?;
@@ -80,13 +78,14 @@ fn check_for_changed_root(
 }
 
 fn apply_changes(
+    now: u64,
     changes: &[FileMetadataDiff],
     metas: &mut Vec<EncryptedFileMetadata>,
-) -> Result<(), TxError<ServerError<FileMetadataUpsertsError>>> {
+) -> Result<Vec<EncryptedFileMetadata>, TxError<ServerError<FileMetadataUpsertsError>>> {
+    let mut deleted_files = vec![];
     for change in changes {
         match metas.maybe_find_mut(change.id) {
             Some(meta) => {
-                let now = get_time().0 as u64;
                 meta.deleted = change.new_deleted;
 
                 if let Some((old_parent, old_name)) = &change.old_parent_and_name {
@@ -101,21 +100,41 @@ fn apply_changes(
                 meta.name = change.new_name.clone();
                 meta.folder_access_keys = change.new_folder_access_keys.clone();
                 meta.metadata_version = now;
+
+                if change.new_deleted && meta.file_type == Document {
+                    deleted_files.push(meta.clone());
+                }
             }
             None => {
                 if change.old_parent_and_name.is_some() {
                     // TODO this could be more descriptive
                     return Err(Abort(ClientError(GetUpdatesRequired)));
                 }
-                metas.push(new_meta(change))
+                metas.push(new_meta(now, change))
             }
         }
     }
-    Ok(())
+
+    let implicitly_deleted_ids = metas
+        .filter_deleted()
+        .map_err(|_| Abort(ClientError(GetUpdatesRequired)))? // TODO this could be more descriptive
+        .into_iter()
+        .filter(|f| f.file_type == Document)
+        .filter(|f| !f.deleted)
+        .map(|f| f.id);
+
+    for id in implicitly_deleted_ids {
+        if let Some(implicitly_deleted) = metas.maybe_find_mut(id) {
+            implicitly_deleted.deleted = true;
+            implicitly_deleted.metadata_version = now;
+            deleted_files.push(implicitly_deleted.clone());
+        }
+    }
+
+    Ok(deleted_files)
 }
 
-fn new_meta(diff: &FileMetadataDiff) -> EncryptedFileMetadata {
-    let now = get_time().0 as u64;
+fn new_meta(now: u64, diff: &FileMetadataDiff) -> EncryptedFileMetadata {
     EncryptedFileMetadata {
         id: diff.id,
         file_type: diff.file_type,
@@ -128,32 +147,6 @@ fn new_meta(diff: &FileMetadataDiff) -> EncryptedFileMetadata {
         user_access_keys: Default::default(),
         folder_access_keys: diff.new_folder_access_keys.clone(),
     }
-}
-
-// TODO problems with this fn:
-//   1. does not update metadata version
-//   2. does not make sure that the two types of deleted files are mutually exclusive
-//   3. need to figure out in what situations do you want to mark a file as explicitly deleted (probably documents only)
-fn apply_delete_recursively(
-    explicit: &[FileMetadataDiff],
-    files: &[EncryptedFileMetadata],
-) -> Result<Vec<EncryptedFileMetadata>, TreeError> {
-    let mut deleted = vec![];
-    for change in explicit {
-        if change.new_deleted {
-            if let Some(meta) = files.maybe_find(change.id) {
-                deleted.push(meta);
-            }
-        }
-    }
-
-    for mut implicitly_deleted in files.filter_deleted()?.filter_documents() {
-        if !implicitly_deleted.deleted {
-            implicitly_deleted.deleted = true;
-            deleted.push(implicitly_deleted);
-        }
-    }
-    Ok(deleted)
 }
 
 /// Changes the content and size of a document

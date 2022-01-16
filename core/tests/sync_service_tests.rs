@@ -1806,9 +1806,7 @@ mod sync_tests {
         let f1 = path_service::create_at_path(&db, path!(account, "f/")).unwrap();
         let _f2 = path_service::create_at_path(&db, path!(account, "f/f2/")).unwrap();
         delete_file(&db, f1.id).unwrap();
-        for _ in 0..2 {
-            sync!(&db);
-        }
+        sync!(&db);
         test_repo_integrity(&db).unwrap();
         assert!(calculate_work(&db).unwrap().work_units.is_empty());
     }

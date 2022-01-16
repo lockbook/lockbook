@@ -71,7 +71,7 @@ where
     Fm: FileMetadata,
 {
     fn ids(&self) -> Vec<Uuid> {
-        self.into_iter().map(|f| f.id()).collect()
+        self.iter().map(|f| f.id()).collect()
     }
 
     fn stage(&self, staged: &[Fm]) -> Vec<(Fm, StageSource)> {
