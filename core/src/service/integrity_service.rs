@@ -7,7 +7,7 @@ use lockbook_models::tree::{FileMetaExt, TestFileTreeError, TreeError};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::pure_functions::{drawing};
+use crate::pure_functions::drawing;
 use crate::repo::{metadata_repo, root_repo};
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::service::{file_service, path_service};

@@ -21,7 +21,7 @@ pub const MEGABYTE_MINUS_ONE: u64 = MEGABYTE - 1;
 pub const GIGABYTE_MINUS_ONE: u64 = GIGABYTE - 1;
 pub const TERABYTE_MINUS_ONE: u64 = TERABYTE - 1;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct UsageMetrics {
     pub usages: Vec<FileUsage>,
     pub server_usage: UsageItemMetric,

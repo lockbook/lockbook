@@ -68,7 +68,6 @@ impl Request for FileMetadataUpsertsRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum FileMetadataUpsertsError {
     UserNotFound,
-    CannotMoveFolderIntoItself,
     RootImmutable,
     GetUpdatesRequired,
 }

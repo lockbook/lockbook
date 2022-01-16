@@ -5,17 +5,16 @@ use crate::{file_content_client, ServerError};
 use crate::{keys, RequestContext};
 
 use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::FileMetadataUpsertsError::{
-    CannotMoveFolderIntoItself, GetUpdatesRequired, RootImmutable,
-};
+use lockbook_models::api::FileMetadataUpsertsError::{GetUpdatesRequired, RootImmutable};
 use lockbook_models::api::*;
+use lockbook_models::file_metadata::FileType::Document;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
 use lockbook_models::tree::{FileMetaExt, TreeError};
+use log::info;
 use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::TxError::Abort;
 use redis_utils::{tx, TxError};
 use uuid::Uuid;
-use log::info;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
@@ -44,8 +43,11 @@ pub async fn upsert_file_metadata(
         files_to_delete = apply_delete_recursively(&request.updates, &mut files)
             .map_err(|err| Abort(internal!("Error applying delete recursively: {:?}", err)))?;
 
-        for the_file in &files {
+        for the_file in files.stage(&files_to_delete).iter().map(|(a, _)| a) {
             pipe.json_set(file(the_file.id), the_file)?;
+            if the_file.deleted && the_file.file_type == Document {
+                pipe.del(size(the_file.id));
+            }
         }
         pipe.json_set(owned_files(&context.public_key), files.ids())?;
         Ok(&mut pipe)
@@ -69,7 +71,8 @@ fn check_for_changed_root(
                 return Err(ClientError(RootImmutable));
             }
             if change.id == change.new_parent {
-                return Err(ClientError(CannotMoveFolderIntoItself));
+                // TODO could be get updates variant
+                return Err(ClientError(GetUpdatesRequired));
             }
         }
     }
@@ -105,7 +108,7 @@ fn apply_changes(
                     return Err(Abort(ClientError(GetUpdatesRequired)));
                 }
                 metas.push(new_meta(change))
-            },
+            }
         }
     }
     Ok(())
@@ -120,16 +123,20 @@ fn new_meta(diff: &FileMetadataDiff) -> EncryptedFileMetadata {
         name: diff.new_name.clone(),
         owner: diff.owner.clone(),
         metadata_version: now,
-        content_version: now,
+        content_version: 0,
         deleted: diff.new_deleted,
         user_access_keys: Default::default(),
         folder_access_keys: diff.new_folder_access_keys.clone(),
     }
 }
 
+// TODO problems with this fn:
+//   1. does not update metadata version
+//   2. does not make sure that the two types of deleted files are mutually exclusive
+//   3. need to figure out in what situations do you want to mark a file as explicitly deleted (probably documents only)
 fn apply_delete_recursively(
     explicit: &[FileMetadataDiff],
-    files: &mut [EncryptedFileMetadata],
+    files: &[EncryptedFileMetadata],
 ) -> Result<Vec<EncryptedFileMetadata>, TreeError> {
     let mut deleted = vec![];
     for change in explicit {
@@ -161,9 +168,13 @@ pub async fn change_document_content(
 
     let watched_keys = &[file(request.id), size(request.id)];
     let mut new_version = 0;
-    let new_size = request.new_content.value.len() as u64;
+    let mut old_content_version = 0;
 
     let tx = tx!(&mut con, pipe, watched_keys, {
+        let new_size = FileUsage {
+            file_id: request.id,
+            size_bytes: request.new_content.value.len() as u64,
+        };
         new_version = get_time().0 as u64;
         let mut meta: EncryptedFileMetadata =
             con.maybe_json_get(file(request.id))
@@ -184,14 +195,16 @@ pub async fn change_document_content(
             )));
         }
 
-        if request.old_metadata_version != meta.content_version {
+        if request.old_metadata_version != meta.metadata_version {
             return Err(Abort(ClientError(ChangeDocumentContentError::EditConflict)));
         }
+
+        old_content_version = meta.content_version;
 
         meta.content_version = new_version;
         meta.metadata_version = new_version;
 
-        pipe.set(size(request.id), new_size)
+        pipe.json_set(size(request.id), new_size)?
             .json_set(file(request.id), meta)
     });
     return_if_error!(tx);
@@ -215,7 +228,7 @@ pub async fn change_document_content(
     file_content_client::delete(
         &server_state.files_db_client,
         request.id,
-        request.old_metadata_version,
+        old_content_version,
     )
     .await
     .map_err(|err| {
@@ -229,7 +242,7 @@ pub async fn change_document_content(
     })?;
 
     Ok(ChangeDocumentContentResponse {
-        new_content_version: new_version
+        new_content_version: new_version,
     })
 }
 

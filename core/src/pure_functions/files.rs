@@ -1,4 +1,3 @@
-
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -8,7 +7,7 @@ use uuid::Uuid;
 use lockbook_crypto::symkey;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetaExt;
-use lockbook_models::tree::{FileMetadata};
+use lockbook_models::tree::FileMetadata;
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
@@ -102,7 +101,9 @@ pub fn apply_move(
     new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
-    let parent = files.maybe_find(new_parent).ok_or(CoreError::FileParentNonexistent)?;
+    let parent = files
+        .maybe_find(new_parent)
+        .ok_or(CoreError::FileParentNonexistent)?;
     validate_not_root(&file)?;
     validate_is_folder(&parent)?;
 
