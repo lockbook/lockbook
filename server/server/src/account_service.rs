@@ -24,6 +24,11 @@ pub async fn new_account(
     context: RequestContext<'_, NewAccountRequest>,
 ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
     let (request, server_state) = (&context.request, context.server_state);
+    let request = NewAccountRequest {
+        username: request.username.to_lowercase(),
+        ..request.clone()
+    };
+
     if !username_is_valid(&request.username) {
         return Err(ClientError(NewAccountError::InvalidUsername));
     }

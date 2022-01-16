@@ -25,6 +25,7 @@ pub async fn upsert_file_metadata(
 
     let mut con = server_state.index_db_pool.get().await?;
     let mut files_to_delete: Vec<EncryptedFileMetadata> = vec![];
+    // TODO should we further check that each metadata has the right owner?
     let tx = tx!(&mut con, pipe, &[owned_files(&context.public_key)], {
         let files: Vec<Uuid> = con
             .maybe_json_get(owned_files(&context.public_key))
@@ -89,13 +90,22 @@ fn apply_changes(
                     if meta.parent != *old_parent || meta.name != *old_name {
                         return Err(Abort(ClientError(GetUpdatesRequired)));
                     }
+                } else {
+                    // TODO this could be more descriptive
+                    return Err(Abort(ClientError(GetUpdatesRequired)));
                 }
                 meta.parent = change.new_parent;
                 meta.name = change.new_name.clone();
                 meta.folder_access_keys = change.new_folder_access_keys.clone();
                 meta.metadata_version = now;
             }
-            None => metas.push(new_meta(change)),
+            None => {
+                if change.old_parent_and_name.is_some() {
+                    // TODO this could be more descriptive
+                    return Err(Abort(ClientError(GetUpdatesRequired)));
+                }
+                metas.push(new_meta(change))
+            },
         }
     }
     Ok(())

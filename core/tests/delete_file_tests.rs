@@ -116,6 +116,11 @@ mod delete_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
             },
         );
-        assert_get_updates_required!(result);
+        assert_matches!(
+            result,
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::RootImmutable
+            ))
+        );
     }
 }
