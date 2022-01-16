@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod delete_document_tests {
     use lockbook_core::assert_get_updates_required;

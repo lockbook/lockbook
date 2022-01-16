@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod get_usage_tests {
     use std::path::Path;
@@ -114,9 +112,8 @@ mod get_usage_tests {
         }
         sync_all!(&config).unwrap();
 
-        let local_encrypted = document_repo::get(&config, RepoSource::Base, file.id)
-            .unwrap()
-            .value;
+        document_repo::get(&config, RepoSource::Base, file.id)
+            .unwrap();
 
         let usage = get_usage(&config).unwrap_or_else(|err| panic!("{:?}", err));
 

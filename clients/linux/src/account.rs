@@ -21,7 +21,7 @@ use crate::util::{
     gui as gui_util, gui::LEFT_CLICK, gui::RIGHT_CLICK, IMAGE_TARGET_INFO, TEXT_TARGET_INFO,
     URI_TARGET_INFO,
 };
-use crate::{closure, get_language_specs_dir, progerr, uerr, uerr_dialog};
+use crate::{get_language_specs_dir, progerr, uerr, uerr_dialog};
 
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::work_unit::ClientWorkUnit;
@@ -47,10 +47,6 @@ impl AccountScreen {
             editor,
             cntr,
         }
-    }
-
-    pub fn add_file(&self, b: &LbCore, f: &DecryptedFileMetadata) -> LbResult<()> {
-        self.sidebar.tree.add(b, f)
     }
 
     pub fn show(&self, mode: &EditMode) {
@@ -128,7 +124,7 @@ pub struct Sidebar {
 impl Sidebar {
     fn new(m: &Messenger, c: &Arc<LbCore>, s: &Settings) -> Self {
         let tree = FileTree::new(m, c, &s.hidden_tree_cols);
-        let scroll = gui_util::scrollable(tree.widget());
+        let scroll = gui_util::scrollable(&tree.tree);
 
         let sync = Rc::new(StatusPanel::new(m));
 
@@ -159,7 +155,7 @@ impl StatusPanel {
 
         let status_evbox = gtk::EventBox::new();
         status_evbox.add(&status);
-        status_evbox.connect_button_press_event(closure!(m => move |_, evt| {
+        status_evbox.connect_button_press_event(glib::clone!(@strong m => move |_, evt| {
             if evt.get_button() == RIGHT_CLICK {
                 let menu = gtk::Menu::new();
                 let item_data: Vec<(&str, MsgFn)> = vec![
@@ -168,7 +164,7 @@ impl StatusPanel {
                 ];
                 for (name, msg) in item_data {
                     let mi = gtk::MenuItem::with_label(name);
-                    mi.connect_activate(closure!(m => move |_| m.send(msg())));
+                    mi.connect_activate(glib::clone!(@strong m => move |_| m.send(msg())));
                     menu.append(&mi);
                 }
                 menu.show_all();
@@ -178,7 +174,7 @@ impl StatusPanel {
         }));
 
         let sync_button = gtk::Button::with_label("Sync");
-        sync_button.connect_clicked(closure!(m => move |_| m.send(Msg::PerformSync)));
+        sync_button.connect_clicked(glib::clone!(@strong m => move |_| m.send(Msg::PerformSync)));
 
         let progress = gtk::ProgressBar::new();
         progress.set_margin_top(3);
@@ -309,7 +305,7 @@ impl Editor {
     fn on_drag_data_received(
         m: &Messenger,
     ) -> impl Fn(&GtkSourceView, &gdk::DragContext, i32, i32, &gtk::SelectionData, u32, u32) {
-        closure!(m => move |_, _, _, _, s, info, _| {
+        glib::clone!(@strong m => move |_, _, _, _, s, info, _| {
             let target = match info {
                 URI_TARGET_INFO => {
                     TextAreaDropPasteInfo::Uris(s.get_uris().iter().map(|uri| uri.to_string()).collect())
@@ -339,7 +335,7 @@ impl Editor {
     }
 
     fn on_paste_clipboard(m: &Messenger) -> impl Fn(&GtkSourceView) {
-        closure!(m => move |w| {
+        glib::clone!(@strong m => move |w| {
             let clipboard = gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD);
 
             if let Some(pixbuf) = clipboard.wait_for_image() {
@@ -364,7 +360,7 @@ impl Editor {
     }
 
     fn on_button_press(m: &Messenger) -> impl Fn(&GtkSourceView, &gdk::EventButton) -> Inhibit {
-        closure!(m => move |w, evt| {
+        glib::clone!(@strong m => move |w, evt| {
             if evt.get_button() == LEFT_CLICK && evt.get_state() == gdk::ModifierType::CONTROL_MASK {
                 let (absol_x, absol_y) = evt.get_position();
                 let (x, y) = w.window_to_buffer_coords(gtk::TextWindowType::Text, absol_x as i32, absol_y as i32);
@@ -431,7 +427,7 @@ impl Editor {
         svb.end_not_undoable_action();
 
         self.change_sig_id.replace(Some(svb.connect_changed(
-            closure!(self.messenger as m => move |_| m.send(Msg::FileEdited)),
+            glib::clone!(@strong self.messenger as m => move |_| m.send(Msg::FileEdited)),
         )));
 
         self.show("scroll");

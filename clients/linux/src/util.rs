@@ -1,25 +1,6 @@
-#[macro_export]
-macro_rules! cloned_var_name {
-    ($v:ident) => {
-        $v
-    };
-    ($v:ident $( $_:ident )+) => {
-        $v
-    };
-}
-
-#[macro_export]
-macro_rules! closure {
-    ($( $( $vars:ident ).+ $( as $aliases:ident )? ),+ => $fn:expr) => {{
-        $( let $crate::cloned_var_name!($( $aliases )? $( $vars )+)  = $( $vars ).+.clone(); )+
-        $fn
-    }};
-}
-
 pub mod gui {
     use gtk::prelude::ButtonExt;
     use gtk::prelude::ContainerExt;
-    use gtk::prelude::EntryExt;
     use gtk::prelude::IsA;
     use gtk::prelude::WidgetExt;
     use gtk::Adjustment as GtkAdjustment;
@@ -90,10 +71,6 @@ pub mod gui {
         l.set_halign(GtkAlign::Start);
         l.set_margin_start(4);
         l
-    }
-
-    pub fn set_entry_icon(entry: &gtk::Entry, name: &str) {
-        entry.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, Some(name));
     }
 
     pub const KEY_ARROW_UP: u16 = 111;

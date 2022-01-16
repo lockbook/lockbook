@@ -69,9 +69,6 @@ pub fn apply_create(
     if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
         return Err(CoreError::PathTaken);
     }
-    if !files.get_invalid_cycles(&[file.clone()])?.is_empty() {
-        return Err(CoreError::FolderMovedIntoSelf);
-    }
 
     Ok(file)
 }

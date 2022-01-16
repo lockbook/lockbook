@@ -19,6 +19,7 @@ mod menubar;
 mod messages;
 mod onboarding;
 mod settings;
+mod syncing;
 mod util;
 
 use std::cell::RefCell;
@@ -58,7 +59,7 @@ fn main() {
     }
 
     let gtk_app = GtkApp::new(None, Default::default()).unwrap();
-    gtk_app.connect_activate(closure!(core, settings => move |app| {
+    gtk_app.connect_activate(glib::clone!(@strong core, @strong settings => move |app| {
         if let Err(err) = gtk_add_css_provider() {
             launch_err("adding css provider", &err);
         }
@@ -68,7 +69,7 @@ fn main() {
             launch_err("displaying app", err.msg());
         }
     }));
-    gtk_app.connect_shutdown(closure!(settings => move |_| {
+    gtk_app.connect_shutdown(glib::clone!(@strong settings => move |_| {
         if let Err(err) = settings.borrow_mut().to_file() {
             println!("error: {:?}", err);
         }

@@ -439,13 +439,30 @@ fn get_resolved_document(
     match maybe_remote_document {
         Some(remote_document) => {
             // merge document content for documents with updated content
-            let merged_document = merge_maybe_documents(
+            let mut merged_document = merge_maybe_documents(
                 merged_metadatum,
                 remote_metadatum,
                 maybe_base_document,
                 maybe_local_document,
                 remote_document,
             )?;
+
+            if let ResolvedDocument::Copied {
+                remote_metadata: _,
+                remote_document: _,
+                ref mut copied_local_metadata,
+                copied_local_document: _,
+            } = merged_document
+            {
+                copied_local_metadata.decrypted_name = files::suggest_non_conflicting_filename(
+                    copied_local_metadata.id,
+                    &all_metadata_state
+                        .iter()
+                        .map(|rs| rs.clone().local())
+                        .collect::<Vec<DecryptedFileMetadata>>(),
+                    &[copied_local_metadata.clone()],
+                )?;
+            }
 
             Ok(Some(merged_document))
         }
@@ -622,39 +639,52 @@ where
         }
     }
 
-    // resolve path conflicts
-    for path_conflict in local_metadata.get_path_conflicts(&local_metadata_updates)? {
-        let local_meta_updates_copy = local_metadata_updates.clone();
-        let to_rename = local_metadata_updates.find_mut(path_conflict.staged)?;
-        let conflict_name = files::suggest_non_conflicting_filename(
-            to_rename.id,
-            &local_metadata,
-            &local_meta_updates_copy,
-        )?;
-        to_rename.decrypted_name = conflict_name;
-    }
-
     // resolve cycles
     for self_descendant in local_metadata.get_invalid_cycles(&local_metadata_updates)? {
         if let Some(RepoState::Modified { mut local, base }) =
             file_service::maybe_get_metadata_state(config, self_descendant)?
         {
-            if let Some(existing_update) = local_metadata_updates.maybe_find_mut(self_descendant) {
+            if local.parent != base.parent {if let Some(existing_update) = local_metadata_updates.maybe_find_mut(self_descendant) {
                 existing_update.parent = base.parent;
+            }else {
+                    local.parent = base.parent;
+                    local_metadata_updates.push(local);
+                }
             }
-            local.parent = base.parent;
-            file_service::insert_metadatum(config, RepoSource::Local, &local)?;
         }
     }
 
-    // update base
-    file_service::insert_metadata(config, RepoSource::Base, &base_metadata_updates)?;
+    // resolve path conflicts
+    for path_conflict in local_metadata.get_path_conflicts(&local_metadata_updates)? {
+        let local_meta_updates_copy = local_metadata_updates.clone();
+
+        let conflict_name = files::suggest_non_conflicting_filename(
+            path_conflict.existing,
+            &local_metadata,
+            &local_meta_updates_copy,
+        )?;
+        if let Some(existing_update) =
+            local_metadata_updates.maybe_find_mut(path_conflict.existing)
+        {
+            existing_update.decrypted_name = conflict_name;
+        } else {
+            let mut new_metadatum_update = local_metadata.find(path_conflict.existing)?;
+            new_metadatum_update.decrypted_name = conflict_name;
+            local_metadata_updates.push(new_metadatum_update);
+        }
+    }
+
+    // update metadata
+    file_service::insert_metadata_both_repos(
+        config,
+        &base_metadata_updates,
+        &local_metadata_updates,
+    )?;
+
+    // update document content
     for (metadata, document_update) in base_document_updates {
         file_service::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
     }
-
-    // update local
-    file_service::insert_metadata(config, RepoSource::Local, &local_metadata_updates)?;
     for (metadata, document_update) in local_document_updates {
         file_service::insert_document(config, RepoSource::Local, &metadata, &document_update)?;
     }
@@ -778,7 +808,7 @@ pub fn sync(
 }
 
 #[cfg(test)]
-mod unit_test_sync_service {
+mod unit_tests {
     use std::str::FromStr;
 
     use uuid::Uuid;

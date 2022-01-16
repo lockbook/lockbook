@@ -10,7 +10,7 @@ use crate::account::Username;
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
 use crate::tree::FileMetadata;
 
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, Copy)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
     Document,
     Folder,
@@ -83,7 +83,7 @@ impl fmt::Debug for EncryptedFileMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct DecryptedFileMetadata {
     pub id: Uuid,
     pub file_type: FileType,

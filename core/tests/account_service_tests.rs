@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod account_tests {
     use lockbook_core::repo::account_repo;

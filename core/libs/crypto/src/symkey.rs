@@ -156,7 +156,7 @@ fn generate_nonce() -> [u8; 12] {
 }
 
 #[cfg(test)]
-mod unit_test_symmetric {
+mod unit_tests {
     use uuid::Uuid;
 
     use crate::symkey::{decrypt, decrypt_and_verify, encrypt, encrypt_and_hmac, generate_key};

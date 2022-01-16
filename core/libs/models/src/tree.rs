@@ -17,7 +17,7 @@ pub trait FileMetadata: Clone {
     fn deleted(&self) -> bool;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TreeError {
     RootNonexistent,
     FileNonexistent,
@@ -36,7 +36,7 @@ pub struct PathConflict {
     pub staged: Uuid,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TestFileTreeError {
     NoRootFolder,
     DocumentTreatedAsFolder(Uuid),
@@ -251,6 +251,14 @@ where
     }
 
     fn verify_integrity(&self) -> Result<(), TestFileTreeError> {
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        if self.maybe_find_root().is_none() {
+            return Err(TestFileTreeError::NoRootFolder);
+        }
+
         for file in self {
             if self.maybe_find(file.parent()).is_none() {
                 return Err(TestFileTreeError::FileOrphaned(file.id()));

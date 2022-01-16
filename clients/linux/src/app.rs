@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 use gdk::WindowExt;
 use gdk_pixbuf::Pixbuf as GdkPixbuf;
@@ -18,12 +17,13 @@ use gtk::{
     TreeStore as GtkTreeStore, TreeView as GtkTreeView, TreeViewColumn as GtkTreeViewColumn,
     WindowPosition as GtkWindowPosition,
 };
-
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use uuid::Uuid;
 
+use lockbook_core::service::import_export_service::ImportExportFileInfo;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+
 use crate::account::{AccountScreen, TextAreaDropPasteInfo};
-use crate::backend::{LbCore, LbSyncMsg};
+use crate::backend::LbCore;
 use crate::background_work::BackgroundWork;
 use crate::editmode::EditMode;
 use crate::error::{
@@ -31,36 +31,20 @@ use crate::error::{
     LbErrTarget, LbError, LbResult,
 };
 use crate::filetree::FileTreeCol;
-use crate::lbsearch::LbSearch;
 use crate::menubar::Menubar;
 use crate::messages::{Messenger, Msg};
 use crate::onboarding;
+use crate::syncing;
 use crate::util;
-use crate::{closure, progerr, tree_iter_value, uerr, uerr_dialog};
+use crate::{lbsearch, lbsearch::LbSearch};
+use crate::{progerr, tree_iter_value, uerr, uerr_dialog};
 use crate::{settings, settings::Settings};
-
-use lockbook_core::service::import_export_service::ImportExportFileInfo;
-use lockbook_models::work_unit::WorkUnit;
-
-macro_rules! make_glib_chan {
-    ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => move |$param:ident :$param_type:ty| $fn:block) => {{
-        let (s, r) = glib::MainContext::channel::<$param_type>(glib::PRIORITY_DEFAULT);
-        r.attach(None, closure!($( $( $vars ).+ $( as $aliases )* ),+ => move |$param: $param_type| $fn));
-        s
-    }};
-}
-
-macro_rules! spawn {
-    ($( $( $vars:ident ).+ $( as $aliases:ident )* ),+ => $fn:expr) => {
-        std::thread::spawn(closure!($( $( $vars ).+ $( as $aliases )* ),+ => $fn));
-    };
-}
 
 #[derive(Clone)]
 pub struct LbApp {
     pub core: Arc<LbCore>,
     pub settings: Rc<RefCell<Settings>>,
-    state: Rc<RefCell<LbState>>,
+    pub state: Rc<RefCell<LbState>>,
     pub gui: Rc<Gui>,
     pub messenger: Messenger,
 }
@@ -93,8 +77,8 @@ impl LbApp {
                 Msg::CreateAccount(username) => onboarding::create(&lb, username),
                 Msg::ImportAccount(acct_str) => onboarding::import(&lb, acct_str),
                 Msg::ExportAccount => lb.export_account(),
-                Msg::PerformSync => lb.perform_sync(),
-                Msg::RefreshSyncStatus => lb.refresh_sync_status(),
+                Msg::PerformSync => syncing::perform_sync(&lb),
+                Msg::RefreshSyncStatus => syncing::refresh_status(&lb),
                 Msg::RefreshUsageStatus => lb.refresh_usage_status(),
                 Msg::Quit => lb.quit(),
 
@@ -112,10 +96,10 @@ impl LbApp {
                 Msg::ToggleTreeCol(col) => lb.toggle_tree_col(col),
                 Msg::RefreshTree => lb.refresh_tree(),
 
-                Msg::PromptSearch => lb.prompt_search(),
-                Msg::SearchFieldExec(vopt) => lb.search_field_exec(vopt),
+                Msg::PromptSearch => lbsearch::prompt(&lb),
+                Msg::SearchFieldExec(vopt) => lbsearch::process_input(&lb, vopt),
 
-                Msg::ShowDialogSyncDetails => lb.show_dialog_sync_details(),
+                Msg::ShowDialogSyncDetails => syncing::show_details_dialog(&lb),
                 Msg::ShowDialogPreferences => settings::show_dialog(&lb),
                 Msg::ShowDialogUsage => lb.show_dialog_usage(),
                 Msg::ShowDialogAbout => lb.show_dialog_about(),
@@ -152,7 +136,7 @@ impl LbApp {
 
         let prompt_search = gio::SimpleAction::new("prompt_search", None);
         prompt_search.connect_activate(glib::clone!(@strong lb_app => move |_, _| {
-            if let Err(err) = lb_app.prompt_search() {
+            if let Err(err) = lbsearch::prompt(&lb_app) {
                 lb_app.err_dialog("opening search", &err)
             }
         }));
@@ -198,84 +182,45 @@ impl LbApp {
             Err(err) => self.err_dialog("unable to export account", &err),
         }
 
-        let ch = make_glib_chan!(self.messenger as m => move |res: LbResult<String>| {
-            match res {
-                Ok(path) => {
-                    let qr_image = GtkImage::from_file(&path);
-                    image_cntr.set_center_widget(Some(&qr_image));
-                    image_cntr.show_all();
+        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        rx.attach(
+            None,
+            glib::clone!(@strong self.messenger as m => move |res: LbResult<String>| {
+                match res {
+                    Ok(path) => {
+                        let qr_image = GtkImage::from_file(&path);
+                        image_cntr.set_center_widget(Some(&qr_image));
+                        image_cntr.show_all();
+                    }
+                    Err(err) => m.send_err_dialog("generating qr code", err),
                 }
-                Err(err) => m.send_err_dialog("generating qr code", err),
-            }
-            glib::Continue(false)
-        });
+                glib::Continue(false)
+            }),
+        );
 
-        spawn!(self.core as c => move || ch.send(c.account_qrcode()).unwrap());
-        Ok(())
-    }
-
-    fn perform_sync(&self) -> LbResult<()> {
-        if let Ok(mut background_work) = self.state.borrow().background_work.try_lock() {
-            background_work.auto_sync_state.last_sync = BackgroundWork::current_time();
-        }
-
-        let sync_ui = self.gui.account.status().clone();
-        sync_ui.set_syncing(true);
-
-        let ch = make_glib_chan!(self as lb => move |msgopt: Option<LbSyncMsg>| {
-            if let Some(msg) = msgopt {
-                sync_ui.set_sync_progress(&msg);
-            } else {
-                sync_ui.set_syncing(false);
-                lb.messenger.send(Msg::RefreshSyncStatus);
-                spawn!(lb.messenger as m => move || {
-                    thread::sleep(Duration::from_secs(5));
-                    m.send(Msg::RefreshUsageStatus);
-                });
-            }
-            glib::Continue(true)
-        });
-
-        spawn!(self.core as c, self.messenger as m => move || {
-            if let Err(err) = c.sync(ch) {
-                match err.target() {
-                    LbErrTarget::Dialog => m.send_err_dialog("syncing", err),
-                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg())
-                }
-            }
-            m.send(Msg::RefreshTree)
-        });
-
-        Ok(())
-    }
-
-    fn refresh_sync_status(&self) -> LbResult<()> {
-        spawn!(self.core as c, self.messenger as m => move || {
-            match c.sync_status() {
-                Ok(txt) => m.send(Msg::SetStatus(txt, None)),
-                Err(err) => match err.target() {
-                    LbErrTarget::Dialog => m.send_err_dialog("getting sync status", err),
-                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
-                }
-            }
-        });
+        thread::spawn(glib::clone!(@strong self.core as c => move || {
+            tx.send(c.account_qrcode()).unwrap();
+        }));
 
         Ok(())
     }
 
     fn refresh_usage_status(&self) -> LbResult<()> {
-        spawn!(self.core as c, self.messenger as m => move || {
-            match c.usage_status() {
-                Ok(status) => if let (Some(txt), _) = status {
-                    m.send(Msg::SetStatus(txt, status.1));
-                }
-                Err(err) => match err.target() {
-                    LbErrTarget::Dialog => m.send_err_dialog("getting usage status", err),
-                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
+        thread::spawn(glib::clone!(
+            @strong self.core as c,
+            @strong self.messenger as m
+            => move || {
+                match c.usage_status() {
+                    Ok(status) => if let (Some(txt), _) = status {
+                        m.send(Msg::SetStatus(txt, status.1));
+                    }
+                    Err(err) => match err.target() {
+                        LbErrTarget::Dialog => m.send_err_dialog("getting usage status", err),
+                        LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
+                    }
                 }
             }
-        });
-
+        ));
         Ok(())
     }
 
@@ -346,7 +291,7 @@ impl LbApp {
             None => Err(uerr_dialog!("No destination is selected to create from!")),
         }?;
 
-        d.connect_response(closure!(self as lb => move |d, resp| {
+        d.connect_response(glib::clone!(@strong self as lb => move |d, resp| {
             if resp != GtkResponseType::Ok {
                 d.close();
                 return;
@@ -358,7 +303,7 @@ impl LbApp {
                 Ok(file) => {
                     d.close();
 
-                    match lb.gui.account.add_file(&lb.core, &file) {
+                    match lb.gui.account.sidebar.tree.add_file(&file) {
                         Ok(_) => {
                             lb.messenger.send(Msg::RefreshSyncStatus);
                             lb.messenger.send(Msg::OpenFile(Some(file.id)));
@@ -424,40 +369,42 @@ impl LbApp {
         let d = self.gui.new_dialog(&open_file.decrypted_name);
 
         let save = gtk::Button::with_label("Save");
-        save.connect_clicked(closure!(
-            self.core as core, // to save
-            self.gui.account as account, // to get text
-            self.messenger as m, // to propagate errors
-            save, // to keep the user informed about the operation
-            d, // to dismiss the dialog
-            file_dealt_with, // to detect if the operation is cancelled
-            open_file // what file are we saving
-
+        save.connect_clicked(glib::clone!(
+            @strong self.core as core, // to save
+            @strong self.gui.account as account, // to get text
+            @strong self.messenger as m, // to propagate errors
+            @strong save, // to keep the user informed about the operation
+            @strong d, // to dismiss the dialog
+            @strong file_dealt_with, // to detect if the operation is cancelled
+            @strong open_file // what file are we saving
             => move |_| {
                 save.set_label("Saving...");
                 save.set_sensitive(true);
                 file_dealt_with.replace(true);
 
-                let ch = make_glib_chan!(m, d => move |result: LbResult<()>| {
+                let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+                rx.attach(None, glib::clone!(@strong m, @strong d => move |result: LbResult<()>| {
                     match result {
                         Ok(_) => d.close(),
                         Err(err) => m.send_err_dialog("saving file", err),
                     };
                     glib::Continue(false)
-                });
+                }));
 
                 let content = account.text_content();
-                spawn!(core, open_file => move || {
-                    ch.send(core.save(open_file.id, content)).unwrap()
-                });
+                thread::spawn(glib::clone!(@strong core, @strong open_file => move || {
+                    tx.send(core.save(open_file.id, content)).unwrap()
+                }));
             }
         ));
 
         let discard = gtk::Button::with_label("Discard");
-        discard.connect_clicked(closure!(d, file_dealt_with => move |_| {
-            file_dealt_with.replace(true);
-            d.close();
-        }));
+        discard.connect_clicked(
+            glib::clone!(@strong d, @strong file_dealt_with => move |_| {
+                file_dealt_with.replace(true);
+                d.close();
+            }),
+        );
 
         let buttons = GtkBox::new(Horizontal, 16);
         buttons.set_halign(GtkAlign::Center);
@@ -531,18 +478,24 @@ impl LbApp {
                 let id = f.id;
                 let content = acctscr.text_content();
 
-                let ch = make_glib_chan!(self.messenger as m => move |result: LbResult<()>| {
-                    match result {
-                        Ok(_) => {
-                            acctscr.set_saving(false);
-                            m.send(Msg::RefreshSyncStatus);
+                let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+                rx.attach(
+                    None,
+                    glib::clone!(@strong self.messenger as m => move |result: LbResult<()>| {
+                        match result {
+                            Ok(_) => {
+                                acctscr.set_saving(false);
+                                m.send(Msg::RefreshSyncStatus);
+                            }
+                            Err(err) => m.send_err_dialog("saving file", err),
                         }
-                        Err(err) => m.send_err_dialog("saving file", err),
-                    }
-                    glib::Continue(false)
-                });
+                        glib::Continue(false)
+                    }),
+                );
 
-                spawn!(self.core as c => move || ch.send(c.save(id, content)).unwrap());
+                thread::spawn(glib::clone!(@strong self.core as c => move || {
+                    tx.send(c.save(id, content)).unwrap();
+                }));
             }
         }
         Ok(())
@@ -635,7 +588,8 @@ impl LbApp {
         }
 
         d.close();
-        self.refresh_sync_status()
+        self.messenger.send(Msg::RefreshSyncStatus);
+        Ok(())
     }
 
     fn rename_file(&self) -> LbResult<()> {
@@ -676,7 +630,7 @@ impl LbApp {
         d.add_button("Ok", GtkResponseType::Ok);
         d.set_default_response(GtkResponseType::Ok);
 
-        d.connect_response(closure!(self as lb => move |d, resp| {
+        d.connect_response(glib::clone!(@strong self as lb => move |d, resp| {
             if resp != GtkResponseType::Ok {
                 d.close();
                 return;
@@ -722,114 +676,6 @@ impl LbApp {
         let root = self.core.root()?;
         let metadatas = self.core.get_all_files()?;
         self.gui.account.sidebar.tree.refresh(&root, &metadatas);
-        Ok(())
-    }
-
-    fn prompt_search(&self) -> LbResult<()> {
-        let possibs = self.core.list_paths().unwrap_or_default();
-        let search = LbSearch::new(possibs);
-        let d = self.gui.new_dialog("Search");
-
-        let comp = gtk::EntryCompletion::new();
-        comp.set_model(Some(&search.sort_model));
-        comp.set_popup_completion(true);
-        comp.set_inline_selection(true);
-        comp.set_text_column(1);
-        comp.set_match_func(|_, _, _| true);
-        comp.connect_match_selected(glib::clone!(
-            @strong self.messenger as m,
-            @strong d
-            => move |_, model, iter| {
-                d.close();
-                let iter_val = tree_iter_value!(model, iter, 1, String);
-                m.send(Msg::SearchFieldExec(Some(iter_val)));
-                gtk::Inhibit(false)
-            }
-        ));
-
-        self.state.borrow_mut().search = Some(search);
-
-        let search_entry = gtk::Entry::new();
-        util::gui::set_entry_icon(&search_entry, "edit-find-symbolic");
-        util::gui::set_marginx(&search_entry, 16);
-        search_entry.set_margin_top(16);
-        search_entry.set_placeholder_text(Some("Start typing..."));
-        search_entry.set_completion(Some(&comp));
-
-        search_entry.connect_key_release_event(closure!(self as lb => move |entry, key| {
-            let k = key.get_hardware_keycode();
-            if k != util::gui::KEY_ARROW_UP && k != util::gui::KEY_ARROW_DOWN {
-                if let Some(search) = lb.state.borrow().search.as_ref() {
-                    let input = entry.get_text().to_string();
-                    search.update_for(&input);
-                }
-            }
-            gtk::Inhibit(false)
-        }));
-
-        search_entry.connect_changed(move |entry| {
-            let input = entry.get_text().to_string();
-            let icon_name = if input.ends_with(".md") || input.ends_with(".txt") {
-                "text-x-generic-symbolic"
-            } else if input.ends_with('/') {
-                "folder-symbolic"
-            } else {
-                "edit-find-symbolic"
-            };
-            util::gui::set_entry_icon(entry, icon_name);
-        });
-
-        search_entry.connect_activate(
-            glib::clone!(@strong self.messenger as m, @strong d => move |entry| {
-                d.close();
-                if !entry.get_text().eq("") {
-                    m.send(Msg::SearchFieldExec(None));
-                }
-            }),
-        );
-
-        d.set_size_request(400, -1);
-        d.get_content_area().add(&search_entry);
-        d.get_content_area().set_margin_bottom(16);
-        d.show_all();
-        Ok(())
-    }
-
-    fn search_field_exec(&self, maybe_input: Option<String>) -> LbResult<()> {
-        if let Some(path) = maybe_input.or_else(|| self.state.borrow().get_first_search_match()) {
-            match self.core.file_by_path(&path) {
-                Ok(meta) => self.messenger.send(Msg::OpenFile(Some(meta.id))),
-                Err(err) => self
-                    .messenger
-                    .send_err_dialog("opening file from search field", err),
-            }
-        }
-        Ok(())
-    }
-
-    fn show_dialog_sync_details(&self) -> LbResult<()> {
-        const RESP_REFRESH: u16 = 1;
-
-        let details = sync_details(&self.core)?;
-
-        let d = self.gui.new_dialog("Sync Details");
-        d.get_content_area().set_center_widget(Some(&details));
-        d.add_button("Refresh", GtkResponseType::Other(RESP_REFRESH));
-        d.add_button("Close", GtkResponseType::Close);
-        d.connect_response(closure!(self as lb => move |d, r| match r {
-            GtkResponseType::Other(RESP_REFRESH) => match sync_details(&lb.core) {
-                Ok(details) => {
-                    lb.messenger.send(Msg::RefreshSyncStatus);
-                    d.get_content_area().set_center_widget(Some(&details));
-                    d.get_content_area().show_all();
-                    d.set_position(GtkWindowPosition::CenterAlways);
-                }
-                Err(err) => lb.messenger.send_err_dialog("building sync details ui", err),
-            },
-            _ => d.close(),
-        }));
-        d.show_all();
-
         Ok(())
     }
 
@@ -881,63 +727,75 @@ impl LbApp {
 
         d.show_all();
 
-        let ch = make_glib_chan!(self.messenger as m, progress => move |maybe_info: Option<ImportExportFileInfo>| {
-            *progress.borrow_mut() += 1;
-            pbar.set_fraction(*progress.borrow() as f64 / total as f64);
+        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        rx.attach(
+            None,
+            glib::clone!(
+                @strong self.messenger as m,
+                @strong progress
+                => move |maybe_info: Option<ImportExportFileInfo>| {
+                    *progress.borrow_mut() += 1;
+                    pbar.set_fraction(*progress.borrow() as f64 / total as f64);
 
-            match maybe_info {
-                None => {
-                    d.close();
-                    m.send(Msg::RefreshTree);
-                }
-                Some(info) => {
-                    lb_lbl.set_text(&info.lockbook_path);
-                    disk_lbl.set_text(&format!("{}", info.disk_path.display()));
-                    prog_lbl.set_text(&format!("{}/{}", *progress.borrow(), total));
-                }
-            }
-            glib::Continue(true)
-        });
-
-        let import_progress = closure!(ch => move |progress: ImportExportFileInfo| {
-            ch.send(Some(progress)).unwrap();
-        });
-
-        spawn!(self.core as c, self.messenger as m => move || {
-            for path in &paths {
-                if let Err(err) = c.import_file(parent, path, Some(Box::new(import_progress.clone()))) {
-                    m.send_err_dialog("Import files", err);
-                    break;
-                };
-            }
-
-            ch.send(None).unwrap();
-
-            if let Some(finish_ch) = finish_ch {
-                let mut new_dests = Vec::new();
-                let parent_path = match c.full_path_for(&parent) {
-                    Ok(path) => path,
-                    Err(err) => {
-                        m.send_err_dialog("getting parent path", err);
-                        return;
-                    }
-                };
-
-                for path in paths {
-                    let name = match PathBuf::from(path).file_name() {
+                    match maybe_info {
                         None => {
-                            m.send_err_dialog("getting disk file name", uerr_dialog!("Unable to get disk file's name"));
+                            d.close();
+                            m.send(Msg::RefreshTree);
+                        }
+                        Some(info) => {
+                            lb_lbl.set_text(&info.lockbook_path);
+                            disk_lbl.set_text(&format!("{}", info.disk_path.display()));
+                            prog_lbl.set_text(&format!("{}/{}", *progress.borrow(), total));
+                        }
+                    }
+                    glib::Continue(true)
+                }
+            ),
+        );
+
+        let import_progress = glib::clone!(@strong tx => move |progress: ImportExportFileInfo| {
+            tx.send(Some(progress)).unwrap();
+        });
+
+        thread::spawn(glib::clone!(
+            @strong self.core as c,
+            @strong self.messenger as m
+            => move || {
+                for path in &paths {
+                    if let Err(err) = c.import_file(parent, path, Some(Box::new(import_progress.clone()))) {
+                        m.send_err_dialog("Import files", err);
+                        break;
+                    };
+                }
+
+                tx.send(None).unwrap();
+
+                if let Some(finish_ch) = finish_ch {
+                    let mut new_dests = Vec::new();
+                    let parent_path = match c.full_path_for(&parent) {
+                        Ok(path) => path,
+                        Err(err) => {
+                            m.send_err_dialog("getting parent path", err);
                             return;
                         }
-                        Some(os_name) => os_name.to_string_lossy().into_owned(),
                     };
 
-                    new_dests.push(format!("{}{}", parent_path, name));
-                }
+                    for path in paths {
+                        let name = match PathBuf::from(path).file_name() {
+                            None => {
+                                m.send_err_dialog("getting disk file name", uerr_dialog!("Unable to get disk file's name"));
+                                return;
+                            }
+                            Some(os_name) => os_name.to_string_lossy().into_owned(),
+                        };
 
-                finish_ch.send(new_dests).unwrap();
+                        new_dests.push(format!("{}{}", parent_path, name));
+                    }
+
+                    finish_ch.send(new_dests).unwrap();
+                }
             }
-        });
+        ));
 
         Ok(())
     }
@@ -992,35 +850,49 @@ impl LbApp {
                 }
             }
 
-            let ch = make_glib_chan!(load_d, progress => move |maybe_info: Option<ImportExportFileInfo>| {
-                *progress.borrow_mut() += 1;
-                pbar.set_fraction(*progress.borrow() as f64 / total as f64);
+            let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+            rx.attach(
+                None,
+                glib::clone!(
+                    @strong load_d,
+                    @strong progress
+                    => move |maybe_info: Option<ImportExportFileInfo>| {
+                        *progress.borrow_mut() += 1;
+                        pbar.set_fraction(*progress.borrow() as f64 / total as f64);
 
-                match maybe_info {
-                    None => load_d.close(),
-                    Some(info) => {
-                        lb_lbl.set_text(&info.lockbook_path);
-                        disk_lbl.set_text(&format!("{}", info.disk_path.display()));
-                        prog_lbl.set_text(&format!("{}/{}", *progress.borrow(), total));
+                        match maybe_info {
+                            None => load_d.close(),
+                            Some(info) => {
+                                lb_lbl.set_text(&info.lockbook_path);
+                                disk_lbl.set_text(&format!("{}", info.disk_path.display()));
+                                prog_lbl.set_text(&format!("{}/{}", *progress.borrow(), total));
+                            }
+                        }
+                        glib::Continue(true)
                     }
+                ),
+            );
+
+            let export_progress = glib::clone!(@strong tx => move |progress: ImportExportFileInfo| {
+                tx.send(Some(progress)).unwrap();
+            });
+
+            thread::spawn(glib::clone!(
+                @strong self.core as c,
+                @strong self.messenger as m,
+                @strong dest,
+                @strong tx
+                => move || {
+                    for id in ids {
+                        if let Err(err) = c.export_file(id, &dest, Some(Box::new(export_progress.clone()))) {
+                            m.send_err_dialog("Exporting file", err);
+                            break;
+                        };
+                    }
+
+                    tx.send(None).unwrap();
                 }
-                glib::Continue(true)
-            });
-
-            let export_progress = closure!(ch => move |progress: ImportExportFileInfo| {
-                ch.send(Some(progress)).unwrap();
-            });
-
-            spawn!(self.core as c, self.messenger as m, dest, ch => move || {
-                for id in ids {
-                    if let Err(err) = c.export_file(id, &dest, Some(Box::new(export_progress.clone()))) {
-                        m.send_err_dialog("Exporting file", err);
-                        break;
-                    };
-                }
-
-                ch.send(None).unwrap();
-            });
+            ));
         }
 
         Ok(())
@@ -1053,48 +925,68 @@ impl LbApp {
 
                 let image_name = format!("img-{}.{}", Uuid::new_v4(), "png");
 
-                let ch = make_glib_chan!(self.gui.account as a, image_name, mark => move |is_successful: bool| {
-                    if is_successful {
-                        let link = format!("[](lb://{}{})\n", parent_path, image_name);
-                        a.insert_text_at_mark(&mark, &link);
+                let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+                rx.attach(
+                    None,
+                    glib::clone!(
+                        @strong self.gui.account as a,
+                        @strong image_name,
+                        @strong mark
+                        => move |is_successful: bool| {
+                            if is_successful {
+                                let link = format!("[](lb://{}{})\n", parent_path, image_name);
+                                a.insert_text_at_mark(&mark, &link);
+                            }
+
+                            gdk_win.set_cursor(None);
+
+                            glib::Continue(true)
+                        }
+                    ),
+                );
+
+                thread::spawn(glib::clone!(
+                    @strong self.core as c,
+                    @strong self.messenger as m
+                    => move || {
+                        let is_successful = match c.create_file(&image_name, opened_file.parent, FileType::Document) {
+                            Ok(metadata) => {
+                                let is_successful = match c.write(metadata.id, bytes.as_slice()) {
+                                    Ok(_) => true,
+                                    Err(err) => {
+                                        m.send_err_dialog("writing image", err);
+                                        false
+                                    }
+                                };
+                                m.send(Msg::RefreshTree);
+                                is_successful
+                            }
+                            Err(err) => {
+                                m.send_err_dialog("creating image", err);
+                                false
+                            }
+                        };
+
+                        tx.send(is_successful).unwrap();
                     }
-
-                    gdk_win.set_cursor(None);
-
-                    glib::Continue(true)
-                });
-
-                spawn!(self.core as c, self.messenger as m => move || {
-                    let is_successful = match c.create_file(&image_name, opened_file.parent, FileType::Document) {
-                        Ok(metadata) => {
-                            let is_successful = match c.write(metadata.id, bytes.as_slice()) {
-                                Ok(_) => true,
-                                Err(err) => {
-                                    m.send_err_dialog("writing image", err);
-                                    false
-                                }
-                            };
-                            m.send(Msg::RefreshTree);
-                            is_successful
-                        }
-                        Err(err) => {
-                            m.send_err_dialog("creating image", err);
-                            false
-                        }
-                    };
-
-                    ch.send(is_successful).unwrap();
-                });
+                ));
             }
             TextAreaDropPasteInfo::Uris(uris) => {
-                let finish_ch = make_glib_chan!(self.gui.account as a, mark => move |dests: Vec<String>| {
+                let (finish_ch, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+                rx.attach(
+                    None,
+                    glib::clone!(
+                        @strong self.gui.account as a,
+                        @strong mark
+                        => move |dests: Vec<String>| {
+                            for dest in dests {
+                                a.insert_text_at_mark(&mark, &format!("[](lb://{})\n", dest));
+                            }
 
-                    for dest in dests {
-                        a.insert_text_at_mark(&mark, &format!("[](lb://{})\n", dest));
-                    }
-
-                    glib::Continue(true)
-                });
+                            glib::Continue(true)
+                        }
+                    ),
+                );
 
                 self.messenger.send(Msg::ShowDialogImportFile(
                     opened_file.parent,
@@ -1149,11 +1041,11 @@ impl LbApp {
     }
 }
 
-struct LbState {
-    search: Option<LbSearch>,
+pub struct LbState {
+    pub search: Option<LbSearch>,
     opened_file: Option<DecryptedFileMetadata>,
     open_file_dirty: bool,
-    background_work: Arc<Mutex<BackgroundWork>>,
+    pub background_work: Arc<Mutex<BackgroundWork>>,
 }
 
 impl LbState {
@@ -1166,7 +1058,7 @@ impl LbState {
         }
     }
 
-    fn get_first_search_match(&self) -> Option<String> {
+    pub fn get_first_search_match(&self) -> Option<String> {
         if let Some(search) = self.search.as_ref() {
             let model = &search.sort_model;
             if let Some(iter) = model.get_iter_first() {
@@ -1189,7 +1081,7 @@ pub struct Gui {
     menubar: Menubar,
     screens: GtkStack,
     pub onboarding: onboarding::Screen,
-    account: Rc<AccountScreen>,
+    pub account: Rc<AccountScreen>,
     messenger: Messenger,
 }
 
@@ -1311,72 +1203,6 @@ impl Gui {
 
         (load_d, path_lbl_1, path_lbl_2, prog_lbl, pbar)
     }
-}
-
-fn sync_details(c: &Arc<LbCore>) -> LbResult<GtkBox> {
-    let work = c.calculate_work()?;
-    let n_units = work.work_units.len();
-
-    let cntr = GtkBox::new(Vertical, 0);
-    cntr.set_hexpand(true);
-    if n_units == 0 {
-        let lbl = GtkLabel::new(Some("All synced up!"));
-        lbl.set_margin_top(12);
-        lbl.set_margin_bottom(16);
-        cntr.add(&lbl);
-    } else {
-        let desc = util::gui::text_left(&format!(
-            "The following {} to sync:",
-            if n_units > 1 {
-                format!("{} changes need", n_units)
-            } else {
-                "change needs".to_string()
-            }
-        ));
-        desc.set_margin_start(12);
-        desc.set_margin_top(12);
-
-        let tree_add_col = |tree: &GtkTreeView, name: &str, id| {
-            let cell = GtkCellRendererText::new();
-            cell.set_padding(12, 4);
-
-            let c = GtkTreeViewColumn::new();
-            c.set_title(name);
-            c.pack_start(&cell, true);
-            c.add_attribute(&cell, "text", id);
-            tree.append_column(&c);
-        };
-
-        let model = GtkTreeStore::new(&[glib::Type::String, glib::Type::String]);
-        let tree = GtkTreeView::with_model(&model);
-        tree.get_selection().set_mode(GtkSelectionMode::None);
-        tree.set_enable_search(false);
-        tree.set_can_focus(false);
-        tree_add_col(&tree, "Name", 0);
-        tree_add_col(&tree, "Origin", 1);
-
-        work.work_units.into_iter().for_each(|work_unit| {
-            let action = match work_unit {
-                WorkUnit::LocalChange { .. } => "Local",
-                WorkUnit::ServerChange { .. } => "Server",
-            };
-
-            model.insert_with_values(
-                None,
-                None,
-                &[0, 1],
-                &[&work_unit.get_metadata().decrypted_name, &action],
-            );
-        });
-
-        let scrolled = util::gui::scrollable(&tree);
-        util::gui::set_margin(&scrolled, 16);
-        scrolled.set_size_request(450, 300);
-
-        cntr.add(&desc);
-        cntr.pack_start(&scrolled, true, true, 0);
-    }
-    Ok(cntr)
 }
 
 fn usage_dialog(c: &Arc<LbCore>) -> LbResult<GtkBox> {
