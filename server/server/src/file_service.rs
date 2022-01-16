@@ -15,6 +15,7 @@ use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::TxError::Abort;
 use redis_utils::{tx, TxError};
 use uuid::Uuid;
+use log::info;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
@@ -45,6 +46,7 @@ pub async fn upsert_file_metadata(
         for the_file in &files {
             pipe.json_set(file(the_file.id), the_file)?;
         }
+        pipe.json_set(owned_files(&context.public_key), files.ids())?;
         Ok(&mut pipe)
     });
     return_if_error!(tx);
@@ -166,7 +168,7 @@ pub async fn change_document_content(
             )));
         }
 
-        if !meta.owner.is_empty() {
+        if meta.owner.is_empty() {
             return Err(Abort(ClientError(
                 ChangeDocumentContentError::NotPermissioned,
             )));
@@ -215,7 +217,9 @@ pub async fn change_document_content(
         )
     })?;
 
-    Err(internal!(""))
+    Ok(ChangeDocumentContentResponse {
+        new_content_version: new_version
+    })
 }
 
 pub async fn get_document(
@@ -253,6 +257,8 @@ pub async fn get_updates(
         .into_iter()
         .filter(|meta| meta.metadata_version > request.since_metadata_version)
         .collect();
+
+    info!("{:?}", file_metadata);
 
     Ok(GetUpdatesResponse { file_metadata })
 }

@@ -102,7 +102,7 @@ pub fn apply_move(
     new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
-    let parent = files.find_parent(target_id)?;
+    let parent = files.maybe_find(new_parent).ok_or(CoreError::FileParentNonexistent)?;
     validate_not_root(&file)?;
     validate_is_folder(&parent)?;
 
