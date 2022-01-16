@@ -189,6 +189,7 @@ pub async fn change_document_content(
         }
 
         meta.content_version = new_version;
+        meta.metadata_version = new_version;
 
         pipe.set(size(request.id), new_size)
             .json_set(file(request.id), meta)
