@@ -82,7 +82,7 @@ fn apply_changes(
     changes: &[FileMetadataDiff],
     metas: &mut Vec<EncryptedFileMetadata>,
 ) -> Result<Vec<EncryptedFileMetadata>, TxError<ServerError<FileMetadataUpsertsError>>> {
-    let mut deleted_files = vec![];
+    let mut deleted_documents = vec![];
     for change in changes {
         match metas.maybe_find_mut(change.id) {
             Some(meta) => {
@@ -102,7 +102,7 @@ fn apply_changes(
                 meta.metadata_version = now;
 
                 if change.new_deleted && meta.file_type == Document {
-                    deleted_files.push(meta.clone());
+                    deleted_documents.push(meta.clone());
                 }
             }
             None => {
@@ -119,7 +119,6 @@ fn apply_changes(
         .filter_deleted()
         .map_err(|_| Abort(ClientError(GetUpdatesRequired)))? // TODO this could be more descriptive
         .into_iter()
-        .filter(|f| f.file_type == Document)
         .filter(|f| !f.deleted)
         .map(|f| f.id);
 
@@ -127,11 +126,13 @@ fn apply_changes(
         if let Some(implicitly_deleted) = metas.maybe_find_mut(id) {
             implicitly_deleted.deleted = true;
             implicitly_deleted.metadata_version = now;
-            deleted_files.push(implicitly_deleted.clone());
+            if implicitly_deleted.file_type == Document {
+                deleted_documents.push(implicitly_deleted.clone());
+            }
         }
     }
 
-    Ok(deleted_files)
+    Ok(deleted_documents)
 }
 
 fn new_meta(now: u64, diff: &FileMetadataDiff) -> EncryptedFileMetadata {
