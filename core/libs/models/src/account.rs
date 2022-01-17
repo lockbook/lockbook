@@ -5,12 +5,6 @@ pub type Username = String;
 pub type ApiUrl = String;
 
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
-pub enum AccountTier {
-    Free,
-    Premium
-}
-
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub struct Account {
     pub username: Username,
     pub api_url: ApiUrl,

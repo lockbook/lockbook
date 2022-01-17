@@ -1,12 +1,11 @@
 use crate::billing::stripe::{
-    BasicStripeResponse, SetupPaymentIntentStatus, StripeError, StripeErrorCode, StripeErrorType,
+    BasicStripeResponse, SetupPaymentIntentStatus, StripeError, StripeMaybeContainer, StripeErrorType,
     StripeInvoice, StripeKnownErrorCode, StripeKnownErrorDeclineCode, StripePaymentMethodResponse,
     StripeResult, StripeSetupIntentResponse, StripeSubscriptionResponse, SubscriptionStatus,
 };
 use crate::billing::stripe_client::StripeClientError::{CardDeclined, InvalidCreditCard, Other};
-use crate::ServerError::{ClientError, InternalError};
-use crate::{ServerError, ServerState};
-use lockbook_models::api::{CardDeclinedType, InvalidCreditCardType, SwitchAccountTierError};
+use crate::{ServerState};
+use lockbook_models::api::{CardDeclinedType, InvalidCreditCardType};
 use log::error;
 use reqwest::Method;
 use serde::de::DeserializeOwned;
@@ -191,8 +190,8 @@ pub async fn create_subscription(
         StripeResult::Ok(resp) => match resp.status {
             SubscriptionStatus::Active => Ok(resp),
             SubscriptionStatus::Incomplete => match resp.latest_invoice.payment_intent {
-                    None => Err(Other(format!("Cannot retrieve payment intent; {:?}", resp))),
-                    Some(ref payment_intent) => match payment_intent.status {
+                    StripeMaybeContainer::Unexpected(_) => Err(Other(format!("Cannot retrieve payment intent; {:?}", resp))),
+                    StripeMaybeContainer::Expected(ref payment_intent) => match payment_intent.status {
                         SetupPaymentIntentStatus::Succeeded => Err(Other(format!("Unexpected stripe payment intent status: {:?}", resp))),
                         SetupPaymentIntentStatus::RequiresPaymentMethod => match payment_intent.last_payment_error {
                             None => Err(Other(format!("Cannot view stripe's payment intent error despite having a related status: {:?}", resp))),
@@ -305,7 +304,7 @@ async fn send_stripe_request<U: DeserializeOwned>(
 async fn match_stripe_error(error: &StripeError) -> StripeClientError {
     if let StripeErrorType::CardError = error.error_type {
         match error.code {
-            StripeErrorCode::Known(ref error_code) => match error_code {
+            StripeMaybeContainer::Expected(ref error_code) => match error_code {
                 StripeKnownErrorCode::CardDeclineRateLimitExceeded => {
                     CardDeclined(CardDeclinedType::TooManyTries)
                 }
@@ -316,7 +315,7 @@ async fn match_stripe_error(error: &StripeError) -> StripeClientError {
                         CardDeclined(CardDeclinedType::Generic)
                     }
                     Some(ref decline_code) => match decline_code {
-                        StripeErrorCode::Known(ref known_decline_code) => {
+                        StripeMaybeContainer::Expected(ref known_decline_code) => {
                             match known_decline_code {
                                 // Try again
                                 StripeKnownErrorDeclineCode::ApproveWithId
@@ -395,7 +394,7 @@ async fn match_stripe_error(error: &StripeError) -> StripeClientError {
                                 }
                             }
                         }
-                        StripeErrorCode::Unknown(_) => Other(format!(
+                        StripeMaybeContainer::Unexpected(_) => Other(format!(
                             "Unexpected stripe decline error code encountered: {:?}",
                             error
                         )),
@@ -423,7 +422,7 @@ async fn match_stripe_error(error: &StripeError) -> StripeClientError {
                     Other(format!("Stripe authentication error: {:?}", error))
                 }
             },
-            StripeErrorCode::Unknown(_) => Other(format!(
+            StripeMaybeContainer::Unexpected(_) => Other(format!(
                 "Unknown stripe error code encountered: {:?}",
                 error
             )),

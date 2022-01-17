@@ -2,7 +2,6 @@ use libsecp256k1::PublicKey;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::account;
 
 use crate::account::Account;
 use crate::account::Username;

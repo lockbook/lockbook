@@ -53,6 +53,7 @@ impl FilesDbConfig {
 #[derive(Clone)]
 pub struct StripeConfig {
     pub stripe_secret: String,
+    pub signing_secret: String,
     pub premium_price_id: String,
 }
 
@@ -60,6 +61,7 @@ impl StripeConfig {
     pub fn from_env_vars() -> StripeConfig {
         StripeConfig {
             stripe_secret: env_or_panic("STRIPE_SECRET").parse().unwrap(),
+            signing_secret: env_or_panic("STRIPE_SIGNING_SECRET").parse().unwrap(),
             premium_price_id: env_or_panic("STRIPE_PREMIUM_PRICE_ID").parse().unwrap(),
         }
     }

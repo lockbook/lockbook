@@ -35,6 +35,8 @@ libsecp256k1 = "0.7.0"
 prometheus = "0.13.0"
 lazy_static = "1.4.0"
 reqwest = "0.11.7"
+hmac = "0.12.0"
+sha2 = "0.10.1"
 
 [build-dependencies]
 shadow-rs = "0.6.2"

@@ -16,8 +16,8 @@ pub struct StripeErrorContainer {
 pub struct StripeError {
     #[serde(rename = "type")]
     pub error_type: StripeErrorType,
-    pub code: StripeErrorCode<StripeKnownErrorCode>,
-    pub decline_code: Option<StripeErrorCode<StripeKnownErrorDeclineCode>>,
+    pub code: StripeMaybeContainer<StripeKnownErrorCode, String>,
+    pub decline_code: Option<StripeMaybeContainer<StripeKnownErrorDeclineCode, String>>,
     pub doc_url: String,
     pub message: String,
     pub param: String,
@@ -39,9 +39,9 @@ pub enum StripeErrorType {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-pub enum StripeErrorCode<E> {
-    Known(E),
-    Unknown(String),
+pub enum StripeMaybeContainer<K, U> {
+    Expected(K),
+    Unexpected(U),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -121,10 +121,23 @@ pub struct StripeSubscriptionResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StripeInvoice {
     pub id: String,
-    pub payment_intent: Option<StripePaymentIntent>,
-    pub subscription: Option<Box<StripeSubscriptionResponse>>,
+    pub payment_intent: StripeMaybeContainer<StripePaymentIntent, String>,
+    pub subscription: StripeMaybeContainer<Box<StripeSubscriptionResponse>, String>,
     #[serde(rename = "customer")]
-    pub customer_id: String
+    pub customer_id: String,
+    pub billing_reason: StripeBillingReason
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StripeBillingReason {
+    SubscriptionCycle,
+    SubscriptionCreate,
+    SubscriptionUpdate,
+    Subscription,
+    Manual,
+    Upcoming,
+    SubscriptionThreshold
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -178,7 +191,7 @@ pub struct StripeSetupIntentResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StripeWebhook {
     #[serde(rename = "type")]
-    pub event_type: StripeEventType,
+    pub event_type: StripeMaybeContainer<StripeEventType, String>,
     pub data: StripeEventObjectContainer,
 }
 
@@ -199,4 +212,8 @@ pub struct StripeEventObjectContainer {
 #[serde(untagged)]
 pub enum StripeObjectType {
     Invoice(StripeInvoice),
+    Unmatched(serde_json::Value)
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StripeEmptyRequest {}

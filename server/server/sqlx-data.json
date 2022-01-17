@@ -213,6 +213,19 @@
       ]
     }
   },
+  "43a6666323f0c5c24e0b88061f52ef7be6d48267c1baed1447030a9375b6f2b1": {
+    "query": "\nWITH account_tier_id AS (\n    SELECT id FROM account_tiers WHERE stripe_customer_id = $1\n)\nUPDATE account_tiers SET bytes_cap = $2 WHERE id = (SELECT id FROM account_tier_id);\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8"
+        ]
+      },
+      "nullable": []
+    }
+  },
   "4ea63bf2021871af921d25456594b18f755df32e034880b301f7b291ffa11ac7": {
     "query": "\nDELETE FROM accounts where name = $1\n        ",
     "describe": {

@@ -11,7 +11,7 @@ use reqwest::Client;
 use std::sync::Arc;
 use warp::Filter;
 
-use lockbook_server_lib::router_service::{build_info, core_routes, get_metrics, stripe_webhook};
+use lockbook_server_lib::router_service::{build_info, core_routes, get_metrics, stripe_webhooks};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let routes = core_routes(&server_state)
         .or(build_info())
         .or(get_metrics())
-        .or(stripe_webhook(&server_state));
+        .or(stripe_webhooks(&server_state));
 
     let server = warp::serve(routes);
 

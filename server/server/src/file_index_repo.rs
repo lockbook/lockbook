@@ -794,7 +794,8 @@ pub enum SetDataCapWithStripeCustomerIdError {
 
 pub async fn set_data_cap_with_stripe_customer_id(
     transaction: &mut Transaction<'_, Postgres>,
-    customer_id: &str
+    customer_id: &str,
+    data_cap: i64
 ) -> Result<(), SetDataCapWithStripeCustomerIdError> {
     sqlx::query!(
         r#"
@@ -803,11 +804,12 @@ WITH account_tier_id AS (
 )
 UPDATE account_tiers SET bytes_cap = $2 WHERE id = (SELECT id FROM account_tier_id);
         "#,
-        subscription_id
+        customer_id,
+        data_cap
     )
         .execute(transaction)
         .await
-        .map_err(GetDataCapError::Postgres)?;
+        .map_err(SetDataCapWithStripeCustomerIdError::Postgres)?;
 
     Ok(())
 }
@@ -1131,7 +1133,7 @@ UPDATE stripe_subscriptions SET active = FALSE WHERE subscription_id = $1
 }
 
 #[derive(Debug)]
-pub enum UpdateStripeSubscriptionPeriodEnd {
+pub enum UpdateStripeSubscriptionPeriodEndError {
     Postgres(sqlx::Error),
 }
 
@@ -1139,7 +1141,7 @@ pub async fn update_stripe_subscription_period_end(
     transaction: &mut Transaction<'_, Postgres>,
     subscription_id: &str,
     period_end: i64,
-) -> Result<(), UpdateStripeSubscriptionPeriodEnd> {
+) -> Result<(), UpdateStripeSubscriptionPeriodEndError> {
     sqlx::query!(
         r#"
 UPDATE stripe_subscriptions SET period_end = $2 WHERE subscription_id = $1
@@ -1149,7 +1151,7 @@ UPDATE stripe_subscriptions SET period_end = $2 WHERE subscription_id = $1
     )
     .execute(transaction)
     .await
-    .map_err(UpdateStripeSubscriptionPeriodEnd::Postgres)?;
+    .map_err(UpdateStripeSubscriptionPeriodEndError::Postgres)?;
 
     Ok(())
 }
