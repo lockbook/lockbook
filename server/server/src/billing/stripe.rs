@@ -125,7 +125,7 @@ pub struct StripeInvoice {
     pub subscription: StripeMaybeContainer<Box<StripeSubscriptionResponse>, String>,
     #[serde(rename = "customer")]
     pub customer_id: String,
-    pub billing_reason: StripeBillingReason
+    pub billing_reason: StripeBillingReason,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,7 +137,7 @@ pub enum StripeBillingReason {
     Subscription,
     Manual,
     Upcoming,
-    SubscriptionThreshold
+    SubscriptionThreshold,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -212,7 +212,7 @@ pub struct StripeEventObjectContainer {
 #[serde(untagged)]
 pub enum StripeObjectType {
     Invoice(StripeInvoice),
-    Unmatched(serde_json::Value)
+    Unmatched(serde_json::Value),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

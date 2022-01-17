@@ -37,6 +37,7 @@ lazy_static = "1.4.0"
 reqwest = "0.11.7"
 hmac = "0.12.0"
 sha2 = "0.10.1"
+hex = "0.4.3"
 
 [build-dependencies]
 shadow-rs = "0.6.2"

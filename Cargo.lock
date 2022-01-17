@@ -2187,6 +2187,7 @@ dependencies = [
  "chrono",
  "fern",
  "futures",
+ "hex",
  "hmac 0.12.0",
  "indicatif 0.16.2",
  "lazy_static",

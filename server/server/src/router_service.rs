@@ -1,6 +1,6 @@
 use crate::account_service::*;
+use crate::billing::payment_service;
 use crate::billing::payment_service::*;
-use crate::billing::{payment_service};
 use crate::file_service::*;
 use crate::utils::get_build_info;
 use crate::{router_service, verify_auth, verify_client_version, ServerState};
@@ -147,29 +147,34 @@ pub fn stripe_webhooks(
         .and(warp::any().map(move || Arc::clone(&cloned_state)))
         .and(warp::body::bytes())
         .and(warp::header::header("Stripe-Signature"))
-        .then(|state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
-            match payment_service::stripe_webhooks(&state, request, stripe_sig).await {
-                Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
-                Err(e) => match e {
-                    StripeWebhookError::VerificationError(e) => {
-                        error!("{}", e);
-                        warp::reply::with_status("".to_string(), StatusCode::BAD_REQUEST)
-                    }
-                    StripeWebhookError::InvalidHeader(e) => {
-                        error!("{}", e);
-                        warp::reply::with_status("".to_string(), StatusCode::BAD_REQUEST)
-                    }
-                    StripeWebhookError::InvalidBody(e) => {
-                        error!("{}", e);
-                        warp::reply::with_status("".to_string(), StatusCode::BAD_REQUEST)
-                    }
-                    StripeWebhookError::InternalError(e) => {
-                        error!("{}", e);
-                        warp::reply::with_status("".to_string(), StatusCode::INTERNAL_SERVER_ERROR)
-                    }
+        .then(
+            |state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
+                match payment_service::stripe_webhooks(&state, request, stripe_sig).await {
+                    Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
+                    Err(e) => match e {
+                        StripeWebhookError::VerificationError(e) => {
+                            error!("{}", e);
+                            warp::reply::with_status("".to_string(), StatusCode::BAD_REQUEST)
+                        }
+                        StripeWebhookError::InvalidHeader(e) => {
+                            error!("{}", e);
+                            warp::reply::with_status("".to_string(), StatusCode::BAD_REQUEST)
+                        }
+                        StripeWebhookError::InvalidBody(e) => {
+                            error!("{}", e);
+                            warp::reply::with_status("".to_string(), StatusCode::BAD_REQUEST)
+                        }
+                        StripeWebhookError::InternalError(e) => {
+                            error!("{}", e);
+                            warp::reply::with_status(
+                                "".to_string(),
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                            )
+                        }
+                    },
                 }
-            }
-        })
+            },
+        )
 }
 
 pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {

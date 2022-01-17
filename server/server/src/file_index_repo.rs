@@ -795,7 +795,7 @@ pub enum SetDataCapWithStripeCustomerIdError {
 pub async fn set_data_cap_with_stripe_customer_id(
     transaction: &mut Transaction<'_, Postgres>,
     customer_id: &str,
-    data_cap: i64
+    data_cap: i64,
 ) -> Result<(), SetDataCapWithStripeCustomerIdError> {
     sqlx::query!(
         r#"
@@ -807,9 +807,9 @@ UPDATE account_tiers SET bytes_cap = $2 WHERE id = (SELECT id FROM account_tier_
         customer_id,
         data_cap
     )
-        .execute(transaction)
-        .await
-        .map_err(SetDataCapWithStripeCustomerIdError::Postgres)?;
+    .execute(transaction)
+    .await
+    .map_err(SetDataCapWithStripeCustomerIdError::Postgres)?;
 
     Ok(())
 }

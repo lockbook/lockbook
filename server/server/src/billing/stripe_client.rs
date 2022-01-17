@@ -1,10 +1,11 @@
 use crate::billing::stripe::{
-    BasicStripeResponse, SetupPaymentIntentStatus, StripeError, StripeMaybeContainer, StripeErrorType,
-    StripeInvoice, StripeKnownErrorCode, StripeKnownErrorDeclineCode, StripePaymentMethodResponse,
-    StripeResult, StripeSetupIntentResponse, StripeSubscriptionResponse, SubscriptionStatus,
+    BasicStripeResponse, SetupPaymentIntentStatus, StripeError, StripeErrorType, StripeInvoice,
+    StripeKnownErrorCode, StripeKnownErrorDeclineCode, StripeMaybeContainer,
+    StripePaymentMethodResponse, StripeResult, StripeSetupIntentResponse,
+    StripeSubscriptionResponse, SubscriptionStatus,
 };
 use crate::billing::stripe_client::StripeClientError::{CardDeclined, InvalidCreditCard, Other};
-use crate::{ServerState};
+use crate::ServerState;
 use lockbook_models::api::{CardDeclinedType, InvalidCreditCardType};
 use log::error;
 use reqwest::Method;

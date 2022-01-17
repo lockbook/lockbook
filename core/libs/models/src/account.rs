@@ -9,7 +9,7 @@ pub struct Account {
     pub username: Username,
     pub api_url: ApiUrl,
     #[serde(with = "secret_key_serializer")]
-    pub private_key: SecretKey
+    pub private_key: SecretKey,
 }
 
 impl Account {

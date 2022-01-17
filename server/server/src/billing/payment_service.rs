@@ -1,21 +1,25 @@
-use crate::billing::stripe::{StripeBillingReason, StripeEventType, StripeMaybeContainer, StripeObjectType, StripeWebhook};
+use crate::billing::payment_service::StripeWebhookError::{
+    InvalidBody, InvalidHeader, VerificationError,
+};
+use crate::billing::stripe::{
+    StripeBillingReason, StripeEventType, StripeMaybeContainer, StripeObjectType, StripeWebhook,
+};
 use crate::billing::stripe_client;
 use crate::file_index_repo::{GetLastStripeCreditCardInfoError, FREE_TIER_SIZE, PAID_TIER_SIZE};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_index_repo, RequestContext, ServerError, ServerState, StripeClientError};
+use hmac::{Hmac, Mac};
 use libsecp256k1::PublicKey;
 use lockbook_models::api::{
     AccountTier, CardChoice, GetLastRegisteredCreditCardError, GetLastRegisteredCreditCardRequest,
     GetLastRegisteredCreditCardResponse, SwitchAccountTierError, SwitchAccountTierRequest,
     SwitchAccountTierResponse,
 };
+use sha2::Sha256;
 use sqlx::{Postgres, Transaction};
 use std::sync::Arc;
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-use warp::http::{HeaderValue};
+use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
-use crate::billing::payment_service::StripeWebhookError::{InvalidBody, InvalidHeader, VerificationError};
 
 pub async fn switch_account_tier(
     context: RequestContext<'_, SwitchAccountTierRequest>,
@@ -275,71 +279,118 @@ pub enum StripeWebhookError {
     InternalError(String),
 }
 
-pub async fn stripe_webhooks(state: &Arc<ServerState>, request_body: Bytes, stripe_sig: HeaderValue) -> Result<(), StripeWebhookError> {
+pub async fn stripe_webhooks(
+    state: &Arc<ServerState>,
+    request_body: Bytes,
+    stripe_sig: HeaderValue,
+) -> Result<(), StripeWebhookError> {
     let webhook = match serde_json::from_slice::<StripeWebhook>(request_body.as_ref()) {
         Ok(webhook) => webhook,
-        Err(e) => return Err(InvalidHeader(format!("Cannot deserialize stripe webhook body: {:?}", e)))
+        Err(e) => {
+            return Err(InvalidHeader(format!(
+                "Cannot deserialize stripe webhook body: {:?}",
+                e
+            )))
+        }
     };
 
     let event_type = match webhook.event_type {
         StripeMaybeContainer::Expected(ref known) => known,
-        StripeMaybeContainer::Unexpected(a) => {
-            return Ok(())
-        }
+        StripeMaybeContainer::Unexpected(_) => return Ok(()),
     };
-
 
     let json = match std::str::from_utf8(&request_body.as_ref()) {
         Ok(json) => json,
-        Err(e) => return Err(InvalidBody(format!("Cannot turn stripe webhook body bytes into str: {:?}", e)))
+        Err(e) => {
+            return Err(InvalidBody(format!(
+                "Cannot turn stripe webhook body bytes into str: {:?}",
+                e
+            )))
+        }
     };
 
-    println!("JSON: {}", json);
+    let mut sig_header_split = stripe_sig
+        .to_str()
+        .map_err(|e| {
+            InvalidHeader(format!(
+                "Cannot turn stripe webhook header into str: {:?}",
+                e
+            ))
+        })?
+        .split(",");
 
-    match stripe_sig.to_str() {
-        Ok(sig) => {
-            println!("SIG HEADER: {}", sig);
-            let mut split = sig.split(",");
+    let time = sig_header_split
+        .next()
+        .ok_or(InvalidHeader(format!(
+            "Cannot get the header's time field to verify stripe webhook: {:?}",
+            stripe_sig
+        )))?
+        .split("=")
+        .last()
+        .ok_or(InvalidHeader(format!(
+            "Cannot get the time from the header to verify stripe webhook: {:?}",
+            stripe_sig
+        )))?;
 
-            match (split.next(), split.next()) {
-                (Some(time_pair), Some(hash_pair)) => {
-                    match (time_pair.split("=").last(), hash_pair.split("=").last()) {
-                        (Some(time), Some(hash)) => {
-                            let signed_payload = format!("{}.{}", time, json);
-                            println!("EXTRACTED INFO: {} {}", time, hash);
-                            println!("SECRET: {}", state.config.stripe.signing_secret);
+    let expected_sig = sig_header_split
+        .next()
+        .ok_or(InvalidHeader(format!(
+            "Cannot get the header's expected signature field to verify stripe webhook: {:?}",
+            stripe_sig
+        )))?
+        .split("=")
+        .last()
+        .ok_or(InvalidHeader(format!(
+            "Cannot get the hash from the header to verify stripe webhook: {:?}",
+            stripe_sig
+        )))?;
 
-                            let mut mac = Hmac::<Sha256>::new_from_slice(state.config.stripe.signing_secret.as_bytes())
-                                .map_err(|e| StripeWebhookError::InternalError(format!("Cannot create hmac for verifying json: {:?}", e)))?;
+    let signed_payload = format!("{}.{}", time, json);
 
-                            mac.update(signed_payload.as_bytes());
+    let mut mac = Hmac::<Sha256>::new_from_slice(state.config.stripe.signing_secret.as_bytes())
+        .map_err(|e| {
+            StripeWebhookError::InternalError(format!(
+                "Cannot create hmac for verifying json: {:?}",
+                e
+            ))
+        })?;
 
-                            mac.verify_slice(hash.as_bytes()).map_err(|e| VerificationError(format!("Could not verify stripe webhook: {}", e)))?;
-                        }
-                        (_, _) => return Err(InvalidHeader(format!("Cannot get the time and/or hash from the header to verify stripe webhook: {:?}", stripe_sig)))
-                    }
-                }
-                (_, _) => return Err(InvalidHeader(format!("Cannot get the header fields to verify stripe webhook: {:?}", stripe_sig)))
-            }
+    mac.update(signed_payload.as_bytes());
 
-        }
-        Err(e) => return Err(InvalidHeader(format!("Cannot turn stripe webhook header into str: {:?}", e)))
-    }
+    let expected_sig_bytes = hex::decode(expected_sig)
+        .map_err(|e| VerificationError(format!("Could not verify stripe webhook: {}", e)))?;
+
+    mac.verify_slice(expected_sig_bytes.as_slice())
+        .map_err(|e| VerificationError(format!("Could not verify stripe webhook: {}", e)))?;
 
     let mut transaction = match state.index_db_client.begin().await {
         Ok(t) => t,
-        Err(e) => return Err(StripeWebhookError::InternalError(format!("Cannot begin transaction: {:?}", e)))
+        Err(e) => {
+            return Err(StripeWebhookError::InternalError(format!(
+                "Cannot begin transaction: {:?}",
+                e
+            )))
+        }
     };
 
     match (event_type, &webhook.data.object) {
         (StripeEventType::InvoicePaymentFailed, StripeObjectType::Invoice(invoice)) => {
             match invoice.billing_reason {
                 StripeBillingReason::SubscriptionCycle => {
-                    file_index_repo::set_data_cap_with_stripe_customer_id(&mut transaction, &invoice.customer_id, FREE_TIER_SIZE)
-                        .await
-                        .map_err(|e| StripeWebhookError::InternalError(format!("Cannot change data cap with customer id in Postgres: {:?}", e)))?
+                    file_index_repo::set_data_cap_with_stripe_customer_id(
+                        &mut transaction,
+                        &invoice.customer_id,
+                        FREE_TIER_SIZE,
+                    )
+                    .await
+                    .map_err(|e| {
+                        StripeWebhookError::InternalError(format!(
+                            "Cannot change data cap with customer id in Postgres: {:?}",
+                            e
+                        ))
+                    })?
                 }
-                _ => return Ok(())
+                _ => return Ok(()),
             }
         }
         (StripeEventType::InvoicePaid, StripeObjectType::Invoice(partial_invoice)) => {
@@ -347,11 +398,21 @@ pub async fn stripe_webhooks(state: &Arc<ServerState>, request_body: Bytes, stri
                 StripeBillingReason::SubscriptionCycle => {
                     let invoice = stripe_client::retrieve_invoice(&state, &partial_invoice.id)
                         .await
-                        .map_err(|e| StripeWebhookError::InternalError(format!("Cannot retrieve expanded invoice: {:?}", e)))?;
+                        .map_err(|e| {
+                            StripeWebhookError::InternalError(format!(
+                                "Cannot retrieve expanded invoice: {:?}",
+                                e
+                            ))
+                        })?;
 
                     let subscription = match invoice.subscription {
-                        StripeMaybeContainer::Unexpected(_) => return Err(StripeWebhookError::InternalError(format!("There should be a subscription tied to this invoice: {:?}", invoice))),
-                        StripeMaybeContainer::Expected(subscription) => subscription
+                        StripeMaybeContainer::Unexpected(_) => {
+                            return Err(StripeWebhookError::InternalError(format!(
+                                "There should be a subscription tied to this invoice: {:?}",
+                                invoice
+                            )))
+                        }
+                        StripeMaybeContainer::Expected(subscription) => subscription,
                     };
 
                     file_index_repo::update_stripe_subscription_period_end(
@@ -359,20 +420,30 @@ pub async fn stripe_webhooks(state: &Arc<ServerState>, request_body: Bytes, stri
                         &subscription.id,
                         subscription.current_period_end,
                     )
-                        .await
-                        .map_err(|e| StripeWebhookError::InternalError(format!("Couldn't update subscription period in Postgres: {:?}", e)))?;
+                    .await
+                    .map_err(|e| {
+                        StripeWebhookError::InternalError(format!(
+                            "Couldn't update subscription period in Postgres: {:?}",
+                            e
+                        ))
+                    })?;
                 }
-                _ => return Ok(())
+                _ => return Ok(()),
             }
         }
         (_, StripeObjectType::Unmatched(_)) => {
-            return Err(StripeWebhookError::InternalError(format!("Unmatched webhook: {:?}", webhook)))
+            return Err(StripeWebhookError::InternalError(format!(
+                "Unmatched webhook: {:?}",
+                webhook
+            )))
         }
     };
 
-
     match transaction.commit().await {
         Ok(_) => Ok(()),
-        Err(e) => Err(StripeWebhookError::InternalError(format!("Couldn't update subscription period in Postgres: {:?}", e)))
+        Err(e) => Err(StripeWebhookError::InternalError(format!(
+            "Couldn't update subscription period in Postgres: {:?}",
+            e
+        ))),
     }
 }
