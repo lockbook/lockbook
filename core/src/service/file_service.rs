@@ -222,7 +222,8 @@ fn insert_metadata_given_decrypted_metadata(
 ) -> Result<(), CoreError> {
     // encrypt metadata
     let account = account_repo::get(config)?;
-    let all_metadata_with_changes_staged = all_metadata.stage(metadata_changes)
+    let all_metadata_with_changes_staged = all_metadata
+        .stage(metadata_changes)
         .into_iter()
         .map(|(f, _)| f)
         .collect::<Vec<DecryptedFileMetadata>>();

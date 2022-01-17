@@ -130,13 +130,10 @@ mod unit_tests {
     use crate::assert_matches;
     use crate::{
         pure_functions::files,
-        service::{
-            integrity_service::TestFileTreeError,
-            test_utils,
-        },
+        service::{integrity_service::TestFileTreeError, test_utils},
     };
-    use lockbook_models::tree::FileMetaExt;
     use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+    use lockbook_models::tree::FileMetaExt;
     use uuid::Uuid;
 
     #[test]
