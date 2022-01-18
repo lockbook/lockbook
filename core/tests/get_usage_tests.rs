@@ -112,8 +112,7 @@ mod get_usage_tests {
         }
         sync_all!(&config).unwrap();
 
-        document_repo::get(&config, RepoSource::Base, file.id)
-            .unwrap();
+        document_repo::get(&config, RepoSource::Base, file.id).unwrap();
 
         let usage = get_usage(&config).unwrap_or_else(|err| panic!("{:?}", err));
 
