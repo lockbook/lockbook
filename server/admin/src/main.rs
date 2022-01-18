@@ -1,13 +1,14 @@
 mod delete_account;
 
+use deadpool_redis::Pool;
 use crate::delete_account::delete_account;
 use crate::Subcommands::DeleteAccount;
 
 use lockbook_server_lib::config::Config;
-use lockbook_server_lib::{file_content_client, file_index_repo, ServerState};
+use lockbook_server_lib::{file_content_client, ServerState};
+use deadpool_redis::Runtime;
 
 use s3::bucket::Bucket;
-use sqlx::PgPool;
 use structopt::StructOpt;
 
 #[derive(Debug, PartialEq, StructOpt)]
@@ -27,10 +28,10 @@ enum Subcommands {
 #[tokio::main]
 async fn main() {
     let config = Config::from_env_vars();
-    let (index_db_client, files_db_client) = connect_to_state(&config).await;
+    let (index_db_pool, files_db_client) = connect_to_state(&config).await;
     let server_state = ServerState {
         config,
-        index_db_client,
+        index_db_pool,
         files_db_client,
     };
 
@@ -45,8 +46,9 @@ async fn main() {
     }
 }
 
-async fn connect_to_state(config: &Config) -> (PgPool, Bucket) {
-    let index_db = file_index_repo::connect(&config.index_db).await;
+async fn connect_to_state(config: &Config) -> (Pool, Bucket) {
+    let index_db_pool = deadpool_redis::Config::from_url(&config.index_db.redis_url)
+        .create_pool(Some(Runtime::Tokio1));
     let files_db = file_content_client::create_client(&config.files_db);
-    (index_db.unwrap(), files_db.unwrap())
+    (index_db_pool.unwrap(), files_db.unwrap())
 }
