@@ -32,8 +32,7 @@ pub async fn upsert_file_metadata(
             .await?
             .ok_or(Abort(ClientError(FileMetadataUpsertsError::UserNotFound)))?;
         let keys: Vec<String> = files.into_iter().map(keys::file).collect();
-        // TODO we need to watch these keys before we grab these values
-        let mut files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
+        let mut files: Vec<EncryptedFileMetadata> = con.watch_json_mget(keys).await?;
 
         docs_to_delete = apply_changes(now, &request.updates, &mut files)?;
 
@@ -269,7 +268,7 @@ pub async fn get_updates(
         .await?
         .ok_or(ClientError(GetUpdatesError::UserNotFound))?;
     let keys: Vec<String> = files.into_iter().map(keys::file).collect();
-    let files: Vec<EncryptedFileMetadata> = con.json_mget(keys).await?;
+    let files: Vec<EncryptedFileMetadata> = con.watch_json_mget(keys).await?;
 
     let file_metadata = files
         .into_iter()
