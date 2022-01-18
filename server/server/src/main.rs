@@ -22,13 +22,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let files_db_client = file_content_client::create_client(&config.files_db)
         .expect("Failed to create files_db client");
 
-    let index_db2_connection = deadpool_redis::Config::from_url("redis://127.0.0.1/")
+    let index_db_pool = deadpool_redis::Config::from_url(&config.index_db.redis_url)
         .create_pool(Some(Runtime::Tokio1))
         .unwrap();
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
-        index_db_pool: index_db2_connection,
+        index_db_pool,
         files_db_client,
     });
 

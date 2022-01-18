@@ -8,7 +8,7 @@ pub struct IndexDbConf {
 impl IndexDbConf {
     pub fn from_env_vars() -> Self {
         Self {
-            redis_url: env_or_panic("INDEX_DB_HOST"),
+            redis_url: env_or_panic("INDEX_DB_REDIS_URL"),
         }
     }
 }
