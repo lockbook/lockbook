@@ -23,6 +23,7 @@ pub struct ServerState {
     pub files_db_client: s3::bucket::Bucket,
 }
 
+#[derive(Clone)]
 pub struct RequestContext<'a, TRequest> {
     pub server_state: &'a ServerState,
     pub request: TRequest,

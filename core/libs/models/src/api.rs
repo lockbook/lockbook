@@ -256,3 +256,18 @@ impl Request for GetBuildInfoRequest {
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-build-info";
 }
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct DeleteAccountRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum DeleteAccountError {
+    UserNotFound,
+}
+
+impl Request for DeleteAccountRequest {
+    type Response = ();
+    type Error = DeleteAccountError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/delete-account";
+}

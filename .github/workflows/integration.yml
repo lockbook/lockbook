@@ -148,8 +148,6 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
-      - name: DB Config Image
-        run: make db_container
       - name: Spin up dev stack
         run: make dev_stack_run
 
