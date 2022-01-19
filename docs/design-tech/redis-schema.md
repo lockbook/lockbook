@@ -28,7 +28,10 @@ Values are json encoded.
 # Filemetadata
 
 + `file_id:x:metadata`
-    + `x` is the `public_key` of the owner.
+    + `x` is the `uuid` of the file.
++ `file_id:x:size`
+  + `x` is the `uuid` of the file.
+  + size (value) is a json encoded `FileUsage` object 
 
 # Document Content (TODO)
 
