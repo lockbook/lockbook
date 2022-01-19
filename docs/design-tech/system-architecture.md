@@ -11,6 +11,7 @@ Database API Nodes use to keep track of users and files. For every user, we stor
 + The location of the encrypted contents within FileDb
 + Version information (primarily to avoid race conditions)
 + Various access levels and ownership information related to the file
++ The schema is documented [here](redis-schema.md).
 
 ### API Nodes 
 
