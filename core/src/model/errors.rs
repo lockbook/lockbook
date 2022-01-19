@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
-use lockbook_models::api::{CardDeclinedType, InvalidCreditCardType};
+use lockbook_models::api::{CardDeclineReason, CreditCardRejectReason};
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
@@ -60,7 +60,7 @@ pub enum CoreError {
     AccountExists,
     AccountNonexistent,
     AccountStringCorrupted,
-    CardDecline(CardDeclinedType),
+    CardDecline(CardDeclineReason),
     ClientUpdateRequired,
     ClientWipeRequired,
     DiskPathInvalid,
@@ -75,7 +75,7 @@ pub enum CoreError {
     FileParentNonexistent,
     FolderMovedIntoSelf,
     ImportCollision(String),
-    InvalidCreditCard(InvalidCreditCardType),
+    InvalidCreditCard(CreditCardRejectReason),
     NewTierIsOldTier,
     OutOfSpace,
     PathContainsEmptyFileName,

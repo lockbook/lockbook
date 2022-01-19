@@ -272,27 +272,27 @@ impl Request for GetBuildInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetLastRegisteredCreditCardRequest {}
+pub struct GetCreditCardRequest {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GetLastRegisteredCreditCardResponse {
+pub struct GetCreditCardResponse {
     pub credit_card_last_4_digits: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetLastRegisteredCreditCardError {
+pub enum GetCreditCardError {
     OldCardDoesNotExist,
 }
 
-impl Request for GetLastRegisteredCreditCardRequest {
-    type Response = GetLastRegisteredCreditCardResponse;
-    type Error = GetLastRegisteredCreditCardError;
+impl Request for GetCreditCardRequest {
+    type Response = GetCreditCardResponse;
+    type Error = GetCreditCardError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/get-registered-credit-cards";
+    const ROUTE: &'static str = "/get-credit-card";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum CardChoice {
+pub enum PaymentMethod {
     NewCard {
         number: String,
         exp_year: String,
@@ -304,7 +304,7 @@ pub enum CardChoice {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum AccountTier {
-    Monthly(CardChoice),
+    Monthly(PaymentMethod),
     Free,
 }
 
@@ -317,7 +317,7 @@ pub struct SwitchAccountTierRequest {
 pub struct SwitchAccountTierResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum InvalidCreditCardType {
+pub enum CreditCardRejectReason {
     Number,
     ExpYear,
     ExpMonth,
@@ -325,7 +325,7 @@ pub enum InvalidCreditCardType {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum CardDeclinedType {
+pub enum CardDeclineReason {
     Generic,
     BalanceOrCreditExceeded,
     TooManyTries,
@@ -343,8 +343,9 @@ pub enum CardDeclinedType {
 pub enum SwitchAccountTierError {
     OldCardDoesNotExist,
     NewTierIsOldTier,
-    CardDeclined(CardDeclinedType),
-    InvalidCreditCard(InvalidCreditCardType),
+    CardDeclined(CardDeclineReason),
+    InvalidCreditCard(CreditCardRejectReason),
+    CurrentUsageIsMoreThanNewTier,
 }
 
 impl Request for SwitchAccountTierRequest {

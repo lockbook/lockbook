@@ -100,8 +100,8 @@ pub fn core_routes(
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(
-            GetLastRegisteredCreditCardRequest,
-            get_last_registered_credit_card,
+            GetCreditCardRequest,
+            get_credit_card,
             server_state
         ))
         .or(core_req!(
@@ -151,27 +151,20 @@ pub fn stripe_webhooks(
             |state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
                 match payment_service::stripe_webhooks(&state, request, stripe_sig).await {
                     Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
-                    Err(e) => match e {
-                        StripeWebhookError::VerificationError(e) => {
-                            error!("{}", e);
-                            warp::reply::with_status("".to_string(), StatusCode::BAD_REQUEST)
-                        }
-                        StripeWebhookError::InvalidHeader(e) => {
-                            error!("{}", e);
-                            warp::reply::with_status("".to_string(), StatusCode::BAD_REQUEST)
-                        }
-                        StripeWebhookError::InvalidBody(e) => {
-                            error!("{}", e);
-                            warp::reply::with_status("".to_string(), StatusCode::BAD_REQUEST)
-                        }
-                        StripeWebhookError::InternalError(e) => {
-                            error!("{}", e);
-                            warp::reply::with_status(
-                                "".to_string(),
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                            )
-                        }
-                    },
+                    Err(e) => {
+                        error!("{:?}", e);
+
+                        let status_code = match e {
+                            StripeWebhookError::VerificationError(_)
+                            | StripeWebhookError::InvalidBody(_)
+                            | StripeWebhookError::InvalidHeader(_) => StatusCode::BAD_REQUEST,
+                            StripeWebhookError::InternalError(_) => {
+                                StatusCode::INTERNAL_SERVER_ERROR
+                            }
+                        };
+
+                        warp::reply::with_status("".to_string(), status_code)
+                    }
                 }
             },
         )

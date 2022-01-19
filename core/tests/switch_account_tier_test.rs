@@ -21,7 +21,7 @@ mod switch_account_tier_test {
             &account,
             SwitchAccountTierRequest {
                 account_tier: generate_monthly_account_tier(
-                    test_credit_cards::NO_AUTHENTICATION,
+                    test_credit_cards::GOOD,
                     None,
                     None,
                     None,
@@ -70,7 +70,7 @@ mod switch_account_tier_test {
             &account,
             SwitchAccountTierRequest {
                 account_tier: generate_monthly_account_tier(
-                    test_credit_cards::NO_AUTHENTICATION,
+                    test_credit_cards::GOOD,
                     None,
                     None,
                     None,
@@ -83,7 +83,7 @@ mod switch_account_tier_test {
             &account,
             SwitchAccountTierRequest {
                 account_tier: generate_monthly_account_tier(
-                    test_credit_cards::NO_AUTHENTICATION,
+                    test_credit_cards::GOOD,
                     None,
                     None,
                     None,
@@ -108,7 +108,7 @@ mod switch_account_tier_test {
         let result = api_service::request(
             &account,
             SwitchAccountTierRequest {
-                account_tier: AccountTier::Monthly(CardChoice::OldCard),
+                account_tier: AccountTier::Monthly(PaymentMethod::OldCard),
             },
         );
 
@@ -129,31 +129,31 @@ mod switch_account_tier_test {
         let scenarios = vec![
             (
                 test_credit_cards::decline::GENERIC,
-                SwitchAccountTierError::CardDeclined(CardDeclinedType::Generic),
+                SwitchAccountTierError::CardDeclined(CardDeclineReason::Generic),
             ),
             (
                 test_credit_cards::decline::LOST_CARD,
-                SwitchAccountTierError::CardDeclined(CardDeclinedType::Generic),
+                SwitchAccountTierError::CardDeclined(CardDeclineReason::Generic),
             ), // core should not be informed a card is stolen or lost (at least the user)
             (
                 test_credit_cards::decline::INSUFFICIENT_FUNDS,
-                SwitchAccountTierError::CardDeclined(CardDeclinedType::BalanceOrCreditExceeded),
+                SwitchAccountTierError::CardDeclined(CardDeclineReason::BalanceOrCreditExceeded),
             ),
             (
                 test_credit_cards::decline::PROCESSING_ERROR,
-                SwitchAccountTierError::CardDeclined(CardDeclinedType::TryAgain),
+                SwitchAccountTierError::CardDeclined(CardDeclineReason::TryAgain),
             ),
             (
                 test_credit_cards::decline::EXPIRED_CARD,
-                SwitchAccountTierError::CardDeclined(CardDeclinedType::ExpiredCard),
+                SwitchAccountTierError::CardDeclined(CardDeclineReason::ExpiredCard),
             ),
             (
                 test_credit_cards::decline::INCORRECT_NUMBER,
-                SwitchAccountTierError::CardDeclined(CardDeclinedType::IncorrectNumber),
+                SwitchAccountTierError::CardDeclined(CardDeclineReason::IncorrectNumber),
             ),
             (
                 test_credit_cards::decline::INCORRECT_CVC,
-                SwitchAccountTierError::CardDeclined(CardDeclinedType::IncorrectCVC),
+                SwitchAccountTierError::CardDeclined(CardDeclineReason::IncorrectCVC),
             ),
         ];
 
@@ -184,28 +184,28 @@ mod switch_account_tier_test {
                 None,
                 None,
                 None,
-                SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::Number),
+                SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::Number),
             ),
             (
-                test_credit_cards::NO_AUTHENTICATION,
+                test_credit_cards::GOOD,
                 Some("1970"),
                 None,
                 None,
-                SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::ExpYear),
+                SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::ExpYear),
             ),
             (
-                test_credit_cards::NO_AUTHENTICATION,
+                test_credit_cards::GOOD,
                 None,
                 Some("14"),
                 None,
-                SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::ExpMonth),
+                SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::ExpMonth),
             ),
             (
-                test_credit_cards::NO_AUTHENTICATION,
+                test_credit_cards::GOOD,
                 None,
                 None,
                 Some("11"),
-                SwitchAccountTierError::InvalidCreditCard(InvalidCreditCardType::CVC),
+                SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::CVC),
             ),
         ];
 

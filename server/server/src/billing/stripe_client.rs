@@ -1,12 +1,12 @@
-use crate::billing::stripe::{
-    BasicStripeResponse, SetupPaymentIntentStatus, StripeError, StripeErrorType, StripeInvoice,
-    StripeKnownErrorCode, StripeKnownErrorDeclineCode, StripeMaybeContainer,
+use crate::billing::stripe_client::StripeClientError::{CardDeclined, InvalidCreditCard, Other};
+use crate::billing::stripe_model::{
+    BasicStripeResponse, SetupPaymentIntentStatus, StripeError, StripeErrorType,
+    StripeInvoiceResponse, StripeKnownErrorCode, StripeKnownErrorDeclineCode, StripeMaybeContainer,
     StripePaymentMethodResponse, StripeResult, StripeSetupIntentResponse,
     StripeSubscriptionResponse, SubscriptionStatus,
 };
-use crate::billing::stripe_client::StripeClientError::{CardDeclined, InvalidCreditCard, Other};
 use crate::ServerState;
-use lockbook_models::api::{CardDeclinedType, InvalidCreditCardType};
+use lockbook_models::api::{CardDeclineReason, CreditCardRejectReason};
 use log::error;
 use reqwest::Method;
 use serde::de::DeserializeOwned;
@@ -16,7 +16,6 @@ use std::fmt::Debug;
 static STRIPE_ENDPOINT: &str = "https://api.stripe.com/v1";
 static PAYMENT_METHODS_ENDPOINT: &str = "/payment_methods";
 static DETACH_ENDPOINT: &str = "/detach";
-static ATTACH_ENDPOINT: &str = "/attach";
 static CUSTOMER_ENDPOINT: &str = "/customers";
 static SUBSCRIPTIONS_ENDPOINT: &str = "/subscriptions";
 static SETUP_INTENTS_ENDPOINT: &str = "/setup_intents";
@@ -24,25 +23,28 @@ static INVOICES_ENDPOINT: &str = "/invoices";
 
 #[derive(Debug)]
 pub enum StripeClientError {
-    CardDeclined(CardDeclinedType),
-    InvalidCreditCard(InvalidCreditCardType),
+    CardDeclined(CardDeclineReason),
+    InvalidCreditCard(CreditCardRejectReason),
     Other(String),
 }
 
-pub async fn create_customer(server_state: &ServerState) -> Result<String, StripeClientError> {
+pub async fn create_customer(
+    server_state: &ServerState,
+    payment_method_id: &str,
+) -> Result<BasicStripeResponse, StripeClientError> {
+    let mut create_customer_form = HashMap::new();
+    create_customer_form.insert("payment_method", payment_method_id);
+
     match send_stripe_request::<BasicStripeResponse>(
         server_state,
         format!("{}{}", STRIPE_ENDPOINT, CUSTOMER_ENDPOINT),
         Method::POST,
-        None,
+        Some(create_customer_form),
     )
     .await?
     {
-        StripeResult::Ok(resp) => Ok(resp.id),
-        StripeResult::Err(e) => Err(Other(format!(
-            "Stripe returned an error whilst creating an account: {:?}",
-            e
-        ))),
+        StripeResult::Ok(resp) => Ok(resp),
+        StripeResult::Err(e) => Err(match_stripe_error(&e.error)),
     }
 }
 
@@ -89,7 +91,7 @@ pub async fn create_payment_method(
     .await?
     {
         StripeResult::Ok(resp) => Ok(resp),
-        StripeResult::Err(e) => Err(match_stripe_error(&e.error).await),
+        StripeResult::Err(e) => Err(match_stripe_error(&e.error)),
     }
 }
 
@@ -122,7 +124,7 @@ pub async fn create_setup_intent(
                     "Cannot view stripe's setup intent error despite having a related status: {:?}",
                     resp
                 ))),
-                Some(e) => match match_stripe_error(&e).await {
+                Some(e) => match match_stripe_error(&e) {
                     Other(e) => {
                         delete_customer(server_state, customer_id).await?;
                         Err(Other(e))
@@ -131,37 +133,13 @@ pub async fn create_setup_intent(
                 },
             },
         },
-        StripeResult::Err(e) => match match_stripe_error(&e.error).await {
+        StripeResult::Err(e) => match match_stripe_error(&e.error) {
             Other(e) => {
                 delete_customer(server_state, customer_id).await?;
                 Err(Other(e))
             }
             e => Err(e),
         },
-    }
-}
-
-pub async fn attach_payment_method_to_customer(
-    server_state: &ServerState,
-    customer_id: &str,
-    payment_method_id: &str,
-) -> Result<(), StripeClientError> {
-    let mut attach_payment_method_form = HashMap::new();
-    attach_payment_method_form.insert("customer", customer_id);
-
-    match send_stripe_request::<BasicStripeResponse>(
-        server_state,
-        format!(
-            "{}{}/{}{}",
-            STRIPE_ENDPOINT, PAYMENT_METHODS_ENDPOINT, payment_method_id, ATTACH_ENDPOINT
-        ),
-        Method::POST,
-        Some(attach_payment_method_form),
-    )
-    .await?
-    {
-        StripeResult::Ok(_) => Ok(()),
-        StripeResult::Err(e) => Err(match_stripe_error(&e.error).await),
     }
 }
 
@@ -196,14 +174,14 @@ pub async fn create_subscription(
                         SetupPaymentIntentStatus::Succeeded => Err(Other(format!("Unexpected stripe payment intent status: {:?}", resp))),
                         SetupPaymentIntentStatus::RequiresPaymentMethod => match payment_intent.last_payment_error {
                             None => Err(Other(format!("Cannot view stripe's payment intent error despite having a related status: {:?}", resp))),
-                            Some(ref e) => Err(match_stripe_error(e).await)
+                            Some(ref e) => Err(match_stripe_error(e))
                         }
                         SetupPaymentIntentStatus::RequiresAction => Err(Other(format!("Cannot verify payment method whilst creating subscription: {:?}", resp))),
                     }
                 }
             _ => Err(Other(format!("Unexpected subscription status (considering payment method has already been checked): {:?}", resp)))
         },
-        StripeResult::Err(e) => Err(match_stripe_error(&e.error).await)
+        StripeResult::Err(e) => Err(match_stripe_error(&e.error))
     }
 }
 
@@ -256,11 +234,11 @@ pub async fn delete_subscription(
 pub async fn retrieve_invoice(
     server_state: &ServerState,
     invoice_id: &str,
-) -> Result<StripeInvoice, StripeClientError> {
+) -> Result<StripeInvoiceResponse, StripeClientError> {
     let mut retrieve_subscription = HashMap::new();
     retrieve_subscription.insert("expand[]", "subscription");
 
-    match send_stripe_request::<StripeInvoice>(
+    match send_stripe_request::<StripeInvoiceResponse>(
         server_state,
         format!("{}{}/{}", STRIPE_ENDPOINT, INVOICES_ENDPOINT, invoice_id),
         Method::GET,
@@ -269,7 +247,7 @@ pub async fn retrieve_invoice(
     .await?
     {
         StripeResult::Ok(resp) => Ok(resp),
-        StripeResult::Err(e) => Err(match_stripe_error(&e.error).await),
+        StripeResult::Err(e) => Err(match_stripe_error(&e.error)),
     }
 }
 
@@ -302,18 +280,18 @@ async fn send_stripe_request<U: DeserializeOwned>(
     .map_err(|e| Other(format!("Cannot parse stripe request at '{}': {:?}", url, e)))
 }
 
-async fn match_stripe_error(error: &StripeError) -> StripeClientError {
+fn match_stripe_error(error: &StripeError) -> StripeClientError {
     if let StripeErrorType::CardError = error.error_type {
         match error.code {
             StripeMaybeContainer::Expected(ref error_code) => match error_code {
                 StripeKnownErrorCode::CardDeclineRateLimitExceeded => {
-                    CardDeclined(CardDeclinedType::TooManyTries)
+                    CardDeclined(CardDeclineReason::TooManyTries)
                 }
                 StripeKnownErrorCode::CardDeclined => match error.decline_code {
                     None => {
-                        error!("Although stripe error code being `card_declined`, there seems to be no decline code: {:?}", error);
+                        error!("Although stripe error code is `card_declined`, there is no decline code: {:?}", error);
 
-                        CardDeclined(CardDeclinedType::Generic)
+                        CardDeclined(CardDeclineReason::Generic)
                     }
                     Some(ref decline_code) => match decline_code {
                         StripeMaybeContainer::Expected(ref known_decline_code) => {
@@ -324,7 +302,7 @@ async fn match_stripe_error(error: &StripeError) -> StripeClientError {
                                 | StripeKnownErrorDeclineCode::ProcessingError
                                 | StripeKnownErrorDeclineCode::ReenterTransaction
                                 | StripeKnownErrorDeclineCode::TryAgainLater => {
-                                    CardDeclined(CardDeclinedType::TryAgain)
+                                    CardDeclined(CardDeclineReason::TryAgain)
                                 }
 
                                 //Unknown
@@ -339,25 +317,25 @@ async fn match_stripe_error(error: &StripeError) -> StripeClientError {
                                 | StripeKnownErrorDeclineCode::ServiceNotAllowed
                                 | StripeKnownErrorDeclineCode::StopPaymentOrder
                                 | StripeKnownErrorDeclineCode::TransactionNotAllowed => {
-                                    CardDeclined(CardDeclinedType::Unknown)
+                                    CardDeclined(CardDeclineReason::Unknown)
                                 }
 
                                 // Not supported
                                 StripeKnownErrorDeclineCode::CardNotSupported
                                 | StripeKnownErrorDeclineCode::CurrencyNotSupported => {
-                                    CardDeclined(CardDeclinedType::NotSupported)
+                                    CardDeclined(CardDeclineReason::NotSupported)
                                 }
 
                                 // Balance or credit exceeded
                                 StripeKnownErrorDeclineCode::CardVelocityExceeded
                                 | StripeKnownErrorDeclineCode::InsufficientFunds
                                 | StripeKnownErrorDeclineCode::WithdrawalCountLimitExceeded => {
-                                    CardDeclined(CardDeclinedType::BalanceOrCreditExceeded)
+                                    CardDeclined(CardDeclineReason::BalanceOrCreditExceeded)
                                 }
 
                                 // Expired card
                                 StripeKnownErrorDeclineCode::ExpiredCard => {
-                                    CardDeclined(CardDeclinedType::ExpiredCard)
+                                    CardDeclined(CardDeclineReason::ExpiredCard)
                                 }
 
                                 // Generic
@@ -369,29 +347,29 @@ async fn match_stripe_error(error: &StripeError) -> StripeClientError {
                                 | StripeKnownErrorDeclineCode::NotPermitted
                                 | StripeKnownErrorDeclineCode::PickupCard
                                 | StripeKnownErrorDeclineCode::StolenCard => {
-                                    CardDeclined(CardDeclinedType::Generic)
+                                    CardDeclined(CardDeclineReason::Generic)
                                 }
 
                                 // Incorrect number
                                 StripeKnownErrorDeclineCode::IncorrectNumber
                                 | StripeKnownErrorDeclineCode::InvalidNumber => {
-                                    CardDeclined(CardDeclinedType::IncorrectNumber)
+                                    CardDeclined(CardDeclineReason::IncorrectNumber)
                                 }
 
                                 // Incorrect cvc
                                 StripeKnownErrorDeclineCode::IncorrectCvc
                                 | StripeKnownErrorDeclineCode::InvalidCvc => {
-                                    CardDeclined(CardDeclinedType::IncorrectCVC)
+                                    CardDeclined(CardDeclineReason::IncorrectCVC)
                                 }
 
                                 // Incorrect expiry month
                                 StripeKnownErrorDeclineCode::InvalidExpiryMonth => {
-                                    CardDeclined(CardDeclinedType::IncorrectExpiryMonth)
+                                    CardDeclined(CardDeclineReason::IncorrectExpiryMonth)
                                 }
 
                                 // Incorrect expiry year
                                 StripeKnownErrorDeclineCode::InvalidExpiryYear => {
-                                    CardDeclined(CardDeclinedType::IncorrectExpiryYear)
+                                    CardDeclined(CardDeclineReason::IncorrectExpiryYear)
                                 }
                             }
                         }
@@ -401,23 +379,23 @@ async fn match_stripe_error(error: &StripeError) -> StripeClientError {
                         )),
                     },
                 },
-                StripeKnownErrorCode::ExpiredCard => CardDeclined(CardDeclinedType::ExpiredCard),
+                StripeKnownErrorCode::ExpiredCard => CardDeclined(CardDeclineReason::ExpiredCard),
                 StripeKnownErrorCode::IncorrectCvc | StripeKnownErrorCode::InvalidCvc => {
-                    InvalidCreditCard(InvalidCreditCardType::CVC)
+                    InvalidCreditCard(CreditCardRejectReason::CVC)
                 }
                 StripeKnownErrorCode::IncorrectNumber | StripeKnownErrorCode::InvalidNumber => {
-                    InvalidCreditCard(InvalidCreditCardType::Number)
+                    InvalidCreditCard(CreditCardRejectReason::Number)
                 }
                 StripeKnownErrorCode::InsufficientFunds => {
-                    CardDeclined(CardDeclinedType::BalanceOrCreditExceeded)
+                    CardDeclined(CardDeclineReason::BalanceOrCreditExceeded)
                 }
                 StripeKnownErrorCode::InvalidExpiryMonth => {
-                    InvalidCreditCard(InvalidCreditCardType::ExpMonth)
+                    InvalidCreditCard(CreditCardRejectReason::ExpMonth)
                 }
                 StripeKnownErrorCode::InvalidExpiryYear => {
-                    InvalidCreditCard(InvalidCreditCardType::ExpYear)
+                    InvalidCreditCard(CreditCardRejectReason::ExpYear)
                 }
-                StripeKnownErrorCode::ProcessingError => CardDeclined(CardDeclinedType::TryAgain),
+                StripeKnownErrorCode::ProcessingError => CardDeclined(CardDeclineReason::TryAgain),
                 StripeKnownErrorCode::SetupIntentAuthenticationFailure
                 | StripeKnownErrorCode::PaymentIntentAuthenticationFailure => {
                     Other(format!("Stripe authentication error: {:?}", error))

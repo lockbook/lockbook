@@ -21,7 +21,7 @@ mod get_last_registered_credit_card_test {
             &account,
             SwitchAccountTierRequest {
                 account_tier: generate_monthly_account_tier(
-                    test_credit_cards::NO_AUTHENTICATION,
+                    test_credit_cards::GOOD,
                     None,
                     None,
                     None,
@@ -30,11 +30,11 @@ mod get_last_registered_credit_card_test {
         )
         .unwrap();
 
-        let result = api_service::request(&account, GetLastRegisteredCreditCardRequest {})
+        let result = api_service::request(&account, GetCreditCardRequest {})
             .unwrap()
             .credit_card_last_4_digits;
 
-        assert_matches!(result.as_str(), test_credit_cards::NO_AUTHENTICATION_LAST_4);
+        assert_matches!(result.as_str(), test_credit_cards::GOOD_LAST_4);
     }
 
     #[test]
@@ -44,12 +44,12 @@ mod get_last_registered_credit_card_test {
 
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        let result = api_service::request(&account, GetLastRegisteredCreditCardRequest {});
+        let result = api_service::request(&account, GetCreditCardRequest {});
 
         assert_matches!(
             result,
-            Err(ApiError::<GetLastRegisteredCreditCardError>::Endpoint(
-                GetLastRegisteredCreditCardError::OldCardDoesNotExist
+            Err(ApiError::<GetCreditCardError>::Endpoint(
+                GetCreditCardError::OldCardDoesNotExist
             ))
         );
     }

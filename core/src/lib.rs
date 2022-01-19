@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::billing_service::CreditCardLast4Digits;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{AccountTier, InvalidCreditCardType};
+use lockbook_models::api::{AccountTier, CreditCardRejectReason};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -642,16 +642,16 @@ pub fn switch_account_tier(
             UiError(SwitchAccountTierError::PreexistingCardDoesNotExist)
         }
         CoreError::InvalidCreditCard(field) => match field {
-            InvalidCreditCardType::Number => {
+            CreditCardRejectReason::Number => {
                 UiError(SwitchAccountTierError::InvalidCreditCardNumber)
             }
-            InvalidCreditCardType::ExpYear => {
+            CreditCardRejectReason::ExpYear => {
                 UiError(SwitchAccountTierError::InvalidCreditCardExpYear)
             }
-            InvalidCreditCardType::ExpMonth => {
+            CreditCardRejectReason::ExpMonth => {
                 UiError(SwitchAccountTierError::InvalidCreditCardExpMonth)
             }
-            InvalidCreditCardType::CVC => UiError(SwitchAccountTierError::InvalidCreditCardCVC),
+            CreditCardRejectReason::CVC => UiError(SwitchAccountTierError::InvalidCreditCardCVC),
         },
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),

@@ -3,8 +3,8 @@ use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{account_repo, Config, CoreError};
 use lockbook_models::api::{
-    AccountTier, GetLastRegisteredCreditCardError, GetLastRegisteredCreditCardRequest,
-    SwitchAccountTierError, SwitchAccountTierRequest,
+    AccountTier, GetCreditCardError, GetCreditCardRequest, SwitchAccountTierError,
+    SwitchAccountTierRequest,
 };
 
 pub type CreditCardLast4Digits = String;
@@ -44,9 +44,9 @@ pub fn get_last_registered_credit_card(
 ) -> Result<CreditCardLast4Digits, CoreError> {
     let account = account_repo::get(config)?;
 
-    api_service::request(&account, GetLastRegisteredCreditCardRequest {})
+    api_service::request(&account, GetCreditCardRequest {})
         .map_err(|e| match e {
-            ApiError::Endpoint(GetLastRegisteredCreditCardError::OldCardDoesNotExist) => {
+            ApiError::Endpoint(GetCreditCardError::OldCardDoesNotExist) => {
                 CoreError::OldCardDoesNotExist
             }
             _ => core_err_unexpected(e),

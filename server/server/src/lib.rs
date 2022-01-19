@@ -18,14 +18,13 @@ use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper, SwitchAccountTierError};
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub struct ServerState {
     pub config: config::Config,
-    pub stripe_client: Client,
+    pub stripe_client: reqwest::Client,
     pub index_db_client: sqlx::PgPool,
     pub files_db_client: s3::bucket::Bucket,
 }

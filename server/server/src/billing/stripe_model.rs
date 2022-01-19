@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+// A stripe request can either be your expected struct, or an expected error struct
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum StripeResult<U> {
@@ -26,17 +27,15 @@ pub struct StripeError {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum StripeErrorType {
-    #[serde(rename = "api_error")]
     ApiError,
-    #[serde(rename = "card_error")]
     CardError,
-    #[serde(rename = "idempotency_error")]
     IdempotencyError,
-    #[serde(rename = "invalid_request_error")]
     InvalidRequestError,
 }
 
+// Since certain fields can either be a String/Int or a Struct, I made this to handle either situation
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum StripeMaybeContainer<K, U> {
@@ -44,6 +43,8 @@ pub enum StripeMaybeContainer<K, U> {
     Unexpected(U),
 }
 
+// Not all defined error codes are defined, these are the ones I am expecting to be returned.
+// The unexpected error codes will be caught with StripeMaybeContainer magic.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StripeKnownErrorCode {
@@ -61,12 +62,11 @@ pub enum StripeKnownErrorCode {
     ProcessingError,
     SetupIntentAuthenticationFailure,
 }
-// customer_max_payment_methods
 
+// Similar to the comment above
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StripeKnownErrorDeclineCode {
-    // AuthenticationRequired,
     ApproveWithId,
     CallIssuer,
     CardNotSupported,
@@ -74,16 +74,12 @@ pub enum StripeKnownErrorDeclineCode {
     CurrencyNotSupported,
     DoNotHonor,
     DoNotTryAgain,
-    // DuplicateTransaction,
     ExpiredCard,
     Fraudulent,
     GenericDecline,
     IncorrectNumber,
     IncorrectCvc,
-    // IncorrectPin,
     InsufficientFunds,
-    // InvalidAccount,
-    // InvalidAmount,
     InvalidCvc,
     InvalidExpiryMonth,
     InvalidExpiryYear,
@@ -104,24 +100,31 @@ pub enum StripeKnownErrorDeclineCode {
     ServiceNotAllowed,
     StolenCard,
     StopPaymentOrder,
-    // TestmodeDecline,
     TransactionNotAllowed,
     TryAgainLater,
     WithdrawalCountLimitExceeded,
 }
 
+// Practically every stripe response contains an id field, and in some cases that is all that is needed.
+#[derive(Serialize, Deserialize)]
+pub struct BasicStripeResponse {
+    pub id: String,
+}
+
+// The following structs with the suffix "Response" can entirely be their own returns from stripe.
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StripeSubscriptionResponse {
     pub id: String,
     pub status: SubscriptionStatus,
-    pub latest_invoice: StripeInvoice,
+    pub latest_invoice: StripeInvoiceResponse,
     pub current_period_end: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct StripeInvoice {
+pub struct StripeInvoiceResponse {
     pub id: String,
-    pub payment_intent: StripeMaybeContainer<StripePaymentIntent, String>,
+    pub payment_intent: StripeMaybeContainer<StripePaymentIntentResponse, String>,
     pub subscription: StripeMaybeContainer<Box<StripeSubscriptionResponse>, String>,
     #[serde(rename = "customer")]
     pub customer_id: String,
@@ -141,7 +144,7 @@ pub enum StripeBillingReason {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct StripePaymentIntent {
+pub struct StripePaymentIntentResponse {
     pub status: SetupPaymentIntentStatus,
     pub last_payment_error: Option<StripeError>,
 }
@@ -156,11 +159,6 @@ pub enum SubscriptionStatus {
     PastDue,
     Canceled,
     Unpaid,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct BasicStripeResponse {
-    pub id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -189,7 +187,7 @@ pub struct StripeSetupIntentResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct StripeWebhook {
+pub struct StripeWebhookResponse {
     #[serde(rename = "type")]
     pub event_type: StripeMaybeContainer<StripeEventType, String>,
     pub data: StripeEventObjectContainer,
@@ -211,9 +209,6 @@ pub struct StripeEventObjectContainer {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum StripeObjectType {
-    Invoice(StripeInvoice),
+    Invoice(StripeInvoiceResponse),
     Unmatched(serde_json::Value),
 }
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StripeEmptyRequest {}

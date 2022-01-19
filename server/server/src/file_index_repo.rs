@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 pub const FREE_TIER_SIZE: i64 = 1000000;
-pub const PAID_TIER_SIZE: i64 = 50000000000;
+pub const MONTHLY_TIER_SIZE: i64 = 50000000000;
 
 // TODO:
 // * check ownership

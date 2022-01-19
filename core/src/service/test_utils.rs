@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
-use lockbook_models::api::{AccountTier, CardChoice};
+use lockbook_models::api::{AccountTier, PaymentMethod};
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -159,8 +159,8 @@ pub fn assert_new_synced_client_dbs_eq(db: &Config) {
 }
 
 pub mod test_credit_cards {
-    pub const NO_AUTHENTICATION: &str = "4242424242424242";
-    pub const NO_AUTHENTICATION_LAST_4: &str = "4242";
+    pub const GOOD: &str = "4242424242424242";
+    pub const GOOD_LAST_4: &str = "4242";
 
     pub const INVALID_NUMBER: &str = "11111";
 
@@ -378,7 +378,7 @@ pub fn generate_monthly_account_tier(
     maybe_exp_month: Option<&str>,
     maybe_cvc: Option<&str>,
 ) -> AccountTier {
-    AccountTier::Monthly(CardChoice::NewCard {
+    AccountTier::Monthly(PaymentMethod::NewCard {
         number: card_number.to_string(),
         exp_year: match maybe_exp_year {
             None => get_next_year(),

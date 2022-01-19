@@ -69,7 +69,7 @@ Stripe will inform us about billing success and failures via [webhooks](https://
 
 We will likely only need to listen for billing failures. In the case of a billing failure we're going to want to indicate to the user their card was declined. We don't want to just communicate that they're out of space. We want to communicate specifically that their card was declined. Likely what we'll do in this situation is keep them in that tier with that expiry information and set `billing_failed` to `true`. Next time they try to write we'll send them to the flow for declined cards. When the new request comes in it will have to complete logic to cancel the old subscription, especially if it's being transfered from one platform to another.
 
-When consuming webhook events, we'll likely need to enable `tls`, and [verify that the event is coming from stripe](https://stripe.com/docs/webhooks/signatures) and not some random person.
+When consuming webhook events we'll need to [verify that the event is coming from stripe](https://stripe.com/docs/webhooks/signatures) and not some random person.
 
 Before this flow is completable we'll have to pre-register our [prices](https://stripe.com/docs/api/prices) with stripe.
 

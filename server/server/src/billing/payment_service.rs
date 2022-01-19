@@ -1,19 +1,19 @@
 use crate::billing::payment_service::StripeWebhookError::{
     InvalidBody, InvalidHeader, VerificationError,
 };
-use crate::billing::stripe::{
-    StripeBillingReason, StripeEventType, StripeMaybeContainer, StripeObjectType, StripeWebhook,
-};
 use crate::billing::stripe_client;
-use crate::file_index_repo::{GetLastStripeCreditCardInfoError, FREE_TIER_SIZE, PAID_TIER_SIZE};
+use crate::billing::stripe_model::{
+    StripeBillingReason, StripeEventType, StripeMaybeContainer, StripeObjectType,
+    StripeWebhookResponse,
+};
+use crate::file_index_repo::{GetLastStripeCreditCardInfoError, FREE_TIER_SIZE, MONTHLY_TIER_SIZE};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{file_index_repo, RequestContext, ServerError, ServerState, StripeClientError};
 use hmac::{Hmac, Mac};
 use libsecp256k1::PublicKey;
 use lockbook_models::api::{
-    AccountTier, CardChoice, GetLastRegisteredCreditCardError, GetLastRegisteredCreditCardRequest,
-    GetLastRegisteredCreditCardResponse, SwitchAccountTierError, SwitchAccountTierRequest,
-    SwitchAccountTierResponse,
+    AccountTier, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, PaymentMethod,
+    SwitchAccountTierError, SwitchAccountTierRequest, SwitchAccountTierResponse,
 };
 use sha2::Sha256;
 use sqlx::{Postgres, Transaction};
@@ -45,6 +45,20 @@ pub async fn switch_account_tier(
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         }
         (_, AccountTier::Free) => {
+            let current_usage: u64 =
+                file_index_repo::get_file_usages(&mut transaction, &context.public_key)
+                    .await
+                    .map_err(|e| InternalError(format!("Cannot get user's usage: {:?}", e)))?
+                    .into_iter()
+                    .map(|usage| usage.size_bytes)
+                    .sum();
+
+            if current_usage > FREE_TIER_SIZE as u64 {
+                return Err(ClientError(
+                    SwitchAccountTierError::CurrentUsageIsMoreThanNewTier,
+                ));
+            }
+
             let subscription_id = file_index_repo::get_active_stripe_subscription_id(
                 &mut transaction,
                 &context.public_key,
@@ -57,9 +71,7 @@ pub async fn switch_account_tier(
                 ))
             })?;
 
-            stripe_client::delete_subscription(&server_state, &subscription_id)
-                .await
-                .map_err(ServerError::<SwitchAccountTierError>::from)?;
+            stripe_client::delete_subscription(&server_state, &subscription_id).await?;
 
             file_index_repo::cancel_stripe_subscription(&mut transaction, &subscription_id)
                 .await
@@ -95,10 +107,10 @@ async fn create_subscription(
     public_key: &PublicKey,
     server_state: &ServerState,
     mut transaction: &mut Transaction<'_, Postgres>,
-    card: &CardChoice,
+    payment_method: &PaymentMethod,
 ) -> Result<(), ServerError<SwitchAccountTierError>> {
-    let (customer_id, payment_method_id) = match card {
-        CardChoice::NewCard {
+    let (customer_id, payment_method_id) = match payment_method {
+        PaymentMethod::NewCard {
             number,
             exp_year,
             exp_month,
@@ -111,12 +123,12 @@ async fn create_subscription(
                 exp_month,
                 cvc,
             )
-            .await
-            .map_err(ServerError::<SwitchAccountTierError>::from)?;
+            .await?;
 
-            let customer_id = stripe_client::create_customer(&server_state)
-                .await
-                .map_err(ServerError::<SwitchAccountTierError>::from)?;
+            let customer_id =
+                stripe_client::create_customer(&server_state, &payment_method_resp.id)
+                    .await?
+                    .id;
 
             match file_index_repo::get_last_stripe_credit_card_info(&mut transaction, &public_key)
                 .await
@@ -126,8 +138,7 @@ async fn create_subscription(
                         &server_state,
                         &credit_card_info.payment_method_id,
                     )
-                    .await
-                    .map_err(ServerError::<SwitchAccountTierError>::from)?;
+                    .await?;
                 }
                 Err(GetLastStripeCreditCardInfoError::NoPaymentInfo) => {}
                 Err(e) => {
@@ -137,14 +148,6 @@ async fn create_subscription(
                     )))
                 }
             }
-
-            stripe_client::attach_payment_method_to_customer(
-                &server_state,
-                &customer_id,
-                &payment_method_resp.id,
-            )
-            .await
-            .map_err(ServerError::<SwitchAccountTierError>::from)?;
 
             file_index_repo::attach_stripe_customer_id(&mut transaction, &customer_id, &public_key)
                 .await
@@ -171,12 +174,11 @@ async fn create_subscription(
                 &customer_id,
                 &payment_method_resp.id,
             )
-            .await
-            .map_err(ServerError::<SwitchAccountTierError>::from)?;
+            .await?;
 
             (customer_id, payment_method_resp.id)
         }
-        CardChoice::OldCard => {
+        PaymentMethod::OldCard => {
             let old_card =
                 file_index_repo::get_last_stripe_credit_card_info(&mut transaction, &public_key)
                     .await
@@ -211,13 +213,11 @@ async fn create_subscription(
             Ok(resp) => resp,
             Err(StripeClientError::Other(e)) => return Err(InternalError(e)),
             Err(e) => {
-                match card {
-                    CardChoice::NewCard { .. } => {
-                        stripe_client::delete_customer(&server_state, &customer_id)
-                            .await
-                            .map_err(ServerError::<SwitchAccountTierError>::from)?;
+                match payment_method {
+                    PaymentMethod::NewCard { .. } => {
+                        stripe_client::delete_customer(&server_state, &customer_id).await?;
                     }
-                    CardChoice::OldCard => {}
+                    PaymentMethod::OldCard => {}
                 }
                 return Err(ServerError::<SwitchAccountTierError>::from(e));
             }
@@ -237,7 +237,7 @@ async fn create_subscription(
         ))
     })?;
 
-    file_index_repo::set_account_data_cap(&mut transaction, &public_key, PAID_TIER_SIZE)
+    file_index_repo::set_account_data_cap(&mut transaction, &public_key, MONTHLY_TIER_SIZE)
         .await
         .map_err(|e| {
             InternalError(format!(
@@ -247,9 +247,9 @@ async fn create_subscription(
         })
 }
 
-pub async fn get_last_registered_credit_card(
-    context: RequestContext<'_, GetLastRegisteredCreditCardRequest>,
-) -> Result<GetLastRegisteredCreditCardResponse, ServerError<GetLastRegisteredCreditCardError>> {
+pub async fn get_credit_card(
+    context: RequestContext<'_, GetCreditCardRequest>,
+) -> Result<GetCreditCardResponse, ServerError<GetCreditCardError>> {
     let mut transaction = match context.server_state.index_db_client.begin().await {
         Ok(t) => t,
         Err(e) => {
@@ -262,16 +262,17 @@ pub async fn get_last_registered_credit_card(
             .await
             .map_err(|e| match e {
                 GetLastStripeCreditCardInfoError::NoPaymentInfo => {
-                    ClientError(GetLastRegisteredCreditCardError::OldCardDoesNotExist)
+                    ClientError(GetCreditCardError::OldCardDoesNotExist)
                 }
                 _ => InternalError(format!("Cannot get all stripe credit card infos: {:?}", e)),
             })?;
 
-    Ok(GetLastRegisteredCreditCardResponse {
+    Ok(GetCreditCardResponse {
         credit_card_last_4_digits: credit_card.last_4_digits,
     })
 }
 
+#[derive(Debug)]
 pub enum StripeWebhookError {
     VerificationError(String),
     InvalidHeader(String),
@@ -284,7 +285,7 @@ pub async fn stripe_webhooks(
     request_body: Bytes,
     stripe_sig: HeaderValue,
 ) -> Result<(), StripeWebhookError> {
-    let webhook = match serde_json::from_slice::<StripeWebhook>(request_body.as_ref()) {
+    let webhook = match serde_json::from_slice::<StripeWebhookResponse>(request_body.as_ref()) {
         Ok(webhook) => webhook,
         Err(e) => {
             return Err(InvalidHeader(format!(
@@ -299,69 +300,7 @@ pub async fn stripe_webhooks(
         StripeMaybeContainer::Unexpected(_) => return Ok(()),
     };
 
-    let json = match std::str::from_utf8(&request_body.as_ref()) {
-        Ok(json) => json,
-        Err(e) => {
-            return Err(InvalidBody(format!(
-                "Cannot turn stripe webhook body bytes into str: {:?}",
-                e
-            )))
-        }
-    };
-
-    let mut sig_header_split = stripe_sig
-        .to_str()
-        .map_err(|e| {
-            InvalidHeader(format!(
-                "Cannot turn stripe webhook header into str: {:?}",
-                e
-            ))
-        })?
-        .split(",");
-
-    let time = sig_header_split
-        .next()
-        .ok_or(InvalidHeader(format!(
-            "Cannot get the header's time field to verify stripe webhook: {:?}",
-            stripe_sig
-        )))?
-        .split("=")
-        .last()
-        .ok_or(InvalidHeader(format!(
-            "Cannot get the time from the header to verify stripe webhook: {:?}",
-            stripe_sig
-        )))?;
-
-    let expected_sig = sig_header_split
-        .next()
-        .ok_or(InvalidHeader(format!(
-            "Cannot get the header's expected signature field to verify stripe webhook: {:?}",
-            stripe_sig
-        )))?
-        .split("=")
-        .last()
-        .ok_or(InvalidHeader(format!(
-            "Cannot get the hash from the header to verify stripe webhook: {:?}",
-            stripe_sig
-        )))?;
-
-    let signed_payload = format!("{}.{}", time, json);
-
-    let mut mac = Hmac::<Sha256>::new_from_slice(state.config.stripe.signing_secret.as_bytes())
-        .map_err(|e| {
-            StripeWebhookError::InternalError(format!(
-                "Cannot create hmac for verifying json: {:?}",
-                e
-            ))
-        })?;
-
-    mac.update(signed_payload.as_bytes());
-
-    let expected_sig_bytes = hex::decode(expected_sig)
-        .map_err(|e| VerificationError(format!("Could not verify stripe webhook: {}", e)))?;
-
-    mac.verify_slice(expected_sig_bytes.as_slice())
-        .map_err(|e| VerificationError(format!("Could not verify stripe webhook: {}", e)))?;
+    verify_stripe_webhook(state, &request_body, stripe_sig)?;
 
     let mut transaction = match state.index_db_client.begin().await {
         Ok(t) => t,
@@ -446,4 +385,91 @@ pub async fn stripe_webhooks(
             e
         ))),
     }
+}
+
+fn verify_stripe_webhook(
+    state: &Arc<ServerState>,
+    request_body: &Bytes,
+    stripe_sig: HeaderValue,
+) -> Result<(), StripeWebhookError> {
+    let json = match std::str::from_utf8(&request_body.as_ref()) {
+        Ok(json) => json,
+        Err(e) => {
+            return Err(InvalidBody(format!(
+                "Cannot turn stripe webhook body bytes into str: {:?}",
+                e
+            )))
+        }
+    };
+
+    let sig_header_split = stripe_sig
+        .to_str()
+        .map_err(|e| {
+            InvalidHeader(format!(
+                "Cannot turn stripe webhook header into str: {:?}",
+                e
+            ))
+        })?
+        .split(",");
+
+    let mut maybe_time = None;
+    let mut maybe_expected_sig = None;
+
+    for part in sig_header_split {
+        let mut part_split = part.split("=");
+
+        let part_title = part_split.next().ok_or(InvalidHeader(format!(
+            "Cannot get the component from the header to verify stripe webhook: {:?}",
+            stripe_sig
+        )))?;
+
+        let part_value = part_split.last().ok_or(InvalidHeader(format!(
+            "Cannot get the component from the header to verify stripe webhook: {:?}",
+            stripe_sig
+        )))?;
+
+        if part_title == "t" {
+            maybe_time = Some(part_value);
+        } else if part_title == "v1" {
+            maybe_expected_sig = Some(part_value);
+        }
+    }
+
+    let time = match maybe_time {
+        None => {
+            return Err(InvalidHeader(format!(
+                "Cannot get header information for verification: {:?}",
+                stripe_sig
+            )))
+        }
+        Some(time) => time,
+    };
+
+    let expected_sig = match maybe_expected_sig {
+        None => {
+            return Err(InvalidHeader(format!(
+                "Cannot get header information for verification: {:?}",
+                stripe_sig
+            )))
+        }
+        Some(expected_sig) => expected_sig,
+    };
+
+    let signed_payload = format!("{}.{}", time, json);
+
+    let mut mac = Hmac::<Sha256>::new_from_slice(state.config.stripe.signing_secret.as_bytes())
+        .map_err(|e| {
+            StripeWebhookError::InternalError(format!(
+                "Cannot create hmac for verifying json: {:?}",
+                e
+            ))
+        })?;
+
+    mac.update(signed_payload.as_bytes());
+
+    let expected_sig_bytes = hex::decode(expected_sig)
+        .map_err(|e| VerificationError(format!("Could not verify stripe webhook: {}", e)))?;
+
+    mac.verify_slice(expected_sig_bytes.as_slice())
+        .map_err(|e| VerificationError(format!("Could not verify stripe webhook: {}", e)))
 }
