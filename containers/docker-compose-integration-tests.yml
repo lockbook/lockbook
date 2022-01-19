@@ -49,6 +49,8 @@ services:
         LOCKBOOK_DEBUG=1 cargo test --release --no-fail-fast --all -- --nocapture \
       '
 
+  # This is a place you can run tests and modify the db at the same time (server/tests), but there are no longer any
+  # such tests so for now this is not used.
   server_tests:
     container_name: server_tests-client-$HASH
     image: server_tests:$HASH
