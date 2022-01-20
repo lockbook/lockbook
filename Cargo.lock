@@ -1896,7 +1896,7 @@ dependencies = [
  "lockbook-models",
  "lockbook-server",
  "redis",
- "redis_utils",
+ "redis_utils 0.1.1",
  "rust-s3",
  "structopt",
  "tokio",
@@ -2122,7 +2122,7 @@ dependencies = [
  "pagerduty-rs",
  "prometheus",
  "redis",
- "redis_utils",
+ "redis_utils 0.1.2",
  "rust-s3",
  "serde",
  "serde_json",
@@ -2921,6 +2921,16 @@ name = "redis_utils"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3c2eab13ff006564744afdec7f8ca48cf0f658666e468d2804e3b60ddbbbb35"
+dependencies = [
+ "async-trait",
+ "redis",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "redis_utils"
+version = "0.1.2"
 dependencies = [
  "async-trait",
  "redis",
