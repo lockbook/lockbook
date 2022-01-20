@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -6,7 +5,9 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_crypto::symkey;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::FileMetadata;
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
@@ -60,13 +61,12 @@ pub fn apply_create(
     let file = create(file_type, parent, name, owner);
     validate_not_root(&file)?;
     validate_file_name(name)?;
-    let parent = find(files, parent).map_err(|e| match e {
-        CoreError::FileNonexistent => CoreError::FileParentNonexistent,
-        e => e,
-    })?;
+    let parent = files
+        .maybe_find(parent)
+        .ok_or(CoreError::FileParentNonexistent)?;
     validate_is_folder(&parent)?;
 
-    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
+    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
         return Err(CoreError::PathTaken);
     }
 
@@ -79,12 +79,12 @@ pub fn apply_rename(
     target_id: Uuid,
     new_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    let mut file = find(files, target_id)?;
+    let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
     validate_file_name(new_name)?;
 
     file.decrypted_name = String::from(new_name);
-    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
+    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
         return Err(CoreError::PathTaken);
     }
 
@@ -97,19 +97,18 @@ pub fn apply_move(
     target_id: Uuid,
     new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    let mut file = find(files, target_id)?;
-    let parent = find(files, new_parent).map_err(|err| match err {
-        CoreError::FileNonexistent => CoreError::FileParentNonexistent,
-        e => e,
-    })?;
+    let mut file = files.find(target_id)?;
+    let parent = files
+        .maybe_find(new_parent)
+        .ok_or(CoreError::FileParentNonexistent)?;
     validate_not_root(&file)?;
     validate_is_folder(&parent)?;
 
     file.parent = new_parent;
-    if !get_invalid_cycles(files, &[file.clone()])?.is_empty() {
+    if !files.get_invalid_cycles(&[file.clone()])?.is_empty() {
         return Err(CoreError::FolderMovedIntoSelf);
     }
-    if !get_path_conflicts(files, &[file.clone()])?.is_empty() {
+    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
         return Err(CoreError::PathTaken);
     }
 
@@ -122,7 +121,7 @@ pub fn apply_delete(
     files: &[DecryptedFileMetadata],
     target_id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    let mut file = find(files, target_id)?;
+    let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
 
     file.deleted = true;
@@ -156,105 +155,19 @@ fn validate_file_name(name: &str) -> Result<(), CoreError> {
     Ok(())
 }
 
-pub fn get_invalid_cycles<Fm: FileMetadata>(
-    files: &[Fm],
-    staged_changes: &[Fm],
-) -> Result<Vec<Uuid>, CoreError> {
-    let maybe_root = maybe_find_root(files);
-    let files_with_sources = stage(files, staged_changes);
-    let files = &files_with_sources
-        .iter()
-        .map(|(f, _)| f.clone())
-        .collect::<Vec<Fm>>();
-    let mut result = Vec::new();
-    let mut found_root = maybe_root.is_some();
-
-    for file in files {
-        let mut ancestor_single = find_parent(files, file.id())?;
-        let mut ancestor_double = find_parent(files, ancestor_single.id())?;
-        while ancestor_single.id() != ancestor_double.id() {
-            ancestor_single = find_parent(files, ancestor_single.id())?;
-            ancestor_double = find_parent(files, find_parent(files, ancestor_double.id())?.id())?;
-        }
-        if ancestor_single.id() == file.id() {
-            // root in files -> non-root cycles invalid
-            // no root in files -> accept first root from staged_changes
-            if let Some(ref root) = maybe_root {
-                if file.id() != root.id() {
-                    result.push(file.id());
-                }
-            } else if !found_root {
-                found_root = true;
-            } else {
-                result.push(file.id());
-            }
-        }
-    }
-
-    Ok(result)
-}
-
-#[derive(Debug, PartialEq)]
-pub struct PathConflict {
-    pub existing: Uuid,
-    pub staged: Uuid,
-}
-
-pub fn get_path_conflicts<Fm: FileMetadata>(
-    files: &[Fm],
-    staged_changes: &[Fm],
-) -> Result<Vec<PathConflict>, CoreError> {
-    let files_with_sources = stage(files, staged_changes);
-    let files = &files_with_sources
-        .iter()
-        .map(|(f, _)| f.clone())
-        .collect::<Vec<Fm>>();
-    let files = filter_not_deleted(files)?;
-    let mut result = Vec::new();
-
-    for file in &files {
-        let children = find_children(&files, file.id());
-        let mut child_ids_by_name: HashMap<Fm::Name, Uuid> = HashMap::new();
-        for child in children {
-            if let Some(conflicting_child_id) = child_ids_by_name.get(&child.name()) {
-                let (_, child_source) = files_with_sources
-                    .iter()
-                    .find(|(f, _)| f.id() == child.id())
-                    .ok_or_else(|| {
-                        CoreError::Unexpected(String::from(
-                            "get_path_conflicts: could not find child by id",
-                        ))
-                    })?;
-                match child_source {
-                    StageSource::Base => result.push(PathConflict {
-                        existing: child.id(),
-                        staged: conflicting_child_id.to_owned(),
-                    }),
-                    StageSource::Staged => result.push(PathConflict {
-                        existing: conflicting_child_id.to_owned(),
-                        staged: child.id(),
-                    }),
-                }
-            }
-            child_ids_by_name.insert(child.name(), child.id());
-        }
-    }
-
-    Ok(result)
-}
-
 pub fn suggest_non_conflicting_filename(
     id: Uuid,
     files: &[DecryptedFileMetadata],
     staged_changes: &[DecryptedFileMetadata],
 ) -> Result<String, CoreError> {
-    let files: Vec<DecryptedFileMetadata> = stage(files, staged_changes)
+    let files: Vec<DecryptedFileMetadata> = files
+        .stage(staged_changes)
         .iter()
         .map(|(f, _)| f.clone())
         .collect();
 
-    let file = find(&files, id)?;
-    let sibblings = find_children(&files, file.parent);
+    let file = files.find(id)?;
+    let sibblings = files.find_children(file.parent);
 
     let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
     loop {
@@ -280,22 +193,6 @@ pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), Co
     Ok(())
 }
 
-pub fn find<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<Fm, CoreError> {
-    maybe_find(files, target_id).ok_or(CoreError::FileNonexistent)
-}
-
-pub fn maybe_find<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Option<Fm> {
-    files.iter().find(|f| f.id() == target_id).cloned()
-}
-
-pub fn find_mut<Fm: FileMetadata>(files: &mut [Fm], target_id: Uuid) -> Result<&mut Fm, CoreError> {
-    maybe_find_mut(files, target_id).ok_or(CoreError::FileNonexistent)
-}
-
-pub fn maybe_find_mut<Fm: FileMetadata>(files: &mut [Fm], target_id: Uuid) -> Option<&mut Fm> {
-    files.iter_mut().find(|f| f.id() == target_id)
-}
-
 pub fn find_state<Fm: FileMetadata>(
     files: &[RepoState<Fm>],
     target_id: Uuid,
@@ -314,19 +211,10 @@ pub fn maybe_find_state<Fm: FileMetadata>(
     } == target_id).cloned()
 }
 
-pub fn find_parent<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<Fm, CoreError> {
-    maybe_find_parent(files, target_id).ok_or(CoreError::FileParentNonexistent)
-}
-
-pub fn maybe_find_parent<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Option<Fm> {
-    let file = maybe_find(files, target_id)?;
-    maybe_find(files, file.parent())
-}
-
 pub fn find_ancestors<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm> {
     let mut result = Vec::new();
     let mut current_target_id = target_id;
-    while let Some(target) = maybe_find(files, current_target_id) {
+    while let Some(target) = files.maybe_find(current_target_id) {
         result.push(target.clone());
         if target.id() == target.parent() {
             break;
@@ -348,13 +236,13 @@ pub fn find_with_descendants<Fm: FileMetadata>(
     files: &[Fm],
     target_id: Uuid,
 ) -> Result<Vec<Fm>, CoreError> {
-    let mut result = vec![find(files, target_id)?];
+    let mut result = vec![files.find(target_id)?];
     let mut i = 0;
     while i < result.len() {
         let target = result.get(i).ok_or_else(|| {
             CoreError::Unexpected(String::from("find_with_descendants: missing target"))
         })?;
-        let children = find_children(files, target.id());
+        let children = files.find_children(target.id());
         for child in children {
             if child.id() != target_id {
                 result.push(child);
@@ -365,90 +253,19 @@ pub fn find_with_descendants<Fm: FileMetadata>(
     Ok(result)
 }
 
-pub fn find_root<Fm: FileMetadata>(files: &[Fm]) -> Result<Fm, CoreError> {
-    maybe_find_root(files).ok_or(CoreError::RootNonexistent)
-}
-
-pub fn maybe_find_root<Fm: FileMetadata>(files: &[Fm]) -> Option<Fm> {
-    files.iter().find(|&f| f.id() == f.parent()).cloned()
-}
-
 pub fn is_deleted<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<bool, CoreError> {
-    Ok(filter_deleted(files)?
+    Ok(files
+        .filter_deleted()?
         .into_iter()
         .any(|f| f.id() == target_id))
-}
-
-/// Returns the files which are not deleted and have no deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
-pub fn filter_not_deleted<Fm: FileMetadata>(files: &[Fm]) -> Result<Vec<Fm>, CoreError> {
-    let deleted = filter_deleted(files)?;
-    Ok(files
-        .iter()
-        .filter(|f| !deleted.iter().any(|nd| nd.id() == f.id()))
-        .cloned()
-        .collect())
-}
-
-/// Returns the files which are deleted or have deleted ancestors. It is an error for the parent of a file argument not to also be included in the arguments.
-pub fn filter_deleted<Fm: FileMetadata>(files: &[Fm]) -> Result<Vec<Fm>, CoreError> {
-    let mut result = Vec::new();
-    for file in files {
-        let mut ancestor = file.clone();
-        loop {
-            if ancestor.deleted() {
-                result.push(file.clone());
-                break;
-            }
-
-            let parent = find(files, ancestor.parent())?;
-            if ancestor.id() == parent.id() {
-                break;
-            }
-            ancestor = parent;
-            if ancestor.id() == file.id() {
-                break; // this is a cycle but not our problem
-            }
-        }
-    }
-    Ok(result)
-}
-
-/// Returns the files which are documents.
-pub fn filter_documents<Fm: FileMetadata>(files: &[Fm]) -> Vec<Fm> {
-    files
-        .iter()
-        .filter(|f| f.file_type() == FileType::Document)
-        .cloned()
-        .collect()
-}
-
-pub enum StageSource {
-    Base,
-    Staged,
-}
-
-pub fn stage<Fm: FileMetadata>(files: &[Fm], staged_changes: &[Fm]) -> Vec<(Fm, StageSource)> {
-    let mut result = Vec::new();
-    for file in files {
-        if let Some(ref staged) = maybe_find(staged_changes, file.id()) {
-            result.push((staged.clone(), StageSource::Staged));
-        } else {
-            result.push((file.clone(), StageSource::Base));
-        }
-    }
-    for staged in staged_changes {
-        if maybe_find(files, staged.id()).is_none() {
-            result.push((staged.clone(), StageSource::Staged));
-        }
-    }
-    result
 }
 
 #[cfg(test)]
 mod unit_tests {
     use lockbook_models::file_metadata::FileType;
+    use lockbook_models::tree::{FileMetaExt, PathConflict};
 
-    use crate::pure_functions::files::{self, PathConflict};
+    use crate::pure_functions::files::{self};
     use crate::{service::test_utils, CoreError};
 
     #[test]
@@ -674,8 +491,9 @@ mod unit_tests {
         let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
         let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.username);
 
-        let path_conflicts =
-            files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
+        let path_conflicts = &[root, folder1.clone()]
+            .get_path_conflicts(&[folder2.clone()])
+            .unwrap();
 
         assert_eq!(path_conflicts.len(), 0);
     }
@@ -687,8 +505,9 @@ mod unit_tests {
         let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
         let folder2 = files::create(FileType::Folder, root.id, "folder", &account.username);
 
-        let path_conflicts =
-            files::get_path_conflicts(&[root, folder1.clone()], &[folder2.clone()]).unwrap();
+        let path_conflicts = &[root, folder1.clone()]
+            .get_path_conflicts(&[folder2.clone()])
+            .unwrap();
 
         assert_eq!(path_conflicts.len(), 1);
         assert_eq!(

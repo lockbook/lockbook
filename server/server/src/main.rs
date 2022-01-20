@@ -6,6 +6,7 @@ use lockbook_server_lib::config::Config;
 
 use lockbook_server_lib::*;
 
+use deadpool_redis::Runtime;
 use log::info;
 use reqwest::Client;
 use std::sync::Arc;
@@ -19,17 +20,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loggers::init(&config);
 
     // *** Things this server connects to ***
-    let index_db_client = file_index_repo::connect(&config.index_db)
-        .await
-        .expect("Failed to connect to index_db");
-
     let files_db_client = file_content_client::create_client(&config.files_db)
         .expect("Failed to create files_db client");
 
+    let index_db_pool = deadpool_redis::Config::from_url(&config.index_db.redis_url)
+        .create_pool(Some(Runtime::Tokio1))
+        .unwrap();
+
     let server_state = Arc::new(ServerState {
         config: config.clone(),
+        index_db_pool,
         stripe_client: Client::new(),
-        index_db_client,
         files_db_client,
     });
 

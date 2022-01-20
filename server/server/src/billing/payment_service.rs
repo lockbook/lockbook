@@ -6,9 +6,7 @@ use crate::billing::stripe_model::{
     StripeBillingReason, StripeEventType, StripeMaybeContainer, StripeObjectType,
     StripeWebhookResponse,
 };
-use crate::file_index_repo::{GetLastStripeCreditCardInfoError, FREE_TIER_SIZE, MONTHLY_TIER_SIZE};
 use crate::ServerError::{ClientError, InternalError};
-use crate::{file_index_repo, RequestContext, ServerError, ServerState, StripeClientError};
 use hmac::{Hmac, Mac};
 use libsecp256k1::PublicKey;
 use lockbook_models::api::{
@@ -16,10 +14,10 @@ use lockbook_models::api::{
     SwitchAccountTierError, SwitchAccountTierRequest, SwitchAccountTierResponse,
 };
 use sha2::Sha256;
-use sqlx::{Postgres, Transaction};
 use std::sync::Arc;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
+use crate::{account_service, FREE_TIER_USAGE_SIZE, MONTHLY_TIER_USAGE_SIZE, RequestContext, ServerError, ServerState, StripeClientError};
 
 pub async fn switch_account_tier(
     context: RequestContext<'_, SwitchAccountTierRequest>,
@@ -33,15 +31,13 @@ pub async fn switch_account_tier(
         }
     };
 
-    let data_cap = file_index_repo::get_account_data_cap(&mut transaction, &context.public_key)
-        .await
-        .map_err(|e| InternalError(format!("Cannot get account data cap in Postgres: {:?}", e)))?;
+    let data_cap = account_service::get_data_cap(&server_state.index_db_pool, &context.public_key).await?;
 
     match (data_cap as i64, &request.account_tier) {
-        (FREE_TIER_SIZE, AccountTier::Monthly(card)) => {
+        (FREE_TIER_USAGE_SIZE, AccountTier::Monthly(card)) => {
             create_subscription(&context.public_key, server_state, &mut transaction, card).await?;
         }
-        (FREE_TIER_SIZE, AccountTier::Free) | (_, AccountTier::Monthly(_)) => {
+        (FREE_TIER_USAGE_SIZE, AccountTier::Free) | (_, AccountTier::Monthly(_)) => {
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         }
         (_, AccountTier::Free) => {
@@ -53,7 +49,7 @@ pub async fn switch_account_tier(
                     .map(|usage| usage.size_bytes)
                     .sum();
 
-            if current_usage > FREE_TIER_SIZE as u64 {
+            if current_usage > FREE_TIER_USAGE_SIZE {
                 return Err(ClientError(
                     SwitchAccountTierError::CurrentUsageIsMoreThanNewTier,
                 ));
@@ -85,7 +81,7 @@ pub async fn switch_account_tier(
             file_index_repo::set_account_data_cap(
                 &mut transaction,
                 &context.public_key,
-                FREE_TIER_SIZE,
+                FREE_TIER_USAGE_SIZE,
             )
             .await
             .map_err(|e| {
@@ -140,7 +136,7 @@ async fn create_subscription(
                     )
                     .await?;
                 }
-                Err(GetLastStripeCreditCardInfoError::NoPaymentInfo) => {}
+                Err(GetCreditCardError::NoPaymentInfo) => {}
                 Err(e) => {
                     return Err(InternalError(format!(
                         "Cannot get stripe payment method info from Postgres: {:?}",
@@ -183,7 +179,7 @@ async fn create_subscription(
                 file_index_repo::get_last_stripe_credit_card_info(&mut transaction, &public_key)
                     .await
                     .map_err(|e| match e {
-                        GetLastStripeCreditCardInfoError::NoPaymentInfo => {
+                        GetCreditCardError::NoPaymentInfo => {
                             ClientError(SwitchAccountTierError::OldCardDoesNotExist)
                         }
                         _ => InternalError(format!(
@@ -237,7 +233,7 @@ async fn create_subscription(
         ))
     })?;
 
-    file_index_repo::set_account_data_cap(&mut transaction, &public_key, MONTHLY_TIER_SIZE)
+    file_index_repo::set_account_data_cap(&mut transaction, &public_key, MONTHLY_TIER_USAGE_SIZE)
         .await
         .map_err(|e| {
             InternalError(format!(
@@ -261,7 +257,7 @@ pub async fn get_credit_card(
         file_index_repo::get_last_stripe_credit_card_info(&mut transaction, &context.public_key)
             .await
             .map_err(|e| match e {
-                GetLastStripeCreditCardInfoError::NoPaymentInfo => {
+                GetCreditCardError::NoPaymentInfo => {
                     ClientError(GetCreditCardError::OldCardDoesNotExist)
                 }
                 _ => InternalError(format!("Cannot get all stripe credit card infos: {:?}", e)),
@@ -319,7 +315,7 @@ pub async fn stripe_webhooks(
                     file_index_repo::set_data_cap_with_stripe_customer_id(
                         &mut transaction,
                         &invoice.customer_id,
-                        FREE_TIER_SIZE,
+                        FREE_TIER_USAGE_SIZE,
                     )
                     .await
                     .map_err(|e| {

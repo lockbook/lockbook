@@ -47,7 +47,7 @@ server_tests: is_docker_running
 	docker build --target server-build -f containers/Dockerfile.server . --tag server_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: server_tests_run
-server_tests_run: server server_tests db_container
+server_tests_run: server server_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up server_tests
 	exit $$(docker wait server_tests-client-$(hash))
 
@@ -103,7 +103,7 @@ core_server_tests: is_docker_running
 	docker build --target core-server-tests -f containers/Dockerfile.core . --tag core_server_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: core_server_tests_run
-core_server_tests_run: core_server_tests server db_container
+core_server_tests_run: core_server_tests server
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up core_server_tests
 	exit $$(docker wait core_server_tests-integration-$(hash))
 
@@ -124,7 +124,7 @@ kotlin_interface_tests: is_docker_running
 	docker build --target kotlin-interface-tests -f containers/Dockerfile.kotlin_interface_tests . --tag kotlin_interface_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: kotlin_interface_tests_run
-kotlin_interface_tests_run: server kotlin_interface_tests db_container
+kotlin_interface_tests_run: server kotlin_interface_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up kotlin_interface_tests
 	exit $$(docker wait kotlin_interface_tests-kotlin-$(hash))
 
@@ -133,7 +133,7 @@ swift_interface_tests: is_docker_running
 	docker build -f containers/Dockerfile.swift_interface_tests . --tag swift_interface_tests:$(hash)
 
 .PHONY: swift_interface_tests_run
-swift_interface_tests_run: server swift_interface_tests db_container
+swift_interface_tests_run: server swift_interface_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up swift_interface_tests
 	exit $$(docker wait swift_interface_tests-swift-$(hash))
 
@@ -142,7 +142,7 @@ csharp_interface_tests: is_docker_running
 	docker build --target csharp-interface-tests -f containers/Dockerfile.csharp_interface_tests . --tag csharp_interface_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: csharp_interface_tests_run
-csharp_interface_tests_run: server csharp_interface_tests db_container
+csharp_interface_tests_run: server csharp_interface_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up csharp_interface_tests
 	exit $$(docker wait csharp_interface_tests-csharp-$(hash))
 
@@ -151,7 +151,7 @@ performance: is_docker_running
 	docker build -f containers/Dockerfile.performance . --tag performance:$(hash)
 
 .PHONY: performance_bench
-performance_bench: performance server db_container
+performance_bench: performance server
 	HASH=$(hash) TYPE="performance" docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up performance_bench
 	exit $$(docker wait performance-performance-$(hash))
 
@@ -159,17 +159,13 @@ performance_bench: performance server db_container
 performance_bench_report: is_docker_running
 	docker container cp "$$(docker inspect --format="{{.Id}}" performance-performance-$(hash))":/core/simple-create_write_read.svg .
 
-.PHONY: db_container
-db_container: is_docker_running
-	HASH=$(hash) docker build -f containers/Dockerfile.db . --tag db_with_migration-$(hash)
-
 .PHONY: local_store_of_state
-local_store_of_state: db_container
+local_store_of_state:
 	HASH=$(hash) docker-compose \
 		-f containers/docker-compose-integration-tests.yml \
 		-f containers/docker-compose-local-dev.yml \
 		--project-name=lockbook-$(hash) \
-		up -V --detach pgbouncer
+		up -V --detach indexdb
 	HASH=$(hash) docker-compose \
 		-f containers/docker-compose-integration-tests.yml \
 		-f containers/docker-compose-local-dev.yml \
@@ -177,15 +173,15 @@ local_store_of_state: db_container
 		up -V --detach config_filesdb
 
 .PHONY: index_db_run
-index_db_run: db_container
+index_db_run:
 	HASH=$(hash) docker-compose \
 		-f containers/docker-compose-integration-tests.yml \
 		-f containers/docker-compose-local-dev.yml \
 		--project-name=lockbook-$(hash) \
-		up -V config_indexdb
+		up -V indexdb
 
 .PHONY: files_db_run
-files_db_run: db_container
+files_db_run:
 	HASH=$(hash) docker-compose \
 		-f containers/docker-compose-integration-tests.yml \
 		-f containers/docker-compose-local-dev.yml \
@@ -193,7 +189,7 @@ files_db_run: db_container
 		up -V config_filesdb
 
 .PHONY: dev_stack_run
-dev_stack_run: server db_container
+dev_stack_run: server
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --detach lockbook_server
 	sleep 5
 

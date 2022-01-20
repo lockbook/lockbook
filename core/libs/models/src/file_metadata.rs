@@ -1,7 +1,6 @@
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt;
-use std::hash::Hash;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -9,6 +8,7 @@ use uuid::Uuid;
 
 use crate::account::Username;
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
+use crate::tree::FileMetadata;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
@@ -25,19 +25,6 @@ impl FromStr for FileType {
             _ => Err(()),
         }
     }
-}
-
-pub trait FileMetadata: Clone {
-    type Name: Hash + Eq;
-
-    fn id(&self) -> Uuid;
-    fn file_type(&self) -> FileType;
-    fn parent(&self) -> Uuid;
-    fn name(&self) -> Self::Name;
-    fn owner(&self) -> String;
-    fn metadata_version(&self) -> u64;
-    fn content_version(&self) -> u64;
-    fn deleted(&self) -> bool;
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
@@ -161,6 +148,7 @@ pub struct FileMetadataDiff {
     pub new_name: SecretFileName,
     pub new_deleted: bool,
     pub new_folder_access_keys: EncryptedFolderAccessKey,
+    pub owner: String,
 }
 
 impl FileMetadataDiff {
@@ -173,6 +161,7 @@ impl FileMetadataDiff {
             new_name: metadata.name.clone(),
             new_deleted: metadata.deleted,
             new_folder_access_keys: metadata.folder_access_keys.clone(),
+            owner: metadata.owner.clone(),
         }
     }
 
@@ -189,6 +178,7 @@ impl FileMetadataDiff {
             new_name: new_metadata.name.clone(),
             new_deleted: new_metadata.deleted,
             new_folder_access_keys: new_metadata.folder_access_keys.clone(),
+            owner: new_metadata.owner.clone(),
         }
     }
 }
