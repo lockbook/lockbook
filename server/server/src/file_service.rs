@@ -160,15 +160,34 @@ pub async fn change_document_content(
     let mut con = server_state.index_db_pool.get().await?;
 
     let watched_keys = &[file(request.id), size(request.id)];
-    let mut new_version = 0;
+    let new_version = get_time().0 as u64;
+
     let mut old_content_version = 0;
+
+    // TODO if the transaction is aborted, we'll be paying for this file and not the customer
+    // Ideally we have a mechanism to push async tasks on to a queue for background processing
+    file_content_client::create(
+        &server_state.files_db_client,
+        request.id,
+        new_version,
+        &request.new_content,
+    )
+    .await
+    .map_err(|err| {
+        internal!(
+            "Cannot create file: {}:{}:{} in S3: {:?}",
+            request.id,
+            request.old_metadata_version,
+            new_version,
+            err
+        )
+    })?;
 
     let tx = tx!(&mut con, pipe, watched_keys, {
         let new_size = FileUsage {
             file_id: request.id,
             size_bytes: request.new_content.value.len() as u64,
         };
-        new_version = get_time().0 as u64;
         let mut meta: EncryptedFileMetadata =
             con.maybe_json_get(file(request.id))
                 .await?
@@ -202,22 +221,6 @@ pub async fn change_document_content(
     });
     return_if_error!(tx);
 
-    file_content_client::create(
-        &server_state.files_db_client,
-        request.id,
-        new_version,
-        &request.new_content,
-    )
-    .await
-    .map_err(|err| {
-        internal!(
-            "Cannot create file: {}:{}:{} in S3: {:?}",
-            request.id,
-            request.old_metadata_version,
-            new_version,
-            err
-        )
-    })?;
     file_content_client::delete(
         &server_state.files_db_client,
         request.id,
