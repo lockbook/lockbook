@@ -76,9 +76,7 @@ mod get_usage_tests {
         delete_file(&config, file.id).unwrap();
         sync_all!(&config).unwrap();
 
-        assert_eq!(get_usage(&config).unwrap().usages[0].file_id, file.id);
-        assert_eq!(get_usage(&config).unwrap().usages.len(), 1);
-        assert_eq!(get_usage(&config).unwrap().usages[0].size_bytes, 0)
+        assert!(get_usage(&config).unwrap().usages.is_empty());
     }
 
     #[test]
@@ -105,20 +103,19 @@ mod get_usage_tests {
         write_document(&config, file3.id, &String::from("0000000000").into_bytes()).unwrap();
 
         sync_all!(&config).unwrap();
+        let usages = get_usage(&config).unwrap();
+        assert_eq!(usages.usages.len(), 3);
         delete_file(&config, folder.id).unwrap();
+        for usage in usages.usages {
+            assert_ne!(usage.size_bytes, 0);
+            println!("{:?}", usage);
+        }
         sync_all!(&config).unwrap();
 
-        let local_encrypted = document_repo::get(&config, RepoSource::Base, file.id)
-            .unwrap()
-            .value;
+        document_repo::get(&config, RepoSource::Base, file.id).unwrap();
 
-        let usages = get_usage(&config).unwrap();
-        let mut total_usage = 0;
-        for usage in usages.usages {
-            total_usage += usage.size_bytes;
-        }
+        let usage = get_usage(&config).unwrap_or_else(|err| panic!("{:?}", err));
 
-        assert_eq!(get_usage(&config).unwrap().usages.len(), 3);
-        assert_eq!(total_usage, local_encrypted.len() as u64)
+        assert_eq!(usage.usages.len(), 1);
     }
 }
