@@ -67,7 +67,6 @@ pub fn create_account(
             return Err(core_err_unexpected(e));
         }
     };
-    root_metadata.content_version = root_metadata.metadata_version;
 
     debug!(
         "{}",
