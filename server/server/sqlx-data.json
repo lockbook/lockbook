@@ -1,18 +1,5 @@
 {
   "db": "PostgreSQL",
-  "018640210c1dce55f10c8f6462d3d7760ee9397cce839bb8c817a400d4f52d6f": {
-    "query": "\nINSERT INTO stripe_subscriptions (subscription_id, customer_id, active) VALUES ($1, $2, TRUE);\n        ",
-    "describe": {
-      "columns": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text"
-        ]
-      },
-      "nullable": []
-    }
-  },
   "0378be30e1d712ef25da62ed79412d2a8f1ed6dbbcf677e507589f531e6983da": {
     "query": "\nSELECT\n    files.*,\n    user_access_keys.encrypted_key AS \"encrypted_key?\",\n    accounts.public_key,\n    accounts.name AS username\nFROM files\nJOIN accounts ON files.owner = accounts.public_key\nLEFT JOIN user_access_keys ON files.id = user_access_keys.file_id AND accounts.public_key = user_access_keys.sharee\nWHERE\n    accounts.public_key = $1 AND\n    metadata_version > $2;\n        ",
     "describe": {
@@ -152,18 +139,30 @@
       ]
     }
   },
-  "243d86837b88d293724a491cfd969b9059ecce42a26b91b40a45f1c49b8b2c25": {
-    "query": "\nINSERT INTO stripe_payment_methods (payment_method_id, customer_id, last_4, deleted, is_default) VALUES ($1, $2, $3, FALSE, FALSE);\n        ",
+  "26762cdae1bb84094d8ecb7236633093ed5c1ff86ed222112fbfbedf91ee4a26": {
+    "query": "\nWITH stripe_customer_id AS (\n    SELECT stripe_customer_id\n    FROM account_tiers\n    WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)\n)\nSELECT payment_method_id, last_4 FROM stripe_payment_methods WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id) AND created_at = (SELECT MAX(created_at) FROM stripe_payment_methods WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id));\n        ",
     "describe": {
-      "columns": [],
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "payment_method_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "last_4",
+          "type_info": "Text"
+        }
+      ],
       "parameters": {
         "Left": [
-          "Text",
-          "Text",
           "Text"
         ]
       },
-      "nullable": []
+      "nullable": [
+        false,
+        false
+      ]
     }
   },
   "28b05a758fa44ead5f15283ea15974546be35f0c38240b8a23c8fc054bdf0202": {
@@ -456,32 +455,6 @@
       ]
     }
   },
-  "7f1455c9a69b123cc8a7efedf78d6bdb28ed88a2ad015de87e8da7c125b7cfbd": {
-    "query": "\nWITH stripe_customer_id AS (\n    SELECT stripe_customer_id\n    FROM account_tiers\n    WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $1)\n)\nSELECT payment_method_id, last_4 FROM stripe_payment_methods WHERE customer_id = (SELECT stripe_customer_id FROM stripe_customer_id) AND deleted = FALSE;\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "payment_method_id",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "last_4",
-          "type_info": "Text"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text"
-        ]
-      },
-      "nullable": [
-        false,
-        false
-      ]
-    }
-  },
   "80272dfbfc9eab12a7e295bc7726fef3e493d04eda339d4a8946a1dbcfdc8031": {
     "query": "\nWITH nu AS (\n    INSERT INTO stripe_customers (customer_id) VALUES ($1)\n)\nUPDATE account_tiers SET stripe_customer_id = $1 WHERE id = (SELECT account_tier FROM accounts WHERE public_key = $2);\n        ",
     "describe": {
@@ -513,18 +486,6 @@
       "nullable": [
         false
       ]
-    }
-  },
-  "9258ff35ac45cbcddfa38692c307c0f6901f0c8f5ac958296d603487de56f49d": {
-    "query": "\nUPDATE stripe_payment_methods SET deleted = TRUE WHERE payment_method_id = $1\n        ",
-    "describe": {
-      "columns": [],
-      "parameters": {
-        "Left": [
-          "Text"
-        ]
-      },
-      "nullable": []
     }
   },
   "88a3b8b4f839d31f47c47d46cd4617f48973a7abe8a116fdb9dbade43df8bf22": {
@@ -571,6 +532,20 @@
       "nullable": [
         false
       ]
+    }
+  },
+  "b6ef0658e33dbcd6e339268b880971f44a385fac2c5f1631972a5ce2553530e8": {
+    "query": "\nINSERT INTO stripe_subscriptions (subscription_id, customer_id, period_end, active) VALUES ($1, $2, $3, TRUE);\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Int8"
+        ]
+      },
+      "nullable": []
     }
   },
   "b9d28fb984c7871adfe5eeb0dd2c5bedb4ca3a45d448e3b6b68da796adc10b23": {
@@ -643,30 +618,31 @@
       ]
     }
   },
-  "c69b753cb7f9f80e3e013345e15dba1aca55d705bf4d0552e9439025e005ff42": {
-    "query": "\n        SELECT\n            files.id,\n            files.document_size as \"document_size!\"\n        FROM files\n        WHERE\n            NOT files.is_folder AND\n            NOT files.deleted AND\n            files.owner = $1\n        ",
+  "cdcaa8915755d7b1c13f715145dad1c051cc62da03ebfe339476afea78f98092": {
+    "query": "\nUPDATE stripe_subscriptions SET period_end = $2 WHERE subscription_id = $1\n        ",
     "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "document_size!",
-          "type_info": "Int8"
-        }
-      ],
+      "columns": [],
       "parameters": {
         "Left": [
+          "Text",
+          "Int8"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "d52bff6f0c8d5ddad8511fc662eedf57e2d25f67f5e7c2e8193a761bf8f50d0f": {
+    "query": "\nINSERT INTO stripe_payment_methods (payment_method_id, customer_id, last_4) VALUES ($1, $2, $3);\n        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
           "Text"
         ]
       },
-      "nullable": [
-        false,
-        true
-      ]
+      "nullable": []
     }
   },
   "e06c1a0a2f9849aa59eed57ebc22feae4770ed7aab5c73c2e65af08471ac29c4": {

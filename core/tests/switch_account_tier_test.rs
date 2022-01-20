@@ -1,5 +1,3 @@
-mod integration_test;
-
 #[cfg(test)]
 mod switch_account_tier_test {
     use lockbook_core::assert_matches;

@@ -1,7 +1,5 @@
-mod integration_test;
-
 #[cfg(test)]
-mod get_last_registered_credit_card_test {
+mod get_credit_card_test {
     use lockbook_core::assert_matches;
     use lockbook_core::service::api_service;
     use lockbook_core::service::api_service::ApiError;
@@ -11,7 +9,7 @@ mod get_last_registered_credit_card_test {
     use lockbook_models::api::*;
 
     #[test]
-    fn get_last_registered_credit_card() {
+    fn get_credit_card() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
 
@@ -38,7 +36,7 @@ mod get_last_registered_credit_card_test {
     }
 
     #[test]
-    fn get_last_registered_credit_card_does_not_exist() {
+    fn get_credit_card_does_not_exist() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
 
