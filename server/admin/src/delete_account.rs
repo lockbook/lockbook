@@ -1,53 +1,20 @@
-use lockbook_server_lib::{file_content_client, file_index_repo, ServerState};
+use lockbook_models::api::DeleteAccountRequest;
+use lockbook_server_lib::account_service::{public_key_from_username, purge_account};
+use lockbook_server_lib::{RequestContext, ServerState};
 
 pub async fn delete_account(server_state: ServerState, username: &str) -> bool {
-    let mut transaction = server_state.index_db_client.begin().await.unwrap();
-
-    // Ensure this is a real user
-    let pk = file_index_repo::get_public_key(&mut transaction, username)
+    let public_key = public_key_from_username(username, &server_state)
         .await
-        .expect(&format!("Could not find public key for user {}", &username));
+        .expect(&format!("Could not get public key for user: {}", username))
+        .key;
 
-    file_index_repo::delete_account_access_keys(&mut transaction, &pk)
-        .await
-        .expect("Failed to delete account access keys");
+    purge_account(RequestContext {
+        server_state: &server_state,
+        request: DeleteAccountRequest {},
+        public_key,
+    })
+    .await
+    .expect(&format!("Could not get public key for user: {}", username));
 
-    let files = file_index_repo::delete_all_files_of_account(&mut transaction, &pk)
-        .await
-        .expect("Failed to delete all files of account");
-
-    file_index_repo::delete_account(&mut transaction, username)
-        .await
-        .expect("Failed to delete account");
-
-    transaction
-        .commit()
-        .await
-        .expect("Failed to commit transaction");
-
-    let mut ok = true;
-
-    for file in files {
-        if !file.is_folder {
-            let problem = file_content_client::delete(
-                &server_state.files_db_client,
-                file.id,
-                file.old_content_version,
-            )
-            .await
-            .map_err(|err| {
-                eprintln!(
-                    "Failed to delete file in s3: {}, error: {:#?}",
-                    file.id, err
-                )
-            })
-            .is_err();
-
-            if problem {
-                ok = false;
-            }
-        }
-    }
-
-    ok
+    true
 }
