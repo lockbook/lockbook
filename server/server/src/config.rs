@@ -1,26 +1,14 @@
 use std::env;
 
 #[derive(Clone)]
-pub struct IndexDbConfig {
-    pub user: String,
-    pub pass: String,
-    pub host: String,
-    pub port: u16,
-    pub db: String,
-    pub cert: String,
-    pub pool_size: u32,
+pub struct IndexDbConf {
+    pub redis_url: String,
 }
 
-impl IndexDbConfig {
-    pub fn from_env_vars() -> IndexDbConfig {
-        IndexDbConfig {
-            host: env_or_panic("INDEX_DB_HOST"),
-            port: env_or_panic("INDEX_DB_PORT").parse().unwrap(),
-            db: env_or_panic("INDEX_DB_DB"),
-            user: env_or_panic("INDEX_DB_USER"),
-            pass: env_or_panic("INDEX_DB_PASS"),
-            cert: env_or_panic("INDEX_DB_CERT"),
-            pool_size: env_or_panic("INDEX_DB_POOL_SIZE").parse().unwrap(),
+impl IndexDbConf {
+    pub fn from_env_vars() -> Self {
+        Self {
+            redis_url: env_or_panic("INDEX_DB_REDIS_URL"),
         }
     }
 }
@@ -89,15 +77,15 @@ impl ServerConfig {
 
 #[derive(Clone)]
 pub struct Config {
-    pub index_db: IndexDbConfig,
+    pub index_db: IndexDbConf,
     pub files_db: FilesDbConfig,
     pub server: ServerConfig,
 }
 
 impl Config {
-    pub fn from_env_vars() -> Config {
-        Config {
-            index_db: IndexDbConfig::from_env_vars(),
+    pub fn from_env_vars() -> Self {
+        Self {
+            index_db: IndexDbConf::from_env_vars(),
             files_db: FilesDbConfig::from_env_vars(),
             server: ServerConfig::from_env_vars(),
         }

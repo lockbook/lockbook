@@ -4,13 +4,14 @@
 
 FileDb is a key value store optimized for storing arbitary objects. This is where all the encrypted content lives.
 
-### IndexDb - Postgres
+### IndexDb - Redis
 
 Database API Nodes use to keep track of users and files. For every user, we store their `username` and their `public_key`. For each file, we store:
 
 + The location of the encrypted contents within FileDb
 + Version information (primarily to avoid race conditions)
 + Various access levels and ownership information related to the file
++ The schema is documented [here](redis-schema.md).
 
 ### API Nodes 
 

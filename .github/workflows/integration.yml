@@ -148,8 +148,6 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
-      - name: DB Config Image
-        run: make db_container
       - name: Spin up dev stack
         run: make dev_stack_run
 
@@ -162,16 +160,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: Core-Server-DB Tests
         run: make core_server_tests_run
-
-  Server-DB:
-    runs-on: [self-hosted, dockerized]
-    needs: Run-Dev-Stack
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Server-DB
-        run: make server_tests_run
 
   Kotlin-Core:
     runs-on: [self-hosted, dockerized]
@@ -205,7 +193,7 @@ jobs:
 
   Clean-Up:
     runs-on: [self-hosted, dockerized]
-    needs: [Core-Server-Db, Server-DB, Kotlin-Core, Swift-Core, CSharp-Core]
+    needs: [Core-Server-Db, Kotlin-Core, Swift-Core, CSharp-Core]
     if: always()
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

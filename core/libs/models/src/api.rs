@@ -67,6 +67,8 @@ impl Request for FileMetadataUpsertsRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum FileMetadataUpsertsError {
+    UserNotFound,
+    RootImmutable,
     GetUpdatesRequired,
 }
 
@@ -84,12 +86,10 @@ pub struct ChangeDocumentContentResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum ChangeDocumentContentError {
-    InvalidUsername,
-    NotPermissioned,
-    UserNotFound,
     DocumentNotFound,
-    EditConflict,
     DocumentDeleted,
+    NotPermissioned,
+    EditConflict,
 }
 
 impl Request for ChangeDocumentContentRequest {
@@ -168,7 +168,6 @@ pub struct FileUsage {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetUsageError {
-    InvalidUsername,
     UserNotFound,
 }
 
@@ -192,7 +191,6 @@ pub struct GetUpdatesResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetUpdatesError {
     UserNotFound,
-    InvalidUsername,
 }
 
 impl Request for GetUpdatesRequest {
@@ -206,26 +204,16 @@ impl Request for GetUpdatesRequest {
 pub struct NewAccountRequest {
     pub username: Username,
     pub public_key: PublicKey,
-    pub folder_id: Uuid,
-    pub folder_name: SecretFileName,
-    pub parent_access_key: EncryptedFolderAccessKey,
-    pub user_access_key: EncryptedUserAccessKey,
+    pub root_folder: EncryptedFileMetadata,
 }
 
 impl NewAccountRequest {
-    pub fn new(account: &Account, root_metadata: &EncryptedFileMetadata) -> Self {
+    pub fn new(account: &Account, root_folder: &EncryptedFileMetadata) -> Self {
+        let root_folder = root_folder.clone();
         NewAccountRequest {
             username: account.username.clone(),
             public_key: account.public_key(),
-            folder_id: root_metadata.id,
-            folder_name: root_metadata.name.clone(),
-            parent_access_key: root_metadata.folder_access_keys.clone(),
-            user_access_key: root_metadata
-                .user_access_keys
-                .get(&account.username)
-                .expect("file metadata for new account request must have user access key") // TODO: handle better
-                .access_key
-                .clone(),
+            root_folder,
         }
     }
 }
@@ -239,8 +227,6 @@ pub struct NewAccountResponse {
 pub enum NewAccountError {
     UsernameTaken,
     PublicKeyTaken,
-    InvalidPublicKey,
-    InvalidUserAccessKey,
     InvalidUsername,
     FileIdTaken,
 }
@@ -269,4 +255,19 @@ impl Request for GetBuildInfoRequest {
     type Error = GetBuildInfoError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-build-info";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct DeleteAccountRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum DeleteAccountError {
+    UserNotFound,
+}
+
+impl Request for DeleteAccountRequest {
+    type Response = ();
+    type Error = DeleteAccountError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/delete-account";
 }

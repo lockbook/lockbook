@@ -14,12 +14,16 @@ mod new_account_tests {
     }
 
     #[test]
-    fn new_account_duplicate() {
-        let account = generate_account();
-        let (root, _) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+    fn new_account_duplicate_pk() {
+        let first = generate_account();
+        let (root, _) = generate_root_metadata(&first);
+        api_service::request(&first, NewAccountRequest::new(&first, &root)).unwrap();
 
-        let result = api_service::request(&account, NewAccountRequest::new(&account, &root));
+        let mut second = generate_account();
+        second.private_key = first.private_key;
+        let (root, _) = generate_root_metadata(&first);
+
+        let result = api_service::request(&second, NewAccountRequest::new(&second, &root));
         assert_matches!(
             result,
             Err(ApiError::<NewAccountError>::Endpoint(

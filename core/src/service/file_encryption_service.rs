@@ -196,6 +196,7 @@ mod unit_tests {
 
     use lockbook_crypto::symkey;
     use lockbook_models::file_metadata::FileType;
+    use lockbook_models::tree::FileMetaExt;
 
     use crate::pure_functions::files;
     use crate::service::{file_encryption_service, test_utils};
@@ -227,16 +228,16 @@ mod unit_tests {
             file_encryption_service::decrypt_metadata(&account, &encrypted_files).unwrap();
 
         assert_eq!(
-            files::find(&files, root.id).unwrap(),
-            files::find(&decrypted_files, root.id).unwrap(),
+            files.find(root.id).unwrap(),
+            decrypted_files.find(root.id).unwrap(),
         );
         assert_eq!(
-            files::find(&files, folder.id).unwrap(),
-            files::find(&decrypted_files, folder.id).unwrap(),
+            files.find(folder.id).unwrap(),
+            decrypted_files.find(folder.id).unwrap(),
         );
         assert_eq!(
-            files::find(&files, document.id).unwrap(),
-            files::find(&decrypted_files, document.id).unwrap(),
+            files.find(document.id).unwrap(),
+            decrypted_files.find(document.id).unwrap(),
         );
     }
 }

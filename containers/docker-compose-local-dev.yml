@@ -4,17 +4,6 @@ services:
   filesdb:
     ports:
       - "9000:9000"
-
-  pgbouncer:
-    image: edoburu/pgbouncer
-    environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=indexdb
-      - DB_NAME=postgres
-      - POOL_MODE=session
-      - ADMIN_USERS=postgres
+  indexdb:
     ports:
-      - "5432:5432"
-    depends_on:
-      - config_indexdb
+      - "6379:6379"

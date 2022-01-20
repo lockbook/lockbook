@@ -9,10 +9,10 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::pure_functions::files;
 use crate::service::file_service;
 use crate::service::path_service;
 use crate::CoreError;
+use lockbook_models::tree::FileMetaExt;
 
 pub struct ImportExportFileInfo {
     pub disk_path: PathBuf,
@@ -148,7 +148,7 @@ fn export_file_recursively(
 
     match parent_file_metadata.file_type {
         FileType::Folder => {
-            let children = files::find_children(all, parent_file_metadata.id);
+            let children = all.find_children(parent_file_metadata.id);
             fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
             for child in children.iter() {

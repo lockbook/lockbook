@@ -2,11 +2,12 @@ use std::path::Path;
 
 use uuid::Uuid;
 
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadata, FileType};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use lockbook_models::tree::{FileMetaExt, TestFileTreeError, TreeError};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::pure_functions::{drawing, files};
+use crate::pure_functions::drawing;
 use crate::repo::{account_repo, last_updated_repo, metadata_repo};
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::service::{file_service, path_service};
@@ -15,59 +16,6 @@ use crate::CoreError;
 const UTF8_SUFFIXES: [&str; 12] = [
     "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
 ];
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TestFileTreeError {
-    NoRootFolder,
-    DocumentTreatedAsFolder(Uuid),
-    FileOrphaned(Uuid),
-    CycleDetected(Uuid),
-    NameConflictDetected(Uuid),
-    Core(CoreError),
-}
-
-pub fn test_file_tree_integrity<Fm: FileMetadata>(files: &[Fm]) -> Result<(), TestFileTreeError> {
-    if files.is_empty() {
-        return Ok(());
-    }
-
-    if files::maybe_find_root(files).is_none() {
-        return Err(TestFileTreeError::NoRootFolder);
-    }
-
-    for file in files {
-        if files::maybe_find(files, file.parent()).is_none() {
-            return Err(TestFileTreeError::FileOrphaned(file.id()));
-        }
-    }
-
-    let maybe_self_descendant = files::get_invalid_cycles(files, &[])
-        .map_err(TestFileTreeError::Core)?
-        .into_iter()
-        .next();
-    if let Some(self_descendant) = maybe_self_descendant {
-        return Err(TestFileTreeError::CycleDetected(self_descendant));
-    }
-
-    let maybe_doc_with_children = files::filter_documents(files)
-        .into_iter()
-        .find(|doc| !files::find_children(files, doc.id()).is_empty());
-    if let Some(doc) = maybe_doc_with_children {
-        return Err(TestFileTreeError::DocumentTreatedAsFolder(doc.id()));
-    }
-
-    let maybe_path_conflict = files::get_path_conflicts(files, &[])
-        .map_err(TestFileTreeError::Core)?
-        .into_iter()
-        .next();
-    if let Some(path_conflict) = maybe_path_conflict {
-        return Err(TestFileTreeError::NameConflictDetected(
-            path_conflict.existing,
-        ));
-    }
-
-    Ok(())
-}
 
 #[derive(Debug, Clone)]
 pub enum TestRepoError {
@@ -80,6 +28,7 @@ pub enum TestRepoError {
     FileNameContainsSlash(Uuid),
     NameConflictDetected(Uuid),
     DocumentReadError(Uuid, CoreError),
+    Tree(TreeError),
     Core(CoreError),
 }
 
@@ -98,27 +47,30 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         return Err(TestRepoError::NoAccount);
     }
 
-    let files_encrypted = files::stage(
-        &metadata_repo::get_all(config, RepoSource::Base).map_err(TestRepoError::Core)?,
-        &metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?,
-    )
-    .into_iter()
-    .map(|(f, _)| f)
-    .collect::<Vec<EncryptedFileMetadata>>();
+    let files_encrypted = &metadata_repo::get_all(config, RepoSource::Base)
+        .map_err(TestRepoError::Core)?
+        .stage(&metadata_repo::get_all(config, RepoSource::Local).map_err(TestRepoError::Core)?)
+        .into_iter()
+        .map(|(f, _)| f)
+        .collect::<Vec<EncryptedFileMetadata>>();
 
     if let Ok(0) = last_updated_repo::get(config) {
-    } else if files::maybe_find_root(&files_encrypted).is_none() {
+    } else if files_encrypted.maybe_find_root().is_none() {
         return Err(TestRepoError::NoRootFolder);
     }
 
-    test_file_tree_integrity(&files_encrypted).map_err(|err| match err {
-        TestFileTreeError::NoRootFolder => TestRepoError::NoRootFolder,
-        TestFileTreeError::DocumentTreatedAsFolder(e) => TestRepoError::DocumentTreatedAsFolder(e),
-        TestFileTreeError::FileOrphaned(e) => TestRepoError::FileOrphaned(e),
-        TestFileTreeError::CycleDetected(e) => TestRepoError::CycleDetected(e),
-        TestFileTreeError::NameConflictDetected(e) => TestRepoError::NameConflictDetected(e),
-        TestFileTreeError::Core(e) => TestRepoError::Core(e),
-    })?;
+    files_encrypted
+        .verify_integrity()
+        .map_err(|err| match err {
+            TestFileTreeError::NoRootFolder => TestRepoError::NoRootFolder,
+            TestFileTreeError::DocumentTreatedAsFolder(e) => {
+                TestRepoError::DocumentTreatedAsFolder(e)
+            }
+            TestFileTreeError::FileOrphaned(e) => TestRepoError::FileOrphaned(e),
+            TestFileTreeError::CycleDetected(e) => TestRepoError::CycleDetected(e),
+            TestFileTreeError::NameConflictDetected(e) => TestRepoError::NameConflictDetected(e),
+            TestFileTreeError::Tree(e) => TestRepoError::Tree(e),
+        })?;
 
     let files =
         file_service::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
@@ -136,7 +88,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
     }
 
     let mut warnings = Vec::new();
-    for file in files::filter_not_deleted(&files).map_err(TestRepoError::Core)? {
+    for file in files.filter_not_deleted().map_err(TestRepoError::Tree)? {
         if file.file_type == FileType::Document {
             let file_content = file_service::get_document(config, RepoSource::Local, &file)
                 .map_err(|err| DocumentReadError(file.id, err))?;
@@ -178,17 +130,16 @@ mod unit_tests {
     use crate::assert_matches;
     use crate::{
         pure_functions::files,
-        service::{
-            integrity_service::{self, TestFileTreeError},
-            test_utils,
-        },
+        service::{integrity_service::TestFileTreeError, test_utils},
     };
     use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+    use lockbook_models::tree::FileMetaExt;
     use uuid::Uuid;
 
     #[test]
     fn test_file_tree_integrity_empty() {
-        let result = integrity_service::test_file_tree_integrity::<DecryptedFileMetadata>(&[]);
+        let files: Vec<DecryptedFileMetadata> = vec![];
+        let result = files.verify_integrity();
 
         assert_eq!(result, Ok(()));
     }
@@ -200,7 +151,7 @@ mod unit_tests {
         let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
         let document = files::create(FileType::Document, folder.id, "document", &account.username);
 
-        let result = integrity_service::test_file_tree_integrity(&[root, folder, document]);
+        let result = [root, folder, document].verify_integrity();
 
         assert_eq!(result, Ok(()));
     }
@@ -213,7 +164,7 @@ mod unit_tests {
         let document = files::create(FileType::Document, folder.id, "document", &account.username);
         root.parent = folder.id;
 
-        let result = integrity_service::test_file_tree_integrity(&[root, folder, document]);
+        let result = [root, folder, document].verify_integrity();
 
         assert_eq!(result, Err(TestFileTreeError::NoRootFolder));
     }
@@ -228,7 +179,7 @@ mod unit_tests {
         document.parent = Uuid::new_v4();
         let document_id = document.id;
 
-        let result = integrity_service::test_file_tree_integrity(&[root, folder, document]);
+        let result = [root, folder, document].verify_integrity();
 
         assert_eq!(result, Err(TestFileTreeError::FileOrphaned(document_id)));
     }
@@ -240,7 +191,7 @@ mod unit_tests {
         let mut folder = files::create(FileType::Folder, root.id, "folder", &account.username);
         folder.parent = folder.id;
 
-        let result = integrity_service::test_file_tree_integrity(&[root, folder]);
+        let result = [root, folder].verify_integrity();
 
         assert_matches!(result, Err(TestFileTreeError::CycleDetected(_)));
     }
@@ -254,7 +205,7 @@ mod unit_tests {
         folder1.parent = folder2.id;
         folder2.parent = folder1.id;
 
-        let result = integrity_service::test_file_tree_integrity(&[root, folder1, folder2]);
+        let result = [root, folder1, folder2].verify_integrity();
 
         assert_matches!(result, Err(TestFileTreeError::CycleDetected(_)));
     }
@@ -272,7 +223,7 @@ mod unit_tests {
         );
         let document1_id = document1.id;
 
-        let result = integrity_service::test_file_tree_integrity(&[root, document1, document2]);
+        let result = [root, document1, document2].verify_integrity();
 
         assert_eq!(
             result,
@@ -287,7 +238,7 @@ mod unit_tests {
         let folder = files::create(FileType::Folder, root.id, "file", &account.username);
         let document = files::create(FileType::Document, root.id, "file", &account.username);
 
-        let result = integrity_service::test_file_tree_integrity(&[root, folder, document]);
+        let result = [root, folder, document].verify_integrity();
 
         assert_matches!(result, Err(TestFileTreeError::NameConflictDetected(_)));
     }
