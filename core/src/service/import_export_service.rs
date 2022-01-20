@@ -9,7 +9,6 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-
 use crate::service::file_service;
 use crate::service::path_service;
 use crate::CoreError;

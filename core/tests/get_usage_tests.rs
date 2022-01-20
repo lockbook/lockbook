@@ -116,7 +116,6 @@ mod get_usage_tests {
 
         let usage = get_usage(&config).unwrap_or_else(|err| panic!("{:?}", err));
 
-        println!("{:?}", usage);
         assert_eq!(usage.usages.len(), 1);
     }
 }
