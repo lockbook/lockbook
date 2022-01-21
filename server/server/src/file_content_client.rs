@@ -1,9 +1,11 @@
 use crate::config::FilesDbConfig;
 use lockbook_models::crypto::EncryptedDocument;
-use log::debug;
+use log::{debug, error};
 use s3::bucket::Bucket as S3Client;
 use s3::creds::Credentials;
 use s3::region::Region;
+use std::time::Duration;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -115,6 +117,28 @@ pub async fn delete(client: &S3Client, file_id: Uuid, content_version: u64) -> R
         (_, 204) => Ok(()),
         (body, _) => Err(Error::from(body)),
     }
+}
+
+pub fn background_delete(client: &S3Client, file_id: Uuid, content_version: u64) {
+    let client = client.clone();
+    tokio::spawn(async move {
+        match delete(&client, file_id, content_version).await {
+            Ok(_) => return,
+            Err(err) => error!(
+                "Failed to delete file out of s3, will retry after 1 second. Error: {:?}",
+                err
+            ),
+        }
+        sleep(Duration::from_secs(1)).await;
+        match delete(&client, file_id, content_version).await {
+            Ok(_) => return,
+            Err(err) => error!("Failed to delete file out of s3 for the second time, will retry after 1 second. Error: {:?}", err)
+        }
+        sleep(Duration::from_secs(1)).await;
+        if let Err(err) = delete(&client, file_id, content_version).await {
+            error!("Failed to delete file out of s3 for the third and last time. Error: {:?}, id: {}, version: {}", err, file_id, content_version)
+        }
+    });
 }
 
 pub async fn get(

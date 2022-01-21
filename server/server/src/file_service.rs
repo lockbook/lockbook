@@ -52,9 +52,11 @@ pub async fn upsert_file_metadata(
     return_if_error!(tx);
 
     for file in docs_to_delete {
-        file_content_client::delete(&server_state.files_db_client, file.id, file.content_version)
-            .await
-            .map_err(|err| internal!("Cannot delete file in S3: {:?}", err))?;
+        file_content_client::background_delete(
+            &server_state.files_db_client,
+            file.id,
+            file.content_version,
+        );
     }
     Ok(())
 }
@@ -151,7 +153,7 @@ fn new_meta(now: u64, diff: &FileMetadataDiff) -> EncryptedFileMetadata {
 
 /// Changes the content and size of a document
 /// Grabs the file out of redis and does some preliminary checks regarding ownership and version
-/// TODO After #949 do actual ownership checks
+/// TODO After #949 do actual ownership checks, prior to the first create
 /// TODO After billing, do actual space checks
 pub async fn change_document_content(
     context: RequestContext<'_, ChangeDocumentContentRequest>,
@@ -164,8 +166,6 @@ pub async fn change_document_content(
 
     let mut old_content_version = 0;
 
-    // TODO if the transaction is aborted, we'll be paying for this file and not the customer
-    // Ideally we have a mechanism to push async tasks on to a queue for background processing
     file_content_client::create(
         &server_state.files_db_client,
         request.id,
@@ -183,7 +183,7 @@ pub async fn change_document_content(
         )
     })?;
 
-    let tx = tx!(&mut con, pipe, watched_keys, {
+    let tx: Result<(), _> = tx!(&mut con, pipe, watched_keys, {
         let new_size = FileUsage {
             file_id: request.id,
             size_bytes: request.new_content.value.len() as u64,
@@ -219,23 +219,21 @@ pub async fn change_document_content(
         pipe.json_set(size(request.id), new_size)?
             .json_set(file(request.id), meta)
     });
+    if tx.is_err() {
+        // Cleanup the NEW file created if, for some reason, the tx failed
+        file_content_client::background_delete(
+            &server_state.files_db_client,
+            request.id,
+            new_version,
+        );
+    }
     return_if_error!(tx);
 
-    file_content_client::delete(
+    file_content_client::background_delete(
         &server_state.files_db_client,
         request.id,
         old_content_version,
-    )
-    .await
-    .map_err(|err| {
-        internal!(
-            "Cannot delete file: {}:{}:{} in S3: {:?}",
-            request.id,
-            request.old_metadata_version,
-            new_version,
-            err
-        )
-    })?;
+    );
 
     Ok(ChangeDocumentContentResponse {
         new_content_version: new_version,
