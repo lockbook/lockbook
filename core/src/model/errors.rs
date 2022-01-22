@@ -1,8 +1,8 @@
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
-use lockbook_models::tree::TreeError;
 use lockbook_models::api::{CardDeclineReason, CreditCardRejectReason};
+use lockbook_models::tree::TreeError;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 

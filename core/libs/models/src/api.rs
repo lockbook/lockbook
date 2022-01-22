@@ -283,6 +283,7 @@ pub struct GetCreditCardResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetCreditCardError {
     OldCardDoesNotExist,
+    NotAStripeCustomer,
 }
 
 impl Request for GetCreditCardRequest {
@@ -347,6 +348,8 @@ pub enum SwitchAccountTierError {
     CardDeclined(CardDeclineReason),
     InvalidCreditCard(CreditCardRejectReason),
     CurrentUsageIsMoreThanNewTier,
+    CurrentlyInBillingWorkflow,
+    UserNotFound,
 }
 
 impl Request for SwitchAccountTierRequest {

@@ -1,6 +1,6 @@
 use crate::account_service::*;
-use crate::billing::payment_service;
-use crate::billing::payment_service::*;
+use crate::billing::billing_service;
+use crate::billing::billing_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
 use crate::{router_service, verify_auth, verify_client_version, ServerState};
@@ -154,7 +154,7 @@ pub fn stripe_webhooks(
         .and(warp::header::header("Stripe-Signature"))
         .then(
             |state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
-                match payment_service::stripe_webhooks(&state, request, stripe_sig).await {
+                match billing_service::stripe_webhooks(&state, request, stripe_sig).await {
                     Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
                     Err(e) => {
                         error!("{:?}", e);

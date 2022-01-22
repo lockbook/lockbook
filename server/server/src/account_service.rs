@@ -1,5 +1,8 @@
 use crate::utils::username_is_valid;
-use crate::{file_content_client, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
+use crate::{
+    file_content_client, keys, InternalError, RequestContext, ServerError, ServerState,
+    FREE_TIER_USAGE_SIZE,
+};
 use deadpool_redis::redis::AsyncCommands;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
@@ -8,12 +11,17 @@ use redis_utils::converters::{JsonGet, JsonSet};
 
 use redis_utils::tx;
 use uuid::Uuid;
+use warp::hyper::body::HttpBody;
 
 use crate::keys::{data_cap, file, meta, owned_files, public_key, size, username};
 use crate::ServerError::ClientError;
 use lockbook_models::api::GetUsageError::UserNotFound;
 use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
-use lockbook_models::api::{DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse, SwitchAccountTierError, SwitchAccountTierRequest};
+use lockbook_models::api::{
+    DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest,
+    GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
+    NewAccountRequest, NewAccountResponse, SwitchAccountTierError, SwitchAccountTierRequest,
+};
 use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::Document;
 use lockbook_models::tree::FileMetaExt;
@@ -113,32 +121,40 @@ pub async fn get_usage(
     let (_request, server_state) = (&context.request, context.server_state);
     let mut con = server_state.index_db_pool.get().await?;
 
-    let files: Vec<Uuid> = con
-        .maybe_json_get(owned_files(&context.public_key))
-        .await?
-        .ok_or(ClientError(UserNotFound))?;
-
     let cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
-    let keys: Vec<String> = files.into_iter().map(keys::size).collect();
-
-    let usages: Vec<FileUsage> = con.json_mget(keys).await?;
+    let usages = get_file_usage(&mut con, &context.public_key)
+        .await
+        .map_err(|e| match e {
+            GetFileUsageError::UserNotFound => ClientError(GetUsageError::UserNotFound),
+            GetFileUsageError::Internal(e) => ServerError::from(e),
+        })?;
 
     Ok(GetUsageResponse { usages, cap })
 }
 
-pub async fn get_data_cap(
-    pool: &deadpool_redis::Pool,
-    public_key: &PublicKey
-) -> redis::RedisResult<u64> {
-    let mut con = pool.get().await?;
-
-    con.get(data_cap(public_key)).await
+#[derive(Debug)]
+pub enum GetFileUsageError {
+    UserNotFound,
+    Internal(redis_utils::converters::JsonGetError),
 }
 
-pub async fn get_total_usage(
+pub async fn get_file_usage(
+    con: &mut deadpool_redis::Connection,
+    public_key: &PublicKey,
+) -> Result<(Vec<FileUsage>), GetFileUsageError> {
+    let files: Vec<Uuid> = con
+        .maybe_json_get(owned_files(public_key))
+        .await
+        .map_err(|e| GetFileUsageError::Internal(e))?
+        .ok_or(GetFileUsageError::UserNotFound)?;
 
-)
+    let keys: Vec<String> = files.into_iter().map(keys::size).collect();
+
+    con.json_mget(keys)
+        .await
+        .map_err(|e| GetFileUsageError::Internal(e))
+}
 
 /// Delete's an account's files out of s3 and clears their file tree within redis
 /// Does not free up the username or public key for re-use

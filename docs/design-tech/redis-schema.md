@@ -35,33 +35,13 @@ Values are json encoded.
 
 # Stripe Billing
 
-+ `public_key:x:stripe_customer_id`
++ `public_key:x:stripe_user_info`
   + `x` is the `public_key`.
-  + The stripe customer id if it exists for that user.
-+ `stripe_customer_id:x:stripe_payment_method_id`
-  + `x` is the customer id of a stripe user.
-  + The value is the id for a card payment method on stripe.
-+ `stripe_customer_id:x:stripe_subscription_id`
-  + `x` is the customer id of a stripe user.
-
-## Payment Method ID
-
-+ `stripe_payment_method_id:x:last_4`
-  + `x` is the payment method id of a stripe user.
-  + The last 4 digits of the card registered with the payment method.
-+ `stripe_payment_method_id:x:created_at`
-  + `x` is the payment method id of a stripe user.
-  + `created_at` is the timestamp of when the payment method was registered.
+  + Basic stripe information for that user.
++ `public_key:x:in_stripe_billing_workflow`.
+  + `x` is the `public_key`.
+  + If exists, it indicates that user is in a stripe billing workflow.
   
-## Subscription ID
-
-+ `stripe_subscription_id:x:active`
-    + `x` is the subscription id of a stripe user.
-    + `active` refers to whether this subscription is currently active.
-+ `stripe_subscription_id:x:period_end`
-    + `x` is the subscription id of a stripe user.
-    + `period_end` is the end and start of the billing cycle.
-
 # Document Content (TODO)
 
 + Interactions with s3 are slow (100s of milliseconds) so the plan is to cache most documents in redis. Persist

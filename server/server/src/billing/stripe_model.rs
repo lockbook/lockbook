@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-// A stripe request can either be your expected struct, or an expected error struct
+// A stripe request can either be your expected struct, or the StripeErrorContainer
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum StripeResult<U> {
@@ -43,7 +43,7 @@ pub enum StripeMaybeContainer<K, U> {
     Unexpected(U),
 }
 
-// Not all defined error codes are defined, these are the ones I am expecting to be returned.
+// Not all of stripe's defined error codes are bellow, these are the ones I am expecting to be returned.
 // The unexpected error codes will be caught with StripeMaybeContainer magic.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -118,7 +118,7 @@ pub struct StripeSubscriptionResponse {
     pub id: String,
     pub status: SubscriptionStatus,
     pub latest_invoice: StripeInvoiceResponse,
-    pub current_period_end: i64,
+    pub current_period_end: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -211,4 +211,38 @@ pub struct StripeEventObjectContainer {
 pub enum StripeObjectType {
     Invoice(StripeInvoiceResponse),
     Unmatched(serde_json::Value),
+}
+
+// These structs are stored on redis
+pub const UNSET_CUSTOMER_ID: &str = "not_st";
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StripeUserInfo {
+    pub customer_id: String,
+    pub payment_methods: Vec<StripePaymentInfo>,
+    pub subscriptions: Vec<StripeSubscriptionInfo>,
+}
+
+impl Default for StripeUserInfo {
+    fn default() -> Self {
+        StripeUserInfo {
+            customer_id: UNSET_CUSTOMER_ID.to_string(),
+            payment_methods: vec![],
+            subscriptions: vec![],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StripePaymentInfo {
+    pub id: String,
+    pub last_4: String,
+    pub created_at: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StripeSubscriptionInfo {
+    pub id: String,
+    pub period_end: u64,
+    pub is_active: bool,
 }
