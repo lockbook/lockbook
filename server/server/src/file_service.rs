@@ -1,9 +1,10 @@
 use crate::internal;
 use crate::keys::{file, owned_files, size};
+use crate::ServerError;
 use crate::ServerError::{ClientError, InternalError};
-use crate::{file_content_client, ServerError};
 use crate::{keys, RequestContext};
 
+use crate::content::{document_service, file_content_client};
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileMetadataUpsertsError::{GetUpdatesRequired, RootImmutable};
 use lockbook_models::api::*;
@@ -52,11 +53,7 @@ pub async fn upsert_file_metadata(
     return_if_error!(tx);
 
     for file in docs_to_delete {
-        file_content_client::background_delete(
-            &server_state.files_db_client,
-            file.id,
-            file.content_version,
-        );
+        document_service::background_delete(server_state, file.id, file.content_version).await?;
     }
     Ok(())
 }
@@ -166,22 +163,7 @@ pub async fn change_document_content(
 
     let mut old_content_version = 0;
 
-    file_content_client::create(
-        &server_state.files_db_client,
-        request.id,
-        new_version,
-        &request.new_content,
-    )
-    .await
-    .map_err(|err| {
-        internal!(
-            "Cannot create file: {}:{}:{} in S3: {:?}",
-            request.id,
-            request.old_metadata_version,
-            new_version,
-            err
-        )
-    })?;
+    document_service::create(server_state, request.id, new_version, &request.new_content).await?;
 
     let tx: Result<(), _> = tx!(&mut con, pipe, watched_keys, {
         let new_size = FileUsage {
@@ -221,19 +203,11 @@ pub async fn change_document_content(
     });
     if tx.is_err() {
         // Cleanup the NEW file created if, for some reason, the tx failed
-        file_content_client::background_delete(
-            &server_state.files_db_client,
-            request.id,
-            new_version,
-        );
+        document_service::background_delete(server_state, request.id, new_version).await?;
     }
     return_if_error!(tx);
 
-    file_content_client::background_delete(
-        &server_state.files_db_client,
-        request.id,
-        old_content_version,
-    );
+    document_service::background_delete(server_state, request.id, old_content_version).await?;
 
     Ok(ChangeDocumentContentResponse {
         new_content_version: new_version,
@@ -244,19 +218,8 @@ pub async fn get_document(
     context: RequestContext<'_, GetDocumentRequest>,
 ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let files_result = file_content_client::get(
-        &server_state.files_db_client,
-        request.id,
-        request.content_version,
-    )
-    .await;
-    match files_result {
-        Ok(c) => Ok(GetDocumentResponse { content: c }),
-        Err(file_content_client::Error::NoSuchKey(_)) => {
-            Err(ClientError(GetDocumentError::DocumentNotFound))
-        }
-        Err(e) => Err(InternalError(format!("Cannot get file from S3: {:?}", e))),
-    }
+    let content = document_service::get(server_state, request.id, request.content_version).await?;
+    Ok(GetDocumentResponse { content })
 }
 
 pub async fn get_updates(

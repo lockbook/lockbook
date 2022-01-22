@@ -1,4 +1,5 @@
 use crate::config::FilesDbConfig;
+use crate::ServerState;
 use lockbook_models::crypto::EncryptedDocument;
 use log::{debug, error};
 use s3::bucket::Bucket as S3Client;
@@ -14,8 +15,6 @@ pub enum Error {
     NoSuchKey(String),
     ResponseNotUtf8(String),
     SignatureDoesNotMatch(String),
-    Serialization(Box<bincode::ErrorKind>),
-    Deserialization(Box<bincode::ErrorKind>),
     Unknown(Option<String>),
 }
 
@@ -70,15 +69,16 @@ pub fn create_client(config: &FilesDbConfig) -> Result<S3Client, Error> {
 }
 
 pub async fn create(
-    client: &S3Client,
+    state: &ServerState,
     file_id: Uuid,
     content_version: u64,
-    file_contents: &EncryptedDocument,
+    file_contents: &[u8],
 ) -> Result<(), Error> {
+    let client = &state.files_db_client;
     match client
         .put_object_with_content_type(
             &format!("/{}-{}", file_id, content_version),
-            &bincode::serialize(file_contents).map_err(Error::Serialization)?,
+            file_contents,
             "binary/octet-stream",
         )
         .await
@@ -100,8 +100,8 @@ pub async fn delete(client: &S3Client, file_id: Uuid, content_version: u64) -> R
     }
 }
 
-pub fn background_delete(client: &S3Client, file_id: Uuid, content_version: u64) {
-    let client = client.clone();
+pub fn background_delete(state: &ServerState, file_id: Uuid, content_version: u64) {
+    let client = state.files_db_client.clone();
     tokio::spawn(async move {
         match delete(&client, file_id, content_version).await {
             Ok(_) => return,
@@ -123,10 +123,11 @@ pub fn background_delete(client: &S3Client, file_id: Uuid, content_version: u64)
 }
 
 pub async fn get(
-    client: &S3Client,
+    state: &ServerState,
     file_id: Uuid,
     content_version: u64,
-) -> Result<Option<EncryptedDocument>, Error> {
+) -> Result<Option<Vec<u8>>, Error> {
+    let client = &state.files_db_client;
     match client
         .get_object(&format!("/{}-{}", file_id, content_version))
         .await
@@ -136,9 +137,7 @@ pub async fn get(
             if data.is_empty() {
                 Ok(None)
             } else {
-                Ok(Some(
-                    bincode::deserialize(&data).map_err(Error::Deserialization)?,
-                ))
+                Ok(Some(data))
             }
         }
         (body, _) => Err(Error::from(body)),

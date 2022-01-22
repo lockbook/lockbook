@@ -1,5 +1,5 @@
 use crate::utils::username_is_valid;
-use crate::{file_content_client, keys, RequestContext, ServerError, ServerState, FREE_TIER};
+use crate::{keys, RequestContext, ServerError, ServerState, FREE_TIER};
 use deadpool_redis::redis::AsyncCommands;
 use lockbook_crypto::clock_service::get_time;
 use log::error;
@@ -8,6 +8,7 @@ use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::tx;
 use uuid::Uuid;
 
+use crate::content::file_content_client;
 use crate::keys::{data_cap, file, meta, owned_files, public_key, size, username};
 use crate::ServerError::ClientError;
 use lockbook_models::api::GetUsageError::UserNotFound;
