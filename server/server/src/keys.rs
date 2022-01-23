@@ -30,6 +30,10 @@ pub fn meta<File: FileMetadata>(meta: &File) -> String {
     file(meta.id())
 }
 
+pub fn doc(id: Uuid, content_version: u64) -> String {
+    format!("id-version:{}-{}:encrypted_document", id, content_version)
+}
+
 fn stringify_public_key(pk: &PublicKey) -> String {
     base64::encode(pk.serialize_compressed())
 }

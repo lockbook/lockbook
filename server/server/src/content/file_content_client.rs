@@ -1,9 +1,12 @@
 use crate::config::FilesDbConfig;
-use lockbook_models::crypto::EncryptedDocument;
-use log::debug;
+use crate::ServerState;
+
+use log::{debug, error};
 use s3::bucket::Bucket as S3Client;
 use s3::creds::Credentials;
 use s3::region::Region;
+use std::time::Duration;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -12,8 +15,6 @@ pub enum Error {
     NoSuchKey(String),
     ResponseNotUtf8(String),
     SignatureDoesNotMatch(String),
-    Serialization(Box<bincode::ErrorKind>),
-    Deserialization(Box<bincode::ErrorKind>),
     Unknown(Option<String>),
 }
 
@@ -68,15 +69,16 @@ pub fn create_client(config: &FilesDbConfig) -> Result<S3Client, Error> {
 }
 
 pub async fn create(
-    client: &S3Client,
+    state: &ServerState,
     file_id: Uuid,
     content_version: u64,
-    file_contents: &EncryptedDocument,
+    file_contents: &[u8],
 ) -> Result<(), Error> {
+    let client = &state.files_db_client;
     match client
         .put_object_with_content_type(
             &format!("/{}-{}", file_id, content_version),
-            &bincode::serialize(file_contents).map_err(Error::Serialization)?,
+            file_contents,
             "binary/octet-stream",
         )
         .await
@@ -87,26 +89,8 @@ pub async fn create(
     }
 }
 
-pub async fn create_empty(
-    client: &S3Client,
-    file_id: Uuid,
-    content_version: u64,
-) -> Result<(), Error> {
-    match client
-        .put_object_with_content_type(
-            &format!("/{}-{}", file_id, content_version),
-            &[],
-            "binary/octet-stream",
-        )
-        .await
-        .map_err(|err| err.to_string())?
-    {
-        (_, 200) => Ok(()),
-        (body, _) => Err(Error::from(body)),
-    }
-}
-
-pub async fn delete(client: &S3Client, file_id: Uuid, content_version: u64) -> Result<(), Error> {
+pub async fn delete(state: &ServerState, file_id: Uuid, content_version: u64) -> Result<(), Error> {
+    let client = &state.files_db_client;
     match client
         .delete_object(&format!("/{}-{}", file_id, content_version))
         .await
@@ -117,11 +101,34 @@ pub async fn delete(client: &S3Client, file_id: Uuid, content_version: u64) -> R
     }
 }
 
+pub fn background_delete(state: &ServerState, file_id: Uuid, content_version: u64) {
+    let state = state.clone();
+    tokio::spawn(async move {
+        match delete(&state, file_id, content_version).await {
+            Ok(_) => return,
+            Err(err) => error!(
+                "Failed to delete file out of s3, will retry after 1 second. Error: {:?}",
+                err
+            ),
+        }
+        sleep(Duration::from_secs(1)).await;
+        match delete(&state, file_id, content_version).await {
+            Ok(_) => return,
+            Err(err) => error!("Failed to delete file out of s3 for the second time, will retry after 1 second. Error: {:?}", err)
+        }
+        sleep(Duration::from_secs(1)).await;
+        if let Err(err) = delete(&state, file_id, content_version).await {
+            error!("Failed to delete file out of s3 for the third and last time. Error: {:?}, id: {}, version: {}", err, file_id, content_version)
+        }
+    });
+}
+
 pub async fn get(
-    client: &S3Client,
+    state: &ServerState,
     file_id: Uuid,
     content_version: u64,
-) -> Result<Option<EncryptedDocument>, Error> {
+) -> Result<Option<Vec<u8>>, Error> {
+    let client = &state.files_db_client;
     match client
         .get_object(&format!("/{}-{}", file_id, content_version))
         .await
@@ -131,9 +138,7 @@ pub async fn get(
             if data.is_empty() {
                 Ok(None)
             } else {
-                Ok(Some(
-                    bincode::deserialize(&data).map_err(Error::Deserialization)?,
-                ))
+                Ok(Some(data))
             }
         }
         (body, _) => Err(Error::from(body)),
