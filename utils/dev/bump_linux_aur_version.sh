@@ -20,6 +20,7 @@ makepkg --printsrcinfo > .SRCINFO
 
 git add -A
 git commit -m "Manual deploy by $(git config user.name) from $current_hash"
-git push
+git push aur master
+git push github master
 
 echo "Aur version bumped successfully"
