@@ -1,10 +1,10 @@
 use crate::internal;
 use crate::keys::{file, owned_files, size};
 use crate::ServerError;
-use crate::ServerError::{ClientError};
+use crate::ServerError::ClientError;
 use crate::{keys, RequestContext};
 
-use crate::content::{document_service};
+use crate::content::document_service;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileMetadataUpsertsError::{GetUpdatesRequired, RootImmutable};
 use lockbook_models::api::*;
