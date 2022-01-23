@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-core"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Parth <parth@mehrotra.me>", "Raayan <raayan@raayanpillai.com>", "Travis <t.vanderstad@gmail.com>", "Smail <smailbarkouch1@gmail.com>"]
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."

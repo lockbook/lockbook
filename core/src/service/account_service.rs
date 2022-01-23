@@ -106,7 +106,6 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
         }
     };
     debug!("key was valid bincode");
-
     let server_public_key = match api_service::request(
         &account,
         GetPublicKeyRequest {
