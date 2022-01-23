@@ -183,7 +183,7 @@ pub async fn change_document_content(
             )));
         }
 
-        if meta.owner.is_empty() {
+        if false {
             return Err(Abort(ClientError(
                 ChangeDocumentContentError::NotPermissioned,
             )));
