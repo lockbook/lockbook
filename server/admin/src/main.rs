@@ -6,8 +6,9 @@ use deadpool_redis::Pool;
 
 use deadpool_redis::Runtime;
 use lockbook_server_lib::config::Config;
-use lockbook_server_lib::{file_content_client, ServerState};
+use lockbook_server_lib::ServerState;
 
+use lockbook_server_lib::content::file_content_client;
 use s3::bucket::Bucket;
 use structopt::StructOpt;
 
