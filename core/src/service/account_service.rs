@@ -36,7 +36,7 @@ pub fn create_account(
         private_key: keys,
     };
 
-    let mut root_metadata = files::create_root(&account.username);
+    let mut root_metadata = files::create_root(&account);
     let encrypted_metadata =
         file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?;
     let encrypted_metadatum = files::single_or(
@@ -106,7 +106,6 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
         }
     };
     debug!("key was valid bincode");
-
     let server_public_key = match api_service::request(
         &account,
         GetPublicKeyRequest {

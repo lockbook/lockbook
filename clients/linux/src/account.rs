@@ -443,9 +443,10 @@ impl Editor {
         let grid = gtk::Grid::new();
         grid.set_halign(gtk::Align::Center);
 
+        let owner = base64::encode(&f.owner.0.serialize_compressed());
         let rows = vec![
             ("ID", f.id.to_string()),
-            ("Owner", f.owner.clone()),
+            ("Owner", owner),
             ("Children", n_children.to_string()),
         ];
         for (row, (key, val)) in rows.into_iter().enumerate() {

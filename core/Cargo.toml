@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-core"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Parth <parth@mehrotra.me>", "Raayan <raayan@raayanpillai.com>", "Travis <t.vanderstad@gmail.com>", "Smail <smailbarkouch1@gmail.com>"]
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."
@@ -45,6 +45,7 @@ tempfile = { version = "3.1.0" }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 itertools = "0.10.1"
 backtrace = "0.3"
+libsecp256k1 = "0.7.0"
 
 [profile.release]
 debug = true

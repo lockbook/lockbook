@@ -52,7 +52,7 @@ pub fn perform_migration(config: &Config) -> Result<(), CoreError> {
     }
 
     match db_version.as_str() {
-        "0.1.5" => Ok(()),
+        "0.1.6" => Ok(()),
         _ => Err(CoreError::ClientWipeRequired),
     }
 }

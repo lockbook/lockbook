@@ -148,8 +148,13 @@ mod unit_tests {
     fn get_uncompressed_usage_empty_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -169,8 +174,13 @@ mod unit_tests {
     fn get_uncompressed_usage_one_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -190,9 +200,19 @@ mod unit_tests {
     fn get_uncompressed_usage_multiple_documents() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
-        let document2 = files::create(FileType::Document, root.id, "document 2", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
+        let document2 = files::create(
+            FileType::Document,
+            root.id,
+            "document 2",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();

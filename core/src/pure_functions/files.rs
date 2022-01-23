@@ -1,3 +1,4 @@
+use libsecp256k1::PublicKey;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -5,7 +6,8 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_crypto::symkey;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+use lockbook_models::account::Account;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType, Owner};
 use lockbook_models::tree::FileMetaExt;
 use lockbook_models::tree::FileMetadata;
 
@@ -20,13 +22,18 @@ pub fn single_or<T, E>(v: Vec<T>, e: E) -> Result<T, E> {
     }
 }
 
-pub fn create(file_type: FileType, parent: Uuid, name: &str, owner: &str) -> DecryptedFileMetadata {
+pub fn create(
+    file_type: FileType,
+    parent: Uuid,
+    name: &str,
+    owner: &PublicKey,
+) -> DecryptedFileMetadata {
     DecryptedFileMetadata {
         id: Uuid::new_v4(),
         file_type,
         parent,
         decrypted_name: String::from(name),
-        owner: String::from(owner),
+        owner: Owner { 0: *owner },
         metadata_version: 0,
         content_version: 0,
         deleted: false,
@@ -34,14 +41,14 @@ pub fn create(file_type: FileType, parent: Uuid, name: &str, owner: &str) -> Dec
     }
 }
 
-pub fn create_root(username: &str) -> DecryptedFileMetadata {
+pub fn create_root(account: &Account) -> DecryptedFileMetadata {
     let id = Uuid::new_v4();
     DecryptedFileMetadata {
         id,
         file_type: FileType::Folder,
         parent: id,
-        decrypted_name: String::from(username),
-        owner: String::from(username),
+        decrypted_name: account.username.clone(),
+        owner: Owner::from(account),
         metadata_version: 0,
         content_version: 0,
         deleted: false,
@@ -56,7 +63,7 @@ pub fn apply_create(
     file_type: FileType,
     parent: Uuid,
     name: &str,
-    owner: &str,
+    owner: &PublicKey,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let file = create(file_type, parent, name, owner);
     validate_not_root(&file)?;
@@ -271,9 +278,14 @@ mod unit_tests {
     #[test]
     fn apply_rename() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let document_id = document.id;
         files::apply_rename(&[root, folder, document], document_id, "document2").unwrap();
@@ -282,9 +294,14 @@ mod unit_tests {
     #[test]
     fn apply_rename_not_found() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let result = files::apply_rename(&[root, folder], document.id, "document2");
         assert_eq!(result, Err(CoreError::FileNonexistent));
@@ -293,9 +310,14 @@ mod unit_tests {
     #[test]
     fn apply_rename_root() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let root_id = root.id;
         let result = files::apply_rename(&[root, folder, document], root_id, "root2");
@@ -305,9 +327,14 @@ mod unit_tests {
     #[test]
     fn apply_rename_invalid_name() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let document_id = document.id;
         let result = files::apply_rename(&[root, folder, document], document_id, "invalid/name");
@@ -317,10 +344,20 @@ mod unit_tests {
     #[test]
     fn apply_rename_path_conflict() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document1 = files::create(FileType::Document, root.id, "document1", &account.username);
-        let document2 = files::create(FileType::Document, root.id, "document2", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document1 = files::create(
+            FileType::Document,
+            root.id,
+            "document1",
+            &account.public_key(),
+        );
+        let document2 = files::create(
+            FileType::Document,
+            root.id,
+            "document2",
+            &account.public_key(),
+        );
 
         let document1_id = document1.id;
         let result = files::apply_rename(
@@ -334,9 +371,14 @@ mod unit_tests {
     #[test]
     fn apply_move() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let folder_id = folder.id;
         let document_id = document.id;
@@ -346,9 +388,14 @@ mod unit_tests {
     #[test]
     fn apply_move_not_found() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let folder_id = folder.id;
         let document_id = document.id;
@@ -359,9 +406,14 @@ mod unit_tests {
     #[test]
     fn apply_move_parent_not_found() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let folder_id = folder.id;
         let document_id = document.id;
@@ -372,9 +424,19 @@ mod unit_tests {
     #[test]
     fn apply_move_parent_document() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document1 = files::create(FileType::Document, root.id, "document1", &account.username);
-        let document2 = files::create(FileType::Document, root.id, "document2", &account.username);
+        let root = files::create_root(&account);
+        let document1 = files::create(
+            FileType::Document,
+            root.id,
+            "document1",
+            &account.public_key(),
+        );
+        let document2 = files::create(
+            FileType::Document,
+            root.id,
+            "document2",
+            &account.public_key(),
+        );
 
         let document1_id = document1.id;
         let document2_id = document2.id;
@@ -385,9 +447,14 @@ mod unit_tests {
     #[test]
     fn apply_move_root() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let folder_id = folder.id;
         let root_id = root.id;
@@ -398,10 +465,20 @@ mod unit_tests {
     #[test]
     fn apply_move_path_conflict() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document1 = files::create(FileType::Document, root.id, "document", &account.username);
-        let document2 = files::create(FileType::Document, folder.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document1 = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
+        let document2 = files::create(
+            FileType::Document,
+            folder.id,
+            "document",
+            &account.public_key(),
+        );
 
         let folder_id = folder.id;
         let document1_id = document1.id;
@@ -416,9 +493,14 @@ mod unit_tests {
     #[test]
     fn apply_move_2cycle() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder1 = files::create(FileType::Folder, root.id, "folder1", &account.username);
-        let folder2 = files::create(FileType::Folder, folder1.id, "folder2", &account.username);
+        let root = files::create_root(&account);
+        let folder1 = files::create(FileType::Folder, root.id, "folder1", &account.public_key());
+        let folder2 = files::create(
+            FileType::Folder,
+            folder1.id,
+            "folder2",
+            &account.public_key(),
+        );
 
         let folder1_id = folder1.id;
         let folder2_id = folder2.id;
@@ -429,8 +511,8 @@ mod unit_tests {
     #[test]
     fn apply_move_1cycle() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder1", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder1", &account.public_key());
 
         let folder1_id = folder.id;
         let result = files::apply_move(&[root, folder], folder1_id, folder1_id);
@@ -440,9 +522,14 @@ mod unit_tests {
     #[test]
     fn apply_delete() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let document_id = document.id;
         files::apply_delete(&[root, folder, document], document_id).unwrap();
@@ -451,9 +538,14 @@ mod unit_tests {
     #[test]
     fn apply_delete_root() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         let root_id = root.id;
         let result = files::apply_delete(&[root, folder, document], root_id);
@@ -463,8 +555,8 @@ mod unit_tests {
     #[test]
     fn get_nonconflicting_filename() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
         assert_eq!(
             files::suggest_non_conflicting_filename(folder.id, &[root, folder], &[]).unwrap(),
             "folder-1"
@@ -474,9 +566,9 @@ mod unit_tests {
     #[test]
     fn get_nonconflicting_filename2() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let folder2 = files::create(FileType::Folder, root.id, "folder-1", &account.username);
+        let root = files::create_root(&account);
+        let folder1 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let folder2 = files::create(FileType::Folder, root.id, "folder-1", &account.public_key());
         assert_eq!(
             files::suggest_non_conflicting_filename(folder1.id, &[root, folder1, folder2], &[])
                 .unwrap(),
@@ -487,9 +579,9 @@ mod unit_tests {
     #[test]
     fn get_path_conflicts_no_conflicts() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.username);
+        let root = files::create_root(&account);
+        let folder1 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.public_key());
 
         let path_conflicts = &[root, folder1.clone()]
             .get_path_conflicts(&[folder2.clone()])
@@ -501,9 +593,9 @@ mod unit_tests {
     #[test]
     fn get_path_conflicts_one_conflict() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder1 = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let folder2 = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let root = files::create_root(&account);
+        let folder1 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let folder2 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
 
         let path_conflicts = &[root, folder1.clone()]
             .get_path_conflicts(&[folder2.clone()])

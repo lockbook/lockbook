@@ -67,7 +67,13 @@ pub fn create_at_path(
             Document
         };
 
-        current = files::apply_create(&files, file_type, current.id, next_name, &account.username)?;
+        current = files::apply_create(
+            &files,
+            file_type,
+            current.id,
+            next_name,
+            &account.public_key(),
+        )?;
         files.push(current.clone());
         file_service::insert_metadatum(config, RepoSource::Local, &current)?;
     }
@@ -209,7 +215,7 @@ mod unit_tests {
     fn create_at_path_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -224,7 +230,7 @@ mod unit_tests {
     fn create_at_path_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -240,7 +246,7 @@ mod unit_tests {
     fn create_at_path_in_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -260,7 +266,7 @@ mod unit_tests {
     fn create_at_path_missing_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -279,7 +285,7 @@ mod unit_tests {
     fn create_at_path_missing_folders() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -304,7 +310,7 @@ mod unit_tests {
     fn create_at_path_path_contains_empty_file_name() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -319,7 +325,7 @@ mod unit_tests {
     fn create_at_path_path_starts_with_non_root() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -336,7 +342,7 @@ mod unit_tests {
     fn create_at_path_path_taken() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -353,7 +359,7 @@ mod unit_tests {
     fn create_at_path_not_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -371,7 +377,7 @@ mod unit_tests {
     fn get_by_path_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -389,7 +395,7 @@ mod unit_tests {
     fn get_by_path_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -407,7 +413,7 @@ mod unit_tests {
     fn get_by_path_document_in_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -426,7 +432,7 @@ mod unit_tests {
     fn get_path_by_id_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -443,7 +449,7 @@ mod unit_tests {
     fn get_path_by_id_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -460,7 +466,7 @@ mod unit_tests {
     fn get_path_by_id_document_in_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -480,7 +486,7 @@ mod unit_tests {
     fn get_all_paths() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -519,7 +525,7 @@ mod unit_tests {
     fn get_all_paths_documents_only() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -546,7 +552,7 @@ mod unit_tests {
     fn get_all_paths_folders_only() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -582,7 +588,7 @@ mod unit_tests {
     fn get_all_paths_leaf_nodes_only() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();

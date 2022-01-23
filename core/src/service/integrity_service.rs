@@ -147,9 +147,14 @@ mod unit_tests {
     #[test]
     fn test_file_tree_integrity_nonempty_ok() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, folder.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            folder.id,
+            "document",
+            &account.public_key(),
+        );
 
         let result = [root, folder, document].verify_integrity();
 
@@ -159,9 +164,14 @@ mod unit_tests {
     #[test]
     fn test_file_tree_integrity_no_root() {
         let account = test_utils::generate_account();
-        let mut root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, folder.id, "document", &account.username);
+        let mut root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            folder.id,
+            "document",
+            &account.public_key(),
+        );
         root.parent = folder.id;
 
         let result = [root, folder, document].verify_integrity();
@@ -172,10 +182,14 @@ mod unit_tests {
     #[test]
     fn test_file_tree_integrity_orphan() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document =
-            files::create(FileType::Document, folder.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let mut document = files::create(
+            FileType::Document,
+            folder.id,
+            "document",
+            &account.public_key(),
+        );
         document.parent = Uuid::new_v4();
         let document_id = document.id;
 
@@ -187,8 +201,8 @@ mod unit_tests {
     #[test]
     fn test_file_tree_integrity_1cycle() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.username);
+        let root = files::create_root(&account);
+        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
         folder.parent = folder.id;
 
         let result = [root, folder].verify_integrity();
@@ -199,9 +213,11 @@ mod unit_tests {
     #[test]
     fn test_file_tree_integrity_2cycle() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let mut folder1 = files::create(FileType::Folder, root.id, "folder1", &account.username);
-        let mut folder2 = files::create(FileType::Folder, root.id, "folder2", &account.username);
+        let root = files::create_root(&account);
+        let mut folder1 =
+            files::create(FileType::Folder, root.id, "folder1", &account.public_key());
+        let mut folder2 =
+            files::create(FileType::Folder, root.id, "folder2", &account.public_key());
         folder1.parent = folder2.id;
         folder2.parent = folder1.id;
 
@@ -213,13 +229,18 @@ mod unit_tests {
     #[test]
     fn test_file_tree_integrity_document_treated_as_folder() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document1 = files::create(FileType::Document, root.id, "document1", &account.username);
+        let root = files::create_root(&account);
+        let document1 = files::create(
+            FileType::Document,
+            root.id,
+            "document1",
+            &account.public_key(),
+        );
         let document2 = files::create(
             FileType::Document,
             document1.id,
             "document2",
-            &account.username,
+            &account.public_key(),
         );
         let document1_id = document1.id;
 
@@ -234,9 +255,9 @@ mod unit_tests {
     #[test]
     fn test_file_tree_integrity_path_conflict() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "file", &account.username);
-        let document = files::create(FileType::Document, root.id, "file", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "file", &account.public_key());
+        let document = files::create(FileType::Document, root.id, "file", &account.public_key());
 
         let result = [root, folder, document].verify_integrity();
 

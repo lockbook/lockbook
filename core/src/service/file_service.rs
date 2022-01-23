@@ -47,7 +47,13 @@ pub fn create_file(
     let account = account_repo::get(config)?;
     file_service::get_not_deleted_metadata(config, RepoSource::Local, parent)?;
     let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
-    let metadata = files::apply_create(&all_metadata, file_type, parent, name, &account.username)?;
+    let metadata = files::apply_create(
+        &all_metadata,
+        file_type,
+        parent,
+        name,
+        &account.public_key(),
+    )?;
     file_service::insert_metadatum(config, RepoSource::Local, &metadata)?;
     Ok(metadata)
 }
@@ -810,7 +816,7 @@ mod unit_tests {
     fn insert_metadata() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -825,7 +831,7 @@ mod unit_tests {
     fn get_metadata() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -857,7 +863,7 @@ mod unit_tests {
     fn get_metadata_local_falls_back_to_base() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -874,7 +880,7 @@ mod unit_tests {
     fn get_metadata_local_prefers_local() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let mut root = files::create_root(&account.username);
+        let mut root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -895,7 +901,7 @@ mod unit_tests {
     fn maybe_get_metadata() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -928,8 +934,13 @@ mod unit_tests {
     fn insert_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -947,8 +958,13 @@ mod unit_tests {
     fn get_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -975,9 +991,9 @@ mod unit_tests {
             RepoSource::Local,
             &files::create(
                 FileType::Document,
-                files::create_root(&account.username).id,
+                files::create_root(&account).id,
                 "asdf",
-                &account.username,
+                &account.public_key(),
             ),
         );
 
@@ -992,8 +1008,13 @@ mod unit_tests {
     fn get_document_local_falls_back_to_base() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1013,8 +1034,13 @@ mod unit_tests {
     fn get_document_local_prefers_local() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1036,8 +1062,13 @@ mod unit_tests {
     fn maybe_get_document() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1065,9 +1096,9 @@ mod unit_tests {
             RepoSource::Local,
             &files::create(
                 FileType::Document,
-                files::create_root(&account.username).id,
+                files::create_root(&account).id,
                 "asdf",
-                &account.username,
+                &account.public_key(),
             ),
         )
         .unwrap();
@@ -1098,7 +1129,7 @@ mod unit_tests {
     fn new() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -1118,7 +1149,7 @@ mod unit_tests {
     fn new_idempotent() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -1140,7 +1171,7 @@ mod unit_tests {
     fn matching_base_and_local() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1158,7 +1189,7 @@ mod unit_tests {
     fn matching_local_and_base() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -1176,10 +1207,14 @@ mod unit_tests {
     fn move_unmove() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document =
-            files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let mut document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1224,10 +1259,14 @@ mod unit_tests {
     fn rename_unrename() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document =
-            files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let mut document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1272,10 +1311,14 @@ mod unit_tests {
     fn delete() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document =
-            files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let mut document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1315,10 +1358,14 @@ mod unit_tests {
     fn multiple_metadata_edits() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let mut root = files::create_root(&account.username);
-        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document =
-            files::create(FileType::Document, root.id, "document", &account.username);
+        let mut root = files::create_root(&account);
+        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let mut document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1338,7 +1385,12 @@ mod unit_tests {
         root.decrypted_name = String::from("root 2");
         folder.deleted = true;
         document.parent = folder.id;
-        let document2 = files::create(FileType::Document, root.id, "document 2", &account.username);
+        let document2 = files::create(
+            FileType::Document,
+            root.id,
+            "document 2",
+            &account.public_key(),
+        );
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &folder).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &document).unwrap();
@@ -1356,8 +1408,13 @@ mod unit_tests {
     fn document_edit() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1389,8 +1446,13 @@ mod unit_tests {
     fn document_edit_idempotent() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1426,8 +1488,13 @@ mod unit_tests {
     fn document_edit_revert() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1471,8 +1538,13 @@ mod unit_tests {
     fn document_edit_manual_promote() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1516,15 +1588,19 @@ mod unit_tests {
     fn promote() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let mut root = files::create_root(&account.username);
-        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document =
-            files::create(FileType::Document, folder.id, "document", &account.username);
+        let mut root = files::create_root(&account);
+        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let mut document = files::create(
+            FileType::Document,
+            folder.id,
+            "document",
+            &account.public_key(),
+        );
         let document2 = files::create(
             FileType::Document,
             folder.id,
             "document 2",
-            &account.username,
+            &account.public_key(),
         );
 
         account_repo::insert(config, &account).unwrap();
@@ -1547,7 +1623,12 @@ mod unit_tests {
         root.decrypted_name = String::from("root 2");
         folder.deleted = true;
         document.parent = root.id;
-        let document3 = files::create(FileType::Document, root.id, "document 3", &account.username);
+        let document3 = files::create(
+            FileType::Document,
+            root.id,
+            "document 3",
+            &account.public_key(),
+        );
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &folder).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &document).unwrap();
@@ -1587,9 +1668,13 @@ mod unit_tests {
     fn prune_deleted() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let mut document =
-            files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let mut document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1621,9 +1706,13 @@ mod unit_tests {
     fn prune_deleted_document_edit() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let mut document =
-            files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let mut document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1659,9 +1748,14 @@ mod unit_tests {
     fn prune_deleted_document_in_deleted_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, folder.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            folder.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1698,10 +1792,14 @@ mod unit_tests {
     fn prune_deleted_document_moved_from_deleted_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let mut document =
-            files::create(FileType::Document, folder.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let mut document = files::create(
+            FileType::Document,
+            folder.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1741,9 +1839,13 @@ mod unit_tests {
     fn prune_deleted_base_only() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let mut document =
-            files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let mut document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1779,8 +1881,13 @@ mod unit_tests {
     fn prune_deleted_local_only() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1814,9 +1921,14 @@ mod unit_tests {
     fn prune_deleted_document_moved_from_deleted_folder_local_only() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Document, folder.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Document,
+            folder.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1855,7 +1967,7 @@ mod unit_tests {
     fn prune_deleted_new_local_deleted_folder() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
+        let root = files::create_root(&account);
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1868,7 +1980,7 @@ mod unit_tests {
         assert_document_count!(config, RepoSource::Local, 0);
 
         let mut deleted_folder =
-            files::create(FileType::Folder, root.id, "folder", &account.username);
+            files::create(FileType::Folder, root.id, "folder", &account.public_key());
         deleted_folder.deleted = true;
         file_service::insert_metadatum(config, RepoSource::Local, &deleted_folder).unwrap();
         file_service::prune_deleted(config).unwrap();
@@ -1885,8 +1997,13 @@ mod unit_tests {
     fn prune_deleted_new_local_deleted_folder_with_existing_moved_child() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1902,7 +2019,7 @@ mod unit_tests {
         assert_document_count!(config, RepoSource::Local, 1);
 
         let mut deleted_folder =
-            files::create(FileType::Folder, root.id, "folder", &account.username);
+            files::create(FileType::Folder, root.id, "folder", &account.public_key());
         deleted_folder.deleted = true;
         let mut document_moved = document.clone();
         document_moved.parent = deleted_folder.id;
@@ -1924,8 +2041,13 @@ mod unit_tests {
     fn prune_deleted_new_local_deleted_folder_with_deleted_existing_moved_child() {
         let config = &temp_config();
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let document = files::create(FileType::Document, root.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let document = files::create(
+            FileType::Document,
+            root.id,
+            "document",
+            &account.public_key(),
+        );
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1941,7 +2063,7 @@ mod unit_tests {
         assert_document_count!(config, RepoSource::Local, 1);
 
         let mut deleted_folder =
-            files::create(FileType::Folder, root.id, "folder", &account.username);
+            files::create(FileType::Folder, root.id, "folder", &account.public_key());
         deleted_folder.deleted = true;
         let mut document_moved_and_deleted = document.clone();
         document_moved_and_deleted.parent = deleted_folder.id;
