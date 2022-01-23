@@ -45,6 +45,7 @@ tempfile = { version = "3.1.0" }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 itertools = "0.10.1"
 backtrace = "0.3"
+libsecp256k1 = "0.7.0"
 
 [profile.release]
 debug = true

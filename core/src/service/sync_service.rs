@@ -286,7 +286,7 @@ fn merge_maybe_documents(
                             FileType::Document,
                             merged_metadata.parent,
                             &merged_metadata.decrypted_name,
-                            &merged_metadata.owner,
+                            &merged_metadata.owner.0,
                         );
 
                         ResolvedDocument::Copied {
@@ -324,13 +324,13 @@ fn merge_maybe_documents(
                             FileType::Document,
                             merged_metadata.parent,
                             &merged_metadata.decrypted_name,
-                            &merged_metadata.owner,
+                            &merged_metadata.owner.0,
                         );
 
                         ResolvedDocument::Copied {
                             remote_metadata: remote_metadata.clone(),
                             remote_document,
-                            copied_local_metadata: copied_local_metadata,
+                            copied_local_metadata,
                             copied_local_document: local_document,
                         }
                     }
@@ -815,9 +815,10 @@ mod unit_tests {
 
     use uuid::Uuid;
 
-    use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+    use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType, Owner};
 
     use crate::service::sync_service::{self, MaybeMergeResult};
+    use crate::service::test_utils::generate_account;
 
     #[test]
     fn merge_maybe_resolved_base() {
@@ -920,6 +921,7 @@ mod unit_tests {
 
     #[test]
     fn merge_metadata_local_and_remote_moved() {
+        let account = &generate_account();
         let base = DecryptedFileMetadata {
             id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
             file_type: FileType::Document,
@@ -928,7 +930,7 @@ mod unit_tests {
             metadata_version: 1634693786444,
             content_version: 1634693786444,
             deleted: false,
-            owner: Default::default(),
+            owner: Owner::from(account),
             decrypted_access_key: Default::default(),
         };
         let local = DecryptedFileMetadata {
@@ -939,7 +941,7 @@ mod unit_tests {
             metadata_version: 1634693786444,
             content_version: 1634693786444,
             deleted: false,
-            owner: Default::default(),
+            owner: Owner::from(account),
             decrypted_access_key: Default::default(),
         };
         let remote = DecryptedFileMetadata {
@@ -950,7 +952,7 @@ mod unit_tests {
             metadata_version: 1634693786756,
             content_version: 1634693786556,
             deleted: false,
-            owner: Default::default(),
+            owner: Owner::from(account),
             decrypted_access_key: Default::default(),
         };
 
@@ -966,7 +968,7 @@ mod unit_tests {
                 metadata_version: 1634693786756,
                 content_version: 1634693786556,
                 deleted: false,
-                owner: Default::default(),
+                owner: Owner::from(account),
                 decrypted_access_key: Default::default(),
             }
         );
@@ -974,6 +976,7 @@ mod unit_tests {
 
     #[test]
     fn merge_maybe_metadata_local_and_remote_moved() {
+        let account = &generate_account();
         let base = Some(DecryptedFileMetadata {
             id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
             file_type: FileType::Document,
@@ -982,7 +985,7 @@ mod unit_tests {
             metadata_version: 1634693786444,
             content_version: 1634693786444,
             deleted: false,
-            owner: Default::default(),
+            owner: Owner::from(account),
             decrypted_access_key: Default::default(),
         });
         let local = Some(DecryptedFileMetadata {
@@ -993,7 +996,7 @@ mod unit_tests {
             metadata_version: 1634693786444,
             content_version: 1634693786444,
             deleted: false,
-            owner: Default::default(),
+            owner: Owner::from(account),
             decrypted_access_key: Default::default(),
         });
         let remote = Some(DecryptedFileMetadata {
@@ -1004,7 +1007,7 @@ mod unit_tests {
             metadata_version: 1634693786756,
             content_version: 1634693786556,
             deleted: false,
-            owner: Default::default(),
+            owner: Owner::from(account),
             decrypted_access_key: Default::default(),
         });
 
@@ -1020,7 +1023,7 @@ mod unit_tests {
                 metadata_version: 1634693786756,
                 content_version: 1634693786556,
                 deleted: false,
-                owner: Default::default(),
+                owner: Owner::from(account),
                 decrypted_access_key: Default::default(),
             }
         );

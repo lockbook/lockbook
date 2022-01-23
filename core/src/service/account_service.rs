@@ -36,7 +36,7 @@ pub fn create_account(
         private_key: keys,
     };
 
-    let mut root_metadata = files::create_root(&account.username);
+    let mut root_metadata = files::create_root(&account);
     let encrypted_metadata =
         file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?;
     let encrypted_metadatum = files::single_or(
