@@ -33,7 +33,7 @@ pub fn create(
         file_type,
         parent,
         decrypted_name: String::from(name),
-        owner: Owner { 0: owner.clone() },
+        owner: Owner { 0: *owner },
         metadata_version: 0,
         content_version: 0,
         deleted: false,
