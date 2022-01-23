@@ -1,9 +1,10 @@
 use crate::internal;
 use crate::keys::{file, owned_files, size};
-use crate::ServerError::{ClientError, InternalError};
-use crate::{file_content_client, ServerError};
+use crate::ServerError;
+use crate::ServerError::ClientError;
 use crate::{keys, RequestContext};
 
+use crate::content::document_service;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileMetadataUpsertsError::{GetUpdatesRequired, RootImmutable};
 use lockbook_models::api::*;
@@ -52,9 +53,7 @@ pub async fn upsert_file_metadata(
     return_if_error!(tx);
 
     for file in docs_to_delete {
-        file_content_client::delete(&server_state.files_db_client, file.id, file.content_version)
-            .await
-            .map_err(|err| internal!("Cannot delete file in S3: {:?}", err))?;
+        document_service::background_delete(server_state, file.id, file.content_version).await?;
     }
     Ok(())
 }
@@ -151,7 +150,7 @@ fn new_meta(now: u64, diff: &FileMetadataDiff) -> EncryptedFileMetadata {
 
 /// Changes the content and size of a document
 /// Grabs the file out of redis and does some preliminary checks regarding ownership and version
-/// TODO After #949 do actual ownership checks
+/// TODO After #949 do actual ownership checks, prior to the first create
 /// TODO After billing, do actual space checks
 pub async fn change_document_content(
     context: RequestContext<'_, ChangeDocumentContentRequest>,
@@ -164,26 +163,9 @@ pub async fn change_document_content(
 
     let mut old_content_version = 0;
 
-    // TODO if the transaction is aborted, we'll be paying for this file and not the customer
-    // Ideally we have a mechanism to push async tasks on to a queue for background processing
-    file_content_client::create(
-        &server_state.files_db_client,
-        request.id,
-        new_version,
-        &request.new_content,
-    )
-    .await
-    .map_err(|err| {
-        internal!(
-            "Cannot create file: {}:{}:{} in S3: {:?}",
-            request.id,
-            request.old_metadata_version,
-            new_version,
-            err
-        )
-    })?;
+    document_service::create(server_state, request.id, new_version, &request.new_content).await?;
 
-    let tx = tx!(&mut con, pipe, watched_keys, {
+    let tx: Result<(), _> = tx!(&mut con, pipe, watched_keys, {
         let new_size = FileUsage {
             file_id: request.id,
             size_bytes: request.new_content.value.len() as u64,
@@ -219,23 +201,13 @@ pub async fn change_document_content(
         pipe.json_set(size(request.id), new_size)?
             .json_set(file(request.id), meta)
     });
+    if tx.is_err() {
+        // Cleanup the NEW file created if, for some reason, the tx failed
+        document_service::background_delete(server_state, request.id, new_version).await?;
+    }
     return_if_error!(tx);
 
-    file_content_client::delete(
-        &server_state.files_db_client,
-        request.id,
-        old_content_version,
-    )
-    .await
-    .map_err(|err| {
-        internal!(
-            "Cannot delete file: {}:{}:{} in S3: {:?}",
-            request.id,
-            request.old_metadata_version,
-            new_version,
-            err
-        )
-    })?;
+    document_service::background_delete(server_state, request.id, old_content_version).await?;
 
     Ok(ChangeDocumentContentResponse {
         new_content_version: new_version,
@@ -246,19 +218,8 @@ pub async fn get_document(
     context: RequestContext<'_, GetDocumentRequest>,
 ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let files_result = file_content_client::get(
-        &server_state.files_db_client,
-        request.id,
-        request.content_version,
-    )
-    .await;
-    match files_result {
-        Ok(c) => Ok(GetDocumentResponse { content: c }),
-        Err(file_content_client::Error::NoSuchKey(_)) => {
-            Err(ClientError(GetDocumentError::DocumentNotFound))
-        }
-        Err(e) => Err(InternalError(format!("Cannot get file from S3: {:?}", e))),
-    }
+    let content = document_service::get(server_state, request.id, request.content_version).await?;
+    Ok(GetDocumentResponse { content })
 }
 
 pub async fn get_updates(
