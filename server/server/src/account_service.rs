@@ -142,14 +142,14 @@ pub async fn get_file_usage(
     let files: Vec<Uuid> = con
         .maybe_json_get(owned_files(public_key))
         .await
-        .map_err(|e| GetFileUsageError::Internal(e))?
+        .map_err(GetFileUsageError::Internal)?
         .ok_or(GetFileUsageError::UserNotFound)?;
 
     let keys: Vec<String> = files.into_iter().map(keys::size).collect();
 
     con.json_mget(keys)
         .await
-        .map_err(|e| GetFileUsageError::Internal(e))
+        .map_err(GetFileUsageError::Internal)
 }
 
 /// Delete's an account's files out of s3 and clears their file tree within redis

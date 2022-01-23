@@ -41,7 +41,7 @@ pub async fn switch_account_tier(
     let mut user_info: StripeUserInfo = con
         .maybe_json_get(stripe_user_info(&context.public_key))
         .await?
-        .unwrap_or(StripeUserInfo::default());
+        .unwrap_or_default();
 
     let cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
@@ -83,7 +83,7 @@ pub async fn switch_account_tier(
                     user_info.subscriptions.as_slice(),
                 )?;
 
-            stripe_client::delete_subscription(&server_state, &active_subscription.id).await?;
+            stripe_client::delete_subscription(server_state, &active_subscription.id).await?;
 
             user_info.subscriptions[active_pos].is_active = false;
 
@@ -172,7 +172,7 @@ async fn create_subscription(
             cvc,
         } => {
             let payment_method_resp = stripe_client::create_payment_method(
-                &server_state,
+                server_state,
                 number,
                 exp_year,
                 exp_month,
@@ -182,7 +182,7 @@ async fn create_subscription(
 
             if user_info.customer_id == UNSET_CUSTOMER_ID {
                 user_info.customer_id =
-                    stripe_client::create_customer(&server_state, &payment_method_resp.id)
+                    stripe_client::create_customer(server_state, &payment_method_resp.id)
                         .await?
                         .id;
 
@@ -205,11 +205,11 @@ async fn create_subscription(
                 .iter()
                 .max_by_key(|info| info.created_at)
             {
-                stripe_client::detach_payment_method_from_customer(&server_state, &info.id).await?;
+                stripe_client::detach_payment_method_from_customer(server_state, &info.id).await?;
             }
 
             stripe_client::create_setup_intent(
-                &server_state,
+                server_state,
                 &user_info.customer_id,
                 &payment_method_resp.id,
             )
@@ -239,7 +239,7 @@ async fn create_subscription(
     };
 
     let subscription_resp = match stripe_client::create_subscription(
-        &server_state,
+        server_state,
         &user_info.customer_id,
         &chosen_card,
     )
@@ -250,7 +250,7 @@ async fn create_subscription(
         Err(e) => {
             match payment_method {
                 PaymentMethod::NewCard { .. } => {
-                    stripe_client::delete_customer(&server_state, &user_info.customer_id).await?;
+                    stripe_client::delete_customer(server_state, &user_info.customer_id).await?;
                 }
                 PaymentMethod::OldCard => {}
             }
@@ -371,7 +371,7 @@ pub async fn stripe_webhooks(
             match partial_invoice.billing_reason {
                 StripeBillingReason::SubscriptionCycle => {
                     let invoice =
-                        stripe_client::retrieve_invoice(&server_state, &partial_invoice.id)
+                        stripe_client::retrieve_invoice(server_state, &partial_invoice.id)
                             .await
                             .map_err(|e| internal!("Cannot retrieve expanded invoice: {:?}", e))?;
 
@@ -431,7 +431,7 @@ fn verify_stripe_webhook(
     request_body: &Bytes,
     stripe_sig: HeaderValue,
 ) -> Result<(), ServerError<StripeWebhookError>> {
-    let json = match std::str::from_utf8(&request_body.as_ref()) {
+    let json = match std::str::from_utf8(request_body.as_ref()) {
         Ok(json) => json,
         Err(e) => {
             return Err(ClientError(StripeWebhookError::InvalidBody(format!(
@@ -449,29 +449,27 @@ fn verify_stripe_webhook(
                 e
             )))
         })?
-        .split(",");
+        .split(',');
 
     let mut maybe_time = None;
     let mut maybe_expected_sig = None;
 
     for part in sig_header_split {
-        let mut part_split = part.split("=");
+        let mut part_split = part.split('=');
 
-        let part_title =
-            part_split
-                .next()
-                .ok_or(ClientError(StripeWebhookError::InvalidHeader(format!(
-                    "Cannot get the component from the header to verify stripe webhook: {:?}",
-                    stripe_sig
-                ))))?;
+        let part_title = part_split.next().ok_or_else(|| {
+            ClientError(StripeWebhookError::InvalidHeader(format!(
+                "Cannot get the component from the header to verify stripe webhook: {:?}",
+                stripe_sig
+            )))
+        })?;
 
-        let part_value =
-            part_split
-                .last()
-                .ok_or(ClientError(StripeWebhookError::InvalidHeader(format!(
-                    "Cannot get the component from the header to verify stripe webhook: {:?}",
-                    stripe_sig
-                ))))?;
+        let part_value = part_split.last().ok_or_else(|| {
+            ClientError(StripeWebhookError::InvalidHeader(format!(
+                "Cannot get the component from the header to verify stripe webhook: {:?}",
+                stripe_sig
+            )))
+        })?;
 
         if part_title == "t" {
             maybe_time = Some(part_value);
