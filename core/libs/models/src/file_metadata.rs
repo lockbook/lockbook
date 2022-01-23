@@ -1,12 +1,14 @@
+use libsecp256k1::PublicKey;
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::account::Username;
+use crate::account::{Account, Username};
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
 use crate::tree::FileMetadata;
 
@@ -33,7 +35,7 @@ pub struct EncryptedFileMetadata {
     pub file_type: FileType,
     pub parent: Uuid,
     pub name: SecretFileName,
-    pub owner: String,
+    pub owner: Owner,
     pub metadata_version: u64,
     pub content_version: u64,
     pub deleted: bool,
@@ -56,7 +58,7 @@ impl FileMetadata for EncryptedFileMetadata {
     fn name(&self) -> Self::Name {
         self.name.clone()
     }
-    fn owner(&self) -> String {
+    fn owner(&self) -> Owner {
         self.owner.clone()
     }
     fn metadata_version(&self) -> u64 {
@@ -83,13 +85,30 @@ impl fmt::Debug for EncryptedFileMetadata {
     }
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct Owner(pub PublicKey);
+
+impl From<&Account> for Owner {
+    fn from(account: &Account) -> Self {
+        Self {
+            0: account.public_key(),
+        }
+    }
+}
+
+impl Hash for Owner {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.serialize().hash(state)
+    }
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct DecryptedFileMetadata {
     pub id: Uuid,
     pub file_type: FileType,
     pub parent: Uuid,
     pub decrypted_name: String,
-    pub owner: String,
+    pub owner: Owner,
     pub metadata_version: u64,
     pub content_version: u64,
     pub deleted: bool,
@@ -111,7 +130,7 @@ impl FileMetadata for DecryptedFileMetadata {
     fn name(&self) -> Self::Name {
         self.decrypted_name.clone()
     }
-    fn owner(&self) -> String {
+    fn owner(&self) -> Owner {
         self.owner.clone()
     }
     fn metadata_version(&self) -> u64 {
@@ -148,7 +167,7 @@ pub struct FileMetadataDiff {
     pub new_name: SecretFileName,
     pub new_deleted: bool,
     pub new_folder_access_keys: EncryptedFolderAccessKey,
-    pub owner: String,
+    pub owner: Owner,
 }
 
 impl FileMetadataDiff {
