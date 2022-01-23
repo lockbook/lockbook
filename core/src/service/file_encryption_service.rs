@@ -205,7 +205,12 @@ mod unit_tests {
     fn encrypt_decrypt_metadatum() {
         let account = test_utils::generate_account();
         let key = symkey::generate_key();
-        let file = files::create(FileType::Folder, Uuid::new_v4(), "folder", "owner");
+        let file = files::create(
+            FileType::Folder,
+            Uuid::new_v4(),
+            "folder",
+            &account.public_key(),
+        );
 
         let encrypted_file =
             file_encryption_service::encrypt_metadatum(&account, &key, &file).unwrap();
@@ -218,9 +223,14 @@ mod unit_tests {
     #[test]
     fn encrypt_decrypt_metadata() {
         let account = test_utils::generate_account();
-        let root = files::create_root(&account.username);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.username);
-        let document = files::create(FileType::Folder, folder.id, "document", &account.username);
+        let root = files::create_root(&account);
+        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+        let document = files::create(
+            FileType::Folder,
+            folder.id,
+            "document",
+            &account.public_key(),
+        );
         let files = [root.clone(), folder.clone(), document.clone()];
 
         let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files).unwrap();

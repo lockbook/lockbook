@@ -14,7 +14,9 @@ use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::FileType::Folder;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
+use lockbook_models::file_metadata::{
+    DecryptedFileMetadata, EncryptedFileMetadata, FileType, Owner,
+};
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -256,7 +258,7 @@ pub fn generate_root_metadata(account: &Account) -> (EncryptedFileMetadata, AESK
             file_type: Folder,
             id,
             name,
-            owner: account.username.clone(),
+            owner: Owner::from(account),
             parent: id,
             content_version: 0,
             metadata_version: 0,
@@ -281,7 +283,7 @@ pub fn generate_file_metadata(
             file_type,
             id,
             name: random_filename(),
-            owner: account.username.clone(),
+            owner: Owner::from(account),
             parent: parent.id,
             content_version: 0,
             metadata_version: 0,
