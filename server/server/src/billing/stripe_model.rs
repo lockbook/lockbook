@@ -173,6 +173,7 @@ pub enum SetupPaymentIntentStatus {
 pub struct StripePaymentMethodResponse {
     pub id: String,
     pub card: PaymentMethodCard,
+    pub created: u64,
 }
 
 #[derive(Serialize, Deserialize)]

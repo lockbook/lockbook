@@ -631,6 +631,7 @@ pub enum SwitchAccountTierError {
     InvalidCreditCardExpYear,
     InvalidCreditCardExpMonth,
     CardDecline,
+    ClientUpdateRequired,
 }
 
 pub fn switch_account_tier(
@@ -656,24 +657,27 @@ pub fn switch_account_tier(
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
         CoreError::CardDecline(_) => UiError(SwitchAccountTierError::CardDecline),
+        CoreError::ClientUpdateRequired => UiError(SwitchAccountTierError::ClientUpdateRequired),
         _ => unexpected!("{:#?}", e),
     })
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum GetLastRegisteredCardError {
+pub enum GetCreditCard {
     NoAccount,
     CouldNotReachServer,
     OldCardDoesNotExist,
+    NotAStripeCustomer,
+    ClientUpdateRequired,
 }
 
-pub fn get_last_registered_credit_card(
-    config: &Config,
-) -> Result<CreditCardLast4Digits, Error<GetLastRegisteredCardError>> {
-    billing_service::get_last_registered_credit_card(config).map_err(|e| match e {
-        CoreError::OldCardDoesNotExist => UiError(GetLastRegisteredCardError::OldCardDoesNotExist),
-        CoreError::AccountNonexistent => UiError(GetLastRegisteredCardError::NoAccount),
-        CoreError::ServerUnreachable => UiError(GetLastRegisteredCardError::CouldNotReachServer),
+pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
+    billing_service::get_credit_card(config).map_err(|e| match e {
+        CoreError::OldCardDoesNotExist => UiError(GetCreditCard::OldCardDoesNotExist),
+        CoreError::AccountNonexistent => UiError(GetCreditCard::NoAccount),
+        CoreError::ServerUnreachable => UiError(GetCreditCard::CouldNotReachServer),
+        CoreError::NotAStripeCustomer => UiError(GetCreditCard::NotAStripeCustomer),
+        CoreError::ClientUpdateRequired => UiError(GetCreditCard::ClientUpdateRequired),
         _ => unexpected!("{:#?}", e),
     })
 }

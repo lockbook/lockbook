@@ -33,15 +33,14 @@ pub fn switch_account_tier(
             CoreError::CardDecline(decline_type)
         }
         ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+        ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
         _ => core_err_unexpected(e),
     })?;
 
     Ok(())
 }
 
-pub fn get_last_registered_credit_card(
-    config: &Config,
-) -> Result<CreditCardLast4Digits, CoreError> {
+pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, CoreError> {
     let account = account_repo::get(config)?;
 
     api_service::request(&account, GetCreditCardRequest {})
@@ -49,6 +48,11 @@ pub fn get_last_registered_credit_card(
             ApiError::Endpoint(GetCreditCardError::OldCardDoesNotExist) => {
                 CoreError::OldCardDoesNotExist
             }
+            ApiError::Endpoint(GetCreditCardError::NotAStripeCustomer) => {
+                CoreError::NotAStripeCustomer
+            }
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             _ => core_err_unexpected(e),
         })
         .map(|response| response.credit_card_last_4_digits)

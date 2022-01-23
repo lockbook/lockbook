@@ -36,7 +36,7 @@ mod get_credit_card_test {
     }
 
     #[test]
-    fn get_credit_card_does_not_exist() {
+    fn get_credit_card_does_not_a_stripe_customer() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
 
@@ -47,7 +47,7 @@ mod get_credit_card_test {
         assert_matches!(
             result,
             Err(ApiError::<GetCreditCardError>::Endpoint(
-                GetCreditCardError::OldCardDoesNotExist
+                GetCreditCardError::NotAStripeCustomer
             ))
         );
     }

@@ -78,6 +78,7 @@ pub enum CoreError {
     ImportCollision(String),
     InvalidCreditCard(CreditCardRejectReason),
     NewTierIsOldTier,
+    NotAStripeCustomer,
     OutOfSpace,
     PathContainsEmptyFileName,
     PathNonexistent,

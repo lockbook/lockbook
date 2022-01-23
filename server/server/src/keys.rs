@@ -1,4 +1,3 @@
-use crate::billing::stripe_model::StripeUserInfo;
 use libsecp256k1::PublicKey;
 use lockbook_models::tree::FileMetadata;
 use uuid::Uuid;

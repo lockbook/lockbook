@@ -1,7 +1,6 @@
 use crate::utils::username_is_valid;
 use crate::{
-    file_content_client, keys, InternalError, RequestContext, ServerError, ServerState,
-    FREE_TIER_USAGE_SIZE,
+    file_content_client, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
 };
 use deadpool_redis::redis::AsyncCommands;
 use libsecp256k1::PublicKey;
@@ -11,16 +10,14 @@ use redis_utils::converters::{JsonGet, JsonSet};
 
 use redis_utils::tx;
 use uuid::Uuid;
-use warp::hyper::body::HttpBody;
 
 use crate::keys::{data_cap, file, meta, owned_files, public_key, size, username};
 use crate::ServerError::ClientError;
-use lockbook_models::api::GetUsageError::UserNotFound;
 use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_models::api::{
     DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest,
     GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
-    NewAccountRequest, NewAccountResponse, SwitchAccountTierError, SwitchAccountTierRequest,
+    NewAccountRequest, NewAccountResponse,
 };
 use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::Document;
@@ -142,7 +139,7 @@ pub enum GetFileUsageError {
 pub async fn get_file_usage(
     con: &mut deadpool_redis::Connection,
     public_key: &PublicKey,
-) -> Result<(Vec<FileUsage>), GetFileUsageError> {
+) -> Result<Vec<FileUsage>, GetFileUsageError> {
     let files: Vec<Uuid> = con
         .maybe_json_get(owned_files(public_key))
         .await

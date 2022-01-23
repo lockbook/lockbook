@@ -3,7 +3,7 @@ use crate::billing::billing_service;
 use crate::billing::billing_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
-use crate::{router_service, verify_auth, verify_client_version, ServerState};
+use crate::{router_service, verify_auth, verify_client_version, ServerError, ServerState};
 use lazy_static::lazy_static;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_models::api::*;
@@ -160,12 +160,12 @@ pub fn stripe_webhooks(
                         error!("{:?}", e);
 
                         let status_code = match e {
-                            StripeWebhookError::VerificationError(_)
-                            | StripeWebhookError::InvalidBody(_)
-                            | StripeWebhookError::InvalidHeader(_) => StatusCode::BAD_REQUEST,
-                            StripeWebhookError::InternalError(_) => {
-                                StatusCode::INTERNAL_SERVER_ERROR
+                            ServerError::ClientError(StripeWebhookError::VerificationError(_))
+                            | ServerError::ClientError(StripeWebhookError::InvalidBody(_))
+                            | ServerError::ClientError(StripeWebhookError::InvalidHeader(_)) => {
+                                StatusCode::BAD_REQUEST
                             }
+                            ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                         };
 
                         warp::reply::with_status("".to_string(), status_code)
