@@ -81,6 +81,20 @@ pub async fn get(
     }
 }
 
+pub async fn delete<T: Debug>(
+    state: &ServerState,
+    id: Uuid,
+    content_version: u64,
+) -> Result<(), ServerError<T>> {
+    content_cache::delete(state, id, content_version).await?;
+
+    file_content_client::delete(state, id, content_version)
+        .await
+        .map_err(|err| internal!("could not delete file from s3: {:?}", err))?;
+
+    Ok(())
+}
+
 pub async fn background_delete<T: Debug>(
     state: &ServerState,
     id: Uuid,

@@ -89,7 +89,8 @@ pub async fn create(
     }
 }
 
-pub async fn delete(client: &S3Client, file_id: Uuid, content_version: u64) -> Result<(), Error> {
+pub async fn delete(state: &ServerState, file_id: Uuid, content_version: u64) -> Result<(), Error> {
+    let client = &state.files_db_client;
     match client
         .delete_object(&format!("/{}-{}", file_id, content_version))
         .await
@@ -101,9 +102,9 @@ pub async fn delete(client: &S3Client, file_id: Uuid, content_version: u64) -> R
 }
 
 pub fn background_delete(state: &ServerState, file_id: Uuid, content_version: u64) {
-    let client = state.files_db_client.clone();
+    let state = state.clone();
     tokio::spawn(async move {
-        match delete(&client, file_id, content_version).await {
+        match delete(&state, file_id, content_version).await {
             Ok(_) => return,
             Err(err) => error!(
                 "Failed to delete file out of s3, will retry after 1 second. Error: {:?}",
@@ -111,12 +112,12 @@ pub fn background_delete(state: &ServerState, file_id: Uuid, content_version: u6
             ),
         }
         sleep(Duration::from_secs(1)).await;
-        match delete(&client, file_id, content_version).await {
+        match delete(&state, file_id, content_version).await {
             Ok(_) => return,
             Err(err) => error!("Failed to delete file out of s3 for the second time, will retry after 1 second. Error: {:?}", err)
         }
         sleep(Duration::from_secs(1)).await;
-        if let Err(err) = delete(&client, file_id, content_version).await {
+        if let Err(err) = delete(&state, file_id, content_version).await {
             error!("Failed to delete file out of s3 for the third and last time. Error: {:?}, id: {}, version: {}", err, file_id, content_version)
         }
     });

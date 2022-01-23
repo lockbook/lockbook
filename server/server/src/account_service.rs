@@ -8,7 +8,7 @@ use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::tx;
 use uuid::Uuid;
 
-use crate::content::file_content_client;
+use crate::content::document_service;
 use crate::keys::{data_cap, file, meta, owned_files, public_key, size, username};
 use crate::ServerError::ClientError;
 use lockbook_models::api::GetUsageError::UserNotFound;
@@ -166,13 +166,7 @@ pub async fn delete_account(
         .filter_documents();
 
     for file in non_deleted_document {
-        file_content_client::delete(
-            &context.server_state.files_db_client,
-            file.id,
-            file.content_version,
-        )
-        .await
-        .map_err(|err| internal!("Cannot delete file in S3: {:?}", err))?;
+        document_service::delete(context.server_state, file.id, file.content_version).await?;
     }
 
     Ok(())
