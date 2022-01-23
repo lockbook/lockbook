@@ -334,7 +334,35 @@ pub async fn stripe_webhooks(
                         invoice.customer_id
                     ))?;
 
+                let mut user_info: StripeUserInfo = con
+                    .maybe_json_get(stripe_user_info(&public_key))
+                    .await?
+                    .ok_or(internal!(
+                        "Payment failed for a customer we don't have info about on redis: {:?}",
+                        webhook
+                    ))?;
+
                 con.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).await?;
+
+                let active_pos = user_info
+                    .subscriptions
+                    .iter()
+                    .position(|info| info.is_active)
+                    .ok_or(internal!("Redis says there is no active subscription despite the user having non free data cap: {:?}", user_info))?;
+
+                user_info.subscriptions[active_pos].is_active = false;
+
+                let tx_result = tx!(
+                    &mut con,
+                    pipe_name,
+                    &[data_cap(&public_key), stripe_user_info(&public_key)],
+                    {
+                        pipe_name
+                            .set(data_cap(&public_key), FREE_TIER_USAGE_SIZE)
+                            .json_set(stripe_user_info(&public_key), &user_info)
+                    }
+                );
+                return_if_error!(tx_result);
             } else {
                 return Ok(());
             }
@@ -381,6 +409,11 @@ pub async fn stripe_webhooks(
 
                     user_info.subscriptions[active_pos].period_end =
                         subscription.current_period_end;
+
+                    let tx_result = tx!(&mut con, pipe_name, &[stripe_user_info(&public_key)], {
+                        pipe_name.json_set(stripe_user_info(&public_key), &user_info)
+                    });
+                    return_if_error!(tx_result);
                 }
                 _ => return Ok(()),
             }

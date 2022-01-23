@@ -13,10 +13,13 @@ use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper, SwitchAccountTierError};
 use redis_utils::converters::JsonGetError;
+
+use crate::content::file_content_client;
 use serde::{Deserialize, Serialize};
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[derive(Clone)]
 pub struct ServerState {
     pub config: config::Config,
     pub index_db_pool: deadpool_redis::Pool,
@@ -37,24 +40,33 @@ pub enum ServerError<U: Debug> {
     InternalError(String),
 }
 
-// TODO these should probably have backtraces on them
 impl<T: Debug> From<PoolError> for ServerError<T> {
     fn from(err: PoolError) -> Self {
         internal!("Could not get conenction for pool: {:?}", err)
     }
 }
 
-// TODO these should probably have backtraces on them
 impl<T: Debug> From<RedisError> for ServerError<T> {
     fn from(err: RedisError) -> Self {
         internal!("Redis Error: {:?}", err)
     }
 }
 
-// TODO these should probably have backtraces on them
 impl<T: Debug> From<JsonGetError> for ServerError<T> {
     fn from(err: JsonGetError) -> Self {
         internal!("Redis Error: {:?}", err)
+    }
+}
+
+impl<T: Debug> From<file_content_client::Error> for ServerError<T> {
+    fn from(err: file_content_client::Error) -> Self {
+        internal!("S3 Error: {:?}", err)
+    }
+}
+
+impl<T: Debug> From<Box<bincode::ErrorKind>> for ServerError<T> {
+    fn from(err: Box<bincode::ErrorKind>) -> Self {
+        internal!("bincode error: {:?}", err)
     }
 }
 
@@ -74,9 +86,11 @@ macro_rules! return_if_error {
 
 #[macro_export]
 macro_rules! internal {
-    ($($arg:tt)*) => {
-        crate::ServerError::InternalError(format!($($arg)*))
-    };
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        log::error!("{}", msg);
+        crate::ServerError::InternalError(msg)
+    }};
 }
 
 impl From<StripeClientError> for ServerError<SwitchAccountTierError> {
@@ -121,7 +135,7 @@ pub const MONTHLY_TIER_USAGE_SIZE: u64 = 50000000000;
 pub mod account_service;
 pub mod billing;
 pub mod config;
-pub mod file_content_client;
+pub mod content;
 pub mod file_service;
 pub mod keys;
 pub mod loggers;

@@ -7,7 +7,9 @@ use lockbook_server_lib::config::Config;
 use lockbook_server_lib::*;
 
 use deadpool_redis::Runtime;
+use lockbook_server_lib::content::file_content_client;
 use log::info;
+
 use reqwest::Client;
 use std::sync::Arc;
 use warp::Filter;

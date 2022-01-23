@@ -12,5 +12,5 @@ rust-s3 = "0.27.0-rc3"
 lockbook-models = { path = "../../core/libs/models" }
 deadpool-redis = "0.10.1"
 redis = { version = "0.21", default-features = false, features = ["tokio-comp"] }
-redis_utils = "0.1.1"
+redis_utils = "0.1.2"
 reqwest = "0.11.7"
