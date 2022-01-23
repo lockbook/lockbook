@@ -3,7 +3,7 @@ use crate::file_content_client::Error::{
     InvalidAccessKeyId, NoSuchKey, ResponseNotUtf8, SignatureDoesNotMatch, Unknown,
 };
 use crate::ServerError::InternalError;
-use crate::{keys, ServerError, ServerState};
+use crate::{ServerError, ServerState};
 use futures::future::join;
 use lockbook_models::api::GetDocumentError;
 use lockbook_models::api::GetDocumentError::DocumentNotFound;

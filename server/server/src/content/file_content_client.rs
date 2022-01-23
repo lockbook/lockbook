@@ -1,6 +1,6 @@
 use crate::config::FilesDbConfig;
 use crate::ServerState;
-use lockbook_models::crypto::EncryptedDocument;
+
 use log::{debug, error};
 use s3::bucket::Bucket as S3Client;
 use s3::creds::Credentials;

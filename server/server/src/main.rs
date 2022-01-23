@@ -9,7 +9,7 @@ use lockbook_server_lib::*;
 use deadpool_redis::Runtime;
 use lockbook_server_lib::content::file_content_client;
 use log::info;
-use redis::AsyncCommands;
+
 use std::sync::Arc;
 use warp::Filter;
 
