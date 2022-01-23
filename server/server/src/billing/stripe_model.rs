@@ -210,7 +210,7 @@ pub struct StripeEventObjectContainer {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum StripeObjectType {
-    Invoice(StripeInvoiceResponse),
+    Invoice(Box<StripeInvoiceResponse>),
     Unmatched(serde_json::Value),
 }
 
