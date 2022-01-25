@@ -18,7 +18,7 @@ Before discussing the invariants, it is helpful to understand the data model. Fo
 * `file_type`: an immutable flag that indicates if the file is a folder or document. A _file_ is either a _document_, which has contents, or a _folder_, which can have files as children.
 * `name`: the file's name. Clients encrypt and HMAC names before sending them to the server, so while the server cannot read file names, it can test them for equality.
 * `parent`: the file's parent folder (specified by the parent's `id`). The `root` folder is the folder which has itself as a parent (it's name is by convention it's owners username and it cannot be deleted).
-* `deleted`: a boolean flag which indicates whether the file is _explicitly_ deleted. A file whose ancestor is deleted need not be explictly deleted; if not, it is considered _implictly_ deleted. A file that is no longer known to a client at all is considered _pruned_ on that client.
+* `deleted`: a boolean flag which indicates whether the file is _explicitly_ deleted. A file whose ancestor is deleted need not be explictly deleted; if not, it is considered _implictly_ deleted (all implicitly deleted files are eventually explicitly deleted). A file that is no longer known to a client at all is considered _pruned_ on that client.
 
 This data model lends itself to four operations, which (aside from `create`) correspond to modifications to the three mutable fields of a file:
 * `create`: create a file
@@ -33,11 +33,9 @@ With that data model in mind, these are the four main invariants that must be tr
 * Orphan Invariant: every non-root file must have its parent in the file tree. To keep client storage from growing unboundedly, clients eventually prune deleted files (remove all mentions of them from durable storage). If the design does not pay careful attention to the disctinctions between explictly deleted, implicitly deleted, and pruned files, a client may prune a file without pruning one of its children.
 
 ### Privacy
-Files, file names, and encryption keys never leave the client unencrypted. In order to support sharing, we give every document a symmetric key (used to encrypt its contents) and every folder a symmetric key (used to encrypt the keys of child folders and documents). This allows users to recursively share folder contents performantly and consistently. It also creates an encryption chain for each document: the document is encrypted with the document's key, which is encrypted with its parent folder's key, which is encrypted with it's parent folders key, all the way up to the root folder whose key is encrypted with the user's account key which is stored on the user's devices and trasferred directly between them as a string or QR code.
+Files, file names, and encryption keys never leave the client unencrypted. In order to support [sharing](sharing.md), we give every document a symmetric key (used to encrypt its contents) and every folder a symmetric key (used to encrypt the keys of child folders and documents). This allows users to recursively share folder contents performantly and consistently. It also creates an encryption chain for each document: the document is encrypted with the document's key, which is encrypted with its parent folder's key, which is encrypted with it's parent folders key, all the way up to the root folder whose key is encrypted with the user's account key which is stored on the user's devices and trasferred directly between them as a string or QR code.
 
 This encryption chain, and its interaction with the invariants, creates programming challenges. Our general pattern is to decrypt keys, names, and files as we read them from disk or receive them as responses from the server so that we can write all the remaining logic without worrying about encryption. However, most invariant violations (e.g. orphans and cycles) will cause us to fail to be able to decrypt files, which in turn makes it difficult to detect and appropriately resolve invariant violations.
-
-_todo: write and link the sharing design doc._
 
 ### Offline Editing
 The key challenge in offline editing is what to do when concurrent updates are made to files. As previously mentioned, the client maintains two versions of the file tree: one for the current local version (`local`), and one for the last version known to be agreed upon by the client and server (`base`). Our ambition is to define a 3-way merge operation for file trees which we can use after pulling the server's version of the file tree (`remote`) which never results in a invariant violation and which otherwise produces satisfying behavior to users. This operation needs to take place on clients because the server does not have access to decrypted files. Once a client uses the 3-way merge operation to resolve conflicts, they can write their updates back to the server.
@@ -100,8 +98,6 @@ To resolve path conflicts, we rely on the fact that `base`, `local`, and `remote
 To resolve orphaned files, we rely on the fact that an update for a file will never be pulled without the parent folder being pulled first. If the parent folder no longer exists locally, it's because the parent folder has been pruned, which only happens if the deletion of that folder has been synced. If the folder deletion has been synced, then the server has explicitly deleted all descendants of the folder, including the orphans. Because deletions can never be undone, **any updates to orphaned files can be safely ignored.**
 
 I know what you're wondering - does the order of these conflict resolutions matter? Yes it does. Any content conflicts need to be resolved before path conflicts because resolving content conflicts can create new files which can cause path conflicts. Any cycles need to be resolved before path conflicts because resolving cycles can move files which can cause path conflicts. Updates to orphaned files can be ignored at any time because no resolution policy depends on or modifies orphaned files.
-
-_Concern: we don't currently respect "Any cycles need to be resolved before path conflicts because resolving cycles can move files which can cause path conflicts." A failing test case is left as an exercise for the reader._
 
 ### Consistency
 A great amount of care needs to go into making sure that the invariants are satisfied at all times. The system needs to recover from process interruptions and failures gracefully. We'll inspect the following consistency-related concerns:
@@ -217,7 +213,7 @@ The server exposes an endpoint, `UpsertFileMetadata`, which accepts a batch of f
 If the checks pass, the endpoint inserts or overwrites the metadata for each file with the metadata supplied in the request. It sets the `metadata_version` to the current timestamp. It explicitly deletes all files with deleted ancestors. Then, it removes any newly deleted files from document storage.
 
 ### Change Document Content
-The server exposes an endpoint, `ChangeDocumentContent`, which accepts the `id` of a document to modify, the expected `metadata_version`, and the new contents of the document. The server checks that the document exists and that the `metadata_version` matches (otherwise it responds with `GetUpdatesRequired`), increments the `metadata_version` and `content_version` for the document, writes the new version of the document to document storage, and deletes the old version. The endpoint returns the new `content_version` for the document.
+The server exposes an endpoint, `ChangeDocumentContent`, which accepts the `id` of a document to modify, the expected `metadata_version`, and the new contents of the document. The server checks that the document exists and that the `metadata_version` matches (otherwise it responds with `GetUpdatesRequired`), writes the new version of the document to document storage, increments the `metadata_version` and `content_version` for the document, and deletes the old version of the document from document storage. The endpoint returns the new `content_version` for the document.
 
 ### Get Updates
 The server exposes an endpoint, `GetUpdates`, which accepts a timestamp representing the most recent `metadata_version` of any update the client has received. The endpoint returns the metadata for all files with a greater `metadata_version` i.e. all files which have been updated since the client last pulled updates.
@@ -249,8 +245,6 @@ If the `content_version` in a remote metadata update is greater than the `conten
 Before saving the buffered updates, invariant violations need to be resolved. Cycles are resolved first - any files moved locally that would be involved in a cycle after updates are saved have their parents reset to `base`. Then, path conflicts are resolved - any locally created or modified file with the same name and parent as a pulled file is renamed. Finally, all metadata and document updates for `base` and `local` are saved.
 
 _Concern: the logic to determine whether to pull a document currently references the `local` `content_version`, which is unnecessary and may introduce unknown bugs._
-
-_Concern: cycles are currently resolved after path conflicts._
 
 _Concern: should cycle resolution not reset the parents of locally moved files which are also move remotely? is it sufficient to reset the parent of just one file per cycle?_
 
