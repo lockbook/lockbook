@@ -24,6 +24,63 @@ use crate::repo::root_repo;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::{file_service, integrity_service, path_service, sync_service};
 
+pub enum Operation<'a> {
+    Sync { client_num: usize },
+    Create { client_num: usize, path: &'a str },
+    Rename { client_num: usize, path: &'a str, new_name: &'a str },
+    Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
+    Delete { client_num: usize, path: &'a str },
+    Edit { client_num: usize, path: &'a str, content: &'a [u8] },
+    Custom { f: &'a dyn Fn(&[(usize, Config)], &DecryptedFileMetadata) -> () },
+}
+
+pub fn run(ops: &[Operation]) {
+    let mut clients = vec![(0, test_config())];
+    let (_account, root) = create_account(&clients[0].1);
+    for op in ops {
+        match op {
+            Operation::Sync { client_num } => {
+                match clients.iter().find(|(c, _)| c == client_num) {
+                    Some((_, client)) => { crate::sync_all(client, None).unwrap(); },
+                    None => { clients.push((*client_num, make_and_sync_new_client(&clients[0].1))); },
+                }
+            },
+            Operation::Create { client_num, path } => {
+                let path = root.decrypted_name.clone() + path;
+                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                crate::create_file_at_path(client, &path).unwrap();
+            },
+            Operation::Rename { client_num, path, new_name } => {
+                let path = root.decrypted_name.clone() + path;
+                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                let target = crate::get_file_by_path(client, &path).unwrap();
+                crate::rename_file(client, target.id, new_name).unwrap();
+            },
+            Operation::Move { client_num, path, new_parent_path } => {
+                let path = root.decrypted_name.clone() + path;
+                let new_parent_path = root.decrypted_name.clone() + new_parent_path;
+                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                let target = crate::get_file_by_path(client, &path).unwrap();
+                let new_parent = crate::get_file_by_path(client, &new_parent_path).unwrap();
+                crate::move_file(client, target.id, new_parent.id).unwrap();
+            }
+            Operation::Delete { client_num, path } => {
+                let path = root.decrypted_name.clone() + path;
+                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                let target = crate::get_file_by_path(client, &path).unwrap();
+                crate::delete_file(client, target.id).unwrap();
+            }
+            Operation::Edit { client_num, path, content } => {
+                let path = root.decrypted_name.clone() + path;
+                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                let target = crate::get_file_by_path(client, &path).unwrap();
+                crate::write_document(client, target.id, content).unwrap();
+            }
+            Operation::Custom { f } => { f(&clients, &root); },
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! assert_dirty_ids {
     ($db:expr, $n:literal) => {
@@ -58,8 +115,16 @@ pub fn assert_local_work_ids(db: &Config, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
 }
 
+pub fn assert_local_work_paths(db: &Config, root: &DecryptedFileMetadata, ids: &[&'static str]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), &ids.iter().map(|p| crate::get_file_by_path(db, &(root.decrypted_name.clone() + p)).unwrap().id).collect::<Vec<Uuid>>()));
+}
+
 pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
+}
+
+pub fn assert_server_work_paths(db: &Config, root: &DecryptedFileMetadata, ids: &[&'static str]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), &ids.iter().map(|p| crate::get_file_by_path(db, &(root.decrypted_name.clone() + p)).unwrap().id).collect::<Vec<Uuid>>()));
 }
 
 pub fn assert_repo_integrity(db: &Config) {
