@@ -10,6 +10,8 @@ use deadpool_redis::Runtime;
 use lockbook_server_lib::content::file_content_client;
 use log::info;
 
+use lockbook_server_lib::keys::{FEATURE_FLAGS_KEY, FEATURE_FLAG_NEW_ACCOUNTS_FIELD};
+use redis::AsyncCommands;
 use std::sync::Arc;
 use warp::Filter;
 
@@ -33,6 +35,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         index_db_pool,
         files_db_client,
     });
+
+    {
+        let mut con = futures::executor::block_on(server_state.index_db_pool.get()).unwrap();
+        let feature_flags = [FEATURE_FLAG_NEW_ACCOUNTS_FIELD];
+
+        for flag in feature_flags {
+            if !futures::executor::block_on(con.hexists::<_, _, bool>(FEATURE_FLAGS_KEY, flag))
+                .unwrap()
+            {
+                futures::executor::block_on(con.hset(FEATURE_FLAGS_KEY, flag, true)).unwrap()
+            }
+        }
+    }
 
     let routes = core_routes(&server_state)
         .or(build_info())

@@ -9,7 +9,10 @@ use redis_utils::tx;
 use uuid::Uuid;
 
 use crate::content::document_service;
-use crate::keys::{data_cap, file, meta, owned_files, public_key, size, username};
+use crate::keys::{
+    data_cap, file, meta, owned_files, public_key, size, username, FEATURE_FLAGS_KEY,
+    FEATURE_FLAG_NEW_ACCOUNTS_FIELD,
+};
 use crate::ServerError::ClientError;
 use lockbook_models::api::GetUsageError::UserNotFound;
 use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
@@ -37,7 +40,15 @@ pub async fn new_account(
     if !username_is_valid(&request.username) {
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
+
     let mut con = server_state.index_db_pool.get().await?;
+
+    if !con
+        .hget::<_, _, bool>(FEATURE_FLAGS_KEY, FEATURE_FLAG_NEW_ACCOUNTS_FIELD)
+        .await?
+    {
+        return Err(ClientError(NewAccountError::Disabled));
+    }
 
     let mut root = request.root_folder.clone();
     let now = get_time().0 as u64;

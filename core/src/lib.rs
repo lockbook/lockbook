@@ -66,6 +66,7 @@ pub enum CreateAccountError {
     CouldNotReachServer,
     AccountExistsAlready,
     ClientUpdateRequired,
+    ServerDisabled,
 }
 
 pub fn create_account(
@@ -79,6 +80,7 @@ pub fn create_account(
         CoreError::UsernameInvalid => UiError(CreateAccountError::InvalidUsername),
         CoreError::ServerUnreachable => UiError(CreateAccountError::CouldNotReachServer),
         CoreError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
+        CoreError::ServerDisabled => UiError(CreateAccountError::ServerDisabled),
         _ => unexpected!("{:#?}", e),
     })
 }

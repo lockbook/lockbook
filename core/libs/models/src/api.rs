@@ -229,6 +229,7 @@ pub enum NewAccountError {
     PublicKeyTaken,
     InvalidUsername,
     FileIdTaken,
+    Disabled,
 }
 
 impl Request for NewAccountRequest {
