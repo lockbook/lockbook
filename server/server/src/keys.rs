@@ -2,11 +2,6 @@ use libsecp256k1::PublicKey;
 use lockbook_models::tree::FileMetadata;
 use uuid::Uuid;
 
-pub const FEATURE_FLAGS_KEY: &str = "feature_flags";
-
-// fields of hashmap
-pub const FEATURE_FLAG_NEW_ACCOUNTS_FIELD: &str = "new_accounts";
-
 pub fn public_key(username: &str) -> String {
     format!("username:{}:public_key", username)
 }

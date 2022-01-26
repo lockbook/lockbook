@@ -30,7 +30,7 @@ enum Subcommands {
     /// Features for lockbook server.
     Features {
         #[structopt(subcommand)]
-        feature_flag: FeatureFlag,
+        feature_flag: Option<FeatureFlag>,
     },
 }
 
