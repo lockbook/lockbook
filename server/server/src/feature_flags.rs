@@ -3,7 +3,7 @@ use redis::{AsyncCommands, RedisResult};
 
 pub const FEATURE_FLAGS_KEY: &str = "feature_flags";
 
-pub const FEATURE_FLAG_NEW_ACCOUNTS_FIELD: &str = "new_accounts";
+pub const FEATURE_FLAG_NEW_ACCOUNTS_FIELD: &str = "new_account";
 
 pub async fn initialize_flags(state: &ServerState) {
     let mut con = state.index_db_pool.get().await.unwrap();

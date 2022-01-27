@@ -9,7 +9,7 @@ use deadpool_redis::Runtime;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::ServerState;
 
-use crate::feature_flags::toggle_new_account_feature_flag;
+use crate::feature_flags::handle_feature_flag;
 use lockbook_server_lib::content::file_content_client;
 use s3::bucket::Bucket;
 use structopt::StructOpt;
@@ -56,9 +56,7 @@ async fn main() {
 
     let ok = match Subcommands::from_args() {
         DeleteAccount { username: user } => delete_account(server_state, &user).await,
-        Features { feature_flag } => {
-            toggle_new_account_feature_flag(server_state, feature_flag).await
-        }
+        Features { feature_flag } => handle_feature_flag(server_state, feature_flag).await,
     };
 
     if ok {

@@ -2,7 +2,7 @@ use crate::FeatureFlag;
 use lockbook_server_lib::feature_flags::FEATURE_FLAG_NEW_ACCOUNTS_FIELD;
 use lockbook_server_lib::ServerState;
 
-pub async fn toggle_new_account_feature_flag(
+pub async fn handle_feature_flag(
     server_state: ServerState,
     feature_flag: Option<FeatureFlag>,
 ) -> bool {
