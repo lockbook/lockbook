@@ -212,6 +212,7 @@
     <string name="folder_moved_into_itself">A folder cannot be moved into itself.</string>
     <string name="no_root">No root!</string>
     <string name="cannot_move_root">Cannot move root!</string>
+    <string name="new_account_disabled">This server is not accepting any new accounts at this moment. Please try again another time</string>
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
     <string name="basic_error">An error has occurred.</string>
