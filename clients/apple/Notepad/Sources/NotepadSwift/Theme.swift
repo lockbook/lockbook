@@ -5,15 +5,11 @@ import AppKit
 #endif
 
 public struct Theme {
-    /// The body style for the Notepad editor.
-    public var body: Style = Style()
     /// The background color of the Notepad.
     public var backgroundColor: UniversalColor = UniversalColor.clear
     /// The tint color (AKA cursor color) of the Notepad.
     public var tintColor: UniversalColor = UniversalColor.blue
 
-    /// All of the other styles for the Notepad editor.
-    public var styles: [Style] = []
 
     public init() {
     }
