@@ -199,6 +199,7 @@ namespace Core {
             CouldNotReachServer,
             AccountExistsAlready,
             ClientUpdateRequired,
+            ServerDisabled,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
         public class UnexpectedError : Core.UnexpectedError, IResult { }
