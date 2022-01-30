@@ -40,6 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let server = warp::serve(routes);
 
+    metrics::init(&server_state).await;
+
     // *** How people can connect to this server ***
     match (
         config.server.ssl_cert_location,

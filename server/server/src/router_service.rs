@@ -8,6 +8,7 @@ use lockbook_models::api::*;
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
 use log::{error, warn};
 use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
+use prometheus_static_metric::make_static_metric;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::Arc;
