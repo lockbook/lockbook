@@ -1,13 +1,15 @@
 mod delete_account;
+mod feature_flags;
 
 use crate::delete_account::delete_account;
-use crate::Subcommands::DeleteAccount;
+use crate::Subcommands::{DeleteAccount, Features};
 use deadpool_redis::Pool;
 
 use deadpool_redis::Runtime;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::ServerState;
 
+use crate::feature_flags::handle_feature_flag;
 use lockbook_server_lib::content::file_content_client;
 use s3::bucket::Bucket;
 use structopt::StructOpt;
@@ -24,6 +26,22 @@ enum Subcommands {
     /// immutable, if a username is compromised or deleted, it is consumed forever, someone else cannot
     /// assume that identity.
     DeleteAccount { username: String },
+
+    /// Features for lockbook server.
+    Features {
+        #[structopt(subcommand)]
+        feature_flag: Option<FeatureFlag>,
+    },
+}
+
+#[derive(Debug, PartialEq, StructOpt)]
+#[structopt(about = "Toggleable features for lockbook server.")]
+pub enum FeatureFlag {
+    NewAccount {
+        /// Enable or disable new accounts from being created.
+        #[structopt(parse(try_from_str))]
+        enable: bool,
+    },
 }
 
 #[tokio::main]
@@ -38,6 +56,7 @@ async fn main() {
 
     let ok = match Subcommands::from_args() {
         DeleteAccount { username: user } => delete_account(server_state, &user).await,
+        Features { feature_flag } => handle_feature_flag(server_state, feature_flag).await,
     };
 
     if ok {
