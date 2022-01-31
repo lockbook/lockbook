@@ -1,5 +1,5 @@
 use crate::utils::username_is_valid;
-use crate::{keys, RequestContext, ServerError, ServerState, FREE_TIER};
+use crate::{feature_flags, keys, RequestContext, ServerError, ServerState, FREE_TIER};
 use deadpool_redis::redis::AsyncCommands;
 use lockbook_crypto::clock_service::get_time;
 use log::error;
@@ -37,7 +37,12 @@ pub async fn new_account(
     if !username_is_valid(&request.username) {
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
+
     let mut con = server_state.index_db_pool.get().await?;
+
+    if !feature_flags::is_new_accounts_enabled(&mut con).await? {
+        return Err(ClientError(NewAccountError::Disabled));
+    }
 
     let mut root = request.root_folder.clone();
     let now = get_time().0 as u64;

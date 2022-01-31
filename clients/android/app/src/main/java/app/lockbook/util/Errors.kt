@@ -72,6 +72,7 @@ sealed class CoreError {
         MoveFileError.CannotMoveRoot -> LbError.newUserError(getString(res, R.string.cannot_move_root))
         MoveFileError.FolderMovedIntoItself -> LbError.newUserError(getString(res, R.string.folder_moved_into_itself))
         MoveFileError.TargetParentHasChildNamedThat -> LbError.newUserError(getString(res, R.string.target_parent_has_a_child_named_that))
+        CreateAccountError.ServerDisabled -> LbError.newUserError(getString(res, R.string.new_account_disabled))
         is CalculateWorkError.Unexpected -> LbError.newProgError(this.error)
         is SyncAllError.Unexpected -> LbError.newProgError(this.error)
         is MoveFileError.Unexpected -> LbError.newProgError(this.error)
@@ -123,6 +124,7 @@ sealed class CreateAccountError : CoreError() {
     object CouldNotReachServer : CreateAccountError()
     object AccountExistsAlready : CreateAccountError()
     object ClientUpdateRequired : CreateAccountError()
+    object ServerDisabled : CreateAccountError()
     data class Unexpected(val error: String) : CreateAccountError()
 }
 

@@ -107,6 +107,7 @@ impl LbCore {
             AccountExistsAlready => uerr_dialog!("An account already exists."),
             CouldNotReachServer => uerr_dialog!("Unable to connect to the server."),
             ClientUpdateRequired => uerr_dialog!("Client upgrade required."),
+            ServerDisabled => uerr_dialog!("Server has disabled account creation."),
         ))?;
         self.set_account(new_acct)
     }
