@@ -29,6 +29,7 @@ pub fn new_account() -> CliResult<()> {
             CreateAccountError::AccountExistsAlready => err!(AccountAlreadyExists),
             CreateAccountError::CouldNotReachServer => err!(NetworkIssue),
             CreateAccountError::ClientUpdateRequired => err!(UpdateRequired),
+            CreateAccountError::ServerDisabled => err!(ServerDisabled),
         },
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;

@@ -50,6 +50,8 @@ class OnboardingService: ObservableObject {
                             self.createAccountError = "That username is not valid!"
                         case .UsernameTaken:
                             self.createAccountError = "That username is not available!"
+                        case .ServerDisabled:
+                            self.createAccountError = "This server is not accepting any new accounts at this moment. Please try again another time."
                         }
                         break;
                     case .Unexpected:

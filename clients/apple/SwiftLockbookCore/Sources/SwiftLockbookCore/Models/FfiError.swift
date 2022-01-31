@@ -80,6 +80,7 @@ public enum CreateAccountError: String, UiError {
     case CouldNotReachServer
     case InvalidUsername
     case UsernameTaken
+    case ServerDisabled
 }
 
 public enum ImportError: String, UiError {

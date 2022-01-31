@@ -108,7 +108,7 @@ namespace lockbook {
                                     App.Refresh();
                                     break;
                                 case Core.SyncAll.PossibleErrors.ClientUpdateRequired:
-                                    ImportAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
+                                    ImportAccountError = "Update required.";
                                     break;
                                 case Core.SyncAll.PossibleErrors.NoAccount:
                                     ImportAccountError = "Successfully imported account but failed to load it. Try restarting the app. If the problem persists, please file a bug report.";
@@ -138,7 +138,7 @@ namespace lockbook {
                             ImportAccountError = "This username does not correspond to the public key in this account_string!";
                             break;
                         case Core.ImportAccount.PossibleErrors.ClientUpdateRequired:
-                            ImportAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
+                            ImportAccountError = "Update required.";
                             break;
                     };
                     break;
@@ -176,7 +176,10 @@ namespace lockbook {
                             NewAccountError = "An account exists already!";
                             break;
                         case Core.CreateAccount.PossibleErrors.ClientUpdateRequired:
-                            NewAccountError = "You need to update the app. This can happen if you recently updated the app on another device.";
+                            NewAccountError = "Update required.";
+                            break;
+                        case Core.CreateAccount.PossibleErrors.ServerDisabled:
+                            NewAccountError = "This server is not accepting any new accounts at this moment. Please try again another time.";
                             break;
                     }
                     break;

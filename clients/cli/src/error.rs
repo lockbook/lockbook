@@ -81,6 +81,7 @@ make_errkind_enum!(
     7 => ExpectedStdin,
     8 => NoCliLocation,
     9 => NoRoot,
+    10 => ServerDisabled,
 
     // Account (20s)
     20 => NoAccount,
@@ -132,6 +133,7 @@ impl ErrorKind {
             Self::ExpectedStdin => "expected stdin".to_string(),
             Self::NoCliLocation => "Could not read env var LOCKBOOK_CLI_LOCATION HOME or HOMEPATH, don't know where to place your `.lockbook` folder".to_string(),
             Self::NoRoot => "No root folder, have you synced yet?".to_string(),
+            Self::ServerDisabled => "This server is not accepting new accounts at the moment. Please try again another time.".to_string(),
 
             Self::NoAccount => "No account! Run 'new-account' or 'import-private-key' to get started!".to_string(),
             Self::AccountAlreadyExists => "Account already exists. Run `lockbook erase-everything` to erase your local state.".to_string(),

@@ -63,6 +63,9 @@ pub fn create_account(
         Err(ApiError::Endpoint(NewAccountError::InvalidUsername)) => {
             return Err(CoreError::UsernameInvalid);
         }
+        Err(ApiError::Endpoint(NewAccountError::Disabled)) => {
+            return Err(CoreError::ServerDisabled);
+        }
         Err(e) => {
             return Err(core_err_unexpected(e));
         }

@@ -34,7 +34,7 @@ namespace lockbook {
             if (App.ClientUpdateRequired) {
                 Working = false;
                 Title = "Update Lockbook";
-                Message = "You need to update the app. This can happen if you recently updated the app on another device.";
+                Message = "Update required.";
             } else {
                 switch (App.DbState) {
                     case Core.DbState.MigrationRequired:

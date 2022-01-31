@@ -118,6 +118,7 @@ const FREE_TIER: u64 = 1000000;
 pub mod account_service;
 pub mod config;
 pub mod content;
+pub mod feature_flags;
 pub mod file_service;
 pub mod keys;
 pub mod loggers;
