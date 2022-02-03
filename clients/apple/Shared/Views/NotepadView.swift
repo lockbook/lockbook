@@ -5,7 +5,7 @@ import Combine
 
 #if os(iOS)
 struct NotepadView: UIViewRepresentable {
-    @StateObject var model: DocumentLoader
+    @State var model: DocumentLoader
     var frame: CGRect
     let theme: Theme
     let engine = MarkdownEngine()
@@ -63,6 +63,8 @@ struct NotepadView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        print("updateUIView called")
+
         if let np = nsView.documentView as? Notepad, model.reloadContent {
             model.reloadContent = false
             np.string = model.textDocument!

@@ -58,6 +58,7 @@ public class Notepad: NSTextView {
     }
 
     override public func didChangeText() {
+        print("textViewDidChange called")
         self.onTextChange(self.storage.string)
     }
 

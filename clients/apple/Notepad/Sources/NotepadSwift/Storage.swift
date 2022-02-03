@@ -34,7 +34,7 @@ public class Storage: NSTextStorage {
         super.init()
 
         subj
-            .debounce(for: .milliseconds(1000), scheduler: DispatchQueue.main)
+            .debounce(for: .milliseconds(50), scheduler: DispatchQueue.main)
             .removeDuplicates()
             .sink(receiveValue: { s in
                 self.applyStyles()
@@ -108,17 +108,26 @@ public class Storage: NSTextStorage {
     }
 
     override public func processEditing() {
-        subj.send(backingStore.string)
         super.processEditing()
+        applyStyles()
     }
 
     func applyStyles() {
+        beginEditing()
+        var startTime = CFAbsoluteTimeGetCurrent()
         let md = markdowner(self.string)
+        var timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+        print("time for markdowning: \(timeElapsed)")
         let wholeDocument = NSRange(location: 0, length: self.string.count)
+        startTime = CFAbsoluteTimeGetCurrent()
         setAttributes(applyBody(), range: wholeDocument)
         md.forEach {
             addAttributes(applyMarkdown($0), range: $0.range)
         }
+        timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+        
         self.edited(.editedAttributes, range: wholeDocument, changeInLength: 0)
+        print("time for attributing: \(timeElapsed)")
+        endEditing()
     }
 }
