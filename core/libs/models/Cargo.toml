@@ -8,7 +8,7 @@ edition = "2018"
 base64 = "0.13.0"
 base64-serde = "0.6.1"
 rand = "0.8.4"
-reqwest = { version = "0.11.1", default-features = false, features = ["blocking", "json"] }
+http = "0.2.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"
 libsecp256k1 = "0.7.0"
