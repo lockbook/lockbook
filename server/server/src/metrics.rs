@@ -1,22 +1,18 @@
-use std::cell::Ref;
-use crate::keys::{owned_files, public_key};
+use crate::keys::public_key;
 use crate::{keys, ServerError, ServerState};
-use futures::StreamExt;
 use lazy_static::lazy_static;
 use libsecp256k1::PublicKey;
-use lockbook_models::file_metadata::EncryptedFileMetadata;
-use lockbook_models::tree::FileMetadata;
-use prometheus::{register_int_gauge_vec, IntGauge, IntGaugeVec};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
-use redis::{cmd, AsyncCommands, AsyncIter};
+use redis::{AsyncCommands, AsyncIter};
 use redis_utils::converters::JsonGet;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde::de::DeserializeOwned;
+use log::error;
 use uuid::Uuid;
-use warp::Server;
 use lockbook_models::api::FileUsage;
 
 make_static_metric! {
@@ -24,8 +20,6 @@ make_static_metric! {
         "type" => {
             total_users,
             active_users,
-            new_users,
-            premium_users,
             total_documents,
             total_document_bytes,
         },
@@ -34,14 +28,14 @@ make_static_metric! {
 
 lazy_static! {
     pub static ref METRICS_COUNTERS_VEC: IntGaugeVec =
-        register_int_gauge_vec!("lockbook_metrics_counters", ".", &["type"]).unwrap();
+        register_int_gauge_vec!("lockbook_metrics_counters", "Lockbook's basic metrics of users and files derived from redis.", &["type"]).unwrap();
     pub static ref METRICS_STATISTICS: MetricsStatistics =
         MetricsStatistics::from(&METRICS_COUNTERS_VEC);
 }
 
 // # required metrics
 // X total users
-// active percent
+// active percent (just active users / total users in metrics.lockbook.com)
 // active users
 // new users
 // X total documents
@@ -62,26 +56,29 @@ pub const TWO_DAYS_IN_MILLIS: u128 = 172800000;
 pub async fn init(server_state: &Arc<ServerState>) {
     let state_clone = server_state.clone();
 
-    println!("STARTING");
-
-    tokio::spawn(async move { start(state_clone).await.unwrap() });
+    tokio::spawn(async move {
+        // if let Err(e) = start(state_clone).await {
+        //     error!("Metrics error: {:?}", e)
+        // }
+    });
 }
 
 pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<MetricsError>> {
-    println!("STARTING v2");
-
     loop {
         let public_keys = get_all_public_keys(&server_state).await?;
         METRICS_STATISTICS.total_users.set(public_keys.len() as i64);
 
         let all_file_ids = get_owned_files_id(&server_state, &public_keys).await?;
-        METRICS_STATISTICS.total_documents.set(all_file_ids.len() as i64);
+        METRICS_STATISTICS.total_documents.set(all_file_ids.iter().map(|users_files| users_files.len()).sum::<usize>() as i64);
 
         let metadatas = get_file_metadata(&server_state, &all_file_ids).await?;
-        let total_bytes = get_total_size(&server_state, &all_file_ids).await?;
+        let total_bytes = get_total_size(&server_state, &metadatas).await?;
 
         METRICS_STATISTICS.total_documents.set(metadatas.len() as i64);
-        METRICS_STATISTICS.total_document_bytes.set(total_bytes as i64);
+        METRICS_STATISTICS.total_document_bytes.set(total_bytes);
+
+        let active_users = get_total_active_new_users(&metadatas).await?;
+        METRICS_STATISTICS.active_users.set(active_users);
 
         println!("SET FINISHED");
 
@@ -100,6 +97,8 @@ pub async fn get_all_public_keys(
     while let Some(item) = public_keys_k.next_item().await {
         public_keys_keys.insert(item);
     }
+
+    println!("Count: {}", public_keys_keys.len());
 
     let mut public_keys: Vec<PublicKey> = vec![];
 
@@ -154,7 +153,6 @@ pub async fn get_file_metadata(
 
         for id in user_ids {
             let metadata: EncryptedFileMetadata = con.maybe_json_get(keys::file(*id)).await?.ok_or_else(|| internal!("Cannot retrieve encrypted file metadata despite having a valid id."), )?;
-
             user_metadatas.push(metadata)
         }
 
@@ -166,29 +164,32 @@ pub async fn get_file_metadata(
 
 pub async fn get_total_size(
     server_state: &Arc<ServerState>,
-    users_ids: &[Vec<Uuid>]
-) -> Result<u64, ServerError<MetricsError>> {
+    users_metadatas: &[Vec<EncryptedFileMetadata>]
+) -> Result<i64, ServerError<MetricsError>> {
     let mut con = server_state.index_db_pool.get().await?;
 
     let mut total_size: u64 = 0;
 
-    for user_ids in users_ids {
-        for id in user_ids {
-            let file_usage: FileUsage = con.maybe_json_get(keys::size(*id)).await?.ok_or_else(|| internal!("Cannot retrieve encrypted file metadata despite having a valid id."), )?;
+    for user_metadata in users_metadatas {
+        for metadata in user_metadata {
+            if metadata.file_type == FileType::Document {
+                println!("WHAT?! {}", keys::size(metadata.id));
 
-            total_size += file_usage.size_bytes;
+                let file_usage: FileUsage = con.maybe_json_get(keys::size(metadata.id)).await?.ok_or_else(|| internal!("Cannot get size of file with id: {} {:?}", metadata.id, metadata.owner.0), )?;
+
+                total_size += file_usage.size_bytes;
+
+            }
         }
     }
 
-    Ok(total_size)
+    Ok(total_size as i64)
 }
 
-pub async fn do_relevant_stats(
-    public_keys: &[PublicKey],
+pub async fn get_total_active_new_users(
     users_documents: &[Vec<EncryptedFileMetadata>]
-) -> Result<(), ServerError<MetricsError>> {
+) -> Result<i64, ServerError<MetricsError>> {
     let mut active_users_count = 0;
-    let mut new_users_count = 0;
 
     let time_two_days_ago = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| internal!("{:?}", e))?.as_millis() - TWO_DAYS_IN_MILLIS;
 
@@ -198,28 +199,5 @@ pub async fn do_relevant_stats(
         }
     }
 
-    Ok(())
+    Ok(active_users_count)
 }
-
-// pub async fn redis_map<U: Debug, C, V: DeserializeOwned>(server_state: &ServerState, partial_keys: C, key_gen: impl Fn(Ref<U>) -> String)
-//     -> Result<Vec<V>, ServerError<MetricsError>>
-// where C: Iterator<Item=U>
-// {
-//     let mut con = server_state.index_db_pool.get().await?;
-//
-//     let mut values: Vec<V> = vec![];
-//
-//     for partial_key in partial_keys {
-//         let key = key_gen(partial_key);
-//
-//         let value: V = con.maybe_json_get(&key).await?.ok_or_else(||
-//             internal!("Cannot retrieve key's value from redis: {}.", key),
-//         )?;
-//
-//         values.push(value)
-//     }
-//
-//     Ok(values)
-// }
-
-// pub async fn get_total_document_size(server_state: &Arc<ServerState>, document_size)

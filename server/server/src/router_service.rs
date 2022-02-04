@@ -8,7 +8,6 @@ use lockbook_models::api::*;
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
 use log::{error, warn};
 use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
-use prometheus_static_metric::make_static_metric;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::Arc;
@@ -19,7 +18,7 @@ use warp::{reject, Filter, Rejection};
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
         "lockbook_server_request_duration_seconds",
-        "The lockbook server's HTTP requests duration in seconds.",
+        "Lockbook server's HTTP request duration in seconds.",
         &["request"]
     )
     .unwrap();
