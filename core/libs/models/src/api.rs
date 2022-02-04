@@ -1,5 +1,5 @@
 use libsecp256k1::PublicKey;
-use reqwest::Method;
+use http::Method;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
