@@ -55,9 +55,9 @@ pub enum MetricsError {}
 //     pub metadatas: HashMap<&'a PublicKey, EncryptedFileMetadata>
 // }
 
-pub const TWO_DAYS_IN_MILLIS: u128 = 172800000;
+pub const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
 
-pub async fn init(server_state: &Arc<ServerState>) {
+pub fn start_metrics_worker(server_state: &Arc<ServerState>) {
     let state_clone = server_state.clone();
 
     tokio::spawn(async move {
@@ -72,26 +72,34 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
         let public_keys = get_all_public_keys(&server_state).await?;
         METRICS_STATISTICS.total_users.set(public_keys.len() as i64);
 
-        let all_file_ids = get_owned_files_id(&server_state, &public_keys).await?;
-        METRICS_STATISTICS.total_documents.set(
-            all_file_ids
-                .iter()
-                .map(|users_files| users_files.len())
-                .sum::<usize>() as i64,
-        );
+        let mut total_documents = 0;
+        let mut total_bytes = 0;
+        let mut active_users = 0;
 
-        let metadatas = get_file_metadata(&server_state, &all_file_ids).await?;
-        let total_bytes = get_total_size(&server_state, &metadatas).await?;
+        for public_key in public_keys {
+            let mut con = server_state.index_db_pool.get().await?;
+
+            let ids = get_users_owned_files(&mut con, &public_key).await?;
+            total_documents += ids.len();
+
+            let metadatas = get_user_file_metadatas(&mut con, &ids).await?;
+            let bytes = calculate_total_document_bytes(&mut con, &metadatas).await?;
+            total_bytes += bytes;
+
+            if is_user_active(&metadatas).await? {
+                active_users += 1;
+            }
+
+            tokio::time::sleep(server_state.config.metrics.millis_between_user_metrics).await;
+        }
 
         METRICS_STATISTICS
             .total_documents
-            .set(metadatas.len() as i64);
+            .set(total_documents as i64);
+        METRICS_STATISTICS.active_users.set(active_users);
         METRICS_STATISTICS.total_document_bytes.set(total_bytes);
 
-        let active_users = get_total_active_new_users(&metadatas).await?;
-        METRICS_STATISTICS.active_users.set(active_users);
-
-        tokio::time::sleep(server_state.config.metrics.duration_between_metrics_refresh).await;
+        tokio::time::sleep(server_state.config.metrics.minutes_between_metrics_refresh).await;
     }
 }
 
@@ -105,6 +113,13 @@ pub async fn get_all_public_keys(
     let mut public_keys_keys = HashSet::new();
     while let Some(item) = public_keys_k.next_item().await {
         public_keys_keys.insert(item);
+        tokio::time::sleep(
+            server_state
+                .config
+                .metrics
+                .millis_between_getting_pub_key_key_metrics,
+        )
+        .await;
     }
 
     let mut public_keys: Vec<PublicKey> = vec![];
@@ -117,79 +132,64 @@ pub async fn get_all_public_keys(
             )
         })?;
 
-        public_keys.push(public_key)
+        public_keys.push(public_key);
+        tokio::time::sleep(
+            server_state
+                .config
+                .metrics
+                .millis_between_getting_pub_key_metrics,
+        )
+        .await;
     }
 
     Ok(public_keys)
 }
 
-pub async fn get_owned_files_id(
-    server_state: &Arc<ServerState>,
-    public_keys: &[PublicKey],
-) -> Result<Vec<Vec<Uuid>>, ServerError<MetricsError>> {
-    let mut con = server_state.index_db_pool.get().await?;
-
-    let mut owned_files = Vec::new();
-
-    for public_key in public_keys {
-        let user_owned_files: Vec<Uuid> = con
-            .maybe_json_get(keys::owned_files(&public_key))
-            .await?
-            .ok_or_else(|| {
-                internal!(
-                    "Cannot retrieve owned_files despite having a valid public_key: {:?}",
-                    public_key
-                )
-            })?;
-
-        owned_files.push(user_owned_files)
-    }
-
-    Ok(owned_files)
+pub async fn get_users_owned_files(
+    con: &mut deadpool_redis::Connection,
+    public_key: &PublicKey,
+) -> Result<Vec<Uuid>, ServerError<MetricsError>> {
+    con.maybe_json_get(keys::owned_files(&public_key))
+        .await?
+        .ok_or_else(|| {
+            internal!(
+                "Cannot retrieve owned_files despite having a valid public_key: {:?}",
+                public_key
+            )
+        })
 }
 
-pub async fn get_file_metadata(
-    server_state: &Arc<ServerState>,
-    users_ids: &[Vec<Uuid>],
-) -> Result<Vec<Vec<EncryptedFileMetadata>>, ServerError<MetricsError>> {
-    let mut con = server_state.index_db_pool.get().await?;
-
+pub async fn get_user_file_metadatas(
+    con: &mut deadpool_redis::Connection,
+    ids: &[Uuid],
+) -> Result<Vec<EncryptedFileMetadata>, ServerError<MetricsError>> {
     let mut metadatas = vec![];
 
-    for user_ids in users_ids {
-        let mut user_metadatas = vec![];
+    for id in ids {
+        let metadata: EncryptedFileMetadata =
+            con.maybe_json_get(keys::file(*id)).await?.ok_or_else(|| {
+                internal!("Cannot retrieve encrypted file metadata despite having a valid id.")
+            })?;
 
-        for id in user_ids {
-            let metadata: EncryptedFileMetadata =
-                con.maybe_json_get(keys::file(*id)).await?.ok_or_else(|| {
-                    internal!("Cannot retrieve encrypted file metadata despite having a valid id.")
-                })?;
-            user_metadatas.push(metadata)
-        }
-
-        metadatas.push(user_metadatas);
+        metadatas.push(metadata)
     }
 
     Ok(metadatas)
 }
 
-pub async fn get_total_size(
-    server_state: &Arc<ServerState>,
-    users_metadatas: &[Vec<EncryptedFileMetadata>],
+pub async fn calculate_total_document_bytes(
+    con: &mut deadpool_redis::Connection,
+    metadatas: &[EncryptedFileMetadata],
 ) -> Result<i64, ServerError<MetricsError>> {
-    let mut con = server_state.index_db_pool.get().await?;
-
     let mut total_size: u64 = 0;
 
-    for user_metadata in users_metadatas {
-        for metadata in user_metadata {
-            if metadata.file_type == FileType::Document {
-                let maybe_file_usage: Option<FileUsage> =
-                    con.maybe_json_get(keys::size(metadata.id)).await?;
+    for metadata in metadatas {
+        if metadata.file_type == FileType::Document {
+            let maybe_file_usage: Option<FileUsage> =
+                con.maybe_json_get(keys::size(metadata.id)).await?;
 
-                if let Some(usage) = maybe_file_usage {
-                    total_size += usage.size_bytes;
-                }
+            if let Some(usage) = maybe_file_usage {
+                total_size += usage.size_bytes;
             }
         }
     }
@@ -197,25 +197,19 @@ pub async fn get_total_size(
     Ok(total_size as i64)
 }
 
-pub async fn get_total_active_new_users(
-    users_documents: &[Vec<EncryptedFileMetadata>],
-) -> Result<i64, ServerError<MetricsError>> {
-    let mut active_users_count = 0;
-
+pub async fn is_user_active(
+    metadatas: &[EncryptedFileMetadata],
+) -> Result<bool, ServerError<MetricsError>> {
     let time_two_days_ago = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| internal!("{:?}", e))?
         .as_millis()
         - TWO_DAYS_IN_MILLIS;
 
-    for documents in users_documents {
-        if documents
-            .iter()
-            .any(|metadata| metadata.metadata_version as u128 > time_two_days_ago)
-        {
-            active_users_count += 1;
-        }
-    }
+    let is_active = metadatas.iter().any(|metadata| {
+        metadata.metadata_version as u128 > time_two_days_ago
+            || metadata.content_version as u128 > time_two_days_ago
+    });
 
-    Ok(active_users_count)
+    Ok(is_active)
 }
