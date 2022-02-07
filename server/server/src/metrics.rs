@@ -90,7 +90,7 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
                 active_users += 1;
             }
 
-            tokio::time::sleep(server_state.config.metrics.millis_between_user_metrics).await;
+            tokio::time::sleep(server_state.config.metrics.duration_between_user_metrics).await;
         }
 
         METRICS_STATISTICS
@@ -99,7 +99,7 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
         METRICS_STATISTICS.active_users.set(active_users);
         METRICS_STATISTICS.total_document_bytes.set(total_bytes);
 
-        tokio::time::sleep(server_state.config.metrics.minutes_between_metrics_refresh).await;
+        tokio::time::sleep(server_state.config.metrics.duration_between_metrics_refresh).await;
     }
 }
 
@@ -117,7 +117,7 @@ pub async fn get_all_public_keys(
             server_state
                 .config
                 .metrics
-                .millis_between_getting_pub_key_key_metrics,
+                .duration_between_getting_pub_key_key_metrics,
         )
         .await;
     }
@@ -137,7 +137,7 @@ pub async fn get_all_public_keys(
             server_state
                 .config
                 .metrics
-                .millis_between_getting_pub_key_metrics,
+                .duration_between_getting_pub_key_metrics,
         )
         .await;
     }
@@ -149,7 +149,7 @@ pub async fn get_users_owned_files(
     con: &mut deadpool_redis::Connection,
     public_key: &PublicKey,
 ) -> Result<Vec<Uuid>, ServerError<MetricsError>> {
-    con.maybe_json_get(keys::owned_files(&public_key))
+    con.maybe_json_get(keys::owned_files(public_key))
         .await?
         .ok_or_else(|| {
             internal!(

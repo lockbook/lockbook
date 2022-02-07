@@ -78,32 +78,32 @@ impl ServerConfig {
 
 #[derive(Clone)]
 pub struct MetricsConfig {
-    pub minutes_between_metrics_refresh: Duration,
-    pub millis_between_user_metrics: Duration,
-    pub millis_between_getting_pub_key_metrics: Duration,
-    pub millis_between_getting_pub_key_key_metrics: Duration,
+    pub duration_between_metrics_refresh: Duration,
+    pub duration_between_user_metrics: Duration,
+    pub duration_between_getting_pub_key_metrics: Duration,
+    pub duration_between_getting_pub_key_key_metrics: Duration,
 }
 
 impl MetricsConfig {
     pub fn from_env_vars() -> MetricsConfig {
         MetricsConfig {
-            minutes_between_metrics_refresh: Duration::from_secs(
+            duration_between_metrics_refresh: Duration::from_secs(
                 env_or_panic("MINUTES_BETWEEN_METRICS_REFRESH")
                     .parse::<u64>()
                     .unwrap()
                     * 60,
             ),
-            millis_between_user_metrics: Duration::from_millis(
+            duration_between_user_metrics: Duration::from_millis(
                 env_or_panic("MILLIS_BETWEEN_USER_METRICS")
                     .parse::<u64>()
                     .unwrap(),
             ),
-            millis_between_getting_pub_key_metrics: Duration::from_millis(
+            duration_between_getting_pub_key_metrics: Duration::from_millis(
                 env_or_panic("MILLIS_BETWEEN_GETTING_PUB_KEY_METRICS")
                     .parse::<u64>()
                     .unwrap(),
             ),
-            millis_between_getting_pub_key_key_metrics: Duration::from_millis(
+            duration_between_getting_pub_key_key_metrics: Duration::from_millis(
                 env_or_panic("MILLIS_BETWEEN_GETTING_PUB_KEY_KEY_METRICS")
                     .parse::<u64>()
                     .unwrap(),
