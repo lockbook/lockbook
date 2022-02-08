@@ -37,23 +37,8 @@ lazy_static! {
         MetricsStatistics::from(&METRICS_COUNTERS_VEC);
 }
 
-// # required metrics
-// X total users
-// active percent (just active users / total users in metrics.lockbook.com)
-// active users
-// new users
-// X total documents
-// X total bytes
-// premium users and percentage
-
 #[derive(Debug)]
 pub enum MetricsError {}
-
-// pub struct MetricsPreProcessingInfo<'a> {
-//     pub public_keys: Vec<PublicKey>,
-//     pub ids: HashMap<&'a PublicKey, Uuid>,
-//     pub metadatas: HashMap<&'a PublicKey, EncryptedFileMetadata>
-// }
 
 pub const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
 
@@ -61,8 +46,8 @@ pub fn start_metrics_worker(server_state: &Arc<ServerState>) {
     let state_clone = server_state.clone();
 
     tokio::spawn(async move {
-        if let Err(e) = start(state_clone).await {
-            error!("Metrics error: {:?}", e)
+        if let Err(ServerError::ClientError(e)) = start(state_clone).await {
+            error!("Metrics client error: {:?}", e) // there is expected to be none
         }
     });
 }
@@ -79,10 +64,10 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
         for public_key in public_keys {
             let mut con = server_state.index_db_pool.get().await?;
 
-            let ids = get_users_owned_files(&mut con, &public_key).await?;
+            let ids = get_owned(&mut con, &public_key).await?;
             total_documents += ids.len();
 
-            let metadatas = get_user_file_metadatas(&mut con, &ids).await?;
+            let metadatas = get_metadatas(&mut con, &ids).await?;
             let bytes = calculate_total_document_bytes(&mut con, &metadatas).await?;
             total_bytes += bytes;
 
@@ -90,7 +75,7 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
                 active_users += 1;
             }
 
-            tokio::time::sleep(server_state.config.metrics.duration_between_user_metrics).await;
+            tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
         }
 
         METRICS_STATISTICS
@@ -99,7 +84,7 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
         METRICS_STATISTICS.active_users.set(active_users);
         METRICS_STATISTICS.total_document_bytes.set(total_bytes);
 
-        tokio::time::sleep(server_state.config.metrics.duration_between_metrics_refresh).await;
+        tokio::time::sleep(server_state.config.metrics.time_between_metrics_refresh).await;
     }
 }
 
@@ -108,44 +93,31 @@ pub async fn get_all_public_keys(
 ) -> Result<Vec<PublicKey>, ServerError<MetricsError>> {
     let mut con = server_state.index_db_pool.get().await?;
 
-    let mut public_keys_k: AsyncIter<String> = con.scan_match(public_key("*")).await?;
+    let mut keys_iter: AsyncIter<String> = con.scan_match(public_key("*")).await?;
 
-    let mut public_keys_keys = HashSet::new();
-    while let Some(item) = public_keys_k.next_item().await {
-        public_keys_keys.insert(item);
-        tokio::time::sleep(
-            server_state
-                .config
-                .metrics
-                .duration_between_getting_pub_key_key_metrics,
-        )
-        .await;
+    let mut keys = HashSet::new();
+
+    while let Some(item) = keys_iter.next_item().await {
+        keys.insert(item);
+        tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
     }
 
     let mut public_keys: Vec<PublicKey> = vec![];
 
-    for key in public_keys_keys {
-        let public_key = con.maybe_json_get(&key).await?.ok_or_else(|| {
-            internal!(
-                "Cannot retrieve public_key despite having a valid key: {:?}",
-                key
-            )
-        })?;
+    for key in keys {
+        let public_key = con
+            .maybe_json_get(&key)
+            .await?
+            .ok_or_else(|| internal!("Cannot retrieve public_key for key: {:?}", key))?;
 
         public_keys.push(public_key);
-        tokio::time::sleep(
-            server_state
-                .config
-                .metrics
-                .duration_between_getting_pub_key_metrics,
-        )
-        .await;
+        tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
     }
 
     Ok(public_keys)
 }
 
-pub async fn get_users_owned_files(
+pub async fn get_owned(
     con: &mut deadpool_redis::Connection,
     public_key: &PublicKey,
 ) -> Result<Vec<Uuid>, ServerError<MetricsError>> {
@@ -153,23 +125,23 @@ pub async fn get_users_owned_files(
         .await?
         .ok_or_else(|| {
             internal!(
-                "Cannot retrieve owned_files despite having a valid public_key: {:?}",
+                "Cannot retrieve owned_files for public_key: {:?}",
                 public_key
             )
         })
 }
 
-pub async fn get_user_file_metadatas(
+pub async fn get_metadatas(
     con: &mut deadpool_redis::Connection,
     ids: &[Uuid],
 ) -> Result<Vec<EncryptedFileMetadata>, ServerError<MetricsError>> {
     let mut metadatas = vec![];
 
     for id in ids {
-        let metadata: EncryptedFileMetadata =
-            con.maybe_json_get(keys::file(*id)).await?.ok_or_else(|| {
-                internal!("Cannot retrieve encrypted file metadata despite having a valid id.")
-            })?;
+        let metadata: EncryptedFileMetadata = con
+            .maybe_json_get(keys::file(*id))
+            .await?
+            .ok_or_else(|| internal!("Cannot retrieve encrypted file metadata for id: {:?}", id))?;
 
         metadatas.push(metadata)
     }

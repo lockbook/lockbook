@@ -78,33 +78,21 @@ impl ServerConfig {
 
 #[derive(Clone)]
 pub struct MetricsConfig {
-    pub duration_between_metrics_refresh: Duration,
-    pub duration_between_user_metrics: Duration,
-    pub duration_between_getting_pub_key_metrics: Duration,
-    pub duration_between_getting_pub_key_key_metrics: Duration,
+    pub time_between_metrics_refresh: Duration,
+    pub time_between_redis_calls: Duration,
 }
 
 impl MetricsConfig {
     pub fn from_env_vars() -> MetricsConfig {
         MetricsConfig {
-            duration_between_metrics_refresh: Duration::from_secs(
+            time_between_metrics_refresh: Duration::from_secs(
                 env_or_panic("MINUTES_BETWEEN_METRICS_REFRESH")
                     .parse::<u64>()
                     .unwrap()
                     * 60,
             ),
-            duration_between_user_metrics: Duration::from_millis(
-                env_or_panic("MILLIS_BETWEEN_USER_METRICS")
-                    .parse::<u64>()
-                    .unwrap(),
-            ),
-            duration_between_getting_pub_key_metrics: Duration::from_millis(
-                env_or_panic("MILLIS_BETWEEN_GETTING_PUB_KEY_METRICS")
-                    .parse::<u64>()
-                    .unwrap(),
-            ),
-            duration_between_getting_pub_key_key_metrics: Duration::from_millis(
-                env_or_panic("MILLIS_BETWEEN_GETTING_PUB_KEY_KEY_METRICS")
+            time_between_redis_calls: Duration::from_millis(
+                env_or_panic("MILLIS_BETWEEN_REDIS_CALLS")
                     .parse::<u64>()
                     .unwrap(),
             ),
