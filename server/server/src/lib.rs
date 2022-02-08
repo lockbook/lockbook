@@ -122,5 +122,6 @@ pub mod feature_flags;
 pub mod file_service;
 pub mod keys;
 pub mod loggers;
+pub mod metrics;
 pub mod router_service;
 pub mod utils;

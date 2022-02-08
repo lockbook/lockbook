@@ -2117,6 +2117,7 @@ dependencies = [
  "num_cpus",
  "pagerduty-rs",
  "prometheus",
+ "prometheus-static-metric",
  "redis",
  "redis_utils",
  "rust-s3",
@@ -2757,6 +2758,18 @@ dependencies = [
  "parking_lot",
  "protobuf",
  "thiserror",
+]
+
+[[package]]
+name = "prometheus-static-metric"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8f30cdb09c39930b8fa5e0f23cbb895ab3f766b187403a0ba0956fc1ef4f0e5"
+dependencies = [
+ "lazy_static",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
