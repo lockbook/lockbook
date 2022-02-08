@@ -18,7 +18,7 @@ use warp::{reject, Filter, Rejection};
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
         "lockbook_server_request_duration_seconds",
-        "The lockbook server's HTTP requests duration in seconds.",
+        "Lockbook server's HTTP request duration in seconds.",
         &["request"]
     )
     .unwrap();
