@@ -1,4 +1,5 @@
 use std::env;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct IndexDbConf {
@@ -76,10 +77,35 @@ impl ServerConfig {
 }
 
 #[derive(Clone)]
+pub struct MetricsConfig {
+    pub time_between_metrics_refresh: Duration,
+    pub time_between_redis_calls: Duration,
+}
+
+impl MetricsConfig {
+    pub fn from_env_vars() -> MetricsConfig {
+        MetricsConfig {
+            time_between_metrics_refresh: Duration::from_secs(
+                env_or_panic("MINUTES_BETWEEN_METRICS_REFRESH")
+                    .parse::<u64>()
+                    .unwrap()
+                    * 60,
+            ),
+            time_between_redis_calls: Duration::from_millis(
+                env_or_panic("MILLIS_BETWEEN_REDIS_CALLS")
+                    .parse::<u64>()
+                    .unwrap(),
+            ),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct Config {
     pub index_db: IndexDbConf,
     pub files_db: FilesDbConfig,
     pub server: ServerConfig,
+    pub metrics: MetricsConfig,
 }
 
 impl Config {
@@ -88,6 +114,7 @@ impl Config {
             index_db: IndexDbConf::from_env_vars(),
             files_db: FilesDbConfig::from_env_vars(),
             server: ServerConfig::from_env_vars(),
+            metrics: MetricsConfig::from_env_vars(),
         }
     }
 }
