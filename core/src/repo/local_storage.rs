@@ -54,7 +54,7 @@ where
 {
     let path_str = key_path(db, namespace, key);
     let path = Path::new(&path_str);
-    trace!("delete\t{}", &path_str);
+    debug!("delete\t{}", &path_str);
     if path.exists() {
         remove_file(path).map_err(CoreError::from)
     } else {

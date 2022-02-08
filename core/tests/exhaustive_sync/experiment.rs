@@ -12,6 +12,7 @@ use crate::exhaustive_sync::trial::{Status, Trial};
 
 pub type ThreadID = usize;
 
+#[derive(Clone)]
 pub struct Experiment {
     pub pending: Vec<Trial>,
     pub concluded: Vec<Trial>,
@@ -71,7 +72,7 @@ impl Experiment {
     pub fn kick_off(self) {
         let state = Arc::new(Mutex::new(self));
 
-        for thread in 0..num_cpus::get() {
+        for thread in 0..num_cpus::get() * 2 {
             let thread_state = state.clone();
             thread::spawn(move || loop {
                 match Self::grab_ready_trial_for_thread(thread, thread_state.clone()) {
@@ -91,7 +92,7 @@ impl Experiment {
         loop {
             print_count += 1;
             thread::sleep(time::Duration::from_millis(10000));
-            let experiments = state.lock().unwrap();
+            let experiments = state.lock().unwrap().clone();
             let mut failures = experiments.concluded.clone();
             failures.retain(|trial| trial.status.failed());
             if experiments.pending.is_empty() && experiments.running.is_empty() {
