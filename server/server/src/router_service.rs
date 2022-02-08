@@ -41,7 +41,7 @@ macro_rules! core_req {
             .and(warp::body::bytes())
             .then(|state: Arc<ServerState>, request: Bytes| async move {
                 let state = state.as_ref();
-
+                log::info!("pool status: {:?}", state.index_db_pool.status());
                 let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
                     .with_label_values(&[<$Req>::ROUTE])
                     .start_timer();

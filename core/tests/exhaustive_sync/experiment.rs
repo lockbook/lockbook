@@ -71,7 +71,7 @@ impl Experiment {
     pub fn kick_off(self) {
         let state = Arc::new(Mutex::new(self));
 
-        for thread in 0..num_cpus::get() {
+        for thread in 0..(num_cpus::get() / 4) {
             let thread_state = state.clone();
             thread::spawn(move || loop {
                 match Self::grab_ready_trial_for_thread(thread, thread_state.clone()) {
