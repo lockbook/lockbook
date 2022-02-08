@@ -4,15 +4,17 @@ use uuid::Uuid;
 use variant_count::VariantCount;
 
 use lockbook_core::model::state::Config;
+use lockbook_core::service::api_service;
 use lockbook_core::service::integrity_service::test_repo_integrity;
 use lockbook_core::service::test_utils::{dbs_equal, random_username, test_config, url};
 use lockbook_core::Error::UiError;
 use lockbook_core::{
-    calculate_work, create_account, delete_file, export_account, import_account, move_file,
-    rename_file, sync_all, write_document, MoveFileError,
+    calculate_work, create_account, delete_file, export_account, get_account, import_account,
+    move_file, rename_file, sync_all, write_document, MoveFileError,
 };
 use lockbook_core::{create_file, list_metadatas};
 use lockbook_crypto::clock_service::get_time;
+use lockbook_models::api::DeleteAccountRequest;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 
 use crate::exhaustive_sync::trial::Action::{
@@ -384,6 +386,24 @@ impl Trial {
             }
         }
 
+        self.cleanup();
+
+        self.end_time = get_time().0;
+        all_mutations
+    }
+
+    fn cleanup(&self) {
+        let account = get_account(&self.clients[0]).unwrap();
+
+        // Delete account in server
+        api_service::request(&account, DeleteAccountRequest {}).unwrap_or_else(|err| {
+            println!(
+                "Failed to delete account: {} error : {:?}",
+                account.username, err
+            )
+        });
+
+        // Delete account locally
         for client in &self.clients {
             fs::remove_dir_all(&client.writeable_path).unwrap_or_else(|err| {
                 println!(
@@ -392,9 +412,6 @@ impl Trial {
                 )
             });
         }
-
-        self.end_time = get_time().0;
-        all_mutations
     }
 
     fn create_mutation(&self, new_action: Action) -> Trial {
