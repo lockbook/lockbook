@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use lockbook_models::tree::FileMetaExt;
 use log::error;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
@@ -63,17 +64,27 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
 
         for public_key in public_keys {
             let mut con = server_state.index_db_pool.get().await?;
-
             let ids = get_owned(&mut con, &public_key).await?;
-            total_documents += ids.len();
+            let metadatas = {
+                let metadatas_unfiltered = get_metadatas(&mut con, &ids).await?;
 
-            let metadatas = get_metadatas(&mut con, &ids).await?;
+                if is_user_active(&metadatas_unfiltered).await? {
+                    active_users += 1;
+                }
+
+                metadatas_unfiltered.filter_not_deleted().map_err(|e| {
+                    internal!(
+                        "Cannot filter deleted files for public_key: {:?}, err: {:?}",
+                        public_key,
+                        e
+                    )
+                })?
+            };
+
             let bytes = calculate_total_document_bytes(&mut con, &metadatas).await?;
-            total_bytes += bytes;
 
-            if is_user_active(&metadatas).await? {
-                active_users += 1;
-            }
+            total_bytes += bytes;
+            total_documents += ids.len();
 
             tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
         }
@@ -157,12 +168,12 @@ pub async fn calculate_total_document_bytes(
 
     for metadata in metadatas {
         if metadata.file_type == FileType::Document {
-            let maybe_file_usage: Option<FileUsage> =
-                con.maybe_json_get(keys::size(metadata.id)).await?;
+            let file_usage: FileUsage = con
+                .maybe_json_get(keys::size(metadata.id))
+                .await?
+                .ok_or_else(|| internal!("Cannot retrieve file usage for id: {:?}", metadata.id))?;
 
-            if let Some(usage) = maybe_file_usage {
-                total_size += usage.size_bytes;
-            }
+            total_size += file_usage.size_bytes
         }
     }
 
