@@ -7,6 +7,7 @@ use std::env;
 use std::hash::Hash;
 
 use itertools::Itertools;
+use lockbook_models::tree::FileMetaExt;
 use lockbook_models::work_unit::WorkUnit;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -27,6 +28,9 @@ use crate::repo::{account_repo, db_version_repo};
 use crate::service::{file_service, integrity_service, path_service, sync_service};
 
 pub enum Operation<'a> {
+    Client {
+        client_num: usize,
+    },
     Sync {
         client_num: usize,
     },
@@ -61,17 +65,23 @@ pub enum Operation<'a> {
 pub fn run(ops: &[Operation]) {
     let mut clients = vec![(0, test_config())];
     let (_account, root) = create_account(&clients[0].1);
+
+    let ensure_client_exists = |clients: &mut Vec<(usize, Config)>, client_num: &usize| {
+        if clients.iter().find(|(c, _)| c == client_num).is_none() {
+            clients.push((*client_num, make_new_client(&clients[0].1)))
+        }
+    };
+
     for op in ops {
         match op {
+            Operation::Client { client_num } => {
+                ensure_client_exists(&mut clients, &client_num);
+            }
             Operation::Sync { client_num } => {
                 || -> Result<_, String> {
-                    match clients.iter().find(|(c, _)| c == client_num) {
-                        Some((_, client)) => crate::sync_all(client, None).map_err(err_to_string),
-                        None => {
-                            clients.push((*client_num, make_and_sync_new_client(&clients[0].1)));
-                            Ok(())
-                        }
-                    }
+                    ensure_client_exists(&mut clients, &client_num);
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    crate::sync_all(client, None).map_err(err_to_string)
                 }()
                 .expect(&format!(
                     "Operation::Sync error. client_num={:?}",
@@ -197,36 +207,70 @@ pub fn assert_local_work_ids(db: &Config, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
 }
 
-pub fn assert_local_work_paths(db: &Config, root: &DecryptedFileMetadata, ids: &[&'static str]) {
-    assert!(slices_equal_ignore_order(
-        &get_dirty_ids(db, false),
-        &ids.iter()
-            .map(|p| path_service::get_by_path_include_deleted(
-                db,
-                &(root.decrypted_name.clone() + p)
-            )
-            .unwrap()
-            .id)
-            .collect::<Vec<Uuid>>()
-    ));
+pub fn assert_local_work_paths(
+    db: &Config,
+    root: &DecryptedFileMetadata,
+    expected_paths: &[&'static str],
+) {
+    let all_local_files = file_service::get_all_metadata(db, RepoSource::Local).unwrap();
+
+    let mut expected_paths = expected_paths.to_vec();
+    let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
+        .iter()
+        .map(|&id| path_service::get_path_by_id_using_files(&all_local_files, id).unwrap())
+        .map(|path| String::from(&path[root.decrypted_name.len()..]))
+        .collect();
+    actual_paths.sort();
+    expected_paths.sort();
+    if actual_paths != expected_paths {
+        panic!(
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
 }
 
 pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
 }
 
-pub fn assert_server_work_paths(db: &Config, root: &DecryptedFileMetadata, ids: &[&'static str]) {
-    assert!(slices_equal_ignore_order(
-        &get_dirty_ids(db, true),
-        &ids.iter()
-            .map(|p| path_service::get_by_path_include_deleted(
-                db,
-                &(root.decrypted_name.clone() + p)
-            ) // todo: doesn't support new files on server
-            .unwrap()
-            .id)
-            .collect::<Vec<Uuid>>()
-    ));
+pub fn assert_server_work_paths(
+    db: &Config,
+    root: &DecryptedFileMetadata,
+    expected_paths: &[&'static str],
+) {
+    let all_local_files = file_service::get_all_metadata(db, RepoSource::Local).unwrap();
+    let new_server_files = sync_service::calculate_work(db)
+        .unwrap()
+        .work_units
+        .into_iter()
+        .filter_map(|wu| match wu {
+            WorkUnit::ServerChange { metadata } => Some(metadata),
+            _ => None,
+        })
+        .filter(|f| all_local_files.maybe_find(f.id).is_none())
+        .collect::<Vec<DecryptedFileMetadata>>();
+    let staged = all_local_files
+        .stage(&new_server_files)
+        .into_iter()
+        .map(|s| s.0)
+        .collect::<Vec<DecryptedFileMetadata>>();
+
+    let mut expected_paths = expected_paths.to_vec();
+
+    let mut actual_paths: Vec<String> = get_dirty_ids(db, true)
+        .iter()
+        .map(|&id| path_service::get_path_by_id_using_files(&staged, id).unwrap())
+        .map(|path| String::from(&path[root.decrypted_name.len()..]))
+        .collect();
+    actual_paths.sort();
+    expected_paths.sort();
+    if actual_paths != expected_paths {
+        panic!(
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
 }
 
 pub fn assert_repo_integrity(db: &Config) {

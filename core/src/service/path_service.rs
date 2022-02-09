@@ -74,19 +74,11 @@ pub fn create_at_path(
 
 pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    get_by_path_common(&files, path)
+    get_by_path_using_files(&files, path)
 }
 
-pub fn get_by_path_include_deleted(
-    config: &Config,
-    path: &str,
-) -> Result<DecryptedFileMetadata, CoreError> {
-    let files = file_service::get_all_metadata(config, RepoSource::Local)?;
-    get_by_path_common(&files, path)
-}
-
-fn get_by_path_common(
-    files: &Vec<DecryptedFileMetadata>,
+pub fn get_by_path_using_files(
+    files: &[DecryptedFileMetadata],
     path: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     info!("getting metadata at path: {}", path);
@@ -175,8 +167,15 @@ pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<Stri
 }
 
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
-    info!("getting path by id: {}", id);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    get_path_by_id_using_files(&files, id)
+}
+
+pub fn get_path_by_id_using_files(
+    files: &[DecryptedFileMetadata],
+    id: Uuid,
+) -> Result<String, CoreError> {
+    info!("getting path by id: {}", id);
     let mut current_metadata = files.find(id)?;
     let mut path = String::from("");
 
