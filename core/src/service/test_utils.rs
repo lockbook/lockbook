@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use core::fmt::Debug;
+
 use std::collections::HashMap;
 use std::env;
 use std::hash::Hash;
@@ -25,13 +27,35 @@ use crate::repo::{account_repo, db_version_repo};
 use crate::service::{file_service, integrity_service, path_service, sync_service};
 
 pub enum Operation<'a> {
-    Sync { client_num: usize },
-    Create { client_num: usize, path: &'a str },
-    Rename { client_num: usize, path: &'a str, new_name: &'a str },
-    Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
-    Delete { client_num: usize, path: &'a str },
-    Edit { client_num: usize, path: &'a str, content: &'a [u8] },
-    Custom { f: &'a dyn Fn(&[(usize, Config)], &DecryptedFileMetadata) -> () },
+    Sync {
+        client_num: usize,
+    },
+    Create {
+        client_num: usize,
+        path: &'a str,
+    },
+    Rename {
+        client_num: usize,
+        path: &'a str,
+        new_name: &'a str,
+    },
+    Move {
+        client_num: usize,
+        path: &'a str,
+        new_parent_path: &'a str,
+    },
+    Delete {
+        client_num: usize,
+        path: &'a str,
+    },
+    Edit {
+        client_num: usize,
+        path: &'a str,
+        content: &'a [u8],
+    },
+    Custom {
+        f: &'a dyn Fn(&[(usize, Config)], &DecryptedFileMetadata) -> (),
+    },
 }
 
 pub fn run(ops: &[Operation]) {
@@ -40,45 +64,103 @@ pub fn run(ops: &[Operation]) {
     for op in ops {
         match op {
             Operation::Sync { client_num } => {
-                match clients.iter().find(|(c, _)| c == client_num) {
-                    Some((_, client)) => { crate::sync_all(client, None).unwrap(); },
-                    None => { clients.push((*client_num, make_and_sync_new_client(&clients[0].1))); },
-                }
-            },
+                || -> Result<_, String> {
+                    match clients.iter().find(|(c, _)| c == client_num) {
+                        Some((_, client)) => crate::sync_all(client, None).map_err(err_to_string),
+                        None => {
+                            clients.push((*client_num, make_and_sync_new_client(&clients[0].1)));
+                            Ok(())
+                        }
+                    }
+                }()
+                .expect(&format!(
+                    "Operation::Sync error. client_num={:?}",
+                    client_num
+                ));
+            }
             Operation::Create { client_num, path } => {
-                let path = root.decrypted_name.clone() + path;
-                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-                crate::create_file_at_path(client, &path).unwrap();
-            },
-            Operation::Rename { client_num, path, new_name } => {
-                let path = root.decrypted_name.clone() + path;
-                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-                let target = crate::get_file_by_path(client, &path).unwrap();
-                crate::rename_file(client, target.id, new_name).unwrap();
-            },
-            Operation::Move { client_num, path, new_parent_path } => {
-                let path = root.decrypted_name.clone() + path;
-                let new_parent_path = root.decrypted_name.clone() + new_parent_path;
-                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-                let target = crate::get_file_by_path(client, &path).unwrap();
-                let new_parent = crate::get_file_by_path(client, &new_parent_path).unwrap();
-                crate::move_file(client, target.id, new_parent.id).unwrap();
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    crate::create_file_at_path(client, &path).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Create error. client_num={:?}, path={:?}",
+                    client_num, path
+                ));
+            }
+            Operation::Rename {
+                client_num,
+                path,
+                new_name,
+            } => {
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
+                    crate::rename_file(client, target.id, new_name).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
+                    client_num, path, new_name
+                ));
+            }
+            Operation::Move {
+                client_num,
+                path,
+                new_parent_path,
+            } => {
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let new_parent_path = root.decrypted_name.clone() + new_parent_path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
+                    let new_parent =
+                        crate::get_file_by_path(client, &new_parent_path).map_err(err_to_string)?;
+                    crate::move_file(client, target.id, new_parent.id).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
+                    client_num, path, new_parent_path
+                ));
             }
             Operation::Delete { client_num, path } => {
-                let path = root.decrypted_name.clone() + path;
-                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-                let target = crate::get_file_by_path(client, &path).unwrap();
-                crate::delete_file(client, target.id).unwrap();
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
+                    crate::delete_file(client, target.id).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Delete error. client_num={:?}, path={:?}",
+                    client_num, path
+                ));
             }
-            Operation::Edit { client_num, path, content } => {
-                let path = root.decrypted_name.clone() + path;
-                let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-                let target = crate::get_file_by_path(client, &path).unwrap();
-                crate::write_document(client, target.id, content).unwrap();
+            Operation::Edit {
+                client_num,
+                path,
+                content,
+            } => {
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
+                    crate::write_document(client, target.id, content).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
+                    client_num, path, content
+                ));
             }
-            Operation::Custom { f } => { f(&clients, &root); },
+            Operation::Custom { f } => {
+                f(&clients, &root);
+            }
         }
     }
+}
+
+fn err_to_string<E: Debug>(e: E) -> String {
+    format!("{}: {:?}", std::any::type_name::<E>(), e)
 }
 
 #[macro_export]
@@ -116,7 +198,16 @@ pub fn assert_local_work_ids(db: &Config, ids: &[Uuid]) {
 }
 
 pub fn assert_local_work_paths(db: &Config, root: &DecryptedFileMetadata, ids: &[&'static str]) {
-    assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), &ids.iter().map(|p| crate::get_file_by_path(db, &(root.decrypted_name.clone() + p)).unwrap().id).collect::<Vec<Uuid>>()));
+    assert!(slices_equal_ignore_order(
+        &get_dirty_ids(db, false),
+        &ids.iter()
+            .map(
+                |p| crate::get_file_by_path(db, &(root.decrypted_name.clone() + p))
+                    .unwrap()
+                    .id
+            )
+            .collect::<Vec<Uuid>>()
+    ));
 }
 
 pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
@@ -124,7 +215,16 @@ pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
 }
 
 pub fn assert_server_work_paths(db: &Config, root: &DecryptedFileMetadata, ids: &[&'static str]) {
-    assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), &ids.iter().map(|p| crate::get_file_by_path(db, &(root.decrypted_name.clone() + p)).unwrap().id).collect::<Vec<Uuid>>()));
+    assert!(slices_equal_ignore_order(
+        &get_dirty_ids(db, true),
+        &ids.iter()
+            .map(
+                |p| crate::get_file_by_path(db, &(root.decrypted_name.clone() + p))
+                    .unwrap()
+                    .id
+            )
+            .collect::<Vec<Uuid>>()
+    ));
 }
 
 pub fn assert_repo_integrity(db: &Config) {
