@@ -386,9 +386,9 @@ impl Trial {
             }
         }
 
+        self.end_time = get_time().0;
         self.cleanup();
 
-        self.end_time = get_time().0;
         all_mutations
     }
 
