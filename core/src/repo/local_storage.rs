@@ -67,6 +67,7 @@ where
     N: AsRef<[u8]>,
 {
     let path_str = namespace_path(db, namespace);
+    debug!("deleting all\t{}", path_str);
     // note: this fails if a file is deleted between call to read_dir and subsequent calls to remove_file
     if let Ok(rd) = fs::read_dir(path_str) {
         for entry in rd {
