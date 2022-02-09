@@ -15,115 +15,161 @@ mod sync_tests {
     fn unsynced_device() {
         for mut ops in [
             // unmodified
-            vec![
-                Operation::Custom { f: &|dbs, root| {
+            vec![Operation::Custom {
+                f: &|dbs, root| {
                     let db = &dbs[0].1;
                     test_utils::assert_all_paths(&db, &root, &["/"]);
                     test_utils::assert_all_document_contents(&db, &root, &[]);
                     test_utils::assert_local_work_paths(&db, &root, &[]);
                     test_utils::assert_server_work_paths(&db, &root, &[]);
-                }},
-            ],
+                },
+            }],
             // new_file
             vec![
                 Operation::Create { client_num: 0, path: "/document" },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                    test_utils::assert_local_work_paths(&db, &root, &["/document"]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(&db, &root, &["/document"]);
+                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                    },
+                },
             ],
             // new_files
             vec![
                 Operation::Create { client_num: 0, path: "/a/b/c/d" },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
-                    test_utils::assert_local_work_paths(&db, &root, &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
+                        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
+                        test_utils::assert_local_work_paths(
+                            &db,
+                            &root,
+                            &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
+                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                    },
+                },
             ],
             // edited_document
             vec![
                 Operation::Create { client_num: 0, path: "/document" },
                 Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/document", b"document content")]);
-                    test_utils::assert_local_work_paths(&db, &root, &["/document"]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document", b"document content")],
+                        );
+                        test_utils::assert_local_work_paths(&db, &root, &["/document"]);
+                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                    },
+                },
             ],
             // move
             vec![
                 Operation::Create { client_num: 0, path: "/folder/" },
                 Operation::Create { client_num: 0, path: "/document" },
                 Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
-                    test_utils::assert_local_work_paths(&db, &root, &["/folder/", "/folder/document"]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/folder/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/folder/document", b"")],
+                        );
+                        test_utils::assert_local_work_paths(
+                            &db,
+                            &root,
+                            &["/folder/", "/folder/document"],
+                        );
+                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                    },
+                },
             ],
             // rename
             vec![
                 Operation::Create { client_num: 0, path: "/document" },
                 Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
-                    test_utils::assert_local_work_paths(&db, &root, &["/document2"]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document2", b"")],
+                        );
+                        test_utils::assert_local_work_paths(&db, &root, &["/document2"]);
+                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                    },
+                },
             ],
             // delete
             vec![
                 Operation::Create { client_num: 0, path: "/document" },
                 Operation::Delete { client_num: 0, path: "/document" },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[]);
-                    test_utils::assert_local_work_paths(&db, &root, &[]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_local_work_paths(&db, &root, &[]);
+                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                    },
+                },
             ],
             // delete_parent
             vec![
                 Operation::Create { client_num: 0, path: "/parent/document" },
                 Operation::Delete { client_num: 0, path: "/parent/" },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[]);
-                    test_utils::assert_local_work_paths(&db, &root, &[]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_local_work_paths(&db, &root, &[]);
+                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                    },
+                },
             ],
             // delete_grandparent
             vec![
                 Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
                 Operation::Delete { client_num: 0, path: "/grandparent/" },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[]);
-                    test_utils::assert_local_work_paths(&db, &root, &[]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_local_work_paths(&db, &root, &[]);
+                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                    },
+                },
             ],
         ] {
-            ops.push(Operation::Custom { f: &|dbs, _| {
-                let db = &dbs[0].1;
-                test_utils::assert_repo_integrity(&db);
-            } });
+            ops.push(Operation::Custom {
+                f: &|dbs, _| {
+                    let db = &dbs[0].1;
+                    test_utils::assert_repo_integrity(&db);
+                },
+            });
             test_utils::run(&ops);
         }
     }
@@ -139,59 +185,84 @@ mod sync_tests {
             // unmodified
             vec![
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                    },
+                },
             ],
             // new_file
             vec![
                 Operation::Create { client_num: 0, path: "/document" },
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                    },
+                },
             ],
             // new_file_name_same_as_username
             vec![
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    let account = lockbook_core::get_account(&db).unwrap();
-                    let document_path = test_utils::path(&root, &format!("/{}", account.username));
-                    lockbook_core::create_file_at_path(&db, &document_path).unwrap();
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        let account = lockbook_core::get_account(&db).unwrap();
+                        let document_path =
+                            test_utils::path(&root, &format!("/{}", account.username));
+                        lockbook_core::create_file_at_path(&db, &document_path).unwrap();
+                    },
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    let account = lockbook_core::get_account(&db).unwrap();
-                    let document_path = format!("/{}", account.username);
-                    test_utils::assert_all_paths(&db, &root, &["/", &document_path]);
-                    test_utils::assert_all_document_contents(&db, &root, &[(&document_path, b"")]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        let account = lockbook_core::get_account(&db).unwrap();
+                        let document_path = format!("/{}", account.username);
+                        test_utils::assert_all_paths(&db, &root, &["/", &document_path]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[(&document_path, b"")],
+                        );
+                    },
+                },
             ],
             // new_files
             vec![
                 Operation::Create { client_num: 0, path: "/a/b/c/d" },
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
+                        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
+                    },
+                },
             ],
             // edited_document
             vec![
                 Operation::Create { client_num: 0, path: "/document" },
                 Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/document", b"document content")]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document", b"document content")],
+                        );
+                    },
+                },
             ],
             // move
             vec![
@@ -199,65 +270,89 @@ mod sync_tests {
                 Operation::Create { client_num: 0, path: "/document" },
                 Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/folder/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/folder/document", b"")],
+                        );
+                    },
+                },
             ],
             // rename
             vec![
                 Operation::Create { client_num: 0, path: "/document" },
                 Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document2", b"")],
+                        );
+                    },
+                },
             ],
             // delete
             vec![
                 Operation::Create { client_num: 0, path: "/document" },
                 Operation::Delete { client_num: 0, path: "/document" },
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                    },
+                },
             ],
             // delete_parent
             vec![
                 Operation::Create { client_num: 0, path: "/folder/document" },
                 Operation::Delete { client_num: 0, path: "/folder/" },
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                    },
+                },
             ],
             // delete_grandparent
             vec![
                 Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
                 Operation::Delete { client_num: 0, path: "/grandparent/" },
                 Operation::Sync { client_num: 0 },
-                Operation::Custom { f: &|dbs, root| {
-                    let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[]);
-                }},
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                    },
+                },
             ],
         ] {
-            ops.push(Operation::Custom { f: &|dbs, _| {
-                let db = &dbs[0].1;
-                test_utils::assert_repo_integrity(&db);
-                test_utils::assert_local_work_ids(&db, &[]);
-                test_utils::assert_server_work_ids(&db, &[]);
-                test_utils::assert_deleted_files_pruned(&db);
-                test_utils::assert_new_synced_client_dbs_eq(&db);
-            } });
+            ops.push(Operation::Custom {
+                f: &|dbs, root| {
+                    let db = &dbs[0].1;
+                    test_utils::assert_repo_integrity(&db);
+                    test_utils::assert_local_work_paths(&db, &root, &[]);
+                    test_utils::assert_server_work_paths(&db, &root, &[]);
+                    test_utils::assert_deleted_files_pruned(&db);
+                    test_utils::assert_new_synced_client_dbs_eq(&db);
+                },
+            });
             test_utils::run(&ops);
         }
     }
@@ -267,101 +362,124 @@ mod sync_tests {
     ---------------------------------------------------------------------------------------------------------------  */
 
     #[test]
-    fn unsynced_change_synced_device_new_file() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        let document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-        test_utils::assert_local_work_ids(&db, &[document.id]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_new_files() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        let a = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/")).unwrap();
-        let b = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/")).unwrap();
-        let c =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/")).unwrap();
-        let d =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/a/b/c/d")).unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
-        test_utils::assert_local_work_ids(&db, &[a.id, b.id, c.id, d.id]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_edited_document() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        lockbook_core::write_document(&db, document.id, b"document content").unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"document content")]);
-        test_utils::assert_local_work_ids(&db, &[document.id]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_edit_unedit() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        lockbook_core::write_document(&db, document.id, b"document content").unwrap();
-        lockbook_core::write_document(&db, document.id, b"").unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-        test_utils::assert_local_work_ids(&db, &[]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_move() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let folder =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
-        let document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
-        test_utils::assert_local_work_ids(&db, &[document.id]);
-        test_utils::assert_server_work_ids(&db, &[]);
+    fn unsynced_change_synced_device() {
+        for mut ops in [
+            // new_file
+            vec![
+                Operation::Sync { client_num: 0 },
+                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(&db, root, &["/document"]);
+                    },
+                },
+            ],
+            // new_files
+            vec![
+                Operation::Sync { client_num: 0 },
+                Operation::Create { client_num: 0, path: "/a/b/c/d" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
+                        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
+                        test_utils::assert_local_work_paths(
+                            &db,
+                            root,
+                            &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
+                    },
+                },
+            ],
+            // edited_document
+            vec![
+                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Sync { client_num: 0 },
+                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document", b"document content")],
+                        );
+                        test_utils::assert_local_work_paths(&db, root, &["/document"]);
+                    },
+                },
+            ],
+            // edit_unedit
+            vec![
+                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Sync { client_num: 0 },
+                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
+                Operation::Edit { client_num: 0, path: "/document", content: b"" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(&db, root, &[]);
+                    },
+                },
+            ],
+            // move
+            vec![
+                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create { client_num: 0, path: "/folder/" },
+                Operation::Sync { client_num: 0 },
+                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/folder/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/folder/document", b"")],
+                        );
+                        test_utils::assert_local_work_paths(&db, root, &["/folder/document"]);
+                    },
+                },
+            ],
+            // move_unmove
+            vec![
+                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create { client_num: 0, path: "/folder/" },
+                Operation::Sync { client_num: 0 },
+                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
+                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/document"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(&db, root, &[]);
+                    },
+                },
+            ],
+        ] {
+            ops.push(Operation::Custom {
+                f: &|dbs, root| {
+                    let db = &dbs[0].1;
+                    test_utils::assert_repo_integrity(&db);
+                    test_utils::assert_server_work_paths(&db, &root, &[]);
+                },
+            });
+            test_utils::run(&ops);
+        }
     }
 
     #[test]
