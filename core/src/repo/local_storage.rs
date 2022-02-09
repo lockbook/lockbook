@@ -54,7 +54,7 @@ where
 {
     let path_str = key_path(db, namespace, key);
     let path = Path::new(&path_str);
-    trace!("delete\t{}", &path_str);
+    debug!("delete\t{}", &path_str);
     if path.exists() {
         remove_file(path).map_err(CoreError::from)
     } else {
@@ -67,6 +67,7 @@ where
     N: AsRef<[u8]>,
 {
     let path_str = namespace_path(db, namespace);
+    debug!("deleting all\t{}", path_str);
     // note: this fails if a file is deleted between call to read_dir and subsequent calls to remove_file
     if let Ok(rd) = fs::read_dir(path_str) {
         for entry in rd {
