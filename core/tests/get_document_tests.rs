@@ -71,11 +71,9 @@ mod get_document_tests {
         .content_version;
 
         // get document
-        let result = &api_service::request(
-            &account,
-            GetDocumentRequest { id: doc.id, content_version: content_version },
-        )
-        .unwrap();
+        let result =
+            &api_service::request(&account, GetDocumentRequest { id: doc.id, content_version })
+                .unwrap();
         assert_eq!(
             result.content,
             Some(AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() })

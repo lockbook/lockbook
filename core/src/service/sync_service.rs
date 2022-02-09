@@ -260,7 +260,7 @@ fn merge_maybe_documents(
                         ResolvedDocument::Copied {
                             remote_metadata: remote_metadata.clone(),
                             remote_document,
-                            copied_local_metadata: copied_local_metadata,
+                            copied_local_metadata,
                             copied_local_document: local_document,
                         }
                     }
@@ -692,7 +692,7 @@ where
         local_metadata.content_version = api_service::request(
             account,
             ChangeDocumentContentRequest {
-                id: id,
+                id,
                 old_metadata_version: local_metadata.metadata_version,
                 new_content: encrypted_content,
             },
