@@ -15,15 +15,15 @@ mod sync_fuzzer {
     use lockbook_core::service::test_utils::{assert_dbs_eq, random_username, test_config, url};
     use lockbook_core::Error::UiError;
     use lockbook_core::{
-        calculate_work, create_file, delete_file, get_path_by_id, list_metadatas, move_file,
-        rename_file, write_document, MoveFileError,
+        calculate_work, create_file, delete_file, get_path_by_id, list_metadatas, move_file, rename_file,
+        write_document, MoveFileError,
     };
     use lockbook_models::file_metadata::DecryptedFileMetadata;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
 
     use crate::sync_fuzzer::Actions::{
-        AttemptFolderMove, DeleteFile, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile,
-        SyncAndCheck, UpdateDocument,
+        AttemptFolderMove, DeleteFile, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile, SyncAndCheck,
+        UpdateDocument,
     };
 
     /// Starting parameters that matter
@@ -141,10 +141,7 @@ mod sync_fuzzer {
                             let move_file_result = move_file(&client, file.id, new_parent.id);
                             match move_file_result {
                                 Ok(()) | Err(UiError(MoveFileError::FolderMovedIntoItself)) => {}
-                                _ => panic!(
-                                    "Unexpected error while moving file: {:#?}",
-                                    move_file_result
-                                ),
+                                _ => panic!("Unexpected error while moving file: {:#?}", move_file_result),
                             }
                             print!(
                                 "[{:?}]\t{:?} to {:?}",
@@ -186,10 +183,7 @@ mod sync_fuzzer {
         }
 
         fn random_filename(rng: &mut StdRng) -> String {
-            rng.sample_iter(&Alphanumeric)
-                .take(7)
-                .map(char::from)
-                .collect()
+            rng.sample_iter(&Alphanumeric).take(7).map(char::from).collect()
         }
 
         fn random_utf8(rng: &mut StdRng) -> String {
@@ -277,7 +271,7 @@ mod sync_fuzzer {
                 5 => AttemptFolderMove,
                 6 => RenameFile,
                 7 => DeleteFile,
-                _ => panic!("An enum was added to Actions, but does not have a corresponding random selection")
+                _ => panic!("An enum was added to Actions, but does not have a corresponding random selection"),
             }
         }
     }

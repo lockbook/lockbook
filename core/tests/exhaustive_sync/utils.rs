@@ -23,17 +23,9 @@ pub fn find_by_name(config: &Config, name: &str) -> DecryptedFileMetadata {
 }
 
 pub fn random_utf8() -> String {
-    OsRng
-        .sample_iter(&Alphanumeric)
-        .take(1024)
-        .map(char::from)
-        .collect()
+    OsRng.sample_iter(&Alphanumeric).take(1024).map(char::from).collect()
 }
 
 pub fn random_filename() -> String {
-    OsRng
-        .sample_iter(&Alphanumeric)
-        .take(7)
-        .map(char::from)
-        .collect()
+    OsRng.sample_iter(&Alphanumeric).take(7).map(char::from).collect()
 }

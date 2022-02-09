@@ -4,9 +4,7 @@ mod delete_document_tests {
     use lockbook_core::assert_matches;
     use lockbook_core::service::api_service;
     use lockbook_core::service::api_service::ApiError;
-    use lockbook_core::service::test_utils::{
-        generate_account, generate_file_metadata, generate_root_metadata,
-    };
+    use lockbook_core::service::test_utils::{generate_account, generate_file_metadata, generate_root_metadata};
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileMetadataDiff;
     use lockbook_models::file_metadata::FileType;
@@ -19,21 +17,15 @@ mod delete_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
-        )
-        .unwrap();
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] })
+            .unwrap();
 
         // delete document
         doc.deleted = true;
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
         )
         .unwrap();
     }
@@ -46,8 +38,7 @@ mod delete_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         let result = api_service::request(
             &account,
             FileMetadataUpsertsRequest {
@@ -66,30 +57,22 @@ mod delete_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
-        )
-        .unwrap();
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] })
+            .unwrap();
 
         // delete document
         doc.deleted = true;
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
         )
         .unwrap();
 
         // delete document again
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
         )
         .unwrap();
     }
@@ -112,9 +95,7 @@ mod delete_document_tests {
         );
         assert_matches!(
             result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::RootImmutable
-            ))
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(FileMetadataUpsertsError::RootImmutable))
         );
     }
 }

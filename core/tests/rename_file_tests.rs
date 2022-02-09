@@ -19,22 +19,16 @@ mod rename_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
-        )
-        .unwrap();
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] })
+            .unwrap();
 
         // rename document
         let old_name = doc.name.clone();
         doc.name = random_filename();
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)] },
         )
         .unwrap();
     }
@@ -47,8 +41,7 @@ mod rename_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         let result = api_service::request(
             &account,
             FileMetadataUpsertsRequest {
@@ -67,23 +60,17 @@ mod rename_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc.deleted = true;
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
-        )
-        .unwrap();
+        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] })
+            .unwrap();
 
         // rename document
         let old_name = doc.name.clone();
         doc.name = random_filename();
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)] },
         )
         .unwrap();
     }
@@ -96,13 +83,9 @@ mod rename_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
-        )
-        .unwrap();
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] })
+            .unwrap();
 
         // rename document
         doc.name = random_filename();
@@ -124,15 +107,11 @@ mod rename_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create 2 document
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (doc2, _doc_key2) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (doc2, _doc_key2) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)] },
         )
         .unwrap();
 
@@ -141,9 +120,7 @@ mod rename_document_tests {
         doc.name = doc2.name;
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)] },
         );
         assert_get_updates_required!(result);
     }
@@ -158,15 +135,11 @@ mod rename_document_tests {
         // rename root
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)] },
         );
         assert_matches!(
             result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::RootImmutable
-            ))
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(FileMetadataUpsertsError::RootImmutable))
         );
     }
 }

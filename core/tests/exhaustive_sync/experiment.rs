@@ -138,11 +138,7 @@ impl Experiment {
         let mut failures = experiments.concluded.clone();
         failures.retain(|trial| trial.status.failed());
 
-        println!(
-            "{} trials concluded with {} failures.",
-            experiments.concluded.len(),
-            failures.len()
-        );
+        println!("{} trials concluded with {} failures.", experiments.concluded.len(), failures.len());
 
         println!("{:#?}", failures);
     }

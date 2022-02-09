@@ -2,9 +2,7 @@
 mod move_document_tests {
     use lockbook_core::service::api_service;
     use lockbook_core::service::api_service::ApiError;
-    use lockbook_core::service::test_utils::{
-        generate_account, generate_file_metadata, generate_root_metadata,
-    };
+    use lockbook_core::service::test_utils::{generate_account, generate_file_metadata, generate_root_metadata};
     use lockbook_core::{assert_get_updates_required, assert_matches};
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileMetadataDiff;
@@ -18,15 +16,11 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document and folder
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (folder, _folder_key) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)] },
         )
         .unwrap();
 
@@ -34,9 +28,7 @@ mod move_document_tests {
         doc.parent = folder.id;
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
         )
         .unwrap();
     }
@@ -49,10 +41,8 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document and folder
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        let (doc, _doc_key) =
-            generate_file_metadata(&account, &folder, &root_key, FileType::Document);
+        let (folder, _folder_key) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (doc, _doc_key) = generate_file_metadata(&account, &folder, &root_key, FileType::Document);
         let result = api_service::request(
             &account,
             FileMetadataUpsertsRequest {
@@ -74,14 +64,10 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document and folder, but don't send folder to server
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        let (doc, _doc_key) =
-            generate_file_metadata(&account, &folder, &root_key, FileType::Document);
-        let result = api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
-        );
+        let (folder, _folder_key) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (doc, _doc_key) = generate_file_metadata(&account, &folder, &root_key, FileType::Document);
+        let result =
+            api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] });
         assert_get_updates_required!(result);
     }
 
@@ -93,16 +79,12 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create deleted document and folder
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc.deleted = true;
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (folder, _folder_key) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)] },
         )
         .unwrap();
 
@@ -110,9 +92,7 @@ mod move_document_tests {
         doc.parent = folder.id;
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
         )
         .unwrap();
     }
@@ -125,15 +105,11 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document and folder
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (folder, _folder_key) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)] },
         )
         .unwrap();
 
@@ -157,12 +133,9 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create documents and folder
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (mut doc2, _doc_key2) =
-            generate_file_metadata(&account, &folder, &root_key, FileType::Document);
+        let (folder, _folder_key) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc2, _doc_key2) = generate_file_metadata(&account, &folder, &root_key, FileType::Document);
         doc2.name = doc.name.clone();
         api_service::request(
             &account,
@@ -180,9 +153,7 @@ mod move_document_tests {
         doc.parent = folder.id;
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
         );
         assert_get_updates_required!(result);
     }
@@ -195,27 +166,19 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create folder
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
-        )
-        .unwrap();
+        let (folder, _folder_key) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] })
+            .unwrap();
 
         // move root
         root.parent = folder.id;
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)] },
         );
         assert_matches!(
             result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::RootImmutable
-            ))
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(FileMetadataUpsertsError::RootImmutable))
         );
     }
 
@@ -227,21 +190,15 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create folder
-        let (mut folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
-        )
-        .unwrap();
+        let (mut folder, _folder_key) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] })
+            .unwrap();
 
         // move folder into self
         folder.parent = folder.id;
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)] },
         );
         assert_get_updates_required!(result);
     }
@@ -254,10 +211,8 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create folders
-        let (mut folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        let (folder2, _folder_key2) =
-            generate_file_metadata(&account, &folder, &root_key, FileType::Folder);
+        let (mut folder, _folder_key) = generate_file_metadata(&account, &root, &root_key, FileType::Folder);
+        let (folder2, _folder_key2) = generate_file_metadata(&account, &folder, &root_key, FileType::Folder);
         api_service::request(
             &account,
             FileMetadataUpsertsRequest {
@@ -270,9 +225,7 @@ mod move_document_tests {
         folder.parent = folder2.id;
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)] },
         );
         assert_get_updates_required!(result);
     }
@@ -285,15 +238,11 @@ mod move_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create documents
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (doc2, _doc_key2) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (doc2, _doc_key2) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)] },
         )
         .unwrap();
 
@@ -301,9 +250,7 @@ mod move_document_tests {
         doc.parent = doc2.id;
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
         );
         assert_get_updates_required!(result);
     }

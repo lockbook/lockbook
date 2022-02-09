@@ -1,1 +1,3 @@
-struct_lit_width = 80
+max_width = 120
+struct_lit_width = 100
+fn_call_width = 100

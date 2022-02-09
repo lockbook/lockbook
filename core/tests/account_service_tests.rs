@@ -3,21 +3,14 @@ mod account_tests {
     use lockbook_core::repo::account_repo;
     use lockbook_core::service::account_service;
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
-    use lockbook_core::{
-        create_account, export_account, import_account, CoreError, Error, ImportError,
-    };
+    use lockbook_core::{create_account, export_account, import_account, CoreError, Error, ImportError};
     use lockbook_models::account::Account;
 
     #[test]
     fn create_account_success() {
         let db = test_config();
         let generated_account = generate_account();
-        account_service::create_account(
-            &db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        account_service::create_account(&db, &generated_account.username, &generated_account.api_url).unwrap();
     }
 
     #[test]
@@ -25,19 +18,10 @@ mod account_tests {
         let db1 = test_config();
         let db2 = test_config();
         let generated_account = generate_account();
-        account_service::create_account(
-            &db1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        account_service::create_account(&db1, &generated_account.username, &generated_account.api_url).unwrap();
 
-        let err = account_service::create_account(
-            &db2,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap_err();
+        let err =
+            account_service::create_account(&db2, &generated_account.username, &generated_account.api_url).unwrap_err();
 
         assert!(
             matches!(err, CoreError::UsernameTaken),
@@ -54,8 +38,7 @@ mod account_tests {
         let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
         for &uname in &invalid_unames {
-            let err = account_service::create_account(&db, uname, &generate_account().api_url)
-                .unwrap_err();
+            let err = account_service::create_account(&db, uname, &generate_account().api_url).unwrap_err();
 
             assert!(
                 matches!(err, CoreError::UsernameInvalid),
@@ -71,20 +54,11 @@ mod account_tests {
         let db = test_config();
         let generated_account = generate_account();
 
-        account_service::create_account(
-            &db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        account_service::create_account(&db, &generated_account.username, &generated_account.api_url).unwrap();
 
         assert!(
             matches!(
-                account_service::create_account(
-                    &db,
-                    &generated_account.username,
-                    &generated_account.api_url,
-                ),
+                account_service::create_account(&db, &generated_account.username, &generated_account.api_url,),
                 Err(CoreError::AccountExists)
             ),
             "This action should have failed with AccountAlreadyExists!",
@@ -96,12 +70,7 @@ mod account_tests {
         let db = test_config();
         let generated_account = generate_account();
 
-        account_service::create_account(
-            &db,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        account_service::create_account(&db, &generated_account.username, &generated_account.api_url).unwrap();
 
         let db = test_config();
         assert!(
@@ -127,9 +96,7 @@ mod account_tests {
         let account_string = export_account(&cfg1).unwrap();
 
         match import_account(&cfg1, &account_string) {
-            Ok(_) => panic!(
-                "This should not have allowed this account to be imported as one exists already"
-            ),
+            Ok(_) => panic!("This should not have allowed this account to be imported as one exists already"),
             Err(err) => match err {
                 Error::UiError(ImportError::AccountExistsAlready) => {}
                 Error::UiError(ImportError::AccountStringCorrupted)
@@ -202,18 +169,12 @@ mod account_tests {
             let db2 = test_config();
             let generated_account1 = generate_account();
             let generated_account2 = generate_account();
-            let account1 = account_service::create_account(
-                &db1,
-                &generated_account1.username,
-                &generated_account1.api_url,
-            )
-            .unwrap();
-            let mut account2 = account_service::create_account(
-                &db2,
-                &generated_account2.username,
-                &generated_account2.api_url,
-            )
-            .unwrap();
+            let account1 =
+                account_service::create_account(&db1, &generated_account1.username, &generated_account1.api_url)
+                    .unwrap();
+            let mut account2 =
+                account_service::create_account(&db2, &generated_account2.username, &generated_account2.api_url)
+                    .unwrap();
             account2.username = account1.username;
             account_repo::insert(&db2, &account2).unwrap();
             account_service::export_account(&db2).unwrap()
