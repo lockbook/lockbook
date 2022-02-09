@@ -80,9 +80,7 @@ mod unit_tests {
     use crate::model::filename::NameComponents;
 
     fn from_components(
-        name: &str,
-        variant: Option<usize>,
-        extension: Option<&str>,
+        name: &str, variant: Option<usize>, extension: Option<&str>,
     ) -> NameComponents {
         NameComponents {
             name: name.to_string(),

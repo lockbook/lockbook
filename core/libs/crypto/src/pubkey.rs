@@ -21,9 +21,7 @@ pub enum ECSignError {
 }
 
 pub fn sign<T: Serialize>(
-    sk: &SecretKey,
-    to_sign: T,
-    time_getter: TimeGetter,
+    sk: &SecretKey, to_sign: T, time_getter: TimeGetter,
 ) -> Result<ECSigned<T>, ECSignError> {
     let timestamped = timestamp(to_sign, time_getter);
     let serialized = bincode::serialize(&timestamped).map_err(ECSignError::Serialization)?;
@@ -48,10 +46,7 @@ pub enum ECVerifyError {
 }
 
 pub fn verify<T: Serialize>(
-    pk: &PublicKey,
-    signed: &ECSigned<T>,
-    max_delay_ms: u64,
-    max_skew_ms: u64,
+    pk: &PublicKey, signed: &ECSigned<T>, max_delay_ms: u64, max_skew_ms: u64,
     time_getter: TimeGetter,
 ) -> Result<(), ECVerifyError> {
     if &signed.public_key != pk {

@@ -45,8 +45,7 @@ pub enum SupportedImageFormats {
 }
 
 pub fn export_drawing(
-    drawing_bytes: &[u8],
-    format: SupportedImageFormats,
+    drawing_bytes: &[u8], format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, CoreError> {
     let drawing = parse_drawing(drawing_bytes)?;

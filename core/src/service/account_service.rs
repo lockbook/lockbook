@@ -15,9 +15,7 @@ use crate::service::{api_service, file_encryption_service, file_service};
 use crate::CoreError;
 
 pub fn create_account(
-    config: &Config,
-    username: &str,
-    api_url: &str,
+    config: &Config, username: &str, api_url: &str,
 ) -> Result<Account, CoreError> {
     let username = String::from(username).to_lowercase();
     info!("creating with username {} against server {}", username, api_url);

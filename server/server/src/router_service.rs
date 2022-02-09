@@ -127,8 +127,7 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
 }
 
 pub fn deserialize_and_check<Req>(
-    server_state: &ServerState,
-    request: Bytes,
+    server_state: &ServerState, request: Bytes,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
     Req: Request,

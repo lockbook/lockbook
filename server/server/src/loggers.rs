@@ -178,9 +178,7 @@ struct ChangeDetail {
 }
 
 fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>(
-    api_key: &str,
-    handle: &Handle,
-    event: Event<T>,
+    api_key: &str, handle: &Handle, event: Event<T>,
 ) {
     let events = EventsV2::new(String::from(api_key), Some("lockbook-server".to_string())).unwrap();
 

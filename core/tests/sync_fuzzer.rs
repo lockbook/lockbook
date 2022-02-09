@@ -234,8 +234,7 @@ mod sync_fuzzer {
         }
 
         fn pick_random_document(
-            config: &Config,
-            rng: &mut StdRng,
+            config: &Config, rng: &mut StdRng,
         ) -> Option<DecryptedFileMetadata> {
             let mut possible_documents = list_metadatas(&config).unwrap();
             possible_documents.retain(|meta| meta.file_type == Document);

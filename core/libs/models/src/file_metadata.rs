@@ -183,9 +183,7 @@ impl FileMetadataDiff {
     }
 
     pub fn new_diff(
-        old_parent: Uuid,
-        old_name: &SecretFileName,
-        new_metadata: &EncryptedFileMetadata,
+        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &EncryptedFileMetadata,
     ) -> Self {
         FileMetadataDiff {
             id: new_metadata.id,

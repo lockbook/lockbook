@@ -42,9 +42,7 @@ impl FileMetadataUpsertsRequest {
     }
 
     pub fn new_diff(
-        old_parent: Uuid,
-        old_name: &SecretFileName,
-        new_metadata: &EncryptedFileMetadata,
+        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &EncryptedFileMetadata,
     ) -> Self {
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(old_parent, old_name, new_metadata)],

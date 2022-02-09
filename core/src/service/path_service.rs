@@ -13,8 +13,7 @@ use crate::service::file_service;
 use crate::CoreError;
 
 pub fn create_at_path(
-    config: &Config,
-    path_and_name: &str,
+    config: &Config, path_and_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     info!("creating path at: {}", path_and_name);
 

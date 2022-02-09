@@ -42,8 +42,7 @@ pub enum ApiError<E> {
 pub fn request<
     T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
 >(
-    account: &Account,
-    request: T,
+    account: &Account, request: T,
 ) -> Result<T::Response, ApiError<T::Error>> {
     request_helper(account, request, get_code_version, get_time)
 }
@@ -51,9 +50,7 @@ pub fn request<
 fn request_helper<
     T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
 >(
-    account: &Account,
-    request: T,
-    get_code_version: fn() -> &'static str,
+    account: &Account, request: T, get_code_version: fn() -> &'static str,
     get_time: fn() -> Timestamp,
 ) -> Result<T::Response, ApiError<T::Error>> {
     let client = ReqwestClient::new();

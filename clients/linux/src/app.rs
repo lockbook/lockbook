@@ -692,10 +692,7 @@ impl LbApp {
     }
 
     fn show_dialog_import_file(
-        &self,
-        parent: Uuid,
-        uris: Vec<String>,
-        finish_ch: Option<glib::Sender<Vec<String>>>,
+        &self, parent: Uuid, uris: Vec<String>, finish_ch: Option<glib::Sender<Vec<String>>>,
     ) -> LbResult<()> {
         let (d, disk_lbl, lb_lbl, prog_lbl, pbar) = self.gui.new_import_export_dialog(true);
 
@@ -1147,8 +1144,7 @@ impl Gui {
     }
 
     fn new_import_export_dialog(
-        &self,
-        is_import: bool,
+        &self, is_import: bool,
     ) -> (GtkDialog, GtkLabel, GtkLabel, GtkLabel, GtkProgressBar) {
         let title = if is_import { "Import Files" } else { "Export Files" };
 

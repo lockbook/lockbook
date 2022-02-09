@@ -27,9 +27,7 @@ impl LbSearch {
     }
 
     fn cmp_possibs(
-        model: &gtk::TreeModel,
-        it1: &gtk::TreeIter,
-        it2: &gtk::TreeIter,
+        model: &gtk::TreeModel, it1: &gtk::TreeIter, it2: &gtk::TreeIter,
     ) -> cmp::Ordering {
         let score1 = tree_iter_value!(model, it1, 0, i64);
         let score2 = tree_iter_value!(model, it2, 0, i64);

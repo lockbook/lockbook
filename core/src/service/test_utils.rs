@@ -93,9 +93,7 @@ pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_path
 }
 
 pub fn assert_all_document_contents(
-    db: &Config,
-    root: &DecryptedFileMetadata,
-    expected_contents_by_path: &[(&str, &[u8])],
+    db: &Config, root: &DecryptedFileMetadata, expected_contents_by_path: &[(&str, &[u8])],
 ) {
     let expected_contents_by_path = expected_contents_by_path
         .iter()
@@ -265,10 +263,7 @@ pub fn generate_root_metadata(account: &Account) -> (EncryptedFileMetadata, AESK
 }
 
 pub fn generate_file_metadata(
-    account: &Account,
-    parent: &EncryptedFileMetadata,
-    parent_key: &AESKey,
-    file_type: FileType,
+    account: &Account, parent: &EncryptedFileMetadata, parent_key: &AESKey, file_type: FileType,
 ) -> (EncryptedFileMetadata, AESKey) {
     let id = Uuid::new_v4();
     let file_key = symkey::generate_key();
@@ -290,15 +285,13 @@ pub fn generate_file_metadata(
 }
 
 pub fn aes_encrypt<T: Serialize + DeserializeOwned>(
-    key: &AESKey,
-    to_encrypt: &T,
+    key: &AESKey, to_encrypt: &T,
 ) -> AESEncrypted<T> {
     symkey::encrypt(key, to_encrypt).unwrap()
 }
 
 pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
-    key: &AESKey,
-    to_decrypt: &AESEncrypted<T>,
+    key: &AESKey, to_decrypt: &AESEncrypted<T>,
 ) -> T {
     symkey::decrypt(key, to_decrypt).unwrap()
 }

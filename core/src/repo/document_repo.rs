@@ -19,10 +19,7 @@ fn namespace(source: RepoSource) -> &'static str {
 }
 
 pub fn insert(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
-    document: &EncryptedDocument,
+    config: &Config, source: RepoSource, id: Uuid, document: &EncryptedDocument,
 ) -> Result<(), CoreError> {
     local_storage::write(
         config,
@@ -42,9 +39,7 @@ pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDoc
 }
 
 pub fn maybe_get(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
+    config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<Option<EncryptedDocument>, CoreError> {
     let maybe_data: Option<Vec<u8>> =
         local_storage::read(config, namespace(source), id.to_string().as_str())?;

@@ -59,9 +59,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
 }
 
 fn calculate_work_from_updates(
-    config: &Config,
-    server_updates: &[EncryptedFileMetadata],
-    mut last_sync: u64,
+    config: &Config, server_updates: &[EncryptedFileMetadata], mut last_sync: u64,
 ) -> Result<WorkCalculated, CoreError> {
     let mut work_units: Vec<WorkUnit> = vec![];
     let (all_metadata, _) = file_service::get_all_metadata_with_encrypted_changes(
@@ -123,9 +121,7 @@ pub enum MaybeMergeResult<T> {
 }
 
 fn merge_maybe<T>(
-    maybe_base: Option<T>,
-    maybe_local: Option<T>,
-    maybe_remote: Option<T>,
+    maybe_base: Option<T>, maybe_local: Option<T>, maybe_remote: Option<T>,
 ) -> Result<MaybeMergeResult<T>, CoreError> {
     Ok(MaybeMergeResult::Resolved(match (maybe_base, maybe_local, maybe_remote) {
         (None, None, None) => {
@@ -170,9 +166,7 @@ fn merge_maybe<T>(
 }
 
 fn merge_metadata(
-    base: DecryptedFileMetadata,
-    local: DecryptedFileMetadata,
-    remote: DecryptedFileMetadata,
+    base: DecryptedFileMetadata, local: DecryptedFileMetadata, remote: DecryptedFileMetadata,
 ) -> DecryptedFileMetadata {
     let local_renamed = local.decrypted_name != base.decrypted_name;
     let remote_renamed = remote.decrypted_name != base.decrypted_name;
@@ -206,8 +200,7 @@ fn merge_metadata(
 }
 
 fn merge_maybe_metadata(
-    maybe_base: Option<DecryptedFileMetadata>,
-    maybe_local: Option<DecryptedFileMetadata>,
+    maybe_base: Option<DecryptedFileMetadata>, maybe_local: Option<DecryptedFileMetadata>,
     maybe_remote: Option<DecryptedFileMetadata>,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     Ok(match merge_maybe(maybe_base, maybe_local, maybe_remote)? {
@@ -218,11 +211,9 @@ fn merge_maybe_metadata(
 }
 
 fn merge_maybe_documents(
-    merged_metadata: &DecryptedFileMetadata,
-    remote_metadata: &DecryptedFileMetadata,
+    merged_metadata: &DecryptedFileMetadata, remote_metadata: &DecryptedFileMetadata,
     maybe_base_document: Option<DecryptedDocument>,
-    maybe_local_document: Option<DecryptedDocument>,
-    remote_document: DecryptedDocument,
+    maybe_local_document: Option<DecryptedDocument>, remote_document: DecryptedDocument,
 ) -> Result<ResolvedDocument, CoreError> {
     Ok(
         match merge_maybe(maybe_base_document, maybe_local_document, Some(remote_document.clone()))?
@@ -366,11 +357,8 @@ impl fmt::Debug for ResolvedDocument {
 /// Gets a resolved document based on merge of local, base, and remote. Some document types are 3-way merged; others
 /// have old contents copied to a new file. Remote document is returned so that caller can update base.
 fn get_resolved_document(
-    config: &Config,
-    account: &Account,
-    all_metadata_state: &[RepoState<DecryptedFileMetadata>],
-    remote_metadatum: &DecryptedFileMetadata,
-    merged_metadatum: &DecryptedFileMetadata,
+    config: &Config, account: &Account, all_metadata_state: &[RepoState<DecryptedFileMetadata>],
+    remote_metadatum: &DecryptedFileMetadata, merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<Option<ResolvedDocument>, CoreError> {
     let maybe_remote_document_encrypted = api_service::request(
         account,
@@ -445,8 +433,7 @@ fn get_resolved_document(
 }
 
 fn should_pull_document(
-    maybe_base: &Option<DecryptedFileMetadata>,
-    maybe_local: &Option<DecryptedFileMetadata>,
+    maybe_base: &Option<DecryptedFileMetadata>, maybe_local: &Option<DecryptedFileMetadata>,
     maybe_remote: &Option<DecryptedFileMetadata>,
 ) -> bool {
     if let Some(remote) = maybe_remote {
@@ -466,9 +453,7 @@ fn should_pull_document(
 
 /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
 fn pull<F>(
-    config: &Config,
-    account: &Account,
-    update_sync_progress: &mut F,
+    config: &Config, account: &Account, update_sync_progress: &mut F,
 ) -> Result<(), CoreError>
 where
     F: FnMut(SyncProgressOperation),
@@ -664,9 +649,7 @@ where
 
 /// Updates remote and base metadata to local.
 fn push_metadata<F>(
-    config: &Config,
-    account: &Account,
-    update_sync_progress: &mut F,
+    config: &Config, account: &Account, update_sync_progress: &mut F,
 ) -> Result<(), CoreError>
 where
     F: FnMut(SyncProgressOperation),
@@ -688,9 +671,7 @@ where
 
 /// Updates remote and base files to local.
 fn push_documents<F>(
-    config: &Config,
-    account: &Account,
-    update_sync_progress: &mut F,
+    config: &Config, account: &Account, update_sync_progress: &mut F,
 ) -> Result<(), CoreError>
 where
     F: FnMut(SyncProgressOperation),
@@ -738,8 +719,7 @@ enum SyncProgressOperation {
 }
 
 pub fn sync(
-    config: &Config,
-    maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
+    config: &Config, maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
     info!("sync called");
     let mut sync_progress_total = 4 + file_service::get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes

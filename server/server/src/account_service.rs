@@ -96,8 +96,7 @@ pub async fn get_public_key(
 }
 
 pub async fn public_key_from_username(
-    username: &str,
-    server_state: &ServerState,
+    username: &str, server_state: &ServerState,
 ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
     let mut con = server_state.index_db_pool.get().await?;
 

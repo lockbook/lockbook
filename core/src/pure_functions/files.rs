@@ -23,10 +23,7 @@ pub fn single_or<T, E>(v: Vec<T>, e: E) -> Result<T, E> {
 }
 
 pub fn create(
-    file_type: FileType,
-    parent: Uuid,
-    name: &str,
-    owner: &PublicKey,
+    file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey,
 ) -> DecryptedFileMetadata {
     DecryptedFileMetadata {
         id: Uuid::new_v4(),
@@ -59,10 +56,7 @@ pub fn create_root(account: &Account) -> DecryptedFileMetadata {
 /// Validates a create operation for a file in the context of all files and returns a version of
 /// the file with the operation applied. This is a pure function.
 pub fn apply_create(
-    files: &[DecryptedFileMetadata],
-    file_type: FileType,
-    parent: Uuid,
-    name: &str,
+    files: &[DecryptedFileMetadata], file_type: FileType, parent: Uuid, name: &str,
     owner: &PublicKey,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let file = create(file_type, parent, name, owner);
@@ -82,9 +76,7 @@ pub fn apply_create(
 
 /// Validates a rename operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_rename(
-    files: &[DecryptedFileMetadata],
-    target_id: Uuid,
-    new_name: &str,
+    files: &[DecryptedFileMetadata], target_id: Uuid, new_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
@@ -100,9 +92,7 @@ pub fn apply_rename(
 
 /// Validates a move operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_move(
-    files: &[DecryptedFileMetadata],
-    target_id: Uuid,
-    new_parent: Uuid,
+    files: &[DecryptedFileMetadata], target_id: Uuid, new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     let parent = files
@@ -125,8 +115,7 @@ pub fn apply_move(
 /// Validates a delete operation for a file in the context of all files and returns a version of the
 /// file with the operation applied. This is a pure function.
 pub fn apply_delete(
-    files: &[DecryptedFileMetadata],
-    target_id: Uuid,
+    files: &[DecryptedFileMetadata], target_id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
@@ -163,9 +152,7 @@ fn validate_file_name(name: &str) -> Result<(), CoreError> {
 }
 
 pub fn suggest_non_conflicting_filename(
-    id: Uuid,
-    files: &[DecryptedFileMetadata],
-    staged_changes: &[DecryptedFileMetadata],
+    id: Uuid, files: &[DecryptedFileMetadata], staged_changes: &[DecryptedFileMetadata],
 ) -> Result<String, CoreError> {
     let files: Vec<DecryptedFileMetadata> = files
         .stage(staged_changes)
@@ -201,15 +188,13 @@ pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), Co
 }
 
 pub fn find_state<Fm: FileMetadata>(
-    files: &[RepoState<Fm>],
-    target_id: Uuid,
+    files: &[RepoState<Fm>], target_id: Uuid,
 ) -> Result<RepoState<Fm>, CoreError> {
     maybe_find_state(files, target_id).ok_or(CoreError::FileNonexistent)
 }
 
 pub fn maybe_find_state<Fm: FileMetadata>(
-    files: &[RepoState<Fm>],
-    target_id: Uuid,
+    files: &[RepoState<Fm>], target_id: Uuid,
 ) -> Option<RepoState<Fm>> {
     files.iter().find(|f| match f {
         RepoState::New(l) => l.id(),
@@ -240,8 +225,7 @@ pub fn find_children<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm>
 }
 
 pub fn find_with_descendants<Fm: FileMetadata>(
-    files: &[Fm],
-    target_id: Uuid,
+    files: &[Fm], target_id: Uuid,
 ) -> Result<Vec<Fm>, CoreError> {
     let mut result = vec![files.find(target_id)?];
     let mut i = 0;

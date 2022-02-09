@@ -73,9 +73,7 @@ pub unsafe extern "C" fn migrate_db(writeable_path: *const c_char) -> *const c_c
 
 #[no_mangle]
 pub unsafe extern "C" fn create_account(
-    writeable_path: *const c_char,
-    username: *const c_char,
-    api_url: *const c_char,
+    writeable_path: *const c_char, username: *const c_char, api_url: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::create_account(
         &config_from_ptr(writeable_path),
@@ -86,8 +84,7 @@ pub unsafe extern "C" fn create_account(
 
 #[no_mangle]
 pub unsafe extern "C" fn import_account(
-    writeable_path: *const c_char,
-    account_string: *const c_char,
+    writeable_path: *const c_char, account_string: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::import_account(
         &config_from_ptr(writeable_path),
@@ -111,8 +108,7 @@ pub unsafe extern "C" fn get_account(writeable_path: *const c_char) -> *const c_
 
 #[no_mangle]
 pub unsafe extern "C" fn create_file_at_path(
-    writeable_path: *const c_char,
-    path_and_name: *const c_char,
+    writeable_path: *const c_char, path_and_name: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::create_file_at_path(
         &config_from_ptr(writeable_path),
@@ -122,9 +118,7 @@ pub unsafe extern "C" fn create_file_at_path(
 
 #[no_mangle]
 pub unsafe extern "C" fn write_document(
-    writeable_path: *const c_char,
-    id: *const c_char,
-    content: *const c_char,
+    writeable_path: *const c_char, id: *const c_char, content: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::write_document(
         &config_from_ptr(writeable_path),
@@ -135,9 +129,7 @@ pub unsafe extern "C" fn write_document(
 
 #[no_mangle]
 pub unsafe extern "C" fn create_file(
-    writeable_path: *const c_char,
-    name: *const c_char,
-    parent: *const c_char,
+    writeable_path: *const c_char, name: *const c_char, parent: *const c_char,
     file_type: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::create_file(
@@ -155,16 +147,14 @@ pub unsafe extern "C" fn get_root(writeable_path: *const c_char) -> *const c_cha
 
 #[no_mangle]
 pub unsafe extern "C" fn get_children(
-    writeable_path: *const c_char,
-    id: *const c_char,
+    writeable_path: *const c_char, id: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::get_children(&config_from_ptr(writeable_path), uuid_from_ptr(id))))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn get_file_by_path(
-    writeable_path: *const c_char,
-    path: *const c_char,
+    writeable_path: *const c_char, path: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::get_file_by_path(
         &config_from_ptr(writeable_path),
@@ -174,16 +164,14 @@ pub unsafe extern "C" fn get_file_by_path(
 
 #[no_mangle]
 pub unsafe extern "C" fn delete_file(
-    writeable_path: *const c_char,
-    id: *const c_char,
+    writeable_path: *const c_char, id: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::delete_file(&config_from_ptr(writeable_path), uuid_from_ptr(id))))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn read_document(
-    writeable_path: *const c_char,
-    id: *const c_char,
+    writeable_path: *const c_char, id: *const c_char,
 ) -> *const c_char {
     c_string(translate(
         crate::read_document(&config_from_ptr(writeable_path), uuid_from_ptr(id))
@@ -193,8 +181,7 @@ pub unsafe extern "C" fn read_document(
 
 #[no_mangle]
 pub unsafe extern "C" fn export_drawing(
-    writeable_path: *const c_char,
-    id: *const c_char,
+    writeable_path: *const c_char, id: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::export_drawing(
         &config_from_ptr(writeable_path),
@@ -206,8 +193,7 @@ pub unsafe extern "C" fn export_drawing(
 
 #[no_mangle]
 pub unsafe extern "C" fn list_paths(
-    writeable_path: *const c_char,
-    filter: *const c_char,
+    writeable_path: *const c_char, filter: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::list_paths(
         &config_from_ptr(writeable_path),
@@ -217,9 +203,7 @@ pub unsafe extern "C" fn list_paths(
 
 #[no_mangle]
 pub unsafe extern "C" fn rename_file(
-    writeable_path: *const c_char,
-    id: *const c_char,
-    new_name: *const c_char,
+    writeable_path: *const c_char, id: *const c_char, new_name: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::rename_file(
         &config_from_ptr(writeable_path),
@@ -235,9 +219,7 @@ pub unsafe extern "C" fn list_metadatas(writeable_path: *const c_char) -> *const
 
 #[no_mangle]
 pub unsafe extern "C" fn move_file(
-    writeable_path: *const c_char,
-    id: *const c_char,
-    new_parent: *const c_char,
+    writeable_path: *const c_char, id: *const c_char, new_parent: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::move_file(
         &config_from_ptr(writeable_path),
@@ -289,8 +271,7 @@ pub unsafe extern "C" fn get_uncomressed_usage(writeable_path: *const c_char) ->
 
 #[no_mangle]
 pub unsafe extern "C" fn get_drawing(
-    writeable_path: *const c_char,
-    id: *const c_char,
+    writeable_path: *const c_char, id: *const c_char,
 ) -> *const c_char {
     c_string(translate(crate::get_drawing(&config_from_ptr(writeable_path), uuid_from_ptr(id))))
 }

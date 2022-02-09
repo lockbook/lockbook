@@ -76,9 +76,7 @@ fn check_for_changed_root(
 }
 
 fn apply_changes(
-    now: u64,
-    changes: &[FileMetadataDiff],
-    metas: &mut Vec<EncryptedFileMetadata>,
+    now: u64, changes: &[FileMetadataDiff], metas: &mut Vec<EncryptedFileMetadata>,
 ) -> Result<Vec<EncryptedFileMetadata>, TxError<ServerError<FileMetadataUpsertsError>>> {
     let mut deleted_documents = vec![];
     for change in changes {

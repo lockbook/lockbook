@@ -1,2 +1,3 @@
 use_small_heuristics = "Max"
 chain_width=60
+fn_args_layout="Compressed"

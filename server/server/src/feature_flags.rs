@@ -17,8 +17,7 @@ pub async fn is_new_accounts_enabled(con: &mut deadpool_redis::Connection) -> Re
 }
 
 pub async fn set_new_account_status(
-    con: &mut deadpool_redis::Connection,
-    enable: bool,
+    con: &mut deadpool_redis::Connection, enable: bool,
 ) -> RedisResult<()> {
     con.hset(FEATURE_FLAGS_KEY, FEATURE_FLAG_NEW_ACCOUNTS_FIELD, enable)
         .await
