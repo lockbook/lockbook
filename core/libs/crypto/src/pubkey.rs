@@ -118,28 +118,14 @@ mod unit_tests {
     fn ec_test_sign_verify() {
         let key = generate_key();
         let value = sign(&key, "Test", EARLY_CLOCK).unwrap();
-        verify(
-            &PublicKey::from_secret_key(&key),
-            &value,
-            20,
-            20,
-            LATE_CLOCK,
-        )
-        .unwrap();
+        verify(&PublicKey::from_secret_key(&key), &value, 20, 20, LATE_CLOCK).unwrap();
     }
 
     #[test]
     fn ec_test_sign_verify_late() {
         let key = generate_key();
         let value = sign(&key, "Test", EARLY_CLOCK).unwrap();
-        verify(
-            &PublicKey::from_secret_key(&key),
-            &value,
-            10,
-            10,
-            LATE_CLOCK,
-        )
-        .unwrap_err();
+        verify(&PublicKey::from_secret_key(&key), &value, 10, 10, LATE_CLOCK).unwrap_err();
     }
 
     #[test]
@@ -175,9 +161,6 @@ mod unit_tests {
 
         assert_eq!(key1, key2);
 
-        assert_eq!(
-            PublicKey::from_secret_key(&key1),
-            PublicKey::from_secret_key(&key2)
-        );
+        assert_eq!(PublicKey::from_secret_key(&key1), PublicKey::from_secret_key(&key2));
     }
 }

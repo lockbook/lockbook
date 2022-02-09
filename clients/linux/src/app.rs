@@ -64,12 +64,8 @@ impl LbApp {
             messenger: m,
         };
 
-        lb_app
-            .messenger
-            .send(Msg::ToggleAutoSave(s.borrow().auto_save));
-        lb_app
-            .messenger
-            .send(Msg::ToggleAutoSync(s.borrow().auto_sync));
+        lb_app.messenger.send(Msg::ToggleAutoSave(s.borrow().auto_save));
+        lb_app.messenger.send(Msg::ToggleAutoSync(s.borrow().auto_sync));
 
         let lb = lb_app.clone();
         receiver.attach(None, move |msg| {
@@ -118,10 +114,7 @@ impl LbApp {
                     Ok(())
                 }
                 Msg::SetStatus(txt, tool_tip_txt) => {
-                    lb.gui
-                        .account
-                        .status()
-                        .set_status(txt.as_str(), tool_tip_txt.as_deref());
+                    lb.gui.account.status().set_status(txt.as_str(), tool_tip_txt.as_deref());
                     Ok(())
                 }
             };
@@ -399,12 +392,10 @@ impl LbApp {
         ));
 
         let discard = gtk::Button::with_label("Discard");
-        discard.connect_clicked(
-            glib::clone!(@strong d, @strong file_dealt_with => move |_| {
-                file_dealt_with.replace(true);
-                d.close();
-            }),
-        );
+        discard.connect_clicked(glib::clone!(@strong d, @strong file_dealt_with => move |_| {
+            file_dealt_with.replace(true);
+            d.close();
+        }));
 
         let buttons = GtkBox::new(Horizontal, 16);
         buttons.set_halign(GtkAlign::Center);
@@ -436,10 +427,7 @@ impl LbApp {
 
     fn open_folder(&self, f: &DecryptedFileMetadata) -> LbResult<()> {
         let children = self.core.children(f)?;
-        self.edit(&EditMode::Folder {
-            meta: f.clone(),
-            n_children: children.len(),
-        })
+        self.edit(&EditMode::Folder { meta: f.clone(), n_children: children.len() })
     }
 
     fn edit(&self, mode: &EditMode) -> LbResult<()> {
@@ -454,13 +442,7 @@ impl LbApp {
             self.gui.win.set_title(&format!("{}*", f.decrypted_name));
             self.state.borrow_mut().open_file_dirty = true;
 
-            self.state
-                .borrow()
-                .background_work
-                .lock()
-                .unwrap()
-                .auto_save_state
-                .file_changed();
+            self.state.borrow().background_work.lock().unwrap().auto_save_state.file_changed();
         }
         Ok(())
     }
@@ -620,9 +602,7 @@ impl LbApp {
         errlbl.set_margin_start(8);
         errlbl.set_margin_bottom(8);
 
-        let d = self
-            .gui
-            .new_dialog(&format!("Rename '{}'", meta.decrypted_name));
+        let d = self.gui.new_dialog(&format!("Rename '{}'", meta.decrypted_name));
         util::gui::set_marginx(&d.get_content_area(), 16);
         d.set_default_size(300, -1);
         d.get_content_area().add(&lbl);
@@ -682,9 +662,7 @@ impl LbApp {
     fn show_dialog_about(&self) -> LbResult<()> {
         let d = gtk::AboutDialog::new();
         d.set_transient_for(Some(&self.gui.win));
-        d.set_logo(Some(
-            &GdkPixbuf::from_inline(onboarding::LOGO, false).unwrap(),
-        ));
+        d.set_logo(Some(&GdkPixbuf::from_inline(onboarding::LOGO, false).unwrap()));
         d.set_program_name("Lockbook");
         d.set_version(Some(VERSION));
         d.set_website(Some("https://lockbook.net"));
@@ -822,10 +800,7 @@ impl LbApp {
             gtk::FileChooserAction::SelectFolder,
         );
 
-        d.add_buttons(&[
-            ("Cancel", GtkResponseType::Cancel),
-            ("Select", GtkResponseType::Ok),
-        ]);
+        d.add_buttons(&[("Cancel", GtkResponseType::Cancel), ("Select", GtkResponseType::Ok)]);
 
         let resp = d.run();
         d.close();
@@ -1000,25 +975,13 @@ impl LbApp {
     }
 
     fn toggle_auto_sync(&self, auto_sync: bool) -> LbResult<()> {
-        self.state
-            .borrow()
-            .background_work
-            .lock()
-            .unwrap()
-            .auto_sync_state
-            .is_active = auto_sync;
+        self.state.borrow().background_work.lock().unwrap().auto_sync_state.is_active = auto_sync;
 
         Ok(())
     }
 
     fn toggle_auto_save(&self, auto_save: bool) -> LbResult<()> {
-        self.state
-            .borrow()
-            .background_work
-            .lock()
-            .unwrap()
-            .auto_save_state
-            .is_active = auto_save;
+        self.state.borrow().background_work.lock().unwrap().auto_save_state.is_active = auto_save;
 
         Ok(())
     }
@@ -1117,14 +1080,7 @@ impl Gui {
             base
         });
 
-        Self {
-            win,
-            menubar,
-            screens,
-            onboarding,
-            account: Rc::new(account),
-            messenger: m.clone(),
-        }
+        Self { win, menubar, screens, onboarding, account: Rc::new(account), messenger: m.clone() }
     }
 
     fn show(&self, core: &LbCore) -> LbResult<()> {
@@ -1167,11 +1123,7 @@ impl Gui {
         &self,
         is_import: bool,
     ) -> (GtkDialog, GtkLabel, GtkLabel, GtkLabel, GtkProgressBar) {
-        let title = if is_import {
-            "Import Files"
-        } else {
-            "Export Files"
-        };
+        let title = if is_import { "Import Files" } else { "Export Files" };
 
         let load_d = self.new_dialog(title);
         util::gui::set_marginy(&load_d, 36);

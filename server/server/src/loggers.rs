@@ -65,9 +65,7 @@ pub fn init(config: &Config) {
         })
         .chain(log_file);
 
-    let base_logger = fern::Dispatch::new()
-        .chain(stdout_logger)
-        .chain(file_logger);
+    let base_logger = fern::Dispatch::new().chain(stdout_logger).chain(file_logger);
 
     match config.server.pd_api_key.as_ref() {
         None => base_logger,
@@ -88,19 +86,13 @@ fn pd_logger(build: &str, pd_api_key: &str, handle: Handle) -> Dispatch {
                 summary: String::from("Lockbook Server is starting up..."),
                 timestamp: SystemTime::now().into(),
                 source: Some(String::from("localhost")), // TODO: Hostname
-                custom_details: Some(ChangeDetail {
-                    build: String::from(build),
-                }),
+                custom_details: Some(ChangeDetail { build: String::from(build) }),
             },
             links: None,
         }),
     );
 
-    let pdl = PDLogger {
-        key: String::from(pd_api_key),
-        handle,
-        build: String::from(build),
-    };
+    let pdl = PDLogger { key: String::from(pd_api_key), handle, build: String::from(build) };
 
     fern::Dispatch::new()
         .format(move |out, message, _| {

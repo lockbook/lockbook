@@ -54,10 +54,7 @@ fn import_file_recursively(
     let lockbook_path_with_new = format!(
         "{}{}{}",
         lockbook_path,
-        disk_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or(CoreError::DiskPathInvalid)?,
+        disk_path.file_name().and_then(|name| name.to_str()).ok_or(CoreError::DiskPathInvalid)?,
         if is_document { "" } else { "/" }
     );
 
@@ -119,14 +116,7 @@ pub fn export_file(
 
     let file_metadata = &file_service::get_not_deleted_metadata(config, RepoSource::Local, id)?;
     let all = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    export_file_recursively(
-        config,
-        &all,
-        file_metadata,
-        &destination,
-        edit,
-        &export_progress,
-    )
+    export_file_recursively(config, &all, file_metadata, &destination, edit, &export_progress)
 }
 
 fn export_file_recursively(
@@ -157,15 +147,9 @@ fn export_file_recursively(
         }
         FileType::Document => {
             let mut file = if edit {
-                OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .open(dest_with_new)
+                OpenOptions::new().write(true).create(true).open(dest_with_new)
             } else {
-                OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(dest_with_new)
+                OpenOptions::new().write(true).create_new(true).open(dest_with_new)
             }
             .map_err(CoreError::from)?;
 

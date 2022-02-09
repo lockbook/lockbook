@@ -14,9 +14,7 @@ pub fn import_private_key() -> CliResult<()> {
         ))
     } else {
         let mut account_string = String::new();
-        std::io::stdin()
-            .read_line(&mut account_string)
-            .expect("Failed to read from stdin");
+        std::io::stdin().read_line(&mut account_string).expect("Failed to read from stdin");
         account_string.retain(|c| !c.is_whitespace());
 
         println!("Importing...");

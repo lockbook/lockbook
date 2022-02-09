@@ -8,9 +8,7 @@ pub struct IndexDbConf {
 
 impl IndexDbConf {
     pub fn from_env_vars() -> Self {
-        Self {
-            redis_url: env_or_panic("INDEX_DB_REDIS_URL"),
-        }
+        Self { redis_url: env_or_panic("INDEX_DB_REDIS_URL") }
     }
 }
 
@@ -86,15 +84,10 @@ impl MetricsConfig {
     pub fn from_env_vars() -> MetricsConfig {
         MetricsConfig {
             time_between_metrics_refresh: Duration::from_secs(
-                env_or_panic("MINUTES_BETWEEN_METRICS_REFRESH")
-                    .parse::<u64>()
-                    .unwrap()
-                    * 60,
+                env_or_panic("MINUTES_BETWEEN_METRICS_REFRESH").parse::<u64>().unwrap() * 60,
             ),
             time_between_redis_calls: Duration::from_millis(
-                env_or_panic("MILLIS_BETWEEN_REDIS_CALLS")
-                    .parse::<u64>()
-                    .unwrap(),
+                env_or_panic("MILLIS_BETWEEN_REDIS_CALLS").parse::<u64>().unwrap(),
             ),
         }
     }

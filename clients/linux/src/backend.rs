@@ -72,9 +72,7 @@ pub struct LbCore {
 
 impl LbCore {
     pub fn new(cfg_path: &str) -> LbResult<Self> {
-        let config = Config {
-            writeable_path: cfg_path.to_string(),
-        };
+        let config = Config { writeable_path: cfg_path.to_string() };
 
         match get_db_state(&config).map_err(|err| progerr!("{}", err))? {
             DbState::ReadyToUse | DbState::Empty => {}
@@ -254,19 +252,14 @@ impl LbCore {
         destination: &str,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> LbResult<()> {
-        export_file(
-            &self.config,
-            id,
-            PathBuf::from(destination),
-            false,
-            export_progress,
+        export_file(&self.config, id, PathBuf::from(destination), false, export_progress).map_err(
+            map_core_err!(ExportFileError,
+                ParentDoesNotExist => uerr_dialog!("Invalid export destination, parent not found."),
+                DiskPathTaken => uerr_dialog!("File collision detected during export."),
+                NoAccount => uerr_dialog!("No account."),
+                DiskPathInvalid => uerr_dialog!("Invalid path!"),
+            ),
         )
-        .map_err(map_core_err!(ExportFileError,
-            ParentDoesNotExist => uerr_dialog!("Invalid export destination, parent not found."),
-            DiskPathTaken => uerr_dialog!("File collision detected during export."),
-            NoAccount => uerr_dialog!("No account."),
-            DiskPathInvalid => uerr_dialog!("Invalid path!"),
-        ))
     }
 
     pub fn sync(&self, ch: glib::Sender<Option<LbSyncMsg>>) -> LbResult<()> {

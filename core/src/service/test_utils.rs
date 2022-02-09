@@ -73,10 +73,8 @@ pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_path
             expected_paths
         );
     }
-    let mut expected_paths: Vec<String> = expected_paths
-        .iter()
-        .map(|&path| String::from(path))
-        .collect();
+    let mut expected_paths: Vec<String> =
+        expected_paths.iter().map(|&path| String::from(path)).collect();
     let mut actual_paths: Vec<String> = crate::list_paths(db, None)
         .unwrap()
         .iter()
@@ -202,25 +200,15 @@ pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
 }
 
 pub fn test_config() -> Config {
-    Config {
-        writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-    }
+    Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()) }
 }
 
 pub fn random_username() -> String {
-    Uuid::new_v4()
-        .to_string()
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .collect()
+    Uuid::new_v4().to_string().chars().filter(|c| c.is_alphanumeric()).collect()
 }
 
 pub fn random_filename() -> SecretFileName {
-    let name: String = Uuid::new_v4()
-        .to_string()
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .collect();
+    let name: String = Uuid::new_v4().to_string().chars().filter(|c| c.is_alphanumeric()).collect();
 
     symkey::encrypt_and_hmac(&symkey::generate_key(), &name).unwrap()
 }
@@ -230,11 +218,7 @@ pub fn url() -> String {
 }
 
 pub fn generate_account() -> Account {
-    Account {
-        username: random_username(),
-        api_url: url(),
-        private_key: pubkey::generate_key(),
-    }
+    Account { username: random_username(), api_url: url(), private_key: pubkey::generate_key() }
 }
 
 pub fn generate_root_metadata(account: &Account) -> (EncryptedFileMetadata, AESKey) {
@@ -310,20 +294,11 @@ pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
 }
 
 pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
-    assert_eq!(
-        account_repo::get(db1).unwrap(),
-        account_repo::get(db2).unwrap()
-    );
+    assert_eq!(account_repo::get(db1).unwrap(), account_repo::get(db2).unwrap());
 
-    assert_eq!(
-        db_version_repo::maybe_get(db1).unwrap(),
-        db_version_repo::maybe_get(db2).unwrap()
-    );
+    assert_eq!(db_version_repo::maybe_get(db1).unwrap(), db_version_repo::maybe_get(db2).unwrap());
 
-    assert_eq!(
-        root_repo::maybe_get(db1).unwrap(),
-        root_repo::maybe_get(db2).unwrap()
-    );
+    assert_eq!(root_repo::maybe_get(db1).unwrap(), root_repo::maybe_get(db2).unwrap());
 
     assert_eq!(
         file_service::get_all_metadata_state(db1).unwrap(),
@@ -394,10 +369,7 @@ mod unit_tests {
 
     #[test]
     fn slices_equal_ignore_order_distinct() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 69420],
-            &[69420, 69, 420]
-        ));
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69420, 69, 420]));
     }
 
     #[test]
@@ -410,33 +382,21 @@ mod unit_tests {
 
     #[test]
     fn slices_equal_ignore_order_distinct_subset() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 69420],
-            &[69, 420]
-        ));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69, 420]));
     }
 
     #[test]
     fn slices_equal_ignore_order_repeats() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 420],
-            &[420, 69, 420]
-        ));
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 420]));
     }
 
     #[test]
     fn slices_equal_ignore_order_different_repeats() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 420],
-            &[420, 69, 69]
-        ));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 69]));
     }
 
     #[test]
     fn slices_equal_ignore_order_repeats_subset() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 420],
-            &[420, 69]
-        ));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69]));
     }
 }

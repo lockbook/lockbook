@@ -61,19 +61,11 @@ pub fn create_at_path(
         }
 
         // Child does not exist, create it
-        let file_type = if is_folder || index != path_components.len() - 2 {
-            Folder
-        } else {
-            Document
-        };
+        let file_type =
+            if is_folder || index != path_components.len() - 2 { Folder } else { Document };
 
-        current = files::apply_create(
-            &files,
-            file_type,
-            current.id,
-            next_name,
-            &account.public_key(),
-        )?;
+        current =
+            files::apply_create(&files, file_type, current.id, next_name, &account.public_key())?;
         files.push(current.clone());
         file_service::insert_metadatum(config, RepoSource::Local, &current)?;
     }
@@ -476,10 +468,7 @@ mod unit_tests {
                 .unwrap();
         let document_path = path_service::get_path_by_id(config, document.id).unwrap();
 
-        assert_eq!(
-            &document_path,
-            &format!("{}/folder/document", &account.username)
-        );
+        assert_eq!(&document_path, &format!("{}/folder/document", &account.username));
     }
 
     #[test]
@@ -503,15 +492,9 @@ mod unit_tests {
         .unwrap();
 
         let all_paths = path_service::get_all_paths(config, None).unwrap();
-        assert!(all_paths
-            .iter()
-            .any(|p| p == &format!("{}/", &account.username)));
-        assert!(all_paths
-            .iter()
-            .any(|p| p == &format!("{}/folder/", &account.username)));
-        assert!(all_paths
-            .iter()
-            .any(|p| p == &format!("{}/folder/folder/", &account.username)));
+        assert!(all_paths.iter().any(|p| p == &format!("{}/", &account.username)));
+        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/", &account.username)));
+        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/", &account.username)));
         assert!(all_paths
             .iter()
             .any(|p| p == &format!("{}/folder/folder/document", &account.username)));
@@ -569,15 +552,9 @@ mod unit_tests {
         .unwrap();
 
         let all_paths = path_service::get_all_paths(config, Some(Filter::FoldersOnly)).unwrap();
-        assert!(all_paths
-            .iter()
-            .any(|p| p == &format!("{}/", &account.username)));
-        assert!(all_paths
-            .iter()
-            .any(|p| p == &format!("{}/folder/", &account.username)));
-        assert!(all_paths
-            .iter()
-            .any(|p| p == &format!("{}/folder/folder/", &account.username)));
+        assert!(all_paths.iter().any(|p| p == &format!("{}/", &account.username)));
+        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/", &account.username)));
+        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/", &account.username)));
         assert!(all_paths
             .iter()
             .any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));

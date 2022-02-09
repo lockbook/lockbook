@@ -56,14 +56,12 @@ pub fn get_all(
     config: &Config,
     source: RepoSource,
 ) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
-    Ok(
-        local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
-            .into_iter()
-            .map(|s| serde_json::from_slice(s.as_ref()).map_err(core_err_unexpected))
-            .collect::<Result<Vec<EncryptedFileMetadata>, CoreError>>()?
-            .into_iter()
-            .collect(),
-    )
+    Ok(local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
+        .into_iter()
+        .map(|s| serde_json::from_slice(s.as_ref()).map_err(core_err_unexpected))
+        .collect::<Result<Vec<EncryptedFileMetadata>, CoreError>>()?
+        .into_iter()
+        .collect())
 }
 
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {

@@ -6,9 +6,7 @@ use std::env;
 use uuid::Uuid;
 
 pub fn test_config() -> Config {
-    Config {
-        writeable_path: format!("/tmp/{}", Uuid::new_v4().to_string()),
-    }
+    Config { writeable_path: format!("/tmp/{}", Uuid::new_v4().to_string()) }
 }
 
 pub fn api_url() -> String {
@@ -16,9 +14,5 @@ pub fn api_url() -> String {
 }
 
 pub fn random_uuid() -> String {
-    Uuid::new_v4()
-        .to_string()
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .collect()
+    Uuid::new_v4().to_string().chars().filter(|c| c.is_alphanumeric()).collect()
 }

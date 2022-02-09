@@ -34,13 +34,7 @@ pub fn encrypt<T: Serialize + DeserializeOwned>(
     let serialized = bincode::serialize(to_encrypt).map_err(AESEncryptError::Serialization)?;
     let nonce = &generate_nonce();
     let encrypted = convert_key(key)
-        .encrypt(
-            GenericArray::from_slice(nonce),
-            aead::Payload {
-                msg: &serialized,
-                aad: &[],
-            },
-        )
+        .encrypt(GenericArray::from_slice(nonce), aead::Payload { msg: &serialized, aad: &[] })
         .map_err(AESEncryptError::Encryption)?;
     Ok(AESEncrypted::new(encrypted, nonce.to_vec()))
 }
@@ -69,21 +63,12 @@ pub fn encrypt_and_hmac(
     let encrypted_value = {
         let nonce = &generate_nonce();
         let encrypted = convert_key(key)
-            .encrypt(
-                GenericArray::from_slice(nonce),
-                aead::Payload {
-                    msg: &serialized,
-                    aad: &[],
-                },
-            )
+            .encrypt(GenericArray::from_slice(nonce), aead::Payload { msg: &serialized, aad: &[] })
             .map_err(EncryptAndHmacError::Encryption)?;
         AESEncrypted::new(encrypted, nonce.to_vec())
     };
 
-    Ok(SecretFileName {
-        encrypted_value,
-        hmac,
-    })
+    Ok(SecretFileName { encrypted_value, hmac })
 }
 
 #[derive(Debug)]
@@ -98,13 +83,7 @@ pub fn decrypt<T: DeserializeOwned>(
 ) -> Result<T, AESDecryptError> {
     let nonce = GenericArray::from_slice(&to_decrypt.nonce);
     let decrypted = convert_key(key)
-        .decrypt(
-            nonce,
-            aead::Payload {
-                msg: &to_decrypt.value,
-                aad: &[],
-            },
-        )
+        .decrypt(nonce, aead::Payload { msg: &to_decrypt.value, aad: &[] })
         .map_err(AESDecryptError::Decryption)?;
     let deserialized =
         bincode::deserialize(&decrypted).map_err(AESDecryptError::Deserialization)?;
@@ -125,13 +104,7 @@ pub fn decrypt_and_verify(
 ) -> Result<String, DecryptAndVerifyError> {
     let nonce = GenericArray::from_slice(&to_decrypt.encrypted_value.nonce);
     let decrypted = convert_key(key)
-        .decrypt(
-            nonce,
-            aead::Payload {
-                msg: &to_decrypt.encrypted_value.value,
-                aad: &[],
-            },
-        )
+        .decrypt(nonce, aead::Payload { msg: &to_decrypt.encrypted_value.value, aad: &[] })
         .map_err(DecryptAndVerifyError::Decryption)?;
     let deserialized =
         bincode::deserialize(&decrypted).map_err(DecryptAndVerifyError::Deserialization)?;
@@ -139,8 +112,7 @@ pub fn decrypt_and_verify(
     let mut mac =
         HmacSha256::new_from_slice(key).map_err(DecryptAndVerifyError::HmacCreationError)?;
     mac.update(decrypted.as_ref());
-    mac.verify(&to_decrypt.hmac)
-        .map_err(DecryptAndVerifyError::HmacValidationError)?;
+    mac.verify(&to_decrypt.hmac).map_err(DecryptAndVerifyError::HmacValidationError)?;
 
     Ok(deserialized)
 }

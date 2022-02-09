@@ -14,9 +14,7 @@ use crate::service::path_service::{filter_from_str, Filter};
 use crate::{get_all_error_variants, SupportedImageFormats};
 
 fn c_string(value: String) -> *const c_char {
-    CString::new(value)
-        .expect("Could not Rust String -> C String")
-        .into_raw()
+    CString::new(value).expect("Could not Rust String -> C String").into_raw()
 }
 
 fn json_c_string<T: Serialize>(value: T) -> *const c_char {
@@ -24,16 +22,11 @@ fn json_c_string<T: Serialize>(value: T) -> *const c_char {
 }
 
 unsafe fn str_from_ptr(s: *const c_char) -> String {
-    CStr::from_ptr(s)
-        .to_str()
-        .expect("Could not C String -> Rust String")
-        .to_string()
+    CStr::from_ptr(s).to_str().expect("Could not C String -> Rust String").to_string()
 }
 
 unsafe fn config_from_ptr(s: *const c_char) -> Config {
-    Config {
-        writeable_path: str_from_ptr(s),
-    }
+    Config { writeable_path: str_from_ptr(s) }
 }
 
 unsafe fn uuid_from_ptr(s: *const c_char) -> Uuid {
@@ -65,16 +58,12 @@ pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
 
 #[no_mangle]
 pub unsafe extern "C" fn get_db_state(writeable_path: *const c_char) -> *const c_char {
-    c_string(translate(crate::get_db_state(&config_from_ptr(
-        writeable_path,
-    ))))
+    c_string(translate(crate::get_db_state(&config_from_ptr(writeable_path))))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn migrate_db(writeable_path: *const c_char) -> *const c_char {
-    c_string(translate(crate::migrate_db(&config_from_ptr(
-        writeable_path,
-    ))))
+    c_string(translate(crate::migrate_db(&config_from_ptr(writeable_path))))
 }
 
 #[no_mangle]
@@ -156,9 +145,7 @@ pub unsafe extern "C" fn create_file(
 
 #[no_mangle]
 pub unsafe extern "C" fn get_root(writeable_path: *const c_char) -> *const c_char {
-    c_string(translate(crate::get_root(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    })))
+    c_string(translate(crate::get_root(&Config { writeable_path: str_from_ptr(writeable_path) })))
 }
 
 #[no_mangle]
@@ -166,10 +153,7 @@ pub unsafe extern "C" fn get_children(
     writeable_path: *const c_char,
     id: *const c_char,
 ) -> *const c_char {
-    c_string(translate(crate::get_children(
-        &config_from_ptr(writeable_path),
-        uuid_from_ptr(id),
-    )))
+    c_string(translate(crate::get_children(&config_from_ptr(writeable_path), uuid_from_ptr(id))))
 }
 
 #[no_mangle]
@@ -188,10 +172,7 @@ pub unsafe extern "C" fn delete_file(
     writeable_path: *const c_char,
     id: *const c_char,
 ) -> *const c_char {
-    c_string(translate(crate::delete_file(
-        &config_from_ptr(writeable_path),
-        uuid_from_ptr(id),
-    )))
+    c_string(translate(crate::delete_file(&config_from_ptr(writeable_path), uuid_from_ptr(id))))
 }
 
 #[no_mangle]
@@ -244,9 +225,7 @@ pub unsafe extern "C" fn rename_file(
 
 #[no_mangle]
 pub unsafe extern "C" fn list_metadatas(writeable_path: *const c_char) -> *const c_char {
-    c_string(translate(crate::list_metadatas(&config_from_ptr(
-        writeable_path,
-    ))))
+    c_string(translate(crate::list_metadatas(&config_from_ptr(writeable_path))))
 }
 
 #[no_mangle]
@@ -293,9 +272,7 @@ pub unsafe extern "C" fn get_last_synced_human_string(
 
 #[no_mangle]
 pub unsafe extern "C" fn get_usage(writeable_path: *const c_char) -> *const c_char {
-    c_string(translate(crate::get_usage(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    })))
+    c_string(translate(crate::get_usage(&Config { writeable_path: str_from_ptr(writeable_path) })))
 }
 
 #[no_mangle]
@@ -310,10 +287,7 @@ pub unsafe extern "C" fn get_drawing(
     writeable_path: *const c_char,
     id: *const c_char,
 ) -> *const c_char {
-    c_string(translate(crate::get_drawing(
-        &config_from_ptr(writeable_path),
-        uuid_from_ptr(id),
-    )))
+    c_string(translate(crate::get_drawing(&config_from_ptr(writeable_path), uuid_from_ptr(id))))
 }
 
 #[no_mangle]

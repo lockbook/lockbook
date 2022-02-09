@@ -25,18 +25,14 @@ mod get_document_tests {
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         )
         .unwrap();
 
         // get metadata version
         let metadata_version = api_service::request(
             &account,
-            GetUpdatesRequest {
-                since_metadata_version: root.metadata_version,
-            },
+            GetUpdatesRequest { since_metadata_version: root.metadata_version },
         )
         .unwrap()
         .file_metadata
@@ -64,9 +60,7 @@ mod get_document_tests {
         // get content version
         let content_version = api_service::request(
             &account,
-            GetUpdatesRequest {
-                since_metadata_version: metadata_version,
-            },
+            GetUpdatesRequest { since_metadata_version: metadata_version },
         )
         .unwrap()
         .file_metadata
@@ -79,19 +73,12 @@ mod get_document_tests {
         // get document
         let result = &api_service::request(
             &account,
-            GetDocumentRequest {
-                id: doc.id,
-                content_version: content_version,
-            },
+            GetDocumentRequest { id: doc.id, content_version: content_version },
         )
         .unwrap();
         assert_eq!(
             result.content,
-            Some(AESEncrypted {
-                value: vec!(69),
-                nonce: vec!(69),
-                _t: Default::default()
-            })
+            Some(AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() })
         );
     }
 
@@ -105,16 +92,11 @@ mod get_document_tests {
         // get document we never created
         let result = api_service::request(
             &account,
-            GetDocumentRequest {
-                id: Uuid::new_v4(),
-                content_version: 0,
-            },
+            GetDocumentRequest { id: Uuid::new_v4(), content_version: 0 },
         );
         assert_matches!(
             result,
-            Err(ApiError::<GetDocumentError>::Endpoint(
-                GetDocumentError::DocumentNotFound
-            ))
+            Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::DocumentNotFound))
         );
     }
 }

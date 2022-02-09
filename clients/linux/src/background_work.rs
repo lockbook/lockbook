@@ -19,10 +19,7 @@ impl BackgroundWork {
     }
 
     pub fn current_time() -> u128 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_millis()
+        SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_millis()
     }
 
     pub fn init_background_work(state: Arc<Mutex<Self>>) {
@@ -88,11 +85,7 @@ pub struct AutoSaveState {
 
 impl AutoSaveState {
     pub fn default() -> Self {
-        Self {
-            last_change: 0,
-            last_save: 0,
-            is_active: false,
-        }
+        Self { last_change: 0, last_save: 0, is_active: false }
     }
 
     pub fn file_changed(&mut self) {
@@ -107,9 +100,6 @@ pub struct AutoSyncState {
 
 impl AutoSyncState {
     pub fn default() -> Self {
-        Self {
-            is_active: false,
-            last_sync: 0,
-        }
+        Self { is_active: false, last_sync: 0 }
     }
 }

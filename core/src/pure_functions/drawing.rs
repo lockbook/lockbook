@@ -55,70 +55,14 @@ pub fn export_drawing(
         Some(theme) => theme,
         None => match drawing.theme {
             None => HashMap::<_, _>::from_iter(IntoIter::new([
-                (
-                    ColorAlias::White,
-                    ColorRGB {
-                        r: 0xFF,
-                        g: 0xFF,
-                        b: 0xFF,
-                    },
-                ),
-                (
-                    ColorAlias::Black,
-                    ColorRGB {
-                        r: 0x00,
-                        g: 0x00,
-                        b: 0x00,
-                    },
-                ),
-                (
-                    ColorAlias::Red,
-                    ColorRGB {
-                        r: 0xFF,
-                        g: 0x00,
-                        b: 0x00,
-                    },
-                ),
-                (
-                    ColorAlias::Green,
-                    ColorRGB {
-                        r: 0x00,
-                        g: 0xFF,
-                        b: 0x00,
-                    },
-                ),
-                (
-                    ColorAlias::Yellow,
-                    ColorRGB {
-                        r: 0xFF,
-                        g: 0xFF,
-                        b: 0x00,
-                    },
-                ),
-                (
-                    ColorAlias::Blue,
-                    ColorRGB {
-                        r: 0x00,
-                        g: 0x00,
-                        b: 0xFF,
-                    },
-                ),
-                (
-                    ColorAlias::Magenta,
-                    ColorRGB {
-                        r: 0xFF,
-                        g: 0x00,
-                        b: 0xFF,
-                    },
-                ),
-                (
-                    ColorAlias::Cyan,
-                    ColorRGB {
-                        r: 0x00,
-                        g: 0xFF,
-                        b: 0xFF,
-                    },
-                ),
+                (ColorAlias::White, ColorRGB { r: 0xFF, g: 0xFF, b: 0xFF }),
+                (ColorAlias::Black, ColorRGB { r: 0x00, g: 0x00, b: 0x00 }),
+                (ColorAlias::Red, ColorRGB { r: 0xFF, g: 0x00, b: 0x00 }),
+                (ColorAlias::Green, ColorRGB { r: 0x00, g: 0xFF, b: 0x00 }),
+                (ColorAlias::Yellow, ColorRGB { r: 0xFF, g: 0xFF, b: 0x00 }),
+                (ColorAlias::Blue, ColorRGB { r: 0x00, g: 0x00, b: 0xFF }),
+                (ColorAlias::Magenta, ColorRGB { r: 0xFF, g: 0x00, b: 0xFF }),
+                (ColorAlias::Cyan, ColorRGB { r: 0x00, g: 0xFF, b: 0xFF }),
             ])),
             Some(theme) => theme,
         },
@@ -136,9 +80,7 @@ pub fn export_drawing(
         if stroke.points_x.len() != stroke.points_y.len()
             || stroke.points_y.len() != stroke.points_girth.len()
         {
-            return Err(CoreError::Unexpected(String::from(
-                "unequal points and girth metrics",
-            )));
+            return Err(CoreError::Unexpected(String::from("unequal points and girth metrics")));
         }
 
         if stroke.alpha > 1.0 || stroke.alpha < 0.0 {
@@ -303,17 +245,9 @@ fn get_drawing_bounds(strokes: &[Stroke]) -> (u32, u32) {
             .unwrap_or(0)
     };
 
-    let max_x_and_girth = strokes
-        .iter()
-        .map(|stroke| stroke_to_max_x(stroke))
-        .max()
-        .unwrap_or(0);
+    let max_x_and_girth = strokes.iter().map(|stroke| stroke_to_max_x(stroke)).max().unwrap_or(0);
 
-    let max_y_and_girth = strokes
-        .iter()
-        .map(|stroke| stroke_to_max_y(stroke))
-        .max()
-        .unwrap_or(0);
+    let max_y_and_girth = strokes.iter().map(|stroke| stroke_to_max_y(stroke)).max().unwrap_or(0);
 
     (max_x_and_girth + 20, max_y_and_girth + 20)
 }
@@ -359,10 +293,7 @@ mod unit_tests {
             theme: None,
         };
 
-        assert_eq!(
-            drawing::get_drawing_bounds(drawing.strokes.as_slice()),
-            (20, 20)
-        );
+        assert_eq!(drawing::get_drawing_bounds(drawing.strokes.as_slice()), (20, 20));
     }
 
     #[test]
@@ -381,10 +312,7 @@ mod unit_tests {
             theme: None,
         };
 
-        assert_eq!(
-            drawing::get_drawing_bounds(drawing.strokes.as_slice()),
-            (121, 121)
-        );
+        assert_eq!(drawing::get_drawing_bounds(drawing.strokes.as_slice()), (121, 121));
     }
 
     #[test]
@@ -403,10 +331,7 @@ mod unit_tests {
             theme: None,
         };
 
-        assert_eq!(
-            drawing::get_drawing_bounds(drawing.strokes.as_slice()),
-            (2021, 2021)
-        );
+        assert_eq!(drawing::get_drawing_bounds(drawing.strokes.as_slice()), (2021, 2021));
     }
 
     #[test]

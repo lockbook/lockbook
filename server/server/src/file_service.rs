@@ -37,9 +37,7 @@ pub async fn upsert_file_metadata(
 
         docs_to_delete = apply_changes(now, &request.updates, &mut files)?;
 
-        files
-            .verify_integrity()
-            .map_err(|_| Abort(ClientError(GetUpdatesRequired)))?;
+        files.verify_integrity().map_err(|_| Abort(ClientError(GetUpdatesRequired)))?;
 
         for the_file in &files {
             pipe.json_set(file(the_file.id), the_file)?;
@@ -166,27 +164,19 @@ pub async fn change_document_content(
     document_service::create(server_state, request.id, new_version, &request.new_content).await?;
 
     let tx: Result<(), _> = tx!(&mut con, pipe, watched_keys, {
-        let new_size = FileUsage {
-            file_id: request.id,
-            size_bytes: request.new_content.value.len() as u64,
-        };
-        let mut meta: EncryptedFileMetadata =
-            con.maybe_json_get(file(request.id))
-                .await?
-                .ok_or(Abort(ClientError(
-                    ChangeDocumentContentError::DocumentNotFound,
-                )))?;
+        let new_size =
+            FileUsage { file_id: request.id, size_bytes: request.new_content.value.len() as u64 };
+        let mut meta: EncryptedFileMetadata = con
+            .maybe_json_get(file(request.id))
+            .await?
+            .ok_or(Abort(ClientError(ChangeDocumentContentError::DocumentNotFound)))?;
 
         if meta.deleted {
-            return Err(Abort(ClientError(
-                ChangeDocumentContentError::DocumentDeleted,
-            )));
+            return Err(Abort(ClientError(ChangeDocumentContentError::DocumentDeleted)));
         }
 
         if false {
-            return Err(Abort(ClientError(
-                ChangeDocumentContentError::NotPermissioned,
-            )));
+            return Err(Abort(ClientError(ChangeDocumentContentError::NotPermissioned)));
         }
 
         if request.old_metadata_version != meta.metadata_version {
@@ -198,8 +188,7 @@ pub async fn change_document_content(
         meta.content_version = new_version;
         meta.metadata_version = new_version;
 
-        pipe.json_set(size(request.id), new_size)?
-            .json_set(file(request.id), meta)
+        pipe.json_set(size(request.id), new_size)?.json_set(file(request.id), meta)
     });
     if tx.is_err() {
         // Cleanup the NEW file created if, for some reason, the tx failed
@@ -209,9 +198,7 @@ pub async fn change_document_content(
 
     document_service::background_delete(server_state, request.id, old_content_version).await?;
 
-    Ok(ChangeDocumentContentResponse {
-        new_content_version: new_version,
-    })
+    Ok(ChangeDocumentContentResponse { new_content_version: new_version })
 }
 
 pub async fn get_document(

@@ -38,10 +38,8 @@ impl FileTree {
     pub fn new(m: &Messenger, c: &Arc<LbCore>, hidden_cols: &Vec<String>) -> Self {
         let popup = Rc::new(FileTreePopup::new(m));
 
-        let mut column_types = FileTreeCol::all()
-            .iter()
-            .map(|_col| glib::Type::String)
-            .collect::<Vec<glib::Type>>();
+        let mut column_types =
+            FileTreeCol::all().iter().map(|_col| glib::Type::String).collect::<Vec<glib::Type>>();
 
         column_types.insert(0, glib::Type::String);
 
@@ -74,11 +72,7 @@ impl FileTree {
         )];
 
         tree.drag_dest_set(gtk::DestDefaults::ALL, &targets, gdk::DragAction::COPY);
-        tree.drag_source_set(
-            gdk::ModifierType::BUTTON1_MASK,
-            &targets,
-            gdk::DragAction::MOVE,
-        );
+        tree.drag_source_set(gdk::ModifierType::BUTTON1_MASK, &targets, gdk::DragAction::MOVE);
 
         let target_list = gtk::TargetList::new(&targets);
         target_list.add_uri_targets(URI_TARGET_INFO);
@@ -128,8 +122,7 @@ impl FileTree {
         let icon_name = get_icon_name(name, &metadata.file_type);
         let id = &metadata.id.to_string();
         let ftype = &format!("{:?}", metadata.file_type);
-        self.model
-            .insert_with_values(iter, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype])
+        self.model.insert_with_values(iter, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype])
     }
 
     pub fn refresh(&self, root: &DecryptedFileMetadata, metadatas: &Vec<DecryptedFileMetadata>) {
@@ -279,16 +272,8 @@ impl FileTree {
 }
 
 fn get_icon_name(fname: &String, ftype: &FileType) -> String {
-    let image_suffixes = vec![
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".pnm",
-        ".tga",
-        ".farbfeld",
-        ".bmp",
-        ".draw",
-    ];
+    let image_suffixes =
+        vec![".jpg", ".jpeg", ".png", ".pnm", ".tga", ".farbfeld", ".bmp", ".draw"];
     let script_suffixes = vec![".sh", ".bash", ".zsh"];
 
     match ftype {

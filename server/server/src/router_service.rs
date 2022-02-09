@@ -77,44 +77,26 @@ pub fn core_routes(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     core_req!(NewAccountRequest, new_account, server_state)
-        .or(core_req!(
-            ChangeDocumentContentRequest,
-            change_document_content,
-            server_state
-        ))
-        .or(core_req!(
-            FileMetadataUpsertsRequest,
-            upsert_file_metadata,
-            server_state
-        ))
-        .or(core_req!(
-            ChangeDocumentContentRequest,
-            change_document_content,
-            server_state
-        ))
+        .or(core_req!(ChangeDocumentContentRequest, change_document_content, server_state))
+        .or(core_req!(FileMetadataUpsertsRequest, upsert_file_metadata, server_state))
+        .or(core_req!(ChangeDocumentContentRequest, change_document_content, server_state))
         .or(core_req!(GetDocumentRequest, get_document, server_state))
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
-        .or(core_req!(
-            DeleteAccountRequest,
-            delete_account,
-            server_state
-        ))
+        .or(core_req!(DeleteAccountRequest, delete_account, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::get()
-        .and(warp::path(&GetBuildInfoRequest::ROUTE[1..]))
-        .map(|| {
-            let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
-                .with_label_values(&[GetBuildInfoRequest::ROUTE])
-                .start_timer();
-            let resp = get_build_info();
-            let resp = warp::reply::json(&resp);
-            timer.observe_duration();
-            resp
-        })
+    warp::get().and(warp::path(&GetBuildInfoRequest::ROUTE[1..])).map(|| {
+        let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
+            .with_label_values(&[GetBuildInfoRequest::ROUTE])
+            .start_timer();
+        let resp = get_build_info();
+        let resp = warp::reply::json(&resp);
+        timer.observe_duration();
+        resp
+    })
 }
 
 pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

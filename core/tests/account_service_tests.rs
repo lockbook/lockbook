@@ -115,11 +115,7 @@ mod account_tests {
             ),
             "This action should have failed with AccountAlreadyExists!",
         );
-        println!(
-            "{} {}",
-            &generated_account.username,
-            &(generated_account.username.to_uppercase())
-        )
+        println!("{} {}", &generated_account.username, &(generated_account.username.to_uppercase()))
     }
 
     #[test]
@@ -127,12 +123,7 @@ mod account_tests {
         let cfg1 = test_config();
         let generated_account = generate_account();
 
-        create_account(
-            &cfg1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        create_account(&cfg1, &generated_account.username, &generated_account.api_url).unwrap();
         let account_string = export_account(&cfg1).unwrap();
 
         match import_account(&cfg1, &account_string) {
@@ -174,12 +165,7 @@ mod account_tests {
         let cfg1 = test_config();
         let generated_account = generate_account();
 
-        create_account(
-            &cfg1,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        create_account(&cfg1, &generated_account.username, &generated_account.api_url).unwrap();
 
         let cfg2 = test_config();
         {

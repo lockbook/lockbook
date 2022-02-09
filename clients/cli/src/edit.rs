@@ -32,11 +32,7 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         | CoreError::Unexpected(_) => err_unexpected!("reading encrypted doc: {:#?}", err),
     })?;
 
-    let file_location = format!(
-        "{}/{}",
-        get_directory_location()?,
-        file_metadata.decrypted_name
-    );
+    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.decrypted_name);
     let temp_file_path = Path::new(file_location.as_str());
     let mut file_handle = fs::File::create(&temp_file_path)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
@@ -45,9 +41,7 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         .write_all(&file_content)
         .map_err(|err| err!(OsCouldNotWriteFile(file_location.clone(), err)))?;
 
-    file_handle
-        .sync_all()
-        .map_err(|err| err!(OsCouldNotWriteFile(file_location.clone(), err)))?;
+    file_handle.sync_all().map_err(|err| err!(OsCouldNotWriteFile(file_location.clone(), err)))?;
 
     let watcher = set_up_auto_save(file_metadata.id, file_location.clone());
 

@@ -35,11 +35,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
         CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
-    let file_location = format!(
-        "{}/{}",
-        get_directory_location()?,
-        file_metadata.decrypted_name
-    );
+    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.decrypted_name);
     let temp_file_path = Path::new(&file_location);
     let _ = File::create(&temp_file_path)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;

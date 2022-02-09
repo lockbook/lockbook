@@ -35,9 +35,7 @@ fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
 }
 
 fn string_to_jstring(env: &JNIEnv, result: String) -> jstring {
-    env.new_string(result)
-        .expect("Couldn't create JString from rust string!")
-        .into_inner()
+    env.new_string(result).expect("Couldn't create JString from rust string!").into_inner()
 }
 
 fn jstring_to_string(env: &JNIEnv, json: JString, name: &str) -> Result<String, jstring> {
@@ -145,10 +143,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(create_account(&config, &username, &api_url)),
-    )
+    string_to_jstring(&env, translate(create_account(&config, &username, &api_url)))
 }
 
 #[no_mangle]
@@ -301,10 +296,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(create_file(&config, name.as_str(), id, file_type)),
-    )
+    string_to_jstring(&env, translate(create_file(&config, name.as_str(), id, file_type)))
 }
 
 #[no_mangle]
@@ -418,10 +410,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(save_document_to_disk(&config, id, &location)),
-    )
+    string_to_jstring(&env, translate(save_document_to_disk(&config, id, &location)))
 }
 
 #[no_mangle]
@@ -479,10 +468,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(export_drawing_to_disk(&config, id, format, None, &location)),
-    )
+    string_to_jstring(&env, translate(export_drawing_to_disk(&config, id, format, None, &location)))
 }
 
 #[no_mangle]
@@ -506,10 +492,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(write_document(&config, id, &content.into_bytes())),
-    )
+    string_to_jstring(&env, translate(write_document(&config, id, &content.into_bytes())))
 }
 
 #[no_mangle]
@@ -550,18 +533,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
 
     let env_c = env.clone();
     let closure = move |sync_progress: SyncProgress| {
-        let args = [
-            JValue::Int(sync_progress.total as i32),
-            JValue::Int(sync_progress.progress as i32),
-        ]
-        .to_vec();
+        let args =
+            [JValue::Int(sync_progress.total as i32), JValue::Int(sync_progress.progress as i32)]
+                .to_vec();
         env_c
-            .call_method(
-                jsyncmodel,
-                "updateSyncProgressAndTotal",
-                "(II)V",
-                args.as_slice(),
-            )
+            .call_method(jsyncmodel, "updateSyncProgressAndTotal", "(II)V", args.as_slice())
             .unwrap();
     };
 

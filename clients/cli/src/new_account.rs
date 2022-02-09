@@ -12,9 +12,7 @@ pub fn new_account() -> CliResult<()> {
     io::stdout().flush().unwrap();
 
     let mut username = String::new();
-    io::stdin()
-        .read_line(&mut username)
-        .expect("Failed to read from stdin");
+    io::stdin().read_line(&mut username).expect("Failed to read from stdin");
     username.retain(|c| c != '\n' && c != '\r');
 
     let api_location =

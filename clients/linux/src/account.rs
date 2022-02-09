@@ -42,11 +42,7 @@ impl AccountScreen {
         cntr.add1(&sidebar.cntr);
         cntr.add2(&editor.cntr);
 
-        Self {
-            sidebar,
-            editor,
-            cntr,
-        }
+        Self { sidebar, editor, cntr }
     }
 
     pub fn show(&self, mode: &EditMode) {
@@ -67,20 +63,14 @@ impl AccountScreen {
     }
 
     pub fn get_cursor_mark(&self) -> LbResult<gtk::TextMark> {
-        let svb = self
-            .editor
-            .textarea
-            .get_buffer()
-            .unwrap()
-            .downcast::<GtkSourceViewBuffer>()
-            .unwrap();
+        let svb =
+            self.editor.textarea.get_buffer().unwrap().downcast::<GtkSourceViewBuffer>().unwrap();
 
         svb.create_mark(
             // Since get_insert gives me the textmark of the cursor, and it is subject to change, I make my own textmark so multiple pastes won't collide
             None,
             &svb.get_iter_at_mark(
-                &svb.get_insert()
-                    .ok_or_else(|| uerr_dialog!("No cursor found in textview!"))?,
+                &svb.get_insert().ok_or_else(|| uerr_dialog!("No cursor found in textview!"))?,
             ),
             true,
         )
@@ -88,13 +78,8 @@ impl AccountScreen {
     }
 
     pub fn insert_text_at_mark(&self, mark: &gtk::TextMark, txt: &str) {
-        let svb = self
-            .editor
-            .textarea
-            .get_buffer()
-            .unwrap()
-            .downcast::<GtkSourceViewBuffer>()
-            .unwrap();
+        let svb =
+            self.editor.textarea.get_buffer().unwrap().downcast::<GtkSourceViewBuffer>().unwrap();
 
         svb.insert(&mut svb.get_iter_at_mark(mark), txt)
     }
@@ -133,11 +118,7 @@ impl Sidebar {
         cntr.add(&gtk::Separator::new(Horizontal));
         cntr.add(&sync.cntr);
 
-        Self {
-            tree,
-            status: sync,
-            cntr,
-        }
+        Self { tree, status: sync, cntr }
     }
 }
 
@@ -184,12 +165,7 @@ impl StatusPanel {
         cntr.pack_start(&status_evbox, false, false, 0);
         cntr.pack_end(&sync_button, false, false, 0);
 
-        Self {
-            status,
-            sync_button,
-            sync_progress: progress,
-            cntr,
-        }
+        Self { status, sync_button, sync_progress: progress, cntr }
     }
 
     pub fn set_syncing(&self, is_syncing: bool) {
@@ -221,8 +197,7 @@ impl StatusPanel {
             ClientWorkUnit::PushDocument(name) => format!("Pushing: {}", name),
         };
         self.set_status(&status, None);
-        self.sync_progress
-            .set_fraction(s.index as f64 / s.total as f64);
+        self.sync_progress.set_fraction(s.index as f64 / s.total as f64);
     }
 }
 
@@ -244,9 +219,7 @@ impl Editor {
     fn new(m: &Messenger) -> Self {
         let empty = GtkBox::new(Vertical, 0);
         empty.set_valign(gtk::Align::Center);
-        empty.add(&gtk::Image::from_pixbuf(Some(
-            &GdkPixbuf::from_inline(LOGO, false).unwrap(),
-        )));
+        empty.add(&gtk::Image::from_pixbuf(Some(&GdkPixbuf::from_inline(LOGO, false).unwrap())));
 
         let info = GtkBox::new(Vertical, 0);
         info.set_vexpand(false);
@@ -444,11 +417,8 @@ impl Editor {
         grid.set_halign(gtk::Align::Center);
 
         let owner = base64::encode(&f.owner.0.serialize_compressed());
-        let rows = vec![
-            ("ID", f.id.to_string()),
-            ("Owner", owner),
-            ("Children", n_children.to_string()),
-        ];
+        let rows =
+            vec![("ID", f.id.to_string()), ("Owner", owner), ("Children", n_children.to_string())];
         for (row, (key, val)) in rows.into_iter().enumerate() {
             grid.attach(&gui_util::text_right(key), 0, row as i32, 1, 1);
             grid.attach(&gui_util::text_left(&val), 1, row as i32, 1, 1);

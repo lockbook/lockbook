@@ -133,14 +133,11 @@ fn decrypt_file_key(
         return Ok(*key);
     }
 
-    let target = target_with_ancestors
-        .iter()
-        .find(|&m| m.id == target_id)
-        .ok_or_else(|| {
-            CoreError::Unexpected(String::from(
-                "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
-            ))
-        })?;
+    let target = target_with_ancestors.iter().find(|&m| m.id == target_id).ok_or_else(|| {
+        CoreError::Unexpected(String::from(
+            "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
+        ))
+    })?;
 
     let key = match target.user_access_keys.get(&account.username) {
         Some(user_access) => {
@@ -205,12 +202,7 @@ mod unit_tests {
     fn encrypt_decrypt_metadatum() {
         let account = test_utils::generate_account();
         let key = symkey::generate_key();
-        let file = files::create(
-            FileType::Folder,
-            Uuid::new_v4(),
-            "folder",
-            &account.public_key(),
-        );
+        let file = files::create(FileType::Folder, Uuid::new_v4(), "folder", &account.public_key());
 
         let encrypted_file =
             file_encryption_service::encrypt_metadatum(&account, &key, &file).unwrap();
@@ -225,29 +217,16 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let document = files::create(
-            FileType::Folder,
-            folder.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Folder, folder.id, "document", &account.public_key());
         let files = [root.clone(), folder.clone(), document.clone()];
 
         let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files).unwrap();
         let decrypted_files =
             file_encryption_service::decrypt_metadata(&account, &encrypted_files).unwrap();
 
-        assert_eq!(
-            files.find(root.id).unwrap(),
-            decrypted_files.find(root.id).unwrap(),
-        );
-        assert_eq!(
-            files.find(folder.id).unwrap(),
-            decrypted_files.find(folder.id).unwrap(),
-        );
-        assert_eq!(
-            files.find(document.id).unwrap(),
-            decrypted_files.find(document.id).unwrap(),
-        );
+        assert_eq!(files.find(root.id).unwrap(), decrypted_files.find(root.id).unwrap(),);
+        assert_eq!(files.find(folder.id).unwrap(), decrypted_files.find(folder.id).unwrap(),);
+        assert_eq!(files.find(document.id).unwrap(), decrypted_files.find(document.id).unwrap(),);
     }
 }

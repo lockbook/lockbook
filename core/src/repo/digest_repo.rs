@@ -37,11 +37,7 @@ pub fn maybe_get(
 }
 
 pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<Vec<u8>>, CoreError> {
-    Ok(
-        local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
-            .into_iter()
-            .collect(),
-    )
+    Ok(local_storage::dump::<_, Vec<u8>>(config, namespace(source))?.into_iter().collect())
 }
 
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
@@ -139,10 +135,8 @@ mod unit_tests {
             (id_5, digest_5),
         ];
         expectation.sort_by(|(a, _), (b, _)| a.cmp(&b));
-        let expectation = expectation
-            .into_iter()
-            .map(|(_, d)| d.to_vec())
-            .collect::<Vec<Vec<u8>>>();
+        let expectation =
+            expectation.into_iter().map(|(_, d)| d.to_vec()).collect::<Vec<Vec<u8>>>();
         assert_eq!(result, expectation);
     }
 
