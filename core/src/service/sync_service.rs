@@ -42,8 +42,11 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
 
     let account = account_repo::get(config)?;
     let base_metadata = file_service::get_all_metadata(config, RepoSource::Base)?;
-    let base_max_metadata_version =
-        base_metadata.iter().map(|f| f.metadata_version).max().unwrap_or(0);
+    let base_max_metadata_version = base_metadata
+        .iter()
+        .map(|f| f.metadata_version)
+        .max()
+        .unwrap_or(0);
 
     let server_updates = api_service::request(
         &account,
@@ -94,7 +97,9 @@ fn calculate_work_from_updates(
     }
 
     work_units.sort_by(|f1, f2| {
-        f1.get_metadata().metadata_version.cmp(&f2.get_metadata().metadata_version)
+        f1.get_metadata()
+            .metadata_version
+            .cmp(&f2.get_metadata().metadata_version)
     });
 
     for file_diff in file_service::get_all_metadata_changes(config)? {
@@ -385,8 +390,9 @@ fn get_resolved_document(
         None => None,
     };
 
-    let maybe_metadata_state =
-        all_metadata_state.iter().find(|&f| f.clone().local().id == remote_metadatum.id);
+    let maybe_metadata_state = all_metadata_state
+        .iter()
+        .find(|&f| f.clone().local().id == remote_metadatum.id);
     let maybe_document_state = if let Some(metadata_state) = maybe_metadata_state {
         file_service::maybe_get_document_state(config, metadata_state)?
     } else {
@@ -468,8 +474,11 @@ where
     F: FnMut(SyncProgressOperation),
 {
     let base_metadata = file_service::get_all_metadata(config, RepoSource::Base)?;
-    let base_max_metadata_version =
-        base_metadata.iter().map(|f| f.metadata_version).max().unwrap_or(0);
+    let base_max_metadata_version = base_metadata
+        .iter()
+        .map(|f| f.metadata_version)
+        .max()
+        .unwrap_or(0);
 
     update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
 
@@ -511,7 +520,10 @@ where
     // iterate changes
     for encrypted_remote_metadatum in remote_metadata_changes {
         // skip filtered changes
-        if remote_metadata.maybe_find(encrypted_remote_metadatum.id).is_none() {
+        if remote_metadata
+            .maybe_find(encrypted_remote_metadatum.id)
+            .is_none()
+        {
             continue;
         }
 

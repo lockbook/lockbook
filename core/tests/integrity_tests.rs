@@ -63,7 +63,9 @@ mod integrity_tests {
         metadata_repo::delete(
             &cfg,
             RepoSource::Local,
-            get_file_by_path(&cfg, &test_utils::path(&root, "/folder1")).unwrap().id,
+            get_file_by_path(&cfg, &test_utils::path(&root, "/folder1"))
+                .unwrap()
+                .id,
         )
         .unwrap();
 
@@ -106,7 +108,9 @@ mod integrity_tests {
         let mut parent = metadata_repo::get(
             &cfg,
             RepoSource::Local,
-            get_file_by_path(&cfg, &test_utils::path(&root, "/folder1")).unwrap().id,
+            get_file_by_path(&cfg, &test_utils::path(&root, "/folder1"))
+                .unwrap()
+                .id,
         )
         .unwrap();
         let child = get_file_by_path(&cfg, &test_utils::path(&root, "/folder1/folder2")).unwrap();
@@ -131,7 +135,9 @@ mod integrity_tests {
         let mut parent = metadata_repo::get(
             &cfg,
             RepoSource::Local,
-            get_file_by_path(&cfg, &test_utils::path(&root, "/folder1")).unwrap().id,
+            get_file_by_path(&cfg, &test_utils::path(&root, "/folder1"))
+                .unwrap()
+                .id,
         )
         .unwrap();
         parent.parent = folder3.id;
@@ -149,7 +155,9 @@ mod integrity_tests {
         let mut parent = metadata_repo::get(
             &cfg,
             RepoSource::Local,
-            get_file_by_path(&cfg, &test_utils::path(&root, "/folder1")).unwrap().id,
+            get_file_by_path(&cfg, &test_utils::path(&root, "/folder1"))
+                .unwrap()
+                .id,
         )
         .unwrap();
         parent.file_type = Document;

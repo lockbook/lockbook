@@ -89,7 +89,9 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
             tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
         }
 
-        METRICS_STATISTICS.total_documents.set(total_documents as i64);
+        METRICS_STATISTICS
+            .total_documents
+            .set(total_documents as i64);
         METRICS_STATISTICS.active_users.set(active_users);
         METRICS_STATISTICS.total_document_bytes.set(total_bytes);
 
@@ -176,9 +178,11 @@ pub async fn calculate_total_document_bytes(
 pub async fn is_user_active(
     metadatas: &[EncryptedFileMetadata],
 ) -> Result<bool, ServerError<MetricsError>> {
-    let time_two_days_ago =
-        SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| internal!("{:?}", e))?.as_millis()
-            - TWO_DAYS_IN_MILLIS;
+    let time_two_days_ago = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| internal!("{:?}", e))?
+        .as_millis()
+        - TWO_DAYS_IN_MILLIS;
 
     let is_active = metadatas.iter().any(|metadata| {
         metadata.metadata_version as u128 > time_two_days_ago

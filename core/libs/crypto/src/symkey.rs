@@ -112,7 +112,8 @@ pub fn decrypt_and_verify(
     let mut mac =
         HmacSha256::new_from_slice(key).map_err(DecryptAndVerifyError::HmacCreationError)?;
     mac.update(decrypted.as_ref());
-    mac.verify(&to_decrypt.hmac).map_err(DecryptAndVerifyError::HmacValidationError)?;
+    mac.verify(&to_decrypt.hmac)
+        .map_err(DecryptAndVerifyError::HmacValidationError)?;
 
     Ok(deserialized)
 }

@@ -54,7 +54,10 @@ fn import_file_recursively(
     let lockbook_path_with_new = format!(
         "{}{}{}",
         lockbook_path,
-        disk_path.file_name().and_then(|name| name.to_str()).ok_or(CoreError::DiskPathInvalid)?,
+        disk_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or(CoreError::DiskPathInvalid)?,
         if is_document { "" } else { "/" }
     );
 
@@ -147,9 +150,15 @@ fn export_file_recursively(
         }
         FileType::Document => {
             let mut file = if edit {
-                OpenOptions::new().write(true).create(true).open(dest_with_new)
+                OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .open(dest_with_new)
             } else {
-                OpenOptions::new().write(true).create_new(true).open(dest_with_new)
+                OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(dest_with_new)
             }
             .map_err(CoreError::from)?;
 

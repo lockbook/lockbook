@@ -35,7 +35,9 @@ fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
 }
 
 fn string_to_jstring(env: &JNIEnv, result: String) -> jstring {
-    env.new_string(result).expect("Couldn't create JString from rust string!").into_inner()
+    env.new_string(result)
+        .expect("Couldn't create JString from rust string!")
+        .into_inner()
 }
 
 fn jstring_to_string(env: &JNIEnv, json: JString, name: &str) -> Result<String, jstring> {

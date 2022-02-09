@@ -37,7 +37,9 @@ mod get_usage_tests {
 
         sync_all!(&config).unwrap();
 
-        let local_encrypted = document_repo::get(&config, RepoSource::Base, file.id).unwrap().value;
+        let local_encrypted = document_repo::get(&config, RepoSource::Base, file.id)
+            .unwrap()
+            .value;
 
         assert_eq!(get_usage(&config).unwrap().usages[0].file_id, file.id);
         assert_eq!(get_usage(&config).unwrap().usages.len(), 1);

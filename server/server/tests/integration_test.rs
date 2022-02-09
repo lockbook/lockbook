@@ -14,5 +14,9 @@ pub fn api_url() -> String {
 }
 
 pub fn random_uuid() -> String {
-    Uuid::new_v4().to_string().chars().filter(|c| c.is_alphanumeric()).collect()
+    Uuid::new_v4()
+        .to_string()
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect()
 }

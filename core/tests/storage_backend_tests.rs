@@ -21,8 +21,9 @@ mod unit_tests {
 
         local_storage::write(&config, "files", "notes.txt", data).unwrap();
 
-        let result =
-            local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt").unwrap().unwrap();
+        let result = local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt")
+            .unwrap()
+            .unwrap();
 
         assert_eq!(result, data.as_bytes());
     }
@@ -53,7 +54,9 @@ mod unit_tests {
 
         assert_eq!(
             data.as_bytes().to_vec(),
-            local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt").unwrap().unwrap()
+            local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt")
+                .unwrap()
+                .unwrap()
         );
 
         local_storage::delete(&config, "files", "notes.txt").unwrap();

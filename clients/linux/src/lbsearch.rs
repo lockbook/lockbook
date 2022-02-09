@@ -39,8 +39,11 @@ impl LbSearch {
             cmp::Ordering::Less => cmp::Ordering::Less,
             cmp::Ordering::Equal => {
                 let text1 = tree_iter_value!(model, it1, 1, String);
-                let text2 =
-                    model.get_value(it2, 1).get::<String>().unwrap_or_default().unwrap_or_default();
+                let text2 = model
+                    .get_value(it2, 1)
+                    .get::<String>()
+                    .unwrap_or_default()
+                    .unwrap_or_default();
                 if text2.is_empty() {
                     return cmp::Ordering::Less;
                 }
@@ -150,7 +153,9 @@ pub fn process_input(lb: &LbApp, maybe_input: Option<String>) -> LbResult<()> {
     if let Some(path) = maybe_input.or_else(|| lb.state.borrow().get_first_search_match()) {
         match lb.core.file_by_path(&path) {
             Ok(meta) => lb.messenger.send(Msg::OpenFile(Some(meta.id))),
-            Err(err) => lb.messenger.send_err_dialog("opening file from search field", err),
+            Err(err) => lb
+                .messenger
+                .send_err_dialog("opening file from search field", err),
         }
     }
     Ok(())

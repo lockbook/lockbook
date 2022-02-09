@@ -20,5 +20,7 @@ pub fn print(file_name: &str) -> CliResult<()> {
         read_document(&cfg, file_metadata.id).map_err(|err| err_unexpected!("{:?}", err))?;
     print!("{}", String::from_utf8_lossy(&content));
 
-    io::stdout().flush().map_err(|err| err_unexpected!("flushing stdin: {:#?}", err))
+    io::stdout()
+        .flush()
+        .map_err(|err| err_unexpected!("flushing stdin: {:#?}", err))
 }

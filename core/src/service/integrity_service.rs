@@ -39,7 +39,10 @@ pub enum Warning {
 }
 
 pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoError> {
-    if account_repo::maybe_get(config).map_err(TestRepoError::Core)?.is_none() {
+    if account_repo::maybe_get(config)
+        .map_err(TestRepoError::Core)?
+        .is_none()
+    {
         return Err(TestRepoError::NoAccount);
     }
 
@@ -55,14 +58,18 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
         return Err(TestRepoError::NoRootFolder);
     }
 
-    files_encrypted.verify_integrity().map_err(|err| match err {
-        TestFileTreeError::NoRootFolder => TestRepoError::NoRootFolder,
-        TestFileTreeError::DocumentTreatedAsFolder(e) => TestRepoError::DocumentTreatedAsFolder(e),
-        TestFileTreeError::FileOrphaned(e) => TestRepoError::FileOrphaned(e),
-        TestFileTreeError::CycleDetected(e) => TestRepoError::CycleDetected(e),
-        TestFileTreeError::NameConflictDetected(e) => TestRepoError::NameConflictDetected(e),
-        TestFileTreeError::Tree(e) => TestRepoError::Tree(e),
-    })?;
+    files_encrypted
+        .verify_integrity()
+        .map_err(|err| match err {
+            TestFileTreeError::NoRootFolder => TestRepoError::NoRootFolder,
+            TestFileTreeError::DocumentTreatedAsFolder(e) => {
+                TestRepoError::DocumentTreatedAsFolder(e)
+            }
+            TestFileTreeError::FileOrphaned(e) => TestRepoError::FileOrphaned(e),
+            TestFileTreeError::CycleDetected(e) => TestRepoError::CycleDetected(e),
+            TestFileTreeError::NameConflictDetected(e) => TestRepoError::NameConflictDetected(e),
+            TestFileTreeError::Tree(e) => TestRepoError::Tree(e),
+        })?;
 
     let files =
         file_service::get_all_metadata(config, RepoSource::Local).map_err(TestRepoError::Core)?;
@@ -90,8 +97,10 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
 
             let file_path =
                 path_service::get_path_by_id(config, file.id).map_err(TestRepoError::Core)?;
-            let extension =
-                Path::new(&file_path).extension().and_then(|ext| ext.to_str()).unwrap_or("");
+            let extension = Path::new(&file_path)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .unwrap_or("");
 
             if UTF8_SUFFIXES.contains(&extension) && String::from_utf8(file_content).is_err() {
                 warnings.push(Warning::InvalidUTF8(file.id));

@@ -492,9 +492,15 @@ mod unit_tests {
         .unwrap();
 
         let all_paths = path_service::get_all_paths(config, None).unwrap();
-        assert!(all_paths.iter().any(|p| p == &format!("{}/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/", &account.username)));
         assert!(all_paths
             .iter()
             .any(|p| p == &format!("{}/folder/folder/document", &account.username)));
@@ -552,9 +558,15 @@ mod unit_tests {
         .unwrap();
 
         let all_paths = path_service::get_all_paths(config, Some(Filter::FoldersOnly)).unwrap();
-        assert!(all_paths.iter().any(|p| p == &format!("{}/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/", &account.username)));
-        assert!(all_paths.iter().any(|p| p == &format!("{}/folder/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/", &account.username)));
+        assert!(all_paths
+            .iter()
+            .any(|p| p == &format!("{}/folder/folder/", &account.username)));
         assert!(all_paths
             .iter()
             .any(|p| p == &format!("{}/folder/folder/folder/", &account.username)));

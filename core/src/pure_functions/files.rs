@@ -68,7 +68,9 @@ pub fn apply_create(
     let file = create(file_type, parent, name, owner);
     validate_not_root(&file)?;
     validate_file_name(name)?;
-    let parent = files.maybe_find(parent).ok_or(CoreError::FileParentNonexistent)?;
+    let parent = files
+        .maybe_find(parent)
+        .ok_or(CoreError::FileParentNonexistent)?;
     validate_is_folder(&parent)?;
 
     if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
@@ -103,7 +105,9 @@ pub fn apply_move(
     new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
-    let parent = files.maybe_find(new_parent).ok_or(CoreError::FileParentNonexistent)?;
+    let parent = files
+        .maybe_find(new_parent)
+        .ok_or(CoreError::FileParentNonexistent)?;
     validate_not_root(&file)?;
     validate_is_folder(&parent)?;
 
@@ -163,15 +167,21 @@ pub fn suggest_non_conflicting_filename(
     files: &[DecryptedFileMetadata],
     staged_changes: &[DecryptedFileMetadata],
 ) -> Result<String, CoreError> {
-    let files: Vec<DecryptedFileMetadata> =
-        files.stage(staged_changes).iter().map(|(f, _)| f.clone()).collect();
+    let files: Vec<DecryptedFileMetadata> = files
+        .stage(staged_changes)
+        .iter()
+        .map(|(f, _)| f.clone())
+        .collect();
 
     let file = files.find(id)?;
     let sibblings = files.find_children(file.parent);
 
     let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
     loop {
-        if !sibblings.iter().any(|f| f.decrypted_name == new_name.to_name()) {
+        if !sibblings
+            .iter()
+            .any(|f| f.decrypted_name == new_name.to_name())
+        {
             return Ok(new_name.to_name());
         } else {
             new_name = new_name.generate_next();
@@ -222,7 +232,11 @@ pub fn find_ancestors<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm
 }
 
 pub fn find_children<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm> {
-    files.iter().filter(|f| f.parent() == target_id && f.id() != f.parent()).cloned().collect()
+    files
+        .iter()
+        .filter(|f| f.parent() == target_id && f.id() != f.parent())
+        .cloned()
+        .collect()
 }
 
 pub fn find_with_descendants<Fm: FileMetadata>(
@@ -247,7 +261,10 @@ pub fn find_with_descendants<Fm: FileMetadata>(
 }
 
 pub fn is_deleted<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<bool, CoreError> {
-    Ok(files.filter_deleted()?.into_iter().any(|f| f.id() == target_id))
+    Ok(files
+        .filter_deleted()?
+        .into_iter()
+        .any(|f| f.id() == target_id))
 }
 
 #[cfg(test)]
@@ -491,8 +508,9 @@ mod unit_tests {
         let folder1 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
         let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.public_key());
 
-        let path_conflicts =
-            &[root, folder1.clone()].get_path_conflicts(&[folder2.clone()]).unwrap();
+        let path_conflicts = &[root, folder1.clone()]
+            .get_path_conflicts(&[folder2.clone()])
+            .unwrap();
 
         assert_eq!(path_conflicts.len(), 0);
     }
@@ -504,8 +522,9 @@ mod unit_tests {
         let folder1 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
         let folder2 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
 
-        let path_conflicts =
-            &[root, folder1.clone()].get_path_conflicts(&[folder2.clone()]).unwrap();
+        let path_conflicts = &[root, folder1.clone()]
+            .get_path_conflicts(&[folder2.clone()])
+            .unwrap();
 
         assert_eq!(path_conflicts.len(), 1);
         assert_eq!(path_conflicts[0], PathConflict { existing: folder1.id, staged: folder2.id });

@@ -186,11 +186,17 @@ mod sync_fuzzer {
         }
 
         fn random_filename(rng: &mut StdRng) -> String {
-            rng.sample_iter(&Alphanumeric).take(7).map(char::from).collect()
+            rng.sample_iter(&Alphanumeric)
+                .take(7)
+                .map(char::from)
+                .collect()
         }
 
         fn random_utf8(rng: &mut StdRng) -> String {
-            rng.sample_iter(&Alphanumeric).take(MAX_FILE_SIZE).map(char::from).collect()
+            rng.sample_iter(&Alphanumeric)
+                .take(MAX_FILE_SIZE)
+                .map(char::from)
+                .collect()
         }
 
         fn pick_random_file(config: &Config, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {

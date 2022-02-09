@@ -32,7 +32,9 @@ pub fn export_drawing(lb_path: &str, format: &str) -> CliResult<()> {
                 CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
             })?;
 
-    stdout().write_all(drawing_bytes.as_slice()).map_err(|err| err_unexpected!("{:#?}", err))?;
+    stdout()
+        .write_all(drawing_bytes.as_slice())
+        .map_err(|err| err_unexpected!("{:#?}", err))?;
 
     Ok(())
 }

@@ -19,7 +19,10 @@ impl BackgroundWork {
     }
 
     pub fn current_time() -> u128 {
-        SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_millis()
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis()
     }
 
     pub fn init_background_work(state: Arc<Mutex<Self>>) {

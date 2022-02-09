@@ -37,7 +37,9 @@ pub async fn upsert_file_metadata(
 
         docs_to_delete = apply_changes(now, &request.updates, &mut files)?;
 
-        files.verify_integrity().map_err(|_| Abort(ClientError(GetUpdatesRequired)))?;
+        files
+            .verify_integrity()
+            .map_err(|_| Abort(ClientError(GetUpdatesRequired)))?;
 
         for the_file in &files {
             pipe.json_set(file(the_file.id), the_file)?;
@@ -188,7 +190,8 @@ pub async fn change_document_content(
         meta.content_version = new_version;
         meta.metadata_version = new_version;
 
-        pipe.json_set(size(request.id), new_size)?.json_set(file(request.id), meta)
+        pipe.json_set(size(request.id), new_size)?
+            .json_set(file(request.id), meta)
     });
     if tx.is_err() {
         // Cleanup the NEW file created if, for some reason, the tx failed

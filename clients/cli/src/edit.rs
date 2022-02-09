@@ -41,7 +41,9 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         .write_all(&file_content)
         .map_err(|err| err!(OsCouldNotWriteFile(file_location.clone(), err)))?;
 
-    file_handle.sync_all().map_err(|err| err!(OsCouldNotWriteFile(file_location.clone(), err)))?;
+    file_handle
+        .sync_all()
+        .map_err(|err| err!(OsCouldNotWriteFile(file_location.clone(), err)))?;
 
     let watcher = set_up_auto_save(file_metadata.id, file_location.clone());
 

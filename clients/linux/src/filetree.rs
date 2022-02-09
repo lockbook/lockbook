@@ -38,8 +38,10 @@ impl FileTree {
     pub fn new(m: &Messenger, c: &Arc<LbCore>, hidden_cols: &Vec<String>) -> Self {
         let popup = Rc::new(FileTreePopup::new(m));
 
-        let mut column_types =
-            FileTreeCol::all().iter().map(|_col| glib::Type::String).collect::<Vec<glib::Type>>();
+        let mut column_types = FileTreeCol::all()
+            .iter()
+            .map(|_col| glib::Type::String)
+            .collect::<Vec<glib::Type>>();
 
         column_types.insert(0, glib::Type::String);
 
@@ -122,7 +124,8 @@ impl FileTree {
         let icon_name = get_icon_name(name, &metadata.file_type);
         let id = &metadata.id.to_string();
         let ftype = &format!("{:?}", metadata.file_type);
-        self.model.insert_with_values(iter, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype])
+        self.model
+            .insert_with_values(iter, None, &[0, 1, 2, 3], &[&icon_name, name, id, ftype])
     }
 
     pub fn refresh(&self, root: &DecryptedFileMetadata, metadatas: &Vec<DecryptedFileMetadata>) {

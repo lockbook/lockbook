@@ -443,7 +443,9 @@ pub fn get_last_synced_human_string(config: &Config) -> Result<String, Unexpecte
     let last_synced = get_last_synced(config)?;
 
     Ok(if last_synced != 0 {
-        Duration::milliseconds(clock_service::get_time().0 - last_synced).format_human().to_string()
+        Duration::milliseconds(clock_service::get_time().0 - last_synced)
+            .format_human()
+            .to_string()
     } else {
         "never".to_string()
     })

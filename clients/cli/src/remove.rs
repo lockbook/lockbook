@@ -35,12 +35,17 @@ pub fn remove(path: &str, force: bool) -> CliResult<()> {
 
         print!(
             "Are you sure you want to delete {} documents? [y/n]: ",
-            children.into_iter().filter(|child| child.file_type == FileType::Document).count()
+            children
+                .into_iter()
+                .filter(|child| child.file_type == FileType::Document)
+                .count()
         );
         io::stdout().flush().unwrap();
 
         let mut answer = String::new();
-        io::stdin().read_line(&mut answer).expect("Failed to read from stdin");
+        io::stdin()
+            .read_line(&mut answer)
+            .expect("Failed to read from stdin");
         answer.retain(|c| c != '\n' && c != '\r');
 
         if answer != "y" && answer != "Y" {

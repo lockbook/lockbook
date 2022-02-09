@@ -12,12 +12,14 @@ pub async fn initialize_flags(state: &ServerState) {
 }
 
 pub async fn is_new_accounts_enabled(con: &mut deadpool_redis::Connection) -> RedisResult<bool> {
-    con.hget(FEATURE_FLAGS_KEY, FEATURE_FLAG_NEW_ACCOUNTS_FIELD).await
+    con.hget(FEATURE_FLAGS_KEY, FEATURE_FLAG_NEW_ACCOUNTS_FIELD)
+        .await
 }
 
 pub async fn set_new_account_status(
     con: &mut deadpool_redis::Connection,
     enable: bool,
 ) -> RedisResult<()> {
-    con.hset(FEATURE_FLAGS_KEY, FEATURE_FLAG_NEW_ACCOUNTS_FIELD, enable).await
+    con.hset(FEATURE_FLAGS_KEY, FEATURE_FLAG_NEW_ACCOUNTS_FIELD, enable)
+        .await
 }

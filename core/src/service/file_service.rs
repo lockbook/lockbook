@@ -84,11 +84,14 @@ pub fn get_and_get_children_recursively(
     let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files)?;
     let mut result = Vec::new();
     for file in file_and_descendants {
-        let encrypted_file = encrypted_files.iter().find(|f| f.id == file.id).ok_or_else(|| {
-            CoreError::Unexpected(String::from(
-                "get_and_get_children_recursively: encrypted file not found",
-            ))
-        })?;
+        let encrypted_file = encrypted_files
+            .iter()
+            .find(|f| f.id == file.id)
+            .ok_or_else(|| {
+                CoreError::Unexpected(String::from(
+                    "get_and_get_children_recursively: encrypted file not found",
+                ))
+            })?;
         result.push(encrypted_file.clone());
     }
     Ok(result)
@@ -145,8 +148,10 @@ pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>
     let local = metadata_repo::get_all(config, RepoSource::Local)?;
     let base = metadata_repo::get_all(config, RepoSource::Base)?;
 
-    let new =
-        local.iter().filter(|l| !base.iter().any(|r| r.id == l.id)).map(FileMetadataDiff::new);
+    let new = local
+        .iter()
+        .filter(|l| !base.iter().any(|r| r.id == l.id))
+        .map(FileMetadataDiff::new);
     let changed = local
         .iter()
         .filter_map(|l| base.iter().find(|r| r.id == l.id).map(|r| (l, r)))
@@ -381,7 +386,9 @@ pub fn get_all_metadata_state(
         .filter(|&b| !local.iter().any(|l| l.id == b.id))
         .map(|b| RepoState::Unmodified(b.clone()));
     let modified = base.iter().filter_map(|b| {
-        local.maybe_find(b.id).map(|l| RepoState::Modified { base: b.clone(), local: l })
+        local
+            .maybe_find(b.id)
+            .map(|l| RepoState::Modified { base: b.clone(), local: l })
     });
 
     Ok(new.chain(unmodified).chain(modified).collect())
@@ -402,8 +409,11 @@ pub fn get_all_metadata_with_encrypted_changes(
         RepoSource::Base => base,
     };
 
-    let staged =
-        sourced.stage(changes).into_iter().map(|(f, _)| f).collect::<Vec<EncryptedFileMetadata>>();
+    let staged = sourced
+        .stage(changes)
+        .into_iter()
+        .map(|(f, _)| f)
+        .collect::<Vec<EncryptedFileMetadata>>();
 
     let root = staged.find_root()?;
     let non_orphans = files::find_with_descendants(&staged, root.id)?;

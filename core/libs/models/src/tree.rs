@@ -115,7 +115,8 @@ where
     }
 
     fn find_parent(&self, id: Uuid) -> Result<Fm, TreeError> {
-        self.maybe_find_parent(id).ok_or(TreeError::FileParentNonexistent)
+        self.maybe_find_parent(id)
+            .ok_or(TreeError::FileParentNonexistent)
     }
 
     fn maybe_find_parent(&self, id: Uuid) -> Option<Fm> {
@@ -123,7 +124,10 @@ where
     }
 
     fn find_children(&self, id: Uuid) -> Vec<Fm> {
-        self.iter().filter(|f| f.parent() == id && f.id() != f.parent()).cloned().collect()
+        self.iter()
+            .filter(|f| f.parent() == id && f.id() != f.parent())
+            .cloned()
+            .collect()
     }
 
     /// Returns the files which are deleted or have deleted ancestors. It is an error for the parent
@@ -155,18 +159,28 @@ where
     /// the parent of a file argument not to also be included in the arguments.
     fn filter_not_deleted(&self) -> Result<Vec<Fm>, TreeError> {
         let deleted = self.filter_deleted()?;
-        Ok(self.iter().filter(|f| !deleted.iter().any(|nd| nd.id() == f.id())).cloned().collect())
+        Ok(self
+            .iter()
+            .filter(|f| !deleted.iter().any(|nd| nd.id() == f.id()))
+            .cloned()
+            .collect())
     }
 
     /// Returns the files which are documents.
     fn filter_documents(&self) -> Vec<Fm> {
-        self.iter().filter(|f| f.file_type() == FileType::Document).cloned().collect()
+        self.iter()
+            .filter(|f| f.file_type() == FileType::Document)
+            .cloned()
+            .collect()
     }
 
     fn get_invalid_cycles(&self, staged_changes: &[Fm]) -> Result<Vec<Uuid>, TreeError> {
         let maybe_root = self.maybe_find_root();
         let files_with_sources = self.stage(staged_changes);
-        let files = &files_with_sources.iter().map(|(f, _)| f.clone()).collect::<Vec<Fm>>();
+        let files = &files_with_sources
+            .iter()
+            .map(|(f, _)| f.clone())
+            .collect::<Vec<Fm>>();
         let mut result = Vec::new();
         let mut found_root = maybe_root.is_some();
 
@@ -198,7 +212,10 @@ where
 
     fn get_path_conflicts(&self, staged_changes: &[Fm]) -> Result<Vec<PathConflict>, TreeError> {
         let files_with_sources = self.stage(staged_changes);
-        let files = &files_with_sources.iter().map(|(f, _)| f.clone()).collect::<Vec<Fm>>();
+        let files = &files_with_sources
+            .iter()
+            .map(|(f, _)| f.clone())
+            .collect::<Vec<Fm>>();
         let files = files.filter_not_deleted()?;
         let mut result = Vec::new();
 
@@ -248,8 +265,11 @@ where
             }
         }
 
-        let maybe_self_descendant =
-            self.get_invalid_cycles(&[]).map_err(TestFileTreeError::Tree)?.into_iter().next();
+        let maybe_self_descendant = self
+            .get_invalid_cycles(&[])
+            .map_err(TestFileTreeError::Tree)?
+            .into_iter()
+            .next();
         if let Some(self_descendant) = maybe_self_descendant {
             return Err(TestFileTreeError::CycleDetected(self_descendant));
         }
@@ -262,8 +282,11 @@ where
             return Err(TestFileTreeError::DocumentTreatedAsFolder(doc.id()));
         }
 
-        let maybe_path_conflict =
-            self.get_path_conflicts(&[]).map_err(TestFileTreeError::Tree)?.into_iter().next();
+        let maybe_path_conflict = self
+            .get_path_conflicts(&[])
+            .map_err(TestFileTreeError::Tree)?
+            .into_iter()
+            .next();
         if let Some(path_conflict) = maybe_path_conflict {
             return Err(TestFileTreeError::NameConflictDetected(path_conflict.existing));
         }

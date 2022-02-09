@@ -50,7 +50,9 @@ pub fn maybe_get(
         local_storage::read(config, namespace(source), id.to_string().as_str())?;
     match maybe_data {
         None => Ok(None),
-        Some(data) => bincode::deserialize(&data).map(Some).map_err(core_err_unexpected),
+        Some(data) => bincode::deserialize(&data)
+            .map(Some)
+            .map_err(core_err_unexpected),
     }
 }
 
@@ -185,8 +187,10 @@ mod unit_tests {
             (id_5, document_5),
         ];
         expectation.sort_by(|(a, _), (b, _)| a.cmp(&b));
-        let expectation =
-            expectation.into_iter().map(|(_, d)| d).collect::<Vec<AESEncrypted<Vec<u8>>>>();
+        let expectation = expectation
+            .into_iter()
+            .map(|(_, d)| d)
+            .collect::<Vec<AESEncrypted<Vec<u8>>>>();
         assert_eq!(result, expectation);
     }
 

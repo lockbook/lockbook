@@ -73,8 +73,10 @@ pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_path
             expected_paths
         );
     }
-    let mut expected_paths: Vec<String> =
-        expected_paths.iter().map(|&path| String::from(path)).collect();
+    let mut expected_paths: Vec<String> = expected_paths
+        .iter()
+        .map(|&path| String::from(path))
+        .collect();
     let mut actual_paths: Vec<String> = crate::list_paths(db, None)
         .unwrap()
         .iter()
@@ -204,11 +206,19 @@ pub fn test_config() -> Config {
 }
 
 pub fn random_username() -> String {
-    Uuid::new_v4().to_string().chars().filter(|c| c.is_alphanumeric()).collect()
+    Uuid::new_v4()
+        .to_string()
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect()
 }
 
 pub fn random_filename() -> SecretFileName {
-    let name: String = Uuid::new_v4().to_string().chars().filter(|c| c.is_alphanumeric()).collect();
+    let name: String = Uuid::new_v4()
+        .to_string()
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect();
 
     symkey::encrypt_and_hmac(&symkey::generate_key(), &name).unwrap()
 }

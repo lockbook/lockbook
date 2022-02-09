@@ -65,7 +65,9 @@ pub fn init(config: &Config) {
         })
         .chain(log_file);
 
-    let base_logger = fern::Dispatch::new().chain(stdout_logger).chain(file_logger);
+    let base_logger = fern::Dispatch::new()
+        .chain(stdout_logger)
+        .chain(file_logger);
 
     match config.server.pd_api_key.as_ref() {
         None => base_logger,

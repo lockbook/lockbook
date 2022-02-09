@@ -133,11 +133,14 @@ fn decrypt_file_key(
         return Ok(*key);
     }
 
-    let target = target_with_ancestors.iter().find(|&m| m.id == target_id).ok_or_else(|| {
-        CoreError::Unexpected(String::from(
+    let target = target_with_ancestors
+        .iter()
+        .find(|&m| m.id == target_id)
+        .ok_or_else(|| {
+            CoreError::Unexpected(String::from(
             "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
         ))
-    })?;
+        })?;
 
     let key = match target.user_access_keys.get(&account.username) {
         Some(user_access) => {

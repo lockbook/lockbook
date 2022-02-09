@@ -7,8 +7,11 @@ use crate::CoreError;
 static ROOT: &[u8; 4] = b"ROOT";
 
 pub fn set(config: &Config, root: Uuid) -> Result<(), CoreError> {
-    let serialized =
-        root.to_simple().encode_lower(&mut Uuid::encode_buffer()).to_owned().into_bytes();
+    let serialized = root
+        .to_simple()
+        .encode_lower(&mut Uuid::encode_buffer())
+        .to_owned()
+        .into_bytes();
     local_storage::write(config, ROOT, ROOT, serialized)
 }
 

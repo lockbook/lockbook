@@ -14,7 +14,9 @@ use crate::service::path_service::{filter_from_str, Filter};
 use crate::{get_all_error_variants, SupportedImageFormats};
 
 fn c_string(value: String) -> *const c_char {
-    CString::new(value).expect("Could not Rust String -> C String").into_raw()
+    CString::new(value)
+        .expect("Could not Rust String -> C String")
+        .into_raw()
 }
 
 fn json_c_string<T: Serialize>(value: T) -> *const c_char {
@@ -22,7 +24,10 @@ fn json_c_string<T: Serialize>(value: T) -> *const c_char {
 }
 
 unsafe fn str_from_ptr(s: *const c_char) -> String {
-    CStr::from_ptr(s).to_str().expect("Could not C String -> Rust String").to_string()
+    CStr::from_ptr(s)
+        .to_str()
+        .expect("Could not C String -> Rust String")
+        .to_string()
 }
 
 unsafe fn config_from_ptr(s: *const c_char) -> Config {

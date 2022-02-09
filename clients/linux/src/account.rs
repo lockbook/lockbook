@@ -63,14 +63,20 @@ impl AccountScreen {
     }
 
     pub fn get_cursor_mark(&self) -> LbResult<gtk::TextMark> {
-        let svb =
-            self.editor.textarea.get_buffer().unwrap().downcast::<GtkSourceViewBuffer>().unwrap();
+        let svb = self
+            .editor
+            .textarea
+            .get_buffer()
+            .unwrap()
+            .downcast::<GtkSourceViewBuffer>()
+            .unwrap();
 
         svb.create_mark(
             // Since get_insert gives me the textmark of the cursor, and it is subject to change, I make my own textmark so multiple pastes won't collide
             None,
             &svb.get_iter_at_mark(
-                &svb.get_insert().ok_or_else(|| uerr_dialog!("No cursor found in textview!"))?,
+                &svb.get_insert()
+                    .ok_or_else(|| uerr_dialog!("No cursor found in textview!"))?,
             ),
             true,
         )
@@ -78,8 +84,13 @@ impl AccountScreen {
     }
 
     pub fn insert_text_at_mark(&self, mark: &gtk::TextMark, txt: &str) {
-        let svb =
-            self.editor.textarea.get_buffer().unwrap().downcast::<GtkSourceViewBuffer>().unwrap();
+        let svb = self
+            .editor
+            .textarea
+            .get_buffer()
+            .unwrap()
+            .downcast::<GtkSourceViewBuffer>()
+            .unwrap();
 
         svb.insert(&mut svb.get_iter_at_mark(mark), txt)
     }
@@ -197,7 +208,8 @@ impl StatusPanel {
             ClientWorkUnit::PushDocument(name) => format!("Pushing: {}", name),
         };
         self.set_status(&status, None);
-        self.sync_progress.set_fraction(s.index as f64 / s.total as f64);
+        self.sync_progress
+            .set_fraction(s.index as f64 / s.total as f64);
     }
 }
 
