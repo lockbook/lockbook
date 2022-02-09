@@ -2,7 +2,7 @@ use crate::utils::username_is_valid;
 use crate::{feature_flags, keys, RequestContext, ServerError, ServerState, FREE_TIER};
 use deadpool_redis::redis::AsyncCommands;
 use lockbook_crypto::clock_service::get_time;
-use log::error;
+use log::{debug, error};
 use redis_utils::converters::{JsonGet, JsonSet};
 
 use redis_utils::tx;
@@ -181,6 +181,7 @@ pub async fn purge_account(
 
     // Delete everything else
     let username: String = con.get(keys::username(&context.public_key)).await?;
+    debug!("purging username: {}", username);
     con.del(keys::username(&context.public_key)).await?;
     con.del(public_key(&username)).await?;
     con.del(data_cap(&context.public_key)).await?;
