@@ -73,10 +73,25 @@ pub fn create_at_path(
 }
 
 pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
+    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
+    get_by_path_common(&files, path)
+}
+
+pub fn get_by_path_include_deleted(
+    config: &Config,
+    path: &str,
+) -> Result<DecryptedFileMetadata, CoreError> {
+    let files = file_service::get_all_metadata(config, RepoSource::Local)?;
+    get_by_path_common(&files, path)
+}
+
+fn get_by_path_common(
+    files: &Vec<DecryptedFileMetadata>,
+    path: &str,
+) -> Result<DecryptedFileMetadata, CoreError> {
     info!("getting metadata at path: {}", path);
     let paths = split_path(path);
 
-    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let mut current = files.find_root()?;
 
     for (i, &value) in paths.iter().enumerate() {

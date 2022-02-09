@@ -201,11 +201,12 @@ pub fn assert_local_work_paths(db: &Config, root: &DecryptedFileMetadata, ids: &
     assert!(slices_equal_ignore_order(
         &get_dirty_ids(db, false),
         &ids.iter()
-            .map(
-                |p| crate::get_file_by_path(db, &(root.decrypted_name.clone() + p))
-                    .unwrap()
-                    .id
+            .map(|p| path_service::get_by_path_include_deleted(
+                db,
+                &(root.decrypted_name.clone() + p)
             )
+            .unwrap()
+            .id)
             .collect::<Vec<Uuid>>()
     ));
 }
@@ -218,11 +219,12 @@ pub fn assert_server_work_paths(db: &Config, root: &DecryptedFileMetadata, ids: 
     assert!(slices_equal_ignore_order(
         &get_dirty_ids(db, true),
         &ids.iter()
-            .map(
-                |p| crate::get_file_by_path(db, &(root.decrypted_name.clone() + p))
-                    .unwrap()
-                    .id
-            )
+            .map(|p| path_service::get_by_path_include_deleted(
+                db,
+                &(root.decrypted_name.clone() + p)
+            ) // todo: doesn't support new files on server
+            .unwrap()
+            .id)
             .collect::<Vec<Uuid>>()
     ));
 }

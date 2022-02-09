@@ -397,6 +397,77 @@ mod sync_tests {
                     },
                 },
             ],
+            // rename
+            vec![
+                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Sync { client_num: 0 },
+                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+                        test_utils::assert_local_work_paths(&db, root, &["/document2"]);
+                    },
+                },
+            ],
+            // rename_unrename
+            vec![
+                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Sync { client_num: 0 },
+                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
+                Operation::Rename { client_num: 0, path: "/document2", new_name: "document" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(&db, root, &[]);
+                    },
+                },
+            ],
+            // delete
+            vec![
+                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Sync { client_num: 0 },
+                Operation::Delete { client_num: 0, path: "/document" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_local_work_paths(&db, root, &["/document"]);
+                    },
+                },
+            ],
+            // delete_parent
+            vec![
+                Operation::Create { client_num: 0, path: "/parent/document" },
+                Operation::Sync { client_num: 0 },
+                Operation::Delete { client_num: 0, path: "/parent/" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_local_work_paths(&db, root, &["/parent/"]);
+                    },
+                },
+            ],
+            // delete_grandparent
+            vec![
+                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
+                Operation::Sync { client_num: 0 },
+                Operation::Delete { client_num: 0, path: "/grandparent/" },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[0].1;
+                        test_utils::assert_all_paths(&db, &root, &["/"]);
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_local_work_paths(&db, root, &["/grandparent/"]);
+                    },
+                },
+            ],
         ] {
             ops.push(Operation::Custom {
                 f: &|dbs, root| {
@@ -407,122 +478,6 @@ mod sync_tests {
             });
             test_utils::run(&ops);
         }
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_move_unmove() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let folder = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
-        let document = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        lockbook_core::move_file(&db, document.id, folder.id).unwrap();
-        lockbook_core::move_file(&db, document.id, root.id).unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/document"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-        test_utils::assert_local_work_ids(&db, &[]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_rename() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let document = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
-        test_utils::assert_local_work_ids(&db, &[document.id]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_unrename() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let document = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        lockbook_core::rename_file(&db, document.id, "document2").unwrap();
-        lockbook_core::rename_file(&db, document.id, "document").unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-        test_utils::assert_local_work_ids(&db, &[]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_delete() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let document = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/document")).unwrap();
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        lockbook_core::delete_file(&db, document.id).unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
-        test_utils::assert_local_work_ids(&db, &[document.id]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_delete_parent() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let parent = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/")).unwrap();
-        let _document = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/parent/document")).unwrap();
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        lockbook_core::delete_file(&db, parent.id).unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
-        test_utils::assert_local_work_ids(&db, &[parent.id]);
-        test_utils::assert_server_work_ids(&db, &[]);
-    }
-
-    #[test]
-    fn unsynced_change_synced_device_delete_grandparent() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-
-        let grandparent = lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/")).unwrap();
-        let _parent =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/")).unwrap();
-        let _document =
-            lockbook_core::create_file_at_path(&db, &test_utils::path(&root, "/grandparent/parent/document")).unwrap();
-
-        lockbook_core::sync_all(&db, None).unwrap();
-
-        lockbook_core::delete_file(&db, grandparent.id).unwrap();
-
-        test_utils::assert_repo_integrity(&db);
-        test_utils::assert_all_paths(&db, &root, &["/"]);
-        test_utils::assert_all_document_contents(&db, &root, &[]);
-        test_utils::assert_local_work_ids(&db, &[grandparent.id]);
-        test_utils::assert_server_work_ids(&db, &[]);
     }
 
     /*  ---------------------------------------------------------------------------------------------------------------
