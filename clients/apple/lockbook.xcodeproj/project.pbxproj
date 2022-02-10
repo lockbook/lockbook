@@ -26,8 +26,6 @@
 		8741E8E425AAA524005B7B01 /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		8741E8FA25ACBCF9005B7B01 /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8F925ACBCF9005B7B01 /* FileListView.swift */; };
 		8741E91225AD167B005B7B01 /* OutlineBranch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E90E25AD1565005B7B01 /* OutlineBranch.swift */; };
-		8741E92825AD9B02005B7B01 /* LockbookMarkdownConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E92725AD9B02005B7B01 /* LockbookMarkdownConfig.swift */; };
-		8741E93625AD9F9C005B7B01 /* LockbookMarkdownConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E92725AD9B02005B7B01 /* LockbookMarkdownConfig.swift */; };
 		874A88F526D3E91900F010C8 /* DI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874A88F426D3E91900F010C8 /* DI.swift */; };
 		874A88F626D3E91900F010C8 /* DI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874A88F426D3E91900F010C8 /* DI.swift */; };
 		874A88F826D5453C00F010C8 /* ToolbarModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874A88F726D5453C00F010C8 /* ToolbarModel.swift */; };
@@ -49,6 +47,8 @@
 		87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AA99F2269610D8009E5591 /* NewFileSheet.swift */; };
 		87BD383826C020B00030D2B1 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD383726C020B00030D2B1 /* SettingsService.swift */; };
 		87BD383926C020B00030D2B1 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BD383726C020B00030D2B1 /* SettingsService.swift */; };
+		87E1C5D727B480960029833D /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E1C5D627B480960029833D /* EditorView.swift */; };
+		87E1C5DB27B480D70029833D /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E1C5DA27B480D70029833D /* EditorView.swift */; };
 		87F78F6F270785E00001E159 /* OutlineSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F6E270785E00001E159 /* OutlineSection.swift */; };
 		87F78F7127078F470001E159 /* BranchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F7027078F470001E159 /* BranchState.swift */; };
 		87F78F73270794930001E159 /* OutlineState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F72270794930001E159 /* OutlineState.swift */; };
@@ -72,19 +72,15 @@
 		EA5979A226040DB1007B9357 /* NestedList.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5979A026040DB1007B9357 /* NestedList.swift */; };
 		EA5C7D7B2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
 		EA5C7D7C2516606100F7F358 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5C7D682516605F00F7F358 /* LockbookApp.swift */; };
-		EA5C9F4D25E4C4D500DA7C6D /* NotepadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD401CC25E311320083A236 /* NotepadView.swift */; };
 		EA82B20C262652F700EE82B9 /* Introspect in Frameworks */ = {isa = PBXBuildFile; productRef = EA82B20B262652F700EE82B9 /* Introspect */; };
 		EA831A552534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA831A562534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA9079C32569960A00E04F5D /* FileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* FileCell.swift */; };
 		EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA8C627B25EF091900330E27 /* SwiftLockbookCore */; };
-		EA9EEFD325FC058100E8C790 /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA6F42F325EF53AC00B6EC57 /* NotepadSwift */; };
 		EA9EEFD425FC058100E8C790 /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = EAA64F7F25F08E59007B9250 /* Down */; };
 		EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
-		EA9EEFD625FC058200E8C790 /* NotepadSwift in Frameworks */ = {isa = PBXBuildFile; productRef = EA6F42F525EF53B100B6EC57 /* NotepadSwift */; };
 		EA9EEFD725FC058200E8C790 /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = EA71418A25F08D0F00631F2B /* Down */; };
 		EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
-		EAD401CD25E311320083A236 /* NotepadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD401CC25E311320083A236 /* NotepadView.swift */; };
 		EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
 		EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
 		EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */; };
@@ -107,7 +103,6 @@
 		8741E8E325AAA524005B7B01 /* BottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomBar.swift; sourceTree = "<group>"; };
 		8741E8F925ACBCF9005B7B01 /* FileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
 		8741E90E25AD1565005B7B01 /* OutlineBranch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineBranch.swift; sourceTree = "<group>"; };
-		8741E92725AD9B02005B7B01 /* LockbookMarkdownConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookMarkdownConfig.swift; sourceTree = "<group>"; };
 		874A88F426D3E91900F010C8 /* DI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DI.swift; sourceTree = "<group>"; };
 		874A88F726D5453C00F010C8 /* ToolbarModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarModel.swift; sourceTree = "<group>"; };
 		877FB54926D1788D0008AB3F /* CoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreService.swift; sourceTree = "<group>"; };
@@ -119,6 +114,8 @@
 		877FB55F26D2C7D60008AB3F /* StatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusService.swift; sourceTree = "<group>"; };
 		87AA99F2269610D8009E5591 /* NewFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFileSheet.swift; sourceTree = "<group>"; };
 		87BD383726C020B00030D2B1 /* SettingsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsService.swift; sourceTree = "<group>"; };
+		87E1C5D627B480960029833D /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		87E1C5DA27B480D70029833D /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		87F78F6E270785E00001E159 /* OutlineSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineSection.swift; sourceTree = "<group>"; };
 		87F78F7027078F470001E159 /* BranchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchState.swift; sourceTree = "<group>"; };
 		87F78F72270794930001E159 /* OutlineState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineState.swift; sourceTree = "<group>"; };
@@ -142,7 +139,6 @@
 		EA5C7D7A2516606100F7F358 /* macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = macOS.entitlements; sourceTree = "<group>"; };
 		EA831A542534E3C80048CE26 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		EA9079C22569960A00E04F5D /* FileCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileCell.swift; sourceTree = "<group>"; };
-		EAD401CC25E311320083A236 /* NotepadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotepadView.swift; sourceTree = "<group>"; };
 		EAD401DB25E32CD50083A236 /* Notepad */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Notepad; path = "/Users/raayanpillai/Library/Developer/Xcode/DerivedData/Lockbook-asqnugeyohispqhixjzcyqkvmhjn/SourcePackages/checkouts/Notepad"; sourceTree = "<absolute>"; };
 		EADA116125336BA1005F69DB /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Development.xcconfig; sourceTree = "<group>"; };
 		EAEDCD0A2516FC1C00EBE313 /* BookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookView.swift; sourceTree = "<group>"; };
@@ -155,7 +151,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EA9EEFD325FC058100E8C790 /* NotepadSwift in Frameworks */,
 				EA82B20C262652F700EE82B9 /* Introspect in Frameworks */,
 				EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */,
 				EA9EEFD425FC058100E8C790 /* Down in Frameworks */,
@@ -166,7 +161,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EA9EEFD625FC058200E8C790 /* NotepadSwift in Frameworks */,
 				EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */,
 				EA9EEFD725FC058200E8C790 /* Down in Frameworks */,
 			);
@@ -214,6 +208,31 @@
 			path = "Stateful Logic";
 			sourceTree = "<group>";
 		};
+		87E1C5D527B47F570029833D /* Editor */ = {
+			isa = PBXGroup;
+			children = (
+				87E1C5D927B480C10029833D /* macOS */,
+				87E1C5D827B480A50029833D /* iOS */,
+			);
+			path = Editor;
+			sourceTree = "<group>";
+		};
+		87E1C5D827B480A50029833D /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				87E1C5D627B480960029833D /* EditorView.swift */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
+		87E1C5D927B480C10029833D /* macOS */ = {
+			isa = PBXGroup;
+			children = (
+				87E1C5DA27B480D70029833D /* EditorView.swift */,
+			);
+			path = macOS;
+			sourceTree = "<group>";
+		};
 		87F78F6D270783710001E159 /* OutlineView */ = {
 			isa = PBXGroup;
 			children = (
@@ -238,6 +257,7 @@
 		EA5C7D622516605F00F7F358 = {
 			isa = PBXGroup;
 			children = (
+				87E1C5D527B47F570029833D /* Editor */,
 				EA5C7D672516605F00F7F358 /* Shared */,
 				EA5C7D712516606000F7F358 /* iOS */,
 				EA5C7D782516606100F7F358 /* macOS */,
@@ -304,7 +324,6 @@
 				8741E8E325AAA524005B7B01 /* BottomBar.swift */,
 				EA9079C22569960A00E04F5D /* FileCell.swift */,
 				EA30B54C25298B0800D2FE22 /* UsageIndicator.swift */,
-				EAD401CC25E311320083A236 /* NotepadView.swift */,
 				EA5979A026040DB1007B9357 /* NestedList.swift */,
 				872175EF26F2850600A77C59 /* DocumentView.swift */,
 				87F78F762709352C0001E159 /* LogoView.swift */,
@@ -320,7 +339,6 @@
 				EAF96D12252E8F3000AA1A14 /* Production.xcconfig */,
 				EAF96D0B252E8ED000AA1A14 /* ConfigHelper.swift */,
 				1F7E4FBE2521297D0045F606 /* Colors.swift */,
-				8741E92725AD9B02005B7B01 /* LockbookMarkdownConfig.swift */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -343,7 +361,6 @@
 			name = "Lockbook (iOS)";
 			packageProductDependencies = (
 				EA8C627B25EF091900330E27 /* SwiftLockbookCore */,
-				EA6F42F325EF53AC00B6EC57 /* NotepadSwift */,
 				EAA64F7F25F08E59007B9250 /* Down */,
 				EA82B20B262652F700EE82B9 /* Introspect */,
 			);
@@ -366,7 +383,6 @@
 			name = "Lockbook (macOS)";
 			packageProductDependencies = (
 				EA14E81E2516655B00B9158C /* SwiftLockbookCore */,
-				EA6F42F525EF53B100B6EC57 /* NotepadSwift */,
 				EA71418A25F08D0F00631F2B /* Down */,
 			);
 			productName = "Lockbook (macOS)";
@@ -446,10 +462,10 @@
 				1F7E4FBF2521297D0045F606 /* Colors.swift in Sources */,
 				B2B7E2E225C6411800B9EFAD /* OnboardingState.swift in Sources */,
 				87BD383826C020B00030D2B1 /* SettingsService.swift in Sources */,
+				87E1C5D727B480960029833D /* EditorView.swift in Sources */,
 				8715F92827161CC60051689E /* OnboardingView.swift in Sources */,
 				877FB56026D2C7D60008AB3F /* StatusService.swift in Sources */,
 				EA5979A126040DB1007B9357 /* NestedList.swift in Sources */,
-				EAD401CD25E311320083A236 /* NotepadView.swift in Sources */,
 				872175F326F2858400A77C59 /* DocumentLoader.swift in Sources */,
 				EA9079C32569960A00E04F5D /* FileCell.swift in Sources */,
 				87F78F7A27094A040001E159 /* BeforeYouStart.swift in Sources */,
@@ -467,7 +483,6 @@
 				EAF96D0C252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				877FB55326D1854E0008AB3F /* SyncService.swift in Sources */,
 				B2B7E2EB25C669C400B9EFAD /* NotificationButton.swift in Sources */,
-				8741E93625AD9F9C005B7B01 /* LockbookMarkdownConfig.swift in Sources */,
 				877FB55026D17FD00008AB3F /* UnexpectedErrorService.swift in Sources */,
 				877FB55626D18AA60008AB3F /* AccountService.swift in Sources */,
 				5036A72711D09E92A5EE75B1 /* DrawingToolbar.swift in Sources */,
@@ -490,7 +505,6 @@
 				EA831A562534E3C80048CE26 /* AppView.swift in Sources */,
 				874A88F626D3E91900F010C8 /* DI.swift in Sources */,
 				872175F126F2850600A77C59 /* DocumentView.swift in Sources */,
-				EA5C9F4D25E4C4D500DA7C6D /* NotepadView.swift in Sources */,
 				877FB54E26D17DE80008AB3F /* DbStateService.swift in Sources */,
 				8715F92927161CC60051689E /* OnboardingView.swift in Sources */,
 				B2B7E2EC25C669C400B9EFAD /* NotificationButton.swift in Sources */,
@@ -511,8 +525,8 @@
 				EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */,
 				87F78F7127078F470001E159 /* BranchState.swift in Sources */,
 				870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */,
+				87E1C5DB27B480D70029833D /* EditorView.swift in Sources */,
 				87F78F752708F1990001E159 /* OutlineContextMenu.swift in Sources */,
-				8741E92825AD9B02005B7B01 /* LockbookMarkdownConfig.swift in Sources */,
 				872175F426F2858400A77C59 /* DocumentLoader.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				877FB55A26D18EC80008AB3F /* FileService.swift in Sources */,
@@ -916,14 +930,6 @@
 		EA14E81E2516655B00B9158C /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftLockbookCore;
-		};
-		EA6F42F325EF53AC00B6EC57 /* NotepadSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = NotepadSwift;
-		};
-		EA6F42F525EF53B100B6EC57 /* NotepadSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = NotepadSwift;
 		};
 		EA71418A25F08D0F00631F2B /* Down */ = {
 			isa = XCSwiftPackageProductDependency;

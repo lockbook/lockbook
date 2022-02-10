@@ -1,5 +1,4 @@
 import SwiftLockbookCore
-import NotepadSwift
 import PencilKit
 
 var force_multiplier: Float = 0.5

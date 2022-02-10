@@ -48,13 +48,8 @@ struct DocumentView: View {
                 #endif
                 
                 case .Markdown:
-                    GeometryReader { geo in
-                        NotepadView(
-                            model: model,
-                            frame: geo.frame(in: .local),
-                            theme: LockbookTheme
-                        )
-                    }.navigationTitle(meta.decryptedName)
+                    EditorView()
+                        .navigationTitle(meta.decryptedName)
                     // TODO there needs to be a 20 horiz padding here on iOS
                 case .Unknown:
                     Text("\(meta.decryptedName) cannot be opened on this device.")
