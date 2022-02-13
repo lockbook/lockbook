@@ -80,9 +80,7 @@ mod move_document_tests {
             generate_file_metadata(&account, &folder, &root_key, FileType::Document);
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         );
         assert_get_updates_required!(result);
     }
@@ -201,9 +199,7 @@ mod move_document_tests {
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&folder)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
         )
         .unwrap();
 
@@ -235,9 +231,7 @@ mod move_document_tests {
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&folder)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
         )
         .unwrap();
 
@@ -267,10 +261,7 @@ mod move_document_tests {
         api_service::request(
             &account,
             FileMetadataUpsertsRequest {
-                updates: vec![
-                    FileMetadataDiff::new(&folder),
-                    FileMetadataDiff::new(&folder2),
-                ],
+                updates: vec![FileMetadataDiff::new(&folder), FileMetadataDiff::new(&folder2)],
             },
         )
         .unwrap();

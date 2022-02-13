@@ -88,19 +88,13 @@ fn pd_logger(build: &str, pd_api_key: &str, handle: Handle) -> Dispatch {
                 summary: String::from("Lockbook Server is starting up..."),
                 timestamp: SystemTime::now().into(),
                 source: Some(String::from("localhost")), // TODO: Hostname
-                custom_details: Some(ChangeDetail {
-                    build: String::from(build),
-                }),
+                custom_details: Some(ChangeDetail { build: String::from(build) }),
             },
             links: None,
         }),
     );
 
-    let pdl = PDLogger {
-        key: String::from(pd_api_key),
-        handle,
-        build: String::from(build),
-    };
+    let pdl = PDLogger { key: String::from(pd_api_key), handle, build: String::from(build) };
 
     fern::Dispatch::new()
         .format(move |out, message, _| {
@@ -184,9 +178,7 @@ struct ChangeDetail {
 }
 
 fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>(
-    api_key: &str,
-    handle: &Handle,
-    event: Event<T>,
+    api_key: &str, handle: &Handle, event: Event<T>,
 ) {
     let events = EventsV2::new(String::from(api_key), Some("lockbook-server".to_string())).unwrap();
 
