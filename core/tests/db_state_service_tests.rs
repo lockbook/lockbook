@@ -14,12 +14,7 @@ mod db_state_service_tests {
         let generated_account = generate_account();
         assert_eq!(get_db_state(&config).unwrap(), Empty);
         assert_eq!(get_db_state(&config).unwrap(), Empty);
-        create_account(
-            &config,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        create_account(&config, &generated_account.username, &generated_account.api_url).unwrap();
         assert_eq!(get_db_state(&config).unwrap(), ReadyToUse);
 
         db_version_repo::set(&config, "0.1.0").unwrap();
@@ -28,13 +23,7 @@ mod db_state_service_tests {
             db_state_service::get_code_version()
         );
 
-        assert_eq!(
-            db_state_service::get_state(&config).unwrap(),
-            StateRequiresClearing
-        );
-        assert_eq!(
-            db_state_service::get_state(&config).unwrap(),
-            StateRequiresClearing
-        );
+        assert_eq!(db_state_service::get_state(&config).unwrap(), StateRequiresClearing);
+        assert_eq!(db_state_service::get_state(&config).unwrap(), StateRequiresClearing);
     }
 }

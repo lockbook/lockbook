@@ -288,9 +288,7 @@ where
             .into_iter()
             .next();
         if let Some(path_conflict) = maybe_path_conflict {
-            return Err(TestFileTreeError::NameConflictDetected(
-                path_conflict.existing,
-            ));
+            return Err(TestFileTreeError::NameConflictDetected(path_conflict.existing));
         }
 
         Ok(())

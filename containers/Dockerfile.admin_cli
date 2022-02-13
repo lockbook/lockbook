@@ -23,6 +23,7 @@ COPY containers/dummy.rs /core/libs/models/src/lib.rs
 COPY containers/dummy.rs /core/libs/crypto/src/lib.rs
 
 COPY containers/dummy.rs src/main.rs
+COPY rustfmt.toml .
 COPY server/admin/Cargo.toml .
 
 # Dependency on core which has compile-time env var

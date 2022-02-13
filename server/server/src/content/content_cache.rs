@@ -6,10 +6,7 @@ use uuid::Uuid;
 const YEAR: usize = 31536000;
 
 pub async fn create<T: Debug>(
-    state: &ServerState,
-    id: Uuid,
-    content_version: u64,
-    content: &[u8],
+    state: &ServerState, id: Uuid, content_version: u64, content: &[u8],
 ) -> Result<(), ServerError<T>> {
     let key = &keys::doc(id, content_version);
     let mut con = state.index_db_pool.get().await?;
@@ -18,9 +15,7 @@ pub async fn create<T: Debug>(
 }
 
 pub async fn delete<T: Debug>(
-    state: &ServerState,
-    id: Uuid,
-    content_version: u64,
+    state: &ServerState, id: Uuid, content_version: u64,
 ) -> Result<(), ServerError<T>> {
     let key = &keys::doc(id, content_version);
     let mut con = state.index_db_pool.get().await?;
@@ -29,9 +24,7 @@ pub async fn delete<T: Debug>(
 }
 
 pub async fn get<T: Debug>(
-    state: &ServerState,
-    id: Uuid,
-    content_version: u64,
+    state: &ServerState, id: Uuid, content_version: u64,
 ) -> Result<Option<Vec<u8>>, ServerError<T>> {
     let key = &keys::doc(id, content_version);
     let mut con = state.index_db_pool.get().await?;

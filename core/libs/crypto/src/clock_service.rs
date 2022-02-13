@@ -17,8 +17,5 @@ pub fn get_time() -> Timestamp {
 }
 
 pub fn timestamp<T>(t: T, time_getter: TimeGetter) -> Timestamped<T> {
-    Timestamped {
-        value: t,
-        timestamp: time_getter().0,
-    }
+    Timestamped { value: t, timestamp: time_getter().0 }
 }

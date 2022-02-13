@@ -33,14 +33,7 @@ impl Menubar {
             mbar.append(*menu);
         }
 
-        let lb_mbar = Self {
-            items,
-            file,
-            edit,
-            acct,
-            help,
-            mbar,
-        };
+        let lb_mbar = Self { items, file, edit, acct, help, mbar };
         lb_mbar.set_menu(&lb_mbar.help, &[Item::HelpAbout]);
         lb_mbar
     }
@@ -51,10 +44,7 @@ impl Menubar {
 
     pub fn set(&self, mode: &EditMode) {
         match mode {
-            EditMode::Folder {
-                meta: _,
-                n_children: _,
-            } => {
+            EditMode::Folder { meta: _, n_children: _ } => {
                 self.set_menu(
                     &self.file,
                     &[
@@ -66,10 +56,7 @@ impl Menubar {
                     ],
                 );
             }
-            EditMode::PlainText {
-                meta: _,
-                content: _,
-            } => {
+            EditMode::PlainText { meta: _, content: _ } => {
                 self.set_menu(
                     &self.file,
                     &[
