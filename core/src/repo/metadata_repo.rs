@@ -19,9 +19,7 @@ fn namespace(source: RepoSource) -> &'static str {
 }
 
 pub fn insert(
-    config: &Config,
-    source: RepoSource,
-    file: &EncryptedFileMetadata,
+    config: &Config, source: RepoSource, file: &EncryptedFileMetadata,
 ) -> Result<(), CoreError> {
     local_storage::write(
         config,
@@ -32,17 +30,13 @@ pub fn insert(
 }
 
 pub fn get(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
+    config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<EncryptedFileMetadata, CoreError> {
     maybe_get(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
+    config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<Option<EncryptedFileMetadata>, CoreError> {
     let maybe_bytes: Option<Vec<u8>> =
         local_storage::read(config, namespace(source), id.to_string().as_str())?;
@@ -53,17 +47,14 @@ pub fn maybe_get(
 }
 
 pub fn get_all(
-    config: &Config,
-    source: RepoSource,
+    config: &Config, source: RepoSource,
 ) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
-    Ok(
-        local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
-            .into_iter()
-            .map(|s| serde_json::from_slice(s.as_ref()).map_err(core_err_unexpected))
-            .collect::<Result<Vec<EncryptedFileMetadata>, CoreError>>()?
-            .into_iter()
-            .collect(),
-    )
+    Ok(local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
+        .into_iter()
+        .map(|s| serde_json::from_slice(s.as_ref()).map_err(core_err_unexpected))
+        .collect::<Result<Vec<EncryptedFileMetadata>, CoreError>>()?
+        .into_iter()
+        .collect())
 }
 
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {

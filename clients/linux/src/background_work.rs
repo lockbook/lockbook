@@ -88,11 +88,7 @@ pub struct AutoSaveState {
 
 impl AutoSaveState {
     pub fn default() -> Self {
-        Self {
-            last_change: 0,
-            last_save: 0,
-            is_active: false,
-        }
+        Self { last_change: 0, last_save: 0, is_active: false }
     }
 
     pub fn file_changed(&mut self) {
@@ -107,9 +103,6 @@ pub struct AutoSyncState {
 
 impl AutoSyncState {
     pub fn default() -> Self {
-        Self {
-            is_active: false,
-            last_sync: 0,
-        }
+        Self { is_active: false, last_sync: 0 }
     }
 }

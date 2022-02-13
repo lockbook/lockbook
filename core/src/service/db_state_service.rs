@@ -79,10 +79,7 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         db_version_repo::set(config, db_state_service::get_code_version()).unwrap();
 
-        assert_eq!(
-            db_state_service::get_state(config).unwrap(),
-            State::ReadyToUse
-        );
+        assert_eq!(db_state_service::get_state(config).unwrap(), State::ReadyToUse);
     }
 
     #[test]
@@ -93,10 +90,7 @@ mod unit_tests {
         account_repo::insert(config, &account).unwrap();
         db_version_repo::set(config, "-1.0.0").unwrap();
 
-        assert_eq!(
-            db_state_service::get_state(config).unwrap(),
-            State::StateRequiresClearing
-        );
+        assert_eq!(db_state_service::get_state(config).unwrap(), State::StateRequiresClearing);
     }
 
     #[test]

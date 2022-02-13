@@ -21,11 +21,7 @@ pub fn status() -> CliResult<()> {
             WorkUnit::ServerChange { .. } => "pulled",
         };
 
-        println!(
-            "{} needs to be {}",
-            work_unit.get_metadata().decrypted_name,
-            action
-        )
+        println!("{} needs to be {}", work_unit.get_metadata().decrypted_name, action)
     });
 
     print_last_successful_sync()

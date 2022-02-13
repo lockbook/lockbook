@@ -16,17 +16,11 @@ mod delete_and_list_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
         let doc = create_file_at_path(&db, &test_utils::path(&root, "/doc.md")).unwrap();
-        assert_eq!(
-            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
-            1
-        );
+        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
 
         delete_file(&db, doc.id).unwrap();
 
-        assert_eq!(
-            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
-            0
-        );
+        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 0);
     }
 
     #[test]
@@ -34,10 +28,7 @@ mod delete_and_list_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
         let doc = create_file_at_path(&db, &test_utils::path(&root, "/doc.md")).unwrap();
-        assert_eq!(
-            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
-            1
-        );
+        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
 
         delete_file(&db, doc.id).unwrap();
 
@@ -52,10 +43,7 @@ mod delete_and_list_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
         let doc = create_file_at_path(&db, &test_utils::path(&root, "/doc.md")).unwrap();
-        assert_eq!(
-            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
-            1
-        );
+        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
 
         delete_file(&db, doc.id).unwrap();
 
@@ -71,10 +59,7 @@ mod delete_and_list_tests {
         let (_account, root) = test_utils::create_account(&db);
         let folder = create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
 
-        assert_eq!(
-            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
-            1
-        );
+        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
 
         delete_file(&db, folder.id).unwrap();
 
@@ -89,10 +74,7 @@ mod delete_and_list_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        assert_matches!(
-            delete_file(&db, root.id),
-            Err(UiError(FileDeleteError::CannotDeleteRoot))
-        );
+        assert_matches!(delete_file(&db, root.id), Err(UiError(FileDeleteError::CannotDeleteRoot)));
     }
 
     #[test]

@@ -66,14 +66,8 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
 
     Ok(UsageMetrics {
         usages: server_usage_and_cap.usages,
-        server_usage: UsageItemMetric {
-            exact: server_usage,
-            readable: readable_usage,
-        },
-        data_cap: UsageItemMetric {
-            exact: cap,
-            readable: readable_cap,
-        },
+        server_usage: UsageItemMetric { exact: server_usage, readable: readable_usage },
+        data_cap: UsageItemMetric { exact: cap, readable: readable_cap },
     })
 }
 
@@ -89,10 +83,7 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreEr
 
     let readable = bytes_to_human(local_usage);
 
-    Ok(UsageItemMetric {
-        exact: local_usage,
-        readable,
-    })
+    Ok(UsageItemMetric { exact: local_usage, readable })
 }
 
 #[cfg(test)]
@@ -122,10 +113,7 @@ mod unit_tests {
 
     #[test]
     fn bytes_to_human_gb() {
-        assert_eq!(
-            usage_service::bytes_to_human(2000000000),
-            "2 GB".to_string()
-        );
+        assert_eq!(usage_service::bytes_to_human(2000000000), "2 GB".to_string());
     }
 
     #[test]
@@ -137,10 +125,7 @@ mod unit_tests {
 
         assert_eq!(
             usage_service::get_uncompressed_usage(config).unwrap(),
-            UsageItemMetric {
-                exact: 0,
-                readable: "0 B".to_string()
-            }
+            UsageItemMetric { exact: 0, readable: "0 B".to_string() }
         );
     }
 
@@ -149,12 +134,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -163,10 +144,7 @@ mod unit_tests {
 
         assert_eq!(
             usage_service::get_uncompressed_usage(config).unwrap(),
-            UsageItemMetric {
-                exact: 0,
-                readable: "0 B".to_string()
-            }
+            UsageItemMetric { exact: 0, readable: "0 B".to_string() }
         );
     }
 
@@ -175,12 +153,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -189,10 +163,7 @@ mod unit_tests {
 
         assert_eq!(
             usage_service::get_uncompressed_usage(config).unwrap(),
-            UsageItemMetric {
-                exact: 10,
-                readable: "10 B".to_string()
-            }
+            UsageItemMetric { exact: 10, readable: "10 B".to_string() }
         );
     }
 
@@ -201,18 +172,10 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
-        let document2 = files::create(
-            FileType::Document,
-            root.id,
-            "document 2",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
+        let document2 =
+            files::create(FileType::Document, root.id, "document 2", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -223,10 +186,7 @@ mod unit_tests {
 
         assert_eq!(
             usage_service::get_uncompressed_usage(config).unwrap(),
-            UsageItemMetric {
-                exact: 10,
-                readable: "10 B".to_string()
-            }
+            UsageItemMetric { exact: 10, readable: "10 B".to_string() }
         );
     }
 }

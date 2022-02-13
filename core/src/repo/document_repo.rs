@@ -19,10 +19,7 @@ fn namespace(source: RepoSource) -> &'static str {
 }
 
 pub fn insert(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
-    document: &EncryptedDocument,
+    config: &Config, source: RepoSource, id: Uuid, document: &EncryptedDocument,
 ) -> Result<(), CoreError> {
     local_storage::write(
         config,
@@ -42,9 +39,7 @@ pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDoc
 }
 
 pub fn maybe_get(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
+    config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<Option<EncryptedDocument>, CoreError> {
     let maybe_data: Option<Vec<u8>> =
         local_storage::read(config, namespace(source), id.to_string().as_str())?;
@@ -57,14 +52,12 @@ pub fn maybe_get(
 }
 
 pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedDocument>, CoreError> {
-    Ok(
-        local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
-            .into_iter()
-            .map(|s| bincode::deserialize(s.as_ref()).map_err(core_err_unexpected))
-            .collect::<Result<Vec<EncryptedDocument>, CoreError>>()?
-            .into_iter()
-            .collect(),
-    )
+    Ok(local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
+        .into_iter()
+        .map(|s| bincode::deserialize(s.as_ref()).map_err(core_err_unexpected))
+        .collect::<Result<Vec<EncryptedDocument>, CoreError>>()?
+        .into_iter()
+        .collect())
 }
 
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
@@ -112,10 +105,8 @@ mod unit_tests {
         let config = &temp_config();
         let key = &symkey::generate_key();
 
-        let (id, document) = (
-            Uuid::new_v4(),
-            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
-        );
+        let (id, document) =
+            (Uuid::new_v4(), test_utils::aes_encrypt(key, &String::from("document").into_bytes()));
         document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
         let result = document_repo::get(config, RepoSource::Local, id).unwrap();
 
@@ -127,10 +118,8 @@ mod unit_tests {
         let config = &temp_config();
         let key = &symkey::generate_key();
 
-        let (id, document) = (
-            Uuid::new_v4(),
-            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
-        );
+        let (id, document) =
+            (Uuid::new_v4(), test_utils::aes_encrypt(key, &String::from("document").into_bytes()));
         document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
         let result = document_repo::maybe_get(config, RepoSource::Base, id).unwrap();
 
@@ -142,10 +131,8 @@ mod unit_tests {
         let config = &temp_config();
         let key = &symkey::generate_key();
 
-        let (id, document) = (
-            Uuid::new_v4(),
-            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
-        );
+        let (id, document) =
+            (Uuid::new_v4(), test_utils::aes_encrypt(key, &String::from("document").into_bytes()));
         document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
         let (id_2, document_2) = (
             Uuid::new_v4(),
@@ -162,10 +149,8 @@ mod unit_tests {
         let config = &temp_config();
         let key = &symkey::generate_key();
 
-        let (id, document) = (
-            Uuid::new_v4(),
-            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
-        );
+        let (id, document) =
+            (Uuid::new_v4(), test_utils::aes_encrypt(key, &String::from("document").into_bytes()));
         document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
         let (id_2, document_2) = (
             Uuid::new_v4(),
@@ -209,10 +194,8 @@ mod unit_tests {
         let config = &temp_config();
         let key = &symkey::generate_key();
 
-        let (id, document) = (
-            Uuid::new_v4(),
-            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
-        );
+        let (id, document) =
+            (Uuid::new_v4(), test_utils::aes_encrypt(key, &String::from("document").into_bytes()));
         document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
         let result = document_repo::get_all(config, RepoSource::Base).unwrap();
 
@@ -224,10 +207,8 @@ mod unit_tests {
         let config = &temp_config();
         let key = &symkey::generate_key();
 
-        let (id, document) = (
-            Uuid::new_v4(),
-            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
-        );
+        let (id, document) =
+            (Uuid::new_v4(), test_utils::aes_encrypt(key, &String::from("document").into_bytes()));
         document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
         document_repo::delete(config, RepoSource::Local, id).unwrap();
         let result = document_repo::maybe_get(config, RepoSource::Local, id).unwrap();
@@ -240,10 +221,8 @@ mod unit_tests {
         let config = &temp_config();
         let key = &symkey::generate_key();
 
-        let (id, document) = (
-            Uuid::new_v4(),
-            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
-        );
+        let (id, document) =
+            (Uuid::new_v4(), test_utils::aes_encrypt(key, &String::from("document").into_bytes()));
         document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
         document_repo::delete_all(config, RepoSource::Local).unwrap();
         let result = document_repo::get_all(config, RepoSource::Local).unwrap();
@@ -256,10 +235,8 @@ mod unit_tests {
         let config = &temp_config();
         let key = &symkey::generate_key();
 
-        let (id, document) = (
-            Uuid::new_v4(),
-            test_utils::aes_encrypt(key, &String::from("document").into_bytes()),
-        );
+        let (id, document) =
+            (Uuid::new_v4(), test_utils::aes_encrypt(key, &String::from("document").into_bytes()));
         document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
         document_repo::delete_all(config, RepoSource::Base).unwrap();
         let result = document_repo::get_all(config, RepoSource::Local).unwrap();

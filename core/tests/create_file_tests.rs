@@ -25,9 +25,7 @@ mod create_document_tests {
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         )
         .unwrap();
     }
@@ -44,18 +42,14 @@ mod create_document_tests {
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         )
         .unwrap();
 
         // create document with same id and key
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         );
         assert_get_updates_required!(result);
     }
@@ -72,9 +66,7 @@ mod create_document_tests {
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         )
         .unwrap();
 
@@ -83,9 +75,7 @@ mod create_document_tests {
         doc2.name = doc.name;
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc2)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc2)] },
         );
 
         assert_get_updates_required!(result);
@@ -104,9 +94,7 @@ mod create_document_tests {
         doc.parent = Uuid::new_v4();
         let result = api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         );
 
         assert_get_updates_required!(result);

@@ -16,10 +16,7 @@ fn namespace(source: RepoSource) -> &'static str {
 }
 
 pub fn insert(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
-    digest: &[u8],
+    config: &Config, source: RepoSource, id: Uuid, digest: &[u8],
 ) -> Result<(), CoreError> {
     local_storage::write(config, namespace(source), id.to_string().as_str(), digest)
 }
@@ -29,19 +26,15 @@ pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<Vec<u8>, Cor
 }
 
 pub fn maybe_get(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
+    config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<Option<Vec<u8>>, CoreError> {
     local_storage::read(config, namespace(source), id.to_string().as_str())
 }
 
 pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<Vec<u8>>, CoreError> {
-    Ok(
-        local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
-            .into_iter()
-            .collect(),
-    )
+    Ok(local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
+        .into_iter()
+        .collect())
 }
 
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {

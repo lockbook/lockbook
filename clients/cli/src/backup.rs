@@ -24,10 +24,7 @@ pub fn backup() -> CliResult<()> {
 
     let folders_len = list_paths(&config, Some(FoldersOnly))?.len();
 
-    println!(
-        "Creating an index to keep track of {} files",
-        leaf_nodes.len()
-    );
+    println!("Creating an index to keep track of {} files", leaf_nodes.len());
 
     let now: DateTime<Utc> = Utc::now();
 
@@ -54,10 +51,7 @@ pub fn backup() -> CliResult<()> {
         .write_all(index_file_content.as_bytes())
         .map_err(|err| err!(OsCouldNotWriteFile(path_string!(index_path), err)))?;
 
-    println!(
-        "Backing up {} folders and {} documents.",
-        folders_len, docs_len
-    );
+    println!("Backing up {} folders and {} documents.", folders_len, docs_len);
 
     let root = get_root(&config).map_err(|err| match err {
         CoreError::UiError(GetRootError::NoRoot) => err!(NoRoot),

@@ -17,11 +17,7 @@ pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
     let file_metadata = get_or_create_file(lb_path)?;
 
     let import_progress = |info: ImportExportFileInfo| {
-        println!(
-            "importing: {} to {}",
-            info.disk_path.display(),
-            info.lockbook_path
-        );
+        println!("importing: {} to {}", info.disk_path.display(), info.lockbook_path);
     };
 
     for path in disk_paths {

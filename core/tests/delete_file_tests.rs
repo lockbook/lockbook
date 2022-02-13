@@ -23,9 +23,7 @@ mod delete_document_tests {
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         )
         .unwrap();
 
@@ -72,9 +70,7 @@ mod delete_document_tests {
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         )
         .unwrap();
 

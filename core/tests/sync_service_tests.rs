@@ -1235,12 +1235,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db2,
             &root,
-            &[
-                "/",
-                "/grandparent/",
-                "/grandparent/parent/",
-                "/grandparent/parent/document",
-            ],
+            &["/", "/grandparent/", "/grandparent/parent/", "/grandparent/parent/document"],
         );
         test_utils::assert_all_document_contents(
             &db2,
@@ -2202,12 +2197,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/parent2/",
-                "/parent2/parent/",
-                "/parent2/parent/document",
-            ],
+            &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[("/parent2/parent/document", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -2244,12 +2234,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/parent2/",
-                "/parent2/parent/",
-                "/parent2/parent/document",
-            ],
+            &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[("/parent2/parent/document", b"")]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -4852,15 +4837,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/c/",
-                "/c/b/",
-                "/c/b/a/",
-                "/c/child/",
-                "/c/b/child/",
-                "/c/b/a/child/",
-            ],
+            &["/", "/c/", "/c/b/", "/c/b/a/", "/c/child/", "/c/b/child/", "/c/b/a/child/"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -4901,15 +4878,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/b/",
-                "/b/a/",
-                "/c/",
-                "/b/child/",
-                "/b/a/child/",
-                "/c/child/",
-            ],
+            &["/", "/b/", "/b/a/", "/c/", "/b/child/", "/b/a/child/", "/c/child/"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -5509,14 +5478,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md/",
-                "/a-1.md/",
-                "/a.md/child/",
-                "/a-1.md/child/",
-            ],
+            &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);
@@ -5558,14 +5520,7 @@ mod sync_tests {
         test_utils::assert_all_paths(
             &db,
             &root,
-            &[
-                "/",
-                "/folder/",
-                "/a.md/",
-                "/a-1.md/",
-                "/a.md/child/",
-                "/a-1.md/child/",
-            ],
+            &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
         );
         test_utils::assert_all_document_contents(&db, &root, &[]);
         test_utils::assert_local_work_ids(&db, &[]);

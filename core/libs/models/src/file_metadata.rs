@@ -90,9 +90,7 @@ pub struct Owner(pub PublicKey);
 
 impl From<&Account> for Owner {
     fn from(account: &Account) -> Self {
-        Self {
-            0: account.public_key(),
-        }
+        Self { 0: account.public_key() }
     }
 }
 
@@ -185,9 +183,7 @@ impl FileMetadataDiff {
     }
 
     pub fn new_diff(
-        old_parent: Uuid,
-        old_name: &SecretFileName,
-        new_metadata: &EncryptedFileMetadata,
+        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &EncryptedFileMetadata,
     ) -> Self {
         FileMetadataDiff {
             id: new_metadata.id,
@@ -209,10 +205,7 @@ impl fmt::Debug for FileMetadataDiff {
             .field("file_type", &self.file_type)
             .field("new_parent", &self.new_parent)
             .field("new_deleted", &self.new_deleted)
-            .field(
-                "old_parent",
-                &self.old_parent_and_name.clone().map(|(p, _)| p),
-            )
+            .field("old_parent", &self.old_parent_and_name.clone().map(|(p, _)| p))
             .field(
                 "old_name",
                 &self

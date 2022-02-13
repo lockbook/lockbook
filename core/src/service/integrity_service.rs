@@ -13,9 +13,8 @@ use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::service::{file_service, path_service};
 use crate::CoreError;
 
-const UTF8_SUFFIXES: [&str; 12] = [
-    "md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs",
-];
+const UTF8_SUFFIXES: [&str; 12] =
+    ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
 #[derive(Debug, Clone)]
 pub enum TestRepoError {
@@ -82,9 +81,7 @@ pub fn test_repo_integrity(config: &Config) -> Result<Vec<Warning>, TestRepoErro
 
     let maybe_file_with_name_with_slash = files.iter().find(|f| f.decrypted_name.contains('/'));
     if let Some(file_with_name_with_slash) = maybe_file_with_name_with_slash {
-        return Err(TestRepoError::FileNameContainsSlash(
-            file_with_name_with_slash.id,
-        ));
+        return Err(TestRepoError::FileNameContainsSlash(file_with_name_with_slash.id));
     }
 
     let mut warnings = Vec::new();
@@ -149,12 +146,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let document = files::create(
-            FileType::Document,
-            folder.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, folder.id, "document", &account.public_key());
 
         let result = [root, folder, document].verify_integrity();
 
@@ -166,12 +159,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let mut root = files::create_root(&account);
         let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let document = files::create(
-            FileType::Document,
-            folder.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, folder.id, "document", &account.public_key());
         root.parent = folder.id;
 
         let result = [root, folder, document].verify_integrity();
@@ -184,12 +173,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let mut document = files::create(
-            FileType::Document,
-            folder.id,
-            "document",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, folder.id, "document", &account.public_key());
         document.parent = Uuid::new_v4();
         let document_id = document.id;
 
@@ -230,26 +215,15 @@ mod unit_tests {
     fn test_file_tree_integrity_document_treated_as_folder() {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document1 = files::create(
-            FileType::Document,
-            root.id,
-            "document1",
-            &account.public_key(),
-        );
-        let document2 = files::create(
-            FileType::Document,
-            document1.id,
-            "document2",
-            &account.public_key(),
-        );
+        let document1 =
+            files::create(FileType::Document, root.id, "document1", &account.public_key());
+        let document2 =
+            files::create(FileType::Document, document1.id, "document2", &account.public_key());
         let document1_id = document1.id;
 
         let result = [root, document1, document2].verify_integrity();
 
-        assert_eq!(
-            result,
-            Err(TestFileTreeError::DocumentTreatedAsFolder(document1_id))
-        );
+        assert_eq!(result, Err(TestFileTreeError::DocumentTreatedAsFolder(document1_id)));
     }
 
     #[test]

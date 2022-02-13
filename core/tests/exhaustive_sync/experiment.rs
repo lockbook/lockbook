@@ -43,8 +43,7 @@ type Continue = bool;
 
 impl Experiment {
     pub fn grab_ready_trial_for_thread(
-        thread: ThreadID,
-        experiments: Arc<Mutex<Self>>,
+        thread: ThreadID, experiments: Arc<Mutex<Self>>,
     ) -> (Option<Trial>, Continue) {
         let mut state = experiments.lock().unwrap();
         let experiment = state.pending.pop();
@@ -58,10 +57,7 @@ impl Experiment {
     }
 
     pub fn publish_results(
-        thread: ThreadID,
-        experiments: Arc<Mutex<Self>>,
-        result: Trial,
-        mutants: &[Trial],
+        thread: ThreadID, experiments: Arc<Mutex<Self>>, result: Trial, mutants: &[Trial],
     ) {
         let mut state = experiments.lock().unwrap();
         state.running.remove(&thread);

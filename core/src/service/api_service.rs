@@ -42,8 +42,7 @@ pub enum ApiError<E> {
 pub fn request<
     T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
 >(
-    account: &Account,
-    request: T,
+    account: &Account, request: T,
 ) -> Result<T::Response, ApiError<T::Error>> {
     request_helper(account, request, get_code_version, get_time)
 }
@@ -51,9 +50,7 @@ pub fn request<
 fn request_helper<
     T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
 >(
-    account: &Account,
-    request: T,
-    get_code_version: fn() -> &'static str,
+    account: &Account, request: T, get_code_version: fn() -> &'static str,
     get_time: fn() -> Timestamp,
 ) -> Result<T::Response, ApiError<T::Error>> {
     let client = ReqwestClient::new();
@@ -65,10 +62,7 @@ fn request_helper<
     })
     .map_err(ApiError::Serialize)?;
     let serialized_response = client
-        .request(
-            T::METHOD,
-            format!("{}{}", account.api_url, T::ROUTE).as_str(),
-        )
+        .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
         .body(serialized_request)
         .send()
         .map_err(ApiError::SendFailed)?
@@ -102,28 +96,18 @@ mod request_common_tests {
     fn forced_upgrade() {
         let cfg = temp_config();
         let generated_account = test_utils::generate_account();
-        create_account(
-            &cfg,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        create_account(&cfg, &generated_account.username, &generated_account.api_url).unwrap();
         let account = get_account(&cfg).unwrap();
 
         let result: Result<PublicKey, ApiError<GetPublicKeyError>> = request_helper(
             &account,
-            GetPublicKeyRequest {
-                username: account.username.clone(),
-            },
+            GetPublicKeyRequest { username: account.username.clone() },
             CODE_VERSION,
             get_time,
         )
         .map(|r: GetPublicKeyResponse| r.key);
 
-        assert_matches!(
-            result,
-            Err(ApiError::<GetPublicKeyError>::ClientUpdateRequired)
-        );
+        assert_matches!(result, Err(ApiError::<GetPublicKeyError>::ClientUpdateRequired));
     }
 
     static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(get_time().0 - 3600000);

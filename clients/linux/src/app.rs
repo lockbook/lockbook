@@ -399,12 +399,10 @@ impl LbApp {
         ));
 
         let discard = gtk::Button::with_label("Discard");
-        discard.connect_clicked(
-            glib::clone!(@strong d, @strong file_dealt_with => move |_| {
-                file_dealt_with.replace(true);
-                d.close();
-            }),
-        );
+        discard.connect_clicked(glib::clone!(@strong d, @strong file_dealt_with => move |_| {
+            file_dealt_with.replace(true);
+            d.close();
+        }));
 
         let buttons = GtkBox::new(Horizontal, 16);
         buttons.set_halign(GtkAlign::Center);
@@ -436,10 +434,7 @@ impl LbApp {
 
     fn open_folder(&self, f: &DecryptedFileMetadata) -> LbResult<()> {
         let children = self.core.children(f)?;
-        self.edit(&EditMode::Folder {
-            meta: f.clone(),
-            n_children: children.len(),
-        })
+        self.edit(&EditMode::Folder { meta: f.clone(), n_children: children.len() })
     }
 
     fn edit(&self, mode: &EditMode) -> LbResult<()> {
@@ -682,9 +677,7 @@ impl LbApp {
     fn show_dialog_about(&self) -> LbResult<()> {
         let d = gtk::AboutDialog::new();
         d.set_transient_for(Some(&self.gui.win));
-        d.set_logo(Some(
-            &GdkPixbuf::from_inline(onboarding::LOGO, false).unwrap(),
-        ));
+        d.set_logo(Some(&GdkPixbuf::from_inline(onboarding::LOGO, false).unwrap()));
         d.set_program_name("Lockbook");
         d.set_version(Some(VERSION));
         d.set_website(Some("https://lockbook.net"));
@@ -699,10 +692,7 @@ impl LbApp {
     }
 
     fn show_dialog_import_file(
-        &self,
-        parent: Uuid,
-        uris: Vec<String>,
-        finish_ch: Option<glib::Sender<Vec<String>>>,
+        &self, parent: Uuid, uris: Vec<String>, finish_ch: Option<glib::Sender<Vec<String>>>,
     ) -> LbResult<()> {
         let (d, disk_lbl, lb_lbl, prog_lbl, pbar) = self.gui.new_import_export_dialog(true);
 
@@ -822,10 +812,7 @@ impl LbApp {
             gtk::FileChooserAction::SelectFolder,
         );
 
-        d.add_buttons(&[
-            ("Cancel", GtkResponseType::Cancel),
-            ("Select", GtkResponseType::Ok),
-        ]);
+        d.add_buttons(&[("Cancel", GtkResponseType::Cancel), ("Select", GtkResponseType::Ok)]);
 
         let resp = d.run();
         d.close();
@@ -1117,14 +1104,7 @@ impl Gui {
             base
         });
 
-        Self {
-            win,
-            menubar,
-            screens,
-            onboarding,
-            account: Rc::new(account),
-            messenger: m.clone(),
-        }
+        Self { win, menubar, screens, onboarding, account: Rc::new(account), messenger: m.clone() }
     }
 
     fn show(&self, core: &LbCore) -> LbResult<()> {
@@ -1164,14 +1144,9 @@ impl Gui {
     }
 
     fn new_import_export_dialog(
-        &self,
-        is_import: bool,
+        &self, is_import: bool,
     ) -> (GtkDialog, GtkLabel, GtkLabel, GtkLabel, GtkProgressBar) {
-        let title = if is_import {
-            "Import Files"
-        } else {
-            "Export Files"
-        };
+        let title = if is_import { "Import Files" } else { "Export Files" };
 
         let load_d = self.new_dialog(title);
         util::gui::set_marginy(&load_d, 36);

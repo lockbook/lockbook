@@ -20,9 +20,7 @@ pub fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(
 }
 
 pub fn export_drawing(
-    config: &Config,
-    id: Uuid,
-    format: SupportedImageFormats,
+    config: &Config, id: Uuid, format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, CoreError> {
     info!("exporting drawing {} as {:?}", id, format);
@@ -33,11 +31,8 @@ pub fn export_drawing(
 }
 
 pub fn export_drawing_to_disk(
-    config: &Config,
-    id: Uuid,
-    format: SupportedImageFormats,
-    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    location: &str,
+    config: &Config, id: Uuid, format: SupportedImageFormats,
+    render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
 ) -> Result<(), CoreError> {
     info!("exporting drawing {} to {} as {:?}", id, location, format);
     let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;

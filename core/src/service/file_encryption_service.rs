@@ -11,9 +11,7 @@ use crate::model::errors::{core_err_unexpected, CoreError};
 
 /// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is not supported; user access keys are encrypted for the provided account. This is a pure function.
 pub fn encrypt_metadatum(
-    account: &Account,
-    parent_key: &AESKey,
-    target: &DecryptedFileMetadata,
+    account: &Account, parent_key: &AESKey, target: &DecryptedFileMetadata,
 ) -> Result<EncryptedFileMetadata, CoreError> {
     let user_access_keys = if target.id == target.parent {
         encrypt_user_access_keys(account, &target.decrypted_access_key)?
@@ -36,8 +34,7 @@ pub fn encrypt_metadatum(
 
 /// Converts a set of DecryptedFileMetadata's to FileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys are encrypted for the provided account. This is a pure function.
 pub fn encrypt_metadata(
-    account: &Account,
-    files: &[DecryptedFileMetadata],
+    account: &Account, files: &[DecryptedFileMetadata],
 ) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
     let mut result = Vec::new();
     for target in files {
@@ -56,15 +53,13 @@ pub fn encrypt_metadata(
 }
 
 fn encrypt_file_name(
-    decrypted_name: &str,
-    parent_key: &AESKey,
+    decrypted_name: &str, parent_key: &AESKey,
 ) -> Result<SecretFileName, CoreError> {
     symkey::encrypt_and_hmac(parent_key, decrypted_name).map_err(core_err_unexpected)
 }
 
 fn encrypt_user_access_keys(
-    account: &Account,
-    decrypted_file_key: &AESKey,
+    account: &Account, decrypted_file_key: &AESKey,
 ) -> Result<HashMap<String, UserAccessInfo>, CoreError> {
     let user_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
         .map_err(core_err_unexpected)?;
@@ -83,16 +78,14 @@ fn encrypt_user_access_keys(
 }
 
 fn encrypt_folder_access_keys(
-    target_key: &AESKey,
-    parent_key: &AESKey,
+    target_key: &AESKey, parent_key: &AESKey,
 ) -> Result<EncryptedFolderAccessKey, CoreError> {
     symkey::encrypt(parent_key, target_key).map_err(core_err_unexpected)
 }
 
 /// Converts a FileMetadata to a DecryptedFileMetadata using its decrypted parent key. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
 pub fn decrypt_metadatum(
-    parent_key: &AESKey,
-    target: &EncryptedFileMetadata,
+    parent_key: &AESKey, target: &EncryptedFileMetadata,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     Ok(DecryptedFileMetadata {
         id: target.id,
@@ -109,8 +102,7 @@ pub fn decrypt_metadatum(
 
 /// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
 pub fn decrypt_metadata(
-    account: &Account,
-    files: &[EncryptedFileMetadata],
+    account: &Account, files: &[EncryptedFileMetadata],
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let mut result = Vec::new();
     let mut key_cache = HashMap::new();
@@ -124,9 +116,7 @@ pub fn decrypt_metadata(
 
 /// Decrypts the file key given a target and its ancestors. All ancestors of target, as well as target itself, must be included in target_with_ancestors.
 fn decrypt_file_key(
-    account: &Account,
-    target_id: Uuid,
-    target_with_ancestors: &[EncryptedFileMetadata],
+    account: &Account, target_id: Uuid, target_with_ancestors: &[EncryptedFileMetadata],
     key_cache: &mut HashMap<Uuid, AESKey>,
 ) -> Result<AESKey, CoreError> {
     if let Some(key) = key_cache.get(&target_id) {
@@ -138,8 +128,8 @@ fn decrypt_file_key(
         .find(|&m| m.id == target_id)
         .ok_or_else(|| {
             CoreError::Unexpected(String::from(
-                "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
-            ))
+            "target or ancestor missing during call to file_encryption_service::decrypt_file_key",
+        ))
         })?;
 
     let key = match target.user_access_keys.get(&account.username) {
@@ -163,29 +153,25 @@ fn decrypt_file_key(
 }
 
 fn decrypt_file_name(
-    encrypted_name: &SecretFileName,
-    parent_key: &AESKey,
+    encrypted_name: &SecretFileName, parent_key: &AESKey,
 ) -> Result<String, CoreError> {
     symkey::decrypt_and_verify(parent_key, encrypted_name).map_err(core_err_unexpected)
 }
 
 fn decrypt_folder_access_keys(
-    encrypted_keys: &EncryptedFolderAccessKey,
-    parent_key: &AESKey,
+    encrypted_keys: &EncryptedFolderAccessKey, parent_key: &AESKey,
 ) -> Result<AESKey, CoreError> {
     symkey::decrypt(parent_key, encrypted_keys).map_err(core_err_unexpected)
 }
 
 pub fn encrypt_document(
-    document: &[u8],
-    metadata: &DecryptedFileMetadata,
+    document: &[u8], metadata: &DecryptedFileMetadata,
 ) -> Result<EncryptedDocument, CoreError> {
     symkey::encrypt(&metadata.decrypted_access_key, &document.to_vec()).map_err(core_err_unexpected)
 }
 
 pub fn decrypt_document(
-    document: &EncryptedDocument,
-    metadata: &DecryptedFileMetadata,
+    document: &EncryptedDocument, metadata: &DecryptedFileMetadata,
 ) -> Result<DecryptedDocument, CoreError> {
     symkey::decrypt(&metadata.decrypted_access_key, document).map_err(core_err_unexpected)
 }
@@ -205,12 +191,7 @@ mod unit_tests {
     fn encrypt_decrypt_metadatum() {
         let account = test_utils::generate_account();
         let key = symkey::generate_key();
-        let file = files::create(
-            FileType::Folder,
-            Uuid::new_v4(),
-            "folder",
-            &account.public_key(),
-        );
+        let file = files::create(FileType::Folder, Uuid::new_v4(), "folder", &account.public_key());
 
         let encrypted_file =
             file_encryption_service::encrypt_metadatum(&account, &key, &file).unwrap();
@@ -225,29 +206,16 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let document = files::create(
-            FileType::Folder,
-            folder.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Folder, folder.id, "document", &account.public_key());
         let files = [root.clone(), folder.clone(), document.clone()];
 
         let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files).unwrap();
         let decrypted_files =
             file_encryption_service::decrypt_metadata(&account, &encrypted_files).unwrap();
 
-        assert_eq!(
-            files.find(root.id).unwrap(),
-            decrypted_files.find(root.id).unwrap(),
-        );
-        assert_eq!(
-            files.find(folder.id).unwrap(),
-            decrypted_files.find(folder.id).unwrap(),
-        );
-        assert_eq!(
-            files.find(document.id).unwrap(),
-            decrypted_files.find(document.id).unwrap(),
-        );
+        assert_eq!(files.find(root.id).unwrap(), decrypted_files.find(root.id).unwrap(),);
+        assert_eq!(files.find(folder.id).unwrap(), decrypted_files.find(folder.id).unwrap(),);
+        assert_eq!(files.find(document.id).unwrap(), decrypted_files.find(document.id).unwrap(),);
     }
 }

@@ -26,9 +26,7 @@ mod new_account_tests {
         let result = api_service::request(&second, NewAccountRequest::new(&second, &root));
         assert_matches!(
             result,
-            Err(ApiError::<NewAccountError>::Endpoint(
-                NewAccountError::PublicKeyTaken
-            ))
+            Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::PublicKeyTaken))
         );
     }
 
@@ -44,9 +42,7 @@ mod new_account_tests {
         let result = api_service::request(&account2, NewAccountRequest::new(&account2, &root2));
         assert_matches!(
             result,
-            Err(ApiError::<NewAccountError>::Endpoint(
-                NewAccountError::UsernameTaken
-            ))
+            Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::UsernameTaken))
         );
     }
 
@@ -59,9 +55,7 @@ mod new_account_tests {
         let result = api_service::request(&account, NewAccountRequest::new(&account, &root));
         assert_matches!(
             result,
-            Err(ApiError::<NewAccountError>::Endpoint(
-                NewAccountError::InvalidUsername
-            ))
+            Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::InvalidUsername))
         );
     }
 }

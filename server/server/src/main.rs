@@ -28,11 +28,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .create_pool(Some(Runtime::Tokio1))
         .unwrap();
 
-    let server_state = Arc::new(ServerState {
-        config: config.clone(),
-        index_db_pool,
-        files_db_client,
-    });
+    let server_state =
+        Arc::new(ServerState { config: config.clone(), index_db_pool, files_db_client });
 
     feature_flags::initialize_flags(&server_state).await;
 
@@ -45,10 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     metrics::start_metrics_worker(&server_state);
 
     // *** How people can connect to this server ***
-    match (
-        config.server.ssl_cert_location,
-        config.server.ssl_private_key_location,
-    ) {
+    match (config.server.ssl_cert_location, config.server.ssl_private_key_location) {
         (Some(cert), Some(key)) => {
             info!("binding to https://0.0.0.0:{}", config.server.port);
             server

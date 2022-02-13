@@ -28,19 +28,12 @@ pub enum AESEncryptError {
 }
 
 pub fn encrypt<T: Serialize + DeserializeOwned>(
-    key: &AESKey,
-    to_encrypt: &T,
+    key: &AESKey, to_encrypt: &T,
 ) -> Result<AESEncrypted<T>, AESEncryptError> {
     let serialized = bincode::serialize(to_encrypt).map_err(AESEncryptError::Serialization)?;
     let nonce = &generate_nonce();
     let encrypted = convert_key(key)
-        .encrypt(
-            GenericArray::from_slice(nonce),
-            aead::Payload {
-                msg: &serialized,
-                aad: &[],
-            },
-        )
+        .encrypt(GenericArray::from_slice(nonce), aead::Payload { msg: &serialized, aad: &[] })
         .map_err(AESEncryptError::Encryption)?;
     Ok(AESEncrypted::new(encrypted, nonce.to_vec()))
 }
@@ -53,8 +46,7 @@ pub enum EncryptAndHmacError {
 }
 
 pub fn encrypt_and_hmac(
-    key: &AESKey,
-    to_encrypt: &str,
+    key: &AESKey, to_encrypt: &str,
 ) -> Result<SecretFileName, EncryptAndHmacError> {
     let serialized = bincode::serialize(to_encrypt).map_err(EncryptAndHmacError::Serialization)?;
 
@@ -69,21 +61,12 @@ pub fn encrypt_and_hmac(
     let encrypted_value = {
         let nonce = &generate_nonce();
         let encrypted = convert_key(key)
-            .encrypt(
-                GenericArray::from_slice(nonce),
-                aead::Payload {
-                    msg: &serialized,
-                    aad: &[],
-                },
-            )
+            .encrypt(GenericArray::from_slice(nonce), aead::Payload { msg: &serialized, aad: &[] })
             .map_err(EncryptAndHmacError::Encryption)?;
         AESEncrypted::new(encrypted, nonce.to_vec())
     };
 
-    Ok(SecretFileName {
-        encrypted_value,
-        hmac,
-    })
+    Ok(SecretFileName { encrypted_value, hmac })
 }
 
 #[derive(Debug)]
@@ -93,18 +76,11 @@ pub enum AESDecryptError {
 }
 
 pub fn decrypt<T: DeserializeOwned>(
-    key: &AESKey,
-    to_decrypt: &AESEncrypted<T>,
+    key: &AESKey, to_decrypt: &AESEncrypted<T>,
 ) -> Result<T, AESDecryptError> {
     let nonce = GenericArray::from_slice(&to_decrypt.nonce);
     let decrypted = convert_key(key)
-        .decrypt(
-            nonce,
-            aead::Payload {
-                msg: &to_decrypt.value,
-                aad: &[],
-            },
-        )
+        .decrypt(nonce, aead::Payload { msg: &to_decrypt.value, aad: &[] })
         .map_err(AESDecryptError::Decryption)?;
     let deserialized =
         bincode::deserialize(&decrypted).map_err(AESDecryptError::Deserialization)?;
@@ -120,18 +96,11 @@ pub enum DecryptAndVerifyError {
 }
 
 pub fn decrypt_and_verify(
-    key: &AESKey,
-    to_decrypt: &SecretFileName,
+    key: &AESKey, to_decrypt: &SecretFileName,
 ) -> Result<String, DecryptAndVerifyError> {
     let nonce = GenericArray::from_slice(&to_decrypt.encrypted_value.nonce);
     let decrypted = convert_key(key)
-        .decrypt(
-            nonce,
-            aead::Payload {
-                msg: &to_decrypt.encrypted_value.value,
-                aad: &[],
-            },
-        )
+        .decrypt(nonce, aead::Payload { msg: &to_decrypt.encrypted_value.value, aad: &[] })
         .map_err(DecryptAndVerifyError::Decryption)?;
     let deserialized =
         bincode::deserialize(&decrypted).map_err(DecryptAndVerifyError::Deserialization)?;

@@ -25,11 +25,7 @@ pub struct AESEncrypted<T: DeserializeOwned> {
 impl<T: DeserializeOwned> AESEncrypted<T> {
     /// creates an AESEncrypted from a source of already-encrypted bytes
     pub fn new<V: Into<Vec<u8>>, N: Into<Vec<u8>>>(value: V, nonce: N) -> Self {
-        AESEncrypted {
-            value: value.into(),
-            nonce: nonce.into(),
-            _t: PhantomData,
-        }
+        AESEncrypted { value: value.into(), nonce: nonce.into(), _t: PhantomData }
     }
 }
 

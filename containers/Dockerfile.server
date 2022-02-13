@@ -22,6 +22,7 @@ COPY containers/dummy.rs src/main.rs
 COPY containers/dummy.rs src/lib.rs
 COPY server/server/Cargo.toml .
 COPY server/server/build.rs .
+COPY rustfmt.toml .
 
 # Dependency on core which has compile-time env var
 ENV API_URL=unused

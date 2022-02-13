@@ -48,21 +48,15 @@ mod integrity_tests {
         let (_account, _root) = test_utils::create_account(&cfg);
         metadata_repo::delete_all(&cfg, RepoSource::Base).unwrap();
 
-        assert_matches!(
-            integrity_service::test_repo_integrity(&cfg),
-            Err(NoRootFolder)
-        );
+        assert_matches!(integrity_service::test_repo_integrity(&cfg), Err(NoRootFolder));
     }
 
     #[test]
     fn test_orphaned_children() {
         let cfg = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&cfg);
-        create_file_at_path(
-            &cfg,
-            &test_utils::path(&root, "/folder1/folder2/document1.md"),
-        )
-        .unwrap();
+        create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/document1.md"))
+            .unwrap();
 
         integrity_service::test_repo_integrity(&cfg).unwrap();
 
@@ -75,10 +69,7 @@ mod integrity_tests {
         )
         .unwrap();
 
-        assert_matches!(
-            integrity_service::test_repo_integrity(&cfg),
-            Err(FileOrphaned(_))
-        );
+        assert_matches!(integrity_service::test_repo_integrity(&cfg), Err(FileOrphaned(_)));
     }
 
     #[test]
@@ -105,21 +96,15 @@ mod integrity_tests {
         doc.decrypted_name = String::from("");
         file_service::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
 
-        assert_matches!(
-            integrity_service::test_repo_integrity(&cfg),
-            Err(FileNameEmpty(_))
-        );
+        assert_matches!(integrity_service::test_repo_integrity(&cfg), Err(FileNameEmpty(_)));
     }
 
     #[test]
     fn test_cycle() {
         let cfg = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&cfg);
-        create_file_at_path(
-            &cfg,
-            &test_utils::path(&root, "/folder1/folder2/document1.md"),
-        )
-        .unwrap();
+        create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/document1.md"))
+            .unwrap();
         let mut parent = metadata_repo::get(
             &cfg,
             RepoSource::Local,
@@ -132,10 +117,7 @@ mod integrity_tests {
         parent.parent = child.id;
         metadata_repo::insert(&cfg, RepoSource::Local, &parent).unwrap();
 
-        assert_matches!(
-            integrity_service::test_repo_integrity(&cfg),
-            Err(CycleDetected(_))
-        );
+        assert_matches!(integrity_service::test_repo_integrity(&cfg), Err(CycleDetected(_)));
     }
 
     #[test]
@@ -161,21 +143,15 @@ mod integrity_tests {
         parent.parent = folder3.id;
         metadata_repo::insert(&cfg, RepoSource::Local, &parent).unwrap();
 
-        assert_matches!(
-            integrity_service::test_repo_integrity(&cfg),
-            Err(CycleDetected(_))
-        );
+        assert_matches!(integrity_service::test_repo_integrity(&cfg), Err(CycleDetected(_)));
     }
 
     #[test]
     fn test_documents_treated_as_folders() {
         let cfg = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&cfg);
-        create_file_at_path(
-            &cfg,
-            &test_utils::path(&root, "/folder1/folder2/document1.md"),
-        )
-        .unwrap();
+        create_file_at_path(&cfg, &test_utils::path(&root, "/folder1/folder2/document1.md"))
+            .unwrap();
         let mut parent = metadata_repo::get(
             &cfg,
             RepoSource::Local,
@@ -203,10 +179,7 @@ mod integrity_tests {
         doc.decrypted_name = String::from("document2.md");
         file_service::insert_metadatum(&cfg, RepoSource::Local, &doc).unwrap();
 
-        assert_matches!(
-            integrity_service::test_repo_integrity(&cfg),
-            Err(NameConflictDetected(_))
-        );
+        assert_matches!(integrity_service::test_repo_integrity(&cfg), Err(NameConflictDetected(_)));
     }
 
     #[test]
@@ -219,10 +192,7 @@ mod integrity_tests {
 
         let warnings = integrity_service::test_repo_integrity(&cfg);
 
-        assert_matches!(
-            warnings.as_ref().map(|w| &w[..]),
-            Ok([Warning::EmptyFile(_)])
-        );
+        assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([Warning::EmptyFile(_)]));
     }
 
     #[test]
@@ -241,10 +211,7 @@ mod integrity_tests {
 
         let warnings = integrity_service::test_repo_integrity(&cfg);
 
-        assert_matches!(
-            warnings.as_ref().map(|w| &w[..]),
-            Ok([Warning::InvalidUTF8(_)])
-        );
+        assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([Warning::InvalidUTF8(_)]));
     }
 
     #[test]
@@ -282,9 +249,6 @@ mod integrity_tests {
 
         let warnings = integrity_service::test_repo_integrity(&cfg);
 
-        assert_matches!(
-            warnings.as_ref().map(|w| &w[..]),
-            Ok([Warning::UnreadableDrawing(_)])
-        );
+        assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([Warning::UnreadableDrawing(_)]));
     }
 }

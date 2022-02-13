@@ -56,10 +56,7 @@ pub fn create_client(config: &FilesDbConfig) -> Result<S3Client, Error> {
             let url = format!("{}://{}:{}", scheme, host, port);
             S3Client::new_with_path_style(
                 &config.bucket,
-                Region::Custom {
-                    endpoint: url,
-                    region: config.region.clone(),
-                },
+                Region::Custom { endpoint: url, region: config.region.clone() },
                 credentials,
             )
         }
@@ -69,10 +66,7 @@ pub fn create_client(config: &FilesDbConfig) -> Result<S3Client, Error> {
 }
 
 pub async fn create(
-    state: &ServerState,
-    file_id: Uuid,
-    content_version: u64,
-    file_contents: &[u8],
+    state: &ServerState, file_id: Uuid, content_version: u64, file_contents: &[u8],
 ) -> Result<(), Error> {
     let client = &state.files_db_client;
     match client
@@ -124,9 +118,7 @@ pub fn background_delete(state: &ServerState, file_id: Uuid, content_version: u6
 }
 
 pub async fn get(
-    state: &ServerState,
-    file_id: Uuid,
-    content_version: u64,
+    state: &ServerState, file_id: Uuid, content_version: u64,
 ) -> Result<Option<Vec<u8>>, Error> {
     let client = &state.files_db_client;
     match client

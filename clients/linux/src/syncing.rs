@@ -56,17 +56,15 @@ pub fn perform_sync(lb: &LbApp) -> LbResult<()> {
 }
 
 pub fn refresh_status(lb: &LbApp) -> LbResult<()> {
-    thread::spawn(
-        glib::clone!(@strong lb.core as c, @strong lb.messenger as m => move || {
-            match c.sync_status() {
-                Ok(txt) => m.send(Msg::SetStatus(txt, None)),
-                Err(err) => match err.target() {
-                    LbErrTarget::Dialog => m.send_err_dialog("getting sync status", err),
-                    LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
-                }
+    thread::spawn(glib::clone!(@strong lb.core as c, @strong lb.messenger as m => move || {
+        match c.sync_status() {
+            Ok(txt) => m.send(Msg::SetStatus(txt, None)),
+            Err(err) => match err.target() {
+                LbErrTarget::Dialog => m.send_err_dialog("getting sync status", err),
+                LbErrTarget::StatusPanel => m.send_err_status_panel(err.msg()),
             }
-        }),
-    );
+        }
+    }));
 
     Ok(())
 }

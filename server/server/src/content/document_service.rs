@@ -18,10 +18,7 @@ pub enum Error {
 }
 
 pub async fn create<T: Debug>(
-    state: &ServerState,
-    id: Uuid,
-    content_version: u64,
-    file_contents: &EncryptedDocument,
+    state: &ServerState, id: Uuid, content_version: u64, file_contents: &EncryptedDocument,
 ) -> Result<(), ServerError<T>> {
     let content = bincode::serialize(file_contents)
         .map_err(|err| internal!("Failed to serialize a document: {}", err))?;
@@ -52,9 +49,7 @@ pub async fn create<T: Debug>(
 }
 
 pub async fn get(
-    state: &ServerState,
-    id: Uuid,
-    content_version: u64,
+    state: &ServerState, id: Uuid, content_version: u64,
 ) -> Result<Option<EncryptedDocument>, ServerError<GetDocumentError>> {
     let maybe_bytes = match content_cache::get(state, id, content_version).await? {
         Some(document_bytes) => Some(document_bytes),
@@ -82,9 +77,7 @@ pub async fn get(
 }
 
 pub async fn delete<T: Debug>(
-    state: &ServerState,
-    id: Uuid,
-    content_version: u64,
+    state: &ServerState, id: Uuid, content_version: u64,
 ) -> Result<(), ServerError<T>> {
     content_cache::delete(state, id, content_version).await?;
 
@@ -96,9 +89,7 @@ pub async fn delete<T: Debug>(
 }
 
 pub async fn background_delete<T: Debug>(
-    state: &ServerState,
-    id: Uuid,
-    content_version: u64,
+    state: &ServerState, id: Uuid, content_version: u64,
 ) -> Result<(), ServerError<T>> {
     content_cache::delete(state, id, content_version).await?;
 

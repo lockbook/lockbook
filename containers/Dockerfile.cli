@@ -20,6 +20,7 @@ COPY core/libs/crypto/Cargo.toml /core/libs/crypto/Cargo.toml
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
 COPY containers/dummy.rs /clients/cli/src/main.rs
 COPY clients/cli/Cargo.toml /clients/cli/Cargo.toml
+COPY rustfmt.toml /clients/cli/rustfmt.toml
 
 WORKDIR /clients/cli
 RUN cargo build --release

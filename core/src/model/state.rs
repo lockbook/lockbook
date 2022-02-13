@@ -14,9 +14,7 @@ impl Config {
 }
 
 pub fn temp_config() -> Config {
-    Config {
-        writeable_path: String::from(tempfile::tempdir().unwrap().path().to_str().unwrap()),
-    }
+    Config { writeable_path: String::from(tempfile::tempdir().unwrap().path().to_str().unwrap()) }
 }
 
 pub struct State {

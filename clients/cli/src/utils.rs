@@ -68,20 +68,14 @@ pub fn check_and_perform_migrations() -> CliResult<()> {
 }
 
 pub fn config() -> CliResult<Config> {
-    let path = match (
-        env::var("LOCKBOOK_CLI_LOCATION"),
-        env::var("HOME"),
-        env::var("HOMEPATH"),
-    ) {
+    let path = match (env::var("LOCKBOOK_CLI_LOCATION"), env::var("HOME"), env::var("HOMEPATH")) {
         (Ok(s), _, _) => Ok(s),
         (Err(_), Ok(s), _) => Ok(format!("{}/.lockbook", s)),
         (Err(_), Err(_), Ok(s)) => Ok(format!("{}/.lockbook", s)),
         _ => Err(err!(NoCliLocation)),
     };
 
-    Ok(Config {
-        writeable_path: path?,
-    })
+    Ok(Config { writeable_path: path? })
 }
 
 // In ascending order of superiority

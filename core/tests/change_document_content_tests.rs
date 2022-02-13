@@ -21,33 +21,25 @@ mod change_document_content_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // get root metadata version
-        root.metadata_version = api_service::request(
-            &account,
-            GetUpdatesRequest {
-                since_metadata_version: 0,
-            },
-        )
-        .unwrap()
-        .file_metadata[0]
-            .metadata_version;
+        root.metadata_version =
+            api_service::request(&account, GetUpdatesRequest { since_metadata_version: 0 })
+                .unwrap()
+                .file_metadata[0]
+                .metadata_version;
 
         // create document
         let (mut doc, doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         )
         .unwrap();
 
         // get document metadata version
         doc.metadata_version = api_service::request(
             &account,
-            GetUpdatesRequest {
-                since_metadata_version: root.metadata_version,
-            },
+            GetUpdatesRequest { since_metadata_version: root.metadata_version },
         )
         .unwrap()
         .file_metadata[0]

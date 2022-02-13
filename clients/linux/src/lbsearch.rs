@@ -23,18 +23,11 @@ impl LbSearch {
         sort_model.set_sort_column_id(gtk::SortColumn::Index(0), gtk::SortType::Descending);
         sort_model.set_sort_func(gtk::SortColumn::Index(0), Self::cmp_possibs);
 
-        Self {
-            possibs,
-            list_store,
-            sort_model,
-            matcher: SkimMatcherV2::default(),
-        }
+        Self { possibs, list_store, sort_model, matcher: SkimMatcherV2::default() }
     }
 
     fn cmp_possibs(
-        model: &gtk::TreeModel,
-        it1: &gtk::TreeIter,
-        it2: &gtk::TreeIter,
+        model: &gtk::TreeModel, it1: &gtk::TreeIter, it2: &gtk::TreeIter,
     ) -> cmp::Ordering {
         let score1 = tree_iter_value!(model, it1, 0, i64);
         let score2 = tree_iter_value!(model, it2, 0, i64);

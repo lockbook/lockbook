@@ -50,9 +50,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
 
     let server_updates = api_service::request(
         &account,
-        GetUpdatesRequest {
-            since_metadata_version: base_max_metadata_version,
-        },
+        GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
     )
     .map_err(CoreError::from)?
     .file_metadata;
@@ -61,9 +59,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
 }
 
 fn calculate_work_from_updates(
-    config: &Config,
-    server_updates: &[EncryptedFileMetadata],
-    mut last_sync: u64,
+    config: &Config, server_updates: &[EncryptedFileMetadata], mut last_sync: u64,
 ) -> Result<WorkCalculated, CoreError> {
     let mut work_units: Vec<WorkUnit> = vec![];
     let (all_metadata, _) = file_service::get_all_metadata_with_encrypted_changes(
@@ -85,16 +81,14 @@ fn calculate_work_from_updates(
             None => {
                 if !metadata.deleted {
                     // no work for files we don't have that have been deleted
-                    work_units.push(WorkUnit::ServerChange {
-                        metadata: all_metadata.find(metadata.id)?,
-                    })
+                    work_units
+                        .push(WorkUnit::ServerChange { metadata: all_metadata.find(metadata.id)? })
                 }
             }
             Some(local_metadata) => {
                 if metadata.metadata_version != local_metadata.metadata_version {
-                    work_units.push(WorkUnit::ServerChange {
-                        metadata: all_metadata.find(metadata.id)?,
-                    })
+                    work_units
+                        .push(WorkUnit::ServerChange { metadata: all_metadata.find(metadata.id)? })
                 }
             }
         };
@@ -116,10 +110,7 @@ fn calculate_work_from_updates(
     }
     debug!("Work Calculated: {:#?}", work_units);
 
-    Ok(WorkCalculated {
-        work_units,
-        most_recent_update_from_server: last_sync,
-    })
+    Ok(WorkCalculated { work_units, most_recent_update_from_server: last_sync })
 }
 
 #[derive(PartialEq, Debug)]
@@ -130,62 +121,52 @@ pub enum MaybeMergeResult<T> {
 }
 
 fn merge_maybe<T>(
-    maybe_base: Option<T>,
-    maybe_local: Option<T>,
-    maybe_remote: Option<T>,
+    maybe_base: Option<T>, maybe_local: Option<T>, maybe_remote: Option<T>,
 ) -> Result<MaybeMergeResult<T>, CoreError> {
-    Ok(MaybeMergeResult::Resolved(
-        match (maybe_base, maybe_local, maybe_remote) {
-            (None, None, None) => {
-                // improper call of this function
-                return Err(CoreError::Unexpected(String::from(
-                    "3-way maybe merge with none of the 3",
-                )));
-            }
-            (None, None, Some(remote)) => {
-                // new from remote
-                remote
-            }
-            (None, Some(local), None) => {
-                // new from local
-                local
-            }
-            (None, Some(local), Some(remote)) => {
-                // Every once in a while, a lockbook client successfully syncs a file to server then gets interrupted
-                // before noting the successful sync. The next time that client pushes they're required to pull first
-                // and the next time they pull they'll merge the local and remote version of the file with no base.
-                // It's possible there have been changes made by other clients in the meantime, but we do the best we
-                // can to produce a reasonable result.
-                return Ok(MaybeMergeResult::BaselessConflict { local, remote });
-            }
-            (Some(base), None, None) => {
-                // no changes
-                base
-            }
-            (Some(_base), None, Some(remote)) => {
-                // remote changes
-                remote
-            }
-            (Some(_base), Some(local), None) => {
-                // local changes
-                local
-            }
-            (Some(base), Some(local), Some(remote)) => {
-                // conflict
-                return Ok(MaybeMergeResult::Conflict {
-                    base,
-                    local,
-                    remote,
-                });
-            }
-        },
-    ))
+    Ok(MaybeMergeResult::Resolved(match (maybe_base, maybe_local, maybe_remote) {
+        (None, None, None) => {
+            // improper call of this function
+            return Err(CoreError::Unexpected(String::from(
+                "3-way maybe merge with none of the 3",
+            )));
+        }
+        (None, None, Some(remote)) => {
+            // new from remote
+            remote
+        }
+        (None, Some(local), None) => {
+            // new from local
+            local
+        }
+        (None, Some(local), Some(remote)) => {
+            // Every once in a while, a lockbook client successfully syncs a file to server then gets interrupted
+            // before noting the successful sync. The next time that client pushes they're required to pull first
+            // and the next time they pull they'll merge the local and remote version of the file with no base.
+            // It's possible there have been changes made by other clients in the meantime, but we do the best we
+            // can to produce a reasonable result.
+            return Ok(MaybeMergeResult::BaselessConflict { local, remote });
+        }
+        (Some(base), None, None) => {
+            // no changes
+            base
+        }
+        (Some(_base), None, Some(remote)) => {
+            // remote changes
+            remote
+        }
+        (Some(_base), Some(local), None) => {
+            // local changes
+            local
+        }
+        (Some(base), Some(local), Some(remote)) => {
+            // conflict
+            return Ok(MaybeMergeResult::Conflict { base, local, remote });
+        }
+    }))
 }
 
 fn merge_metadata(
-    base: DecryptedFileMetadata,
-    local: DecryptedFileMetadata,
-    remote: DecryptedFileMetadata,
+    base: DecryptedFileMetadata, local: DecryptedFileMetadata, remote: DecryptedFileMetadata,
 ) -> DecryptedFileMetadata {
     let local_renamed = local.decrypted_name != base.decrypted_name;
     let remote_renamed = remote.decrypted_name != base.decrypted_name;
@@ -219,37 +200,24 @@ fn merge_metadata(
 }
 
 fn merge_maybe_metadata(
-    maybe_base: Option<DecryptedFileMetadata>,
-    maybe_local: Option<DecryptedFileMetadata>,
+    maybe_base: Option<DecryptedFileMetadata>, maybe_local: Option<DecryptedFileMetadata>,
     maybe_remote: Option<DecryptedFileMetadata>,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     Ok(match merge_maybe(maybe_base, maybe_local, maybe_remote)? {
         MaybeMergeResult::Resolved(merged) => merged,
-        MaybeMergeResult::Conflict {
-            base,
-            local,
-            remote,
-        } => merge_metadata(base, local, remote),
-        MaybeMergeResult::BaselessConflict {
-            local: _local,
-            remote,
-        } => remote,
+        MaybeMergeResult::Conflict { base, local, remote } => merge_metadata(base, local, remote),
+        MaybeMergeResult::BaselessConflict { local: _local, remote } => remote,
     })
 }
 
 fn merge_maybe_documents(
-    merged_metadata: &DecryptedFileMetadata,
-    remote_metadata: &DecryptedFileMetadata,
+    merged_metadata: &DecryptedFileMetadata, remote_metadata: &DecryptedFileMetadata,
     maybe_base_document: Option<DecryptedDocument>,
-    maybe_local_document: Option<DecryptedDocument>,
-    remote_document: DecryptedDocument,
+    maybe_local_document: Option<DecryptedDocument>, remote_document: DecryptedDocument,
 ) -> Result<ResolvedDocument, CoreError> {
     Ok(
-        match merge_maybe(
-            maybe_base_document,
-            maybe_local_document,
-            Some(remote_document.clone()),
-        )? {
+        match merge_maybe(maybe_base_document, maybe_local_document, Some(remote_document.clone()))?
+        {
             MaybeMergeResult::Resolved(merged_document) => ResolvedDocument::Merged {
                 remote_metadata: remote_metadata.clone(),
                 remote_document,
@@ -292,7 +260,7 @@ fn merge_maybe_documents(
                         ResolvedDocument::Copied {
                             remote_metadata: remote_metadata.clone(),
                             remote_document,
-                            copied_local_metadata: copied_local_metadata,
+                            copied_local_metadata,
                             copied_local_document: local_document,
                         }
                     }
@@ -380,10 +348,7 @@ impl fmt::Debug for ResolvedDocument {
                 .field("remote_metadata", remote_metadata)
                 .field("remote_document", &String::from_utf8_lossy(remote_document))
                 .field("copied_local_metadata", copied_local_metadata)
-                .field(
-                    "copied_local_document",
-                    &String::from_utf8_lossy(copied_local_document),
-                )
+                .field("copied_local_document", &String::from_utf8_lossy(copied_local_document))
                 .finish(),
         }
     }
@@ -392,11 +357,8 @@ impl fmt::Debug for ResolvedDocument {
 /// Gets a resolved document based on merge of local, base, and remote. Some document types are 3-way merged; others
 /// have old contents copied to a new file. Remote document is returned so that caller can update base.
 fn get_resolved_document(
-    config: &Config,
-    account: &Account,
-    all_metadata_state: &[RepoState<DecryptedFileMetadata>],
-    remote_metadatum: &DecryptedFileMetadata,
-    merged_metadatum: &DecryptedFileMetadata,
+    config: &Config, account: &Account, all_metadata_state: &[RepoState<DecryptedFileMetadata>],
+    remote_metadatum: &DecryptedFileMetadata, merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<Option<ResolvedDocument>, CoreError> {
     let maybe_remote_document_encrypted = api_service::request(
         account,
@@ -407,12 +369,12 @@ fn get_resolved_document(
     )?
     .content;
     let maybe_remote_document = match maybe_remote_document_encrypted {
-        Some(remote_document_encrypted) => Some(file_compression_service::decompress(
-            &file_encryption_service::decrypt_document(
+        Some(remote_document_encrypted) => {
+            Some(file_compression_service::decompress(&file_encryption_service::decrypt_document(
                 &remote_document_encrypted,
                 remote_metadatum,
-            )?,
-        )?),
+            )?)?)
+        }
         None => None,
     };
 
@@ -471,8 +433,7 @@ fn get_resolved_document(
 }
 
 fn should_pull_document(
-    maybe_base: &Option<DecryptedFileMetadata>,
-    maybe_local: &Option<DecryptedFileMetadata>,
+    maybe_base: &Option<DecryptedFileMetadata>, maybe_local: &Option<DecryptedFileMetadata>,
     maybe_remote: &Option<DecryptedFileMetadata>,
 ) -> bool {
     if let Some(remote) = maybe_remote {
@@ -492,9 +453,7 @@ fn should_pull_document(
 
 /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
 fn pull<F>(
-    config: &Config,
-    account: &Account,
-    update_sync_progress: &mut F,
+    config: &Config, account: &Account, update_sync_progress: &mut F,
 ) -> Result<(), CoreError>
 where
     F: FnMut(SyncProgressOperation),
@@ -506,15 +465,11 @@ where
         .max()
         .unwrap_or(0);
 
-    update_sync_progress(SyncProgressOperation::StartWorkUnit(
-        ClientWorkUnit::PullMetadata,
-    ));
+    update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
 
     let remote_metadata_changes = api_service::request(
         account,
-        GetUpdatesRequest {
-            since_metadata_version: base_max_metadata_version,
-        },
+        GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
     )
     .map_err(CoreError::from)?
     .file_metadata;
@@ -540,9 +495,7 @@ where
             )
         })
         .count();
-    update_sync_progress(SyncProgressOperation::IncrementTotalWork(
-        num_documents_to_pull,
-    ));
+    update_sync_progress(SyncProgressOperation::IncrementTotalWork(num_documents_to_pull));
 
     let mut base_metadata_updates = Vec::new();
     let mut base_document_updates = Vec::new();
@@ -696,27 +649,18 @@ where
 
 /// Updates remote and base metadata to local.
 fn push_metadata<F>(
-    config: &Config,
-    account: &Account,
-    update_sync_progress: &mut F,
+    config: &Config, account: &Account, update_sync_progress: &mut F,
 ) -> Result<(), CoreError>
 where
     F: FnMut(SyncProgressOperation),
 {
-    update_sync_progress(SyncProgressOperation::StartWorkUnit(
-        ClientWorkUnit::PushMetadata,
-    ));
+    update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushMetadata));
 
     // update remote to local (metadata)
     let metadata_changes = file_service::get_all_metadata_changes(config)?;
     if !metadata_changes.is_empty() {
-        api_service::request(
-            account,
-            FileMetadataUpsertsRequest {
-                updates: metadata_changes,
-            },
-        )
-        .map_err(CoreError::from)?;
+        api_service::request(account, FileMetadataUpsertsRequest { updates: metadata_changes })
+            .map_err(CoreError::from)?;
     }
 
     // update base to local
@@ -727,9 +671,7 @@ where
 
 /// Updates remote and base files to local.
 fn push_documents<F>(
-    config: &Config,
-    account: &Account,
-    update_sync_progress: &mut F,
+    config: &Config, account: &Account, update_sync_progress: &mut F,
 ) -> Result<(), CoreError>
 where
     F: FnMut(SyncProgressOperation),
@@ -742,15 +684,15 @@ where
             &local_metadata,
         )?;
 
-        update_sync_progress(SyncProgressOperation::StartWorkUnit(
-            ClientWorkUnit::PushDocument(local_metadata.decrypted_name.clone()),
-        ));
+        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushDocument(
+            local_metadata.decrypted_name.clone(),
+        )));
 
         // update remote to local (document)
         local_metadata.content_version = api_service::request(
             account,
             ChangeDocumentContentRequest {
-                id: id,
+                id,
                 old_metadata_version: local_metadata.metadata_version,
                 new_content: encrypted_content,
             },
@@ -777,8 +719,7 @@ enum SyncProgressOperation {
 }
 
 pub fn sync(
-    config: &Config,
-    maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
+    config: &Config, maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
     info!("sync called");
     let mut sync_progress_total = 4 + file_service::get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
@@ -883,14 +824,7 @@ mod unit_tests {
 
         let result = sync_service::merge_maybe(base, local, remote).unwrap();
 
-        assert_eq!(
-            result,
-            MaybeMergeResult::Conflict {
-                base: 0,
-                local: 1,
-                remote: 2,
-            }
-        );
+        assert_eq!(result, MaybeMergeResult::Conflict { base: 0, local: 1, remote: 2 });
     }
 
     #[test]
@@ -901,13 +835,7 @@ mod unit_tests {
 
         let result = sync_service::merge_maybe(base, local, remote).unwrap();
 
-        assert_eq!(
-            result,
-            MaybeMergeResult::BaselessConflict {
-                local: 1,
-                remote: 2,
-            }
-        );
+        assert_eq!(result, MaybeMergeResult::BaselessConflict { local: 1, remote: 2 });
     }
 
     #[test]

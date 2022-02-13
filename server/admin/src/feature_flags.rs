@@ -3,8 +3,7 @@ use lockbook_server_lib::feature_flags::FEATURE_FLAG_NEW_ACCOUNTS_FIELD;
 use lockbook_server_lib::ServerState;
 
 pub async fn handle_feature_flag(
-    server_state: ServerState,
-    feature_flag: Option<FeatureFlag>,
+    server_state: ServerState, feature_flag: Option<FeatureFlag>,
 ) -> bool {
     let mut con = server_state.index_db_pool.get().await.unwrap();
 
