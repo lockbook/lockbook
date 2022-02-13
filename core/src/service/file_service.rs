@@ -38,22 +38,14 @@ pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), C
 }
 
 pub fn create_file(
-    config: &Config,
-    name: &str,
-    parent: Uuid,
-    file_type: FileType,
+    config: &Config, name: &str, parent: Uuid, file_type: FileType,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     info!("creating {:?} named {} inside {}", file_type, name, parent);
     let account = account_repo::get(config)?;
     file_service::get_not_deleted_metadata(config, RepoSource::Local, parent)?;
     let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
-    let metadata = files::apply_create(
-        &all_metadata,
-        file_type,
-        parent,
-        name,
-        &account.public_key(),
-    )?;
+    let metadata =
+        files::apply_create(&all_metadata, file_type, parent, name, &account.public_key())?;
     file_service::insert_metadatum(config, RepoSource::Local, &metadata)?;
     Ok(metadata)
 }
@@ -76,8 +68,7 @@ pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<DecryptedFileMetada
 }
 
 pub fn get_and_get_children_recursively(
-    config: &Config,
-    id: Uuid,
+    config: &Config, id: Uuid,
 ) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
     info!("get all children of file: {}", id);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
@@ -180,16 +171,13 @@ pub fn get_all_with_document_changes(config: &Config) -> Result<Vec<Uuid>, CoreE
 
 /// Adds or updates the metadata of a file on disk.
 pub fn insert_metadatum(
-    config: &Config,
-    source: RepoSource,
-    metadata: &DecryptedFileMetadata,
+    config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
 ) -> Result<(), CoreError> {
     insert_metadata(config, source, &[metadata.clone()])
 }
 
 pub fn insert_metadata_both_repos(
-    config: &Config,
-    base_metadata_changes: &[DecryptedFileMetadata],
+    config: &Config, base_metadata_changes: &[DecryptedFileMetadata],
     local_metadata_changes: &[DecryptedFileMetadata],
 ) -> Result<(), CoreError> {
     let base_metadata = get_all_metadata(config, RepoSource::Base)?;
@@ -209,9 +197,7 @@ pub fn insert_metadata_both_repos(
 }
 
 pub fn insert_metadata(
-    config: &Config,
-    source: RepoSource,
-    metadata_changes: &[DecryptedFileMetadata],
+    config: &Config, source: RepoSource, metadata_changes: &[DecryptedFileMetadata],
 ) -> Result<(), CoreError> {
     let all_metadata = get_all_metadata(config, source)?;
     insert_metadata_given_decrypted_metadata(config, source, &all_metadata, metadata_changes)
@@ -221,9 +207,7 @@ pub fn insert_metadata(
 /// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
 /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
 fn insert_metadata_given_decrypted_metadata(
-    config: &Config,
-    source: RepoSource,
-    all_metadata: &[DecryptedFileMetadata],
+    config: &Config, source: RepoSource, all_metadata: &[DecryptedFileMetadata],
     metadata_changes: &[DecryptedFileMetadata],
 ) -> Result<(), CoreError> {
     // encrypt metadata
@@ -284,9 +268,7 @@ fn insert_metadata_given_decrypted_metadata(
 }
 
 pub fn get_not_deleted_metadata(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
+    config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     info!("getting metadata of file: {}", id);
     maybe_get_not_deleted_metadata(config, source, id)
@@ -294,42 +276,34 @@ pub fn get_not_deleted_metadata(
 }
 
 pub fn maybe_get_not_deleted_metadata(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
+    config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
     let all_not_deleted_metadata = get_all_not_deleted_metadata(config, source)?;
     Ok(all_not_deleted_metadata.maybe_find(id))
 }
 
 pub fn get_metadata(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
+    config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     maybe_get_metadata(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_metadata(
-    config: &Config,
-    source: RepoSource,
-    id: Uuid,
+    config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
     let all_metadata = get_all_metadata(config, source)?;
     Ok(all_metadata.maybe_find(id))
 }
 
 pub fn get_all_not_deleted_metadata(
-    config: &Config,
-    source: RepoSource,
+    config: &Config, source: RepoSource,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     info!("getting all non-deleted metadatas");
     Ok(get_all_metadata(config, source)?.filter_not_deleted()?)
 }
 
 pub fn get_all_metadata(
-    config: &Config,
-    source: RepoSource,
+    config: &Config, source: RepoSource,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     let account = account_repo::get(config)?;
     let base = metadata_repo::get_all(config, RepoSource::Base)?;
@@ -348,15 +322,13 @@ pub fn get_all_metadata(
 }
 
 pub fn get_metadata_state(
-    config: &Config,
-    id: Uuid,
+    config: &Config, id: Uuid,
 ) -> Result<RepoState<DecryptedFileMetadata>, CoreError> {
     maybe_get_metadata_state(config, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_metadata_state(
-    config: &Config,
-    id: Uuid,
+    config: &Config, id: Uuid,
 ) -> Result<Option<RepoState<DecryptedFileMetadata>>, CoreError> {
     let all_metadata = get_all_metadata_state(config)?;
     Ok(maybe_find_state(&all_metadata, id))
@@ -391,19 +363,16 @@ pub fn get_all_metadata_state(
         .filter(|&b| !local.iter().any(|l| l.id == b.id))
         .map(|b| RepoState::Unmodified(b.clone()));
     let modified = base.iter().filter_map(|b| {
-        local.maybe_find(b.id).map(|l| RepoState::Modified {
-            base: b.clone(),
-            local: l,
-        })
+        local
+            .maybe_find(b.id)
+            .map(|l| RepoState::Modified { base: b.clone(), local: l })
     });
 
     Ok(new.chain(unmodified).chain(modified).collect())
 }
 
 pub fn get_all_metadata_with_encrypted_changes(
-    config: &Config,
-    source: RepoSource,
-    changes: &[EncryptedFileMetadata],
+    config: &Config, source: RepoSource, changes: &[EncryptedFileMetadata],
 ) -> Result<(Vec<DecryptedFileMetadata>, Vec<EncryptedFileMetadata>), CoreError> {
     let account = account_repo::get(config)?;
     let base = metadata_repo::get_all(config, RepoSource::Base)?;
@@ -445,10 +414,7 @@ pub fn get_all_metadata_with_encrypted_changes(
 /// Disk optimization opportunity: this function needlessly writes to disk when setting local content = base content.
 /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
 pub fn insert_document(
-    config: &Config,
-    source: RepoSource,
-    metadata: &DecryptedFileMetadata,
-    document: &[u8],
+    config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata, document: &[u8],
 ) -> Result<(), CoreError> {
     // check that document exists and is a document
     get_metadata(config, RepoSource::Local, metadata.id)?;
@@ -478,20 +444,14 @@ pub fn insert_document(
 }
 
 pub fn get_not_deleted_document(
-    config: &Config,
-    source: RepoSource,
-    metadata: &[DecryptedFileMetadata],
-    id: Uuid,
+    config: &Config, source: RepoSource, metadata: &[DecryptedFileMetadata], id: Uuid,
 ) -> Result<DecryptedDocument, CoreError> {
     maybe_get_not_deleted_document(config, source, metadata, id)
         .and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_not_deleted_document(
-    config: &Config,
-    source: RepoSource,
-    metadata: &[DecryptedFileMetadata],
-    id: Uuid,
+    config: &Config, source: RepoSource, metadata: &[DecryptedFileMetadata], id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
     if let Some(metadata) = metadata.filter_not_deleted()?.maybe_find(id) {
         maybe_get_document(config, source, &metadata)
@@ -501,17 +461,13 @@ pub fn maybe_get_not_deleted_document(
 }
 
 pub fn get_document(
-    config: &Config,
-    source: RepoSource,
-    metadata: &DecryptedFileMetadata,
+    config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
 ) -> Result<DecryptedDocument, CoreError> {
     maybe_get_document(config, source, metadata).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_document(
-    config: &Config,
-    source: RepoSource,
-    metadata: &DecryptedFileMetadata,
+    config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
     if metadata.file_type != FileType::Document {
         return Err(CoreError::FileNotDocument);
@@ -554,8 +510,7 @@ pub fn get_all_document_state(
 }
 
 pub fn maybe_get_document_state(
-    config: &Config,
-    metadata: &RepoState<DecryptedFileMetadata>,
+    config: &Config, metadata: &RepoState<DecryptedFileMetadata>,
 ) -> Result<Option<RepoState<DecryptedDocument>>, CoreError> {
     if metadata.clone().local().file_type != FileType::Document {
         return Err(CoreError::FileNotDocument);
@@ -625,11 +580,7 @@ pub fn promote_documents(config: &Config) -> Result<(), CoreError> {
             ))
         })
         .collect::<Result<
-            Vec<(
-                EncryptedFileMetadata,
-                Option<EncryptedDocument>,
-                Option<Vec<u8>>,
-            )>,
+            Vec<(EncryptedFileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>,
             CoreError,
         >>()?;
 
@@ -935,12 +886,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -959,12 +906,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
@@ -1009,12 +952,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1035,12 +974,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1063,12 +998,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1209,12 +1140,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let mut document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1261,12 +1188,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let mut document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1313,12 +1236,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let mut document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1360,12 +1279,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let mut root = files::create_root(&account);
         let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let mut document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1385,12 +1300,8 @@ mod unit_tests {
         root.decrypted_name = String::from("root 2");
         folder.deleted = true;
         document.parent = folder.id;
-        let document2 = files::create(
-            FileType::Document,
-            root.id,
-            "document 2",
-            &account.public_key(),
-        );
+        let document2 =
+            files::create(FileType::Document, root.id, "document 2", &account.public_key());
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &folder).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &document).unwrap();
@@ -1409,12 +1320,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1432,10 +1339,7 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 1);
-        assert_eq!(
-            file_service::get_all_with_document_changes(config).unwrap()[0],
-            document.id
-        );
+        assert_eq!(file_service::get_all_with_document_changes(config).unwrap()[0], document.id);
         assert_metadata_count!(config, RepoSource::Base, 2);
         assert_metadata_count!(config, RepoSource::Local, 2);
         assert_document_count!(config, RepoSource::Base, 0);
@@ -1447,12 +1351,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1474,10 +1374,7 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 1);
-        assert_eq!(
-            file_service::get_all_with_document_changes(config).unwrap()[0],
-            document.id
-        );
+        assert_eq!(file_service::get_all_with_document_changes(config).unwrap()[0], document.id);
         assert_metadata_count!(config, RepoSource::Base, 2);
         assert_metadata_count!(config, RepoSource::Local, 2);
         assert_document_count!(config, RepoSource::Base, 0);
@@ -1489,12 +1386,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1514,10 +1407,7 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 1);
-        assert_eq!(
-            file_service::get_all_with_document_changes(config).unwrap()[0],
-            document.id
-        );
+        assert_eq!(file_service::get_all_with_document_changes(config).unwrap()[0], document.id);
         assert_metadata_count!(config, RepoSource::Base, 2);
         assert_metadata_count!(config, RepoSource::Local, 2);
         assert_document_count!(config, RepoSource::Base, 1);
@@ -1539,12 +1429,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1564,10 +1450,7 @@ mod unit_tests {
 
         assert_metadata_changes_count!(config, 0);
         assert_document_changes_count!(config, 1);
-        assert_eq!(
-            file_service::get_all_with_document_changes(config).unwrap()[0],
-            document.id
-        );
+        assert_eq!(file_service::get_all_with_document_changes(config).unwrap()[0], document.id);
         assert_metadata_count!(config, RepoSource::Base, 2);
         assert_metadata_count!(config, RepoSource::Local, 2);
         assert_document_count!(config, RepoSource::Base, 1);
@@ -1590,18 +1473,10 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let mut root = files::create_root(&account);
         let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let mut document = files::create(
-            FileType::Document,
-            folder.id,
-            "document",
-            &account.public_key(),
-        );
-        let document2 = files::create(
-            FileType::Document,
-            folder.id,
-            "document 2",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, folder.id, "document", &account.public_key());
+        let document2 =
+            files::create(FileType::Document, folder.id, "document 2", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1623,12 +1498,8 @@ mod unit_tests {
         root.decrypted_name = String::from("root 2");
         folder.deleted = true;
         document.parent = root.id;
-        let document3 = files::create(
-            FileType::Document,
-            root.id,
-            "document 3",
-            &account.public_key(),
-        );
+        let document3 =
+            files::create(FileType::Document, root.id, "document 3", &account.public_key());
         file_service::insert_metadatum(config, RepoSource::Local, &root).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &folder).unwrap();
         file_service::insert_metadatum(config, RepoSource::Local, &document).unwrap();
@@ -1669,12 +1540,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let mut document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1707,12 +1574,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let mut document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1750,12 +1613,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let document = files::create(
-            FileType::Document,
-            folder.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, folder.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1794,12 +1653,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let mut document = files::create(
-            FileType::Document,
-            folder.id,
-            "document",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, folder.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1840,12 +1695,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let mut document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let mut document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1882,12 +1733,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1923,12 +1770,8 @@ mod unit_tests {
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
         let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let document = files::create(
-            FileType::Document,
-            folder.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, folder.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -1998,12 +1841,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();
@@ -2042,12 +1881,8 @@ mod unit_tests {
         let config = &temp_config();
         let account = test_utils::generate_account();
         let root = files::create_root(&account);
-        let document = files::create(
-            FileType::Document,
-            root.id,
-            "document",
-            &account.public_key(),
-        );
+        let document =
+            files::create(FileType::Document, root.id, "document", &account.public_key());
 
         account_repo::insert(config, &account).unwrap();
         file_service::insert_metadatum(config, RepoSource::Base, &root).unwrap();

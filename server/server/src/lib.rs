@@ -101,8 +101,7 @@ pub fn verify_client_version<Req: Request>(
 }
 
 pub fn verify_auth<TRequest: Request + Serialize>(
-    server_state: &ServerState,
-    request: &RequestWrapper<TRequest>,
+    server_state: &ServerState, request: &RequestWrapper<TRequest>,
 ) -> Result<(), ECVerifyError> {
     pubkey::verify(
         &request.signed_request.public_key,

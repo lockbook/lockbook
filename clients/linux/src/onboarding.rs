@@ -32,13 +32,7 @@ impl Screen {
         cntr.add(&Self::sep());
         cntr.add(&bottom);
 
-        Self {
-            create,
-            import,
-            status,
-            bottom,
-            cntr,
-        }
+        Self { create, import, status, bottom, cntr }
     }
 
     fn top() -> gtk::Box {
@@ -47,9 +41,7 @@ impl Screen {
 
         let cntr = gtk::Box::new(Horizontal, 32);
         cntr.set_halign(gtk::Align::Center);
-        cntr.add(&gtk::Image::from_pixbuf(Some(
-            &GdkPixbuf::from_inline(LOGO, false).unwrap(),
-        )));
+        cntr.add(&gtk::Image::from_pixbuf(Some(&GdkPixbuf::from_inline(LOGO, false).unwrap())));
         cntr.add(&heading);
         cntr
     }
@@ -162,12 +154,7 @@ impl OnboardingStatus {
         });
         cntr.add(&status);
 
-        Self {
-            spinner,
-            caption,
-            status,
-            cntr,
-        }
+        Self { spinner, caption, status, cntr }
     }
 
     fn start(&self, txt: &str) {

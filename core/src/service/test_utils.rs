@@ -93,9 +93,7 @@ pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_path
 }
 
 pub fn assert_all_document_contents(
-    db: &Config,
-    root: &DecryptedFileMetadata,
-    expected_contents_by_path: &[(&str, &[u8])],
+    db: &Config, root: &DecryptedFileMetadata, expected_contents_by_path: &[(&str, &[u8])],
 ) {
     let expected_contents_by_path = expected_contents_by_path
         .iter()
@@ -202,9 +200,7 @@ pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
 }
 
 pub fn test_config() -> Config {
-    Config {
-        writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-    }
+    Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()) }
 }
 
 pub fn random_username() -> String {
@@ -230,11 +226,7 @@ pub fn url() -> String {
 }
 
 pub fn generate_account() -> Account {
-    Account {
-        username: random_username(),
-        api_url: url(),
-        private_key: pubkey::generate_key(),
-    }
+    Account { username: random_username(), api_url: url(), private_key: pubkey::generate_key() }
 }
 
 pub fn generate_root_metadata(account: &Account) -> (EncryptedFileMetadata, AESKey) {
@@ -271,10 +263,7 @@ pub fn generate_root_metadata(account: &Account) -> (EncryptedFileMetadata, AESK
 }
 
 pub fn generate_file_metadata(
-    account: &Account,
-    parent: &EncryptedFileMetadata,
-    parent_key: &AESKey,
-    file_type: FileType,
+    account: &Account, parent: &EncryptedFileMetadata, parent_key: &AESKey, file_type: FileType,
 ) -> (EncryptedFileMetadata, AESKey) {
     let id = Uuid::new_v4();
     let file_key = symkey::generate_key();
@@ -296,34 +285,23 @@ pub fn generate_file_metadata(
 }
 
 pub fn aes_encrypt<T: Serialize + DeserializeOwned>(
-    key: &AESKey,
-    to_encrypt: &T,
+    key: &AESKey, to_encrypt: &T,
 ) -> AESEncrypted<T> {
     symkey::encrypt(key, to_encrypt).unwrap()
 }
 
 pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
-    key: &AESKey,
-    to_decrypt: &AESEncrypted<T>,
+    key: &AESKey, to_decrypt: &AESEncrypted<T>,
 ) -> T {
     symkey::decrypt(key, to_decrypt).unwrap()
 }
 
 pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
-    assert_eq!(
-        account_repo::get(db1).unwrap(),
-        account_repo::get(db2).unwrap()
-    );
+    assert_eq!(account_repo::get(db1).unwrap(), account_repo::get(db2).unwrap());
 
-    assert_eq!(
-        db_version_repo::maybe_get(db1).unwrap(),
-        db_version_repo::maybe_get(db2).unwrap()
-    );
+    assert_eq!(db_version_repo::maybe_get(db1).unwrap(), db_version_repo::maybe_get(db2).unwrap());
 
-    assert_eq!(
-        root_repo::maybe_get(db1).unwrap(),
-        root_repo::maybe_get(db2).unwrap()
-    );
+    assert_eq!(root_repo::maybe_get(db1).unwrap(), root_repo::maybe_get(db2).unwrap());
 
     assert_eq!(
         file_service::get_all_metadata_state(db1).unwrap(),
@@ -394,10 +372,7 @@ mod unit_tests {
 
     #[test]
     fn slices_equal_ignore_order_distinct() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 69420],
-            &[69420, 69, 420]
-        ));
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69420, 69, 420]));
     }
 
     #[test]
@@ -410,33 +385,21 @@ mod unit_tests {
 
     #[test]
     fn slices_equal_ignore_order_distinct_subset() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 69420],
-            &[69, 420]
-        ));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69, 420]));
     }
 
     #[test]
     fn slices_equal_ignore_order_repeats() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 420],
-            &[420, 69, 420]
-        ));
+        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 420]));
     }
 
     #[test]
     fn slices_equal_ignore_order_different_repeats() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 420],
-            &[420, 69, 69]
-        ));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 69]));
     }
 
     #[test]
     fn slices_equal_ignore_order_repeats_subset() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 420],
-            &[420, 69]
-        ));
+        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69]));
     }
 }

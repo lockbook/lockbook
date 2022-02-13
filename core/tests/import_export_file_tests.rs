@@ -17,12 +17,7 @@ mod import_export_file_tests {
         // new account
         let config = temp_config();
         let generated_account = generate_account();
-        create_account(
-            &config,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        create_account(&config, &generated_account.username, &generated_account.api_url).unwrap();
         let tmp = tempfile::tempdir().unwrap();
         let tmp_path = tmp.path().to_path_buf();
 
@@ -69,12 +64,7 @@ mod import_export_file_tests {
         let config = temp_config();
         let generated_account = generate_account();
 
-        create_account(
-            &config,
-            &generated_account.username,
-            &generated_account.api_url,
-        )
-        .unwrap();
+        create_account(&config, &generated_account.username, &generated_account.api_url).unwrap();
         let root = get_root(&config).unwrap();
 
         let tmp = tempfile::tempdir().unwrap();
