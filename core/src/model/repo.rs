@@ -32,10 +32,7 @@ impl<T> RepoState<T> {
     pub fn base(self) -> Option<T> {
         match self {
             RepoState::New(_) => None,
-            RepoState::Modified {
-                local: _,
-                base: remote,
-            } => Some(remote),
+            RepoState::Modified { local: _, base: remote } => Some(remote),
             RepoState::Unmodified(f) => Some(f),
         }
     }

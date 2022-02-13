@@ -13,13 +13,7 @@ pub struct Drawing {
 
 impl Default for Drawing {
     fn default() -> Self {
-        Drawing {
-            scale: 0.0,
-            translation_x: 0.0,
-            translation_y: 0.0,
-            strokes: vec![],
-            theme: None,
-        }
+        Drawing { scale: 0.0, translation_x: 0.0, translation_y: 0.0, strokes: vec![], theme: None }
     }
 }
 

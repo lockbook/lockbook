@@ -129,22 +129,15 @@ pub async fn get_all_public_keys(
 }
 
 pub async fn get_owned(
-    con: &mut deadpool_redis::Connection,
-    public_key: &PublicKey,
+    con: &mut deadpool_redis::Connection, public_key: &PublicKey,
 ) -> Result<Vec<Uuid>, ServerError<MetricsError>> {
     con.maybe_json_get(keys::owned_files(public_key))
         .await?
-        .ok_or_else(|| {
-            internal!(
-                "Cannot retrieve owned_files for public_key: {:?}",
-                public_key
-            )
-        })
+        .ok_or_else(|| internal!("Cannot retrieve owned_files for public_key: {:?}", public_key))
 }
 
 pub async fn get_metadatas(
-    con: &mut deadpool_redis::Connection,
-    ids: &[Uuid],
+    con: &mut deadpool_redis::Connection, ids: &[Uuid],
 ) -> Result<Vec<EncryptedFileMetadata>, ServerError<MetricsError>> {
     let mut metadatas = vec![];
 
@@ -161,8 +154,7 @@ pub async fn get_metadatas(
 }
 
 pub async fn calculate_total_document_bytes(
-    con: &mut deadpool_redis::Connection,
-    metadatas: &[EncryptedFileMetadata],
+    con: &mut deadpool_redis::Connection, metadatas: &[EncryptedFileMetadata],
 ) -> Result<i64, ServerError<MetricsError>> {
     let mut total_size: u64 = 0;
 
