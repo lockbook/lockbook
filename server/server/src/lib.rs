@@ -7,20 +7,18 @@ use std::env;
 use std::fmt::Debug;
 
 use crate::billing::stripe_client::SimplifiedStripeError;
-use crate::ServerError::{ClientError, InternalError};
+use crate::ServerError::ClientError;
 use libsecp256k1::PublicKey;
-use log::error;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
-use lockbook_models::api::{CardDeclineReason, CreditCardRejectReason, ErrorWrapper, Request, RequestWrapper, SwitchAccountTierError};
+use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper, SwitchAccountTierError};
 use redis_utils::converters::JsonGetError;
 
 use crate::content::file_content_client;
 use serde::{Deserialize, Serialize};
-use stripe::{ErrorCode, StripeError, WebhookError};
+use stripe::WebhookError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_model::{StripeKnownErrorDeclineCode, StripeMaybeContainer};
-use crate::SimplifiedStripeError::{CardDeclined, InvalidCreditCard, Other};
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 

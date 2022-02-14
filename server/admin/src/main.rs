@@ -3,7 +3,6 @@ mod delete_account;
 use crate::delete_account::delete_account;
 use crate::Subcommands::DeleteAccount;
 use deadpool_redis::Pool;
-use reqwest::Client;
 
 use deadpool_redis::Runtime;
 use lockbook_server_lib::config::Config;

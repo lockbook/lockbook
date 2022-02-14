@@ -3,12 +3,8 @@ use crate::billing::stripe_client::SimplifiedStripeError::{CardDeclined, Invalid
 use crate::{ServerState, StripeKnownErrorDeclineCode, StripeMaybeContainer};
 use lockbook_models::api::{CardDeclineReason, CreditCardRejectReason};
 use log::error;
-use reqwest::Method;
-use serde::de::DeserializeOwned;
-use std::collections::HashMap;
 use std::fmt::Debug;
-use std::str::FromStr;
-use stripe::{CardDetailsParams, ErrorCode, Expandable, Invoice, InvoiceStatus, ParseIdError, PaymentIntent, PaymentIntentStatus, PaymentMethod, PaymentMethodId, SetupIntentStatus, StripeError, SubscriptionStatus};
+use stripe::{CardDetailsParams, ErrorCode, Expandable, ParseIdError, PaymentIntentStatus, PaymentMethod, PaymentMethodId, SetupIntentStatus, StripeError, SubscriptionStatus};
 
 #[derive(Debug)]
 pub enum SimplifiedStripeError {
@@ -20,7 +16,7 @@ pub enum SimplifiedStripeError {
 impl From<StripeError> for SimplifiedStripeError {
     fn from(e: StripeError) -> Self {
         match e {
-            StripeError::Stripe(stripe_error) => simplify_stripe_error(stripe_error.code, stripe_error.decline_code)?,
+            StripeError::Stripe(stripe_error) => simplify_stripe_error(stripe_error.code, stripe_error.decline_code),
             _ => SimplifiedStripeError::Other(format!("Unexpected stripe error was encountered: {:?}", e))
         }
     }
@@ -42,11 +38,11 @@ fn simplify_stripe_error(error_code: Option<stripe::ErrorCode>, maybe_decline_co
             ErrorCode::CardDeclined => match maybe_decline_code {
                 None => CardDeclined(CardDeclineReason::Generic),
                 Some(decline_code) => match serde_json::from_slice::<StripeMaybeContainer<StripeKnownErrorDeclineCode, String>>(decline_code.as_bytes()).map_err(|e| SimplifiedStripeError::Other(format!("An error was encountered while serializing decline code: {:?}", e))) {
-                    StripeMaybeContainer::Unexpected(unknown_decline_code) => {
+                    Ok(StripeMaybeContainer::Unexpected(unknown_decline_code)) => {
                         error!("Unknown decline code given from stripe: {}", unknown_decline_code);
                         CardDeclined(CardDeclineReason::Generic)
                     }
-                    StripeMaybeContainer::Expected(decline_code) => match decline_code {
+                    Ok(StripeMaybeContainer::Expected(decline_code)) => match decline_code {
                         // Try again
                         StripeKnownErrorDeclineCode::ApproveWithId
                         | StripeKnownErrorDeclineCode::IssuerNotAvailable
@@ -123,10 +119,11 @@ fn simplify_stripe_error(error_code: Option<stripe::ErrorCode>, maybe_decline_co
                             CardDeclined(CardDeclineReason::IncorrectExpiryYear)
                         }
                     }
+                    Err(e) => e,
                 }
             }
             ErrorCode::ExpiredCard => CardDeclined(CardDeclineReason::ExpiredCard),
-            ErrorCode::InvalidCardType => {}
+            ErrorCode::InvalidCardType => CardDeclined(CardDeclineReason::NotSupported),
             ErrorCode::InvalidCvc | ErrorCode::IncorrectCvc => InvalidCreditCard(CreditCardRejectReason::CVC),
             ErrorCode::InvalidExpiryMonth => InvalidCreditCard(CreditCardRejectReason::ExpMonth),
             ErrorCode::InvalidExpiryYear => InvalidCreditCard(CreditCardRejectReason::ExpYear),
@@ -190,7 +187,7 @@ pub async fn create_setup_intent(
     match intent_resp.status {
         SetupIntentStatus::Succeeded => Ok(intent_resp),
         _ => {
-            Other(format!("Unexpected intent response status: {:?}", intent_resp.status))
+            Err(Other(format!("Unexpected intent response status: {:?}", intent_resp.status)))
         }
     }
 }

@@ -1,8 +1,7 @@
 use crate::account_service::GetFileUsageError;
 use crate::billing::stripe_client;
 use crate::billing::stripe_model::{
-    StripeBillingReason, StripeEventType, StripeMaybeContainer, StripeObjectType,
-    StripePaymentInfo, StripeSubscriptionInfo, StripeUserInfo, StripeWebhookResponse,
+    StripePaymentInfo, StripeSubscriptionInfo, StripeUserInfo,
 };
 use crate::keys::{
     data_cap, public_key_from_stripe_customer_id, stripe_in_billing_workflow, stripe_user_info,
@@ -13,7 +12,7 @@ use crate::{
     FREE_TIER_USAGE_SIZE, MONTHLY_TIER_USAGE_SIZE,
 };
 use deadpool_redis::redis::AsyncCommands;
-use hmac::{Hmac, Mac};
+use hmac::Mac;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::{
     AccountTier, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, PaymentMethod,
@@ -21,12 +20,11 @@ use lockbook_models::api::{
 };
 use redis_utils::converters::{JsonGet, JsonSet};
 use redis_utils::tx;
-use sha2::Sha256;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
-use stripe::{CardDetailsParams, Customer, EventObject, Expandable, Object, Subscription};
+use stripe::{Expandable, Object};
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
@@ -84,7 +82,7 @@ pub async fn switch_account_tier(
                     user_info.subscriptions.as_slice(),
                 )?;
 
-            stripe_client::delete_subscription(&server_state.stripe_client, &stripe::SubscriptionId::from_str(&active_subscription.id)?);
+            stripe_client::delete_subscription(&server_state.stripe_client, &stripe::SubscriptionId::from_str(&active_subscription.id)?).await?;
 
             user_info.subscriptions[active_pos].is_active = false;
 
@@ -191,10 +189,10 @@ async fn create_subscription(
                 .iter()
                 .max_by_key(|info| info.created_at)
             {
-                stripe_client::detach_payment_method_from_customer(&server_state.stripe_client, &&stripe::PaymentMethodId::from_str(&info.id)?);
+                stripe_client::detach_payment_method_from_customer(&server_state.stripe_client, &&stripe::PaymentMethodId::from_str(&info.id)?).await?;
             }
 
-            stripe_client::create_setup_intent(&server_state.stripe_client, customer_id.clone(), payment_method_resp.id());
+            stripe_client::create_setup_intent(&server_state.stripe_client, customer_id.clone(), payment_method_resp.id()).await?;
 
             let last_4 = payment_method_resp.card.as_ref().ok_or_else(|| internal!("Cannot retrieve card info from payment method response: {:?}", payment_method_resp))?.last4.clone();
 
@@ -298,7 +296,7 @@ pub async fn stripe_webhooks(
                         customer_id
                     ))?;
 
-                let mut user_info: StripeUserInfo = con
+                let user_info: StripeUserInfo = con
                     .maybe_json_get(stripe_user_info(&public_key))
                     .await?
                     .ok_or(internal!(
@@ -307,12 +305,6 @@ pub async fn stripe_webhooks(
                     ))?;
 
                 con.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).await?;
-
-                let active_pos = user_info
-                    .subscriptions
-                    .iter()
-                    .position(|info| info.is_active)
-                    .ok_or(internal!("Redis says there is no active subscription despite the user having non free data cap: {:?}", user_info))?;
 
                 let tx_result = tx!(
                     &mut con,
