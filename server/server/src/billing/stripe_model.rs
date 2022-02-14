@@ -214,12 +214,9 @@ pub enum StripeObjectType {
     Unmatched(serde_json::Value),
 }
 
-// These structs are stored on redis
-pub const UNSET_CUSTOMER_ID: &str = "not_st";
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StripeUserInfo {
-    pub customer_id: String,
+    pub customer_id: Option<String>,
     pub payment_methods: Vec<StripePaymentInfo>,
     pub subscriptions: Vec<StripeSubscriptionInfo>,
 }
@@ -227,7 +224,7 @@ pub struct StripeUserInfo {
 impl Default for StripeUserInfo {
     fn default() -> Self {
         StripeUserInfo {
-            customer_id: UNSET_CUSTOMER_ID.to_string(),
+            customer_id: None,
             payment_methods: vec![],
             subscriptions: vec![],
         }

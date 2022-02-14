@@ -29,10 +29,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .create_pool(Some(Runtime::Tokio1))
         .unwrap();
 
+    let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
+
     let server_state = Arc::new(ServerState {
         config: config.clone(),
         index_db_pool,
-        stripe_client: Client::new(),
+        stripe_client,
         files_db_client,
     });
 

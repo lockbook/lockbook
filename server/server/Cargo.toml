@@ -40,6 +40,7 @@ reqwest = "0.11.7"
 hmac = "0.12.0"
 sha2 = "0.10.1"
 hex = "0.4.3"
+async-stripe = { git = "https://github.com/arlyon/async-stripe", default-features = true, features = ["runtime-tokio-hyper-rustls"] }
 
 [build-dependencies]
 shadow-rs = "0.6.2"

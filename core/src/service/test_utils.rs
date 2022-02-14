@@ -177,7 +177,7 @@ pub mod test_credit_cards {
 
 pub mod test_card_info {
     pub const GENERIC_CVC: &str = "314";
-    pub const GENERIC_EXP_MONTH: &str = "8";
+    pub const GENERIC_EXP_MONTH: i32 = 8;
 }
 
 #[macro_export]
@@ -368,27 +368,26 @@ pub fn dbs_equal(db1: &Config, db2: &Config) -> bool {
             == file_service::get_all_document_state(db2).unwrap()
 }
 
-pub fn get_next_year() -> String {
-    (chrono::Utc::now().year() + 1).to_string()
+pub fn get_next_year() -> i32 {
+    chrono::Utc::now().year() + 1
 }
 
 pub fn generate_monthly_account_tier(
     card_number: &str,
-    maybe_exp_year: Option<&str>,
-    maybe_exp_month: Option<&str>,
+    maybe_exp_year: Option<&i32>,
+    maybe_exp_month: Option<&i32>,
     maybe_cvc: Option<&str>,
 ) -> AccountTier {
     AccountTier::Monthly(PaymentMethod::NewCard {
         number: card_number.to_string(),
         exp_year: match maybe_exp_year {
             None => get_next_year(),
-            Some(exp_year) => exp_year.to_string(),
+            Some(exp_year) => *exp_year,
         },
         exp_month: match maybe_exp_month {
             None => test_card_info::GENERIC_EXP_MONTH,
-            Some(exp_month) => exp_month,
-        }
-        .to_string(),
+            Some(exp_month) => *exp_month,
+        },
         cvc: match maybe_cvc {
             None => test_card_info::GENERIC_CVC,
             Some(cvc) => cvc,

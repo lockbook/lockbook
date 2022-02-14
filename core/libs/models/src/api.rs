@@ -297,8 +297,8 @@ impl Request for GetCreditCardRequest {
 pub enum PaymentMethod {
     NewCard {
         number: String,
-        exp_year: String,
-        exp_month: String,
+        exp_year: i32,
+        exp_month: i32,
         cvc: String,
     },
     OldCard,
