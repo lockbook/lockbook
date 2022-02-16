@@ -4,17 +4,37 @@ import SwiftUI
 struct EditorView: NSViewRepresentable {
     
     @EnvironmentObject var model: DocumentLoader
+    let storage = Storage()
     
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
-        let textView = NSTextView()
+
+        let layoutManager = NSLayoutManager()
+        storage.addLayoutManager(layoutManager)
+
+        let textContainer = NSTextContainer(containerSize: scrollView.frame.size)
+        textContainer.widthTracksTextView = true
+        textContainer.containerSize = NSSize(
+            width: scrollView.contentSize.width,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        layoutManager.addTextContainer(textContainer)
         
+        let textView = NSTextView(frame: .zero, textContainer: textContainer)
         textView.autoresizingMask = .width
+        textView.backgroundColor = NSColor.textBackgroundColor
+        textView.drawsBackground = true
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.minSize = NSSize(width: 0, height: scrollView.contentSize.height)
+        textView.textColor = NSColor.labelColor
         textView.delegate = context.coordinator
         textView.string = model.textDocument!
         textView.allowsUndo = true
         
         scrollView.documentView = textView
+        scrollView.hasVerticalScroller = true
         return scrollView
     }
     
