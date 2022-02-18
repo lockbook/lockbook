@@ -15,28 +15,19 @@ use crate::service::{api_service, file_encryption_service, file_service};
 use crate::CoreError;
 
 pub fn create_account(
-    config: &Config,
-    username: &str,
-    api_url: &str,
+    config: &Config, username: &str, api_url: &str,
 ) -> Result<Account, CoreError> {
     let username = String::from(username).to_lowercase();
-    info!(
-        "creating with username {} against server {}",
-        username, api_url
-    );
+    info!("creating with username {} against server {}", username, api_url);
     if account_repo::maybe_get(config)?.is_some() {
         return Err(CoreError::AccountExists);
     }
 
     let keys = pubkey::generate_key();
 
-    let account = Account {
-        username,
-        api_url: api_url.to_string(),
-        private_key: keys,
-    };
+    let account = Account { username, api_url: api_url.to_string(), private_key: keys };
 
-    let mut root_metadata = files::create_root(&account.username);
+    let mut root_metadata = files::create_root(&account);
     let encrypted_metadata =
         file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?;
     let encrypted_metadatum = files::single_or(
@@ -63,15 +54,15 @@ pub fn create_account(
         Err(ApiError::Endpoint(NewAccountError::InvalidUsername)) => {
             return Err(CoreError::UsernameInvalid);
         }
+        Err(ApiError::Endpoint(NewAccountError::Disabled)) => {
+            return Err(CoreError::ServerDisabled);
+        }
         Err(e) => {
             return Err(core_err_unexpected(e));
         }
     };
 
-    debug!(
-        "{}",
-        serde_json::to_string(&account).map_err(core_err_unexpected)?
-    );
+    debug!("{}", serde_json::to_string(&account).map_err(core_err_unexpected)?);
 
     account_repo::insert(config, &account)?;
     file_service::insert_metadatum(config, RepoSource::Base, &root_metadata)?;
@@ -106,12 +97,9 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
         }
     };
     debug!("key was valid bincode");
-
     let server_public_key = match api_service::request(
         &account,
-        GetPublicKeyRequest {
-            username: account.username.clone(),
-        },
+        GetPublicKeyRequest { username: account.username.clone() },
     ) {
         Ok(response) => response.key,
         Err(ApiError::SendFailed(_)) => {

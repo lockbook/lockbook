@@ -39,11 +39,7 @@ mod unit_tests {
         local_storage::write(&config, "files", "c.txt", data).unwrap();
 
         assert_eq!(
-            vec![
-                data.as_bytes().to_vec(),
-                data.as_bytes().to_vec(),
-                data.as_bytes().to_vec()
-            ],
+            vec![data.as_bytes().to_vec(), data.as_bytes().to_vec(), data.as_bytes().to_vec()],
             local_storage::dump::<_, Vec<u8>>(&config, "files").unwrap()
         )
     }

@@ -10,32 +10,28 @@ use lockbook_models::api::{
 pub type CreditCardLast4Digits = String;
 
 pub fn switch_account_tier(
-    config: &Config,
-    new_account_tier: AccountTier,
+    config: &Config, new_account_tier: AccountTier,
 ) -> Result<(), CoreError> {
     let account = account_repo::get(config)?;
 
-    api_service::request(
-        &account,
-        SwitchAccountTierRequest {
-            account_tier: new_account_tier,
-        },
-    )
-    .map_err(|e| match e {
-        ApiError::Endpoint(SwitchAccountTierError::OldCardDoesNotExist) => {
-            CoreError::OldCardDoesNotExist
-        }
-        ApiError::Endpoint(SwitchAccountTierError::NewTierIsOldTier) => CoreError::NewTierIsOldTier,
-        ApiError::Endpoint(SwitchAccountTierError::InvalidCreditCard(field)) => {
-            CoreError::InvalidCreditCard(field)
-        }
-        ApiError::Endpoint(SwitchAccountTierError::CardDeclined(decline_type)) => {
-            CoreError::CardDecline(decline_type)
-        }
-        ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-        ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-        _ => core_err_unexpected(e),
-    })?;
+    api_service::request(&account, SwitchAccountTierRequest { account_tier: new_account_tier })
+        .map_err(|e| match e {
+            ApiError::Endpoint(SwitchAccountTierError::OldCardDoesNotExist) => {
+                CoreError::OldCardDoesNotExist
+            }
+            ApiError::Endpoint(SwitchAccountTierError::NewTierIsOldTier) => {
+                CoreError::NewTierIsOldTier
+            }
+            ApiError::Endpoint(SwitchAccountTierError::InvalidCreditCard(field)) => {
+                CoreError::InvalidCreditCard(field)
+            }
+            ApiError::Endpoint(SwitchAccountTierError::CardDeclined(decline_type)) => {
+                CoreError::CardDecline(decline_type)
+            }
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            _ => core_err_unexpected(e),
+        })?;
 
     Ok(())
 }

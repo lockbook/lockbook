@@ -20,7 +20,7 @@ use warp::{reject, Filter, Rejection};
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
         "lockbook_server_request_duration_seconds",
-        "The lockbook server's HTTP requests duration in seconds.",
+        "Lockbook server's HTTP request duration in seconds.",
         &["request"]
     )
     .unwrap();
@@ -43,7 +43,6 @@ macro_rules! core_req {
             .and(warp::body::bytes())
             .then(|state: Arc<ServerState>, request: Bytes| async move {
                 let state = state.as_ref();
-
                 let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
                     .with_label_values(&[<$Req>::ROUTE])
                     .start_timer();
@@ -80,40 +79,16 @@ pub fn core_routes(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     core_req!(NewAccountRequest, new_account, server_state)
-        .or(core_req!(
-            ChangeDocumentContentRequest,
-            change_document_content,
-            server_state
-        ))
-        .or(core_req!(
-            FileMetadataUpsertsRequest,
-            upsert_file_metadata,
-            server_state
-        ))
-        .or(core_req!(
-            ChangeDocumentContentRequest,
-            change_document_content,
-            server_state
-        ))
+        .or(core_req!(ChangeDocumentContentRequest, change_document_content, server_state))
+        .or(core_req!(FileMetadataUpsertsRequest, upsert_file_metadata, server_state))
+        .or(core_req!(ChangeDocumentContentRequest, change_document_content, server_state))
         .or(core_req!(GetDocumentRequest, get_document, server_state))
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
-        .or(core_req!(
-            DeleteAccountRequest,
-            delete_account,
-            server_state
-        ))
-        .or(core_req!(
-            GetCreditCardRequest,
-            get_credit_card,
-            server_state
-        ))
-        .or(core_req!(
-            SwitchAccountTierRequest,
-            switch_account_tier,
-            server_state
-        ))
+        .or(core_req!(DeleteAccountRequest, delete_account, server_state))
+        .or(core_req!(GetCreditCardRequest, get_credit_card, server_state))
+        .or(core_req!(SwitchAccountTierRequest, switch_account_tier, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
@@ -152,27 +127,25 @@ pub fn stripe_webhooks(
         .and(warp::any().map(move || Arc::clone(&cloned_state)))
         .and(warp::body::bytes())
         .and(warp::header::header("Stripe-Signature"))
-        .then(
-            |state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
-                match billing_service::stripe_webhooks(&state, request, stripe_sig).await {
-                    Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
-                    Err(e) => {
-                        let status_code = match e {
-                            ServerError::ClientError(StripeWebhookError::VerificationError(_))
-                            | ServerError::ClientError(StripeWebhookError::InvalidBody(_))
-                            | ServerError::ClientError(StripeWebhookError::InvalidHeader(_))
-                            | ServerError::ClientError(StripeWebhookError::ParseError(_)) => {
-                                error!("{:?}", e);
-                                StatusCode::BAD_REQUEST
-                            }
-                            ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-                        };
+        .then(|state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
+            match billing_service::stripe_webhooks(&state, request, stripe_sig).await {
+                Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
+                Err(e) => {
+                    let status_code = match e {
+                        ServerError::ClientError(StripeWebhookError::VerificationError(_))
+                        | ServerError::ClientError(StripeWebhookError::InvalidBody(_))
+                        | ServerError::ClientError(StripeWebhookError::InvalidHeader(_))
+                        | ServerError::ClientError(StripeWebhookError::ParseError(_)) => {
+                            error!("{:?}", e);
+                            StatusCode::BAD_REQUEST
+                        }
+                        ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    };
 
-                        warp::reply::with_status("".to_string(), status_code)
-                    }
+                    warp::reply::with_status("".to_string(), status_code)
                 }
-            },
-        )
+            }
+        })
 }
 
 pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {
@@ -189,8 +162,7 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
 }
 
 pub fn deserialize_and_check<Req>(
-    server_state: &ServerState,
-    request: Bytes,
+    server_state: &ServerState, request: Bytes,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
     Req: Request,

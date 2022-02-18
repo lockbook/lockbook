@@ -19,11 +19,7 @@ mod load_tests {
 
         let counter = Arc::new(RelaxedCounter::new(0));
         let duration = time::Duration::from_secs(60);
-        println!(
-            "Spawning {} threads and working for {} seconds",
-            cpu_count,
-            duration.as_secs()
-        );
+        println!("Spawning {} threads and working for {} seconds", cpu_count, duration.as_secs());
 
         let mut children = vec![];
         for _ in 0..cpu_count {
@@ -74,10 +70,7 @@ mod load_tests {
         for child in children {
             let _ = child.join();
         }
-        bar.finish_with_message(format!(
-            "{} ops/s",
-            (counter.get() as u64) / duration.as_secs()
-        ));
+        bar.finish_with_message(format!("{} ops/s", (counter.get() as u64) / duration.as_secs()));
         bar.finish();
 
         println!("Completed Operations: {}", counter.get());

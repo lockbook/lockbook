@@ -37,6 +37,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         files_db_client,
     });
 
+    feature_flags::initialize_flags(&server_state).await;
+
     let routes = core_routes(&server_state)
         .or(build_info())
         .or(get_metrics())
@@ -44,11 +46,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let server = warp::serve(routes);
 
+    metrics::start_metrics_worker(&server_state);
+
     // *** How people can connect to this server ***
-    match (
-        config.server.ssl_cert_location,
-        config.server.ssl_private_key_location,
-    ) {
+    match (config.server.ssl_cert_location, config.server.ssl_private_key_location) {
         (Some(cert), Some(key)) => {
             info!("binding to https://0.0.0.0:{}", config.server.port);
             server

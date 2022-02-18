@@ -74,11 +74,7 @@ impl FileTree {
         )];
 
         tree.drag_dest_set(gtk::DestDefaults::ALL, &targets, gdk::DragAction::COPY);
-        tree.drag_source_set(
-            gdk::ModifierType::BUTTON1_MASK,
-            &targets,
-            gdk::DragAction::MOVE,
-        );
+        tree.drag_source_set(gdk::ModifierType::BUTTON1_MASK, &targets, gdk::DragAction::MOVE);
 
         let target_list = gtk::TargetList::new(&targets);
         target_list.add_uri_targets(URI_TARGET_INFO);
@@ -98,9 +94,7 @@ impl FileTree {
     }
 
     pub fn populate_tree(
-        &self,
-        metadatas: &[DecryptedFileMetadata],
-        parent_metadata: &DecryptedFileMetadata,
+        &self, metadatas: &[DecryptedFileMetadata], parent_metadata: &DecryptedFileMetadata,
         parent_iter: &gtk::TreeIter,
     ) {
         let children: Vec<&DecryptedFileMetadata> = metadatas
@@ -120,9 +114,7 @@ impl FileTree {
     }
 
     fn shallow_append(
-        &self,
-        iter: Option<&gtk::TreeIter>,
-        metadata: &DecryptedFileMetadata,
+        &self, iter: Option<&gtk::TreeIter>, metadata: &DecryptedFileMetadata,
     ) -> gtk::TreeIter {
         let name = &metadata.decrypted_name;
         let icon_name = get_icon_name(name, &metadata.file_type);
@@ -279,16 +271,8 @@ impl FileTree {
 }
 
 fn get_icon_name(fname: &String, ftype: &FileType) -> String {
-    let image_suffixes = vec![
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".pnm",
-        ".tga",
-        ".farbfeld",
-        ".bmp",
-        ".draw",
-    ];
+    let image_suffixes =
+        vec![".jpg", ".jpeg", ".png", ".pnm", ".tga", ".farbfeld", ".bmp", ".draw"];
     let script_suffixes = vec![".sh", ".bash", ".zsh"];
 
     match ftype {
@@ -423,10 +407,7 @@ fn tree_connect_drag_data_received(t: &gtk::TreeView, m: &Messenger, c: &Arc<LbC
 }
 
 fn move_iter(
-    model: &gtk::TreeStore,
-    iter: &gtk::TreeIter,
-    parent: &gtk::TreeIter,
-    is_at_top: bool,
+    model: &gtk::TreeStore, iter: &gtk::TreeIter, parent: &gtk::TreeIter, is_at_top: bool,
 ) {
     let iter_icon = tree_iter_value!(model, iter, 0, String);
     let iter_name = tree_iter_value!(model, iter, 1, String);
@@ -459,8 +440,7 @@ fn tree_connect_drag_data_get(t: &gtk::TreeView, m: &Messenger) {
 }
 
 fn tree_connect_drag_end(
-    t: &gtk::TreeView,
-    drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
+    t: &gtk::TreeView, drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
     drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
 ) {
     t.connect_drag_end(glib::clone!(
@@ -474,8 +454,7 @@ fn tree_connect_drag_end(
 }
 
 fn tree_connect_drag_motion(
-    t: &gtk::TreeView,
-    drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
+    t: &gtk::TreeView, drag_hover_last_occurred: &Rc<RefCell<Option<u32>>>,
     drag_ends_last_occurred: &Rc<RefCell<Option<u32>>>,
 ) {
     t.connect_drag_motion(glib::clone!(

@@ -83,9 +83,7 @@ fn deserialize<U: DeserializeOwned>(env: &JNIEnv, json: JString, name: &str) -> 
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
-    env: JNIEnv,
-    _: JClass,
-    jpath: JString,
+    env: JNIEnv, _: JClass, jpath: JString,
 ) -> jstring {
     let absolute_path = match jstring_to_string(&env, jpath, "path") {
         Ok(ok) => ok,
@@ -98,9 +96,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getDBState(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
+    env: JNIEnv, _: JClass, jconfig: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -112,9 +108,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getDBState(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_migrateDB(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
+    env: JNIEnv, _: JClass, jconfig: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -126,11 +120,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_migrateDB(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jusername: JString,
-    japi_url: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jusername: JString, japi_url: JString,
 ) -> jstring {
     let username = match jstring_to_string(&env, jusername, "username") {
         Ok(ok) => ok,
@@ -145,18 +135,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(create_account(&config, &username, &api_url)),
-    )
+    string_to_jstring(&env, translate(create_account(&config, &username, &api_url)))
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jaccount: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jaccount: JString,
 ) -> jstring {
     let account = match jstring_to_string(&env, jaccount, "account") {
         Ok(ok) => ok,
@@ -172,9 +156,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
+    env: JNIEnv, _: JClass, jconfig: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -186,9 +168,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
+    env: JNIEnv, _: JClass, jconfig: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -200,9 +180,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
+    env: JNIEnv, _: JClass, jconfig: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -214,10 +192,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -234,10 +209,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -253,11 +225,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
-    jname: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString, jname: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -277,12 +245,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jname: JString,
-    jid: JString,
-    jfiletype: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jname: JString, jid: JString, jfiletype: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -301,17 +264,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(create_file(&config, name.as_str(), id, file_type)),
-    )
+    string_to_jstring(&env, translate(create_file(&config, name.as_str(), id, file_type)))
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
-    env: JNIEnv,
-    _: JClass,
-    metadata_version: jlong,
+    env: JNIEnv, _: JClass, metadata_version: jlong,
 ) -> jstring {
     string_to_jstring(
         &env,
@@ -327,9 +285,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
+    env: JNIEnv, _: JClass, jconfig: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -341,9 +297,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getUncompressedUsage(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
+    env: JNIEnv, _: JClass, jconfig: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -355,10 +309,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getUncompressedUsage(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -374,10 +325,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -397,11 +345,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
-    jlocation: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString, jlocation: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -418,19 +362,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(save_document_to_disk(&config, id, &location)),
-    )
+    string_to_jstring(&env, translate(save_document_to_disk(&config, id, &location)))
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawing(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
-    jformat: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString, jformat: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -452,12 +389,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawing(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
-    jformat: JString,
-    jlocation: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString, jformat: JString, jlocation: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -479,19 +411,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(export_drawing_to_disk(&config, id, format, None, &location)),
-    )
+    string_to_jstring(&env, translate(export_drawing_to_disk(&config, id, format, None, &location)))
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
-    jcontent: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString, jcontent: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -506,19 +431,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        translate(write_document(&config, id, &content.into_bytes())),
-    )
+    string_to_jstring(&env, translate(write_document(&config, id, &content.into_bytes())))
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
-    jid: JString,
-    jparentid: JString,
+    env: JNIEnv, _: JClass, jconfig: JString, jid: JString, jparentid: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -538,10 +456,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
-    env: JNIEnv<'static>,
-    _: JClass,
-    jconfig: JString,
-    jsyncmodel: JObject<'static>,
+    env: JNIEnv<'static>, _: JClass, jconfig: JString, jsyncmodel: JObject<'static>,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -550,18 +465,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
 
     let env_c = env.clone();
     let closure = move |sync_progress: SyncProgress| {
-        let args = [
-            JValue::Int(sync_progress.total as i32),
-            JValue::Int(sync_progress.progress as i32),
-        ]
-        .to_vec();
+        let args =
+            [JValue::Int(sync_progress.total as i32), JValue::Int(sync_progress.progress as i32)]
+                .to_vec();
         env_c
-            .call_method(
-                jsyncmodel,
-                "updateSyncProgressAndTotal",
-                "(II)V",
-                args.as_slice(),
-            )
+            .call_method(jsyncmodel, "updateSyncProgressAndTotal", "(II)V", args.as_slice())
             .unwrap();
     };
 
@@ -570,9 +478,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_backgroundSync(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
+    env: JNIEnv, _: JClass, jconfig: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -584,9 +490,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_backgroundSync(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
-    env: JNIEnv,
-    _: JClass,
-    jconfig: JString,
+    env: JNIEnv, _: JClass, jconfig: JString,
 ) -> jstring {
     let config = match deserialize::<Config>(&env, jconfig, "config") {
         Ok(ok) => ok,
@@ -598,8 +502,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getAllErrorVariants(
-    env: JNIEnv,
-    _: JClass,
+    env: JNIEnv, _: JClass,
 ) -> jstring {
     serialize_to_jstring(&env, get_all_error_variants())
 }

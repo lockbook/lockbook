@@ -44,14 +44,8 @@ pub async fn switch_account_tier(
 
     let new_data_cap = match (current_data_cap, &request.account_tier) {
         (FREE_TIER_USAGE_SIZE, AccountTier::Monthly(card)) => {
-            create_subscription(
-                server_state,
-                &mut con,
-                &context.public_key,
-                card,
-                &mut user_info,
-            )
-            .await?
+            create_subscription(server_state, &mut con, &context.public_key, card, &mut user_info)
+                .await?
         }
         (FREE_TIER_USAGE_SIZE, AccountTier::Free) | (_, AccountTier::Monthly(_)) => {
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
@@ -70,9 +64,7 @@ pub async fn switch_account_tier(
                 .sum();
 
             if usage > FREE_TIER_USAGE_SIZE {
-                return Err(ClientError(
-                    SwitchAccountTierError::CurrentUsageIsMoreThanNewTier,
-                ));
+                return Err(ClientError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier));
             }
 
             let pos = get_active_subscription_index(&user_info.subscriptions)?;
@@ -110,14 +102,11 @@ fn get_active_subscription_index<U: Debug>(
 }
 
 async fn lock_payment_workflow(
-    public_key: &PublicKey,
-    con: &mut deadpool_redis::Connection,
+    public_key: &PublicKey, con: &mut deadpool_redis::Connection,
 ) -> Result<(), ServerError<SwitchAccountTierError>> {
     let tx_result = tx!(con, pipe_name, &[stripe_in_billing_workflow(public_key)], {
         if con.exists(stripe_in_billing_workflow(public_key)).await? {
-            return Err(Abort(ClientError(
-                SwitchAccountTierError::CurrentlyInBillingWorkflow,
-            )));
+            return Err(Abort(ClientError(SwitchAccountTierError::CurrentlyInBillingWorkflow)));
         }
 
         pipe_name
@@ -132,19 +121,11 @@ async fn lock_payment_workflow(
 }
 
 async fn create_subscription(
-    server_state: &ServerState,
-    con: &mut deadpool_redis::Connection,
-    public_key: &PublicKey,
-    payment_method: &PaymentMethod,
-    user_info: &mut StripeUserInfo,
+    server_state: &ServerState, con: &mut deadpool_redis::Connection, public_key: &PublicKey,
+    payment_method: &PaymentMethod, user_info: &mut StripeUserInfo,
 ) -> Result<u64, ServerError<SwitchAccountTierError>> {
     let (customer_id, payment_method_id) = match payment_method {
-        PaymentMethod::NewCard {
-            number,
-            exp_year,
-            exp_month,
-            cvc,
-        } => {
+        PaymentMethod::NewCard { number, exp_year, exp_month, cvc } => {
             let payment_method_resp = stripe_client::create_payment_method(
                 &server_state.stripe_client,
                 number,
@@ -273,9 +254,7 @@ pub async fn get_credit_card(
             user_info
         ))?;
 
-    Ok(GetCreditCardResponse {
-        credit_card_last_4_digits: payment_method.last_4.clone(),
-    })
+    Ok(GetCreditCardResponse { credit_card_last_4_digits: payment_method.last_4.clone() })
 }
 
 #[derive(Debug)]
@@ -287,21 +266,13 @@ pub enum StripeWebhookError {
 }
 
 pub async fn stripe_webhooks(
-    server_state: &Arc<ServerState>,
-    request_body: Bytes,
-    stripe_sig: HeaderValue,
+    server_state: &Arc<ServerState>, request_body: Bytes, stripe_sig: HeaderValue,
 ) -> Result<(), ServerError<StripeWebhookError>> {
     let payload = std::str::from_utf8(&request_body).map_err(|e| {
-        ClientError(StripeWebhookError::InvalidBody(format!(
-            "Cannot get body as str: {:?}",
-            e
-        )))
+        ClientError(StripeWebhookError::InvalidBody(format!("Cannot get body as str: {:?}", e)))
     })?;
     let sig = stripe_sig.to_str().map_err(|e| {
-        ClientError(StripeWebhookError::InvalidHeader(format!(
-            "Cannot get header as str: {:?}",
-            e
-        )))
+        ClientError(StripeWebhookError::InvalidHeader(format!("Cannot get header as str: {:?}", e)))
     })?;
     let event =
         stripe::Webhook::construct_event(payload, sig, &server_state.config.stripe.signing_secret)?;
@@ -397,9 +368,7 @@ pub async fn stripe_webhooks(
 }
 
 async fn get_public_key_and_stripe_user_info(
-    event: &WebhookEvent,
-    con: &mut Connection,
-    customer_id: &String,
+    event: &WebhookEvent, con: &mut Connection, customer_id: &String,
 ) -> Result<(PublicKey, StripeUserInfo), ServerError<StripeWebhookError>> {
     let public_key: PublicKey = con
         .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))

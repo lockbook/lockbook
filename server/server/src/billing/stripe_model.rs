@@ -59,11 +59,7 @@ pub struct StripeUserInfo {
 
 impl Default for StripeUserInfo {
     fn default() -> Self {
-        StripeUserInfo {
-            customer_id: None,
-            payment_methods: vec![],
-            subscriptions: vec![],
-        }
+        StripeUserInfo { customer_id: None, payment_methods: vec![], subscriptions: vec![] }
     }
 }
 

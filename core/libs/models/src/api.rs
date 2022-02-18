@@ -1,5 +1,5 @@
+use http::Method;
 use libsecp256k1::PublicKey;
-use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -38,22 +38,14 @@ pub struct FileMetadataUpsertsRequest {
 
 impl FileMetadataUpsertsRequest {
     pub fn new(metadata: &EncryptedFileMetadata) -> Self {
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new(metadata)],
-        }
+        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(metadata)] }
     }
 
     pub fn new_diff(
-        old_parent: Uuid,
-        old_name: &SecretFileName,
-        new_metadata: &EncryptedFileMetadata,
+        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &EncryptedFileMetadata,
     ) -> Self {
         FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(
-                old_parent,
-                old_name,
-                new_metadata,
-            )],
+            updates: vec![FileMetadataDiff::new_diff(old_parent, old_name, new_metadata)],
         }
     }
 }
@@ -229,6 +221,7 @@ pub enum NewAccountError {
     PublicKeyTaken,
     InvalidUsername,
     FileIdTaken,
+    Disabled,
 }
 
 impl Request for NewAccountRequest {
@@ -294,12 +287,7 @@ impl Request for GetCreditCardRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum PaymentMethod {
-    NewCard {
-        number: String,
-        exp_year: i32,
-        exp_month: i32,
-        cvc: String,
-    },
+    NewCard { number: String, exp_year: i32, exp_month: i32, cvc: String },
     OldCard,
 }
 

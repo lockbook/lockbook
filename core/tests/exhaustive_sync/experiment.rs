@@ -12,6 +12,7 @@ use crate::exhaustive_sync::trial::{Status, Trial};
 
 pub type ThreadID = usize;
 
+#[derive(Clone)]
 pub struct Experiment {
     pub pending: Vec<Trial>,
     pub concluded: Vec<Trial>,
@@ -42,8 +43,7 @@ type Continue = bool;
 
 impl Experiment {
     pub fn grab_ready_trial_for_thread(
-        thread: ThreadID,
-        experiments: Arc<Mutex<Self>>,
+        thread: ThreadID, experiments: Arc<Mutex<Self>>,
     ) -> (Option<Trial>, Continue) {
         let mut state = experiments.lock().unwrap();
         let experiment = state.pending.pop();
@@ -57,10 +57,7 @@ impl Experiment {
     }
 
     pub fn publish_results(
-        thread: ThreadID,
-        experiments: Arc<Mutex<Self>>,
-        result: Trial,
-        mutants: &[Trial],
+        thread: ThreadID, experiments: Arc<Mutex<Self>>, result: Trial, mutants: &[Trial],
     ) {
         let mut state = experiments.lock().unwrap();
         state.running.remove(&thread);
@@ -91,7 +88,8 @@ impl Experiment {
         loop {
             print_count += 1;
             thread::sleep(time::Duration::from_millis(10000));
-            let experiments = state.lock().unwrap();
+            let experiments = state.lock().unwrap().clone();
+            let current_time = get_time().0;
             let mut failures = experiments.concluded.clone();
             failures.retain(|trial| trial.status.failed());
             if experiments.pending.is_empty() && experiments.running.is_empty() {
@@ -102,11 +100,10 @@ impl Experiment {
                 .running
                 .clone()
                 .into_iter()
-                .filter(|(_, (time, _))| time.0 != 0 && get_time().0 - time.0 > 10000)
+                .filter(|(_, (time, _))| time.0 != 0 && current_time - time.0 > 10000)
                 .collect();
 
             println!(
-                // show count of trails that have been running over 10 seconds
                 "{} pending, {} running, {} stuck, {} run, {} failures.",
                 &experiments.pending.len(),
                 &experiments.running.len(),

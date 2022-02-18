@@ -30,11 +30,7 @@ pub fn calculate_usage(exact: bool) -> CliResult<()> {
             format!("{} B", usage.data_cap.exact),
         )
     } else {
-        (
-            uncompressed_usage.readable,
-            usage.server_usage.readable,
-            usage.data_cap.readable,
-        )
+        (uncompressed_usage.readable, usage.server_usage.readable, usage.data_cap.readable)
     };
 
     println!("Uncompressed File Size: {}", uncompressed);

@@ -56,11 +56,7 @@ impl NameComponents {
 
         let extension = extension_location.map(|location| file_name[location + 1..].to_string());
 
-        NameComponents {
-            name,
-            variant,
-            extension,
-        }
+        NameComponents { name, variant, extension }
     }
 
     pub fn generate_next(&self) -> NameComponents {
@@ -84,9 +80,7 @@ mod unit_tests {
     use crate::model::filename::NameComponents;
 
     fn from_components(
-        name: &str,
-        variant: Option<usize>,
-        extension: Option<&str>,
+        name: &str, variant: Option<usize>, extension: Option<&str>,
     ) -> NameComponents {
         NameComponents {
             name: name.to_string(),
@@ -97,18 +91,9 @@ mod unit_tests {
 
     #[test]
     fn test_name_components() {
-        assert_eq!(
-            NameComponents::from("test-1.md"),
-            from_components("test", Some(1), Some("md"))
-        );
-        assert_eq!(
-            NameComponents::from("test-.md"),
-            from_components("test-", None, Some("md"))
-        );
-        assert_eq!(
-            NameComponents::from(".md"),
-            from_components("", None, Some("md"))
-        );
+        assert_eq!(NameComponents::from("test-1.md"), from_components("test", Some(1), Some("md")));
+        assert_eq!(NameComponents::from("test-.md"), from_components("test-", None, Some("md")));
+        assert_eq!(NameComponents::from(".md"), from_components("", None, Some("md")));
         assert_eq!(NameComponents::from(""), from_components("", None, None));
         assert_eq!(
             NameComponents::from("test-file.md"),
@@ -139,22 +124,10 @@ mod unit_tests {
             from_components("test-file-.", Some(100), Some("m"))
         );
         assert_eq!(NameComponents::from("."), from_components(".", None, None));
-        assert_eq!(
-            NameComponents::from("-1."),
-            from_components("-1.", None, None)
-        );
-        assert_eq!(
-            NameComponents::from("-1."),
-            from_components("-1.", None, None)
-        );
-        assert_eq!(
-            NameComponents::from("test"),
-            from_components("test", None, None)
-        );
-        assert_eq!(
-            NameComponents::from("test-32"),
-            from_components("test", Some(32), None)
-        );
+        assert_eq!(NameComponents::from("-1."), from_components("-1.", None, None));
+        assert_eq!(NameComponents::from("-1."), from_components("-1.", None, None));
+        assert_eq!(NameComponents::from("test"), from_components("test", None, None));
+        assert_eq!(NameComponents::from("test-32"), from_components("test", Some(32), None));
     }
 
     fn assert_symmetry(name: &str) {
@@ -183,13 +156,7 @@ mod unit_tests {
 
     #[test]
     fn test_next_variant() {
-        assert_eq!(
-            NameComponents::from("test.md").generate_next().to_name(),
-            "test-1.md"
-        );
-        assert_eq!(
-            NameComponents::from("test-2.md").generate_next().to_name(),
-            "test-3.md"
-        );
+        assert_eq!(NameComponents::from("test.md").generate_next().to_name(), "test-1.md");
+        assert_eq!(NameComponents::from("test-2.md").generate_next().to_name(), "test-3.md");
     }
 }

@@ -27,10 +27,7 @@ pub fn stripe_user_info(pk: &PublicKey) -> String {
 }
 
 pub fn stripe_in_billing_workflow(pk: &PublicKey) -> String {
-    format!(
-        "stripe_customer_id:{}:in_stripe_billing_workflow",
-        stringify_public_key(pk)
-    )
+    format!("stripe_customer_id:{}:in_stripe_billing_workflow", stringify_public_key(pk))
 }
 
 pub fn public_key_from_stripe_customer_id(customer_id: &str) -> String {

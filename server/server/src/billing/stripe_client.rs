@@ -39,8 +39,7 @@ impl From<stripe::ParseIdError> for SimplifiedStripeError {
 }
 
 fn simplify_stripe_error(
-    error_code: Option<stripe::ErrorCode>,
-    maybe_decline_code: Option<String>,
+    error_code: Option<stripe::ErrorCode>, maybe_decline_code: Option<String>,
 ) -> SimplifiedStripeError {
     match error_code {
         None => {
@@ -150,8 +149,7 @@ fn simplify_stripe_error(
 }
 
 pub async fn create_customer(
-    stripe_client: &stripe::Client,
-    payment_method_id: PaymentMethodId,
+    stripe_client: &stripe::Client, payment_method_id: PaymentMethodId,
 ) -> Result<stripe::Customer, SimplifiedStripeError> {
     let mut customer_params = stripe::CreateCustomer::new();
     customer_params.payment_method = Some(payment_method_id);
@@ -162,8 +160,7 @@ pub async fn create_customer(
 }
 
 pub async fn delete_customer(
-    stripe_client: &stripe::Client,
-    customer_id: &stripe::CustomerId,
+    stripe_client: &stripe::Client, customer_id: &stripe::CustomerId,
 ) -> Result<(), SimplifiedStripeError> {
     stripe::Customer::delete(stripe_client, customer_id).await?;
 
@@ -171,22 +168,17 @@ pub async fn delete_customer(
 }
 
 pub async fn create_payment_method(
-    stripe_client: &stripe::Client,
-    card_number: &str,
-    exp_month: i32,
-    exp_year: i32,
-    cvc: &str,
+    stripe_client: &stripe::Client, card_number: &str, exp_month: i32, exp_year: i32, cvc: &str,
 ) -> Result<stripe::PaymentMethod, SimplifiedStripeError> {
     let mut payment_method_params = stripe::CreatePaymentMethod::new();
     payment_method_params.type_ = Some(stripe::PaymentMethodTypeFilter::Card);
-    payment_method_params.card = Some(stripe::CreatePaymentMethodCardUnion::CardDetailsParams(
-        CardDetailsParams {
+    payment_method_params.card =
+        Some(stripe::CreatePaymentMethodCardUnion::CardDetailsParams(CardDetailsParams {
             cvc: Some(cvc.to_string()),
             exp_month,
             exp_year,
             number: card_number.to_string(),
-        },
-    ));
+        }));
 
     stripe::PaymentMethod::create(stripe_client, payment_method_params)
         .await
@@ -194,8 +186,7 @@ pub async fn create_payment_method(
 }
 
 pub async fn create_setup_intent(
-    stripe_client: &stripe::Client,
-    customer_id: stripe::CustomerId,
+    stripe_client: &stripe::Client, customer_id: stripe::CustomerId,
     payment_method_id: stripe::PaymentMethodId,
 ) -> Result<stripe::SetupIntent, SimplifiedStripeError> {
     let mut setup_intent_params = stripe::CreateSetupIntent::new();
@@ -207,23 +198,17 @@ pub async fn create_setup_intent(
 
     match intent_resp.status {
         SetupIntentStatus::Succeeded => Ok(intent_resp),
-        _ => Err(Other(format!(
-            "Unexpected intent response status: {:?}",
-            intent_resp.status
-        ))),
+        _ => Err(Other(format!("Unexpected intent response status: {:?}", intent_resp.status))),
     }
 }
 
 pub async fn create_subscription(
-    server_state: &ServerState,
-    customer_id: stripe::CustomerId,
-    payment_method_id: &str,
+    server_state: &ServerState, customer_id: stripe::CustomerId, payment_method_id: &str,
 ) -> Result<stripe::Subscription, SimplifiedStripeError> {
     let mut subscription_params = stripe::CreateSubscription::new(customer_id);
     let mut subscription_item_params = stripe::CreateSubscriptionItems::new();
-    subscription_item_params.price = Some(Box::new(
-        server_state.config.stripe.premium_price_id.clone(),
-    ));
+    subscription_item_params.price =
+        Some(Box::new(server_state.config.stripe.premium_price_id.clone()));
 
     subscription_params.default_payment_method = Some(payment_method_id);
     subscription_params.items = Some(Box::new(vec![subscription_item_params]));
@@ -250,8 +235,7 @@ pub async fn create_subscription(
 }
 
 pub async fn detach_payment_method_from_customer(
-    stripe_client: &stripe::Client,
-    payment_method_id: &stripe::PaymentMethodId,
+    stripe_client: &stripe::Client, payment_method_id: &stripe::PaymentMethodId,
 ) -> Result<(), SimplifiedStripeError> {
     stripe::PaymentMethod::detach(stripe_client, payment_method_id).await?;
 
@@ -259,8 +243,7 @@ pub async fn detach_payment_method_from_customer(
 }
 
 pub async fn cancel_subscription(
-    stripe_client: &stripe::Client,
-    subscription_id: &stripe::SubscriptionId,
+    stripe_client: &stripe::Client, subscription_id: &stripe::SubscriptionId,
 ) -> Result<(), SimplifiedStripeError> {
     stripe::Subscription::cancel(
         stripe_client,
@@ -275,8 +258,7 @@ pub async fn cancel_subscription(
 const EXPAND_INVOICE_DETAILS: &[&str] = &["subscription"];
 
 pub async fn retrieve_invoice(
-    stripe_client: &stripe::Client,
-    invoice_id: &stripe::InvoiceId,
+    stripe_client: &stripe::Client, invoice_id: &stripe::InvoiceId,
 ) -> Result<stripe::Invoice, SimplifiedStripeError> {
     stripe::Invoice::retrieve(stripe_client, invoice_id, EXPAND_INVOICE_DETAILS)
         .await

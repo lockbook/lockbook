@@ -30,9 +30,7 @@ mod switch_account_tier_test {
 
         api_service::request(
             &account,
-            SwitchAccountTierRequest {
-                account_tier: AccountTier::Free,
-            },
+            SwitchAccountTierRequest { account_tier: AccountTier::Free },
         )
         .unwrap();
     }
@@ -45,9 +43,7 @@ mod switch_account_tier_test {
 
         let result = api_service::request(
             &account,
-            SwitchAccountTierRequest {
-                account_tier: AccountTier::Free,
-            },
+            SwitchAccountTierRequest { account_tier: AccountTier::Free },
         );
 
         assert_matches!(
@@ -105,9 +101,7 @@ mod switch_account_tier_test {
 
         let result = api_service::request(
             &account,
-            SwitchAccountTierRequest {
-                account_tier: AccountTier::Monthly(PaymentMethod::OldCard),
-            },
+            SwitchAccountTierRequest { account_tier: AccountTier::Monthly(PaymentMethod::OldCard) },
         );
 
         assert_matches!(
@@ -163,10 +157,7 @@ mod switch_account_tier_test {
                 },
             );
 
-            assert_matches!(
-                result,
-                Err(ApiError::<SwitchAccountTierError>::Endpoint(error))
-            );
+            assert_matches!(result, Err(ApiError::<SwitchAccountTierError>::Endpoint(error)));
         }
     }
 
@@ -220,10 +211,7 @@ mod switch_account_tier_test {
                 },
             );
 
-            assert_matches!(
-                result,
-                Err(ApiError::<SwitchAccountTierError>::Endpoint(error))
-            );
+            assert_matches!(result, Err(ApiError::<SwitchAccountTierError>::Endpoint(error)));
         }
     }
 }

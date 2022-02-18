@@ -66,6 +66,7 @@ pub enum CoreError {
     ClientWipeRequired,
     DiskPathInvalid,
     DiskPathTaken,
+    ServerDisabled,
     DrawingInvalid,
     FileExists,
     FileNameContainsSlash,

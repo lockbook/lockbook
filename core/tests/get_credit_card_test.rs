@@ -46,9 +46,7 @@ mod get_credit_card_test {
 
         assert_matches!(
             result,
-            Err(ApiError::<GetCreditCardError>::Endpoint(
-                GetCreditCardError::NotAStripeCustomer
-            ))
+            Err(ApiError::<GetCreditCardError>::Endpoint(GetCreditCardError::NotAStripeCustomer))
         );
     }
 }

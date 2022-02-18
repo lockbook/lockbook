@@ -1,4 +1,4 @@
-use crate::file_metadata::FileType;
+use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -11,7 +11,7 @@ pub trait FileMetadata: Clone {
     fn file_type(&self) -> FileType;
     fn parent(&self) -> Uuid;
     fn name(&self) -> Self::Name;
-    fn owner(&self) -> String;
+    fn owner(&self) -> Owner;
     fn metadata_version(&self) -> u64;
     fn content_version(&self) -> u64;
     fn deleted(&self) -> bool;
@@ -288,9 +288,7 @@ where
             .into_iter()
             .next();
         if let Some(path_conflict) = maybe_path_conflict {
-            return Err(TestFileTreeError::NameConflictDetected(
-                path_conflict.existing,
-            ));
+            return Err(TestFileTreeError::NameConflictDetected(path_conflict.existing));
         }
 
         Ok(())

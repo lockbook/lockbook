@@ -1,5 +1,5 @@
 use crate::utils::username_is_valid;
-use crate::{keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
+use crate::{feature_flags, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
 use deadpool_redis::redis::AsyncCommands;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
@@ -29,15 +29,18 @@ pub async fn new_account(
     context: RequestContext<'_, NewAccountRequest>,
 ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let request = NewAccountRequest {
-        username: request.username.to_lowercase(),
-        ..request.clone()
-    };
+    let request =
+        NewAccountRequest { username: request.username.to_lowercase(), ..request.clone() };
 
     if !username_is_valid(&request.username) {
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
+
     let mut con = server_state.index_db_pool.get().await?;
+
+    if !feature_flags::is_new_accounts_enabled(&mut con).await? {
+        return Err(ClientError(NewAccountError::Disabled));
+    }
 
     let mut root = request.root_folder.clone();
     let now = get_time().0 as u64;
@@ -82,9 +85,7 @@ pub async fn new_account(
     });
     return_if_error!(tx_result);
 
-    Ok(NewAccountResponse {
-        folder_metadata_version: root.metadata_version,
-    })
+    Ok(NewAccountResponse { folder_metadata_version: root.metadata_version })
 }
 
 pub async fn get_public_key(
@@ -95,19 +96,16 @@ pub async fn get_public_key(
 }
 
 pub async fn public_key_from_username(
-    username: &str,
-    server_state: &ServerState,
+    username: &str, server_state: &ServerState,
 ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
     let mut con = server_state.index_db_pool.get().await?;
 
     match con.maybe_json_get(public_key(username)).await {
         Ok(Some(key)) => Ok(GetPublicKeyResponse { key }),
         Ok(None) => Err(ClientError(GetPublicKeyError::UserNotFound)),
-        Err(err) => Err(internal!(
-            "Error while getting public key for user: {}, err: {:?}",
-            username,
-            err
-        )),
+        Err(err) => {
+            Err(internal!("Error while getting public key for user: {}, err: {:?}", username, err))
+        }
     }
 }
 
@@ -136,8 +134,7 @@ pub enum GetFileUsageError {
 }
 
 pub async fn get_file_usage(
-    con: &mut deadpool_redis::Connection,
-    public_key: &PublicKey,
+    con: &mut deadpool_redis::Connection, public_key: &PublicKey,
 ) -> Result<Vec<FileUsage>, GetFileUsageError> {
     let files: Vec<Uuid> = con
         .maybe_json_get(owned_files(public_key))

@@ -68,12 +68,11 @@ pub enum CreateAccountError {
     CouldNotReachServer,
     AccountExistsAlready,
     ClientUpdateRequired,
+    ServerDisabled,
 }
 
 pub fn create_account(
-    config: &Config,
-    username: &str,
-    api_url: &str,
+    config: &Config, username: &str, api_url: &str,
 ) -> Result<Account, Error<CreateAccountError>> {
     account_service::create_account(config, username, api_url).map_err(|e| match e {
         CoreError::AccountExists => UiError(CreateAccountError::AccountExistsAlready),
@@ -81,6 +80,7 @@ pub fn create_account(
         CoreError::UsernameInvalid => UiError(CreateAccountError::InvalidUsername),
         CoreError::ServerUnreachable => UiError(CreateAccountError::CouldNotReachServer),
         CoreError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
+        CoreError::ServerDisabled => UiError(CreateAccountError::ServerDisabled),
         _ => unexpected!("{:#?}", e),
     })
 }
@@ -96,8 +96,7 @@ pub enum ImportError {
 }
 
 pub fn import_account(
-    config: &Config,
-    account_string: &str,
+    config: &Config, account_string: &str,
 ) -> Result<Account, Error<ImportError>> {
     account_service::import_account(config, account_string).map_err(|e| match e {
         CoreError::AccountStringCorrupted => UiError(ImportError::AccountStringCorrupted),
@@ -145,8 +144,7 @@ pub enum CreateFileAtPathError {
 }
 
 pub fn create_file_at_path(
-    config: &Config,
-    path_and_name: &str,
+    config: &Config, path_and_name: &str,
 ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
     path_service::create_at_path(config, path_and_name).map_err(|e| match e {
         CoreError::PathStartsWithNonRoot => UiError(CreateFileAtPathError::PathDoesntStartWithRoot),
@@ -169,9 +167,7 @@ pub enum WriteToDocumentError {
 }
 
 pub fn write_document(
-    config: &Config,
-    id: Uuid,
-    content: &[u8],
+    config: &Config, id: Uuid, content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
     file_service::write_document(config, id, content).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
@@ -192,10 +188,7 @@ pub enum CreateFileError {
 }
 
 pub fn create_file(
-    config: &Config,
-    name: &str,
-    parent: Uuid,
-    file_type: FileType,
+    config: &Config, name: &str, parent: Uuid, file_type: FileType,
 ) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
     file_service::create_file(config, name, parent, file_type).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
@@ -222,8 +215,7 @@ pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, Error<GetRootE
 }
 
 pub fn get_children(
-    config: &Config,
-    id: Uuid,
+    config: &Config, id: Uuid,
 ) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
     file_service::get_children(config, id).map_err(|e| unexpected_only!("{:#?}", e))
 }
@@ -235,8 +227,7 @@ pub enum GetAndGetChildrenError {
 }
 
 pub fn get_and_get_children_recursively(
-    config: &Config,
-    id: Uuid,
+    config: &Config, id: Uuid,
 ) -> Result<Vec<EncryptedFileMetadata>, Error<GetAndGetChildrenError>> {
     file_service::get_and_get_children_recursively(config, id).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
@@ -251,8 +242,7 @@ pub enum GetFileByIdError {
 }
 
 pub fn get_file_by_id(
-    config: &Config,
-    id: Uuid,
+    config: &Config, id: Uuid,
 ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
     file_service::get_not_deleted_metadata(config, RepoSource::Local, id).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
@@ -266,8 +256,7 @@ pub enum GetFileByPathError {
 }
 
 pub fn get_file_by_path(
-    config: &Config,
-    path: &str,
+    config: &Config, path: &str,
 ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
     path_service::get_by_path(config, path).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(GetFileByPathError::NoFileAtThatPath),
@@ -297,8 +286,7 @@ pub enum ReadDocumentError {
 }
 
 pub fn read_document(
-    config: &Config,
-    id: Uuid,
+    config: &Config, id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
     file_service::read_document(config, id).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
@@ -318,9 +306,7 @@ pub enum SaveDocumentToDiskError {
 }
 
 pub fn save_document_to_disk(
-    config: &Config,
-    id: Uuid,
-    location: &str,
+    config: &Config, id: Uuid, location: &str,
 ) -> Result<(), Error<SaveDocumentToDiskError>> {
     file_service::save_document_to_disk(config, id, location).map_err(|e| match e {
         CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
@@ -333,8 +319,7 @@ pub fn save_document_to_disk(
 }
 
 pub fn list_paths(
-    config: &Config,
-    filter: Option<path_service::Filter>,
+    config: &Config, filter: Option<path_service::Filter>,
 ) -> Result<Vec<String>, UnexpectedError> {
     path_service::get_all_paths(config, filter).map_err(|e| unexpected_only!("{:#?}", e))
 }
@@ -358,9 +343,7 @@ pub enum RenameFileError {
 }
 
 pub fn rename_file(
-    config: &Config,
-    id: Uuid,
-    new_name: &str,
+    config: &Config, id: Uuid, new_name: &str,
 ) -> Result<(), Error<RenameFileError>> {
     file_service::rename_file(config, id, new_name).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(RenameFileError::FileDoesNotExist),
@@ -404,8 +387,7 @@ pub enum SyncAllError {
 }
 
 pub fn sync_all(
-    config: &Config,
-    f: Option<Box<dyn Fn(SyncProgress)>>,
+    config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), Error<SyncAllError>> {
     sync_service::sync(config, f).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(SyncAllError::NoAccount),
@@ -503,9 +485,7 @@ pub enum SaveDrawingError {
 }
 
 pub fn save_drawing(
-    config: &Config,
-    id: Uuid,
-    drawing_bytes: &[u8],
+    config: &Config, id: Uuid, drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
     drawing_service::save_drawing(config, id, drawing_bytes).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
@@ -525,9 +505,7 @@ pub enum ExportDrawingError {
 }
 
 pub fn export_drawing(
-    config: &Config,
-    id: Uuid,
-    format: SupportedImageFormats,
+    config: &Config, id: Uuid, format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
     drawing_service::export_drawing(config, id, format, render_theme).map_err(|e| match e {
@@ -550,11 +528,8 @@ pub enum ExportDrawingToDiskError {
 }
 
 pub fn export_drawing_to_disk(
-    config: &Config,
-    id: Uuid,
-    format: SupportedImageFormats,
-    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    location: &str,
+    config: &Config, id: Uuid, format: SupportedImageFormats,
+    render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
 ) -> Result<(), Error<ExportDrawingToDiskError>> {
     drawing_service::export_drawing_to_disk(config, id, format, render_theme, location).map_err(
         |e| match e {
@@ -578,9 +553,7 @@ pub enum ImportFileError {
 }
 
 pub fn import_file(
-    config: &Config,
-    disk_path: PathBuf,
-    parent: Uuid,
+    config: &Config, disk_path: PathBuf, parent: Uuid,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ImportFileError>> {
     import_export_service::import_file(config, disk_path, parent, import_progress).map_err(|e| {
@@ -603,10 +576,7 @@ pub enum ExportFileError {
 }
 
 pub fn export_file(
-    config: &Config,
-    id: Uuid,
-    destination: PathBuf,
-    edit: bool,
+    config: &Config, id: Uuid, destination: PathBuf, edit: bool,
     export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ExportFileError>> {
     import_export_service::export_file(config, id, destination, edit, export_progress).map_err(
@@ -635,8 +605,7 @@ pub enum SwitchAccountTierError {
 }
 
 pub fn switch_account_tier(
-    config: &Config,
-    new_account_tier: AccountTier,
+    config: &Config, new_account_tier: AccountTier,
 ) -> Result<(), Error<SwitchAccountTierError>> {
     billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
         CoreError::OldCardDoesNotExist => {

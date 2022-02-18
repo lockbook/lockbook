@@ -20,9 +20,7 @@ pub struct ImportExportFileInfo {
 }
 
 pub fn import_file(
-    config: &Config,
-    disk_path: PathBuf,
-    parent: Uuid,
+    config: &Config, disk_path: PathBuf, parent: Uuid,
     import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     info!("importing file {:?} to {}", disk_path, parent);
@@ -41,9 +39,7 @@ pub fn import_file(
 }
 
 fn import_file_recursively(
-    config: &Config,
-    disk_path: &Path,
-    lockbook_path: &str,
+    config: &Config, disk_path: &Path, lockbook_path: &str,
     import_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     if !disk_path.exists() {
@@ -106,10 +102,7 @@ fn import_file_recursively(
 }
 
 pub fn export_file(
-    config: &Config,
-    id: Uuid,
-    destination: PathBuf,
-    edit: bool,
+    config: &Config, id: Uuid, destination: PathBuf, edit: bool,
     export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     info!("exporting file {} to {:?}", id, destination);
@@ -119,23 +112,12 @@ pub fn export_file(
 
     let file_metadata = &file_service::get_not_deleted_metadata(config, RepoSource::Local, id)?;
     let all = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    export_file_recursively(
-        config,
-        &all,
-        file_metadata,
-        &destination,
-        edit,
-        &export_progress,
-    )
+    export_file_recursively(config, &all, file_metadata, &destination, edit, &export_progress)
 }
 
 fn export_file_recursively(
-    config: &Config,
-    all: &[DecryptedFileMetadata],
-    parent_file_metadata: &DecryptedFileMetadata,
-    disk_path: &Path,
-    edit: bool,
-    export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    config: &Config, all: &[DecryptedFileMetadata], parent_file_metadata: &DecryptedFileMetadata,
+    disk_path: &Path, edit: bool, export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
     let dest_with_new = disk_path.join(&parent_file_metadata.decrypted_name);
 

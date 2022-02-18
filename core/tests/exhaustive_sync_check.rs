@@ -6,7 +6,7 @@ pub mod sync_fuzzer2 {
 
     #[test]
     #[ignore]
-    /// Run with: cargo test --release exhaustive_test_sync -- --nocapture --ignored
+    /// Run with: (export "API_URL=http://localhost:8000" && cargo test --release exhaustive_test_sync -- --nocapture --ignored)
     fn exhaustive_test_sync() {
         Experiment::default().kick_off();
     }

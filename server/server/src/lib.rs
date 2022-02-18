@@ -128,9 +128,9 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
             WebhookError::BadKey => {
                 internal!("Cannot verify stripe request because server is using a bad signing key.")
             }
-            WebhookError::BadHeader(bad_header_err) => ClientError(
-                StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)),
-            ),
+            WebhookError::BadHeader(bad_header_err) => {
+                ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)))
+            }
             WebhookError::BadSignature => {
                 ClientError(StripeWebhookError::InvalidHeader(format!("Bad signature.")))
             }
@@ -140,9 +140,9 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
                     bad_timestamp_err
                 )))
             }
-            WebhookError::BadParse(bad_parse_err) => ClientError(StripeWebhookError::ParseError(
-                format!("{:?}", bad_parse_err),
-            )),
+            WebhookError::BadParse(bad_parse_err) => {
+                ClientError(StripeWebhookError::ParseError(format!("{:?}", bad_parse_err)))
+            }
         }
     }
 }
@@ -151,14 +151,13 @@ pub fn verify_client_version<Req: Request>(
     request: &RequestWrapper<Req>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
     match &request.client_version as &str {
-        "0.1.5" => Ok(()),
+        "0.1.6" => Ok(()),
         _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }
 
 pub fn verify_auth<TRequest: Request + Serialize>(
-    server_state: &ServerState,
-    request: &RequestWrapper<TRequest>,
+    server_state: &ServerState, request: &RequestWrapper<TRequest>,
 ) -> Result<(), ECVerifyError> {
     pubkey::verify(
         &request.signed_request.public_key,
@@ -176,8 +175,10 @@ pub mod account_service;
 pub mod billing;
 pub mod config;
 pub mod content;
+pub mod feature_flags;
 pub mod file_service;
 pub mod keys;
 pub mod loggers;
+pub mod metrics;
 pub mod router_service;
 pub mod utils;
