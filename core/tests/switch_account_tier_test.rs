@@ -1,13 +1,16 @@
 #[cfg(test)]
 mod switch_account_tier_test {
-    use rand::Rng;
-    use lockbook_core::{assert_matches, Error, SyncAllError};
     use lockbook_core::model::state::Config;
     use lockbook_core::service::api_service;
     use lockbook_core::service::api_service::ApiError;
-    use lockbook_core::service::test_utils::{generate_account, generate_file_metadata, generate_monthly_account_tier, generate_root_metadata, test_credit_cards};
+    use lockbook_core::service::test_utils::{
+        generate_account, generate_file_metadata, generate_monthly_account_tier,
+        generate_root_metadata, test_credit_cards,
+    };
+    use lockbook_core::{assert_matches, Error, SyncAllError};
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::{FileMetadataDiff, FileType};
+    use rand::Rng;
 
     #[test]
     fn switch_account_tier_to_premium_and_back() {
@@ -224,7 +227,8 @@ mod switch_account_tier_test {
 
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        loop { // currently the data cap isn't enforced so I can go above before upgrading
+        loop {
+            // currently the data cap isn't enforced so I can go above before upgrading
             let bytes = rand::thread_rng().gen::<[u8; 500000]>();
 
             let (doc, _doc_key) =
@@ -234,7 +238,12 @@ mod switch_account_tier_test {
 
             lockbook_core::sync_all(&config, None).unwrap();
 
-            if lockbook_core::get_usage(&config).unwrap().server_usage.exact > 1000000 {
+            if lockbook_core::get_usage(&config)
+                .unwrap()
+                .server_usage
+                .exact
+                > 1000000
+            {
                 break;
             }
         }
@@ -250,7 +259,7 @@ mod switch_account_tier_test {
                 ),
             },
         )
-            .unwrap();
+        .unwrap();
 
         let result = api_service::request(
             &account,
