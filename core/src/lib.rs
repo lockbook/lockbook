@@ -666,14 +666,12 @@ pub fn switch_account_tier(
 pub enum GetCreditCard {
     NoAccount,
     CouldNotReachServer,
-    OldCardDoesNotExist,
     NotAStripeCustomer,
     ClientUpdateRequired,
 }
 
 pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
     billing_service::get_credit_card(config).map_err(|e| match e {
-        CoreError::OldCardDoesNotExist => UiError(GetCreditCard::OldCardDoesNotExist),
         CoreError::AccountNonexistent => UiError(GetCreditCard::NoAccount),
         CoreError::ServerUnreachable => UiError(GetCreditCard::CouldNotReachServer),
         CoreError::NotAStripeCustomer => UiError(GetCreditCard::NotAStripeCustomer),

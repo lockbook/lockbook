@@ -12,13 +12,13 @@ use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper, SwitchAccountTierError};
-use redis_utils::converters::JsonGetError;
+use redis_utils::converters::{JsonGetError, JsonSetError};
 
+use crate::billing::billing_service::StripeWebhookError;
+use crate::billing::stripe_model::{StripeKnownErrorDeclineCode, StripeMaybeContainer};
 use crate::content::file_content_client;
 use serde::{Deserialize, Serialize};
 use stripe::WebhookError;
-use crate::billing::billing_service::StripeWebhookError;
-use crate::billing::stripe_model::{StripeKnownErrorDeclineCode, StripeMaybeContainer};
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -57,6 +57,12 @@ impl<T: Debug> From<RedisError> for ServerError<T> {
 
 impl<T: Debug> From<JsonGetError> for ServerError<T> {
     fn from(err: JsonGetError) -> Self {
+        internal!("Redis Error: {:?}", err)
+    }
+}
+
+impl<T: Debug> From<JsonSetError> for ServerError<T> {
+    fn from(err: JsonSetError) -> Self {
         internal!("Redis Error: {:?}", err)
     }
 }
@@ -119,11 +125,24 @@ impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierError> {
 impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
     fn from(e: WebhookError) -> Self {
         match e {
-            WebhookError::BadKey => internal!("Cannot verify stripe request because server is using a bad signing key."),
-            WebhookError::BadHeader(bad_header_err) => ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err))),
-            WebhookError::BadSignature => ClientError(StripeWebhookError::InvalidHeader(format!("Bad signature."))),
-            WebhookError::BadTimestamp(bad_timestamp_err) => ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_timestamp_err))),
-            WebhookError::BadParse(bad_parse_err) => ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_parse_err))),
+            WebhookError::BadKey => {
+                internal!("Cannot verify stripe request because server is using a bad signing key.")
+            }
+            WebhookError::BadHeader(bad_header_err) => ClientError(
+                StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)),
+            ),
+            WebhookError::BadSignature => {
+                ClientError(StripeWebhookError::InvalidHeader(format!("Bad signature.")))
+            }
+            WebhookError::BadTimestamp(bad_timestamp_err) => {
+                ClientError(StripeWebhookError::InvalidHeader(format!(
+                    "Timestamp for webhook is too old: {}",
+                    bad_timestamp_err
+                )))
+            }
+            WebhookError::BadParse(bad_parse_err) => ClientError(StripeWebhookError::ParseError(
+                format!("{:?}", bad_parse_err),
+            )),
         }
     }
 }

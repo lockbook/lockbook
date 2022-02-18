@@ -282,7 +282,6 @@ pub struct GetCreditCardResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetCreditCardError {
-    OldCardDoesNotExist,
     NotAStripeCustomer,
 }
 

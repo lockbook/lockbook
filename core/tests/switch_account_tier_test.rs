@@ -186,7 +186,7 @@ mod switch_account_tier_test {
             ),
             (
                 test_credit_cards::GOOD,
-                Some("1970"),
+                Some(1970),
                 None,
                 None,
                 SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::ExpYear),
@@ -194,7 +194,7 @@ mod switch_account_tier_test {
             (
                 test_credit_cards::GOOD,
                 None,
-                Some("14"),
+                Some(14),
                 None,
                 SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::ExpMonth),
             ),
@@ -213,8 +213,8 @@ mod switch_account_tier_test {
                 SwitchAccountTierRequest {
                     account_tier: generate_monthly_account_tier(
                         card_number,
-                        maybe_exp_year,
-                        maybe_exp_month,
+                        maybe_exp_year.as_ref(),
+                        maybe_exp_month.as_ref(),
                         maybe_cvc,
                     ),
                 },

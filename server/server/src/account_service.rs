@@ -4,7 +4,7 @@ use deadpool_redis::redis::AsyncCommands;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use log::error;
-use redis_utils::converters::{JsonGet, JsonSet};
+use redis_utils::converters::{JsonGet, PipelineJsonSet};
 
 use redis_utils::tx;
 use uuid::Uuid;

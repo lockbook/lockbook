@@ -157,12 +157,12 @@ pub fn stripe_webhooks(
                 match billing_service::stripe_webhooks(&state, request, stripe_sig).await {
                     Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
                     Err(e) => {
-                        error!("{:?}", e);
-
                         let status_code = match e {
                             ServerError::ClientError(StripeWebhookError::VerificationError(_))
                             | ServerError::ClientError(StripeWebhookError::InvalidBody(_))
-                            | ServerError::ClientError(StripeWebhookError::InvalidHeader(_)) => {
+                            | ServerError::ClientError(StripeWebhookError::InvalidHeader(_))
+                            | ServerError::ClientError(StripeWebhookError::ParseError(_)) => {
+                                error!("{:?}", e);
                                 StatusCode::BAD_REQUEST
                             }
                             ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,

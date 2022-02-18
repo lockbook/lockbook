@@ -45,9 +45,6 @@ pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, CoreErr
 
     api_service::request(&account, GetCreditCardRequest {})
         .map_err(|e| match e {
-            ApiError::Endpoint(GetCreditCardError::OldCardDoesNotExist) => {
-                CoreError::OldCardDoesNotExist
-            }
             ApiError::Endpoint(GetCreditCardError::NotAStripeCustomer) => {
                 CoreError::NotAStripeCustomer
             }
