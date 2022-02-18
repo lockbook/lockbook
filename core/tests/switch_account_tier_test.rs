@@ -1,12 +1,13 @@
 #[cfg(test)]
 mod switch_account_tier_test {
-    use lockbook_core::assert_matches;
+    use rand::Rng;
+    use lockbook_core::{assert_matches, Error, SyncAllError};
+    use lockbook_core::model::state::Config;
     use lockbook_core::service::api_service;
     use lockbook_core::service::api_service::ApiError;
-    use lockbook_core::service::test_utils::{
-        generate_account, generate_monthly_account_tier, generate_root_metadata, test_credit_cards,
-    };
+    use lockbook_core::service::test_utils::{generate_account, generate_file_metadata, generate_monthly_account_tier, generate_root_metadata, test_credit_cards};
     use lockbook_models::api::*;
+    use lockbook_models::file_metadata::{FileMetadataDiff, FileType};
 
     #[test]
     fn switch_account_tier_to_premium_and_back() {
@@ -213,5 +214,54 @@ mod switch_account_tier_test {
 
             assert_matches!(result, Err(ApiError::<SwitchAccountTierError>::Endpoint(error)));
         }
+    }
+
+    #[test]
+    fn switch_account_tier_current_usage_is_more_than_new_tier() {
+        let account = generate_account();
+        let config = Config { writeable_path: "/tmp/".to_string() };
+        let (root, _) = generate_root_metadata(&account);
+
+        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+
+        loop { // currently the data cap isn't enforced so I can go above before upgrading
+            let bytes = rand::thread_rng().gen::<[u8; 500000]>();
+
+            let (doc, _doc_key) =
+                generate_file_metadata(&account, &root, &root_key, FileType::Document);
+
+            lockbook_core::write_document(&config, doc.id, &bytes).unwrap();
+
+            lockbook_core::sync_all(&config, None).unwrap();
+
+            if lockbook_core::get_usage(&config).unwrap().server_usage.exact > 1000000 {
+                break;
+            }
+        }
+
+        api_service::request(
+            &account,
+            SwitchAccountTierRequest {
+                account_tier: generate_monthly_account_tier(
+                    test_credit_cards::GOOD,
+                    None,
+                    None,
+                    None,
+                ),
+            },
+        )
+            .unwrap();
+
+        let result = api_service::request(
+            &account,
+            SwitchAccountTierRequest { account_tier: AccountTier::Free },
+        );
+
+        assert_matches!(
+            result,
+            Err(ApiError::<SwitchAccountTierError>::Endpoint(
+                SwitchAccountTierError::CurrentUsageIsMoreThanNewTier
+            ))
+        );
     }
 }
