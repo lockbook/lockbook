@@ -4,6 +4,7 @@ import UIKit
 #elseif os(macOS)
 import AppKit
 #endif
+import Down
 
 public class Storage: NSTextStorage {
     var backingStore = NSMutableAttributedString()
@@ -18,9 +19,11 @@ public class Storage: NSTextStorage {
         backingStore.attributes(at: location, effectiveRange: range)
     }
     
-    public override func replaceCharacters(in range: NSRange, with str: String) {
-        backingStore.replaceCharacters(in: range, with: str)
-        self.edited([.editedCharacters, .editedAttributes], range: range, changeInLength: (str as NSString).length - range.length)
+    public override func replaceCharacters(in range: NSRange, with string: String) {
+        backingStore.replaceCharacters(in: range, with: string)
+        print("👩🏿".utf8.count)
+        print(RangeDebugVisitor().visit(document: (try? Down(markdownString: backingStore.string).toDocument())!))
+        self.edited([.editedCharacters, .editedAttributes], range: range, changeInLength: (string as NSString).length - range.length)
     }
     
     public override func setAttributes(_ attrs: [NSAttributedString.Key : Any]?, range: NSRange) {

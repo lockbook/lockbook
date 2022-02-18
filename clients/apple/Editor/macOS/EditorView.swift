@@ -22,16 +22,11 @@ struct EditorView: NSViewRepresentable {
         
         let textView = NSTextView(frame: .zero, textContainer: textContainer)
         textView.autoresizingMask = .width
-        textView.backgroundColor = NSColor.textBackgroundColor
-        textView.drawsBackground = true
-        textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
-        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        textView.minSize = NSSize(width: 0, height: scrollView.contentSize.height)
-        textView.textColor = NSColor.labelColor
         textView.delegate = context.coordinator
         textView.string = model.textDocument!
         textView.allowsUndo = true
+        textView.isAutomaticDashSubstitutionEnabled = true
         
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
