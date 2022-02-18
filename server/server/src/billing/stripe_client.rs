@@ -7,8 +7,8 @@ use lockbook_models::api::{CardDeclineReason, CreditCardRejectReason};
 use log::error;
 use std::fmt::Debug;
 use stripe::{
-    CardDetailsParams, ErrorCode, Expandable, ParseIdError, PaymentIntentStatus, PaymentMethodId,
-    SetupIntentStatus, StripeError, SubscriptionStatus,
+    CardDetailsParams, ErrorCode, Expandable, ParseIdError, PaymentIntentStatus, SetupIntentStatus,
+    StripeError, SubscriptionStatus,
 };
 
 #[derive(Debug)]
@@ -149,12 +149,12 @@ fn simplify_stripe_error(
 }
 
 pub async fn create_customer(
-    stripe_client: &stripe::Client, payment_method_id: PaymentMethodId,
+    stripe_client: &stripe::Client, payment_method_id: stripe::PaymentMethodId,
 ) -> Result<stripe::Customer, SimplifiedStripeError> {
     let mut customer_params = stripe::CreateCustomer::new();
     customer_params.payment_method = Some(payment_method_id);
 
-    stripe::Customer::create(&stripe_client, customer_params)
+    stripe::Customer::create(stripe_client, customer_params)
         .await
         .map_err(SimplifiedStripeError::from)
 }

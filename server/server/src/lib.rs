@@ -132,7 +132,7 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
                 ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)))
             }
             WebhookError::BadSignature => {
-                ClientError(StripeWebhookError::InvalidHeader(format!("Bad signature.")))
+                ClientError(StripeWebhookError::InvalidHeader("Bad signature.".to_string()))
             }
             WebhookError::BadTimestamp(bad_timestamp_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!(

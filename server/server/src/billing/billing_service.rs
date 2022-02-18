@@ -160,7 +160,7 @@ async fn create_subscription(
             {
                 stripe_client::detach_payment_method_from_customer(
                     &server_state.stripe_client,
-                    &&stripe::PaymentMethodId::from_str(&info.id)?,
+                    &stripe::PaymentMethodId::from_str(&info.id)?,
                 )
                 .await?;
             }
@@ -205,7 +205,7 @@ async fn create_subscription(
     };
 
     let subscription_resp = match stripe_client::create_subscription(
-        &server_state,
+        server_state,
         customer_id.clone(),
         &payment_method_id,
     )
@@ -288,9 +288,9 @@ pub async fn stripe_webhooks(
                     .customer
                     .as_ref()
                     .ok_or_else(|| {
-                        ClientError(StripeWebhookError::InvalidBody(format!(
-                            "Cannot retrieve the customer id."
-                        )))
+                        ClientError(StripeWebhookError::InvalidBody(
+                            "Cannot retrieve the customer id.".to_string(),
+                        ))
                     })?
                     .deref()
                 {
@@ -341,9 +341,9 @@ pub async fn stripe_webhooks(
                 let customer_id = match invoice
                     .customer
                     .ok_or_else(|| {
-                        ClientError(StripeWebhookError::InvalidBody(format!(
-                            "Cannot retrieve the customer id."
-                        )))
+                        ClientError(StripeWebhookError::InvalidBody(
+                            "Cannot retrieve the customer id.".to_string(),
+                        ))
                     })?
                     .deref()
                 {
@@ -368,10 +368,10 @@ pub async fn stripe_webhooks(
 }
 
 async fn get_public_key_and_stripe_user_info(
-    event: &WebhookEvent, con: &mut Connection, customer_id: &String,
+    event: &WebhookEvent, con: &mut Connection, customer_id: &str,
 ) -> Result<(PublicKey, StripeUserInfo), ServerError<StripeWebhookError>> {
     let public_key: PublicKey = con
-        .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))
+        .maybe_json_get(public_key_from_stripe_customer_id(customer_id))
         .await?
         .ok_or(internal!(
             "There is no public key related to this customer id: {:?}",

@@ -50,17 +50,11 @@ pub enum StripeKnownErrorDeclineCode {
     WithdrawalCountLimitExceeded,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct StripeUserInfo {
     pub customer_id: Option<String>,
     pub payment_methods: Vec<StripePaymentInfo>,
     pub subscriptions: Vec<StripeSubscriptionInfo>,
-}
-
-impl Default for StripeUserInfo {
-    fn default() -> Self {
-        StripeUserInfo { customer_id: None, payment_methods: vec![], subscriptions: vec![] }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
