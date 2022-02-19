@@ -2,6 +2,9 @@
 
 set -ea
 
+projRoot=`git rev-parse --show-toplevel`
+cd $projRoot/server/server
+
 dir="$1"
 if [ -z "$dir" ]; then
 	dir="/tmp/lbdev"
