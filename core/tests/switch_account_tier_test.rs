@@ -1,16 +1,14 @@
 #[cfg(test)]
 mod switch_account_tier_test {
-    use lockbook_core::model::state::{temp_config, Config};
     use lockbook_core::service::api_service::ApiError;
     use lockbook_core::service::test_utils::{
-        generate_account, generate_file_metadata, generate_monthly_account_tier,
-        generate_root_metadata, test_credit_cards,
+        generate_account, generate_monthly_account_tier, generate_root_metadata, test_credit_cards,
     };
     use lockbook_core::service::{api_service, test_utils};
-    use lockbook_core::{assert_matches, Error, SyncAllError};
+    use lockbook_core::assert_matches;
     use lockbook_models::api::*;
-    use lockbook_models::file_metadata::{FileMetadataDiff, FileType};
-    use rand::{Rng, RngCore};
+    use lockbook_models::file_metadata::FileType;
+    use rand::RngCore;
 
     #[test]
     fn switch_account_tier_to_premium_and_back() {

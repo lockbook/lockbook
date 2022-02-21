@@ -197,6 +197,10 @@ dev_stack_run: server
 kill_dev_stack:
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) down -v
 
+.PHONY: get_server_logs
+get_server_logs:
+	HASH=$(hash) docker logs lockbook-$(hash)_lockbook_server_1
+
 # Helpers
 .PHONY: is_docker_running
 is_docker_running:
