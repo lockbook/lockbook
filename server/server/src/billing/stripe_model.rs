@@ -1,17 +1,18 @@
 use serde::{Deserialize, Serialize};
 
-// Since certain fields can either be a String/Int or a Struct, I made this to handle either situation
+// This struct provides a fall back to unknown decline codes from Stripe. Since decline codes aren't parsed by "async-stripe" (a crate),
+// we provide our own solution to parse them. Although, there are instances in which we may receive an unknown decline code. Rather than
+// making serde handle this and return an internal error, we provide this method to catch the code.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-pub enum StripeMaybeContainer<K, U> {
-    Expected(K),
-    Unexpected(U),
+pub enum StripeDeclineCodeCatcher {
+    Known(StripeKnownDeclineCode),
+    Unknown(String),
 }
 
-// Similar to the comment above
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum StripeKnownErrorDeclineCode {
+pub enum StripeKnownDeclineCode {
     ApproveWithId,
     CallIssuer,
     CardNotSupported,
@@ -50,11 +51,13 @@ pub enum StripeKnownErrorDeclineCode {
     WithdrawalCountLimitExceeded,
 }
 
+// This is the stripe information for a single lockbook user. This is stored on redis.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct StripeUserInfo {
     pub customer_id: Option<String>,
     pub payment_methods: Vec<StripePaymentInfo>,
     pub subscriptions: Vec<StripeSubscriptionInfo>,
+    pub last_in_payment_flow: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

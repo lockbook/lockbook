@@ -1,9 +1,7 @@
 use crate::account_service::GetFileUsageError;
 use crate::billing::stripe_client;
 use crate::billing::stripe_model::{StripePaymentInfo, StripeSubscriptionInfo, StripeUserInfo};
-use crate::keys::{
-    data_cap, public_key_from_stripe_customer_id, stripe_in_billing_workflow, stripe_user_info,
-};
+use crate::keys::{data_cap, public_key_from_stripe_customer_id, stripe_user_info};
 use crate::ServerError::{ClientError, InternalError};
 use crate::{
     account_service, RequestContext, ServerError, ServerState, SimplifiedStripeError,
@@ -12,11 +10,12 @@ use crate::{
 use deadpool_redis::redis::AsyncCommands;
 use deadpool_redis::Connection;
 use libsecp256k1::PublicKey;
+use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::{
     AccountTier, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, PaymentMethod,
     SwitchAccountTierError, SwitchAccountTierRequest, SwitchAccountTierResponse,
 };
-use redis_utils::converters::{JsonGet, JsonSet};
+use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
 use std::fmt::Debug;
 use std::ops::Deref;
@@ -33,12 +32,7 @@ pub async fn switch_account_tier(
 
     let mut con = server_state.index_db_pool.get().await?;
 
-    lock_payment_workflow(&context.public_key, &mut con).await?;
-
-    let mut user_info: StripeUserInfo = con
-        .maybe_json_get(stripe_user_info(&context.public_key))
-        .await?
-        .unwrap_or_default();
+    let mut user_info = lock_payment_workflow(&context.public_key, &mut con).await?;
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
@@ -81,8 +75,8 @@ pub async fn switch_account_tier(
         }
     };
 
-    con.del(stripe_in_billing_workflow(&context.public_key))
-        .await?;
+    user_info.last_in_payment_flow = 0;
+
     con.set(data_cap(&context.public_key), new_data_cap).await?;
     con.json_set(stripe_user_info(&context.public_key), &user_info)
         .await?;
@@ -101,23 +95,32 @@ fn get_active_subscription_index<U: Debug>(
     Ok(active_pos)
 }
 
+const MAXIMUM_PAYMENT_FLOW_LOCK_MILLIS: i64 = 30000;
+
 async fn lock_payment_workflow(
     public_key: &PublicKey, con: &mut deadpool_redis::Connection,
-) -> Result<(), ServerError<SwitchAccountTierError>> {
-    let tx_result = tx!(con, pipe_name, &[stripe_in_billing_workflow(public_key)], {
-        if con.exists(stripe_in_billing_workflow(public_key)).await? {
+) -> Result<StripeUserInfo, ServerError<SwitchAccountTierError>> {
+    let mut user_info = StripeUserInfo::default();
+
+    let tx_result = tx!(con, pipe_name, &[stripe_user_info(public_key)], {
+        user_info = con
+            .maybe_json_get(stripe_user_info(public_key))
+            .await?
+            .unwrap_or_default();
+
+        if get_time().0 - user_info.last_in_payment_flow < MAXIMUM_PAYMENT_FLOW_LOCK_MILLIS {
             return Err(Abort(ClientError(SwitchAccountTierError::CurrentlyInBillingWorkflow)));
         }
 
-        pipe_name
-            .set(stripe_in_billing_workflow(public_key), 1)
-            .expire(stripe_in_billing_workflow(public_key), 30);
+        pipe_name.json_set(stripe_user_info(public_key), &user_info)?;
 
         Ok(&mut pipe_name)
     });
     return_if_error!(tx_result);
 
-    Ok(())
+    user_info.last_in_payment_flow = get_time().0;
+
+    Ok(user_info)
 }
 
 async fn create_subscription(

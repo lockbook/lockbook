@@ -15,7 +15,7 @@ use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper, SwitchAccountT
 use redis_utils::converters::{JsonGetError, JsonSetError};
 
 use crate::billing::billing_service::StripeWebhookError;
-use crate::billing::stripe_model::{StripeKnownErrorDeclineCode, StripeMaybeContainer};
+use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 use crate::content::file_content_client;
 use serde::{Deserialize, Serialize};
 use stripe::WebhookError;

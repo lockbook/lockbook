@@ -37,11 +37,10 @@ Values are json encoded.
 
 + `public_key:x:stripe_user_info`
   + `x` is the `public_key`.
-  + Basic stripe information for that user.
-+ `public_key:x:in_stripe_billing_workflow`.
-  + `x` is the `public_key`.
-  + If exists, it indicates that user is in a stripe billing workflow.
-  
+  + Basic stripe information for a user.
++ `stripe_customer_id:x:public_key`.
+  + `x` is the stripe `customer_id`.
+
 # Document Content (TODO)
 
 + Interactions with s3 are slow (100s of milliseconds) so the plan is to cache most documents in redis. Persist

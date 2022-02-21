@@ -1,16 +1,16 @@
 #[cfg(test)]
 mod switch_account_tier_test {
-    use lockbook_core::model::state::Config;
-    use lockbook_core::service::api_service;
+    use lockbook_core::model::state::{temp_config, Config};
     use lockbook_core::service::api_service::ApiError;
     use lockbook_core::service::test_utils::{
         generate_account, generate_file_metadata, generate_monthly_account_tier,
         generate_root_metadata, test_credit_cards,
     };
+    use lockbook_core::service::{api_service, test_utils};
     use lockbook_core::{assert_matches, Error, SyncAllError};
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::{FileMetadataDiff, FileType};
-    use rand::Rng;
+    use rand::{Rng, RngCore};
 
     #[test]
     fn switch_account_tier_to_premium_and_back() {
@@ -221,23 +221,27 @@ mod switch_account_tier_test {
 
     #[test]
     fn switch_account_tier_current_usage_is_more_than_new_tier() {
-        let account = generate_account();
-        let config = Config { writeable_path: "/tmp/".to_string() };
-        let (root, _) = generate_root_metadata(&account);
-
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+        let config = test_utils::test_config();
+        let (account, root) = test_utils::create_account(&config);
 
         loop {
-            // currently the data cap isn't enforced so I can go above before upgrading
-            let bytes = rand::thread_rng().gen::<[u8; 500000]>();
+            let mut bytes: [u8; 500000] = [0u8; 500000];
 
-            let (doc, _doc_key) =
-                generate_file_metadata(&account, &root, &root_key, FileType::Document);
+            rand::thread_rng().fill_bytes(&mut bytes);
 
-            lockbook_core::write_document(&config, doc.id, &bytes).unwrap();
+            let file = lockbook_core::create_file(
+                &config,
+                &uuid::Uuid::new_v4().to_string(),
+                root.id,
+                FileType::Document,
+            )
+            .unwrap();
+
+            lockbook_core::write_document(&config, file.id, &bytes).unwrap();
 
             lockbook_core::sync_all(&config, None).unwrap();
 
+            // TODO: Currently a users data cap isn't enforced by the server. When it is, this code needs to be updated.
             if lockbook_core::get_usage(&config)
                 .unwrap()
                 .server_usage

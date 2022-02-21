@@ -2,7 +2,7 @@ use crate::billing::stripe_client::SimplifiedStripeError::{
     CardDeclined, InvalidCreditCard, Other,
 };
 
-use crate::{ServerState, StripeKnownErrorDeclineCode, StripeMaybeContainer};
+use crate::{ServerState, StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 use lockbook_models::api::{CardDeclineReason, CreditCardRejectReason};
 use log::error;
 use std::fmt::Debug;
@@ -43,92 +43,92 @@ fn simplify_stripe_error(
 ) -> SimplifiedStripeError {
     match error_code {
         None => {
-            Other(format!("Although a stripe error was encountered, there is no details about it. error_code: {:?}, decline_code: {:?}", error_code, maybe_decline_code))
+            Other(format!("Although a stripe error was encountered, there are no details about it. error_code: {:?}, decline_code: {:?}", error_code, maybe_decline_code))
         },
         Some(error_code) => match error_code {
             ErrorCode::BalanceInsufficient => CardDeclined(CardDeclineReason::BalanceOrCreditExceeded),
             ErrorCode::CardDeclined => match maybe_decline_code {
                 None => CardDeclined(CardDeclineReason::Generic),
                 Some(decline_code) => {
-                    match serde_json::from_str::<StripeMaybeContainer<StripeKnownErrorDeclineCode, String>>(&format!("\"{}\"", decline_code)).map_err(|e| SimplifiedStripeError::Other(format!("An error was encountered while serializing decline code: {:?}", e))) {
-                        Ok(StripeMaybeContainer::Unexpected(unknown_decline_code)) => {
+                    match serde_json::from_str::<StripeDeclineCodeCatcher>(&format!("\"{}\"", decline_code)).map_err(|e| SimplifiedStripeError::Other(format!("An error was encountered while serializing decline code: {:?}", e))) {
+                        Ok(StripeDeclineCodeCatcher::Unknown(unknown_decline_code)) => {
                             error!("Unknown decline code given from stripe: {}", unknown_decline_code);
                             CardDeclined(CardDeclineReason::Generic)
                         }
-                        Ok(StripeMaybeContainer::Expected(decline_code)) => match decline_code {
+                        Ok(StripeDeclineCodeCatcher::Known(decline_code)) => match decline_code {
                             // Try again
-                            StripeKnownErrorDeclineCode::ApproveWithId
-                            | StripeKnownErrorDeclineCode::IssuerNotAvailable
-                            | StripeKnownErrorDeclineCode::ProcessingError
-                            | StripeKnownErrorDeclineCode::ReenterTransaction
-                            | StripeKnownErrorDeclineCode::TryAgainLater => {
+                            StripeKnownDeclineCode::ApproveWithId
+                            | StripeKnownDeclineCode::IssuerNotAvailable
+                            | StripeKnownDeclineCode::ProcessingError
+                            | StripeKnownDeclineCode::ReenterTransaction
+                            | StripeKnownDeclineCode::TryAgainLater => {
                                 CardDeclined(CardDeclineReason::TryAgain)
                             }
 
                             //Unknown
-                            StripeKnownErrorDeclineCode::CallIssuer
-                            | StripeKnownErrorDeclineCode::DoNotTryAgain
-                            | StripeKnownErrorDeclineCode::DoNotHonor
-                            | StripeKnownErrorDeclineCode::NewAccountInformationAvailable
-                            | StripeKnownErrorDeclineCode::RestrictedCard
-                            | StripeKnownErrorDeclineCode::RevocationOfAllAuthorizations
-                            | StripeKnownErrorDeclineCode::RevocationOfAuthorization
-                            | StripeKnownErrorDeclineCode::SecurityViolation
-                            | StripeKnownErrorDeclineCode::ServiceNotAllowed
-                            | StripeKnownErrorDeclineCode::StopPaymentOrder
-                            | StripeKnownErrorDeclineCode::TransactionNotAllowed => {
+                            StripeKnownDeclineCode::CallIssuer
+                            | StripeKnownDeclineCode::DoNotTryAgain
+                            | StripeKnownDeclineCode::DoNotHonor
+                            | StripeKnownDeclineCode::NewAccountInformationAvailable
+                            | StripeKnownDeclineCode::RestrictedCard
+                            | StripeKnownDeclineCode::RevocationOfAllAuthorizations
+                            | StripeKnownDeclineCode::RevocationOfAuthorization
+                            | StripeKnownDeclineCode::SecurityViolation
+                            | StripeKnownDeclineCode::ServiceNotAllowed
+                            | StripeKnownDeclineCode::StopPaymentOrder
+                            | StripeKnownDeclineCode::TransactionNotAllowed => {
                                 CardDeclined(CardDeclineReason::Unknown)
                             }
 
                             // Not supported
-                            StripeKnownErrorDeclineCode::CardNotSupported
-                            | StripeKnownErrorDeclineCode::CurrencyNotSupported => {
+                            StripeKnownDeclineCode::CardNotSupported
+                            | StripeKnownDeclineCode::CurrencyNotSupported => {
                                 CardDeclined(CardDeclineReason::NotSupported)
                             }
 
                             // Balance or credit exceeded
-                            StripeKnownErrorDeclineCode::CardVelocityExceeded
-                            | StripeKnownErrorDeclineCode::InsufficientFunds
-                            | StripeKnownErrorDeclineCode::WithdrawalCountLimitExceeded => {
+                            StripeKnownDeclineCode::CardVelocityExceeded
+                            | StripeKnownDeclineCode::InsufficientFunds
+                            | StripeKnownDeclineCode::WithdrawalCountLimitExceeded => {
                                 CardDeclined(CardDeclineReason::BalanceOrCreditExceeded)
                             }
 
                             // Expired card
-                            StripeKnownErrorDeclineCode::ExpiredCard => {
+                            StripeKnownDeclineCode::ExpiredCard => {
                                 CardDeclined(CardDeclineReason::ExpiredCard)
                             }
 
                             // Generic
-                            StripeKnownErrorDeclineCode::Fraudulent
-                            | StripeKnownErrorDeclineCode::GenericDecline
-                            | StripeKnownErrorDeclineCode::LostCard
-                            | StripeKnownErrorDeclineCode::MerchantBlacklist
-                            | StripeKnownErrorDeclineCode::NoActionTaken
-                            | StripeKnownErrorDeclineCode::NotPermitted
-                            | StripeKnownErrorDeclineCode::PickupCard
-                            | StripeKnownErrorDeclineCode::StolenCard => {
+                            StripeKnownDeclineCode::Fraudulent
+                            | StripeKnownDeclineCode::GenericDecline
+                            | StripeKnownDeclineCode::LostCard
+                            | StripeKnownDeclineCode::MerchantBlacklist
+                            | StripeKnownDeclineCode::NoActionTaken
+                            | StripeKnownDeclineCode::NotPermitted
+                            | StripeKnownDeclineCode::PickupCard
+                            | StripeKnownDeclineCode::StolenCard => {
                                 CardDeclined(CardDeclineReason::Generic)
                             }
 
                             // Incorrect number
-                            StripeKnownErrorDeclineCode::IncorrectNumber
-                            | StripeKnownErrorDeclineCode::InvalidNumber => {
+                            StripeKnownDeclineCode::IncorrectNumber
+                            | StripeKnownDeclineCode::InvalidNumber => {
                                 CardDeclined(CardDeclineReason::IncorrectNumber)
                             }
 
                             // Incorrect cvc
-                            StripeKnownErrorDeclineCode::IncorrectCvc
-                            | StripeKnownErrorDeclineCode::InvalidCvc => {
+                            StripeKnownDeclineCode::IncorrectCvc
+                            | StripeKnownDeclineCode::InvalidCvc => {
                                 CardDeclined(CardDeclineReason::IncorrectCVC)
                             }
 
                             // Incorrect expiry month
-                            StripeKnownErrorDeclineCode::InvalidExpiryMonth => {
+                            StripeKnownDeclineCode::InvalidExpiryMonth => {
                                 CardDeclined(CardDeclineReason::IncorrectExpiryMonth)
                             }
 
                             // Incorrect expiry year
-                            StripeKnownErrorDeclineCode::InvalidExpiryYear => {
+                            StripeKnownDeclineCode::InvalidExpiryYear => {
                                 CardDeclined(CardDeclineReason::IncorrectExpiryYear)
                             }
                         }
