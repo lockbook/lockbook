@@ -252,10 +252,12 @@ pub async fn get_credit_card(
         .payment_methods
         .iter()
         .max_by_key(|info| info.created_at)
-        .ok_or(internal!(
-            "No payment method on stripe user info, although there should be at least 1: {:?}",
-            user_info
-        ))?;
+        .ok_or_else(|| {
+            internal!(
+                "No payment method on stripe user info, although there should be at least 1: {:?}",
+                user_info
+            )
+        })?;
 
     Ok(GetCreditCardResponse { credit_card_last_4_digits: payment_method.last_4.clone() })
 }
