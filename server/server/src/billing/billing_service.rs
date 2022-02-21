@@ -112,13 +112,13 @@ async fn lock_payment_workflow(
             return Err(Abort(ClientError(SwitchAccountTierError::CurrentlyInBillingWorkflow)));
         }
 
+        user_info.last_in_payment_flow = get_time().0;
+
         pipe_name.json_set(stripe_user_info(public_key), &user_info)?;
 
         Ok(&mut pipe_name)
     });
     return_if_error!(tx_result);
-
-    user_info.last_in_payment_flow = get_time().0;
 
     Ok(user_info)
 }
