@@ -1,4 +1,7 @@
 ARG HASH
+ARG STRIPE_SECRET
+ARG STRIPE_PREMIUM_PRICE_ID
+
 FROM rust AS server-build
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
