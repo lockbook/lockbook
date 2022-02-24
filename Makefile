@@ -44,7 +44,7 @@ server_lint: server
 
 .PHONY: server_tests
 server_tests: is_docker_running
-	docker build --target server-build -f containers/Dockerfile.server . --tag server_tests:$(hash) --build-arg HASH=$(hash)
+	docker build --target server-build -f containers/Dockerfile.server . --tag server_tests:$(hash) --build-arg HASH=$(hash) STRIPE_SECRET=$(STRIPE_SECRET) STRIPE_SIGNING_SECRET=$(STRIPE_SIGNING_SECRET)
 
 .PHONY: server_tests_run
 server_tests_run: server server_tests
@@ -211,4 +211,6 @@ is_docker_running:
 # For docker tags
 hash := $(shell git rev-parse --short HEAD)
 branch := $(if ${BRANCH},${BRANCH},$(shell git rev-parse --abbrev-ref HEAD))
+STRIPE_SECRET = $(STRIPE_SECRET)
+STRIPE_SIGNING_SECRET = $(STRIPE_SIGNING_SECRET)
 
