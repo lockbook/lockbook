@@ -279,6 +279,7 @@ pub async fn stripe_webhooks(
     let sig = stripe_sig.to_str().map_err(|e| {
         ClientError(StripeWebhookError::InvalidHeader(format!("Cannot get header as str: {:?}", e)))
     })?;
+
     let event =
         stripe::Webhook::construct_event(payload, sig, &server_state.config.stripe.signing_secret)?;
 
@@ -366,7 +367,7 @@ pub async fn stripe_webhooks(
                     .await?;
             }
         }
-        (_, _) => println!("Unmatched endpoint: {:?}", event.event_type),
+        (_, _) => {}
     }
 
     Ok(())
