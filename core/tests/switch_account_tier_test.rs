@@ -115,7 +115,6 @@ mod switch_account_tier_test {
     }
 
     #[test]
-    #[ignore(unused_variables)] // This is here since cargo can't tell that `error` is being used by `assert_matches` macro.
     fn switch_account_tier_decline() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
@@ -152,7 +151,8 @@ mod switch_account_tier_test {
             ),
         ];
 
-        for (card_number, error) in scenarios {
+        for (card_number, _error) in scenarios {
+            // `_error` is underscored since cargo can't tell that it is being used by `assert_matches` macro.
             let result = api_service::request(
                 &account,
                 SwitchAccountTierRequest {
@@ -160,12 +160,11 @@ mod switch_account_tier_test {
                 },
             );
 
-            assert_matches!(result, Err(ApiError::<SwitchAccountTierError>::Endpoint(error)));
+            assert_matches!(result, Err(ApiError::<SwitchAccountTierError>::Endpoint(_error)));
         }
     }
 
     #[test]
-    #[ignore(unused_variables)] // This is here since cargo can't tell that `error` is being used by `assert_matches` macro.
     fn switch_account_tier_invalid_card() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
@@ -202,7 +201,8 @@ mod switch_account_tier_test {
             ),
         ];
 
-        for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, error) in scenarios {
+        // `_error` is underscored since cargo can't tell that it is being used by `assert_matches` macro.
+        for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, _error) in scenarios {
             let result = api_service::request(
                 &account,
                 SwitchAccountTierRequest {
@@ -215,7 +215,7 @@ mod switch_account_tier_test {
                 },
             );
 
-            assert_matches!(result, Err(ApiError::<SwitchAccountTierError>::Endpoint(error)));
+            assert_matches!(result, Err(ApiError::<SwitchAccountTierError>::Endpoint(_error)));
         }
     }
 
