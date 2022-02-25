@@ -12,7 +12,7 @@ use lockbook_models::file_metadata::FileType::Document;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
 use lockbook_models::tree::FileMetaExt;
 use log::info;
-use redis_utils::converters::{JsonGet, JsonSet};
+use redis_utils::converters::{JsonGet, PipelineJsonSet};
 use redis_utils::TxError::Abort;
 use redis_utils::{tx, TxError};
 use uuid::Uuid;

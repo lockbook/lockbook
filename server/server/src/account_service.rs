@@ -3,7 +3,7 @@ use crate::{feature_flags, keys, RequestContext, ServerError, ServerState, FREE_
 use deadpool_redis::redis::AsyncCommands;
 use lockbook_crypto::clock_service::get_time;
 use log::error;
-use redis_utils::converters::{JsonGet, JsonSet};
+use redis_utils::converters::{JsonGet, PipelineJsonSet};
 
 use redis_utils::tx;
 use uuid::Uuid;

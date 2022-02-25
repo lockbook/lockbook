@@ -8,7 +8,13 @@ pub const FEATURE_FLAG_NEW_ACCOUNTS_FIELD: &str = "new_account";
 pub async fn initialize_flags(state: &ServerState) {
     let mut con = state.index_db_pool.get().await.unwrap();
 
-    set_new_account_status(&mut con, true).await.unwrap();
+    if !con
+        .hexists::<_, _, bool>(FEATURE_FLAGS_KEY, FEATURE_FLAG_NEW_ACCOUNTS_FIELD)
+        .await
+        .unwrap()
+    {
+        set_new_account_status(&mut con, true).await.unwrap();
+    }
 }
 
 pub async fn is_new_accounts_enabled(con: &mut deadpool_redis::Connection) -> RedisResult<bool> {
