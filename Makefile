@@ -44,11 +44,11 @@ server_lint: server
 
 .PHONY: server_tests
 server_tests: is_docker_running
-	docker build --target server-build -f containers/Dockerfile.server . --tag server_tests:$(hash) --build-arg HASH=$(hash) --build-arg STRIPE_SECRET=$(stripe_secret) --build-arg STRIPE_SIGNING_SECRET=$(stripe_signing_secret)
+	docker build --target server-build -f containers/Dockerfile.server . --tag server_tests:$(hash) --build-arg HASH=$(hash)
 
 .PHONY: server_tests_run
 server_tests_run: server server_tests
-	HASH=$(hash) STRIPE_SECRET=$(stripe_secret) STRIPE_SIGNING_SECRET=$(stripe_signing_secret) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up server_tests
+	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up server_tests
 	exit $$(docker wait server_tests-client-$(hash))
 
 .PHONY: admin_cli
@@ -211,6 +211,3 @@ is_docker_running:
 # For docker tags
 hash := $(shell git rev-parse --short HEAD)
 branch := $(if ${BRANCH},${BRANCH},$(shell git rev-parse --abbrev-ref HEAD))
-stripe_secret = $(STRIPE_SECRET)
-stripe_signing_secret = $(STRIPE_SIGNING_SECRET)
-

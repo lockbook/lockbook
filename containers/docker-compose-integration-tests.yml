@@ -27,17 +27,25 @@ services:
     image: server:$HASH
     env_file:
       - ../containers/test.env
-    environment:
-      - STRIPE_SECRET
-      - STRIPE_PREMIUM_PRICE_ID
     depends_on:
       - config_filesdb
       - indexdb
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
+        export STRIPE_SIGNING_SECRET=$$(/usr/bin/stripe listen --api-key $$STRIPE_SECRET --print-secret) && \
+        (nohup /usr/bin/stripe listen --api-key $$STRIPE_SECRET --events invoice.payment_failed --events invoice.paid &) && \
         RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
       '
+
+  stripe-cli:
+    image: stripe/stripe-cli
+    env_file:
+      - ../containers/test.env
+    depends_on:
+      - lockbook_server
+    entrypoint: >
+      /bin/stripe listen --forward-to $$API_URL/stripe-webhooks
 
   core_server_tests:
     container_name: core_server_tests-integration-$HASH

@@ -1,6 +1,4 @@
 ARG HASH
-ARG STRIPE_SECRET
-ARG STRIPE_PREMIUM_PRICE_ID
 
 FROM rust AS server-build
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
@@ -26,6 +24,8 @@ COPY containers/dummy.rs src/lib.rs
 COPY server/server/Cargo.toml .
 COPY server/server/build.rs .
 COPY rustfmt.toml .
+
+RUN curl -L https://github.com/stripe/stripe-cli/releases/download/v1.7.13/stripe_1.7.13_linux_x86_64.tar.gz | tar -xz -C /usr/bin
 
 # Dependency on core which has compile-time env var
 ENV API_URL=unused
