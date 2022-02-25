@@ -23,10 +23,11 @@ struct EditorView: NSViewRepresentable {
         let textView = NSTextView(frame: .zero, textContainer: textContainer)
         textView.autoresizingMask = .width
         textView.isVerticallyResizable = true
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.minSize = NSSize(width: 0, height: scrollView.contentSize.height)
         textView.delegate = context.coordinator
         textView.string = model.textDocument!
         textView.allowsUndo = true
-        textView.isAutomaticDashSubstitutionEnabled = true
         
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true

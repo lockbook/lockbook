@@ -21,9 +21,17 @@ public class Storage: NSTextStorage {
     
     public override func replaceCharacters(in range: NSRange, with string: String) {
         backingStore.replaceCharacters(in: range, with: string)
-        print("👩🏿".utf8.count)
-        print(RangeDebugVisitor().visit(document: (try? Down(markdownString: backingStore.string).toDocument())!))
-        self.edited([.editedCharacters, .editedAttributes], range: range, changeInLength: (string as NSString).length - range.length)
+        self.edited([.editedCharacters], range: range, changeInLength: (string as NSString).length - range.length)
+    }
+    
+    public override func processEditing() {
+        let parsed = Parser(backingStore.string)
+        let base = parsed.base()
+        backingStore.setAttributes(base.attribute, range: base.range)
+        for modification in parsed.processedDocument {
+            backingStore.addAttributes(modification.attribute, range: modification.range)
+        }
+        super.processEditing()
     }
     
     public override func setAttributes(_ attrs: [NSAttributedString.Key : Any]?, range: NSRange) {
