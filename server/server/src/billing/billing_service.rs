@@ -109,7 +109,7 @@ async fn lock_payment_workflow(
             .unwrap_or_default();
 
         if get_time().0 - user_info.last_in_payment_flow < MAXIMUM_PAYMENT_FLOW_LOCK_MILLIS {
-            return Err(Abort(ClientError(SwitchAccountTierError::CurrentlyInBillingWorkflow)));
+            return Err(Abort(ClientError(SwitchAccountTierError::AlreadyInBillingWorkflow)));
         }
 
         user_info.last_in_payment_flow = get_time().0;

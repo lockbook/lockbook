@@ -317,7 +317,6 @@ pub enum CreditCardRejectReason {
 pub enum CardDeclineReason {
     Generic,
     BalanceOrCreditExceeded,
-    TooManyTries,
     Unknown,
     TryAgain,
     NotSupported,
@@ -335,7 +334,7 @@ pub enum SwitchAccountTierError {
     CardDeclined(CardDeclineReason),
     InvalidCreditCard(CreditCardRejectReason),
     CurrentUsageIsMoreThanNewTier,
-    CurrentlyInBillingWorkflow,
+    AlreadyInBillingWorkflow,
     UserNotFound,
 }
 

@@ -594,7 +594,7 @@ pub fn export_file(
 pub enum SwitchAccountTierError {
     NoAccount,
     CouldNotReachServer,
-    PreexistingCardDoesNotExist,
+    OldCardDoesNotExist,
     NewTierIsOldTier,
     InvalidCreditCardNumber,
     InvalidCreditCardCVC,
@@ -602,15 +602,15 @@ pub enum SwitchAccountTierError {
     InvalidCreditCardExpMonth,
     CardDecline,
     ClientUpdateRequired,
+    CurrentUsageIsMoreThanNewTier,
+    AlreadyInBillingWorkflow,
 }
 
 pub fn switch_account_tier(
     config: &Config, new_account_tier: AccountTier,
 ) -> Result<(), Error<SwitchAccountTierError>> {
     billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
-        CoreError::OldCardDoesNotExist => {
-            UiError(SwitchAccountTierError::PreexistingCardDoesNotExist)
-        }
+        CoreError::OldCardDoesNotExist => UiError(SwitchAccountTierError::OldCardDoesNotExist),
         CoreError::InvalidCreditCard(field) => match field {
             CreditCardRejectReason::Number => {
                 UiError(SwitchAccountTierError::InvalidCreditCardNumber)
@@ -626,6 +626,13 @@ pub fn switch_account_tier(
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
         CoreError::CardDecline(_) => UiError(SwitchAccountTierError::CardDecline),
+        CoreError::CurrentUsageIsMoreThanNewTier => {
+            UiError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)
+        }
+        CoreError::AccountNonexistent => UiError(SwitchAccountTierError::NoAccount),
+        CoreError::AlreadyInBillingWorkflow => {
+            UiError(SwitchAccountTierError::AlreadyInBillingWorkflow)
+        }
         CoreError::ClientUpdateRequired => UiError(SwitchAccountTierError::ClientUpdateRequired),
         _ => unexpected!("{:#?}", e),
     })

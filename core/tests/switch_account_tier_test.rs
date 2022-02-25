@@ -57,7 +57,7 @@ mod switch_account_tier_test {
     }
 
     #[test]
-    fn switch_account_tier_new_tier_is_old_tier_paid() {
+    fn switch_account_tier_new_tier_is_old_tier() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
@@ -115,6 +115,7 @@ mod switch_account_tier_test {
     }
 
     #[test]
+    #[ignore(unused_variables)] // This is here since cargo can't tell that `error` is being used by `assert_matches` macro.
     fn switch_account_tier_decline() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
@@ -164,6 +165,7 @@ mod switch_account_tier_test {
     }
 
     #[test]
+    #[ignore(unused_variables)] // This is here since cargo can't tell that `error` is being used by `assert_matches` macro.
     fn switch_account_tier_invalid_card() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
@@ -239,7 +241,7 @@ mod switch_account_tier_test {
 
             lockbook_core::sync_all(&config, None).unwrap();
 
-            // TODO: Currently a users data cap isn't enforced by the server. When it is, this code needs to be updated.
+            // TODO: Currently a users data cap isn't enforced by the server. When it is, this code needs to be updated to not violate usage before upgrading.
             if lockbook_core::get_usage(&config)
                 .unwrap()
                 .server_usage

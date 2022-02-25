@@ -45,7 +45,7 @@ pub enum ServerError<U: Debug> {
 
 impl<T: Debug> From<PoolError> for ServerError<T> {
     fn from(err: PoolError) -> Self {
-        internal!("Could not get conenction for pool: {:?}", err)
+        internal!("Could not get connection for pool: {:?}", err)
     }
 }
 
@@ -75,13 +75,13 @@ impl<T: Debug> From<file_content_client::Error> for ServerError<T> {
 
 impl<T: Debug> From<Box<bincode::ErrorKind>> for ServerError<T> {
     fn from(err: Box<bincode::ErrorKind>) -> Self {
-        internal!("bincode error: {:?}", err)
+        internal!("Bincode error: {:?}", err)
     }
 }
 
 impl<T: Debug> From<stripe::ParseIdError> for ServerError<T> {
     fn from(err: stripe::ParseIdError) -> Self {
-        internal!("stripe parse error: {:?}", err)
+        internal!("Stripe parse error: {:?}", err)
     }
 }
 

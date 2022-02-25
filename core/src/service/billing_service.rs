@@ -28,6 +28,15 @@ pub fn switch_account_tier(
             ApiError::Endpoint(SwitchAccountTierError::CardDeclined(decline_type)) => {
                 CoreError::CardDecline(decline_type)
             }
+            ApiError::Endpoint(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier) => {
+                CoreError::CurrentUsageIsMoreThanNewTier
+            }
+            ApiError::Endpoint(SwitchAccountTierError::AlreadyInBillingWorkflow) => {
+                CoreError::AlreadyInBillingWorkflow
+            }
+            ApiError::Endpoint(SwitchAccountTierError::UserNotFound) => {
+                CoreError::AccountNonexistent
+            }
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             _ => core_err_unexpected(e),
